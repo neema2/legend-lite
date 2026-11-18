@@ -13,10 +13,14 @@
 load("//tools/guards:defs.bzl", "guards_package")
 
 # the gate's own list, read by core's TaggedClassesHaveATargetTest: every census and guardrail class runs in a target
-# the local and lanes suites reach (2026-11-17)
+# the local and lanes suites reach (2026-11-17); and by tools/guards' shrink_only_test, its lines naming the shrink-only
+# check one of the check's own files (the review of the guard line, G, SHOULD 4, 2026-11-18)
 exports_files(
     ["BUILD.bazel"],
-    visibility = ["//core:__pkg__"],
+    visibility = [
+        "//core:__pkg__",
+        "//tools/guards:__pkg__",
+    ],
 )
 
 # the engine: the compiler's unit tests (gate 1), spec parity (gate 3), the JSON and protocol libraries, the

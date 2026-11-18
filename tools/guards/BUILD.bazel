@@ -347,10 +347,14 @@ py_test(
     size = "small",
     srcs = ["shrink_only_test.py"],
     # the check's own target is read for its tags (the review of C.13-CI, M2, 2026-11-18), and its entry run as data
-    # (it runs the merge-base's copy: the review of 351e80daa2, M1, 2026-11-18)
+    # (it runs the merge-base's copy: the review of 351e80daa2, M1, 2026-11-18); the real workflow's shrink-only job and
+    # the gate's suites, read as the check's own files (the review of the guard line, G, MUST-FIX 3 and SHOULD 4,
+    # 2026-11-18)
     data = [
         "BUILD.bazel",
         "shrink_only_check.py",
+        "//:workflows",
+        "//gates:BUILD.bazel",
     ],
     main = "shrink_only_test.py",
     deps = [":shrink_only_lib"],

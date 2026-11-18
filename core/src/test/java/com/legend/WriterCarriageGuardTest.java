@@ -90,17 +90,13 @@ class WriterCarriageGuardTest {
                     // under a Float column) written without trailing zeros. A representation operation: no rounding
                     Map.entry("new BigDecimal", 3),       // the exponent form's layout (1); a BigInteger token's exact value (2)
                     Map.entry("stripTrailingZeros", 2),
-                    // the JSON number token: its exact decimal value beside its text (Json.Num), the double's own
-                    // (BigDecimal.valueOf, exact) and a token's integral flag (fits a long: bitLength)
+                    // the double's own decimal (BigDecimal.valueOf, exact)
                     // 3 -> 2 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells (edge.Presenter since Phase 3 of the edge program, 2026-11-16), registered below)
                     Map.entry("BigDecimal.valueOf", 2),
-                    Map.entry("toBigInteger", 1),
-                    Map.entry("bitLength", 1),
-                    Map.entry("longValue", 1),
-                    // a Float held exactly as a decimal, read as the double it is for legend-engine's Double.toString
-                    // token (1), and the Num's double field (1): the declared kind's own value, no other kind
-                    // 2 -> 1 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells (edge.Presenter since Phase 3 of the edge program, 2026-11-16), registered below)
-                    Map.entry("doubleValue", 1),
+                    // toBigInteger, bitLength, longValue and doubleValue GONE (2026-11-18, J36a of the edge audit:
+                    // CellText.number, a JSON number token's exact value and integral flag, whose one caller was the
+                    // edge's Presenter, is the JSON library's Json.Num.ofToken -- the Num's own constructor, outside the
+                    // writers this register reads)
                     // NaN and the infinities have no JSON number token: written as their names in a string
                     // (3 -> 4, 2026-10-29, S1.5's D14: a relation's non-finite Float cell is null in LEGACY, as
                     // legend-engine's convertPurePrimitiveToJson writes it -- CellText.engineCell reads the finiteness
@@ -288,9 +284,6 @@ class WriterCarriageGuardTest {
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureV1Writer.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineAnswers.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/Presenter.java"));
-        // lite's Arrow writer, moved from result/ to the edge (J36 of the edge audit, 2026-11-18): scanned where it lives,
-        // its ArrowWriter.java rows unchanged
-        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/ArrowWriter.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();

@@ -26,7 +26,7 @@ import static com.legend.edge.ExecuteInputs.boundParameters;
 import static com.legend.server.LiteV1Api.error;
 import static com.legend.edge.HostAnswers.facts;
 import static com.legend.server.LiteV1Api.request;
-import static com.legend.server.LiteV1Api.runtimeOf;
+import static com.legend.edge.ExecuteInputs.runtimeOf;
 
 /**
  * legend-engine's {@code pure/v1} API, served EXACTLY, at the edge (phase D's D1.0b, the orchestrator's ruling of
@@ -321,7 +321,7 @@ public final class PureV1Routes {
     /**
      * E8 in upstream's Arrow format ({@code ?serializationFormat=ARROW_IPC}; the result boundary program's track A,
      * 2026-10-29): the relation's rows as ONE Arrow IPC stream written by lite's own writer
-     * ({@link ArrowWriter}: the schema from the plan's columns, each batch a record batch, the plan's facts as
+     * ({@code result/ArrowWriter}: the schema from the plan's columns, each batch a record batch, the plan's facts as
      * each field's metadata), its schema carrying the metadata upstream's answer carries ({@code legend.builder},
      * {@code legend.activities}, {@code legend.columns}: {@link #arrowPlan}'s), the stream wrapped as one zstd frame
      * (raw blocks, our own: {@code arrowipc/ZstdFrame}) under upstream's headers (Content-Type application/json,

@@ -14,7 +14,7 @@ import java.util.Map;
  * from fields, a record batch message from a batch's nodes and buffers, the end marker -- each an encapsulated
  * message (the continuation marker, the metadata length, the FlatBuffers metadata padded to 8 bytes, the body).
  * Written with {@link FlatBuilder}, no Arrow library (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R9). The warehouse
- * server frames DuckDB's buffers with it ({@code duck/ArrowStreams}); core's {@code edge/ArrowWriter} (in {@code result/} until 2026-11-18) frames the
+ * server frames DuckDB's buffers with it ({@code duck/ArrowStreams}); core's {@code result/ArrowWriter} frames the
  * buffers it builds from a typed batch (track A, 2026-10-29). A reader of what this writes: pyarrow in the tests, the
  * browser's apache-arrow, the warehouse's own {@code sqlapi/ArrowIpcReader}.
  */

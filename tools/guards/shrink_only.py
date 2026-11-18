@@ -45,8 +45,29 @@ Its limits, named:
 - The head is a committed revision (--head, default HEAD) or, with --worktree, the working tree.
 - A watched file renamed in the change is compared with its old path's text at the merge-base (git's rename
   detection, -M).
-- CI and //tools/guards:shrink_only_check run the merge-base's copy of this script (a change cannot loosen the check
-  that judges it); a base without one runs the head's (the check's first landing).
+- CI and //tools/guards:shrink_only_check run the merge-base's copy of this script, so a change's own script never
+  judges it; a base without one runs the head's (the check's first landing). WHAT CHOOSES THE COPY IS THE CHANGE'S OWN
+  (the review of the guard line, G, SHOULD 3 and NOTE 2, 2026-11-18): under //gates:local the wrapper and its target
+  are the head's (Bazel runs the head's entry); in CI gate.yml's step is the head's (GitHub runs the pushed or proposed
+  commit's workflow, on every event). Each judges the other: the merge-base's copy the wrapper runs reads a change to
+  gate.yml's job as one of the check's own files, and the copy CI's step runs reads a change to the wrapper or its
+  target the same way (the review's scenario H: //gates:local passed it, CI failed it). A change that rewrites both
+  choosers at once is judged by neither; the notes each must carry are what show it.
+
+THE CHECK'S OWN FILES (review F of the guard line, 2026-11-18, MUST-FIX 3: a change could loosen the script and the next
+exploit it, each passing). A change to this script, to its wrapper (shrink_only_check.py), to their targets in
+tools/guards/BUILD.bazel, to gate.yml's jobs naming the check (the shrink-only job whole, and green, which needs it: the
+review of the guard line, G, MUST-FIX 3, 2026-11-18 -- the step was found by a "- name:" line the real one does not
+have, and a job-level edit lay outside every step), or to the gate's lines naming it (gates/BUILD.bazel, each with the
+comment block above it: G's SHOULD 4) carries a note in that file's changed part, new in the change and holding a
+YYYY-MM-DD, so a loosening is a reviewed, dated act. main() reads WATCHED and GROW_ONLY from this script's own text (its literals, never the module's globals), and
+the wrapper chooses the merge-base's copy by its fixed path with git alone, reading nothing from the head's module first.
+Remaining, named: what chooses the copy is the change's own (the limits above); a watched file renamed or a pin removed
+fails under the merge-base's copy whatever the head's lists say, so such a move takes two changes (the lists first, with
+their notes), and between the two landings every other change fails too ("a watched guard file is gone at the head":
+closed, never open; G's NOTE 3); git blame runs with -w -M -C (a whitespace edit, a line moved or copied keeps its
+origin), but a date typed by hand on a new line is a new note; inside a Java text block a line starting with // reads
+as a comment (latent: no watched pin is a text block).
 
 Usage: shrink_only.py [--base <ref>] [--head <rev>] [--repo <dir>] [--worktree]. Exit 0 when every move is dated,
 1 otherwise, 2 when the history cannot be read (never a pass: no merge-base, an unreadable blob or a git error is a
@@ -598,6 +619,28 @@ def named(source, span, fact, since, fresh=None):
 
 LISTS = ("WATCHED", "GROW_ONLY")
 
+# the text this module was made from, when it was not loaded from its own file (the wrapper sets it on the merge-base's
+# copy): own_lists() reads the lists from it
+SOURCE = None
+
+
+def own_lists():
+    """WATCHED and GROW_ONLY as this script's own text writes them -- its literals, read from its source, never the
+    module's globals (review F, 2026-11-18, MUST-FIX 3: an alias of WATCHED changed it at run time where the statement
+    check refused none)."""
+    text = SOURCE
+    if text is None:
+        with open(os.path.realpath(__file__), encoding="utf-8") as f:
+            text = f.read()
+    lists = watched_lists(text)
+
+    def grouped(pairs):
+        out = {}
+        for path, name in sorted(pairs):
+            out.setdefault(path, []).append(name)
+        return out
+    return grouped(lists.get("WATCHED", set())), grouped(lists.get("GROW_ONLY", set()))
+
 
 def watched_lists(script):
     """WATCHED and GROW_ONLY as this script's text at some revision declares them: {(file, name)} for each. Each is
@@ -655,6 +698,104 @@ def watched_shrinks(base_script, head_script, since, fresh=None):
     return failures
 
 
+# the check's own files: a change to one carries a dated note new in the change, in the file -- or, for a shared file, in
+# the region of it that is the check's (review F, 2026-11-18, MUST-FIX 3)
+OWN_FILES = (SELF, "tools/guards/shrink_only_check.py", "tools/guards/BUILD.bazel", ".github/workflows/gate.yml",
+             # the gate's suites, which run the check by name (the review of the guard line, G, SHOULD 4, 2026-11-18)
+             "gates/BUILD.bazel")
+
+
+def own_region(path, text):
+    """The lines (1-based, a set) of `text` that are the check's own: the whole of the two scripts; tools/guards'
+    BUILD file's targets naming shrink_only; the gate's lines naming shrink_only, each with the comment block above it;
+    the workflow's jobs naming the check, whole, and its every other line naming it. None when the file holds none."""
+    lines = text.split("\n")
+    if path in (SELF, "tools/guards/shrink_only_check.py"):
+        return set(range(1, len(lines) + 1))
+    out = set()
+    if path == "gates/BUILD.bazel":
+        # the suites list the check by name (the review of the guard line, G, SHOULD 4, 2026-11-18: dropping it from
+        # //gates:local passed): each line naming it, and the comment block directly above it
+        for n, line in enumerate(lines, 1):
+            if "shrink_only" in line:
+                out.add(n)
+                k = n - 1
+                while k >= 1 and lines[k - 1].lstrip().startswith("#"):
+                    out.add(k)
+                    k -= 1
+        return out or None
+    if path.endswith("BUILD.bazel"):
+        # a top-level call: from a line opening it at column 0 to the line closing it at column 0
+        start = None
+        for n, line in enumerate(lines, 1):
+            if start is None and re.match(r"\w+\(", line):
+                start = n
+            if start is not None and line.startswith(")"):
+                if any("shrink_only" in lines[k - 1] for k in range(start, n + 1)):
+                    out |= set(range(start, n + 1))
+                start = None
+        return out or None
+    # the workflow (the review of the guard line, G, MUST-FIX 3, 2026-11-18: a step was found by its "- name:" line, and
+    # the real step opens "- env:", so the workflow held no region; and a job-level edit -- continue-on-error, the check
+    # dropped from green's needs -- lay outside every step): each job a line of which names the check, from its key to
+    # the line before the next one indented as little (the shrink-only job whole, and green, which needs it), and every
+    # other line naming it
+    def names(line):
+        return "shrink_only" in line or "shrink-only" in line
+    jobs = next((n for n, line in enumerate(lines, 1) if re.match(r"jobs:\s*(#.*)?$", line)), None)
+    if jobs is not None:
+        indent, keys = None, []
+        for n in range(jobs + 1, len(lines) + 1):
+            line = lines[n - 1]
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            at = len(line) - len(line.lstrip())
+            indent = at if indent is None else indent
+            if at < indent:
+                break
+            if at == indent and re.match(r"\s*[\w-]+:\s*(#.*)?$", line):
+                keys.append(n)
+        for n in keys:
+            end = len(lines)
+            for k in range(n + 1, len(lines) + 1):
+                line = lines[k - 1]
+                if line.strip() and len(line) - len(line.lstrip()) <= indent:
+                    end = k - 1
+                    break
+            if any(names(lines[k - 1]) for k in range(n, end + 1)):
+                out |= set(range(n, end + 1))
+    out |= {n for n, line in enumerate(lines, 1) if names(line)}
+    return out or None
+
+
+def own_files_moved(read_base, read_head, since, fresh):
+    """Each of the check's own files whose region changed since the merge-base without a note new in the change in that
+    region (a line holding a YYYY-MM-DD)."""
+    failures = []
+    for path in OWN_FILES:
+        base, head = read_base(path), read_head(path)
+        if base is None:
+            continue        # new at the head: the check's first landing, its contents the change's own
+        base_region = own_region(path, base)
+        if base_region is None:
+            continue
+        if head is None:
+            failures.append(f"{path}: one of the check's own files is gone at the head")
+            continue
+        head_region = own_region(path, head)
+        if head_region is None:
+            failures.append(f"{path}: the check's part of it is gone at the head")
+            continue
+        base_lines, head_lines = base.split("\n"), head.split("\n")
+        if [base_lines[n - 1] for n in sorted(base_region)] == [head_lines[n - 1] for n in sorted(head_region)]:
+            continue
+        new = fresh(path) if fresh is not None else None
+        if not any(noted(head_lines, n, since, new) for n in head_region):
+            failures.append(f"{path}: the check's own text changed without a note -- a change to the check carries a"
+                            f" note new in this change, in that file's changed part, holding a YYYY-MM-DD")
+    return failures
+
+
 def check(read_base, read_head, since, watched=None, grow_only=None, self_check=True, fresh=None):
     """Every move without a note, as messages naming the entry and the rule. `fresh(path)` gives the head's lines new
     in the change (git blame); None reads a note's date against `since` instead."""
@@ -666,8 +807,9 @@ def check(read_base, read_head, since, watched=None, grow_only=None, self_check=
             failures.append(f"{SELF}: this script is gone at the head")
         else:
             failures += watched_shrinks(read_base(SELF), head_script, since, new(SELF))
+        failures += own_files_moved(read_base, read_head, since, fresh)
     grow_only = GROW_ONLY if grow_only is None else grow_only
-    for path, names in (watched or WATCHED).items():
+    for path, names in (WATCHED if watched is None else watched).items():
         head_source = read_head(path)
         if head_source is None:
             failures.append(f"{path}: a watched guard file is gone at the head: move its pins and this list with a"
@@ -732,7 +874,8 @@ def blamed_new(repo, merge_base, head, worktree):
     """path -> the head's lines (1-based) new in merge_base..head: those git blame attributes to a commit of the change
     (not a boundary commit), or, with the working tree read, not yet committed."""
     def fresh(path):
-        args = ["blame", "--porcelain"]
+        # -w -M -C: a whitespace edit, or a line moved or copied, keeps its origin (review F, 2026-11-18, SHOULD 4)
+        args = ["blame", "--porcelain", "-w", "-M", "-C"]
         if worktree:
             args += ["--contents", os.path.join(repo, path), f"{merge_base}..HEAD"]
         else:
@@ -803,15 +946,16 @@ def main(argv):
             # a file renamed in the change is compared with its old path's text (the review of 351e80daa2, SHOULD)
             return base_reader(moved.get(path, path))
 
-        failures = check(read_base, read_worktree if args.worktree else reader(repo, head), since,
-                         fresh=blamed_new(repo, merge_base, head, args.worktree))
+        watched, grow_only = own_lists()
+        failures = check(read_base, read_worktree if args.worktree else reader(repo, head), since, watched=watched,
+                         grow_only=grow_only, fresh=blamed_new(repo, merge_base, head, args.worktree))
     except HistoryError as e:
         print(f"shrink_only: the history cannot be read ({e}): a full clone with {args.base} is needed",
               file=sys.stderr)
         return 2
     print(f"shrink_only: {'the working tree' if args.worktree else head[:10]} against the merge-base"
           f" {merge_base[:10]} ({args.base}); a note is a line new since the merge-base holding a date: "
-          f"{sum(len(n) for n in WATCHED.values())} pins in {len(WATCHED)} files")
+          f"{sum(len(n) for n in watched.values())} pins in {len(watched)} files")
     for f in failures:
         print("  " + f)
     return 1 if failures else 0

@@ -446,8 +446,16 @@ class SqlFnSortedTest {
 
     /** Whether code unit {@code u} can carry a constant it reads out of its renderer (the review of 091b9bde36,
      *  2026-11-18, MUST-FIX 3): it returns anything but what {@link #RENDERED} names (a function, an Object, a node),
-     *  builds a MIR node (a node's constructor, or a call answering one: {@code Call.of}), or sets a field that can hold
-     *  one. Its limit, named: a constant passed as an argument to another method that keeps it is not traced. */
+     *  builds a MIR node (a node's constructor, or a call answering one: {@code Call.of}), sets a field that can hold
+     *  one, reads a container to store into, calls a method that can be handed it (a parameter that can hold it, or an
+     *  array of such: a varargs keeper), or reads its ordinal or name and stores into a field or calls a method with
+     *  arguments other than the writer's, text's and the enum's own (the review of the guard line, G, SHOULD 1,
+     *  2026-11-18: keepInt(SqlFn.ABS.ordinal()) handed the number to an int parameter, unseen). The unit, not the
+     *  value, is read -- ArchUnit traces no data flow -- so an arm reading a number or a name and calling any other
+     *  method with arguments is named too, which fails closed. Its limit, named: a keeper reached only through a
+     *  parameter typed narrower than the constant can be (none exists: a SqlFn is held as itself, an Enum, an Object
+     *  or an array of them) is not traced, and a value computed from the constant other than its ordinal or name
+     *  (a switch on it, its hash) is not followed (review F of the guard line, 2026-11-18, SHOULD 1). */
     static boolean carriesOut(com.tngtech.archunit.core.domain.JavaCodeUnit u) {
         if (!RENDERED.contains(u.getRawReturnType().getName())) {
             return true;
@@ -467,8 +475,23 @@ class SqlFnSortedTest {
                         .getRawType()))
                 // a call that can be handed the constant (a parameter an Object, an Enum, a SqlFn, a Comparable): a
                 // throw's exception, a setter, a collection's add -- the enum's own methods and equals aside
-                || u.getCallsFromSelf().stream().anyMatch(k -> handed(k.getTarget()));
+                || u.getCallsFromSelf().stream().anyMatch(k -> handed(k.getTarget()))
+                // the constant carried out as its number or its name, stored in a field of any type (review F of the
+                // guard line, 2026-11-18, SHOULD 1: ORD = SqlFn.ABS.ordinal() set a primitive field) or handed to a
+                // method of any parameter type (the review of the guard line, G, SHOULD 1, 2026-11-18)
+                || u.getMethodCallsFromSelf().stream().anyMatch(k -> Set.of("ordinal", "name", "toString")
+                        .contains(k.getName()) && (k.getTargetOwner().getName().equals(SqlFn.class.getName())
+                        || k.getTargetOwner().getName().equals("java.lang.Enum")))
+                        && (u.getFieldAccesses().stream().anyMatch(a -> a.getAccessType()
+                        == com.tngtech.archunit.core.domain.JavaFieldAccess.AccessType.SET)
+                        || u.getCallsFromSelf().stream().anyMatch(k -> !k.getTarget().getRawParameterTypes().isEmpty()
+                        && !TEXT_OWNERS.contains(k.getTargetOwner().getName())));
     }
+
+    /** The owners whose calls write or build text, or are the enum's own: a number or a name handed to one stays text. */
+    private static final Set<String> TEXT_OWNERS = Set.of("com.legend.sql.dialect.SqlWriter",
+            "com.legend.sql.dialect.SqlWriter$Piece", "java.lang.String", "java.lang.StringBuilder",
+            "com.legend.sql.SqlFn", "java.lang.Enum", "java.lang.Object");
 
     /** A type that can hold a function's constant stored into it. */
     private static boolean container(JavaClass t) {
@@ -484,9 +507,19 @@ class SqlFnSortedTest {
                 || t.getName().equals("equals") || (owner.equals("java.util.Objects") && t.getName().equals("equals"))) {
             return false;
         }
-        return t.getRawParameterTypes().stream().anyMatch(p -> java.util.Set.of("java.lang.Object", "java.lang.Enum",
-                SqlFn.class.getName(), "java.lang.Comparable", "java.io.Serializable", "java.lang.constant.Constable")
-                .contains(p.getName()));
+        return t.getRawParameterTypes().stream().anyMatch(SqlFnSortedTest::holdsAConstant);
+    }
+
+    /** A parameter type that can hold a function's constant: Object, Enum, SqlFn, Comparable, Serializable, Constable,
+     *  or an array of one of them at any depth (review F of the guard line, 2026-11-18, SHOULD 1: keep(Object...) and
+     *  keepAll(SqlFn[]) were handed it unseen). */
+    private static boolean holdsAConstant(JavaClass p) {
+        JavaClass t = p;
+        while (t.isArray()) {
+            t = t.getComponentType();
+        }
+        return java.util.Set.of("java.lang.Object", "java.lang.Enum", SqlFn.class.getName(), "java.lang.Comparable",
+                "java.io.Serializable", "java.lang.constant.Constable").contains(t.getName());
     }
 
     /** Where a renderer lives: the dialects' package or the edge's (the review of 11de9ae229, 2026-11-18, MUST-FIX 1: a

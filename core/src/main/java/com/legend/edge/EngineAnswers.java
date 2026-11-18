@@ -4,6 +4,7 @@
 package com.legend.edge;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.result.ArrowWriter;
 import com.legend.result.Batch;
 import com.legend.result.ResultSink;
 

@@ -93,7 +93,8 @@ class HookLambdasTest {
                     + " com.legend.testexecutionplan.BodyFacts)",
                     Set.of("com.legend.testplan.FailureWords", "(twoForm reaches 1)")),
             // the test planner: a relation counted by an assert (S137); a test-data timestamp's text (L9)
-            Map.entry("com.legend.testplan.TestPlanner#lifted(com.legend.TypedQuery, com.legend.testplan.PlanningOptions)",
+            Map.entry("com.legend.testplan.TestPlanner#lifted(com.legend.TypedQuery,"
+                    + " com.legend.testplan.PlanningOptions)",
                     Set.of("com.legend.compiler.spec.RelationCounting", "com.legend.platform.PlanOption",
                             "(twoForm reaches 1)")),
             Map.entry("com.legend.testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String,"
@@ -153,11 +154,71 @@ class HookLambdasTest {
      *  forwarder of those asks. A reflective or loaded instance is ServiceLoaderSitesTest's. So every way is a pinned
      *  ask of the style, which the product's style refuses by name (HookRulingTest.RULED). "caller#method(params)" ->
      *  the class objects named beside its facet asks, and its number of reaches. */
-    static final Map<String, Set<String>> FACET_CALLERS = Map.ofEntries();
+    // measured 2026-11-18 (J16, the batch's build: the pin was written empty and unmeasured): eleven asks, each a hook
+    // the product's style refuses by name and the edge's answers
+    static final Map<String, Set<String>> FACET_CALLERS = Map.ofEntries(
+            // a toDDL generator's text, alone or in a collection: legend-engine's spelling from the compiled store
+            Map.entry("com.legend.planner.BodyPlanner#prepare(java.util.List, com.legend.planner.PlanEnv)",
+                    Set.of("(facet reaches 2)", "com.legend.planner.UpstreamPlans")),
+            // a plan-rows native (legend-engine's plan as rows), asked before the walk's refusals are caught (G7)
+            Map.entry("com.legend.planner.PlanAllocations#registerPlanRows(com.legend.compiler.spec.typed.TypedNativeCall,"
+                    + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
+                    Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
+            // an activity's upstream SQL text, asked only where the style picks the engine's (W9's planner half)
+            Map.entry("com.legend.planner.PlanAllocations$1#engines()",
+                    Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
+            // the Lowerer's relation-text and result-envelope facets, each asked with its call's refusal (B8)
+            Map.entry("com.legend.planner.PlanEnv#configure(com.legend.lowering.Lowerer)",
+                    Set.of("(facet reaches 2)", "com.legend.lowering.RelationTexts",
+                            "com.legend.lowering.ResultEnvelopes")),
+            // the lowering helpers' Pure-only texts, asked with its call's refusal (B8); the three kinds beside it are
+            // twoForm's, named in the same method
+            Map.entry("com.legend.planner.PlanEnv#styled()",
+                    Set.of("(facet reaches 1)", "com.legend.lowering.DateTimeTexts", "com.legend.lowering.ListTexts",
+                            "com.legend.lowering.LoweringForms", "com.legend.lowering.PureOnlyTexts")),
+            // the plan-text natives' routines, each asking when called: a body naming none plans on any style
+            Map.entry("com.legend.planner.PlanTextRoutines#of(com.legend.compiler.spec.SpecCompiler,"
+                    + " com.legend.planner.PlanEnv)",
+                    Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
+            // a body binding a plan handle: the product's style refuses it by name before either judge plans it
+            Map.entry("com.legend.testplan.BodyDriver#refusePlanHandlesOffTheEdge(com.legend.TypedQuery,"
+                    + " com.legend.testplan.PlanningOptions)",
+                    Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
+            // the test-data generator's plan, asked when a body generates test data
+            Map.entry("com.legend.testplan.BodyDriver$ExecEnv#of(com.legend.compiler.element.ModelContext,"
+                    + " java.lang.String, com.legend.sql.dialect.SqlDialect, com.legend.testplan.PlanningOptions)",
+                    Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
+            // the engine-text facet, asked only where the style judges engine text (census C4)
+            Map.entry("com.legend.testplan.EngineTextGates#facet(com.legend.testplan.BodyDriver$ExecEnv)",
+                    Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
+            // legend-engine's seed SQL from records or from CSV, a seed text a body asserts
+            Map.entry("com.legend.testplan.SeedSqlForms#assertForm(java.util.List,"
+                    + " com.legend.compiler.spec.typed.TypedNativeCall, com.legend.testplan.BodyDriver$ExecEnv)",
+                    Set.of("(facet reaches 2)", "com.legend.planner.UpstreamPlans")),
+            // a DDL text source's generators, spelled at planning
+            Map.entry("com.legend.testplan.Seeds#ddlTexts(java.util.List, java.util.List,"
+                    + " com.legend.compiler.element.ModelContext, com.legend.database.PlanStyle)",
+                    Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")));
 
     /** The product methods outside the hook types answering a facet hook (the facet kinds, and the hooks only a facet's
      *  answers hand out), each with the hook it answers: forwarders of a facet ask, pinned exact (J16, 2026-11-18). */
-    static final Map<String, String> FACET_FORWARDERS = Map.ofEntries();
+    // measured 2026-11-18 (J16, the batch's build: the pin was written empty and unmeasured): five, each handing on what
+    // an ask pinned in FACET_CALLERS returned
+    static final Map<String, String> FACET_FORWARDERS = Map.ofEntries(
+            // the Lowerer's result-envelope request, the style's facet that PlanEnv.configure hands in
+            Map.entry("com.legend.lowering.Lowerer#resultEnvelopes(java.util.function.Supplier)",
+                    "com.legend.lowering.ResultEnvelopes"),
+            // the environment's accessor for the collector the engine-text facet handed out (none on the product's style)
+            Map.entry("com.legend.testplan.BodyDriver$ExecEnv#engineText()", "com.legend.testplan.TextCollector"),
+            // the database judge's batch, from the engine-text facet, asked only where a gate read an engine-text side
+            Map.entry("com.legend.testplan.EngineTextGates#batchTexts(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "com.legend.testplan.BatchTexts"),
+            // the engine-text facet itself, asked only where the style judges engine text
+            Map.entry("com.legend.testplan.EngineTextGates#facet(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "com.legend.testplan.EngineTestText"),
+            // the environment's collector, handed on to the test planner's judges
+            Map.entry("com.legend.testplan.EngineTextPlanning#collector(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "com.legend.testplan.TextCollector"));
 
     /** The facet hooks: the facet kinds, and the two hooks only the engine-text facet's answers hand out (the collector
      *  and the database judge's batch, HookRulingTest.RULED's). */

@@ -41,11 +41,6 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/HookLambdasTest.java",
     # the edge's package a boundary: no dotless prefix check, no edge class in a product jar (the GUARD stream, C.14)
     "src/test/java/com/legend/EdgePackageBoundaryTest.java",
-    # a public product member the edge alone uses is counted (J40 of the edge audit, 2026-11-18), and its planted
-    # product class and edge caller
-    "src/test/java/com/legend/EdgeOnlyMembersTest.java",
-    "src/test/java/com/legend/PlantedEdgeOnlyApi.java",
-    "src/test/java/com/legend/edge/PlantedEdgeOnlyCaller.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
@@ -64,9 +59,6 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
-    # the Arrow writer's round trip (J36 of the edge audit, 2026-11-18: the writer moved from result/ to the edge;
-    # tagged "arrow", run by //core:arrow_writer_test alone)
-    "src/test/java/com/legend/edge/ArrowWriterTest.java",
     "src/test/java/com/legend/edge/EngineSpansTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
@@ -122,6 +114,14 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/sql/PlantedSqlReach.java",
     "src/test/java/com/legend/sql/dialect/PlantedSqlRendererArm.java",
     "src/test/java/com/legend/sql/dialect/PlantedRendererNest.java",
+    # review F of the guard line (2026-11-18, SHOULD 1): a varargs or array keeper, an ordinal or a name kept; one shape
+    # a class, and the number or the name handed to a keeper (the review of the guard line, G, SHOULD 1, 2026-11-18)
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderVarargs.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderArrayKeeper.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderOrdinal.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderName.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderOrdinalHanded.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderNameHanded.java",
     "src/test/java/com/legend/sql/dialect/PlantedRendererByInterface.java",
     "src/test/java/com/legend/sql/dialect/PlantedWordedRaise.java",
     "src/test/java/com/legend/sql/dialect/PlantedBoundRaise.java",

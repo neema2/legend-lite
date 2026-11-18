@@ -1,18 +1,13 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.edge;
+package com.legend.result;
 
 import com.legend.arrowipc.ArrowField;
 import com.legend.arrowipc.ArrowIpc;
 import com.legend.arrowipc.ArrowType;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
-import com.legend.result.Batch;
-import com.legend.result.CellText;
-import com.legend.result.ResultSink;
-import com.legend.result.RowDecode;
-import com.legend.result.TaggedCell;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
 
@@ -28,9 +23,7 @@ import java.util.Map;
 import java.util.function.IntFunction;
 
 /**
- * Lite's Arrow answer, the edge's (J36 of the edge audit, 2026-11-18: moved from {@code result/}, where only the edge's
- * legend-engine answers made one -- {@link EngineAnswers#arrow} and {@link HostAnswers}' host half; the product's
- * formats are {@code result.Output}'s, none of them Arrow), written at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R3, R8, R9; the result
+ * Lite's own Arrow answer, written at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R3, R8, R9; the result
  * boundary program's track A, 2026-10-29): the result as ONE Arrow IPC stream -- the schema from the plan's columns,
  * each batch a record batch, the end marker -- framed by the warehouse's own framer ({@code com.legend.arrowipc}), no
  * Arrow library. A column's Arrow type is its SLOT's (the database type the plan declares), as legend-engine's Arrow

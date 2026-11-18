@@ -1,17 +1,25 @@
 # Copyright 2026 Legend Contributors
 # SPDX-License-Identifier: Apache-2.0
 """//tools/guards:shrink_only_check's entry. It runs the MERGE-BASE's copy of the check (shrink_only.py at the merge-base
-of HEAD and --base), never the change's own, so a change cannot loosen the check that judges it (the review of
-351e80daa2, 2026-11-18, M1); a merge-base without the script runs this tree's (the check's own first landing). The
-library itself (:shrink_only_lib) is one target's, so Bazel compiles shrink_only.py once (two targets listing it wrote
-one .pyc twice, a conflict that kept //gates:local from building; found 2026-11-18). CI does the same in gate.yml."""
+of --head, default HEAD, and --base), never the change's own script, so a change's script never judges it (the review
+of 351e80daa2, 2026-11-18, M1); a merge-base without the script runs this tree's (the check's first landing). This
+entry and its target are the change's own (Bazel runs the head's): a change to them is judged by CI's step, whose own
+command runs the merge-base's copy, and a change to that step by this entry's (the review of the guard line, G,
+SHOULD 3, 2026-11-18; shrink_only.py names the limit).
+
+The copy is chosen by its fixed path with git alone: nothing of the head's module is read or run before it is chosen
+(review F of the guard line, 2026-11-18, MUST-FIX 3: the head's SELF and reader() picked a path the merge-base did not
+have, and the head's main ran). The head's module is imported only when the merge-base has no copy. The library itself
+(:shrink_only_lib) is one target's, so Bazel compiles shrink_only.py once (two targets listing it wrote one .pyc twice, a
+conflict that kept //gates:local from building; found 2026-11-18). CI does the same in gate.yml."""
 
 import os
+import subprocess
 import sys
 import types
 
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-import shrink_only  # noqa: E402
+# the script's path in the repository, fixed here (never the head module's SELF)
+SCRIPT = "tools/guards/shrink_only.py"
 
 
 def arg(argv, name, default):
@@ -21,28 +29,39 @@ def arg(argv, name, default):
     return default
 
 
+def git(repo, *args):
+    return subprocess.run(["git", "-C", repo, *args], check=True, capture_output=True, text=True).stdout
+
+
 def base_copy(argv):
-    """The merge-base's shrink_only.py as a module, or None when the merge-base has none."""
+    """The merge-base's shrink_only.py as a module, and the repository; the module is None when the merge-base has
+    none. The merge-base is the head's (--head, default HEAD: review F's NOTE 5) with --base."""
     base = arg(argv, "--base", "origin/main")
+    head = arg(argv, "--head", "HEAD")
     where = arg(argv, "--repo", os.path.dirname(os.path.realpath(__file__)))
-    repo = shrink_only.git(where, "rev-parse", "--show-toplevel").strip()
-    merge_base = shrink_only.git(repo, "merge-base", "HEAD", base).strip()
-    text = shrink_only.reader(repo, merge_base)(shrink_only.SELF)
-    if text is None:
+    repo = git(where, "rev-parse", "--show-toplevel").strip()
+    merge_base = git(repo, "merge-base", head, base).strip()
+    if not git(repo, "ls-tree", "--name-only", merge_base, "--", SCRIPT).strip():
         return None, repo
+    text = git(repo, "show", f"{merge_base}:{SCRIPT}")
     module = types.ModuleType("shrink_only_at_the_merge_base")
-    module.__file__ = os.path.join(repo, shrink_only.SELF)
-    exec(compile(text, f"{merge_base[:10]}:{shrink_only.SELF}", "exec"), module.__dict__)
+    module.__file__ = os.path.join(repo, SCRIPT)
+    exec(compile(text, f"{merge_base[:10]}:{SCRIPT}", "exec"), module.__dict__)
+    # the copy reads its lists from its own text (own_lists), never from the head's file at __file__
+    module.SOURCE = text
     return module, repo
 
 
 def main(argv):
     try:
         module, repo = base_copy(argv)
-    except shrink_only.HistoryError as e:
-        print(f"shrink_only_check: the history cannot be read ({e})", file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        print(f"shrink_only_check: the history cannot be read ({(e.stderr or '').strip()})", file=sys.stderr)
         return 2
     if module is None:
+        # the check's first landing: the merge-base has no copy, so this tree's runs
+        sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+        import shrink_only  # noqa: E402
         return shrink_only.main(argv)
     print("shrink_only_check: the merge-base's copy of the check runs")
     return module.main(["--repo", repo] + [a for i, a in enumerate(argv) if a != "--repo"

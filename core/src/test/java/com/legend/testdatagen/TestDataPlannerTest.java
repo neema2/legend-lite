@@ -236,7 +236,7 @@ class TestDataPlannerTest {
                     + String.join(",\n", line.formatted("B"), line.formatted("Z"), line.formatted("a"),
                             line.formatted("b")) + "\n  ])\n", text(c, dialect, TestDataPlanner.seedString(ctx, seed)),
                     type.name());
-            assertTrue(text(c, dialect, TestDataPlanner.seedJson(ctx, seed, NO_TIMESTAMP_KEY)).endsWith("\"rowIdentifiers\":["
+            assertTrue(text(c, dialect, com.legend.edge.TestDataRoutes.seedJson(TestDataPlanner.seedFacts(ctx, seed), NO_TIMESTAMP_KEY)).endsWith("\"rowIdentifiers\":["
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"B\"}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"Z\"}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a\"}]},"
@@ -622,15 +622,15 @@ class TestDataPlannerTest {
             assertEquals(table.formatted("KEYS") + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":2}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]}]}",
-                    text(c, dialect, TestDataPlanner.seedJson(ctx, three, NO_TIMESTAMP_KEY)));
+                    text(c, dialect, com.legend.edge.TestDataRoutes.seedJson(TestDataPlanner.seedFacts(ctx, three), NO_TIMESTAMP_KEY)));
             assertEquals(table.formatted("CODES") + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a'b\"}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"c\\\\d\"}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"e\\nf\"}]}]}",
-                    text(c, dialect, TestDataPlanner.seedJson(ctx, codes, NO_TIMESTAMP_KEY)));
+                    text(c, dialect, com.legend.edge.TestDataRoutes.seedJson(TestDataPlanner.seedFacts(ctx, codes), NO_TIMESTAMP_KEY)));
             // no key: an empty list
-            assertEquals(table.formatted("KEYS") + "]}", text(c, dialect, TestDataPlanner.seedJson(ctx,
+            assertEquals(table.formatted("KEYS") + "]}", text(c, dialect, com.legend.edge.TestDataRoutes.seedJson(TestDataPlanner.seedFacts(ctx,
                     TestDataPlanner.seed(ctx, query("|t::K.all()->filter(k|$k.id > 99)->project([k|$k.name], ['n'])"),
-                            "t::M", false, queries), NO_TIMESTAMP_KEY)));
+                            "t::M", false, queries)), NO_TIMESTAMP_KEY)));
         }
     }
 
@@ -710,7 +710,7 @@ class TestDataPlannerTest {
             assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"STAMPS\",\"schema\":\"default\",\"database\":"
                     + "\"t::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
                     + "\"2020-01-02T03:04:05.123000Z\"}]},{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
-                    + "\"2020-01-03T00:00:00.000000Z\"}]}]}", text(c, dialect, TestDataPlanner.seedJson(ctx, stamps,
+                    + "\"2020-01-03T00:00:00.000000Z\"}]}]}", text(c, dialect, com.legend.edge.TestDataRoutes.seedJson(TestDataPlanner.seedFacts(ctx, stamps),
                     x -> com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x))),
                     type.name());
         }

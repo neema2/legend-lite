@@ -64,8 +64,6 @@
 # `arrow_ipc` (//arrow_ipc, below core beside base and json: the Arrow IPC framer, a FlatBuffers builder and a zstd
 # frame over base alone, no Arrow library) -- ArrowWriter writes a result's batches as Arrow IPC at the edge, and
 # the pure/v1 API answers an ARROW_IPC request with that stream; no other layer reaches it (ArrowClosureTest).
-# 2026-11-18 (J36 of the edge audit): ArrowWriter is the edge's (only the edge's legend-engine answers made one), so
-# `result` no longer reaches `arrow_ipc`.
 # 2026-10-20 (the writes design's leg 7, docs/WRITES_DESIGN_2026_10_18.md §8; the plan program's step 4, the callers
 # switching to plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): driver reaches `execution_plan` -- Execution runs
 # a program that writes from its plan (ConnectionResolver.RUNNER: the plan made, run by PlanRunner, its answer's SQL reported).
@@ -164,7 +162,7 @@ execution_plan	base cache error json sql
 # reaches `diagnostics` (the verdict batch, moved in from `judge`); `testdatagen` prints a value through `test_plan`.
 testexec	base diagnostics error exec exec_program execution_plan json result sql test_plan values
 test_plan	base error execution_plan json sql values
-result	base error execution_plan json values
+result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 # 2026-11-12 (the total wall's B2d.3e, the generator's product doors; docs/data-delivery-homework/
 # TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md §3.3): `pure_v1` reaches `testdatagen` -- the server's test-data routes

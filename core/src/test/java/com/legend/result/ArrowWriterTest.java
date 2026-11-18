@@ -1,14 +1,10 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.edge;
+package com.legend.result;
 
 import com.legend.arrowipc.ZstdFrame;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.result.Batch;
-import com.legend.result.JsonRowsWriter;
-import com.legend.result.RowDecode;
-import com.legend.result.TaggedCell;
 import com.legend.testing.Runfile;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
