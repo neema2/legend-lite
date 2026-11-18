@@ -8,6 +8,7 @@ legend_java_library(
     testonly = True,
     srcs = ["EdgeNormalize.java"],
     visibility = ["//pct:__pkg__"],
+    deps = ["//json"],
 )
 
 guards_package()
