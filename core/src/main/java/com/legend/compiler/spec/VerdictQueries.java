@@ -39,11 +39,6 @@ public final class VerdictQueries {
      * {@code from(<the producer's mapping>)}, runtime left to the
      * executing env. SqlTextVerdicts fetches and judges; the mint is
      * compiler emission (Invariant 7). */
-    /** A String literal as a typed node: a text the planner wrote, as a verdict step's constant side (the engine-text
-     *  arms' two texts, the test-is-the-product plan's M10b). */
-    public static TypedSpec text(String text) {
-        return new TypedCString(text, scalar(Type.Primitive.STRING));
-    }
 
     /** {@code assertEquals(expected, actual)} as a typed call — the meaning
      * of a dual-golden assert once its golden is chosen (the verdict arm
