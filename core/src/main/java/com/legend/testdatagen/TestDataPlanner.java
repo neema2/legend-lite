@@ -363,10 +363,9 @@ public final class TestDataPlanner {
             for (TestDataGenerator.TableRowIds t : rowIds) {
                 if (t.table().equals(table) && t.schema().equals(loc.schema())) {
                     if (ids != null) {
-                        // two entries for one table: upstream's assert, before anything else (the B2d.3 audit's L2;
-                        // getRowIdentifiersForTable, TDG:487, and the plan form's, TDG:1208; getQualifiedTableName)
-                        throw new AssertFailed("Multiple table row identifiers passed for the table: "
-                                + physical(loc.schema(), table));
+                        // two entries for one table: refused before anything else (the B2d.3 audit's L2; upstream's
+                        // assert, getRowIdentifiersForTable, TDG:487, the edge's words: J7 of the edge audit, 2026-11-18)
+                        throw new RowIdentifiersRepeated(loc.schema(), table);
                     }
                     ids = t;
                 }
@@ -502,6 +501,43 @@ public final class TestDataPlanner {
         /** The table's primary key columns, in declaration order, each with its type. */
         public List<DatabaseDefinition.ColumnDefinition> keys() {
             return keys;
+        }
+
+        /** Recorded in a test plan as a failed assert, as upstream's refusal is one. */
+        @Override
+        public com.legend.testexecutionplan.Failure.Kind failureKind() {
+            return com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED;
+        }
+    }
+
+    /**
+     * A STARTING TABLE GIVEN ROW IDENTIFIERS MORE THAN ONCE (the B2d.3 audit's L2, 2026-11-12: until then the last entry
+     * was kept, silently). A kind with its FACTS (J7 of the edge audit, 2026-11-18, as {@link NoRowIdentifiers}): the
+     * table's schema and name; its message lite's own sentence. Upstream's words (legend-pure's
+     * {@code getRowIdentifiersForTable} assert, TDG:487, and the plan form's, TDG:1208: "Multiple table row identifiers
+     * passed for the table: " and the table's qualified name) are the compatibility edge's, worded from these facts
+     * ({@code edge.PureMessages}, through {@code PlanStyle.errorWords}). A failed assert where a test plan records it, as
+     * upstream's is.
+     */
+    public static final class RowIdentifiersRepeated extends RuntimeException
+            implements com.legend.testexecutionplan.Failure.Kinded {
+        private static final long serialVersionUID = 1L;
+        private final String schema;
+        private final String table;
+
+        RowIdentifiersRepeated(String schema, String table) {
+            super("test data generation: the table " + physical(schema, table)
+                    + " is given row identifiers more than once");
+            this.schema = schema;
+            this.table = table;
+        }
+
+        public String schema() {
+            return schema;
+        }
+
+        public String table() {
+            return table;
         }
 
         /** Recorded in a test plan as a failed assert, as upstream's refusal is one. */
