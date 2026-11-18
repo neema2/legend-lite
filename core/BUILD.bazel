@@ -2570,7 +2570,9 @@ junit_test(
 junit_test(
     name = "guardrails_edge",
     memory_mb = 1280,
-    size = "medium",
+    # large (900 s): about 200 s alone, it reached medium's 300 s in CI's checks lane beside the lane's other targets
+    # (PR #118 fix round, 2026-11-18)
+    size = "large",
     # exactly what the guards read (P3-05, A11): the declared source list (its files ride in its runfiles), the two
     # single files, and the jar lists
     data = [
