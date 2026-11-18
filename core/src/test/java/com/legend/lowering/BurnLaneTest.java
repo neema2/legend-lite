@@ -65,7 +65,7 @@ class BurnLaneTest {
         AtomicInteger n = new AtomicInteger();
         // the rewrite is the sql layer's (the edge's form calls it; the lens audit's item 1, 2026-11-18)
         SqlSelect out = com.legend.sql.ExistsJoins.rewrite(outer,
-                () -> "x" + n.incrementAndGet(), w -> null, ex -> true);
+                () -> "x" + n.incrementAndGet(), com.legend.sql.ExistsJoins::encounterOrder, ex -> true);
         String sql = TestBackends.platform().dialect().render(out);
         // both keys projected (one aliased), and the ON references the
         // DISAMBIGUATED alias — never the same column twice

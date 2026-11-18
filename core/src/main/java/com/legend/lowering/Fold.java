@@ -1631,7 +1631,8 @@ final class Fold {
     /** All columns resolved against {@code base}, or null if any misses
      * (moved from Lowerer — this is Fold's own resolveInto vocabulary). */
     static @com.legend.base.Nullable List<SqlSelect.Projection> tryProjectAll(
-            SqlSelect base, List<String> columns, List<OutputCol> contract) {
+            SqlSelect base, List<String> columns, List<OutputCol> contract,
+            @com.legend.base.Nullable String unionFrame) {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         // the select's projections and the contract by name, built once (2026-10-15: a scan per column was
         // quadratic in a wide projection's width)
@@ -1658,7 +1659,7 @@ final class Fold {
             // union frame's outputs, which keep it (tds union goldens:
             // "unionalias_0"."lhs_lastName" as "lhs_lastName")
             boolean unionRead = base.from() instanceof SqlSource.Subselect sub
-                    && "unionAlias".equals(sub.frameName())
+                    && unionFrame != null && unionFrame.equals(sub.frameName())
                     && e instanceof SqlExpr.Column uc
                     && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,

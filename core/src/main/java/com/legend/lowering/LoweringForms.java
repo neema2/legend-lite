@@ -52,10 +52,11 @@ public interface LoweringForms {
     /** A mapping's wire coercion of {@code value}: the cast written ({@code written}) or the value as read. */
     SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written);
 
-    /** A serialize's values: lite's array ({@code array}), or the edge's form of the same graph serialized as a wrapped
-     *  array ({@code wrapped}: raw material, which legend-engine's form folds by its JsonBuilder cardinality rule in the
-     *  edge's own code; the product composes nothing for it: the lens audit's item 1, 2026-11-18). */
-    SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped);
+    /** A serialize's values as the product answers them ({@code own}: the object where the graph is to-one, the array
+     *  where it is many -- the product's multiplicity fact): the product's form returns them unchanged; legend-engine's
+     *  writes its JsonBuilder cardinality rule over them, in the edge's own code (the orchestrator's ruling of 2026-11-18,
+     *  L-A.LoweringForms: the product hands the form its own answer and nothing it never uses). */
+    SqlSelect executeValues(SqlSelect own);
 
     /** The relational isNumeric of {@code s}. */
     SqlExpr isNumeric(SqlExpr s);
@@ -91,4 +92,14 @@ public interface LoweringForms {
      *  distinct keys over the statement's {@code sites} (the lens audit's item 1, 2026-11-18: the lowering hands its
      *  sites, never the rewrite; the edge's form calls the product's building block, sql.ExistsJoins). */
     SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites);
+
+    /** The frame name a TDS union's subselect carries where the lowering names it (L10, the lens audit's L-A.unionAlias,
+     *  2026-11-18): null is no frame -- the product's, a union is a subselect like any other; legend-engine's SQL names
+     *  each union frame (and a join against one) and reads its columns through that name. */
+    @com.legend.base.Nullable String unionFrame();
+
+
+    /** A fresh statement's WHERE merges (L10): the product's appends each predicate and keeps no zones; legend-engine's
+     *  orders the conjuncts by zone and keeps each split for its exists form ({@link WhereZones}). */
+    WhereZones whereZones();
 }

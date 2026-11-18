@@ -63,10 +63,10 @@ class UpstreamBranchesTest {
      *  lowering (E-SQL's L10), and the judges' branches on the rules' tolerances -- C1 ruled the RULES data; L11 (the
      *  lens audit, E-Java's item 4) moves compiled legend-pure's comparison LOGIC behind two-form kinds, so the
      *  product's judges carry lite's exact rule and no compatibility branch. */
-    static final Map<String, Integer> SITES = Map.ofEntries(
-            Map.entry("lowering/Fold.java | shape unionAlias", 1),
-            Map.entry("lowering/Lowerer.java | shape unionAlias", 7),
-            Map.entry("lowering/SubselectPrune.java | shape unionAlias", 1));
+    static final Map<String, Integer> SITES = Map.of();
+            // (lowering/Fold.java 1, Lowerer.java 7 and SubselectPrune.java 1 | shape unionAlias: 0, CLOSED 2026-11-18 by
+            // F's L10 -- the union frame a two-form member, LoweringForms.unionFrame(), the product's none and
+            // legend-engine's "unionAlias" the edge's EngineShape alone; L-A.unionAlias closes)
             // (lowering/VerdictSql.java | edge shape foldedAggregate: 1 -> 0, CLOSED 2026-11-18 by E-SQL's 171d588ed --
             // VerdictSql.graphCount reads a value's own structure; SnapshotEnvelope.foldedAggregate deleted)
     // (the judging rules' sites -- VerdictSql's 8 branches on floatUlps, Equality's 5 and HostRules' 3 reads -- gone

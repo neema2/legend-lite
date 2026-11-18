@@ -33,18 +33,15 @@ public final class ExistsJoins {
     private ExistsJoins() {
     }
 
-    /** A subquery WHERE's split, its temporal conditions and the user's predicate (the lowering's resolver zones). */
-    public record Zones(@com.legend.base.Nullable SqlExpr user, @com.legend.base.Nullable SqlExpr temporal) {
-    }
-
     /** Rewrites every qualifying WHERE conjunct of {@code outer};
-     * returns {@code outer} unchanged when none qualifies. {@code zones}
-     * looks up a subquery WHERE's resolver-zone split — the DISTINCT-key
-     * subselect spells temporal conds FIRST (the engine applies the
-     * child's milestoning during child processing; the user pred
-     * concatenates after), while the merged WHERE arrives user-first. */
+     * returns {@code outer} unchanged when none qualifies. {@code keysWhere}
+     * writes the DISTINCT-key subselect's WHERE from its local conjuncts and
+     * the subquery's own WHERE: {@link #encounterOrder} (the product's, a
+     * dialect's decomposition), or legend-engine's zone order -- temporal
+     * conditions first -- the edge's (L10, 2026-11-18: until then a zone
+     * split this layer reordered by). */
     public static SqlSelect rewrite(SqlSelect outer, Supplier<String> alias,
-            java.util.function.Function<SqlExpr, @com.legend.base.Nullable Zones> zones,
+            java.util.function.BiFunction<List<SqlExpr>, SqlExpr, @com.legend.base.Nullable SqlExpr> keysWhere,
             java.util.function.Predicate<SqlExpr.Exists> which) {
         if (outer.where() == null) {
             return outer;
@@ -126,8 +123,7 @@ public final class ExistsJoins {
                                 : new OutputCol(outName, oc.type(), oc.nullable())));
             }
             SqlSelect keys = new SqlSelect(projs, true, sub.from(),
-                    keysWhere(local, sub.where() == null ? null
-                            : zones.apply(sub.where())),
+                    local.isEmpty() ? null : keysWhere.apply(local, sub.where()),
                     List.of(), null, null, List.of(), null, null, List.of());
             SqlSource.Subselect side = new SqlSource.Subselect(
                     keys, alias.get(),
@@ -234,29 +230,9 @@ public final class ExistsJoins {
 
     /** Only a plain filtered select converts — any other clause means
      * the engine's local-predicate gate fails and EXISTS stands. */
-    /** The DISTINCT-key subselect's WHERE: engine order is TEMPORAL
-     * conds first, user pred after (the child's milestoning applies
-     * during child processing, buildExistsAsJoinWithNullCheck
-     * concatenates the pred). Applies only when the zone split exactly
-     * accounts for the non-correlation conds — a user pred that itself
-     * contributed a correlation pair falls back to encounter order. */
-    private static @com.legend.base.Nullable SqlExpr keysWhere(List<SqlExpr> local,
-            @com.legend.base.Nullable Zones z) {
-        if (local.isEmpty()) {
-            return null;
-        }
-        if (z != null && z.temporal() != null) {
-            SqlExpr reordered = z.user() == null ? z.temporal()
-                    : mergeAnd(z.temporal(), z.user());
-            List<SqlExpr> flat = new ArrayList<>();
-            flatten(reordered, flat);
-            if (flat.size() == local.size()
-                    && new java.util.HashSet<>(flat)
-                            .equals(new java.util.HashSet<>(local))) {
-                return reordered;
-            }
-        }
-        return mergeAnd(local.toArray(SqlExpr[]::new));
+    /** A DISTINCT-key subselect's WHERE in encounter order: its local conjuncts as they stand. */
+    public static @com.legend.base.Nullable SqlExpr encounterOrder(List<SqlExpr> local, @com.legend.base.Nullable SqlExpr where) {
+        return local.isEmpty() ? null : mergeAnd(local.toArray(SqlExpr[]::new));
     }
 
     private static boolean plainShape(SqlSelect s) {
@@ -320,7 +296,8 @@ public final class ExistsJoins {
     }
 
     /** The conjunction of {@code parts}, an AND's own conjuncts flattened (the lowering's {@code Fold.mergeAnd}). */
-    private static SqlExpr mergeAnd(SqlExpr... parts) {
+    /** The conjunction of {@code parts}, AND chains flattened (the lowering's own rule, Fold.mergeAnd). */
+    public static SqlExpr mergeAnd(SqlExpr... parts) {
         List<SqlExpr> flat = new ArrayList<>();
         for (SqlExpr p2 : parts) {
             flattenAnd(p2, flat);

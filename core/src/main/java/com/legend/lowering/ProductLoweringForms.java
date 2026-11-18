@@ -38,8 +38,8 @@ public final class ProductLoweringForms implements LoweringForms {
     }
 
     @Override
-    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
-        return array.get();
+    public SqlSelect executeValues(SqlSelect own) {
+        return own;
     }
 
     /** No connection: the reference names none it was not made from. */
@@ -99,4 +99,33 @@ public final class ProductLoweringForms implements LoweringForms {
                 "executeLegendQuery's result envelope is legend-engine's JSON, the compatibility edge's: the product"
                         + " writes a query's rows by its result writers (JSON, CSV, Arrow)");
     }
+
+    /** No frame: a union is a subselect like any other (L10). */
+    @Override
+    public @com.legend.base.Nullable String unionFrame() {
+        return null;
+    }
+
+
+    /** Each predicate appended, no zones kept (L10): conjunct order is no answer's, and the product's EXISTS is lowered
+     *  as it is ({@link #existsJoin}). */
+    @Override
+    public WhereZones whereZones() {
+        return APPENDED;
+    }
+
+    /** The product's WHERE merges: stateless, so one serves every statement. */
+    private static final WhereZones APPENDED = new WhereZones() {
+        @Override
+        public SqlExpr merge(@com.legend.base.Nullable SqlExpr existing, SqlExpr predicate,
+                com.legend.compiler.spec.typed.TypedFilter.Stamp stamp) {
+            return existing == null ? predicate : Fold.mergeAnd(existing, predicate);
+        }
+
+        @Override
+        public @com.legend.base.Nullable SqlExpr keysWhere(java.util.List<SqlExpr> local,
+                @com.legend.base.Nullable SqlExpr where) {
+            return com.legend.sql.ExistsJoins.encounterOrder(local, where);
+        }
+    };
 }
