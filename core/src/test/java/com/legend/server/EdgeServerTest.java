@@ -170,6 +170,12 @@ class EdgeServerTest {
             HttpResponse<String> noRoute = send(server, "GET", "/api/lite/v1/queries/nope/no/such", null);
             assertEquals(404, noRoute.statusCode(), noRoute.body());
             assertEquals("request", com.legend.json.Json.parseObject(noRoute.body()).getString("kind"), noRoute.body());
+            // a batch with a missing ID names it: kind notFound, 404, on lite's mount (the orchestrator's ruling,
+            // 2026-11-17); upstream's 500 at the edge's
+            HttpResponse<String> batch = send(server, "GET", "/api/lite/v1/queries/batch?queryIds=nope", null);
+            assertEquals(404, batch.statusCode(), batch.body());
+            assertEquals("{\"kind\":\"notFound\",\"message\":\"no saved query has the ID(s):\\nnope\"}", batch.body());
+            assertEquals(500, send(server, "GET", "/api/pure/v1/query/batch?queryIds=nope", null).statusCode());
             HttpResponse<String> missingEdge = send(server, "GET", "/api/pure/v1/query/nope", null);
             assertEquals(404, missingEdge.statusCode(), missingEdge.body());
             assertTrue(missingEdge.body().startsWith("{\"message\":"), missingEdge.body());

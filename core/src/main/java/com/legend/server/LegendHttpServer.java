@@ -242,10 +242,12 @@ public class LegendHttpServer {
     }
 
     /** The store's refusals of a record that does not exist, as the store writes their kind (lower case,
-     *  {@code SavedQueries.refused}): lite's {@code notFound} (the user, 2026-11-17 ~23:31). A path the store does not
-     *  serve ({@code NO_SUCH_ROUTE}, 404 too) is no such record: kind {@code request}. */
+     *  {@code SavedQueries.refused}): lite's {@code notFound}, 404 (the user, 2026-11-17 ~23:31) -- a batch with
+     *  missing IDs too, naming them (the orchestrator's ruling, the same night: upstream's 500 is the edge's alone). A
+     *  path the store does not serve ({@code NO_SUCH_ROUTE}, 404 too) is no such record: kind {@code request}. */
     private static final java.util.Set<String> MISSING = java.util.Set.of(
             SavedQueries.Refusal.Kind.QUERY_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
+            SavedQueries.Refusal.Kind.QUERIES_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
             SavedQueries.Refusal.Kind.VERSION_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT));
 
     /**
@@ -285,8 +287,13 @@ public class LegendHttpServer {
                         ? o : new com.legend.json.Json.Obj(new java.util.LinkedHashMap<>());
                 String message = said.fields().get("message") instanceof com.legend.json.Json.Str m ? m.value() : a.json();
                 String storeKind = said.fields().get("kind") instanceof com.legend.json.Json.Str k ? k.value() : "";
-                LiteV1Api.Kind kind = a.status() >= 500 ? LiteV1Api.Kind.INTERNAL
-                        : MISSING.contains(storeKind) ? LiteV1Api.Kind.NOT_FOUND : LiteV1Api.Kind.REQUEST;
+                // a record missing first, whatever the store's status (a batch's is upstream's 500), answered with its
+                // kind's 404; any other refusal its store's status
+                if (MISSING.contains(storeKind)) {
+                    return new LiteV1Api.Answer(LiteV1Api.Kind.NOT_FOUND.status(),
+                            new LiteV1Api.Refusal(LiteV1Api.Kind.NOT_FOUND, message, null, null).json());
+                }
+                LiteV1Api.Kind kind = a.status() >= 500 ? LiteV1Api.Kind.INTERNAL : LiteV1Api.Kind.REQUEST;
                 return new LiteV1Api.Answer(a.status(), new LiteV1Api.Refusal(kind, message, null, null).json());
             }
         };

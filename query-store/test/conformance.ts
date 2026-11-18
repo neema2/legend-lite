@@ -199,8 +199,10 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       const r = await raw('GET', `/batch?queryIds=${id('a')}&queryIds=${id('c')}`);
       assert.equal(r.status, 200, r.text);
       assert.deepEqual((r.json as Record<string, unknown>[]).map((q) => q['id']), [id('a'), id('c')]);
-      await refused('GET', `/batch?queryIds=${id('a')}&queryIds=${id('zz')}&queryIds=${id('yy')}`, undefined, 500,
-        d.queriesNotFound(`${id('yy')}\n${id('zz')}`));
+      // a batch with missing IDs names them: on lite's mount kind notFound, 404 (the orchestrator's ruling,
+      // 2026-11-17); upstream's 500 the edge's alone
+      await refused('GET', `/batch?queryIds=${id('a')}&queryIds=${id('zz')}&queryIds=${id('yy')}`, undefined,
+        d === LITE ? 404 : 500, d.queriesNotFound(`${id('yy')}\n${id('zz')}`), d === LITE);
     });
 
     it('deletes: gone from get and search, its versions kept as history', async () => {
