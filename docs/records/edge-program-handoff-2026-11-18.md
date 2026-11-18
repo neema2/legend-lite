@@ -8,6 +8,10 @@ document". The user means to redo this work from scratch later, in another sessi
 that redo. It records what was built, how it is checked, what the user ruled, what went wrong and why, and what is
 left.
 
+**The audit.** The user, 2026-11-18: the final audit "might happen in another account that has token budget to do at
+xhigh", in parallel with the PR's CI. This document is that audit's starting point; the follow-ups are in
+`docs/records/edge-follow-ups-2026-11-18.md`.
+
 **Where the detail lives** (all on branch `claude/total-wall-orch` unless named):
 
 | Document | What it holds |
@@ -15,6 +19,7 @@ left.
 | `docs/records/total-wall-edge-program-2026-11-16.md` | The plan of record: the goal (§1), the design (§2), the rulings verbatim (§3), what we would not do (§4), the checks (§5), the classification table (§6), the phases (§7), the follow-ups F1-F52 (§9), the rulings asked of the user (§10), and the dated log (§12, newest first). |
 | `docs/records/edge-audit-2026-11-17.md` | The audit list: items J1-J43, K1-K16, the host items H1-H11 and the lens audit L1-L14, each with its file, lens, ruling and owner. |
 | `docs/records/edge-portability-program-2026-11-18.md` | The next program, approved by the user: the edge as portable plans (one plan, two presentations; import and export of upstream plans). |
+| `docs/records/edge-follow-ups-2026-11-18.md` | Every follow-up in one list: decisions waiting on the user, the plan's F1-F52, items deferred during the program, and what was found while finishing. |
 | `AGENTS.md` (main) | The architectural invariants and the goals of record G1-G11. Read it first. |
 
 ---
