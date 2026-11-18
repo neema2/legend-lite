@@ -982,6 +982,14 @@ public final class Pure {
     public static final NativeFunctionDefinition ASSERT_FAILED_TEXT = signature("native function meta::legend::lite::assertFailedText():meta::pure::metamodel::type::String[1];");
     /** A run-time type check's failure (see {@link Lite#TYPE_RAISE}): its kind's name and the two types' paths. */
     public static final NativeFunctionDefinition TYPE_RAISE__STRING_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::typeRaise(kind:meta::pure::metamodel::type::String[1], from:meta::pure::metamodel::type::String[1], to:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    /** The engine id of every overload of the compiler's own natives ({@link #COMPILER_OWN}), each to its function's
+     *  name -- a lookup table only, beside the declarations it is read off ({@code SignatureMangle.mangle}): the name
+     *  resolver refuses a call or a reference by a signature id by it, never by cutting the user's name
+     *  (IdentityGuardrailTest; an id no overload spells is no function at all, refused as unknown). */
+    public static final java.util.Map<String, String> COMPILER_OWN_IDS = java.util.Map.of(
+            com.legend.model.SignatureMangle.mangle(TYPE_RAISE__STRING_1__STRING_1__STRING_1), Lite.TYPE_RAISE,
+            com.legend.model.SignatureMangle.mangle(CELL_TEXT__STRING_0_1), Lite.CELL_TEXT,
+            com.legend.model.SignatureMangle.mangle(ASSERT_FAILED_TEXT), Lite.ASSERT_FAILED_TEXT);
     /** A SQL island's inline view (see {@link Lite#INLINE_VIEW}): types as its relation, its windows a boundary. */
     public static final NativeFunctionDefinition INLINE_VIEW__RELATION_1 = signature("native function meta::legend::lite::inlineView<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     /** A recursion over a relation ({@link Lite#RECURSE}): the base's rows and, repeatedly, the step's over the previous

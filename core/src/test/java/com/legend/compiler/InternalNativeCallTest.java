@@ -58,8 +58,8 @@ class InternalNativeCallTest {
     void everyCompilerOwnNativeIsRefusedByItsOverloadsIds() {
         // the resolver's ids are the compiler-own natives', every one of them (a native added to COMPILER_OWN without
         // its declaration here would be refused by name and reachable by its id)
-        assertTrue(new java.util.HashSet<>(NameResolver.COMPILER_OWN_IDS.values()).equals(Pure.COMPILER_OWN),
-                NameResolver.COMPILER_OWN_IDS + " vs " + Pure.COMPILER_OWN);
+        assertTrue(new java.util.HashSet<>(Pure.COMPILER_OWN_IDS.values()).equals(Pure.COMPILER_OWN),
+                Pure.COMPILER_OWN_IDS + " vs " + Pure.COMPILER_OWN);
     }
 
     @Test
