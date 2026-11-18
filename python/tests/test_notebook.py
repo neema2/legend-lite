@@ -19,6 +19,8 @@ from unittest import mock
 
 import IPython
 import pandas as pd
+import pyarrow as pa
+import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite import datacube, notebook
@@ -112,11 +114,10 @@ class Calls(Widget):
         self.assertEqual((status, kind), (200, 'application/json'))
         served = json.loads(body)
         self.assertEqual(served['title'], 'trades')
-        # the API: a parse, as the cube's client sends it
-        status, _, _, body = self.call(cube, 'POST', '/api/pure/v1/grammar/grammarToJson/lambda',
-                                       'returnSourceInformation=false', '|1')
+        # lite's API: a parse, as the cube's client sends it (legend-engine's pure/v1 is the edge's, H5)
+        status, _, _, body = self.call(cube, 'POST', '/api/lite/v1/query/parse', '', json.dumps({'text': '|1'}))
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(body)['_type'], 'lambda')
+        self.assertEqual(json.loads(body)['query']['_type'], 'lambda')
         # DataCube's module and its styles, as the loader fetches them
         for name, kind in (('widget.js', 'text/javascript; charset=utf-8'), ('widget.css', 'text/css; charset=utf-8')):
             status, given, _, body = self.call(cube, 'GET', '/' + name)
@@ -132,16 +133,16 @@ class Calls(Widget):
         # the chart's drawing, ECharts' charts among it (ECharts' core is a chunk it shares with the rarer kinds')
         self.assertGreater(len(body), 50_000, render)
 
-    def test_execute_answers_upstream_s_arrow_with_its_header(self):
+    def test_a_grid_is_planned_and_run_over_the_channel(self):
+        # a page's grid, as the cube's client asks Python for it: planned and run in one call (plan-and-run), its rows an
+        # Arrow stream (legend-engine's execute is the edge's, H5)
         cube = self.cube(name='trades')
         table = datacube._session.frames['trades']
-        tree = ll.parse('|' + table.accessor + '->filter(x|$x.qty > 5)->from(' + table.runtime + ')')
-        body = json.dumps({'clientVersion': 'vX_X_X', 'function': tree, 'model': {'_type': 'text', 'code': table.model},
-                           'context': {'_type': 'BaseExecutionContext'}})
-        status, kind, headers, answer = self.call(cube, 'POST', '/api/pure/v1/execution/execute',
-                                                  'serializationFormat=ARROW_IPC', body)
-        self.assertEqual((status, kind, headers), (200, 'application/json', {'x-legend-response-format': 'FormatNotSet'}))
-        self.assertEqual(answer[:4], b'\x28\xb5\x2f\xfd', 'a zstd frame, as upstream writes it')
+        body = json.dumps({'lambda': json.dumps(ll.parse('|' + table.accessor + '->filter(x|$x.qty > 5)')),
+                           'model': table.model, 'runtime': table.runtime})
+        status, kind, _, answer = self.call(cube, 'POST', '/plan-and-run.json', '', body)
+        self.assertEqual((status, kind), (200, 'application/vnd.apache.arrow.stream'), answer[:300])
+        self.assertGreater(pyarrow.ipc.open_stream(pa.py_buffer(answer)).read_all().num_rows, 0)
 
     def test_a_call_that_is_not_one_is_answered_never_dropped(self):
         cube = self.cube()

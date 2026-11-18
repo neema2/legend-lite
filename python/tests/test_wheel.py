@@ -48,7 +48,7 @@ homed = list(legend_lite._home.home_call(pathlib.Path(tempfile.mkdtemp()), "sdlc
 print(json.dumps({"parsed": sorted(tree), "refused": refused, "homed": homed}))
 '''
 
-# run in the installed environment: a frame shown, its cube asked for, a query executed as DataCube sends it
+# run in the installed environment: a frame shown, its cube asked for, a grid planned and run as DataCube asks for it (plan-and-run)
 SCRIPT = r'''
 import json, urllib.parse, urllib.request, sys
 import pandas as pd
@@ -61,13 +61,11 @@ table = datacube._session.frames["trades"]
 headers = {"Authorization": web.authorization}
 page = urllib.request.urlopen(urllib.request.Request(web.url + "/engine.html"), timeout=30).status
 cube_json = json.loads(urllib.request.urlopen(urllib.request.Request(web.url + "/cube.json?table=trades", headers=headers), timeout=30).read())
-tree = ll.parse("|" + table.accessor + "->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())->from(" + table.runtime + ")")
-body = json.dumps({"clientVersion": "vX_X_X", "function": tree, "model": {"_type": "text", "code": table.model},
-                   "context": {"_type": "BaseExecutionContext"}}).encode()
-answer = urllib.request.urlopen(urllib.request.Request(web.url + "/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC",
+tree = ll.parse("|" + table.accessor + "->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())")
+body = json.dumps({"lambda": json.dumps(tree), "model": table.model, "runtime": table.runtime}).encode()
+answer = urllib.request.urlopen(urllib.request.Request(web.url + "/plan-and-run.json",
                                 body, dict(headers, **{"Content-Type": "application/json"})), timeout=30).read()
-with pa.input_stream(pa.py_buffer(answer), compression="zstd") as stream:
-    rows = pyarrow.ipc.open_stream(stream).read_all().to_pylist()
+rows = pyarrow.ipc.open_stream(pa.py_buffer(answer)).read_all().to_pylist()
 cube.close()
 # the notebook extra: a notebook's cube (no kernel here), its script the loader, and DataCube's module answered over
 # its channel as its page asks for it

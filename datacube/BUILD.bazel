@@ -1819,6 +1819,9 @@ py_binary(
         "//python:iceberg_table",
         "//python:legend_lite",
         "//python:notebook",
+        # legend-engine's API, for the page's three edge checks (H5, the orchestrator's ruling of 2026-11-18: they test
+        # legend-engine's API, so they ask it of the edge's door, legend_lite.edge.engine, never of the product engine)
+        "//python:edge",
     ],
 )
 

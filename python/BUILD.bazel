@@ -197,6 +197,9 @@ py_library(
     name = "edge",
     srcs = glob(["legend_lite/edge/**/*.py"]),
     imports = ["."],
+    # //datacube's engine_fixture (testonly) serves the browser lane's legend-engine checks at the edge's door (H5, the
+    # orchestrator's ruling of 2026-11-18): a test fixture, never a product library
+    visibility = ["//datacube:__pkg__"],
     deps = [":legend_lite"],
 )
 
@@ -527,10 +530,12 @@ py_test(
 # the product's tests carry no edge library, so a product test cannot reach it
 py_test(
     name = "edge_test",
-    size = "small",
+    size = "medium",
     srcs = [
         "tests/main.py",
         "tests/test_edge.py",
+        # its fixtures (a frame, a project's model): imported, its tests not run here (args)
+        "tests/test_engine.py",
     ],
     args = ["test_edge"],
     data = ["//native:compiler"],
@@ -539,6 +544,7 @@ py_test(
     target_compatible_with = _PLATFORMS,
     deps = [
         ":edge",
+        "@pypi//pandas",
         "@rules_python//python/runfiles",
     ],
 )
