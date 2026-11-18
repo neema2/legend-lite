@@ -62,43 +62,116 @@ class TaggedClassesHaveATargetTest {
     }
 
     /** {@code text} with its comments left out: from a {@code #} outside a string to its line's end (a {@code #}
-     *  inside a quoted argument is the argument's). */
+     *  inside a quoted argument, a triple-quoted one's later lines included, is the argument's). Read by the one lexer,
+     *  {@link #lexed} (the review of the guard line, F, MUST-FIX 2: a quote state reset at each newline read a
+     *  triple-quoted string's later lines as code). */
     static String uncommented(String text) {
-        StringBuilder out = new StringBuilder();
-        char quote = 0;
-        boolean comment = false;
+        char[] kind = lexed(text);
+        StringBuilder out = new StringBuilder(text.length());
         for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c == '\n') {
-                quote = 0;
-                comment = false;
-                out.append(c);
-            } else if (comment) {
-                continue;
-            } else if (quote != 0) {
-                out.append(c);
-                if (c == '\\' && i + 1 < text.length() && text.charAt(i + 1) != '\n') {
-                    out.append(text.charAt(++i));
-                } else if (c == quote) {
-                    quote = 0;
-                }
-            } else if (c == '#') {
-                comment = true;
-            } else {
-                if (c == '"' || c == '\'') {
-                    quote = c;
-                }
-                out.append(c);
+            if (kind[i] != COMMENT) {
+                out.append(text.charAt(i));
             }
         }
         return out.toString();
     }
 
+    private static final char CODE = 'c';
+    private static final char STRING = 's';
+    private static final char QUOTE = 'q';
+    private static final char COMMENT = '#';
+
+    /** THE ONE STARLARK LEXER: each character of {@code text} as code, a string's (its quotes and its content: single,
+     *  double, and triple quotes across lines, a backslash escaping the next character) or a comment's (a {@code #}
+     *  outside a string to its line's end). A string left open is refused by name: the check never guesses where it
+     *  ends. */
+    static char[] lexed(String text) {
+        char[] kind = new char[text.length()];
+        java.util.Arrays.fill(kind, CODE);
+        int i = 0;
+        int n = text.length();
+        while (i < n) {
+            char c = text.charAt(i);
+            if (c == '#') {
+                while (i < n && text.charAt(i) != '\n') {
+                    kind[i++] = COMMENT;
+                }
+            } else if (c == '"' || c == '\'') {
+                String quote = text.startsWith(String.valueOf(c).repeat(3), i) ? String.valueOf(c).repeat(3)
+                        : String.valueOf(c);
+                int j = i + quote.length();
+                while (j < n && !text.startsWith(quote, j)) {
+                    if (quote.length() == 1 && text.charAt(j) == '\n') {
+                        break;
+                    }
+                    j += text.charAt(j) == '\\' ? 2 : 1;
+                }
+                if (j >= n || !text.startsWith(quote, j)) {
+                    int line = (int) text.substring(0, i).chars().filter(ch -> ch == '\n').count() + 1;
+                    throw new IllegalStateException("an unterminated string at line " + line + ", a text the check does"
+                            + " not read");
+                }
+                int to = j + quote.length();
+                for (int k = i; k < to; k++) {
+                    kind[k] = k < i + quote.length() || k >= j ? QUOTE : STRING;
+                }
+                i = to;
+            } else {
+                i++;
+            }
+        }
+        return kind;
+    }
+
+    /** The calls {@code \nfunction(} in {@code build}'s code -- never one inside a string or a comment -- each from its
+     *  open parenthesis to the one closing it, by bracket depth over the code alone (the review of the guard line, F,
+     *  MUST-FIX 2: a lazy {@code \n\)} match ended a call's text at a {@code \n)} inside a string, and every argument
+     *  after it went unread). A call that does not close, or closes off its own line, is refused by name. */
+    static List<int[]> calls(String build, String function) {
+        String code = starlarkCode(build);
+        List<int[]> out = new ArrayList<>();
+        Matcher m = Pattern.compile("\\n" + Pattern.quote(function) + "\\(").matcher(code);
+        while (m.find()) {
+            int open = m.end() - 1;
+            int depth = 0;
+            int close = -1;
+            for (int i = open; i < code.length(); i++) {
+                char c = code.charAt(i);
+                if (c == '(' || c == '[' || c == '{') {
+                    depth++;
+                } else if ((c == ')' || c == ']' || c == '}') && --depth == 0) {
+                    close = i;
+                    break;
+                }
+            }
+            if (close < 0 || code.charAt(close) != ')') {
+                throw new IllegalStateException("a " + function + " call does not close: a text the check does not"
+                        + " read");
+            }
+            out.add(new int[] {open, close});
+        }
+        return out;
+    }
+
+    private static final Pattern CALL_NAME = Pattern.compile("\\(\\n\\s*name = \"([\\w-]+)\",");
+
     /** The {@code junit_test} or library block named {@code name} in {@code build}, or "" when there is none. */
     static String block(String build, String name) {
-        Matcher m = Pattern.compile("\\n\\w+\\(\\n\\s*name = \"" + Pattern.quote(name) + "\",(.*?)\\n\\)",
-                Pattern.DOTALL).matcher(build);
-        return m.find() ? m.group(1) : "";
+        Matcher fn = Pattern.compile("\\n(\\w+)\\(").matcher(starlarkCode(build));
+        Set<String> functions = new TreeSet<>();
+        while (fn.find()) {
+            functions.add(fn.group(1));
+        }
+        for (String f : functions) {
+            for (int[] call : calls(build, f)) {
+                Matcher m = CALL_NAME.matcher(build).region(call[0], call[1]);
+                if (m.lookingAt() && m.group(1).equals(name)) {
+                    return build.substring(m.end(), call[1] - 1 >= m.end() && build.charAt(call[1] - 1) == '\n'
+                            ? call[1] - 1 : call[1]);
+                }
+            }
+        }
+        return "";
     }
 
     /** The edge's test sources (core/edge_tests.bzl's EDGE_TEST_SRCS), as "src/test/java/..." paths. */
@@ -375,30 +448,11 @@ class TaggedClassesHaveATargetTest {
     /** {@code text} with every string's content and every comment spaced out, its length and lines kept: Starlark's
      *  code alone (single, double and triple quotes). */
     static String starlarkCode(String text) {
+        char[] kind = lexed(text);
         char[] out = text.toCharArray();
-        int i = 0;
-        int n = text.length();
-        while (i < n) {
-            char c = text.charAt(i);
-            if (c == '#') {
-                while (i < n && text.charAt(i) != '\n') {
-                    out[i++] = ' ';
-                }
-            } else if (c == '"' || c == '\'') {
-                String quote = text.startsWith(String.valueOf(c).repeat(3), i) ? String.valueOf(c).repeat(3)
-                        : String.valueOf(c);
-                int j = i + quote.length();
-                while (j < n && !text.startsWith(quote, j)) {
-                    j += text.charAt(j) == '\\' ? 2 : 1;
-                }
-                for (int k = i + quote.length(); k < Math.min(j, n); k++) {
-                    if (out[k] != '\n') {
-                        out[k] = ' ';
-                    }
-                }
-                i = Math.min(n, j + quote.length());
-            } else {
-                i++;
+        for (int i = 0; i < out.length; i++) {
+            if (kind[i] == COMMENT || kind[i] == STRING && out[i] != '\n') {
+                out[i] = ' ';
             }
         }
         return new String(out);
@@ -559,21 +613,23 @@ class TaggedClassesHaveATargetTest {
      *  class only one of those selects is named an orphan, loudly). */
     static List<Target> targets(String build) {
         List<Target> out = new ArrayList<>();
-        Matcher m = Pattern.compile("\\njunit_test\\(\\n\\s*name = \"([\\w-]+)\",(.*?)\\n\\)", Pattern.DOTALL)
-                .matcher(build);
-        String code = starlarkCode(build);
-        while (m.find()) {
-            // a call inside a string is no call (the review of dd5deb781f, 2026-11-18): skipped, so it selects nothing
-            if (!code.startsWith("\njunit_test(", m.start())) {
+        for (int[] call : calls(build, "junit_test")) {
+            Matcher m = CALL_NAME.matcher(build).region(call[0], call[1]);
+            if (!m.lookingAt()) {
                 continue;
+            }
+            // a call closes on its own line, as every target here does: its text runs to the newline before it
+            if (build.charAt(call[1] - 1) != '\n') {
+                throw new IllegalStateException("junit_test " + m.group(1) + "'s call does not close on its own line, a"
+                        + " text the check does not read");
             }
             // a call is a statement: its closing line holds nothing else (the review of dd5deb781f, 2026-11-18,
             // MUST-FIX 1: "junit_test(..) if False else junit_test(..)" defines the second alone, and the first was read)
-            if (m.end() < build.length() && build.charAt(m.end()) != '\n') {
+            if (call[1] + 1 < build.length() && build.charAt(call[1] + 1) != '\n') {
                 throw new IllegalStateException("junit_test " + m.group(1) + "'s call is followed by text the check"
                         + " does not read");
             }
-            out.add(new Target(m.group(1), m.group(2)));
+            out.add(new Target(m.group(1), build.substring(m.end(), call[1] - 1)));
         }
         // a call written another way -- a list comprehension's [junit_test(...) for p in ...], the per-package shards
         // -- is not read: it selects nothing here, so a class only it runs is reported, which fails closed
@@ -806,6 +862,18 @@ class TaggedClassesHaveATargetTest {
                     + " by no gate target");
         }
         assertEquals(expected, orphans(sources, edge, PLANTED_BUILD, PLANTED_GATES));
+        // the review of the guard line, F, MUST-FIX 2 (2026-11-18): a string holding a line that reads as the call's
+        // close, or a comment's mark, inside a target's arguments ends nothing -- the arguments after it are read
+        String dropping = "\"--select-class=com.legend.slow.DroppedTest\"],\n";
+        assertTrue(PLANTED_BUILD.contains(dropping + "    exclude_tags"));
+        for (String inside : List.of("    env = {\"X\": \"\"\"\n)\n\"\"\"},\n", "    env = {\"X\": \"\"\"\n# \"\"\"},\n",
+                "    env = {\"X\": '#', \"Y\": \"\"\"\n)\n# \"\"\"},\n",
+                // a nested call closing at column 0: the target's own close is found by depth, not by the first line
+                // that opens with a parenthesis
+                "    env = dict(\n),\n")) {
+            assertEquals(expected, orphans(sources, edge, PLANTED_BUILD.replace(dropping + "    exclude_tags",
+                    dropping + inside + "    exclude_tags"), PLANTED_GATES), inside);
+        }
         Map<String, String> edgeCensus = Map.of(TEST_ROOT + "com/legend/EdgeCensusTest.java", census);
         List<String> edgeOrphan = List.of(TEST_ROOT + "com/legend/EdgeCensusTest.java [census]: in the edge's test"
                 + " library, run by no gate target");
@@ -898,6 +966,13 @@ class TaggedClassesHaveATargetTest {
                         "gates/BUILD.bazel's suite checks filters its tests by tag"},
                 new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    target_compatible_with = ONLY_MAC,"),
                         PLANTED_GATES, "slow_census has a target_compatible_with the check does not read"},
+                // the review of the guard line, F, MUST-FIX 2 (2026-11-18): a string holding a line that reads as the
+                // call's close, ahead of a platform restriction, hides nothing -- and a string left open is refused
+                new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    env = {\"X\": \"\"\"\n)\n\"\"\"},\n"
+                        + "    target_compatible_with = [\"@platforms//:incompatible\"],"), PLANTED_GATES,
+                        "slow_census has a target_compatible_with the check does not read"},
+                new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    env = {\"X\": \"\"\"never closed},"),
+                        PLANTED_GATES, "an unterminated string at line"},
                 // the third review (2026-11-17, S10 and its NOTEs): an argument formatted by % or .format, a list or an
                 // item joined from outside the target, a comprehension writing no flag, the other platform
                 // restrictions, a suite's tags written without spaces

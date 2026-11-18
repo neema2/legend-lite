@@ -335,6 +335,75 @@ def git(repo, *args, date=None):
     return subprocess.run(["git", "-C", repo, *args], check=True, capture_output=True, text=True, env=env).stdout
 
 
+class OwnFilesTest(unittest.TestCase):
+    """Review F of the guard line (2026-11-18), MUST-FIX 3: the check's own files move only with a dated note; its lists
+    are its own text's literals; the wrapper reads nothing of the head's module before it chooses the copy."""
+
+    SCRIPT = 'WATCHED = {\n    "a/X.java": ["ONE"],\n}\nGROW_ONLY = {}\n\n\ndef dated():\n    return False\n'
+
+    def own(self, base, head, path=shrink_only.SELF):
+        return shrink_only.own_files_moved(lambda p: base if p == path else None,
+                                           lambda p: head if p == path else None, SINCE, None)
+
+    def test_a_change_to_the_script_needs_a_note(self):
+        loosened = self.SCRIPT.replace("return False", "return True")
+        failures = self.own(self.SCRIPT, loosened)
+        self.assertEqual(1, len(failures), failures)
+        self.assertIn(shrink_only.SELF, failures[0])
+        self.assertEqual([], self.own(self.SCRIPT, loosened + "# dated() loosened, 2026-11-18 (the task)\n"))
+        self.assertEqual([], self.own(self.SCRIPT, self.SCRIPT), "an unchanged script needs nothing")
+        self.assertEqual([], self.own(None, loosened), "the script's first landing is the change's own")
+
+    def test_the_workflows_shrink_step_is_the_checks_own(self):
+        gate = ("jobs:\n  guards:\n    steps:\n      - name: Lint\n        run: ./lint.sh\n"
+                "      - name: Shrink-only\n        run: python3 tools/guards/shrink_only.py --base x\n"
+                "      - name: Test\n        run: ./test.sh\n")
+        path = ".github/workflows/gate.yml"
+        self.assertEqual([], self.own(gate, gate.replace("./lint.sh", "./lint2.sh"), path),
+                         "another step's change is not the check's")
+        loosened = gate.replace("shrink_only.py --base x", "shrink_only.py --base x || true")
+        self.assertEqual(1, len(self.own(gate, loosened, path)))
+        noted = loosened.replace("        run: python3 tools/guards/shrink_only.py",
+                                 "        # tolerated while the base moves, 2026-11-18\n"
+                                 "        run: python3 tools/guards/shrink_only.py")
+        self.assertEqual([], self.own(gate, noted, path))
+        self.assertEqual(1, len(self.own(gate, gate.replace("      - name: Shrink-only\n        run: python3 "
+                                                             "tools/guards/shrink_only.py --base x\n", ""), path)),
+                         "the step gone is named")
+
+    def test_the_build_files_targets_are_the_checks_own(self):
+        build = ('py_library(\n    name = "other",\n)\n\npy_test(\n    name = "shrink_only_check",\n'
+                 '    tags = ["external"],\n)\n')
+        path = "tools/guards/BUILD.bazel"
+        self.assertEqual([], self.own(build, build.replace('"other"', '"other2"'), path))
+        self.assertEqual(1, len(self.own(build, build.replace('["external"]', '[]'), path)))
+
+    def test_the_lists_are_read_from_the_scripts_own_text(self):
+        with open(os.path.realpath(shrink_only.__file__), encoding="utf-8") as f:
+            text = f.read()
+        aliased = text.replace('\nif __name__ == "__main__":',
+                               '\n_w = WATCHED\n_w.pop(next(iter(_w)))\n\nif __name__ == "__main__":')
+        self.assertNotEqual(aliased, text)
+        module = types.ModuleType("aliased")
+        module.__file__ = shrink_only.__file__
+        exec(compile(aliased, "aliased", "exec"), module.__dict__)
+        module.SOURCE = aliased
+        self.assertLess(len(module.WATCHED), len(shrink_only.WATCHED), "the alias changed the module's global")
+        watched, _ = module.own_lists()
+        self.assertEqual({p: sorted(n) for p, n in shrink_only.WATCHED.items()}, watched,
+                         "main() reads the literal, whatever the module did to its global")
+
+    def test_the_wrapper_reads_nothing_of_the_heads_module_first(self):
+        import ast
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "shrink_only_check.py"),
+                  encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        top = [n for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))]
+        self.assertFalse(any("shrink_only" in ast.dump(n) for n in top), "the wrapper imports the head's module at"
+                         " its top")
+        self.assertIn("SCRIPT = 'tools/guards/shrink_only.py'", ast.unparse(tree))
+
+
 class HistoryTest(unittest.TestCase):
     """M1 (the floor is the change's own first day, the head the pull request's own commit) and S6 (only an absent
     path is absent; any other git failure exits 2), on a throwaway repository."""
@@ -369,12 +438,12 @@ class HistoryTest(unittest.TestCase):
             f.write(text)
 
     def main(self, *args):
-        saved = shrink_only.WATCHED, shrink_only.GROW_ONLY
-        shrink_only.WATCHED, shrink_only.GROW_ONLY = {PATH: ["REGISTER"]}, {}
+        saved = shrink_only.own_lists
+        shrink_only.own_lists = lambda: ({PATH: ["REGISTER"]}, {})
         try:
             return shrink_only.main(["--repo", self.repo, *args])
         finally:
-            shrink_only.WATCHED, shrink_only.GROW_ONLY = saved
+            shrink_only.own_lists = saved
 
     def test_the_floor_is_the_changes_first_day(self):
         head = git(self.repo, "rev-parse", "change").strip()
@@ -412,12 +481,32 @@ class HistoryTest(unittest.TestCase):
         self.write(PATH, text.replace('Map.entry("x/Big.java", 40),', 'Map.entry("x/Big.java", 40),\n'
                                       '            Map.entry("x/Under.java", 1),'))
         git(self.repo, "commit", "-q", "-am", "under the old note", date="2026-11-14")
-        saved = shrink_only.WATCHED, shrink_only.GROW_ONLY
-        shrink_only.WATCHED, shrink_only.GROW_ONLY = {PATH: ["SIZES"]}, {}
+        self.assertEqual(1, self.main_on(["SIZES"], "--base", "main~1", "--head", "change"))
+        # and no failure but the row's: the run read SIZES alone (review F: the globals patched here read nothing once
+        # main() read its own lists)
+        self.assertEqual(0, self.main_on(["REGISTER"], "--base", "main~1", "--head", "change"))
+
+    def main_on(self, names, *args):
+        saved = shrink_only.own_lists
+        shrink_only.own_lists = lambda: ({PATH: names}, {})
         try:
-            self.assertEqual(1, shrink_only.main(["--repo", self.repo, "--base", "main~1", "--head", "change"]))
+            return shrink_only.main(["--repo", self.repo, *args])
         finally:
-            shrink_only.WATCHED, shrink_only.GROW_ONLY = saved
+            shrink_only.own_lists = saved
+
+    # review F (2026-11-18), SHOULD 4: an old dated comment touched by whitespace alone, or copied from elsewhere in the
+    # file, is not the change's note (git blame -w -M -C keeps each line's origin)
+    def test_a_retouched_or_copied_old_note_is_not_the_changes(self):
+        git(self.repo, "checkout", "-q", "change")
+        with open(os.path.join(self.repo, PATH), encoding="utf-8") as f:
+            text = f.read()
+        # the residue's group note inside the pin (2026-10-01), re-touched by a trailing space, above a row added
+        retouched = text.replace("            // the residue (2026-10-01)\n", "            // the residue (2026-10-01) \n")
+        assert retouched != text
+        self.write(PATH, retouched.replace('Map.entry("x/Big.java", 40),', 'Map.entry("x/Big.java", 40),\n'
+                                           '            Map.entry("x/Retouched.java", 1),'))
+        git(self.repo, "commit", "-q", "-am", "retouch", date="2026-11-14")
+        self.assertEqual(1, self.main_on(["SIZES"], "--base", "main~1", "--head", "change"))
 
     def test_a_note_written_before_its_commit_counts(self):
         # a squash merge's commit is dated when it lands: a note the change wrote counts whatever its date
@@ -494,10 +583,27 @@ class BaseCopyTest(unittest.TestCase):
 
     def test_the_merge_bases_copy_judges_the_change(self):
         loosened = types.ModuleType("loosened")
+        loosened.__file__ = os.path.join(self.repo, shrink_only.SELF)
         with open(os.path.join(self.repo, shrink_only.SELF), encoding="utf-8") as f:
             exec(compile(f.read(), "loosened", "exec"), loosened.__dict__)
         self.assertEqual(0, loosened.main(["--repo", self.repo, "--base", "main"]), "the change's own copy passes it")
         self.assertEqual(1, self.check.main(["--repo", self.repo, "--base", "main"]), "the merge-base's copy does not")
+
+    # review F (2026-11-18), MUST-FIX 3: the loosening alone, with nothing to exploit yet, is named -- so the next
+    # change cannot land on a loosened check unseen
+    def test_a_loosening_alone_is_named_unless_noted(self):
+        git(self.repo, "checkout", "-q", "main")
+        git(self.repo, "checkout", "-q", "-b", "loosen-only")
+        with open(os.path.join(self.repo, shrink_only.SELF), encoding="utf-8") as f:
+            script = f.read()
+        loosened = script.replace('    if fresh is None:\n        return recent(lines[n - 1], since)',
+                                  '    return True\n    if fresh is None:\n        return recent(lines[n - 1], since)')
+        self.write(shrink_only.SELF, loosened)
+        git(self.repo, "commit", "-q", "-am", "loosen only", date="2026-11-12")
+        self.assertEqual(1, self.check.main(["--repo", self.repo, "--base", "main"]))
+        self.write(shrink_only.SELF, loosened + "# noted() answers True while the floor is rebuilt, 2026-11-12\n")
+        git(self.repo, "commit", "-q", "-am", "note it", date="2026-11-12")
+        self.assertEqual(0, self.check.main(["--repo", self.repo, "--base", "main"]), "a dated note shows it")
 
 
 class BuildTest(unittest.TestCase):

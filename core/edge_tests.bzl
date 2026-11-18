@@ -114,6 +114,9 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/sql/PlantedSqlReach.java",
     "src/test/java/com/legend/sql/dialect/PlantedSqlRendererArm.java",
     "src/test/java/com/legend/sql/dialect/PlantedRendererNest.java",
+    # review F of the guard line (2026-11-18, SHOULD 1): a varargs or array keeper, an ordinal or a name kept
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderVarargs.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderOrdinal.java",
     "src/test/java/com/legend/sql/dialect/PlantedRendererByInterface.java",
     "src/test/java/com/legend/sql/dialect/PlantedWordedRaise.java",
     "src/test/java/com/legend/sql/dialect/PlantedBoundRaise.java",
