@@ -755,14 +755,27 @@ class PlannerSurfaceTest {
             Map.entry("lite_unfreed", "the count of answers not yet freed (a leak's witness)"),
             Map.entry("lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)"),
             Map.entry("lite_depot_handle", "the model home's depot, opened on a folder"),
-            Map.entry("lite_saved_queries", "the saved queries' rules over a folder"),
-            Map.entry("lite_saved_cubes", "the saved cubes' rules over a folder"),
             // the product's twins at lite's mount, in lite's words (the edge program's H6, 2026-11-17)
             Map.entry("lite_store_queries", "the saved queries' rules over a folder, at lite's mount"),
             Map.entry("lite_store_cubes", "the saved cubes' rules over a folder, at lite's mount"),
             Map.entry("lite_warehouse_call",
                     "the warehouse's SQL API, a database server of its own, as its binding speaks it"),
             Map.entry("lite_warehouse_read", "the warehouse's SQL API's read")));
+
+    /** THE ENGINE LIBRARY'S SERVICES (//native:engine; K2, the user's "product root, edge opt-in", 2026-11-18):
+     *  legend-engine's saved-query store at its mount, in its words -- no planner door, and the engine library's
+     *  alone, so no service of the product library's run frame ({@code _library._NOT_PLANNING}): the edge's key lets
+     *  them through ({@code _loader.ENGINE_NOT_PLANNING}). */
+    static final Map<String, String> NATIVE_EDGE_SERVICES = new TreeMap<>(Map.of(
+            "lite_saved_queries", "the saved queries' rules over a folder, at legend-engine's mount",
+            "lite_saved_cubes", "the saved cubes' rules over a folder, at legend-engine's mount"));
+
+    /** The native exports that are no planner door, the product library's and the engine library's together. */
+    static Map<String, String> allServices() {
+        Map<String, String> out = new TreeMap<>(NATIVE_SERVICES);
+        out.putAll(NATIVE_EDGE_SERVICES);
+        return out;
+    }
 
     /** THE SERVER'S ROUTES ({@code LiteV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
      *  whose fields are {@link #SERVER_FIELDS}'s. */
@@ -1274,9 +1287,8 @@ class PlannerSurfaceTest {
             Map.entry("release", List.of("lite_release_model", "handle")),
             Map.entry("tableModel", List.of("lite_table_model", "table")),
             Map.entry("catalogColumnsSql", List.of("lite_catalog_columns_sql", "schema", "table")),
-            Map.entry("pureV1", List.of("lite_pure_v1", "path", "query", "body")),
-            Map.entry("executePlan", List.of("lite_execute_json_plan", "body", "models")),
-            Map.entry("executeAnswer", List.of("lite_execute_json_answer", "plan", "rows")),
+            // no pureV1, executePlan, executeAnswer: legend-engine's, the engine library's and the edge's engine module's
+            // (K2, the user's "product root, edge opt-in", 2026-11-18)
             Map.entry("fileLoad", List.of("lite_file_load", "request")),
             Map.entry("remoteMount", List.of("lite_remote_mount", "request")),
             Map.entry("snapStream", List.of("lite_snap_stream", "request")),
@@ -1428,7 +1440,7 @@ class PlannerSurfaceTest {
         exports(out, "the tab's export", jsExport, List.of(tabSource), TAB_EXPORTS, Map.of(), Map.of());
         exports(out, "the engine module's export", jsExport, List.of(engineSource), Map.of(), Map.of(), ENGINE_EXPORTS);
         exports(out, "the native export", Pattern.compile("@CEntryPoint\\(name = \"(\\w+)\"\\)"), nativeSources,
-                NATIVE_EXPORTS, NATIVE_SERVICES, NATIVE_EDGE_EXPORTS);
+                NATIVE_EXPORTS, allServices(), NATIVE_EDGE_EXPORTS);
         return out;
     }
 
@@ -1710,7 +1722,7 @@ class PlannerSurfaceTest {
             Set<String> expands = PY_PATTERNS.getOrDefault(name, Set.of(name));
             for (String e : expands) {
                 if (!NATIVE_EXPORTS.containsKey(e) && !NATIVE_EDGE_EXPORTS.containsKey(e)
-                        && !NATIVE_SERVICES.containsKey(e)) {
+                        && !NATIVE_SERVICES.containsKey(e) && !NATIVE_EDGE_SERVICES.containsKey(e)) {
                     out.add("a native name Python spells that no row lists: " + name);
                 }
             }

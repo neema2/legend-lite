@@ -769,6 +769,22 @@ class ModelHomeServed(Served):
         self.assertEqual(self.call('DELETE', '/settings.json')[0], 405)
 
 
+class EdgeOff(unittest.TestCase):
+    """THE PRODUCT LIBRARY HOLDS NO EDGE (K2, the user's "product root, edge opt-in", 2026-11-18): //native:compiler is
+    rooted at lite's own entry points alone -- legend-engine's (pure/v1, execute's halves, the refusal in its envelope,
+    its saved-query store) are the engine library's (//native:engine), which no product module loads. Asked of the
+    product library's own symbol table, never a list kept by hand; and the product's suites run on it (this lane)."""
+
+    def test_the_product_library_exports_no_edge_entry(self):
+        from legend_lite import _loader
+        from legend_lite._library import library
+        held = sorted(name for name in _loader.ENGINE_ARITY if library().exports(name))
+        self.assertEqual(held, [], "legend-engine's entry points are the engine library's, never the product's")
+        # the check bites: a product entry is seen
+        self.assertTrue(library().exports('lite_query_plan'))
+        self.assertFalse(set(_loader.ENGINE_ARITY) & set(_loader._ARITY), "the product's loader names no edge entry")
+
+
 class TheEdgeSeam(unittest.TestCase):
     """The edge program's H5 (2026-11-17, the orchestrator's D-a): the product's engine answers the calls its EdgeRoutes
     serve through them -- NO_EDGE_ROUTES, which serves none, unless the edge's door gives it another -- never None (G7),

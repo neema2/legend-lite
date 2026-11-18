@@ -60,6 +60,37 @@ class TheEdgesDoor(unittest.TestCase):
             self.assertEqual((said.status, said.body), (404, f'no such path: {path}'.encode()), path)
 
 
+class EdgeOn(unittest.TestCase):
+    """THE ENGINE LIBRARY, OPT-IN (K2, the user's "product root, edge opt-in", 2026-11-18): legend-engine's entry
+    points are //native:engine's (libcompiler_engine, the legend-lite-engine wheel), loaded by the edge's key alone;
+    its routes answer byte-exact as before (this lane's legend-engine tests, below). Without it, the edge's door is
+    refused by name."""
+
+    def test_the_engine_library_exports_every_edge_entry(self):
+        from legend_lite import _loader
+        from legend_lite.edge._engine import engine_library
+        self.assertEqual(sorted(n for n in _loader.ENGINE_ARITY if not engine_library().exports(n)), [])
+        self.assertNotEqual(engine_library().path, ll.compiler.library().path, 'a library of its own')
+
+    def test_without_the_engine_library_the_door_is_refused_by_name(self):
+        import builtins
+        import sys
+        from legend_lite import _loader
+        real_import = builtins.__import__
+
+        def no_engine_package(name, *args, **kwargs):
+            if name == 'legend_lite_engine':
+                raise ImportError(name)
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch.dict(os.environ, {'LEGEND_LITE_ENGINE_LIBRARY': ''}), \
+                mock.patch.object(_loader, '_engine', None), mock.patch.dict(sys.modules), \
+                mock.patch.object(builtins, '__import__', no_engine_package):
+            sys.modules.pop('legend_lite_engine', None)
+            with self.assertRaisesRegex(edge.EngineMissing, r'legend-engine needs the legend-lite\[engine\] extra'):
+                edge.engine(ll.Frames())
+
+
 class EdgeServed(test_engine.Served):
     """An engine over one Live frame composed at the edge's door, and requests as a legend-engine client sends them."""
 

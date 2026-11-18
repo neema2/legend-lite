@@ -4,7 +4,9 @@ lite's own routes): legend-engine's ``pure/v1`` API (its grammar, compilation an
 library's edge entry ``lite_pure_v1``), its ``execution/execute`` in upstream's Arrow format and in its JSON (planned by
 the edge's entries, the SQL run on the engine's own DuckDB by the run side, the answer written by legend-lite's server's
 writer), and legend-engine's saved-query store at ``/api/pure/v1/query`` (its pages at ``.../dataCube``) in
-legend-engine's words (the edge's native entries ``lite_saved_queries``, ``lite_saved_cubes``). The product answers
+legend-engine's words (the edge's native entries ``lite_saved_queries``, ``lite_saved_cubes``). Every one of those
+entries is the ENGINE library's (//native:engine, K2: the user's "product root, edge opt-in", 2026-11-18), asked
+through the edge's key (``_engine``); the product library exports none. The product answers
 none of these: it asks this package's ``EngineRoutes`` through its seam (``_edge_seam``), and only when the edge's door
 composed the engine."""
 
@@ -15,6 +17,7 @@ import json
 import traceback
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import duckdb
@@ -22,13 +25,13 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from .. import _json, compiler
-from .._home import queries_folder
-from .._library import library
+from .._home import locked, queries_folder
 from .._planned import from_plan
-from .._pool import _workers
+from .._pool import _on_compiler_threads, _workers
 from .._raised import declare_sites
 from .._reads import run_arrow, run_rows_json
 from ..frames import redact_held
+from ._engine import engine_library
 
 if TYPE_CHECKING:
     from ..engine import Answer, Engine
@@ -66,34 +69,56 @@ def pure_v1(path: str, query: str, body: str) -> EngineAnswer:
     """One call of legend-engine's ``pure/v1`` API, answered by legend-lite's server code (the edge's ``PureV1Routes``,
     ``lite_pure_v1``) -- every endpoint it serves but execute's run: ``path`` as requested (``/api/pure/v1/...``),
     ``query`` its raw query string (``''`` for none)."""
-    return _http(library().call('lite_pure_v1', path, query, body))
+    return _http(engine_library().call('lite_pure_v1', path, query, body))
 
 
 def execute_plan(body: str, models: list[str]) -> EngineAnswer:
     """The plan half of execute in upstream's Arrow format: for an ``ExecuteInput`` over one of ``models`` (the only
     models this host runs), an answer whose body is ``{"sql", "metadata"}`` -- the SQL to run, and the Arrow schema
     metadata upstream's answer carries; any other answer is a refusal, to be sent as it is."""
-    return _http(library().call('lite_execute_plan', body, _json.dumps(models)))
+    return _http(engine_library().call('lite_execute_plan', body, _json.dumps(models)))
 
 
 def execute_json_plan(body: str, models: list[str]) -> EngineAnswer:
     """The plan half of execute in legend-engine's JSON, for a host that runs the SQL on its own database: an answer
     whose body is ``{"sql", "run", "shape", "resultColumns", "builder", ...}`` -- ``run`` the typed statement, whose
     rows go back to :func:`execute_json_answer`; any other answer is a refusal, to be sent as it is."""
-    return _http(library().call('lite_execute_json_plan', body, _json.dumps(models)))
+    return _http(engine_library().call('lite_execute_json_plan', body, _json.dumps(models)))
 
 
 def execute_json_answer(plan: str, rows: str) -> EngineAnswer:
     """Execute's answer in legend-engine's JSON: ``plan`` the plan half's body, ``rows`` the rows the database answered
     its ``run`` statement with (a JSON array of objects, each a column's name and its cell as the driver read it),
     decoded by the plan's columns and written by legend-lite's server's own writer -- the server's answer text."""
-    return _http(library().call('lite_execute_json_answer', plan, rows))
+    return _http(engine_library().call('lite_execute_json_answer', plan, rows))
 
 
 def refusal(message: str) -> EngineAnswer:
     """A database's refusal, as legend-lite's server answers one (``500``, legend-engine's error shape: the edge's
     ``EngineEnvelope.refused``)."""
-    return _http(library().call('lite_pure_v1_refusal', message))
+    return _http(engine_library().call('lite_pure_v1_refusal', message))
+
+
+def _stored(entry: str, folder: Path, *asked: str) -> Answer:
+    """One call of legend-engine's store at its mount (``lite_saved_queries``, ``lite_saved_cubes``: legend-lite's own
+    rules in legend-engine's words, the engine library's), as this user, under the lock every Python process takes on
+    the folder, the call on one of the compiler's threads: its answer as the store gave it, a failure of the library's
+    said (500) -- as the product's store at lite's mount is answered (engine._stored, _home.store_call)."""
+    from .._home import THIS_USER
+    from ..engine import Answer, _said
+    try:
+        with locked(folder):
+            said = _on_compiler_threads(lambda: engine_library().call(entry, str(folder), *asked, THIS_USER))
+        tag, _, rest = said.partition('\n')
+        if tag != 'OK':
+            raise OSError(rest.partition('\n')[2] or rest)
+        status, _, answered = rest.partition('\n')
+    except Exception as failure:
+        traceback.print_exc()
+        return _said(500, f'{type(failure).__name__}: {failure}')
+    if int(status) == 204:
+        return Answer(204, 'text/plain; charset=utf-8', b'')
+    return Answer(int(status), 'application/json', answered.encode('utf-8'))
 
 
 def _arrow_requested(query: str) -> bool:
@@ -137,7 +162,7 @@ class EngineRoutes:
         return method == 'POST' and path.startswith(API)
 
     def answer(self, engine: Engine, method: str, path: str, query: str, body: str | None) -> Answer:
-        from ..engine import _said, _stored
+        from ..engine import _said
         if _under(path, QUERIES):
             # on the caller's thread, as the product's store: it waits for the folder's lock holding no compiler thread
             if method not in ('GET', 'POST', 'PUT', 'DELETE'):
