@@ -83,6 +83,15 @@ class HookLambdasTest {
                     "(twoForm reaches 1)")),
             Map.entry("com.legend.testplan.DatabaseJudge#numbers(com.legend.testplan.BodyDriver$ExecEnv)",
                     Set.of("com.legend.testplan.CrossKindNumbers", "(twoForm reaches 1)")),
+            // the failure words the judges write (C1 item 4, 3120418b2a, train 8: legendPureWords retired -- one choice
+            // per run, the style's FailureWords two-form kind; measured 2026-11-18 on d-int8 fdf001bee)
+            Map.entry("com.legend.testplan.DatabaseJudge#lite(com.legend.testplan.BodyDriver$ExecEnv)",
+                    Set.of("com.legend.testplan.FailureWords", "(twoForm reaches 1)")),
+            Map.entry("com.legend.testplan.TestDoor#planned(com.legend.TypedQuery, java.lang.String, java.util.Set,"
+                    + " com.legend.testplan.TestDoor$Asserts, boolean, com.legend.executionplan.DataStores,"
+                    + " com.legend.testexecutionplan.Edge, com.legend.database.PlanStyle,"
+                    + " com.legend.testexecutionplan.BodyFacts)",
+                    Set.of("com.legend.testplan.FailureWords", "(twoForm reaches 1)")),
             // the test planner: a relation counted by an assert (S137); a test-data timestamp's text (L9)
             Map.entry("com.legend.testplan.TestPlanner#lifted(com.legend.TypedQuery, com.legend.testplan.PlanningOptions)",
                     Set.of("com.legend.compiler.spec.RelationCounting", "com.legend.platform.PlanOption",
@@ -107,6 +116,8 @@ class HookLambdasTest {
             // fd1df9928, a criterion (a) exception); the test-data printing's product form, its own class (K12, a095d0b56)
             Map.entry("com.legend.lowering.ProductLoweringForms", Set.of("com.legend.lowering.LoweringForms")),
             Map.entry("com.legend.testdatagen.LitePrinting", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")),
+            // the failure words' product form (C1 item 4, 3120418b2a, train 8; measured 2026-11-18)
+            Map.entry("com.legend.testplan.LiteFailureWords", Set.of("com.legend.testplan.FailureWords")),
             // D's train 4 (census C1, 2026-11-17): a rendered golden's null word, none (c013b2565c); a date literal's
             // message text, lite's (4bc94e2d8f); the rendered-text rule, strings (a9c14bb4ca) -- each nested in its kind
             Map.entry("com.legend.compiler.spec.LiteGoldenNullWord", Set.of("com.legend.compiler.spec.GoldenNullWord")),
