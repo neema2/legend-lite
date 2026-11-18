@@ -1961,7 +1961,7 @@ public final class AssertVerdicts {
                 : r.value().info().type(), env.options().style().twoForm(com.legend.compiler.spec.GoldenNullWord.class,
                         com.legend.compiler.spec.LiteGoldenNullWord.NONE));
         if (parsed.headerMismatch()) {
-            DatabaseJudge.judged(env, name);
+            DatabaseJudge.staticallyDecided(name, env);
             return fail(name + ": " + parsed.reason());   // a static verdict
         }
         if (parsed.literal() == null) {
