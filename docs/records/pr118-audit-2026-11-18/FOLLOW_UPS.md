@@ -11,6 +11,7 @@ scheduled or closed. IDs refer to `findings/` and `verification/`.
 | Q1 | The product probe's wrong values on cloud and other databases. Float literals are read as exact decimals (`0.1 + 0.2` gives `0.3`), and Decimal scale is lost or overflows. BigQuery 4, Snowflake 7, Databricks 3, Trino 3, ClickHouse 7 | lane reports, base = head |
 | Q2 | The warehouse JDBC client refuses every bound parameter, so `//spec:corpus_warehouse_verdict` loses 41 cases. Red at main, the base and the head; the lane is manual, so no per-push run shows it | `warehouse/client/jdbc/WhStatement.java` |
 | Q3 | MariaDB channel B under BOTH is nondeterministic: the host judge reads list rows in an unstable order (about 20 essential tests flip between runs) | lane report, at the base too |
+| Q3b | MySQL channel B under BOTH fails its essential, grammar and standard ledgers on Decimal scale: the host's assertEq fails "expected: 3.8D actual: 3.800000000000000000000000000000D" while the database holds (toDecimal, abs, rem, round, parseDecimal tests). Also red at the base 815de5810 | lane round 2 |
 | Q4 | On SQLite, a whole Float past 2^63 prints as `9223372036854775807.0` (FloatShortestText's whole-value arm casts through a 64-bit integer) | fixer, F7 |
 | Q5 | `toCSV` writes a DateTime as ISO `+0000`; upstream writes `yyyy-MM-dd HH:mm:ss` | EDGE-2 |
 | Q6 | `format('%r', s)` does not escape a newline | EDGE-3 |
