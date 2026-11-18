@@ -13,7 +13,9 @@ legend_java_library(
     name = "json",
     srcs = glob(["src/main/java/com/legend/json/*.java"]),
     deps = ["//base"],
-    visibility = ["//core:__pkg__", "//datacube:__pkg__", "//depot-server:__pkg__", "//query-store:__pkg__", "//sdlc-server:__pkg__", "//warehouse:__pkg__", "//wasm:__pkg__"],
+    # //tools/engine-runner: the plan oracle's comparison writes legend-engine's answers as the pure/v1 net writes lite's
+    # (slice R of the presentation program, 2026-11-18)
+    visibility = ["//core:__pkg__", "//datacube:__pkg__", "//depot-server:__pkg__", "//query-store:__pkg__", "//sdlc-server:__pkg__", "//tools/engine-runner:__pkg__", "//warehouse:__pkg__", "//wasm:__pkg__"],
 )
 
 junit_test(

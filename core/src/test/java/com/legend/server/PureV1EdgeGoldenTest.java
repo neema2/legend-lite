@@ -25,33 +25,22 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  */
 class PureV1EdgeGoldenTest {
 
-    private static final String RT = "->from(trades::h2::RT)";
-    private static final String TRADES = "#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#";
-
-    /** name -> the lambda's grammar. */
-    private static final Map<String, String> REQUESTS = new LinkedHashMap<>();
-
-    static {
-        // one TDS answer and one value answer
-        REQUESTS.put("tds", "|" + TRADES + "->select(~[year, region])->sort([~year->ascending(), ~region->ascending()])->limit(2)" + RT);
-        REQUESTS.put("value", "|" + TRADES + "->size()" + RT);
-        // an error answer for each raise pure/v1 reaches
-        REQUESTS.put("raise.divideByZero", "|" + TRADES + "->limit(1)->extend(~d: r|$r.year->toOne() / 0)->select(~[d])" + RT);
-        REQUESTS.put("raise.atOutOfBounds", "|" + TRADES + "->limit(1)->extend(~a: r|[1, 2]->at(5))->select(~[a])" + RT);
-        REQUESTS.put("raise.toOneOverMany", "|" + TRADES + "->limit(1)->extend(~o: r|[1, 2]->toOne())->select(~[o])" + RT);
-        REQUESTS.put("raise.sqrtOfNegative", "|" + TRADES + "->limit(1)->extend(~s: r|sqrt(-2.0))->select(~[s])" + RT);
-        REQUESTS.put("raise.parseInteger", "|" + TRADES + "->limit(1)->extend(~p: r|'abc'->parseInteger())->select(~[p])" + RT);
-        // a cell of each kind
-        REQUESTS.put("cell.dateTimeCoarse", "|" + TRADES + "->limit(1)->extend(~t: r|%2024-01-02T10:30:00)->select(~[t])" + RT);
-        REQUESTS.put("cell.dateTimeSubMicro",
-                "|" + TRADES + "->limit(1)->extend(~t: r|%2024-01-02T10:30:00.123456789)->select(~[t])" + RT);
-        REQUESTS.put("cell.float", "|" + TRADES + "->limit(1)->extend(~f: r|1.0 / 3.0)->select(~[f])" + RT);
-        REQUESTS.put("cell.floatWhole", "|" + TRADES + "->limit(1)->extend(~f: r|2.0 * 3.0)->select(~[f])" + RT);
-        REQUESTS.put("cell.empty",
-                "|" + TRADES + "->limit(1)->extend(~e: r|[]->cast(@String)->first())->select(~[e])" + RT);
-        REQUESTS.put("cell.emptyIf",
-                "|" + TRADES + "->limit(1)->extend(~e: r|if(false, |'x', |[]->cast(@String)))->select(~[e])" + RT);
-        REQUESTS.put("cell.strictDate", "|" + TRADES + "->limit(1)->extend(~d: r|%2024-01-02)->select(~[d])" + RT);
+    /** name -> the lambda's grammar: the net's list, {@code edge/pure_v1_requests.tsv} (moved there from this class
+     *  by slice R of the presentation program, 2026-11-18, so the plan oracle sends legend-engine the same requests:
+     *  //tools/engine-runner:pure_v1_oracle_test). One TDS answer and one value answer; an error answer for each raise
+     *  pure/v1 reaches; a cell of each kind. */
+    private static Map<String, String> requests() throws IOException {
+        Map<String, String> requests = new LinkedHashMap<>();
+        for (String l : resource("edge/pure_v1_requests.tsv").split("\\R")) {
+            if (l.isBlank() || l.startsWith("#")) {
+                continue;
+            }
+            int tab = l.indexOf('\t');
+            if (tab < 0 || requests.put(l.substring(0, tab), l.substring(tab + 1)) != null) {
+                throw new IOException("a request line is a new name, a tab and a lambda: " + l);
+            }
+        }
+        return requests;
     }
 
     private static String resource(String name) throws IOException {
@@ -109,7 +98,7 @@ class PureV1EdgeGoldenTest {
     void everyRequestsAnswer() throws IOException {
         String model = Json.toCompact(Map.of("_type", "text", "code", resource("upstream-api/trades-h2.pure")));
         StringBuilder out = new StringBuilder();
-        for (Map.Entry<String, String> r : REQUESTS.entrySet()) {
+        for (Map.Entry<String, String> r : requests().entrySet()) {
             String body;
             try {
                 String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(r.getValue(), false).json();
