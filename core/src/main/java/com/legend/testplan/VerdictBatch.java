@@ -209,9 +209,13 @@ public final class VerdictBatch {
     /** The lowering's one row over a generic verdict row and its ruled row. */
     private final Either either;
 
+    /** The batch's words of a failure (census J29): an unrolled element named as they name it. */
+    private final com.legend.lowering.VerdictWords words;
+
     public VerdictBatch(Fusion fusion, Either either, SelfContained selfContained, Runner runner,
-            VerdictIds ids) {
+            VerdictIds ids, com.legend.lowering.VerdictWords words) {
         this.ids = ids;
+        this.words = words;
         this.fusion = fusion;
         this.either = either;
         this.selfContained = selfContained;
@@ -277,8 +281,8 @@ public final class VerdictBatch {
         SqlQuery row = selfContained.wrap(scope.isNot() ? com.legend.lowering.VerdictSql.withIsNotHint(query) : query, name,
                 wantEqual);
         if (scope.elementIndex() >= 0) {
-            // an unrolled quantifier's element: lite's sentence names it by its zero-based index
-            row = com.legend.lowering.VerdictSql.atIndex(row, scope.elementIndex());
+            // an unrolled quantifier's element, named as the words name it (lite's: by its zero-based index)
+            row = com.legend.lowering.VerdictSql.atIndex(row, scope.elementIndex(), words);
         }
         Pending of = orElseOf.peek();
         if (of != null) {

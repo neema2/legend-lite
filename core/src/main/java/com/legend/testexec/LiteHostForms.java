@@ -17,7 +17,7 @@ public enum LiteHostForms implements HostForms {
     }
 
     @Override
-    public boolean upstreamWords() {
-        return false;
+    public HostWords words() {
+        return LiteHostWords.INSTANCE;
     }
 }

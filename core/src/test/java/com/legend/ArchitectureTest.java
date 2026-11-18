@@ -1250,6 +1250,15 @@ final class ArchitectureTest {
             "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",
             "com.legend.edge.EdgePureOnlyTexts",
             "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
+            // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
+            // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
+            // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
+            // the frame's shape it reads, the canons
+            "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
+                    + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            "lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            "lowering.VerdictWords$Reads#CANONS", "com.legend.edge.UpstreamVerdictWords",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "

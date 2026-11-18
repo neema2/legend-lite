@@ -47,6 +47,9 @@ public enum AssertSentence {
     JSON_EQUALS("expected the JSON {expected}, got {actual}"),
     ERROR("expected the error {expected}, got {actual}"),
     NO_ERROR("expected the error {expected}, got none"),
+    // census J29 (2026-11-18): assertError's line and column, lite's own (legend-pure's words the edge's)
+    ERROR_LINE("expected the error at line {expected}, got line {actual}"),
+    ERROR_COLUMN("expected the error at column {expected}, got column {actual}"),
     AT_INDEX("{sentence} at index {index}");
 
     private final String template;
