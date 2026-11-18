@@ -87,6 +87,36 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.judgesEngineText());
     }
 
+    /** THE HOOK ENTRIES (the orchestrator's ruling of 2026-11-18, (6)): a product method that differs only by taking a
+     *  hook type -- a PlanStyle or a facet -- and runs the product's own pipeline with it is the designed hook entry, not
+     *  edge work in the product (EdgeOnlyMembersTest reads this list; its members are not counted). Each checked to hold
+     *  no legend-engine logic in its body, and pinned with its reason. */
+    static final Map<String, String> HOOK_ENTRIES = Map.ofEntries(
+            Map.entry("com.legend.Execution#runOnProjectDatabases(com.legend.TypedQuery, java.lang.String, java.lang.String, com.legend.database.PlanStyle, com.legend.result.Output)",
+                    "2026-11-18: a hook entry -- the product's own pipeline handed a PlanStyle, no legend-engine logic in its body (the orchestrator's ruling (6))"),
+            Map.entry("com.legend.TypedQuery#projectPlan(java.lang.String, com.legend.database.PlanStyle)",
+                    "2026-11-18: a hook entry -- the product's own pipeline handed a PlanStyle, no legend-engine logic in its body (the orchestrator's ruling (6))"));
+
+    /** Each hook entry takes a PlanStyle: it is a hook entry by its signature, not by its name. */
+    @Test
+    void eachHookEntryTakesAHookType() throws ClassNotFoundException {
+        for (String entry : HOOK_ENTRIES.keySet()) {
+            Class<?> owner = Class.forName(entry.substring(0, entry.indexOf('#')));
+            String name = entry.substring(entry.indexOf('#') + 1, entry.indexOf('('));
+            String params = entry.substring(entry.indexOf('(') + 1, entry.length() - 1);
+            boolean found = false;
+            for (java.lang.reflect.Method m : owner.getMethods()) {
+                String sig = java.util.Arrays.stream(m.getParameterTypes()).map(Class::getName)
+                        .collect(java.util.stream.Collectors.joining(", "));
+                if (m.getName().equals(name) && sig.equals(params)) {
+                    found = java.util.Arrays.asList(m.getParameterTypes())
+                            .contains(com.legend.database.PlanStyle.class);
+                }
+            }
+            org.junit.jupiter.api.Assertions.assertTrue(found, entry + " is a public method taking a PlanStyle");
+        }
+    }
+
     /** A ruled hook's static FORWARDERS (the orchestrator's facade rule, 2026-11-17): each forwards one call to a
      *  helper the product itself uses, and the set is pinned exactly -- shrink-only, a new one is seen. Every other
      *  method of a ruled hook is a bare signature. */
