@@ -147,7 +147,6 @@ _PLAN_AND_RUN, _PLAN = '/plan-and-run.json', '/plan.json'
 # no token of their own): same-site strict, unreadable by the page's script, and named by the engine's port (a browser
 # sends a host's cookies to its every port: two engines' would otherwise replace each other's)
 _APPS = ('query', 'studio')
-_CURRENT_USER = '/api/server/v1/currentUser'
 _LITE_API = '/api/lite/v1/'
 # lite's query/run (the spec's §2): a host's own operation -- planned by the product, run on this engine's DuckDB
 _QUERY_RUN = _LITE_API + 'query/run'
@@ -617,9 +616,6 @@ class Engine:
             # on the caller's thread: it waits for the repository's lock (another process's call) holding no compiler
             # thread, and only the library's call goes to one
             return self._model_home(method, path, query, body or '')
-        if path == _CURRENT_USER and method == 'GET':
-            # who a page's caller is: this user (the stores name the same; there is no sign-in)
-            return Answer(200, 'application/json', json.dumps(_QUERY_USER).encode('utf-8'))
         if method == 'POST':
             if path == _QUERY_RUN:
                 # lite's query/run: a host's own (it runs), planned by the product's query/plan, run here

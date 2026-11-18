@@ -130,16 +130,16 @@ for name, open_app in (("query", ll.query), ("studio", ll.studio)):
     jar = {"Cookie": cookie.split(";")[0], "Sec-Fetch-Site": "same-origin"}
     apps[name] = {"traded": traded, "page": get(link, link.path)[0],
                   "config": sorted(json.loads(get(link, f"/{name}/demo/config.json")[2])),
-                  "user": get(link, "/api/server/v1/currentUser", jar)[:3:2],
-                  "no_cookie": get(link, "/api/server/v1/currentUser")[0]}
+                  # a product route the page's calls carry the cookie to (legend-engine's currentUser is the edge's:
+                  # N4 of PR #118's fix round, 2026-11-18)
+                  "own": get(link, "/sdlc/api/projects", jar)[0],
+                  "no_cookie": get(link, "/sdlc/api/projects")[0]}
 shipped = pathlib.Path(ll.__file__).with_name("_apps")
 apps["demo_projects"] = get(link, "/studio/demo/projects/manifest.json")[0]
 apps["duckdb_wasm"] = sorted(p.name for p in shipped.rglob("duckdb-*.wasm"))
 print(json.dumps({"module": ll.__file__, "library": __import__("legend_lite._library", fromlist=["x"]).library().path.as_posix(),
                   "page": page, "cube": sorted(cube_json), "rows": rows, "notebook": notebook, "headless": headless,
-                  "remote": remote, "iceberg": iceberg, "apps": {k: v if not isinstance(v, dict) else
-                                                                  {**v, "user": [v["user"][0], v["user"][1].decode()]}
-                                                                  for k, v in apps.items()}}))
+                  "remote": remote, "iceberg": iceberg, "apps": apps}))
 '''
 
 
@@ -410,6 +410,6 @@ class Installed(unittest.TestCase):
         # projects shipped, DuckDB-WASM's builds not (Python's DuckDB runs the queries)
         for app, keys in (('query', ['depot', 'execution', 'projects', 'vendor']),
                           ('studio', ['depot', 'engine', 'sdlc', 'vendor', 'worker'])):
-            self.assertEqual(out['apps'][app], {'traded': 303, 'page': 200, 'config': keys, 'user': [200, '"this user"'],
+            self.assertEqual(out['apps'][app], {'traded': 303, 'page': 200, 'config': keys, 'own': 200,
                                                 'no_cookie': 401}, out['apps'])
         self.assertEqual((out['apps']['demo_projects'], out['apps']['duckdb_wasm']), (200, []), out['apps'])

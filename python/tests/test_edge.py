@@ -44,6 +44,10 @@ class TheEdgesDoor(unittest.TestCase):
         self.assertTrue(engine.edge.serves('GET', '/api/pure/v1/query/q-1'))
         self.assertFalse(engine.edge.serves('GET', '/api/pure/v1/grammar/grammarToJson/lambda'))
         self.assertFalse(engine.edge.serves('POST', '/api/lite/v1/query/parse'))
+        # legend-engine's current user is the edge's too (N4 of PR #118's fix round, 2026-11-18): the store's user
+        self.assertTrue(engine.edge.serves('GET', '/api/server/v1/currentUser'))
+        said = engine.answer('GET', '/api/server/v1/currentUser', '', None)
+        self.assertEqual((said.status, said.content_type, json.loads(said.body)), (200, 'application/json', 'this user'))
         # a call no route serves is refused as the product refuses it
         said = engine.answer('POST', '/no-such-route.json', '', '{}')
         self.assertEqual((said.status, said.body), (404, b'no such path: /no-such-route.json'))
@@ -54,8 +58,10 @@ class TheEdgesDoor(unittest.TestCase):
 
     def test_a_product_engine_serves_none_of_legend_engines_routes(self):
         engine = Engine(ll.Frames())
+        # legend-engine's current user among them (N4 of PR #118's fix round, 2026-11-18): an unknown path, as any other
         for method, path in (('POST', '/api/pure/v1/grammar/grammarToJson/lambda'),
-                             ('POST', '/api/pure/v1/execution/execute'), ('GET', '/api/pure/v1/query/q-1')):
+                             ('POST', '/api/pure/v1/execution/execute'), ('GET', '/api/pure/v1/query/q-1'),
+                             ('GET', '/api/server/v1/currentUser')):
             said = engine.answer(method, path, '', '|1')
             self.assertEqual((said.status, said.body), (404, f'no such path: {path}'.encode()), path)
 

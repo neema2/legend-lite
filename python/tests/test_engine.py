@@ -30,7 +30,7 @@ import legend_lite as ll
 from legend_lite import _json
 from legend_lite.engine import Engine, NativePlanner, WebServer
 from legend_lite.keeper import page_hash
-from legend_lite._home import THIS_USER, locked
+from legend_lite._home import locked
 
 GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
 
@@ -1209,13 +1209,17 @@ class AppsServed(unittest.TestCase):
             'sdlc': f'{origin}/sdlc/api', 'depot': f'{origin}/depot/api', 'vendor': './vendor/',
             'worker': './planner-worker.js', 'engine': f'{origin}/api'})
 
+    # a product route the page's calls carry the cookie to (legend-engine's currentUser is the edge's: N4 of PR #118's
+    # fix round, 2026-11-18, tested by test_edge)
+    OWN = '/sdlc/api/projects'
+
     def test_the_apps_calls_carry_the_cookie(self):
-        self.assertEqual(self.call('GET', '/api/server/v1/currentUser'), (401, unittest.mock.ANY, unittest.mock.ANY))
+        self.assertEqual(self.call('GET', self.OWN), (401, unittest.mock.ANY, unittest.mock.ANY))
         # another engine's cookie (another port's), or this one's with another token: refused
-        self.assertEqual(self.call('GET', '/api/server/v1/currentUser', self.cookie(name='legend-lite-1'))[0], 401)
-        self.assertEqual(self.call('GET', '/api/server/v1/currentUser', self.cookie(token='wrong'))[0], 401)
-        status, _, body = self.call('GET', '/api/server/v1/currentUser', self.cookie())
-        self.assertEqual((status, json.loads(body)), (200, THIS_USER))
+        self.assertEqual(self.call('GET', self.OWN, self.cookie(name='legend-lite-1'))[0], 401)
+        self.assertEqual(self.call('GET', self.OWN, self.cookie(token='wrong'))[0], 401)
+        status, _, body = self.call('GET', self.OWN, self.cookie())
+        self.assertEqual((status, type(json.loads(body))), (200, list))
         # the store and the model home, as the token reads them
         self.assertEqual(self.call('POST', '/api/lite/v1/queries/search', self.cookie(), '{}')[0], 200)
         self.assertEqual(self.call('GET', '/sdlc/api/projects', self.cookie())[0], 200)
@@ -1224,7 +1228,7 @@ class AppsServed(unittest.TestCase):
     def test_the_cookie_admits_the_pages_own_calls_only(self):
         # a browser sends a host's cookies to its every port (SameSite or not): a page of another server on this
         # machine sends it too, and is refused (the audit of E)
-        user = '/api/server/v1/currentUser'
+        user = self.OWN
         for site in ('same-site', 'cross-site', 'none'):
             self.assertEqual(self.call('GET', user, self.cookie(site=site))[0], 401, site)
         self.assertEqual(self.call('POST', '/api/lite/v1/queries/search', self.cookie(site='same-site'), '{}')[0], 401)
@@ -1241,7 +1245,7 @@ class AppsServed(unittest.TestCase):
         jar = self.cookie()
         for others in ('x=a b', 'x={"a":1}', f'{self.server.cookie}=stale', 'bare'):
             for header in (f'{others}; {jar["Cookie"]}', f'{jar["Cookie"]}; {others}'):
-                self.assertEqual(self.call('GET', '/api/server/v1/currentUser', {**jar, 'Cookie': header})[0], 200, header)
+                self.assertEqual(self.call('GET', self.OWN, {**jar, 'Cookie': header})[0], 200, header)
 
     def test_an_apps_path_to_another_host_is_refused_once(self):
         with socket.create_connection(('127.0.0.1', self.port), timeout=30) as raw:

@@ -25,7 +25,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from .. import _json, compiler
-from .._home import locked, queries_folder
+from .._home import THIS_USER, locked, queries_folder
 from .._planned import from_plan
 from .._pool import _on_compiler_threads, _workers
 from .._raised import declare_sites
@@ -43,6 +43,9 @@ EXECUTE = API + 'execution/execute'
 # and pages' rules over this user's folders, in legend-engine's words
 QUERIES = '/api/pure/v1/query'
 CUBES = QUERIES + '/dataCube'
+# legend-engine's current user (N4 of PR #118's fix round, 2026-11-18: the K2 move's last route, the product's engine
+# serving it until then): the store's user, whom its saved queries are kept for -- lite's own is POST /api/lite/v1/user
+CURRENT_USER = '/api/server/v1/currentUser'
 
 
 def _under(path: str, mount: str) -> bool:
@@ -153,16 +156,21 @@ def _request_model(body: str) -> str | None:
 
 class EngineRoutes:
     """LEGEND-ENGINE'S ROUTES, served by an engine composed at the edge's door (``legend_lite.edge.engine``): POSTs of
-    ``/api/pure/v1/...`` (execute among them), and the query store at ``/api/pure/v1/query`` (GET, POST, PUT, DELETE);
-    anything else is no call of theirs."""
+    ``/api/pure/v1/...`` (execute among them), the query store at ``/api/pure/v1/query`` (GET, POST, PUT, DELETE), and
+    the GET of ``/api/server/v1/currentUser``; anything else is no call of theirs."""
 
     def serves(self, method: str, path: str) -> bool:
         if _under(path, QUERIES):
             return True
+        if method == 'GET' and path == CURRENT_USER:
+            return True
         return method == 'POST' and path.startswith(API)
 
     def answer(self, engine: Engine, method: str, path: str, query: str, body: str | None) -> Answer:
-        from ..engine import _said
+        from ..engine import Answer, _said
+        if method == 'GET' and path == CURRENT_USER:
+            # who a page's caller is: this user, whom the stores keep queries for (there is no sign-in)
+            return Answer(200, 'application/json', json.dumps(THIS_USER).encode('utf-8'))
         if _under(path, QUERIES):
             # on the caller's thread, as the product's store: it waits for the folder's lock holding no compiler thread
             if method not in ('GET', 'POST', 'PUT', 'DELETE'):
