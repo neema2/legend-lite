@@ -86,8 +86,7 @@ public final class EqualToJson {
                 return null;
             }
             // the referee's 2-ULP policy for the database's C-library doubles (the compatibility rules' bound)
-            if (com.legend.testexec.Equality.withinUlps(en.doubleValue(), an.doubleValue(),
-                    CompatRules.COMPILED_PURE.floatUlps())) {
+            if (com.legend.edge.CompiledPureHostForms.withinUlps(en.doubleValue(), an.doubleValue())) {
                 com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-json " + en + " ~ " + an);
                 return null;
             }

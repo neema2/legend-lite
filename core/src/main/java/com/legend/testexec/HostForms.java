@@ -14,6 +14,13 @@ public interface HostForms {
     /** Whether {@code e} of kind {@code ek} equals {@code a} of the different kind {@code ak}. */
     boolean equalAcrossNumberKinds(Equality.Kind ek, Equality.Kind ak, Object e, Object a);
 
+    /** Whether two Decimals are equal (train 17, 2026-11-18: until then the plan's {@code decimalScale} rule). */
+    boolean equalDecimals(java.math.BigDecimal e, java.math.BigDecimal a);
+
+    /** Whether two finite Floats whose values differ are equal all the same (train 17, 2026-11-18: until then the
+     *  plan's {@code floatUlps} rule). */
+    boolean equalFloatsApart(double e, double a);
+
     /** The words a failure is worded in (census J29, 2026-11-18: the hook, never a flag): lite's runs
      *  {@link LiteHostWords}, the compatibility edge's legend-pure's. */
     HostWords words();

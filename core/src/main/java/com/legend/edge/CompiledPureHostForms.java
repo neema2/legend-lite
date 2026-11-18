@@ -21,6 +21,45 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
         return integerAndDecimal && String.valueOf(e).equals(String.valueOf(a));
     }
 
+    /** The units in the last place two Floats may differ by and be equal: compiled legend-pure's 2 (S15/S132). */
+    public static final int FLOAT_ULPS = 2;
+
+    /** Compiled legend-pure's assert compares a Decimal's {@code getValue().equals}: its scale part of its value
+     *  ({@code 3.0D} differs from {@code 3.00D}; register S139; train 17, 2026-11-18: moved from testexec.Equality). */
+    @Override
+    public boolean equalDecimals(java.math.BigDecimal e, java.math.BigDecimal a) {
+        return e.equals(a);
+    }
+
+    /** Two Floats within {@link #FLOAT_ULPS} ULP are equal (S15/S132; train 17, 2026-11-18: moved from
+     *  testexec.Equality). */
+    @Override
+    public boolean equalFloatsApart(double e, double a) {
+        boolean within = withinUlps(e, a);
+        if (within) {
+            // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
+            com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);
+        }
+        return within;
+    }
+
+    /** Two finite doubles within {@code FLOAT_ULPS * ulp(max(|x|, |y|))} (moved from testexec.Equality, train 17,
+     *  2026-11-18). */
+    public static boolean withinUlps(double x, double y) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            return false;
+        }
+        double ulp = Math.ulp(Math.max(Math.abs(x), Math.abs(y)));
+        boolean ok = Math.abs(x - y) <= FLOAT_ULPS * ulp;
+        if (ok && x != y) {
+            com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.ULP_FIRINGS);
+            if (System.getenv("LL_TOL_COUNT") != null) {
+                System.err.println("[tol] ulp " + x + " vs " + y);
+            }
+        }
+        return ok;
+    }
+
     @Override
     public com.legend.testexec.HostWords words() {
         // the compatibility rules: legend-pure's words

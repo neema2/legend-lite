@@ -212,6 +212,9 @@ class HookRulingTest {
                 // CrossKindNumbers (census C1, 2026-11-17, register S127: the product never equals two number kinds,
                 // the edge equals an Integer and a Decimal by their texts, as compiled legend-pure does)
                 com.legend.testplan.CrossKindNumbers.class,
+                // VerdictNumbers (train 17, the orchestrator's item 4 of 2026-11-18, registers S15/S132, S139: two Floats
+                // or two Decimals -- lite's exact rule in the product, compiled legend-pure's at the edge)
+                com.legend.lowering.VerdictNumbers.class,
                 // RenderedTextRule (census C1, 2026-11-17, registers S131, S132: the product's two strings, the edge's
                 // ruled comparison where they differ)
                 com.legend.testplan.RenderedTextRule.class,

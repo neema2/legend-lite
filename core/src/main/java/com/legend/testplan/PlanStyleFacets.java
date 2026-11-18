@@ -44,6 +44,9 @@ public final class PlanStyleFacets {
             // two numbers of different kinds at planning (census C1, 2026-11-17, register S127): never equal in the
             // product, compiled legend-pure's Integer/Decimal-by-text at the edge
             CrossKindNumbers.class,
+            // how the database judge compares two Floats or two Decimals (train 17, the orchestrator's item 4 of
+            // 2026-11-18, registers S15/S132, S139): lite's exact rule in the product, compiled legend-pure's at the edge
+            com.legend.lowering.VerdictNumbers.class,
             // how the database judge plans a rendered text's equality (census C1, 2026-11-17, registers S131, S132):
             // the product's two strings, the edge's ruled comparison where they differ
             RenderedTextRule.class,

@@ -123,6 +123,10 @@ public final class PureText {
                 // upstream's ruled rendered-text comparison where the strings differ (S131, S132; census C1)
                 return kind.cast(UpstreamRenderedTextRule.INSTANCE);
             }
+            if (kind == com.legend.lowering.VerdictNumbers.class) {
+                // compiled legend-pure's Float and Decimal equality, the database judge's (S15/S132, S139; train 17)
+                return kind.cast(CompiledPureVerdictNumbers.INSTANCE);
+            }
             if (kind == com.legend.testplan.CrossKindNumbers.class) {
                 // compiled legend-pure's number equality across kinds (S127; census C1)
                 return kind.cast(CompiledPureNumbers.INSTANCE);
