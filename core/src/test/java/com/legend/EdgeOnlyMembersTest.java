@@ -99,11 +99,9 @@ class EdgeOnlyMembersTest {
             // %r newline form (VerdictSql), J29's legend-pure sort for assertSameElements' words (PureAsserts, a new class
             // line) and J31's residue, a declared parameter's multiplicity (QueryParameters)
             Map.entry("com.legend.lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)",
-                    "J40.VerdictSql E-Java (J29, train 14) MOVE (2026-11-18): legend-pure's %r newline form, read by the edge's UpstreamVerdictWords alone"),
+                    "J40.VerdictSql E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's %r newline form, read by the edge's UpstreamVerdictWords alone"),
             Map.entry("com.legend.testexec.PureAsserts#sorted(java.util.List)",
-                    "J40.PureAsserts E-Java (J29, train 14) MOVE (2026-11-18): legend-pure's total order over Any, sorting assertSameElements' words in the edge's EdgeHostWords alone"),
-            Map.entry("com.legend.planner.QueryParameters$Declared#multiplicity()",
-                    "J40.QueryParameters E-SQL (J31's residue, train 15) MOVE (2026-11-18): a declared parameter's multiplicity, read by the edge's EnginePlans alone for legend-engine's plan template"),
+                    "J40.PureAsserts E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's total order over Any, sorting assertSameElements' words in the edge's EdgeHostWords alone"),
             Map.entry("com.legend.model.ConnectionSpecification#carryingTestData(java.lang.String)",
                     "J40.ConnectionSpecification F MOVE (2026-11-18): legend-engine's service-test runtime (the edge's ServiceTestRunner)"),
             Map.entry("com.legend.plan.PureSpelling#sizeRange(com.legend.compiler.element.type.Multiplicity)",
@@ -154,6 +152,11 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // ruled READ_API by the orchestrator (2026-11-18, on the re-cut's triage): a declared parameter's multiplicity
+            // is lite's own fact about the user's query, though only the edge's printer reads it today -- the line
+            // between L-B's shape and a real fact is what it MEANS, not who reads it; the J40.QueryParameters line goes
+            Map.entry("com.legend.planner.QueryParameters$Declared#multiplicity()",
+                    "2026-11-18: lite's own fact about the user's query, a declared parameter's multiplicity (the orchestrator's ruling)"),
             // re-ruled READ_API by the orchestrator (2026-11-18, on E-SQL's five): MappingDefinition's enum and
             // AggregationAware facts are lite's own model facts, read by the edge (stamped at phase E; no reach-back
             // growth) -- the J40.MappingDefinition line goes
