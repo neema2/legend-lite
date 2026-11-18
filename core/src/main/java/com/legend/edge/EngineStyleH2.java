@@ -837,12 +837,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      *  legend-engine's VarSetPlaceHolder; set by {@link #planned} for the statement it plans. */
     private final Set<String> planVariables = new HashSet<>();
 
-    /** The plan's template parameters (the edge's table, the audit's J31): set by {@link #params}. */
-    private EngineParams params = EngineParams.none();
+    /** The plan's template parameters (the edge's table, the audit's J31): replaced by {@link #params}, as
+     *  {@link #planVariables} is per statement. */
+    private final EngineParams params = EngineParams.none();
 
     @Override
     public void params(EngineParams params) {
-        this.params = params;
+        this.params.replaceWith(params);
     }
 
     private void consumeRootSlot(String group, Map<String, Integer> groups) {

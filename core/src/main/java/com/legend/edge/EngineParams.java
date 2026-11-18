@@ -86,6 +86,19 @@ public final class EngineParams {
         return out;
     }
 
+    /** This table, its entries {@code other}'s (a printer's table, replaced per plan). */
+    void replaceWith(EngineParams other) {
+        if (other == this) {
+            return;
+        }
+        slots.clear();
+        enumMapFns.clear();
+        splices.clear();
+        slots.putAll(other.slots);
+        enumMapFns.putAll(other.enumMapFns);
+        splices.addAll(other.splices);
+    }
+
     private EngineParams copy() {
         EngineParams out = new EngineParams();
         out.slots.putAll(slots);
@@ -101,8 +114,9 @@ public final class EngineParams {
     /**
      * {@code body} with each field read through a parameter as legend-engine's dotted placeholder: {@code $p.a} is the
      * parameter {@code p.a} whatever the field's type; a deeper read {@code $p.a.b.c} is {@code p.a.b.c} where its
-     * last field is not a class (a class-valued field stays a field read of the placeholder before it). Its kind
-     * follows the field's type.
+     * last field is not a class (a class-valued field stays a field read of the placeholder before it), and so is a
+     * read through {@code $p->toOne()}. Its kind follows the field's type: the rule the product's lowering applied
+     * until the audit's J31.
      */
     Resolved resolveDotted(List<TypedSpec> body) {
         if (slots.isEmpty()) {
@@ -126,11 +140,20 @@ public final class EngineParams {
             path.addFirst(a.property());
             cur = a.source();
         }
+        // a parameter read through toOne() is the parameter itself (its lowering's identity): a field under it reads
+        // as a deeper read does -- the placeholder where the field is not a class
+        boolean throughOne = false;
+        if (cur instanceof com.legend.compiler.spec.typed.TypedNativeCall one && one.args().size() == 1
+                && com.legend.builtin.Pure.isToOneCall(one.callee().qualifiedName())
+                && one.args().get(0) instanceof TypedVariable under && roots.contains(under.name())) {
+            cur = under;
+            throughOne = true;
+        }
         if (!(cur instanceof TypedVariable v)) {
             return m;
         }
-        boolean read = path.size() == 1 && roots.contains(v.name())
-                || dotted.contains(v.name()) && !(p.info().type() instanceof Type.ClassType);
+        boolean read = !throughOne && path.size() == 1 && roots.contains(v.name())
+                || (throughOne || dotted.contains(v.name())) && !(p.info().type() instanceof Type.ClassType);
         if (!read) {
             return m;
         }
