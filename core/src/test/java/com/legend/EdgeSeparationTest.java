@@ -377,8 +377,8 @@ class EdgeSeparationTest {
         counted.addAll(audit);
         Set<String> open = new TreeSet<>(OPEN_LINES);
         open.addAll(audit);
-        // J40 (2026-11-18, EdgeOnlyMembersTest): a public product member the edge alone uses, counted under its audit
-        // id, none a census line
+        // J40 (2026-11-18, EdgeOnlyMembersTest): a public product member the edge alone uses, counted one line per class
+        // ("J40.<Class>"), none a census line
         Set<String> edgeOnly = linesOf(EdgeOnlyMembersTest.OPEN);
         assertTrue(java.util.Collections.disjoint(edgeOnly, OPEN_LINES), "an edge-only member's id is a census line: "
                 + edgeOnly);
@@ -517,7 +517,7 @@ class EdgeSeparationTest {
         int audit = EdgeAuditOpenTest.AUDIT_OPEN.size();
         int rules = JudgingRulesReachTest.BEHAVIOUR_OPEN.size();
         // a public product member the edge alone uses (J40 of the edge audit, 2026-11-18: EdgeOnlyMembersTest)
-        int edgeOnly = EdgeOnlyMembersTest.OPEN.size();
+        int edgeOnly = EdgeOnlyMembersTest.lines().size();   // one line per class (the ruling's (1))
         System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
                 + CSG_OPEN.size() + rules + audit + edgeOnly) + " (BUILD " + BUILD_OPEN.size() + ", CODE "
                 + CODE_OPEN.size() + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules

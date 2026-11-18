@@ -29,6 +29,7 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A PRODUCT MEMBER ONLY THE EDGE USES IS COUNTED (J40 of the edge audit, the orchestrator's order of 2026-11-18 on the
@@ -56,12 +57,304 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag("guardrail")
 class EdgeOnlyMembersTest {
 
-    /** The members only the edge uses, each an open census line: "owner#member(params)" -> "J40 date (owner: why)".
-     *  Measured 2026-11-18. */
-    static final Map<String, String> OPEN = Map.ofEntries();
+    /** The members only the edge uses that MOVE to the edge or are DELETED (the orchestrator's triage ruling of
+     *  2026-11-18), each "member" -> "J40.Class OWNER KIND (date): why": ONE CENSUS LINE PER CLASS ({@link #lines}),
+     *  listing its members here (J33's and J40's audit items fold into it). Shrink-only: a member leaves when it moves,
+     *  and its class's line closes with its last. */
+    static final Map<String, String> OPEN = Map.ofEntries(
+            Map.entry("com.legend.TypedQuery#answersADiagnostic()",
+                    "J40.TypedQuery F MOVE (2026-11-18): legend-engine's lambda-build refusal of a diagnostic (S128), asked by the pure/v1 route alone"),
+            Map.entry("com.legend.compiler.element.type.PlatformTypes#CREATE_SCHEMA_STATEMENT",
+                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's deprecated toDDL generators' names, read by the edge's plans alone"),
+            Map.entry("com.legend.compiler.element.type.PlatformTypes#DROP_SCHEMA_STATEMENT",
+                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's deprecated toDDL generators' names, read by the edge's plans alone"),
+            Map.entry("com.legend.compiler.element.type.PlatformTypes#DROP_TABLE_STATEMENT",
+                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's deprecated toDDL generators' names, read by the edge's plans alone"),
+            Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_NON_EXECUTABLE_SQL_STRING",
+                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's toSQLString natives' names (E-Java's b414c7bac1, train 15)"),
+            Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_SQL_STRING",
+                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's toSQLString natives' names (E-Java's b414c7bac1, train 15)"),
+            Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_SQL_STRING_PRETTY",
+                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's toSQLString natives' names (E-Java's b414c7bac1, train 15)"),
+            Map.entry("com.legend.compiler.spec.VerdictQueries#extentSubset(com.legend.compiler.spec.typed.TypedSpec)",
+                    "J40.VerdictQueries E-Java (extentSubset), F (text, J33) MOVE (2026-11-18): the referee's replay gate (G6: the referee is the edge's)"),
+            Map.entry("com.legend.compiler.spec.VerdictQueries#text(java.lang.String)",
+                    "J40.VerdictQueries E-Java (extentSubset), F (text, J33) MOVE (2026-11-18): J33: the engine-text arms' constant side (F)"),
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext#connectionInstance()",
+                    "J40.ExecutionContext E-Java MOVE (2026-11-18): a frame field only legend-engine's plan printer reads (its connection, store and quoting)"),
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext#connectionName()",
+                    "J40.ExecutionContext E-Java MOVE (2026-11-18): a frame field only legend-engine's plan printer reads (its connection, store and quoting)"),
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext#quoteIdentifiers()",
+                    "J40.ExecutionContext E-Java MOVE (2026-11-18): a frame field only legend-engine's plan printer reads (its connection, store and quoting)"),
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext#storeFqn()",
+                    "J40.ExecutionContext E-Java MOVE (2026-11-18): a frame field only legend-engine's plan printer reads (its connection, store and quoting)"),
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext#withPostProcessors(com.legend.compiler.spec.typed.ExecutionContext$PostProcessors)",
+                    "J40.ExecutionContext E-Java MOVE (2026-11-18): legend-engine's post-processors, set by the edge's SQL-text arm alone"),
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext$PlanConnection#planText()",
+                    "J40.ExecutionContext E-Java MOVE (2026-11-18): legend-engine's plan text's connection line"),
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext$PostProcessors#withNonExecutable(boolean)",
+                    "J40.ExecutionContext E-Java MOVE (2026-11-18): legend-engine's nonExecutable post-processor (toNonExecutableSQLString)"),
+            Map.entry("com.legend.compiler.spec.typed.TypedFrom#connectionName()",
+                    "J40.TypedFrom E-Java MOVE (2026-11-18): the connection name legend-engine's plan text prints"),
+            Map.entry("com.legend.compiler.spec.typed.TypedTableReference#accessor()",
+                    "J40.TypedTableReference E-Java MOVE (2026-11-18): the accessor as written, for legend-engine's plan text and dialects"),
+            Map.entry("com.legend.database.PlanStyle$Activity#engines()",
+                    "J40.PlanStyle E-SQL MOVE (2026-11-18): legend-engine's text for an activity chain"),
+            Map.entry("com.legend.database.PlanStyle$TraceCell#<init>(java.lang.String, java.lang.String)",
+                    "J40.PlanStyle E-SQL MOVE (2026-11-18): the engine style's trace-cell text, written by the edge's printer alone"),
+            Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
+                    "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
+            Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, java.util.List)",
+                    "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
+            Map.entry("com.legend.lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)",
+                    "J40.Lowerer E-SQL (design first) MOVE (2026-11-18): the non-lean shape is legend-engine's; the setter serves the edge's plans alone"),
+            Map.entry("com.legend.lowering.VerdictSql#textEquals(java.lang.String, java.lang.String)",
+                    "J40.VerdictSql E-SQL MOVE (2026-11-18): legend-engine's SQL-text assert's verdict row"),
+            Map.entry("com.legend.model.ConnectionSpecification#carryingTestData(java.lang.String)",
+                    "J40.ConnectionSpecification F MOVE (2026-11-18): legend-engine's service-test runtime (the edge's ServiceTestRunner)"),
+            Map.entry("com.legend.model.MappingDefinition$EnumColumn#column()",
+                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): an enum-mapping id read verbatim for legend-engine's plan text"),
+            Map.entry("com.legend.model.MappingDefinition$EnumColumn#enumMappingId()",
+                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): an enum-mapping id read verbatim for legend-engine's plan text"),
+            Map.entry("com.legend.model.MappingDefinition$EnumColumn#table()",
+                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): an enum-mapping id read verbatim for legend-engine's plan text"),
+            Map.entry("com.legend.model.MappingDefinition$RelationalSource$Table#aggregationAwareMain()",
+                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): the AggregationAware main set, legend-engine's activity form"),
+            Map.entry("com.legend.model.MappingDefinition$RelationalSource$Table#enumColumns()",
+                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): enum columns, for legend-engine's plan text alone"),
+            Map.entry("com.legend.plan.PureSpelling#sizeRange(com.legend.compiler.element.type.Multiplicity)",
+                    "J40.PureSpelling E-SQL MOVE (2026-11-18): legend-engine's plan text's multiplicity spelling"),
+            Map.entry("com.legend.planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
+                    "J40.BodyPlanner F MOVE (2026-11-18): the runtime argument of executionPlan/execute/toSQLString, legend-engine's test natives"),
+            Map.entry("com.legend.planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, java.util.List, com.legend.compiler.spec.SpecCompiler)",
+                    "J40.BodyPlanner F MOVE (2026-11-18): the runtime argument of executionPlan/execute/toSQLString, legend-engine's test natives"),
+            Map.entry("com.legend.planner.BodyPlanner#pushDownEnums(com.legend.planner.PlanEnv, java.util.List)",
+                    "J40.BodyPlanner F MOVE (2026-11-18): legend-engine's PUSH_DOWN_ENUM_TRANSFORM (F's 7d754567, train 15)"),
+            Map.entry("com.legend.planner.QueryParameters$Declared#planParam(java.lang.String)",
+                    "J40.QueryParameters E-SQL (J31, train 15) MOVE (2026-11-18): legend-engine's plan template parameter and spelling (E-SQL's J31, train 15)"),
+            Map.entry("com.legend.planner.QueryParameters$Declared#signature()",
+                    "J40.QueryParameters E-SQL (J31, train 15) MOVE (2026-11-18): legend-engine's plan template parameter and spelling (E-SQL's J31, train 15)"),
+            Map.entry("com.legend.planner.SqlTextInputs#<init>(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.typed.TypedSpec, boolean)",
+                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
+            Map.entry("com.legend.planner.SqlTextInputs#dialect()",
+                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
+            Map.entry("com.legend.planner.SqlTextInputs#mapping()",
+                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
+            Map.entry("com.legend.planner.SqlTextInputs#of(com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List)",
+                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
+            Map.entry("com.legend.planner.SqlTextInputs#query()",
+                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
+            Map.entry("com.legend.planner.SqlTextInputs#receiverForm()",
+                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
+            Map.entry("com.legend.planner.SqlTextInputs#runtime()",
+                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
+            Map.entry("com.legend.protocol.EmbeddedDataKinds#notImplemented(com.legend.protocol.Protocol$PEmbeddedDataValue, java.lang.String)",
+                    "J40.EmbeddedDataKinds E-P5 (after J43) DELETE (2026-11-18): a message the edge composes from name(); the product never says it"),
+            Map.entry("com.legend.protocol.ModelComposer#model(java.lang.String, com.legend.protocol.PureComposer$Style)",
+                    "J40.ModelComposer E-P5 (after J43) DELETE (2026-11-18): a text-input convenience overload: the edge parses with the product's Json and calls model(Json)"),
+            Map.entry("com.legend.protocol.ModelReader#read(java.lang.String)",
+                    "J40.ModelReader E-P5 (after J43) DELETE (2026-11-18): a text-input convenience overload: the edge parses with the product's Json and calls read(Json)"),
+            Map.entry("com.legend.resolver.AggregationAwareRouting#mainSetId(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
+                    "J40.AggregationAwareRouting F (train 15) MOVE (2026-11-18): legend-engine's AggregationAware main set id (F's 7d754567, train 15)"),
+            Map.entry("com.legend.sql.DecodeShapes#sourceColumn(com.legend.sql.SqlExpr)",
+                    "J40.DecodeShapes E-SQL MOVE (2026-11-18): the enum push-down form of legend-engine's plan text"),
+            Map.entry("com.legend.sql.DecodeShapes#stripDecodes(com.legend.sql.SqlExpr)",
+                    "J40.DecodeShapes E-SQL MOVE (2026-11-18): the enum push-down form of legend-engine's plan text"),
+            Map.entry("com.legend.sql.SqlExpr$Cast#conform()",
+                    "J40.SqlExpr E-SQL MOVE (2026-11-18): a MIR field only legend-engine's dialects read"),
+            Map.entry("com.legend.sql.SqlExpr$DeferredTdsString#<init>(com.legend.sql.SqlSelect, java.lang.String, int)",
+                    "J40.SqlExpr E-SQL MOVE (2026-11-18): legend-engine's #TDS relation text, made by the edge alone"),
+            Map.entry("com.legend.sql.SqlExpr$TempTableInSplice#<init>(java.lang.String)",
+                    "J40.SqlExpr E-SQL MOVE (2026-11-18): legend-engine's generateTempTableSelectSQLQuery template"),
+            Map.entry("com.legend.testexec.CanonicalDivergence#probeGridText(java.lang.String, java.lang.String, boolean, boolean, java.lang.String)",
+                    "J40.CanonicalDivergence E-Java MOVE (2026-11-18): legend-engine's toCSV text channel (R1b)"),
+            Map.entry("com.legend.testexecutionplan.Verdicts#scalarString(com.legend.testexecutionplan.TypedSide)",
+                    "J40.Verdicts F (J33, train 15) MOVE (2026-11-18): J33: the SQL-text arm's residue (F's 28fca78e, train 15)"),
+            Map.entry("com.legend.testplan.AssertVerdicts$ReplayGates#extentSubset()",
+                    "J40.AssertVerdicts E-Java MOVE (2026-11-18): the referee's gates (G6: the referee is the edge's)"),
+            Map.entry("com.legend.testplan.AssertVerdicts$ReplayGates#ordered()",
+                    "J40.AssertVerdicts E-Java MOVE (2026-11-18): the referee's gates (G6: the referee is the edge's)"),
+            Map.entry("com.legend.testplan.AssertVerdicts$ReplayGates#sortKeys()",
+                    "J40.AssertVerdicts E-Java MOVE (2026-11-18): the referee's gates (G6: the referee is the edge's)"),
+            Map.entry("com.legend.testplan.BodyDriver$ExecEnv#appealOn()",
+                    "J40.BodyDriver E-Java MOVE (2026-11-18): the compatibility appeal's environment, the edge's referee's"));
 
-    /** The members only the edge uses that are ruled a product API the edge reads, each with its reason (not counted). */
-    static final Map<String, String> READ_API = Map.ofEntries();
+    /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
+     *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
+    static final Map<String, String> READ_API = Map.ofEntries(
+            Map.entry("com.legend.Compiler$Target#<init>(java.lang.String)",
+                    "2026-11-18: a query's execution target (U3), lite's own; the edge's appeal codec rebuilds and reads it"),
+            Map.entry("com.legend.Compiler$Target#store()",
+                    "2026-11-18: a query's execution target (U3), lite's own; the edge's appeal codec rebuilds and reads it"),
+            Map.entry("com.legend.TypedQuery#runtime(java.lang.String)",
+                    "2026-11-18: the runtime a query runs on, lite's one rule for every door"),
+            Map.entry("com.legend.TypedQuery#target()",
+                    "2026-11-18: the query's execution target (Compiler.Target), lite's own"),
+            Map.entry("com.legend.arrowipc.ZstdFrame#of([B)",
+                    "2026-11-18: lite's own Arrow IPC zstd frame; its product caller lands with the host train (J36)"),
+            Map.entry("com.legend.base.DataSize$TooLarge#characters()",
+                    "2026-11-18: lite's size-limit refusal's own facts, which the edge words as upstream does"),
+            Map.entry("com.legend.base.DataSize$TooLarge#limitMegabytes()",
+                    "2026-11-18: lite's size-limit refusal's own facts, which the edge words as upstream does"),
+            Map.entry("com.legend.base.RunScope#judging()",
+                    "2026-11-18: the run witness's post-run judging scope (lite's G4 proof), opened by the edge's appeals"),
+            Map.entry("com.legend.compiler.StoreLookups#findOwnTableDefinition(java.lang.String, java.lang.String)",
+                    "2026-11-18: a lookup over lite's compiled store: which database owns a table"),
+            Map.entry("com.legend.compiler.element.PureModelContext#withExecutionOverlay(com.legend.model.RuntimeDefinition, com.legend.model.ConnectionDefinition)",
+                    "2026-11-18: lite's model with a driver-supplied runtime and connection overlay"),
+            Map.entry("com.legend.compiler.spec.NativeDispatch$RoutineCall#args()",
+                    "2026-11-18: lite's native dispatch's routine call (a JAVA_ROUTINE's fqn and args)"),
+            Map.entry("com.legend.compiler.spec.NativeDispatch$RoutineCall#fqn()",
+                    "2026-11-18: lite's native dispatch's routine call (a JAVA_ROUTINE's fqn and args)"),
+            Map.entry("com.legend.error.InvalidParameters#problems()",
+                    "2026-11-18: lite's invalid-parameters refusal's own facts"),
+            Map.entry("com.legend.error.MissingParameters#missing()",
+                    "2026-11-18: lite's missing-parameters refusal's own facts"),
+            Map.entry("com.legend.exec.PlanRunner#rows(com.legend.executionplan.ExecutionPlan, java.util.Map, com.legend.exec.PlanSessions$Source, java.util.UUID)",
+                    "2026-11-18: exec's run of a plan to typed rows, lite's own"),
+            Map.entry("com.legend.executionplan.ColumnFacts#store(com.legend.sql.SqlDdl$ColumnType)",
+                    "2026-11-18: a column's declared store type, lite's column fact"),
+            Map.entry("com.legend.executionplan.PlanJson#loadStepJson(com.legend.executionplan.ExecutionPlan$LoadStep)",
+                    "2026-11-18: a half of lite's own plan codec (E-P5's ask: load steps and columns)"),
+            Map.entry("com.legend.executionplan.PlanJson#loadStepOf(com.legend.json.Json$Obj)",
+                    "2026-11-18: a half of lite's own plan codec (E-P5's ask: load steps and columns)"),
+            Map.entry("com.legend.executionplan.PlanJson#readColumns(java.lang.String)",
+                    "2026-11-18: a half of lite's own plan codec (E-P5's ask: load steps and columns)"),
+            Map.entry("com.legend.executionplan.PlanJson#writeColumns(java.util.List)",
+                    "2026-11-18: a half of lite's own plan codec (E-P5's ask: load steps and columns)"),
+            Map.entry("com.legend.lowering.ReprParts#cat([Lcom.legend.sql.SqlExpr;)",
+                    "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
+            Map.entry("com.legend.lowering.ReprParts#dateLiteralText(com.legend.compiler.spec.typed.TypedSpec)",
+                    "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
+            Map.entry("com.legend.lowering.ReprParts#heldAsInteger(com.legend.sql.SqlExpr)",
+                    "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
+            Map.entry("com.legend.lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)",
+                    "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
+            Map.entry("com.legend.plan.EnumMappings#of(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
+                    "2026-11-18: a lookup over lite's normalized mapping: an enum's enumeration mapping"),
+            Map.entry("com.legend.plan.QueryPlan#columns()",
+                    "2026-11-18: lite's query plan's own columns and shape"),
+            Map.entry("com.legend.plan.QueryPlan#shape()",
+                    "2026-11-18: lite's query plan's own columns and shape"),
+            Map.entry("com.legend.planner.PlanEnv#withFeatures(java.util.Set)",
+                    "2026-11-18: lite's planning environment's own features and lets"),
+            Map.entry("com.legend.planner.PlanEnv#withOwnQueryLets()",
+                    "2026-11-18: lite's planning environment's own features and lets"),
+            Map.entry("com.legend.planner.PlanEnv#withQueryLets(java.util.Map)",
+                    "2026-11-18: lite's planning environment's own features and lets"),
+            Map.entry("com.legend.protocol.EmbeddedDataKinds#name(com.legend.protocol.Protocol$PEmbeddedDataValue)",
+                    "2026-11-18: an embedded-data kind's name, lite's protocol reader's own"),
+            Map.entry("com.legend.protocol.PureComposer#lambda(com.legend.json.Json$Obj, com.legend.protocol.PureComposer$Style)",
+                    "2026-11-18: a half of lite's protocol printer: a lambda's JSON as Pure text"),
+            Map.entry("com.legend.queries.SavedQueries$Refusal#kind()",
+                    "2026-11-18: lite's saved-query refusal's own facts"),
+            Map.entry("com.legend.queries.SavedQueries$Refusal#operands()",
+                    "2026-11-18: lite's saved-query refusal's own facts"),
+            Map.entry("com.legend.result.HostRows#stream(java.lang.String, java.util.List, com.legend.result.ResultSink)",
+                    "2026-11-18: a half of lite's own host-rows codec (a host's answer to its statement)"),
+            Map.entry("com.legend.result.Output$Rows#<init>(com.legend.result.ResultSink)",
+                    "2026-11-18: lite's Output: a caller's own sink"),
+            Map.entry("com.legend.server.LegendHttpServer$Context#cubeStore()",
+                    "2026-11-18: the server's mount context, lite's own"),
+            Map.entry("com.legend.server.LegendHttpServer$Context#queryStore()",
+                    "2026-11-18: the server's mount context, lite's own"),
+            Map.entry("com.legend.server.LegendHttpServer$Context#sources()",
+                    "2026-11-18: the server's mount context, lite's own"),
+            Map.entry("com.legend.server.LiteV1Api$Answer#bytes(int, [B, java.lang.String, java.util.Map)",
+                    "2026-11-18: lite v1's own answer and runner seams"),
+            Map.entry("com.legend.server.LiteV1Api$Runner#run(com.legend.TypedQuery, java.lang.String, com.legend.result.Output)",
+                    "2026-11-18: lite v1's own answer and runner seams"),
+            Map.entry("com.legend.server.ModelInput$Data#model()",
+                    "2026-11-18: lite's model input, its own records"),
+            Map.entry("com.legend.server.ModelInput$Text#code()",
+                    "2026-11-18: lite's model input, its own records"),
+            Map.entry("com.legend.sql.DateFmt#TIME_ONLY",
+                    "2026-11-18: a MIR date format, lite's own vocabulary (the edge cannot add one: MIR is sealed)"),
+            Map.entry("com.legend.sql.SqlDdl$DropSchema#<init>(java.lang.String, boolean)",
+                    "2026-11-18: MIR DDL, lite's own vocabulary (the edge cannot add one: MIR is sealed)"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner#seedFacts(com.legend.compiler.element.ModelContext, com.legend.testdatagen.TestDataPlanner$Seed)",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$NoRowIdentifiers#database()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$NoRowIdentifiers#keys()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$NoRowIdentifiers#schema()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$NoRowIdentifiers#table()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$NoRowIdentifiers#view()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$RowIdentifiersRepeated#schema()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$RowIdentifiersRepeated#table()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedFacts#<init>(java.lang.String, java.lang.String, java.lang.String, com.legend.sql.SqlSelect, java.util.List)",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedFacts#database()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedFacts#keys()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedFacts#rows()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedFacts#schema()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedFacts#table()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedKey#<init>(java.lang.String, com.legend.sql.SqlExpr, boolean, com.legend.sql.SqlExpr)",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedKey#cell()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedKey#name()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedKey#order()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testdatagen.TestDataPlanner$SeedKey#timestamp()",
+                    "2026-11-18: lite's test-data generator's own facts (its seed, its keys, its refusals), which the edge writes as upstream's JSON"),
+            Map.entry("com.legend.testexecutionplan.EnumFacts#<init>(java.util.List, java.util.Map, java.util.Map)",
+                    "2026-11-18: lite's test plan's enum facts (plan-as-data slice 4), carried by the edge's appeal codec"),
+            Map.entry("com.legend.testexecutionplan.EnumFacts#decodes()",
+                    "2026-11-18: lite's test plan's enum facts (plan-as-data slice 4), carried by the edge's appeal codec"),
+            Map.entry("com.legend.testexecutionplan.EnumFacts#enums()",
+                    "2026-11-18: lite's test plan's enum facts (plan-as-data slice 4), carried by the edge's appeal codec"),
+            Map.entry("com.legend.testexecutionplan.EnumFacts#properties()",
+                    "2026-11-18: lite's test plan's enum facts (plan-as-data slice 4), carried by the edge's appeal codec"),
+            Map.entry("com.legend.testexecutionplan.RecordJson#failure(com.legend.testexecutionplan.Failure)",
+                    "2026-11-18: a half of lite's own test-plan record codec"),
+            Map.entry("com.legend.testexecutionplan.RecordJson#readFailure(com.legend.json.Json$Obj)",
+                    "2026-11-18: a half of lite's own test-plan record codec"),
+            Map.entry("com.legend.testexecutionplan.RecordJson#readSide(com.legend.json.Json$Obj)",
+                    "2026-11-18: a half of lite's own test-plan record codec"),
+            Map.entry("com.legend.testexecutionplan.RecordJson#readSideShape(com.legend.json.Json$Obj)",
+                    "2026-11-18: a half of lite's own test-plan record codec"),
+            Map.entry("com.legend.testexecutionplan.RecordJson#side(com.legend.testexecutionplan.TestPlan$Side)",
+                    "2026-11-18: a half of lite's own test-plan record codec"),
+            Map.entry("com.legend.testexecutionplan.RecordJson#sideShape(com.legend.testexecutionplan.SideShape)",
+                    "2026-11-18: a half of lite's own test-plan record codec"),
+            Map.entry("com.legend.testplan.JudgePlans$PlannedSide#root()",
+                    "2026-11-18: lite's judge planning's own side record"),
+            Map.entry("com.legend.testplan.NotAConstant#<init>(java.lang.String)",
+                    "2026-11-18: lite's own refusal of a side that is not a constant, raised by the edge's arm"));
+
+    /** The members only the edge uses that J21 ruled the product's (one parser, its legend-engine level the edge's
+     *  alone), each with its dated reason. Not counted. */
+    static final Map<String, String> RULED_J21 = Map.ofEntries(
+            Map.entry("com.legend.door.Parse#engineDocumentJson(java.lang.String)",
+                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""),
+            Map.entry("com.legend.door.Parse#engineLambdaJson(java.lang.String)",
+                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""),
+            Map.entry("com.legend.door.Parse#engineRecords(java.lang.String)",
+                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""),
+            Map.entry("com.legend.parser.PmcdParser#parseDocument(java.lang.String, boolean)",
+                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""),
+            Map.entry("com.legend.parser.SpecParser#lambdaJson(java.lang.String, boolean)",
+                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""));
+
+    /** The census lines: one per class holding a member of {@link #OPEN}. */
+    static Set<String> lines() {
+        Set<String> out = new TreeSet<>();
+        OPEN.values().forEach(v -> out.add(v.split(" ")[0]));
+        return out;
+    }
 
     private static final String EDGE = "com.legend.edge.";
 
@@ -69,13 +362,32 @@ class EdgeOnlyMembersTest {
     void theEdgeOnlyMembersAreCountedOrRuled() throws IOException {
         JavaClasses classes = new ClassFileImporter().importJars(jarFiles(ConstantPools.jars("legend.product.jars",
                 "legend.authored.jars", "legend.edge.jars")));
-        Set<String> found = found(classes, HookLambdasTest.hookTypes(), sources());
+        // a member of a class already on a census line (EdgeSeparationTest.COMPAT_CLASSES: a marked compatibility class
+        // and its product dependents) is counted by that line, never twice (the triage of 2026-11-18: EngineTextPlanning,
+        // PlanStyleFacets, C4's)
+        Set<String> found = new TreeSet<>();
+        for (String member : found(classes, HookLambdasTest.hookTypes(), sources())) {
+            String owner = member.substring(0, member.indexOf('#'));
+            if (!EdgeSeparationTest.COMPAT_CLASSES.containsKey(owner.contains("$") ? owner.substring(0,
+                    owner.indexOf('$')) : owner)) {
+                found.add(member);
+            }
+        }
         Set<String> pinned = new TreeSet<>(OPEN.keySet());
         pinned.addAll(READ_API.keySet());
+        pinned.addAll(RULED_J21.keySet());
+        pinned.addAll(HookRulingTest.HOOK_ENTRIES.keySet());
         assertEquals(pinned, found, "a public product member only the edge uses: move it to the edge, or pin it in OPEN"
-                + " (counted, with its audit id) or READ_API (ruled, with its reason); one pinned that the product uses"
-                + " again, or that went, is deleted");
-        assertEquals(Set.of(), intersection(OPEN.keySet(), READ_API.keySet()), "a member counted and ruled at once");
+                + " (its class's census line), READ_API or RULED_J21 (with its reason) or HookRulingTest.HOOK_ENTRIES;"
+                + " one pinned that the product uses again, or that went, is deleted");
+        int pins = OPEN.size() + READ_API.size() + RULED_J21.size() + HookRulingTest.HOOK_ENTRIES.size();
+        assertEquals(pins, pinned.size(), "a member pinned twice (OPEN, READ_API, RULED_J21, HOOK_ENTRIES)");
+        // each line is its member's class: "J40.<the top-level class's simple name>"
+        OPEN.forEach((member, line) -> {
+            String owner = member.substring(0, member.indexOf('#'));
+            String top = owner.contains("$") ? owner.substring(0, owner.indexOf('$')) : owner;
+            assertTrue(line.startsWith("J40." + top.substring(top.lastIndexOf('.') + 1) + " "), member + ": " + line);
+        });
     }
 
     /** Planted: a product class whose members the edge alone uses -- a static, a constructor, a field, a constant read
@@ -355,12 +667,6 @@ class EdgeOnlyMembersTest {
     private static String top(String n) {
         int dollar = n.indexOf('$');
         return dollar < 0 ? n : n.substring(0, dollar);
-    }
-
-    private static Set<String> intersection(Set<String> a, Set<String> b) {
-        Set<String> out = new TreeSet<>(a);
-        out.retainAll(b);
-        return out;
     }
 
     private static List<java.util.jar.JarFile> jarFiles(List<Path> jars) throws IOException {
