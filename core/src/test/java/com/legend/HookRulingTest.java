@@ -358,9 +358,9 @@ class HookRulingTest {
         // census J29's reads() (the orchestrator's rule of 2026-11-18): a two-form FACT, not edge-only code -- both
         // forms' verdicts decide on the same canons (VerdictSql's statement compares each side's __c canon in both);
         // lite's sentences add each side's WRITTEN text beside them, legend-pure's frame writes from the canons
-        assertEquals(com.legend.lowering.VerdictWords.Reads.WRITTEN,
+        assertEquals(com.legend.lowering.VerdictReads.WRITTEN,
                 com.legend.lowering.LiteVerdictWords.INSTANCE.reads(), "lite's sentences read the written sides");
-        assertEquals(com.legend.lowering.VerdictWords.Reads.CANONS,
+        assertEquals(com.legend.lowering.VerdictReads.CANONS,
                 ((com.legend.lowering.VerdictWords) edgeWords).reads(), "legend-pure's frame reads the canons");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,

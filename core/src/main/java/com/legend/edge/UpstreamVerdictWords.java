@@ -6,6 +6,7 @@ package com.legend.edge;
 import com.legend.base.Nullable;
 import com.legend.compiler.element.type.Type;
 import com.legend.lowering.Styled;
+import com.legend.lowering.VerdictReads;
 import com.legend.lowering.VerdictSql;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -41,8 +42,8 @@ public final class UpstreamVerdictWords implements com.legend.lowering.VerdictWo
     }
 
     @Override
-    public Reads reads() {
-        return Reads.CANONS;
+    public VerdictReads reads() {
+        return VerdictReads.CANONS;
     }
 
     @Override

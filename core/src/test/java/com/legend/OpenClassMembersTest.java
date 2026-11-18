@@ -88,7 +88,10 @@ class OpenClassMembersTest {
                     "public abstract com.legend.testexecutionplan.TypedSide tryArmSameSql(com.legend.compiler.spec.typed.TypedUserCall, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
                     "public abstract com.legend.testplan.BatchTexts batchTexts()",
                     "public abstract com.legend.testplan.TextPlanned plan(com.legend.testplan.TextAsk)",
-                    "public abstract com.legend.testplan.TextsHeld textsHeld(com.legend.testexecutionplan.Extension)",
+                    // J41 (F's a3c165df4a, train 14): textsHeld(Extension) -> gate(Extension, Supplier), the edge's
+                    // engine-text arm answering its own database gate (TextsHeld became DatabaseGate); re-pinned
+                    // 2026-11-18 on train 15 1931d419b1 by the GUARD stream's re-cut -- one member for one
+                    "public abstract com.legend.testplan.DatabaseGate gate(com.legend.testexecutionplan.Extension, java.util.function.Supplier<java.lang.String>)",
                     "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(

@@ -84,14 +84,16 @@ class HookLambdasTest {
             Map.entry("com.legend.testplan.DatabaseJudge#numbers(com.legend.testplan.BodyDriver$ExecEnv)",
                     Set.of("com.legend.testplan.CrossKindNumbers", "(twoForm reaches 1)")),
             // the failure words the judges write (C1 item 4, 3120418b2a, train 8: legendPureWords retired -- one choice
-            // per run, the style's FailureWords two-form kind; measured 2026-11-18 on d-int8 fdf001bee)
-            Map.entry("com.legend.testplan.DatabaseJudge#lite(com.legend.testplan.BodyDriver$ExecEnv)",
-                    Set.of("com.legend.testplan.FailureWords", "(twoForm reaches 1)")),
+            // per run, the style's FailureWords two-form kind; measured 2026-11-18 on d-int8 fdf001bee); census J29
+            // (E-Java's 21a9734475, train 14) renamed the kind VerdictWords (lowering) and DatabaseJudge#lite #words --
+            // the same two callers, re-measured 2026-11-18 on train 15 1931d419b1 by the GUARD stream's re-cut
+            Map.entry("com.legend.testplan.DatabaseJudge#words(com.legend.testplan.BodyDriver$ExecEnv)",
+                    Set.of("com.legend.lowering.VerdictWords", "(twoForm reaches 1)")),
             Map.entry("com.legend.testplan.TestDoor#planned(com.legend.TypedQuery, java.lang.String, java.util.Set,"
                     + " com.legend.testplan.TestDoor$Asserts, boolean, com.legend.executionplan.DataStores,"
                     + " com.legend.testexecutionplan.Edge, com.legend.database.PlanStyle,"
                     + " com.legend.testexecutionplan.BodyFacts)",
-                    Set.of("com.legend.testplan.FailureWords", "(twoForm reaches 1)")),
+                    Set.of("com.legend.lowering.VerdictWords", "(twoForm reaches 1)")),
             // the test planner: a relation counted by an assert (S137); a test-data timestamp's text (L9)
             Map.entry("com.legend.testplan.TestPlanner#lifted(com.legend.TypedQuery,"
                     + " com.legend.testplan.PlanningOptions)",
@@ -117,8 +119,9 @@ class HookLambdasTest {
             // fd1df9928, a criterion (a) exception); the test-data printing's product form, its own class (K12, a095d0b56)
             Map.entry("com.legend.lowering.ProductLoweringForms", Set.of("com.legend.lowering.LoweringForms")),
             Map.entry("com.legend.testdatagen.LitePrinting", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")),
-            // the failure words' product form (C1 item 4, 3120418b2a, train 8; measured 2026-11-18)
-            Map.entry("com.legend.testplan.LiteFailureWords", Set.of("com.legend.testplan.FailureWords")),
+            // the failure words' product form (C1 item 4, 3120418b2a, train 8; measured 2026-11-18); census J29 (train 14's
+            // 21a9734475) renamed it LiteVerdictWords, of the VerdictWords kind (re-measured 2026-11-18 on 1931d419b1)
+            Map.entry("com.legend.lowering.LiteVerdictWords", Set.of("com.legend.lowering.VerdictWords")),
             // a database's settings' product form, H2's own defaults (J22, the user's ruling of 2026-11-17 23:05;
             // 59719a0153's train, train 11; HookRulingTest pins the kind; measured 2026-11-18)
             Map.entry("com.legend.sql.dialect.ProductDatabaseSettings", Set.of("com.legend.sql.dialect.DatabaseSettingsForm")),
