@@ -25,6 +25,11 @@ public final class PlantedEdgeOnlyMir {
     public record Shared(String name, String template, Kind kind) implements Node {
     }
 
+    /** A rewriter's two reads (the hole the orchestrator's question found, 2026-11-18, train 18): {@code flag} read to
+     *  DECIDE (a product use), {@code copied} read only to rebuild the record (a copy, so no use: "by none"). */
+    public record Ruled(String flag, String copied) {
+    }
+
     /** The planted kind: PLAIN the product's, RAW the edge's. */
     public enum Kind { PLAIN, RAW }
 

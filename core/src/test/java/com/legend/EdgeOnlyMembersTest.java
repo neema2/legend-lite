@@ -95,20 +95,8 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
-            // the styled string entry's parts (L-B.TypedJsonResult, the orchestrator's ruling (A) of 2026-11-18, E-Java's
-            // ef7ee2b69d): "the TDS branch's shared column and cell parts stay, being the product's own legend-pure toJSON
-            // vocabulary" -- a relation's names, types' simple names and cells, or a class root's objects, which the
-            // product lowers when the edge's ResultEnvelopes facet asks
-            Map.entry("com.legend.lowering.EnvelopeParts#relation()",
-                    "2026-11-18: the root read as a relation, the product's own parts (the orchestrator's ruling (A))"),
-            Map.entry("com.legend.lowering.EnvelopeParts#objects()",
-                    "2026-11-18: a class root's objects, the product's graph emission (the orchestrator's ruling (A))"),
-            Map.entry("com.legend.lowering.RelationParts#names()",
-                    "2026-11-18: a relation's column names, the product's toJSON vocabulary (the orchestrator's ruling (A))"),
-            Map.entry("com.legend.lowering.RelationParts#typeNames()",
-                    "2026-11-18: its columns' types' simple names, the product's toJSON vocabulary (the orchestrator's ruling (A))"),
-            Map.entry("com.legend.lowering.RelationParts#cells()",
-                    "2026-11-18: each row's cells, the product's toJSON vocabulary (the orchestrator's ruling (A))"),
+            // (EnvelopeParts#relation/#objects, RelationParts#names/#typeNames/#cells: moved 2026-11-18 to
+            // HookRulingTest.HOOK_ENTRIES by the orchestrator's ruling -- the ResultEnvelopes facet's argument types)
             // the orchestrator's ruling of 2026-11-18 (train 18, J40.VerdictSql, E-Java's 9dd14f6fdc): VerdictSql keeps the
             // verdict builder in lite's terms; what the texts are (a golden SQL text and ours) is the edge's SqlTextVerdicts'
             // -- J40.VerdictSql closes
