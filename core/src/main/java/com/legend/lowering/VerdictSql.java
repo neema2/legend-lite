@@ -1014,14 +1014,12 @@ public final class VerdictSql {
 
     private static final String P = "__p";
 
-    /** A TEXT assert's own verdict row (block-compiler rung 2a): the golden
-     * SQL text against our rendered text, string equality — both constants of
-     * the compiled body, FALSE by construction on an emitter that does not
-     * copy the engine's spelling. The batch's APPEAL (the SQL-text referee)
-     * then judges a failed row by ROWS; a byte-equal text needs no appeal. */
-    public static SqlQuery textEquals(String golden, String ours) {
-        OneRow e = constantOf("e", new SqlExpr.StringLit(golden), "__t", SqlType.Scalar.VARCHAR);
-        OneRow a = constantOf("a", new SqlExpr.StringLit(ours), "__t", SqlType.Scalar.VARCHAR);
+    /** A verdict row over two constant texts: {@code expected} and {@code actual} string-equal (J40, 2026-11-18: the
+     *  product's builder in lite's terms; what the texts are -- a golden SQL text and ours -- is the edge's
+     *  SqlTextVerdicts', which composed VerdictSql#textEquals(String, String) here until then). */
+    public static SqlQuery constantTextsEqual(String expected, String actual) {
+        OneRow e = constantOf("e", new SqlExpr.StringLit(expected), "__t", SqlType.Scalar.VARCHAR);
+        OneRow a = constantOf("a", new SqlExpr.StringLit(actual), "__t", SqlType.Scalar.VARCHAR);
         return predicateOver(List.of(), List.of(e, a),
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, e.col("__t"), a.col("__t")),
                 e.col("__t"), a.col("__t"), new SqlExpr.NullLit());

@@ -125,7 +125,23 @@ class EdgeOnlyDataTest {
             "constant com.legend.compiler.spec.typed.TypedJsonResult$Kind.CLASS",
             "L-B.TypedJsonResult E-Java (2026-11-18): legend-engine's classBuilder envelope kind, made by the edge alone",
             "component com.legend.compiler.spec.typed.TypedJsonResult#sql",
-            "L-B.TypedJsonResult E-Java (2026-11-18): the envelope's activity SQL, set by the edge alone");
+            "L-B.TypedJsonResult E-Java (2026-11-18): the envelope's activity SQL, set by the edge alone",
+            // the lens audit's L14, verified by F (the orchestrator's ruling of 2026-11-18, train 18): read by the product's
+            // Sorts and SyntheticHeads, yet dead engine-drop-in provenance -- no product dialect's SQL and no edge text
+            // changes with it; closed when F deletes it
+            "component com.legend.compiler.spec.typed.TypedSort#pureNullOrder",
+            "L-B.pureNullOrder F (2026-11-18): dead engine-drop-in provenance, no SQL or text changes with it");
+
+    /** PIECES EXAMINED IN MEANING AND RULED THE PRODUCT'S (the orchestrator's rulings, each dated): not counted, each
+     *  checked present so a ruling names what is there (a piece gone: delete its row). */
+    static final Map<String, String> RULED_IN_MEANING = Map.of(
+            // the lens audit's L13, verified by F (the orchestrator's ruling of 2026-11-18, train 18): a product scope --
+            // StoreResolver.viewSlots materializes the view body with its own demand, TemporalFrame scans the milestoned
+            // table inside it, CollectionLanes classes it a relation, the product's lowering is transparent
+            // (ProductLoweringForms.view returns the body); its name read by the edge's view form and by the product's
+            // diagnostic label (Pipelines.materialize)
+            "variant com.legend.compiler.spec.typed.TypedViewRelation",
+            "2026-11-18: a product scope, the view's own slots and milestoning; its name the product's diagnostic label");
 
     /** The census lines this guard holds: one per "L-B." line. */
     static Set<String> lines() {
@@ -135,10 +151,15 @@ class EdgeOnlyDataTest {
         return out;
     }
 
-    /** Whether {@code piece} ("constant C.NAME" or "component C#name", C a binary class name) is in the product. */
+    /** Whether {@code piece} ("constant C.NAME", "component C#name" or "variant C", C a binary class name) is in the
+     *  product. */
     static boolean present(String piece) {
         String what = piece.substring(piece.indexOf(' ') + 1);
         try {
+            if (piece.startsWith("variant ")) {
+                Class.forName(what);
+                return true;
+            }
             if (piece.startsWith("constant ")) {
                 int dot = what.lastIndexOf('.');
                 Object[] constants = Class.forName(what.substring(0, dot)).getEnumConstants();
@@ -351,6 +372,8 @@ class EdgeOnlyDataTest {
     void theEdgeDataInMeaningIsStillThere() {
         assertEquals(List.of(), IN_MEANING.keySet().stream().filter(p -> !present(p)).sorted().toList(), "a piece"
                 + " edge-only in meaning has left the product: delete its row (its line closes with its last)");
+        assertEquals(List.of(), RULED_IN_MEANING.keySet().stream().filter(p -> !present(p)).sorted().toList(), "a piece"
+                + " ruled the product's has left it: delete its row");
     }
 
     /** The presence check bites: a constant or a component that is not there is found gone. */
@@ -363,6 +386,8 @@ class EdgeOnlyDataTest {
         assertEquals(true, present("component " + record + "#chain"), "a component there");
         assertEquals(false, present("component " + record + "#no" + "pe"), "a component not there");
         assertEquals(false, present("component " + record + "Gone#chain"), "a class not there");
+        assertEquals(true, present("variant " + record), "a variant there");
+        assertEquals(false, present("variant " + record + "Go" + "ne"), "a variant not there");
     }
 
     @Test

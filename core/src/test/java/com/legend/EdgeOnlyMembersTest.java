@@ -70,8 +70,6 @@ class EdgeOnlyMembersTest {
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, java.util.List)",
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
-            Map.entry("com.legend.lowering.VerdictSql#textEquals(java.lang.String, java.lang.String)",
-                    "J40.VerdictSql E-SQL MOVE (2026-11-18): legend-engine's SQL-text assert's verdict row"),
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
             // (PlatformTypes' TO_SQL_STRING and TO_SQL_STRING_PRETTY, BodyPlanner#pushDownEnums, QueryParameters$Declared's
             // planParam and signature, AggregationAwareRouting#mainSetId, Verdicts#scalarString -- two class lines gone,
@@ -96,6 +94,11 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // the orchestrator's ruling of 2026-11-18 (train 18, J40.VerdictSql, E-Java's 9dd14f6fdc): VerdictSql keeps the
+            // verdict builder in lite's terms; what the texts are (a golden SQL text and ours) is the edge's SqlTextVerdicts'
+            // -- J40.VerdictSql closes
+            Map.entry("com.legend.lowering.VerdictSql#constantTextsEqual(java.lang.String, java.lang.String)",
+                    "2026-11-18: a verdict row over two constant texts, string-equal: lite's own verdict builder; the edge's SQL-text arm composes it"),
             // ruled READ_API by the orchestrator (2026-11-18, train 18, on the GUARD stream's triage of E-Java's b70d85ab9):
             // a typed call to the platform's string::plus, lite's own building block (like the builders exposed for
             // textEquals), and a native's platform name; the edge's EngineExecutedValues builds its envelope with them
