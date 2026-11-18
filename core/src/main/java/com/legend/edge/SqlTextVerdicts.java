@@ -613,7 +613,7 @@ final class SqlTextVerdicts {
                     SqlTextReferee.fromWrapped(
                             let0.value(), mapping, legCtx),
                     null, mapping.fullPath(), letCls,
-                    EngineTextPlanning.replayFacts(let0.value(), lamPrefix),
+                    ReplayGates.of(let0.value(), lamPrefix),
                     EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                             let0.value(), mapping, legCtx)),
                     lamPrefix, specs, envF, hook, lam);
@@ -626,7 +626,7 @@ final class SqlTextVerdicts {
                 SqlTextReferee.fromWrapped(
                         query, mapping, legCtx),
                 null, mapping.fullPath(), rootClassFqn(lam),
-                EngineTextPlanning.replayFacts(query, lamPrefix),
+                ReplayGates.of(query, lamPrefix),
                 EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                         query, mapping, legCtx)), lamPrefix,
                 specs, envF, hook, lam);
@@ -823,7 +823,7 @@ final class SqlTextVerdicts {
                     SqlTextReferee.fromWrapped(
                             route.let().value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
-                    EngineTextPlanning.replayFacts(route.let().value(), letPrefix),
+                    ReplayGates.of(route.let().value(), letPrefix),
                     EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                             route.let().value(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
@@ -925,7 +925,7 @@ final class SqlTextVerdicts {
                     SqlTextReferee.fromWrapped(
                             letStatement.value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
-                    EngineTextPlanning.replayFacts(letStatement.value(), letPrefix),
+                    ReplayGates.of(letStatement.value(), letPrefix),
                     EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                             letStatement.value(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
@@ -944,7 +944,7 @@ final class SqlTextVerdicts {
                     SqlTextReferee.fromWrapped(
                             pop.rowsRead(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), null,
-                    EngineTextPlanning.replayFacts(pop.rowsRead(), letPrefix),
+                    ReplayGates.of(pop.rowsRead(), letPrefix),
                     EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                             pop.rowsRead(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
@@ -1212,7 +1212,7 @@ final class SqlTextVerdicts {
                 : SqlTextReferee.fromWrapped(last, mapping, planCtx);
         return rowsLegAndVerdict(name, golden, ours, textEqual, read,
                 replay, mapping == null ? null : mapping.fullPath(), rootClassFqn(lam),
-                EngineTextPlanning.replayFacts(last, bound),
+                ReplayGates.of(last, bound),
                 EngineTextPlanning.unpagedRead(read), bound,
                 specs, env, hook, lam,
                 replay == null ? golden : null, bindings.lists());
@@ -1393,7 +1393,7 @@ final class SqlTextVerdicts {
             TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
             @com.legend.base.Nullable String mappingFqn,
-            @com.legend.base.Nullable String classFqn, AssertVerdicts.ReplayGates facts,
+            @com.legend.base.Nullable String classFqn, ReplayGates facts,
             @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env,
@@ -1412,7 +1412,7 @@ final class SqlTextVerdicts {
             TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
             @com.legend.base.Nullable String mappingFqn,
-            @com.legend.base.Nullable String classFqn, AssertVerdicts.ReplayGates facts,
+            @com.legend.base.Nullable String classFqn, ReplayGates facts,
             @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env,
@@ -1433,7 +1433,7 @@ final class SqlTextVerdicts {
             TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
             @com.legend.base.Nullable String mappingFqn,
-            @com.legend.base.Nullable String classFqn, AssertVerdicts.ReplayGates facts,
+            @com.legend.base.Nullable String classFqn, ReplayGates facts,
             @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env,
@@ -1459,7 +1459,7 @@ final class SqlTextVerdicts {
         // the rows leg as the plan's data (step 8b, 2026-11-08): its reads planned with the assert, its replay facts
         // and the target the referee replays on; null where not planned
         Appeal.Rows rows = ahead == null ? null : new Appeal.Rows(ahead.rows().data(), ahead.population().data(),
-                replaySqlOrNull, mappingFqn, classFqn, EngineTextPlanning.extentSubset(facts), EngineTextPlanning.ordered(facts), EngineTextPlanning.sortKeys(facts), goldenPlan,
+                replaySqlOrNull, mappingFqn, classFqn, facts.extentSubset(), facts.ordered(), facts.sortKeys(), goldenPlan,
                 planBindings, temps,
                 seed == null ? null : new Appeal.InListSeed(seed.kind(), seed.values()),
                 EngineTextPlanning.target(java.util.Objects.requireNonNullElse(EngineTextPlanning.appealOn(env), env)),
@@ -1597,7 +1597,7 @@ final class SqlTextVerdicts {
      * fact (a class extent through subset-preserving ops — the graph
      * compare's pk-collapse licence). */
     private record FrameFacts(@com.legend.base.Nullable String mapping,
-            @com.legend.base.Nullable String cls, AssertVerdicts.ReplayGates facts,
+            @com.legend.base.Nullable String cls, ReplayGates facts,
             @com.legend.base.Nullable TypedSpec populationRead,
             @com.legend.base.Nullable TypedSpec query,
             @com.legend.base.Nullable TypedPackageableRef mappingRef,
@@ -1643,9 +1643,9 @@ final class SqlTextVerdicts {
                     : com.legend.compiler.spec.typed.ExecutionContext.NONE;
             TypedSpec chain = lamArg instanceof TypedLambda lam2 && !lam2.body().isEmpty()
                     ? lam2.body().get(lam2.body().size() - 1) : null;
-            AssertVerdicts.ReplayGates facts = chain != null
-                    ? EngineTextPlanning.replayFacts(chain, letPrefix)
-                    : EngineTextPlanning.noReplayGates();
+            ReplayGates facts = chain != null
+                    ? ReplayGates.of(chain, letPrefix)
+                    : ReplayGates.NONE;
             // a PAGED frame chain: our unpaged population is the same chain
             // minus its tail page, wrapped in the frame's own context
             TypedSpec populationRead = chain != null && mappingRef != null
@@ -1655,7 +1655,7 @@ final class SqlTextVerdicts {
             return new FrameFacts(mapping, cls, facts, populationRead, lamArg,
                     mappingRef, context);
         }
-        return new FrameFacts(null, null, EngineTextPlanning.noReplayGates(), null, null, null,
+        return new FrameFacts(null, null, ReplayGates.NONE, null, null, null,
                 com.legend.compiler.spec.typed.ExecutionContext.NONE);
     }
 

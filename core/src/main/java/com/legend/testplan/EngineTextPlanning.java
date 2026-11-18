@@ -199,25 +199,8 @@ public final class EngineTextPlanning {
 
     // ---- the replay facts ------------------------------------------------------------------------------------------
 
-    public static AssertVerdicts.ReplayGates replayFacts(TypedSpec query, List<TypedSpec> letPrefix) {
-        return AssertVerdicts.replayFacts(query, letPrefix);
-    }
-
-    public static AssertVerdicts.ReplayGates noReplayGates() {
-        return AssertVerdicts.ReplayGates.NONE;
-    }
-
-    public static boolean extentSubset(AssertVerdicts.ReplayGates g) {
-        return g.extentSubset();
-    }
-
-    public static boolean ordered(AssertVerdicts.ReplayGates g) {
-        return g.ordered();
-    }
-
-    public static @com.legend.base.Nullable List<String> sortKeys(AssertVerdicts.ReplayGates g) {
-        return g.sortKeys();
-    }
+    // (replayFacts, noReplayGates and the gates' three readers: gone 2026-11-18, the edge audit's J40 -- the referee's
+    // gates are the edge's own ReplayGates, computed from the typed chain there)
 
     /** {@code spec} through the body's splice hook. */
     public static TypedSpec splice(AssertVerdicts.SpliceHook hook, TypedSpec spec, java.util.Set<String> names) {
