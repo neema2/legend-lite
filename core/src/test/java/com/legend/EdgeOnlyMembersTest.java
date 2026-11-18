@@ -62,26 +62,8 @@ class EdgeOnlyMembersTest {
      *  listing its members here (J33's and J40's audit items fold into it). Shrink-only: a member leaves when it moves,
      *  and its class's line closes with its last. */
     static final Map<String, String> OPEN = Map.ofEntries(
-            Map.entry("com.legend.TypedQuery#answersADiagnostic()",
-                    "J40.TypedQuery F MOVE (2026-11-18): legend-engine's lambda-build refusal of a diagnostic (S128), asked by the pure/v1 route alone"),
-            Map.entry("com.legend.compiler.element.type.PlatformTypes#CREATE_SCHEMA_STATEMENT",
-                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's deprecated toDDL generators' names, read by the edge's plans alone"),
-            Map.entry("com.legend.compiler.element.type.PlatformTypes#DROP_SCHEMA_STATEMENT",
-                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's deprecated toDDL generators' names, read by the edge's plans alone"),
-            Map.entry("com.legend.compiler.element.type.PlatformTypes#DROP_TABLE_STATEMENT",
-                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's deprecated toDDL generators' names, read by the edge's plans alone"),
             Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_NON_EXECUTABLE_SQL_STRING",
                     "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's toSQLString natives' names (E-Java's b414c7bac1, train 15)"),
-            Map.entry("com.legend.compiler.spec.VerdictQueries#extentSubset(com.legend.compiler.spec.typed.TypedSpec)",
-                    "J40.VerdictQueries E-Java (extentSubset), F (text, J33) MOVE (2026-11-18): the referee's replay gate (G6: the referee is the edge's)"),
-            Map.entry("com.legend.compiler.spec.VerdictQueries#text(java.lang.String)",
-                    "J40.VerdictQueries E-Java (extentSubset), F (text, J33) MOVE (2026-11-18): J33: the engine-text arms' constant side (F)"),
-            Map.entry("com.legend.compiler.spec.typed.ExecutionContext#withPostProcessors(com.legend.compiler.spec.typed.ExecutionContext$PostProcessors)",
-                    "J40.ExecutionContext E-Java MOVE (2026-11-18): legend-engine's post-processors, set by the edge's SQL-text arm alone"),
-            Map.entry("com.legend.compiler.spec.typed.ExecutionContext$PlanConnection#planText()",
-                    "J40.ExecutionContext E-Java MOVE (2026-11-18): legend-engine's plan text's connection line"),
-            Map.entry("com.legend.compiler.spec.typed.ExecutionContext$PostProcessors#withNonExecutable(boolean)",
-                    "J40.ExecutionContext E-Java MOVE (2026-11-18): legend-engine's nonExecutable post-processor (toNonExecutableSQLString)"),
             Map.entry("com.legend.database.PlanStyle$Activity#engines()",
                     "J40.PlanStyle E-SQL MOVE (2026-11-18): legend-engine's text for an activity chain"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
@@ -98,30 +80,22 @@ class EdgeOnlyMembersTest {
             // J40.AggregationAwareRouting and J40.Verdicts) and left three members only the edge uses, pinned here: J29's
             // %r newline form (VerdictSql), J29's legend-pure sort for assertSameElements' words (PureAsserts, a new class
             // line) and J31's residue, a declared parameter's multiplicity (QueryParameters)
+            // re-measured on train 16 b836ff636f (2026-11-18, the GUARD stream): 25 rows closed by the train's landings --
+            // E-Java's J40 (185d54a494: PlatformTypes' three DDL names, CanonicalDivergence#probeGridText, ReplayGates'
+            // three, VerdictQueries#extentSubset, ExecutionContext#withPostProcessors, PostProcessors#withNonExecutable,
+            // PlanConnection#planText), F's J40 census (e92c465d: SqlTextInputs' seven, BodyPlanner#boundContext x2,
+            // TypedQuery#answersADiagnostic) and F's a55e1147 (VerdictQueries#text): the J40.CanonicalDivergence,
+            // J40.AssertVerdicts, J40.VerdictQueries, J40.ExecutionContext, J40.SqlTextInputs, J40.BodyPlanner and
+            // J40.TypedQuery lines go; one found: legend-engine's toSQL native's name, its reader moved with F's
+            // SqlTextInputs to the edge
+            Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_SQL",
+                    "J40.PlatformTypes F (e92c465d moved its reader) MOVE (2026-11-18): legend-engine's toSQL native's name, read by the edge's SqlTextInputs alone"),
             Map.entry("com.legend.lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)",
                     "J40.VerdictSql E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's %r newline form, read by the edge's UpstreamVerdictWords alone"),
             Map.entry("com.legend.testexec.PureAsserts#sorted(java.util.List)",
                     "J40.PureAsserts E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's total order over Any, sorting assertSameElements' words in the edge's EdgeHostWords alone"),
             Map.entry("com.legend.plan.PureSpelling#sizeRange(com.legend.compiler.element.type.Multiplicity)",
                     "J40.PureSpelling E-SQL MOVE (2026-11-18): legend-engine's plan text's multiplicity spelling"),
-            Map.entry("com.legend.planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
-                    "J40.BodyPlanner F MOVE (2026-11-18): the runtime argument of executionPlan/execute/toSQLString, legend-engine's test natives"),
-            Map.entry("com.legend.planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, java.util.List, com.legend.compiler.spec.SpecCompiler)",
-                    "J40.BodyPlanner F MOVE (2026-11-18): the runtime argument of executionPlan/execute/toSQLString, legend-engine's test natives"),
-            Map.entry("com.legend.planner.SqlTextInputs#<init>(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.typed.TypedSpec, boolean)",
-                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
-            Map.entry("com.legend.planner.SqlTextInputs#dialect()",
-                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
-            Map.entry("com.legend.planner.SqlTextInputs#mapping()",
-                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
-            Map.entry("com.legend.planner.SqlTextInputs#of(com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List)",
-                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
-            Map.entry("com.legend.planner.SqlTextInputs#query()",
-                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
-            Map.entry("com.legend.planner.SqlTextInputs#receiverForm()",
-                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
-            Map.entry("com.legend.planner.SqlTextInputs#runtime()",
-                    "J40.SqlTextInputs F MOVE (2026-11-18): legend-engine's toSQLString surface's inputs (toSQLString.pure)"),
             Map.entry("com.legend.protocol.EmbeddedDataKinds#notImplemented(com.legend.protocol.Protocol$PEmbeddedDataValue, java.lang.String)",
                     "J40.EmbeddedDataKinds E-P5 (after J43) DELETE (2026-11-18): a message the edge composes from name(); the product never says it"),
             Map.entry("com.legend.protocol.ModelComposer#model(java.lang.String, com.legend.protocol.PureComposer$Style)",
@@ -137,19 +111,17 @@ class EdgeOnlyMembersTest {
             Map.entry("com.legend.sql.SqlExpr$DeferredTdsString#<init>(com.legend.sql.SqlSelect, java.lang.String, int)",
                     "J40.SqlExpr E-SQL MOVE (2026-11-18): legend-engine's #TDS relation text, made by the edge alone"),
             Map.entry("com.legend.sql.SqlExpr$TempTableInSplice#<init>(java.lang.String)",
-                    "J40.SqlExpr E-SQL MOVE (2026-11-18): legend-engine's generateTempTableSelectSQLQuery template"),
-            Map.entry("com.legend.testexec.CanonicalDivergence#probeGridText(java.lang.String, java.lang.String, boolean, boolean, java.lang.String)",
-                    "J40.CanonicalDivergence E-Java MOVE (2026-11-18): legend-engine's toCSV text channel (R1b)"),
-            Map.entry("com.legend.testplan.AssertVerdicts$ReplayGates#extentSubset()",
-                    "J40.AssertVerdicts E-Java MOVE (2026-11-18): the referee's gates (G6: the referee is the edge's)"),
-            Map.entry("com.legend.testplan.AssertVerdicts$ReplayGates#ordered()",
-                    "J40.AssertVerdicts E-Java MOVE (2026-11-18): the referee's gates (G6: the referee is the edge's)"),
-            Map.entry("com.legend.testplan.AssertVerdicts$ReplayGates#sortKeys()",
-                    "J40.AssertVerdicts E-Java MOVE (2026-11-18): the referee's gates (G6: the referee is the edge's)"));
+                    "J40.SqlExpr E-SQL MOVE (2026-11-18): legend-engine's generateTempTableSelectSQLQuery template"));
 
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // the orchestrator's ruling at J40 (2026-11-18, E-Java's 185d54a494): a plan connection's facts stay READ_API,
+            // its engine spelling the edge's printer's -- left the edge's alone to read when planText moved (train 16)
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext$PlanConnection#className()",
+                    "2026-11-18: a plan connection's own fact, its class (the orchestrator's ruling at J40; planText moved to the edge's EnginePlans)"),
+            Map.entry("com.legend.compiler.spec.typed.ExecutionContext$PlanConnection#type()",
+                    "2026-11-18: a plan connection's own fact, its database type (the orchestrator's ruling at J40; planText moved to the edge's EnginePlans)"),
             // ruled READ_API by the orchestrator (2026-11-18, as F asks, F's e92c465d): which specification carries a
             // connection's test data is the model's vocabulary (a database's name, LocalH2), and lite's product reads a
             // connection's own test data as loads; the J40.ConnectionSpecification line goes
