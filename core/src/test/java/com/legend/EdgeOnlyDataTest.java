@@ -6,6 +6,7 @@ package com.legend;
 import com.tngtech.archunit.core.domain.JavaAccess;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
 import com.tngtech.archunit.core.domain.JavaConstructor;
 import com.tngtech.archunit.core.domain.JavaField;
 import com.tngtech.archunit.core.domain.JavaFieldAccess;
@@ -71,18 +72,89 @@ class EdgeOnlyDataTest {
         return name.contains("$") ? name.substring(0, name.indexOf('$')) : name;
     }
 
-    /** Whose use {@code use} of a piece of {@code owner} is. */
+    /** Whose use {@code use} of a piece of {@code owner} is. The record's own code copies in its constructors, in
+     *  {@code equals}, {@code hashCode} and {@code toString}, and in a method returning its own type (a {@code withX});
+     *  its other methods use. */
     static Who who(JavaAccess<?> use, JavaClass owner) {
         JavaClass origin = use.getOriginOwner();
         String name = origin.getName();
         if (top(name).startsWith(EDGE)) {
             return Who.EDGE;
         }
-        if (name.equals(owner.getName()) || name.startsWith(owner.getName() + "$")
-                || origin.isAssignableTo(REWRITER) || CODECS.contains(top(name))) {
+        if (origin.isAssignableTo(REWRITER) || CODECS.contains(top(name))) {
             return Who.COPY;
         }
+        if (name.equals(owner.getName()) || name.startsWith(owner.getName() + "$")) {
+            JavaCodeUnit unit = use.getOrigin();
+            boolean copies = unit instanceof JavaConstructor || unit.getName().equals("<clinit>")
+                    || Set.of("equals", "hashCode", "toString").contains(unit.getName())
+                    || unit.getRawReturnType().getName().equals(owner.getName());
+            return copies ? Who.COPY : Who.PRODUCT;
+        }
         return Who.PRODUCT;
+    }
+
+    /** The uses of {@code m} and of every supertype's method it implements (a call through the interface, as
+     *  {@code TypedSpec.info()} or {@code SqlExpr.type()}, reaches the record's accessor by dispatch). */
+    static List<JavaAccess<?>> usesOf(JavaClass owner, JavaMethod m) {
+        List<JavaAccess<?>> out = new ArrayList<>(m.getCallsOfSelf());
+        out.addAll(m.getReferencesToSelf());
+        for (JavaClass sup : owner.getAllRawInterfaces()) {
+            sup.tryGetMethod(m.getName()).ifPresent(s -> {
+                out.addAll(s.getCallsOfSelf());
+                out.addAll(s.getReferencesToSelf());
+            });
+        }
+        for (JavaClass sup : owner.getAllRawSuperclasses()) {
+            sup.tryGetMethod(m.getName()).ifPresent(s -> {
+                out.addAll(s.getCallsOfSelf());
+                out.addAll(s.getReferencesToSelf());
+            });
+        }
+        return out;
+    }
+
+    /** The makes of {@code variant}: its constructors' calls and references, a call from a static factory of its own
+     *  or of its top-level class followed to that factory's callers (one step: {@code Call.of(...)}). */
+    static List<JavaAccess<?>> makesOf(JavaClass variant) {
+        List<JavaAccess<?>> out = new ArrayList<>();
+        for (JavaConstructor ctor : variant.getConstructors()) {
+            List<JavaAccess<?>> direct = new ArrayList<>(ctor.getCallsOfSelf());
+            direct.addAll(ctor.getReferencesToSelf());
+            for (JavaAccess<?> a : direct) {
+                JavaCodeUnit unit = a.getOrigin();
+                boolean factory = unit instanceof JavaMethod fm && fm.getModifiers().contains(JavaModifier.STATIC)
+                        && top(a.getOriginOwner().getName()).equals(top(variant.getName()))
+                        && !fm.getName().startsWith("lambda$");
+                if (factory) {
+                    out.addAll(((JavaMethod) unit).getCallsOfSelf());
+                    out.addAll(((JavaMethod) unit).getReferencesToSelf());
+                } else {
+                    out.add(a);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Whether product code enumerates {@code e}'s constants: {@code values()} or {@code valueOf(String)} called
+     *  outside the enum and the codecs (a name read from the user's model or a plan's JSON is each constant's use). */
+    static boolean enumerated(JavaClass e) {
+        for (JavaMethod m : e.getMethods()) {
+            if (m.getName().equals("values") || m.getName().equals("valueOf")) {
+                for (JavaAccess<?> a : m.getCallsOfSelf()) {
+                    if (!a.getOriginOwner().getName().equals(e.getName()) && who(a, e) == Who.PRODUCT) {
+                        return true;
+                    }
+                }
+                for (JavaAccess<?> a : m.getReferencesToSelf()) {
+                    if (who(a, e) == Who.PRODUCT) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** "kind owner#piece: by the edge" or "...: by none", for each piece of {@code classes} in {@code packages} with no
@@ -90,7 +162,9 @@ class EdgeOnlyDataTest {
     static Set<String> found(JavaClasses classes, Set<String> packages) {
         Set<String> out = new TreeSet<>();
         for (JavaClass c : classes) {
-            if (!packages.contains(c.getPackageName()) || c.getName().startsWith(EDGE)) {
+            // the codecs' own tags are their format's words, not the plan's data
+            if (!packages.contains(c.getPackageName()) || c.getName().startsWith(EDGE)
+                    || CODECS.contains(top(c.getName()))) {
                 continue;
             }
             Class<?> k = c.reflect();
@@ -98,16 +172,13 @@ class EdgeOnlyDataTest {
                 for (java.lang.reflect.RecordComponent rc : k.getRecordComponents()) {
                     List<JavaAccess<?>> uses = new ArrayList<>();
                     Optional<JavaMethod> accessor = c.tryGetMethod(rc.getName());
-                    accessor.ifPresent(m -> {
-                        uses.addAll(m.getCallsOfSelf());
-                        uses.addAll(m.getReferencesToSelf());
-                    });
+                    accessor.ifPresent(m -> uses.addAll(usesOf(c, m)));
                     c.tryGetField(rc.getName()).ifPresent(f -> f.getAccessesToSelf().stream()
                             .filter(a -> a.getAccessType() == JavaFieldAccess.AccessType.GET).forEach(uses::add));
                     report(out, "component " + c.getName() + "#" + rc.getName(), uses, c);
                 }
             }
-            if (k.isEnum()) {
+            if (k.isEnum() && !enumerated(c)) {
                 for (Object constant : k.getEnumConstants()) {
                     String name = ((Enum<?>) constant).name();
                     JavaField f = c.getField(name);
@@ -120,17 +191,14 @@ class EdgeOnlyDataTest {
             }
             if (k.isSealed()) {
                 for (Class<?> variant : k.getPermittedSubclasses()) {
-                    if (variant.isInterface() || java.lang.reflect.Modifier.isAbstract(variant.getModifiers())
+                    // an enum variant's constants are checked as constants
+                    if (variant.isInterface() || variant.isEnum()
+                            || java.lang.reflect.Modifier.isAbstract(variant.getModifiers())
                             || !packages.contains(variant.getPackageName())) {
                         continue;
                     }
                     JavaClass v = classes.get(variant);
-                    List<JavaAccess<?>> uses = new ArrayList<>();
-                    for (JavaConstructor ctor : v.getConstructors()) {
-                        uses.addAll(ctor.getCallsOfSelf());
-                        uses.addAll(ctor.getReferencesToSelf());
-                    }
-                    report(out, "variant " + variant.getName(), uses, v);
+                    report(out, "variant " + variant.getName(), makesOf(v), v);
                 }
             }
         }

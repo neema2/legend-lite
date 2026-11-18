@@ -34,9 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * GUARD L-A, ITS FIRST HALF (the orchestrator's order of 2026-11-18): a two-form hook FED upstream's form. A hook's
  * product form is called by the product with a function per form it may pick -- {@code executeValues(array, oneBare)},
  * {@code computedPruning(pruned, kept)}, {@code existsJoin(filtered, joinForm)} -- and a function the product form
- * never calls is code the product builds for the edge alone: upstream's form, written in the product and handed in. This
- * guard
- * calls every product form of every hook type (HookLambdasTest.CLASS_HOOKS: each product or host class implementing a
+ * never calls is code the product builds for the edge alone: upstream's form, written in the product and handed in.
+ * This guard calls every product form of every hook type (HookLambdasTest.CLASS_HOOKS: each product or host class implementing a
  * hook, two-form kind or style, pinned there exactly) through every method that takes a function, with a sentinel per
  * function and a sample per other parameter (every constant of an enum, both Booleans), and reports each function the
  * form never calls in any call. Each is pinned with its ruling ({@link #UNCALLED}); a new one fails the build.
@@ -109,12 +108,23 @@ class ProductFormsUseTheirArgumentsTest {
             return out;
         }
         try {
-            var ctor = c.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            return List.of(ctor.newInstance());
+            // a no-argument constructor, else the class's one constructor with a sample per parameter (a record
+            // the product's form makes per run, as NoEdgeRun$Hearing)
+            java.lang.reflect.Constructor<?>[] ctors = c.getDeclaredConstructors();
+            if (ctors.length != 1) {
+                var ctor = c.getDeclaredConstructor();
+                ctor.setAccessible(true);
+                return List.of(ctor.newInstance());
+            }
+            ctors[0].setAccessible(true);
+            Object[] args = new Object[ctors[0].getParameterCount()];
+            for (int i = 0; i < args.length; i++) {
+                args[i] = sample(ctors[0].getGenericParameterTypes()[i]);
+            }
+            return List.of(ctors[0].newInstance(args));
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(c.getName() + ": no instance this guard can reach -- an enum constant, a static"
-                    + " field or a no-argument constructor", e);
+                    + " field, a no-argument constructor or its one constructor", e);
         }
     }
 
@@ -142,11 +152,11 @@ class ProductFormsUseTheirArgumentsTest {
         if (type.isEnum()) {
             return List.of(type.getEnumConstants());
         }
-        return List.of(sample(type));
+        return java.util.Collections.singletonList(sample(type));
     }
 
-    /** One value of {@code type}, or a failure naming it: the guard stays total (a new parameter type is added
-     *  here). */
+    /** One value of {@code type}: the plan's and the MIR's own samples, an interface's poison proxy, else none (a
+     *  form that reads it throws, reported); a primitive with no sample fails, naming it. */
     static Object sample(Type type) {
         Class<?> raw = raw(type);
         if (raw == SqlExpr.class) {
@@ -173,8 +183,25 @@ class ProductFormsUseTheirArgumentsTest {
         if (raw == Object.class) {
             return "L-A sentinel";
         }
-        throw new AssertionError("no sample of " + type.getTypeName()
-                + ": add one to ProductFormsUseTheirArgumentsTest");
+        if (raw.isPrimitive()) {
+            throw new AssertionError("no sample of " + type.getTypeName()
+                    + ": add one to ProductFormsUseTheirArgumentsTest");
+        }
+        if (raw.isInterface()) {
+            // a poison: the form that uses it throws, and the run reports the throw beside what it found
+            return Proxy.newProxyInstance(raw.getClassLoader(), new Class<?>[] {raw}, (proxy, m, args) -> {
+                if (m.getDeclaringClass() == Object.class) {
+                    return switch (m.getName()) {
+                        case "equals" -> proxy == args[0];
+                        case "hashCode" -> System.identityHashCode(proxy);
+                        default -> "L-A poison " + raw.getSimpleName();
+                    };
+                }
+                throw new IllegalStateException("L-A poison " + raw.getSimpleName() + "#" + m.getName());
+            });
+        }
+        // any other reference: none (a form that reads it throws, and the run reports the throw)
+        return null;
     }
 
     static Class<?> raw(Type t) {
