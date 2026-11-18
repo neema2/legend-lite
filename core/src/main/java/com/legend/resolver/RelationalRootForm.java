@@ -145,12 +145,12 @@ public final class RelationalRootForm {
         // pass, deliberately not general fold policy (execution isolates).
         TypedSpec proj = switch (g.source()) {
             case TypedLimit lim -> new TypedLimit(
-                    new TypedProject(lim.source(), cols, outInfo, true),
+                    new TypedProject(lim.source(), cols, outInfo),
                     lim.count(), outInfo);
             case TypedSlice sl -> new TypedSlice(
-                    new TypedProject(sl.source(), cols, outInfo, true),
+                    new TypedProject(sl.source(), cols, outInfo),
                     sl.start(), sl.stop(), outInfo);
-            default -> new TypedProject(g.source(), cols, outInfo, true);
+            default -> new TypedProject(g.source(), cols, outInfo);
         };
         List<TypedSpec> out = new ArrayList<>(body);
         out.set(out.size() - 1, proj);
