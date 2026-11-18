@@ -13,16 +13,10 @@ import com.legend.sql.SqlSelect;
 import java.util.List;
 
 /**
- * The SNAPSHOT (scalar-position) graph envelope: the array-aggregated
- * serialize select folded to ONE string with the engine JsonBuilder
- * cardinality rule — a SINGLETON result serializes as the bare object,
- * anything else as the array (the corpus goldens pin the dynamic
- * unwrap: {@code "values":{...}} for one row, {@code "values":[...]}
- * otherwise). The same fold is the ROOT form of a graph read as the values of
- * an engine {@code execute(...)} ({@code TypedSerializeGraph
- * .readThroughExecuteValues}, {@code Lowerer.lower}): the edge's form, the
- * engine's {@code execute()} contract; lite's own root stays the array (the
- * user's ruling, 2026-11-03).
+ * The graph envelope's building blocks: its type names, its null-stripping object, its object reference. (Its
+ * scalar-position fold to one string by legend-engine's JsonBuilder cardinality rule moved to the edge 2026-11-18,
+ * edge.EdgeLoweringForms.oneBare, the orchestrator's ruling on L6; lite's own serialize results stay arrays, the user's
+ * ruling of 2026-11-03.)
  */
 final class SnapshotEnvelope {
 
@@ -35,36 +29,11 @@ final class SnapshotEnvelope {
         return fq || cut < 0 ? classFqn : classFqn.substring(cut + 2);
     }
 
-    /** The array aggregate a {@link #fold}ed projection chooses against
-     * (its {@code ELSE}), or null when {@code e} is not the fold's CASE: a
-     * reader of the graph plan's rows (VerdictSql.graphCount) counts the
-     * rows under it exactly as under the bare aggregate. */
-    static SqlExpr.@com.legend.base.Nullable JsonArrayAgg foldedAggregate(SqlExpr e) {
-        return e instanceof SqlExpr.Case c && c.whens().size() == 1
-                && c.whens().get(0).then() instanceof SqlAgg.Reducer r
-                && r.fn() == SqlAgg.Fn.MIN
-                && c.otherwise() instanceof SqlExpr.JsonArrayAgg ja ? ja : null;
-    }
+    // (foldedAggregate: gone 2026-11-18, L-A.foldedAggregate -- VerdictSql.graphCount reads a value's own structure,
+    // never the edge's fold)
 
-    static SqlSelect fold(SqlSelect env) {
-        SqlSelect.Projection p = env.projections().get(0);
-        if (!(p.expr() instanceof SqlExpr.JsonArrayAgg ja)) {
-            return env;
-        }
-        SqlExpr count = new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
-                List.of(), false, List.of());
-        SqlExpr sole = new SqlAgg.Reducer(SqlAgg.Fn.MIN,
-                List.of(ja.value()), false, List.of());
-        SqlExpr chosen = new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.EQUAL,
-                        List.of(count, new SqlExpr.IntLit(1))), sole)),
-                ja, SqlExpr.Reason.CARRIER);
-        return env.withProjections(
-                List.of(new SqlSelect.Projection(chosen, "result",
-                        new OutputCol("result",
-                                PureSql.type(Type.Primitive.STRING),
-                                false))));
-    }
+    // (fold: moved to edge.EdgeLoweringForms.oneBare 2026-11-18, the orchestrator's ruling on L6 -- legend-engine's
+    // JsonBuilder cardinality rule is the edge's)
 
     /** The null-stripping envelope object (Lowerer.serializeGraph):
      * one json_object per pair, json_merge_patch-folded — RFC 7386

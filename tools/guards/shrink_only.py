@@ -113,7 +113,9 @@ WATCHED = {
     "core/src/test/java/com/legend/HookRulingTest.java": ["HOOK_ENTRIES"],
     # the lens guards and K2's shipped-root check (2026-11-18, the GUARD stream, the orchestrator's 06:40 rulings): each
     # pin's growth admits a new finding, a new uncounted ruling or an edge-rooted artifact
-    "core/src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java": ["UNCALLED", "RULED"],
+    # STYLE_RECORDS: the records that ARE the style, outside the widening to records carrying functions (the GUARD
+    # stream, 2026-11-18, train 18, on E-SQL's ExistsSites): a new one exempts a record from L-A
+    "core/src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java": ["UNCALLED", "RULED", "STYLE_RECORDS"],
     "core/src/test/java/com/legend/UpstreamBranchesTest.java": ["SITES"],
     # IN_MEANING: L-B's pieces edge-only in meaning, not in readers (the orchestrator's ruling of 2026-11-18, train 18)
     # RULED_IN_MEANING: pieces ruled the product's on the in-meaning check (the orchestrator, 2026-11-18, train 18: L13)

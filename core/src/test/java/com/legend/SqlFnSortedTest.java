@@ -651,6 +651,24 @@ class SqlFnSortedTest {
     /** The aggregate functions both sides write, measured 2026-11-17: a list and a string aggregation, the product's
      *  and the edge's compositions alike. */
     static final Map<String, Set<String>> BOTH_AGG = Map.ofEntries(
+            // COUNT and MIN: the edge writes them too since 2026-11-18 (E-SQL, the orchestrator's ruling on L6: legend-engine's
+            // one-object-bare fold, SnapshotEnvelope.fold, moved to edge.EdgeLoweringForms.oneBare) -- the product's
+            // writers as measured that day, SnapshotEnvelope no longer among them
+            Map.entry("COUNT", Set.of(
+                    "com.legend.lowering.Aggregates", "com.legend.lowering.CollectionLanes",
+                    "com.legend.lowering.GraphAggDecorrelate", "com.legend.lowering.HostSideBatch",
+                    "com.legend.lowering.KeyedCounts", "com.legend.lowering.KeyedPivot",
+                    "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
+                    "com.legend.lowering.Render", "com.legend.lowering.TaggedLists",
+                    "com.legend.lowering.ToOneGuard", "com.legend.lowering.ValueCollections",
+                    "com.legend.lowering.VerdictSql", "com.legend.planner.PlanMaker",
+                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
+                    "com.legend.testdatagen.TestDataPlanner")),
+            Map.entry("MIN", Set.of(
+                    "com.legend.lowering.Aggregates", "com.legend.lowering.Scalars",
+                    "com.legend.lowering.VerdictSql", "com.legend.planner.DataSources",
+                    "com.legend.sql.dialect.AsOfAsPick", "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.sql.dialect.ExplosionMarkers")),
             Map.entry("LIST", Set.of(
                     "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars", "com.legend.lowering.StampCensus",
                     "com.legend.lowering.ValueCollections", "com.legend.sql.SqlExpr",
