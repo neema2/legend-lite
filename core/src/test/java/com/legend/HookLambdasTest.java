@@ -121,6 +121,12 @@ class HookLambdasTest {
             // a database's settings' product form, H2's own defaults (J22, the user's ruling of 2026-11-17 23:05;
             // 59719a0153's train, train 11; HookRulingTest pins the kind; measured 2026-11-18)
             Map.entry("com.legend.sql.dialect.ProductDatabaseSettings", Set.of("com.legend.sql.dialect.DatabaseSettingsForm")),
+            // the run's forms' product forms (J36 of the edge audit, 2026-11-18, RUN_FORMS): a cell's, S312's dates and a
+            // structure's JSON (CellText.PRODUCT); lite's host judge, two number kinds never equal (S127); lite's
+            // rendered-text rule, two strings that differ never held
+            Map.entry("com.legend.result.CellText$1", Set.of("com.legend.result.CellText$Forms")),
+            Map.entry("com.legend.testexec.LiteHostForms", Set.of("com.legend.testexec.HostForms")),
+            Map.entry("com.legend.testexec.LiteRenderedTexts", Set.of("com.legend.testexec.RenderedTexts")),
             // D's train 4 (census C1, 2026-11-17): a rendered golden's null word, none (c013b2565c); a date literal's
             // message text, lite's (4bc94e2d8f); the rendered-text rule, strings (a9c14bb4ca) -- each nested in its kind
             Map.entry("com.legend.compiler.spec.LiteGoldenNullWord", Set.of("com.legend.compiler.spec.GoldenNullWord")),
@@ -138,12 +144,20 @@ class HookLambdasTest {
      *  (pinned empty, 2026-11-17). */
     static final Set<String> DIRECT_FACTORIES = Set.of();
 
-    /** The hook types: the ruled hooks, the facet kinds, the two-form kinds, the plan style. */
+    /** The forms a run's hearing or a writer is handed, the edge's beside the product's, which are none of the ruled
+     *  hooks, facet kinds or two-form kinds (J36 of the edge audit, 2026-11-18: "unpinned hooks"): a cell's forms, the
+     *  host judge's behaviours and the rendered-text rule. Each is a hook type here, so its product implementers are
+     *  pinned in {@link #CLASS_HOOKS} and a product lambda of one would be {@link #LAMBDA_HOOKS}'s. */
+    static final List<Class<?>> RUN_FORMS = List.of(com.legend.result.CellText.Forms.class,
+            com.legend.testexec.HostForms.class, com.legend.testexec.RenderedTexts.class);
+
+    /** The hook types: the ruled hooks, the facet kinds, the two-form kinds, the run's forms, the plan style. */
     static Set<String> hookTypes() {
         Set<String> out = new TreeSet<>();
         HookRulingTest.RULED.keySet().forEach(c -> out.add(c.getName()));
         com.legend.testplan.PlanStyleFacets.KINDS.forEach(c -> out.add(c.getName()));
         com.legend.testplan.PlanStyleFacets.TWO_FORMS.forEach(c -> out.add(c.getName()));
+        RUN_FORMS.forEach(c -> out.add(c.getName()));
         out.add(PlanStyle.class.getName());
         return out;
     }
@@ -314,7 +328,7 @@ class HookLambdasTest {
     @Test
     void theGuardBites() {
         JavaClasses classes = new ClassFileImporter().importClasses(PlantedHookLambda.class, PlantedSubTexts.class,
-                PlantedTwoForm.class, PlantedFactory.class);
+                PlantedTwoForm.class, PlantedFactory.class, PlantedRunForm.class);
         Map<String, ConstantPools.Pool> pools = new TreeMap<>();
         for (Class<?> c : List.of(PlantedHookLambda.class, PlantedHookLambda.Twice.class)) {
             pools.put(c.getName(), ConstantPools.pool(ConstantPools.bytesOf(c)));
@@ -325,8 +339,9 @@ class HookLambdasTest {
                         + " ask(int)'s, the nested Twice's), a sub-interface's too; a Supplier, a Function, a BiFunction"
                         + " or a Runnable of other types is no hook");
         assertEquals(Map.of(PlantedSubTexts.class.getName(), Set.of("com.legend.lowering.DateTimeTexts"),
-                PlantedTwoForm.class.getName(), Set.of("com.legend.lowering.ListTexts")), classHooks(classes,
-                hookTypes()), "a class implementing a two-form kind and a sub-interface of one are read");
+                PlantedTwoForm.class.getName(), Set.of("com.legend.lowering.ListTexts"),
+                PlantedRunForm.class.getName(), Set.of("com.legend.testexec.HostForms")), classHooks(classes,
+                hookTypes()), "a class implementing a two-form kind, a sub-interface of one and a run's form are read");
         assertEquals(Set.of(PlantedFactory.class.getName() + "#proxy()", PlantedFactory.class.getName()
                 + "#metafactory()", PlantedFactory.class.getName() + "#byReference()"), directFactories(classes),
                 "a direct factory call or reference is read; a lambda is not one");
@@ -365,6 +380,10 @@ class HookLambdasTest {
 
     /** A planted sub-interface of a two-form kind. */
     interface PlantedSubTexts extends com.legend.lowering.DateTimeTexts {
+    }
+
+    /** Planted: a product form of a run's form (J36, 2026-11-18) -- the host judge's behaviours. */
+    abstract static class PlantedRunForm implements com.legend.testexec.HostForms {
     }
 
     /** A planted class implementing a two-form kind. */

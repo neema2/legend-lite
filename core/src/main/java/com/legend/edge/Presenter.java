@@ -84,9 +84,9 @@ public final class Presenter {
         }
         return switch (cell) {
             case Long l -> Json.num(l);
-            case BigInteger b -> CellText.number(b.toString(), new BigDecimal(b));
+            case BigInteger b -> Json.Num.ofToken(b.toString(), new BigDecimal(b));
             case Double d -> engineCell(d);
-            case BigDecimal d -> isFloat(c) ? engineCell(d.doubleValue()) : CellText.number(d.toPlainString(), d);
+            case BigDecimal d -> isFloat(c) ? engineCell(d.doubleValue()) : Json.Num.ofToken(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(engineDay(d, c) ? CellText.dayText(d) : engineJson(d));
@@ -133,10 +133,10 @@ public final class Presenter {
             case List<?> l -> new Json.Arr(l.stream().map(x -> structure(x, c)).toList());
             case Long n -> Json.num(n);
             case Integer n -> Json.num(n);
-            case BigInteger b -> CellText.number(b.toString(), new BigDecimal(b));
+            case BigInteger b -> Json.Num.ofToken(b.toString(), new BigDecimal(b));
             // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
             case Double d -> engineFloat(d);
-            case BigDecimal d -> CellText.number(d.toPlainString(), d);
+            case BigDecimal d -> Json.Num.ofToken(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(!d.precision().atLeast(PureDateLiteral.Precision.HOUR)
@@ -157,7 +157,7 @@ public final class Presenter {
      *  for, as its name in a string -- the form its JSON library gives a NESTED value (Jackson's
      *  {@code QUOTE_NON_NUMERIC_NUMBERS}; not measured). A relation's cell is {@link #engineCell}'s. */
     private static Json.Node engineFloat(double d) {
-        return Double.isFinite(d) ? CellText.number(Double.toString(d), BigDecimal.valueOf(d))
+        return Double.isFinite(d) ? Json.Num.ofToken(Double.toString(d), BigDecimal.valueOf(d))
                 : Json.str(Double.toString(d));
     }
 
