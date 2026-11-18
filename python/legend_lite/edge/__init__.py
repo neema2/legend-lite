@@ -7,7 +7,9 @@ product, and no product module imports it (//python:run_closure_test's layer rul
 Its door composes an engine with the edge's routes (``engine``), as Java's EdgeServer composes the server: the product's
 engine carries its own refusal (``_edge_seam.NO_EDGE_ROUTES``) unless this door gives it ``EngineRoutes`` --
 legend-engine's ``pure/v1`` API, its execute (Arrow and JSON) and its saved-query store at ``/api/pure/v1/query``
-(``_pure_v1``), moved here from ``legend_lite.engine`` once no product client asked them."""
+(``_pure_v1``), moved here from ``legend_lite.engine`` once no product client asked them -- answered by the ENGINE
+library (``_engine``: //native:engine, the legend-lite-engine wheel, the [engine] extra; K2, 2026-11-18), which this
+door requires: without it, refused by name."""
 
 from __future__ import annotations
 
@@ -15,9 +17,10 @@ from typing import Any
 
 from ..engine import Engine
 from ..frames import Frames
+from ._engine import EngineMissing, engine_library
 from ._pure_v1 import EngineRoutes
 
-__all__ = ['EngineRoutes', 'engine']
+__all__ = ['EngineMissing', 'EngineRoutes', 'engine']
 
 
 def engine(frames: Frames, **kwargs: Any) -> Engine:
@@ -25,4 +28,7 @@ def engine(frames: Frames, **kwargs: Any) -> Engine:
     the one place the two are composed. ``kwargs``: the engine's own (``site``, ``headless``, ``pages``, ``keeper``)."""
     if 'edge' in kwargs:
         raise TypeError("the edge's door gives the engine its routes itself: pass no 'edge'")
+    # legend-engine's routes answer from the engine library: none installed, refused here, by name, before any route is
+    # served (EngineMissing: "legend-engine needs the legend-lite[engine] extra"), never a route that fails later
+    engine_library()
     return Engine(frames, edge=EngineRoutes(), **kwargs)
