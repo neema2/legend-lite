@@ -60,9 +60,9 @@ import java.util.List;
             // branched on edge-only flags): a raise (B7's plain set), a view's nesting and a wire cast -- the product
             // writes every check, lowers a view flat and writes the cast; the edge's forms legend-engine's
             com.legend.lowering.LoweringForms.class,
-            // whose words the database judge plans a failure in (census C1, 2026-11-17): lite's, the edge's
-            // legend-pure's
-            FailureWords.class,
+            // the database judge's words of a failure (census J29, 2026-11-18; census C1's FailureWords, which named
+            // whose words they were by a flag): lite's sentences, the edge's legend-pure words
+            com.legend.lowering.VerdictWords.class,
             // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
             // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
             com.legend.sql.dialect.DatabaseSettingsForm.class);

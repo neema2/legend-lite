@@ -164,24 +164,6 @@ public final class AggregationAwareRouting {
         return null;
     }
 
-    /** The AggregationAware main set's id for a class in a mapping (its
-     * includes closed), or null when the class is not so mapped. */
-    public static @com.legend.base.Nullable String mainSetId(ModelContext ctx, String mappingFqn,
-            String classFqn) {
-        var md = ctx.findMapping(mappingFqn).orElse(null);
-        if (md == null) {
-            return null;
-        }
-        for (var cb : md.classBindingsWithIncludes(classFqn, ctx::findMapping)) {
-            if (cb instanceof MappingDefinition.ClassBinding.Relational rb
-                    && rb.source() instanceof MappingDefinition.RelationalSource.Table t
-                    && t.aggregationAwareMain()) {
-                return cb.setId();
-            }
-        }
-        return null;
-    }
-
     /** The main binding's view facts for a class in a mapping (its
      * includes closed), or empty. */
     public static List<MappingDefinition.ClassBinding.AggregateViewFacts> viewsOf(

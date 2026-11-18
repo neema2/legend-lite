@@ -82,13 +82,6 @@ public final class BodyPlanner {
                 });
     }
 
-    /** PUSH_DOWN_ENUM_TRANSFORM on this plan's context (the plan printer's
-     *  enum-tuple form follows it). */
-    public static boolean pushDownEnums(PlanEnv env, List<TypedSpec> body) {
-        return featuresOf(env, body).contains(
-                Feature.PUSH_DOWN_ENUM_TRANSFORM);
-    }
-
     /** The feature flags an execution runs under: the executing frame's own
      *  (its execute call's context argument) plus the runner's defaults
      *  (ExecuteOptions.features) — the two sources, merged ONCE here. */

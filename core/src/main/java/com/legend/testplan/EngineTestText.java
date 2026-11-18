@@ -58,6 +58,8 @@ import java.util.List;
     /** The side a {@link #notAConstant} check names: its kind and planned root. */
     String why(HostSides.@com.legend.base.Nullable Check check);
 
-    /** How the plan holds the two texts of the edge's comparison {@code judgment} (census C3, 2026-11-17). */
-    TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment);
+    /** The database judge's gate for the edge's comparison {@code judgment} (J41, 2026-11-18; census C3 until then
+     *  answered how the plan holds its two texts, and the product mapped that to two constants of its own):
+     *  {@code shape} names the assert where the gate declines it. */
+    DatabaseGate gate(com.legend.testexecutionplan.Extension judgment, java.util.function.Supplier<String> shape);
 }

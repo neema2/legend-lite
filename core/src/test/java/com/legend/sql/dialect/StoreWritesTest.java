@@ -127,7 +127,7 @@ class StoreWritesTest {
 
     /** A plan's parameter, typed as the planner types an {@code Integer[1]} (QueryParameters.Declared.slot). */
     private static SqlExpr.PlanParam integer(String name) {
-        return new SqlExpr.PlanParam(name, SqlExpr.PlanParam.Kind.OTHER, false, null,
+        return new SqlExpr.PlanParam(name, SqlExpr.PlanParam.Kind.OTHER, false,
                 SqlTyping.typed(SqlType.Scalar.BIGINT), null);
     }
 

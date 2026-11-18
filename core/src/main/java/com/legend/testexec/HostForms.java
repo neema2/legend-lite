@@ -14,7 +14,7 @@ public interface HostForms {
     /** Whether {@code e} of kind {@code ek} equals {@code a} of the different kind {@code ak}. */
     boolean equalAcrossNumberKinds(Equality.Kind ek, Equality.Kind ak, Object e, Object a);
 
-    /** Whether a failure is worded in legend-pure's words (census C1, 2026-11-17: the run hook decides, never the
-     *  rules): lite's runs write lite's own sentences. */
-    boolean upstreamWords();
+    /** The words a failure is worded in (census J29, 2026-11-18: the hook, never a flag): lite's runs
+     *  {@link LiteHostWords}, the compatibility edge's legend-pure's. */
+    HostWords words();
 }

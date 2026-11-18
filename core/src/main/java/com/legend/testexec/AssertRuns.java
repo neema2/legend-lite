@@ -108,17 +108,17 @@ final class AssertRuns {
      *  its step and counted and reported as {@link #judgedAtItsStep} counts and reports a host verdict: entered, its
      *  verdict to the listener, a failure counted as raised. The row's polarity and message decide. */
     static void judgedRowAtItsStep(com.legend.testexecutionplan.Assertion a, List<Object> row,
-            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, HostWords words) {
         if (listener == null) {
             enter(a);
-            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row);
+            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row, words);
             return;
         }
         com.legend.diagnostics.VerdictCensus.sqlEnter();
         boolean settled = false;
         try {
             enter(a);
-            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row);
+            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row, words);
             settled = true;
             listener.verdict(a.listenerName(), true, null);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {

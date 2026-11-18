@@ -29,8 +29,9 @@ public final class PlanEnumForm {
     }
 
     /** {@code rt}: the terminal's relation type — its enum-typed columns
-     * name which projections reduce to their raw store column. */
-    public static SqlSelect apply(SqlSelect sel, Type.RelationType rt) {
+     * name which projections reduce to their raw store column; {@code params}: the plan's template parameters, an
+     * enumeration's with its mapping function (the edge's table, the audit's J31). */
+    public static SqlSelect apply(SqlSelect sel, Type.RelationType rt, EngineParams params) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         boolean changed = false;
         for (int i = 0; i < sel.projections().size(); i++) {
@@ -59,7 +60,7 @@ public final class PlanEnumForm {
             }
         }
         SqlExpr where = sel.where() == null ? null
-                : rewritePredicate(sel.where());
+                : rewritePredicate(sel.where(), params);
         changed |= where != sel.where();
         if (!changed) {
             return sel;
@@ -73,17 +74,17 @@ public final class PlanEnumForm {
      * {@code rawColumn = param} (the selector template spells both the
      * {@code =} and {@code in} arms); {@code !=}/{@code not in} wrap it
      * in NOT. */
-    private static SqlExpr rewritePredicate(SqlExpr e) {
+    private static SqlExpr rewritePredicate(SqlExpr e, EngineParams params) {
         if (!(e instanceof SqlExpr.Call c)) {
             return e instanceof SqlExpr.Group g
-                    ? regroup(g, rewritePredicate(g.inner())) : e;
+                    ? regroup(g, rewritePredicate(g.inner(), params)) : e;
         }
         switch (c.fn()) {
             case AND, OR, NOT -> {
                 List<SqlExpr> args = new ArrayList<>();
                 boolean changed = false;
                 for (SqlExpr a : c.args()) {
-                    SqlExpr r = rewritePredicate(a);
+                    SqlExpr r = rewritePredicate(a, params);
                     changed |= r != a;
                     args.add(r);
                 }
@@ -91,13 +92,13 @@ public final class PlanEnumForm {
                 // beside not(pred) — engine text spells the bare selector
                 if (c.fn() == SqlFn.OR) {
                     SqlExpr.PlanParam p = args.stream()
-                            .map(PlanEnumForm::selectorParam)
+                            .map(a -> selectorParam(a, params))
                             .filter(java.util.Objects::nonNull)
                             .findFirst().orElse(null);
                     if (p != null) {
                         List<SqlExpr> kept = new ArrayList<>();
                         for (SqlExpr a : args) {
-                            if (selectorParam(a) == null
+                            if (selectorParam(a, params) == null
                                     && nullGuardOver(a, p)) {
                                 changed = true;
                             } else {
@@ -113,10 +114,10 @@ public final class PlanEnumForm {
                 return changed ? new SqlExpr.Call(c.fn(), args) : c;
             }
             case EQUAL, NOT_EQUAL -> {
-                SqlExpr.PlanParam p = enumParam(c.args().get(1));
+                SqlExpr.PlanParam p = enumParam(c.args().get(1), params);
                 SqlExpr other = c.args().get(0);
                 if (p == null) {
-                    p = enumParam(other);
+                    p = enumParam(other, params);
                     other = c.args().get(1);
                 }
                 if (p == null) {
@@ -129,7 +130,7 @@ public final class PlanEnumForm {
             }
             case IN -> {
                 if (c.args().size() == 2
-                        && enumParam(c.args().get(1)) != null) {
+                        && enumParam(c.args().get(1), params) != null) {
                     return new SqlExpr.Call(SqlFn.EQUAL, List.of(
                             reduce(c.args().get(0)), c.args().get(1)));
                 }
@@ -139,10 +140,10 @@ public final class PlanEnumForm {
                 // execution null-guard (COALESCE(pred, false)) — engine
                 // text drops it when the guarded predicate is the enum
                 // selector shape
-                SqlExpr r = rewritePredicate(c.args().get(0));
+                SqlExpr r = rewritePredicate(c.args().get(0), params);
                 if (r != c.args().get(0) && r instanceof SqlExpr.Call rc
                         && rc.fn() == SqlFn.EQUAL
-                        && enumParam(rc.args().get(1)) != null) {
+                        && enumParam(rc.args().get(1), params) != null) {
                     return r;
                 }
                 return c;
@@ -155,14 +156,14 @@ public final class PlanEnumForm {
 
     /** The enum parameter when {@code e} is the rewritten selector
      * shape ({@code col = p} or {@code not(col = p)}), else null. */
-    private static SqlExpr.@com.legend.base.Nullable PlanParam selectorParam(SqlExpr e) {
+    private static SqlExpr.@com.legend.base.Nullable PlanParam selectorParam(SqlExpr e, EngineParams params) {
         if (e instanceof SqlExpr.Call n && n.fn() == SqlFn.NOT
                 && n.args().size() == 1) {
-            return selectorParam(n.args().get(0));
+            return selectorParam(n.args().get(0), params);
         }
         return e instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL
                 && c.args().size() == 2
-                ? enumParam(c.args().get(1)) : null;
+                ? enumParam(c.args().get(1), params) : null;
     }
 
     /** A three-valued NULL-keeper disjunct over the parameter — ANDs of
@@ -188,8 +189,8 @@ public final class PlanEnumForm {
         return inner == g.inner() ? g : new SqlExpr.Group(inner);
     }
 
-    private static SqlExpr.@com.legend.base.Nullable PlanParam enumParam(SqlExpr e) {
-        return e instanceof SqlExpr.PlanParam p && p.enumMapFn() != null
+    private static SqlExpr.@com.legend.base.Nullable PlanParam enumParam(SqlExpr e, EngineParams params) {
+        return e instanceof SqlExpr.PlanParam p && params.enumMapFn(p.name()) != null
                 ? p : null;
     }
 
