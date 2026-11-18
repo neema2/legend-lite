@@ -192,7 +192,7 @@ public final class BodyPlanner {
         Lowerer lowerer = env.configure(new Lowerer(
                 t -> identity ? ClassLayouts.layoutOf(ctx, t, true)
                         : ClassLayouts.objectLayoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations())
+                f -> ctx.findClass(f).isPresent(), ctx.implementations()).withExistsJoinable()
                 .sharingRelations(!env.postProcessors().extractCtes()))
                 .withFloatLiteralKind(env::floatLiteralKind);
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()

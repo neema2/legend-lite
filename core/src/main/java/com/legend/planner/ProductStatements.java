@@ -398,7 +398,10 @@ public final class ProductStatements {
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
                 .withObjectIdentity(sites::idOf);
-        // (withExistsAsJoinDistinct: gone 2026-11-17, the edge audit's J19 -- the product's EXISTS the leanest SQL)
+        if (!temporal) {
+            // the style's forms decide its shape (J19, S362): the product's keeps the EXISTS
+            planLw = planLw.withExistsJoinable();
+        }
         if (streaming) {
             planLw = planLw.withStreamingGraphRoot();
         }

@@ -1287,7 +1287,9 @@ final class ArchitectureTest {
             "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
                     + "com.legend.platform.ImplementationTable)", "com.legend.Compiler com.legend.edge.EnginePlans",
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
-            // (Lowerer#withExistsAsJoinDistinct: gone 2026-11-17, the edge audit's J19 -- the shape's form's existsJoin)
+            // the planner's fact that a statement's EXISTS may take the style's join form (the edge audit's J19, 2026-11-17:
+            // withExistsAsJoinDistinct renamed, the choice the plan style's forms')
+            "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler",
             // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
             // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
             // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
@@ -1375,7 +1377,9 @@ final class ArchitectureTest {
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
             // re-keyed 2026-11-17 (the audit's K5, then the edge audit's J23 and J19): the shape's edge-only flags became its form's choices
-            "lowering.LoweringShape#<init>(com.legend.lowering.LoweringForms)",
+            "lowering.LoweringShape#<init>(com.legend.lowering.LoweringForms, boolean)",
+            "com.legend.edge.EnginePlans",
+            "lowering.LoweringShape#withExistsJoinable()",
             "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",

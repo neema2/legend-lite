@@ -373,6 +373,13 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
+    /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
+     *  keys ({@link LoweringShape#existsJoinable}; the edge audit's J19: the product's form keeps the EXISTS). */
+    public Lowerer withExistsJoinable() {
+        this.shape = shape.withExistsJoinable();
+        return this;
+    }
+
     /** STREAMING graph root (driver opt-in) — see {@link
      *  StreamingGraphRoot}; nested serializes keep aggregating. */
     private boolean streamingGraphRoot;
@@ -2266,8 +2273,8 @@ public final class Lowerer {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
                 // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S362)
-                yield shape.forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x, this::nextAlias,
-                        whereZones::get));
+                yield shape.existsJoinable() ? styled().forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x,
+                        this::nextAlias, whereZones::get)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));

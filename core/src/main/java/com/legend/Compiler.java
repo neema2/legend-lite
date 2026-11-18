@@ -965,7 +965,10 @@ public final class Compiler {
                 // a Float literal as the runtime's database computes it in the product (register S20, Phase 5b)
                 .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
                         .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());
-        // (withExistsAsJoinDistinct: gone 2026-11-17, the edge audit's J19 -- the product's EXISTS the leanest SQL)
+        if (!temporalRoot) {
+            // the style's forms decide its shape (J19, S362): the product's keeps the EXISTS
+            lw = lw.withExistsJoinable();
+        }
         return lw.lower(body);
     }
 

@@ -164,7 +164,7 @@ public final class EnginePlans {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent(), env.ctx().implementations())
                 .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options())
-                .withShape(temporalRoot ? UPSTREAM_SHAPE_TEMPORAL : UPSTREAM_SHAPE)
+                .withShape(temporalRoot ? UPSTREAM_SHAPE : UPSTREAM_SHAPE.withExistsJoinable())
                 // and the plan environment's style's text facets and plain raises (the audit's K6, 2026-11-17: until
                 // then this lowering ran with the Lowerer's implicit product default)
                 .withFloatLiteralKind(env::floatLiteralKind).withStyled(env.styled());
@@ -210,11 +210,7 @@ public final class EnginePlans {
      *  its own column lists (no computed pruning), a view an aliased derived table ({@code ViewSelectSQLQuery}), a
      *  mapping's wire coercion converted by its runtime on the wire and never spelled in its text. */
     static final com.legend.lowering.LoweringShape UPSTREAM_SHAPE =
-            new com.legend.lowering.LoweringShape(EdgeLoweringForms.ENGINE_SQL_SHAPE);
-
-    /** legend-engine's statement shape over a temporal root: its EXISTS kept correlated (J19). */
-    static final com.legend.lowering.LoweringShape UPSTREAM_SHAPE_TEMPORAL =
-            new com.legend.lowering.LoweringShape(EdgeLoweringForms.ENGINE_SQL_SHAPE_TEMPORAL);
+            new com.legend.lowering.LoweringShape(EdgeLoweringForms.ENGINE_SQL_SHAPE, false);
 
     static final String EXEC_TRACE_COMMENT = "-- \"executionTraceID\" : \"${execID}\"";
 
