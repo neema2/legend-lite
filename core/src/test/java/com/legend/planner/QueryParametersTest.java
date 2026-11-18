@@ -47,8 +47,8 @@ class QueryParametersTest {
     void theLambdasParametersInOrder_withTheirTypesAndMultiplicities() {
         List<QueryParameters.Declared> ps = declared("{s:test::Status[1], n:Integer[0..1], names:String[*]|$s}");
         assertEquals(List.of("s", "n", "names"), ps.stream().map(QueryParameters.Declared::name).toList());
-        assertEquals(List.of("test::Status[1]", "Integer[0..1]", "String[*]"),
-                ps.stream().map(QueryParameters.Declared::signature).toList());
+        assertEquals(List.of("test::Status", "Integer", "String"),
+                ps.stream().map(QueryParameters.Declared::pureType).toList());
         assertFalse(ps.get(0).optional());
         assertTrue(ps.get(1).optional());
         assertFalse(ps.get(2).optional());
