@@ -32,8 +32,8 @@ import java.util.function.Supplier;
  * projection dropped; legend-engine's SQL does none of them.</li>
  * <li>{@link #existsJoin} (the edge audit's J19, the user's ruling of 2026-11-17, "Yes to the rule"; register S362): a
  * filter's correlated {@code EXISTS} over a to-many join -- legend-engine's SQL writes its "second exists emission", a
- * join to the distinct keys ({@code ExistsJoinForm}), the edge's forms; the product's form writes the same join until the
- * dialects that cannot correlate an EXISTS decompose it at render, then the EXISTS as lowered.</li>
+ * join to the distinct keys ({@code ExistsJoinForm}), the edge's forms; the product's form the EXISTS as lowered, the
+ * leanest SQL, a dialect that cannot correlate one decomposing it at render (ClickHouse, {@code sql.ExistsJoins}).</li>
  * </ul>
  */
 public interface LoweringForms {
