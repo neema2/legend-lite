@@ -22,7 +22,19 @@ enum EngineExecutedValues implements com.legend.planner.ExecutedValues {
     INSTANCE;
 
     @Override
-    public TypedSpec envelope(TypedSpec chain, ModelContext model) {
+    public TypedSpec relation(TypedSpec chain, java.util.function.Supplier<@com.legend.base.Nullable String> activitySql) {
+        // the tdsBuilder envelope, the activity's SQL the engine recorded (rendered now, the edge's alone)
+        return new TypedJsonResult(chain, TypedJsonResult.Kind.TDS, activitySql.get(), ExprType.one(Type.Primitive.STRING));
+    }
+
+    @Override
+    public TypedSpec classes(TypedSpec chain, java.util.function.Supplier<@com.legend.base.Nullable String> activitySql) {
+        // the classBuilder envelope with its objects
+        return new TypedJsonResult(chain, TypedJsonResult.Kind.CLASS, activitySql.get(), ExprType.one(Type.Primitive.STRING));
+    }
+
+    @Override
+    public TypedSpec values(TypedSpec chain, ModelContext model) {
         ExprType str = ExprType.one(Type.Primitive.STRING);
         TypedSpec text = com.legend.compiler.spec.ExecuteChainAssembly.concatenated(model, List.of(
                 new TypedCString("{\"builder\":{\"_type\":\"json\"},\"values\":", str), chain,

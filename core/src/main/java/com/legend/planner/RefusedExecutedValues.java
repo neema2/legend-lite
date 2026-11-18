@@ -14,7 +14,17 @@ public enum RefusedExecutedValues implements ExecutedValues {
     REFUSED;
 
     @Override
-    public TypedSpec envelope(TypedSpec chain, ModelContext model) {
+    public TypedSpec values(TypedSpec chain, ModelContext model) {
+        throw com.legend.lowering.ProductLoweringForms.envelopeRefused();
+    }
+
+    @Override
+    public TypedSpec relation(TypedSpec chain, java.util.function.Supplier<@com.legend.base.Nullable String> activitySql) {
+        throw com.legend.lowering.ProductLoweringForms.envelopeRefused();
+    }
+
+    @Override
+    public TypedSpec classes(TypedSpec chain, java.util.function.Supplier<@com.legend.base.Nullable String> activitySql) {
         throw com.legend.lowering.ProductLoweringForms.envelopeRefused();
     }
 }
