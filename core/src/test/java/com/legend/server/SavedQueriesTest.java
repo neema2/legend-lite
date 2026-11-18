@@ -58,6 +58,23 @@ class SavedQueriesTest {
                 + " server with --query-store DIR\"}", unconfigured.json());
     }
 
+    /** The store's own file it cannot read is ITS failure, never the request's: lite's route answers any search 500
+     *  {@code internal} (PR #118 fix round, 2026-11-18, F6; the re-review that day: a malformed request is refused
+     *  where the request is read, so a fault reading the store's own files stays a 500). */
+    @Test
+    void aStoreFileItCannotReadIsInternalNotTheRequests() throws Exception {
+        SavedQueries store = new SavedQueries(new FileRecords(dir), clock::get);
+        assertEquals(200, SavedQueries.answer(store, "POST", "", null, query("q1", "Q1"), "a").status());
+        java.nio.file.Files.writeString(dir.resolve("q1.json"), "{}");
+        LegendHttpServer.Routes lite = LegendHttpServer.storeRoutes("/api/lite/v1/queries", store, null);
+        for (String body : List.of("{}", "{\"searchTerm\":\"Q\"}")) {
+            LiteV1Api.Answer searched = lite.answer("POST", "/api/lite/v1/queries/search", null, body);
+            String said = new String(searched.body(), java.nio.charset.StandardCharsets.UTF_8);
+            assertEquals(500, searched.status(), said);
+            assertEquals("internal", Json.parseObject(said).getString("kind"), said);
+        }
+    }
+
     private static String query(String id, String name) {
         return "{\"id\":\"" + id + "\",\"name\":\"" + name + "\",\"groupId\":\"demo\",\"artifactId\":\"trading\","
                 + "\"versionId\":\"0.0.0\",\"content\":\"|demo::trading::Trade.all()\","
