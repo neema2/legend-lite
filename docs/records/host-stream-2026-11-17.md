@@ -298,3 +298,25 @@ its compat entry, a target the app loads only when configured `engine: legend-en
   - the pinned entry, which passes.
 - With the entry exception removed from the rule, `ts_layering_test` goes red on the pinned entry's line.
 
+### 2026-11-18: the restart (the user's yes, 04:10)
+
+- **The d-stage merge.** I merged d-stage 26ca6937d into the train's merge point 883130a5b
+  (`claude/total-wall-host-dmerge` @ 4ff2f69c3e). The 12 files' resolutions are in its commit message. DataCube
+  stacked notFound, H11 with its `:edge` moves, J9 and K10 on top (`claude/total-wall-h-datacube` @ b241648e2).
+- **The query store's words.** `//query-store:lite_test` and `wasm_test` follow J9's sentences. The conformance
+  file's dialects each carry the store's words: lite's sentences on lite's mount, legend-engine's on the edge's. The
+  page store's owner and malformed-body tests take lite's sentences too.
+  - Red on revert: give lite's dialect legend-engine's taken-ID sentence, and both suites fail.
+- **J36's remainder is closed: no code was needed.** `query/run` with `format: arrow` is answered by the product's
+  writer:
+  - `LiteV1Planning.ShapedArrow` makes `result.ArrowWriter(out, <lite's metadata: legend.shape and legend.type>,
+    CellText.PRODUCT)`, with the product's date text (S312).
+  - legend-engine's form (`Presenter.LEGEND_PURE` with `PureV1Writer.arrowMetadata`) is built only in
+    `edge.EngineAnswers`.
+  - `LiteV1Planning` and `LiteV1Api` reference nothing of `com.legend.edge` in code.
+  - Tests that hold it:
+    - `LiteV1PlanningTest.queryRunInArrow`: one Arrow IPC stream, with `legend.shape` and `legend.type` metadata
+      and both rows.
+    - `//engine-client:lite_api_server_test`'s Arrow and JSON describe: the same typed rows in each format, an
+      Integer's 2^63-1 exact.
+
