@@ -76,6 +76,7 @@ H2	H2	call	REGEXP_EXTRACT	emulated	regexpExtractArm		45
 H2	H2	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		13
 H2	H2	call	REGEXP_REPLACE	spelled	regexp_replace		8
 H2	H2	call	REGEXP_FULL_MATCH	emulated	regexpFullMatch		49
+H2	H2	call	IS_NUMERIC	emulated	isNumeric		0
 H2	H2	call	MAP_FROM_LISTS	spelled	map		3
 H2	H2	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
 H2	H2	call	MAP_EMPTY	refused	an empty map reached H2, which has no map type		8
@@ -304,6 +305,7 @@ Postgres	Postgres	call	REGEXP_EXTRACT	emulated	regexpExtract		45
 Postgres	Postgres	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 Postgres	Postgres	call	REGEXP_REPLACE	emulated	regexpReplace		8
 Postgres	Postgres	call	REGEXP_FULL_MATCH	emulated	pattern: (… ~ …^(?:)$)		49
+Postgres	Postgres	call	IS_NUMERIC	emulated	isNumeric		0
 Postgres	Postgres	call	MAP_FROM_LISTS	emulated	composed in a block	via Postgres.maps	3
 Postgres	Postgres	call	MAP_FROM_ENTRIES	emulated	composed in a block	via Postgres.maps	13
 Postgres	Postgres	call	MAP_EMPTY	emulated	CAST(ARRAY[] AS JSONB[])	via Postgres.maps	8
@@ -532,6 +534,7 @@ Snowflake	Snowflake	call	REGEXP_EXTRACT	emulated	regexpExtract		45
 Snowflake	Snowflake	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 Snowflake	Snowflake	call	REGEXP_REPLACE	emulated	regexpReplace		8
 Snowflake	Snowflake	call	REGEXP_FULL_MATCH	emulated	fullMatch		49
+Snowflake	Snowflake	call	IS_NUMERIC	emulated	isNumeric		0
 Snowflake	Snowflake	call	MAP_FROM_LISTS	emulated	mapFromLists		3
 Snowflake	Snowflake	call	MAP_FROM_ENTRIES	emulated	mapFromEntries		13
 Snowflake	Snowflake	call	MAP_EMPTY	spelled	OBJECT_CONSTRUCT		8
@@ -760,6 +763,7 @@ Trino	Trino	call	REGEXP_EXTRACT	emulated	group: regexp_extract(…, …, …)		4
 Trino	Trino	call	REGEXP_EXTRACT_ALL	emulated	group: regexp_extract_all(…, …, …)		13
 Trino	Trino	call	REGEXP_REPLACE	emulated	regexpReplace		8
 Trino	Trino	call	REGEXP_FULL_MATCH	emulated	anchored: regexp_like(…, …)		49
+Trino	Trino	call	IS_NUMERIC	emulated	isNumeric		0
 Trino	Trino	call	MAP_FROM_LISTS	spelled	map		3
 Trino	Trino	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
 Trino	Trino	call	MAP_EMPTY	spelled	MAP		8
@@ -988,6 +992,7 @@ BigQuery	BigQuery	call	REGEXP_EXTRACT	emulated	regexpExtract		45
 BigQuery	BigQuery	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 BigQuery	BigQuery	call	REGEXP_REPLACE	emulated	regexpReplace		8
 BigQuery	BigQuery	call	REGEXP_FULL_MATCH	emulated	anchored: REGEXP_CONTAINS(…, …)		49
+BigQuery	BigQuery	call	IS_NUMERIC	emulated	isNumeric		0
 BigQuery	BigQuery	call	MAP_FROM_LISTS	emulated	composed in a block	via BigQuery.maps	3
 BigQuery	BigQuery	call	MAP_FROM_ENTRIES	emulated	composed in a block	via BigQuery.maps	13
 BigQuery	BigQuery	call	MAP_EMPTY	emulated	composed in a block	via BigQuery.maps	8
@@ -1216,6 +1221,7 @@ Databricks	Databricks	call	REGEXP_EXTRACT	emulated	group: regexp_extract(…, �
 Databricks	Databricks	call	REGEXP_EXTRACT_ALL	emulated	group: regexp_extract_all(…, …, …)		13
 Databricks	Databricks	call	REGEXP_REPLACE	emulated	regexpReplace		8
 Databricks	Databricks	call	REGEXP_FULL_MATCH	emulated	anchored: regexp_like(…, …)		49
+Databricks	Databricks	call	IS_NUMERIC	emulated	isNumeric		0
 Databricks	Databricks	call	MAP_FROM_LISTS	spelled	map_from_arrays		3
 Databricks	Databricks	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
 Databricks	Databricks	call	MAP_EMPTY	spelled	map		8
@@ -1444,6 +1450,7 @@ DuckDb	DuckDB	call	REGEXP_EXTRACT	spelled	regexp_extract		45
 DuckDb	DuckDB	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		13
 DuckDb	DuckDB	call	REGEXP_REPLACE	spelled	regexp_replace		8
 DuckDb	DuckDB	call	REGEXP_FULL_MATCH	spelled	regexp_full_match		49
+DuckDb	DuckDB	call	IS_NUMERIC	emulated	isNumeric		0
 DuckDb	DuckDB	call	MAP_FROM_LISTS	spelled	map		3
 DuckDb	DuckDB	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
 DuckDb	DuckDB	call	MAP_EMPTY	emulated	mapEmpty		8
@@ -1672,6 +1679,7 @@ ClickHouse	ClickHouse	call	REGEXP_EXTRACT	emulated	regexpExtractArm		45
 ClickHouse	ClickHouse	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 ClickHouse	ClickHouse	call	REGEXP_REPLACE	emulated	regexpReplace		8
 ClickHouse	ClickHouse	call	REGEXP_FULL_MATCH	emulated	anchored: match(…, …)		49
+ClickHouse	ClickHouse	call	IS_NUMERIC	emulated	isNumeric		0
 ClickHouse	ClickHouse	call	MAP_FROM_LISTS	spelled	mapFromArrays		3
 ClickHouse	ClickHouse	call	MAP_FROM_ENTRIES	emulated	mapFromArrays(arrayMap("__e" -> tupleElement("__e", 1), …), arrayMap("__e" ->...		13
 ClickHouse	ClickHouse	call	MAP_EMPTY	spelled	map		8
@@ -1900,6 +1908,7 @@ SQLite	SQLite	call	REGEXP_EXTRACT	emulated	regexpExtract		45
 SQLite	SQLite	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 SQLite	SQLite	call	REGEXP_REPLACE	emulated	regexpReplace		8
 SQLite	SQLite	call	REGEXP_FULL_MATCH	emulated	matchesArm		49
+SQLite	SQLite	call	IS_NUMERIC	emulated	isNumeric		0
 SQLite	SQLite	call	MAP_FROM_LISTS	emulated	composed in a block	via SQLite.maps	3
 SQLite	SQLite	call	MAP_FROM_ENTRIES	emulated	composed in a block	via SQLite.maps	13
 SQLite	SQLite	call	MAP_EMPTY	spelled	json_object	via SQLite.maps	8
@@ -2128,6 +2137,7 @@ MariaDb	MariaDB	call	REGEXP_EXTRACT	emulated	regexpExtract		5
 MariaDb	MariaDB	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 MariaDb	MariaDB	call	REGEXP_REPLACE	emulated	regexpReplace		8
 MariaDb	MariaDB	call	REGEXP_FULL_MATCH	emulated	pattern: (… REGEXP …)		9
+MariaDb	MariaDB	call	IS_NUMERIC	emulated	isNumeric		0
 MariaDb	MariaDB	call	MAP_FROM_LISTS	emulated	composed in a block	via MariaDb.maps	3
 MariaDb	MariaDB	call	MAP_FROM_ENTRIES	emulated	composed in a block	via MariaDb.maps	13
 MariaDb	MariaDB	call	MAP_EMPTY	spelled	JSON_OBJECT	via MariaDb.maps	8
@@ -2356,6 +2366,7 @@ MySql	MySQL	call	REGEXP_EXTRACT	emulated	regexpExtract	as MariaDb	5
 MySql	MySQL	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll	as MariaDb	13
 MySql	MySQL	call	REGEXP_REPLACE	emulated	regexpReplace	as MariaDb	8
 MySql	MySQL	call	REGEXP_FULL_MATCH	emulated	pattern: (… REGEXP …)	as MariaDb	9
+MySql	MySQL	call	IS_NUMERIC	emulated	isNumeric	as MariaDb	0
 MySql	MySQL	call	MAP_FROM_LISTS	emulated	composed in a block	as MariaDb, via MariaDb.maps	3
 MySql	MySQL	call	MAP_FROM_ENTRIES	emulated	composed in a block	as MariaDb, via MariaDb.maps	13
 MySql	MySQL	call	MAP_EMPTY	spelled	JSON_OBJECT	as MariaDb, via MariaDb.maps	8
@@ -2584,6 +2595,7 @@ MongoDb	MongoDB	call	REGEXP_EXTRACT	emulated	regexExtract		0
 MongoDb	MongoDB	call	REGEXP_EXTRACT_ALL	emulated	regexExtractAll		0
 MongoDb	MongoDB	call	REGEXP_REPLACE	emulated	regexReplace		0
 MongoDb	MongoDB	call	REGEXP_FULL_MATCH	emulated	regexMatch		0
+MongoDb	MongoDB	call	IS_NUMERIC	emulated	isNumeric		0
 MongoDb	MongoDB	call	MAP_FROM_LISTS	emulated	{"$arrayToObject": {"$zip": {"inputs": […]}}}		0
 MongoDb	MongoDB	call	MAP_FROM_ENTRIES	emulated	{"$arrayToObject": {"$map": {"input": {"$ifNull": […, []]}, "in": {"k": "$$th...		0
 MongoDb	MongoDB	call	MAP_EMPTY	emulated	{"$literal": {}}		0
@@ -2812,6 +2824,7 @@ EngineStyleH2	-	call	REGEXP_EXTRACT	spelled	regexp_extract		-
 EngineStyleH2	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		-
 EngineStyleH2	-	call	REGEXP_REPLACE	spelled	regexp_replace		-
 EngineStyleH2	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match		-
+EngineStyleH2	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper		-
 EngineStyleH2	-	call	MAP_FROM_LISTS	spelled	map		-
 EngineStyleH2	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries		-
 EngineStyleH2	-	call	MAP_EMPTY	emulated	mapEmpty		-
@@ -3040,6 +3053,7 @@ EngineStyleDB2	-	call	REGEXP_EXTRACT	spelled	regexp_extract	as EngineStyleH2	-
 EngineStyleDB2	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as EngineStyleH2	-
 EngineStyleDB2	-	call	REGEXP_REPLACE	spelled	regexp_replace	as EngineStyleH2	-
 EngineStyleDB2	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match	as EngineStyleH2	-
+EngineStyleDB2	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper	as EngineStyleH2	-
 EngineStyleDB2	-	call	MAP_FROM_LISTS	spelled	map	as EngineStyleH2	-
 EngineStyleDB2	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as EngineStyleH2	-
 EngineStyleDB2	-	call	MAP_EMPTY	emulated	mapEmpty	as EngineStyleH2	-
@@ -3268,6 +3282,7 @@ EngineStyleComposite	-	call	REGEXP_EXTRACT	spelled	regexp_extract	as EngineStyle
 EngineStyleComposite	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	REGEXP_REPLACE	spelled	regexp_replace	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	MAP_FROM_LISTS	spelled	map	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	MAP_EMPTY	emulated	mapEmpty	as EngineStyleDB2, as EngineStyleH2	-
