@@ -49,8 +49,9 @@ class ProductFormsUseTheirArgumentsTest {
     static final Map<String, String> UNCALLED = Map.of(
             // (existsJoin's and computedPruning's: CLOSED 2026-11-18 by E-SQL's 63d2ad6ed and 4b39cdd82 -- the lowering
             // hands its statement and sites, the edge's form composes legend-engine's form itself)
-            "ProductLoweringForms#executeValues(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
-                    + " SnapshotEnvelope.fold as oneBare, legend-engine's one-object-bare execute values, handed in");
+            // (executeValues' arg 1: RULED 2026-11-18, below -- the fold moved to the edge with E-SQL's 54f6b2a824, and
+            // what the lowering hands is its own wrapped serialization; L-A.LoweringForms closes)
+            );
     // (RefusedExecutedValues#relation and #classes: ruled no finding 2026-11-18, below -- L-A.ExecutedValues closes)
 
     /** Each function a product form never calls that is no finding (the orchestrator's ruling of 2026-11-18, 06:40: a
@@ -60,6 +61,12 @@ class ProductFormsUseTheirArgumentsTest {
                     + " own plain lowering, which it runs itself when sharing is off; only the choice is upstream's",
             "ProductLoweringForms#view(SqlSelect, Supplier, String) arg 1", "2026-11-18: this::nextAlias, the product's"
                     + " alias counter, handed in so the edge can name its frame",
+            // L-A.LoweringForms closed (the orchestrator, 2026-11-18, train 18: the lens's LoweringForms line closes with
+            // E-SQL's fold move): legend-engine's one-object-bare fold is the edge's own code (EdgeLoweringForms.oneBare,
+            // 54f6b2a824), and the supplier is the lowering's own serialization of the array-wrapped graph -- the same
+            // statement the product's form itself takes at the scalar position (Lowerer: executeValues(wrapped, wrapped))
+            "ProductLoweringForms#executeValues(Supplier, Supplier) arg 1", "2026-11-18: () -> serializeGraph(g"
+                    + ".asArrayWrapped()), the lowering's own wrapped statement, which the edge's oneBare folds",
             // the functions inside ExistsSites (seen since the GUARD stream's widening of 2026-11-18, train 18, on E-SQL's
             // fold move, 612b194708): the lowering's own alias minter and resolver-zone lookup, handed to every form (the
             // orchestrator's ruling on L6, item 1: the product hands its statement and sites, never upstream's
