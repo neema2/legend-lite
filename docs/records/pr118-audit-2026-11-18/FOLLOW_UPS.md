@@ -16,6 +16,7 @@ scheduled or closed. IDs refer to `findings/` and `verification/`.
 | Q6 | `format('%r', s)` does not escape a newline | EDGE-3 |
 | Q7 | The edge's `tdsBuilder` envelope aggregates rows with no ORDER BY. Order is lost at scale on DuckDB | EDGE-8 (retired by the presentation program's decision f) |
 | **Q8 (first after the merge)** | An Integer property mapped to a `DECIMAL(10,0)` column is refused by the product's result decode: `project` and `filter(...)->toOne().n` fail with "a cell BigDecimal 5 is not its type's carrier" (`result/Batch.java:187`, the Longs batch). The host judge errors on every assert over it, so BOTH raises JudgesDisagree. Came in with `51688f36` ("Typed results end to end"), on main. Fix: the Longs batch accepts an integral BigDecimal (scale <= 0 or a zero fraction) and refuses a fractional one; a probe under every judge and both rule sets, and a product case | fixer, F4 probe |
+| **Q9 (with Q8)** | Python's lite API v1 `query/run` answers EVERY DuckDB failure, a planned raise included, as 500 `internal` (`python/legend_lite/engine.py` `_query_run`, the `except (duckdb.Error, UntypedColumn)` branch); `_planned.py` re-raises with the words only, dropping the site's kind and where. Java answers the same run 422 `data` with its raise. Fix: carry kind and where on the re-raise, answer as Java does, add Python to the shared data case's bindings | fixer, N3 (Java half fixed in PR #118) |
 
 ## 2. Judge parity and words (goal G2), open after F4
 
