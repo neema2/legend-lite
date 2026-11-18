@@ -17,12 +17,8 @@ import com.legend.compiler.spec.typed.TypedSpec;
 public interface RoutedQueries {
 
     /** The routing activity an execute's {@code chain} records before its statement's, or null where it records none
-     *  (J37 of the edge audit, 2026-11-18: the whole row the style's, its place the planner's). */
+     *  (J37 of the edge audit, 2026-11-18: the whole row the style's, its place the planner's): the row's columns after
+     *  its id, scope and index -- its kind, sql, comment and rewritten query, the system metamodel's activity table's. */
     @com.legend.base.Nullable
-    Activity routingActivity(TypedSpec chain, ModelContext ctx, SpecCompiler specs);
-
-    /** An activity row's columns after its id, scope and index: its {@code kind}, {@code sql}, {@code comment} and
-     *  {@code rewritten} query (the system metamodel's activity table's columns). */
-    record Activity(String kind, String sql, String comment, String rewritten) {
-    }
+    java.util.List<String> routingActivity(TypedSpec chain, ModelContext ctx, SpecCompiler specs);
 }

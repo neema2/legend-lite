@@ -272,7 +272,7 @@ public final class PlanAllocations {
     private static final int COMMENT = 5;
 
     private static LazyRows.@Nullable Computed activityRows(String scope,
-            @Nullable String sql, RoutedQueries.@Nullable Activity routing,
+            @Nullable String sql, @Nullable List<String> routing,
             @Nullable String comment, @Nullable String commentParameter) {
         if (sql == null) {
             return null;
@@ -284,8 +284,13 @@ public final class PlanAllocations {
         if (routing != null) {
             // a routing activity first (it happens at routing, before execution), the style's whole row (J37 of the edge
             // audit, 2026-11-18): the compatibility edge's legend-engine AggregationAwareActivity alone
-            acts.add(List.of(scope + "/0", scope, "0", routing.kind(), routing.sql(), routing.comment(),
-                    routing.rewritten()));
+            if (routing.size() != 4) {
+                throw new IllegalStateException("a routing activity is its kind, sql, comment and rewritten query: "
+                        + routing);
+            }
+            List<String> row = new ArrayList<>(List.of(scope + "/0", scope, "0"));
+            row.addAll(routing);
+            acts.add(List.copyOf(row));
         }
         int k = acts.size();
         acts.add(List.of(scope + "/" + k, scope, Integer.toString(k),
