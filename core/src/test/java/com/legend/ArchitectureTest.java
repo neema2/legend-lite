@@ -1249,7 +1249,7 @@ final class ArchitectureTest {
             "com.legend.edge.EdgePureOnlyTexts",
             "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",
             "com.legend.edge.EdgePureOnlyTexts",
-            "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.Styled#dateTimes()", "com.legend.edge.EdgeLoweringForms com.legend.edge.EdgePureOnlyTexts",
             // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
             // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
             // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
@@ -1298,7 +1298,15 @@ final class ArchitectureTest {
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
             // the planner's fact that a statement's EXISTS may take the style's join form (the edge audit's J19, 2026-11-17:
             // withExistsAsJoinDistinct renamed, the choice the plan style's forms')
-            "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler",
+            "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler com.legend.edge.EnginePlans",
+            // legend-engine's statement shape as the edge's Styled (2026-11-18, J40, the orchestrator's ruling (7): one
+            // forms source; until then Lowerer#withShape and LoweringShape's two entries): the plan style's Styled with
+            // the edge's forms in place of its own
+            "lowering.Styled#<init>(java.util.function.Function, com.legend.lowering.LoweringForms, "
+                    + "com.legend.lowering.DateTimeTexts, com.legend.lowering.ListTexts)", "com.legend.edge.EdgeLoweringForms",
+            "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.Styled#pureOnly()", "com.legend.edge.EdgeLoweringForms",
             // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
             // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
             // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
@@ -1384,12 +1392,10 @@ final class ArchitectureTest {
             // facet planner.UpstreamPlans; it lowers and renders a query in legend-engine's text through the product's
             // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
-            "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
-            // re-keyed 2026-11-17 (the audit's K5, then the edge audit's J23 and J19): the shape's edge-only flags became its form's choices
-            "lowering.LoweringShape#<init>(com.legend.lowering.LoweringForms, boolean)",
-            "com.legend.edge.EnginePlans",
-            "lowering.LoweringShape#withExistsJoinable()",
-            "com.legend.edge.EnginePlans",
+            // (Lowerer#withShape, LoweringShape#<init> and #withExistsJoinable: GONE 2026-11-18, J40, the orchestrator's
+            // ruling (7) -- one forms source, the plan style's; legend-engine's shape the edge's Styled,
+            // EdgeLoweringForms.engineSql, read through the Styled entries below, and the planner's fact the
+            // Lowerer's own withExistsJoinable)
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
             // its caller edge.EnginePlans -> edge.EngineParams (2026-11-18, the audit's J31: legend-engine's template
