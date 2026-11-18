@@ -62,7 +62,7 @@ public final class ProductLoweringForms implements LoweringForms {
 
     @Override
     public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-        return LoweringForms.dropComputed(q);
+        return SubselectPrune.prune(q, true);
     }
 
     /** An exact decimal at the product's Decimal precision ({@code PureSql.type(DECIMAL)}). */
