@@ -119,7 +119,7 @@ heavy round (it includes `//pct:edge_contract_test` and `//core:cypher_parity_te
   `.github/workflows/stage-linux.yml`.
 - **The count:** 0 on `61e5205d1` (F's census: lines 0, AUDIT 0, EDGE-ONLY MEMBERS 0, LENS 0). D's heavy round
   re-runs `//core:census` and `//core:census_edge` on `688ed9fde` (§8.3).
-- **Trains:** `<N>` integration trains landed on `claude/total-wall-d-stage`, each through one integrator (D) with one
+- **Trains:** trains 1-18, then the final batched train (the old 19 and 20, assembled by DataCube), landed on `claude/total-wall-d-stage`, each through one integrator (D) with one
   heavy round.
 - **The host train** (train 19) carried the Python, TypeScript and DataCube halves together, including plan format
   v57/v58, the user's two pin raises (below) and E-P5's K10 trim in the same train.
