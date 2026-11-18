@@ -384,6 +384,13 @@ class EdgeSeparationTest {
                 + edgeOnly);
         counted.addAll(edgeOnly);
         open.addAll(edgeOnly);
+        // the lens guards (2026-11-18, the orchestrator's 06:40 rulings): L-A, a two-form hook fed upstream's form or a
+        // product branch on upstream's shape, and L-B, the plans' and the MIR's data only the edge uses -- each its own
+        // line, none a census line
+        Set<String> lens = lensLines();
+        assertTrue(java.util.Collections.disjoint(lens, OPEN_LINES), "a lens line is a census line: " + lens);
+        counted.addAll(lens);
+        open.addAll(lens);
         assertEquals(open, counted, "the census's open lines and the lines this count holds"
                 + " differ: an open line with no entry would read DONE with work left; an entry of a closed or"
                 + " unknown line is a stale entry");
@@ -518,9 +525,23 @@ class EdgeSeparationTest {
         int rules = JudgingRulesReachTest.BEHAVIOUR_OPEN.size();
         // a public product member the edge alone uses (J40 of the edge audit, 2026-11-18: EdgeOnlyMembersTest)
         int edgeOnly = EdgeOnlyMembersTest.lines().size();   // one line per class (the ruling's (1))
+        // the lens guards' lines (2026-11-18): L-A's and L-B's, one per line
+        Set<String> lens = lensLines();
+        lens.forEach(l -> byLine.merge(l, 1, Integer::sum));
         System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
-                + CSG_OPEN.size() + rules + audit + edgeOnly) + " (BUILD " + BUILD_OPEN.size() + ", CODE "
+                + CSG_OPEN.size() + rules + audit + edgeOnly + lens.size()) + " (BUILD " + BUILD_OPEN.size() + ", CODE "
                 + CODE_OPEN.size() + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules
-                + ", AUDIT " + audit + ", EDGE-ONLY MEMBERS " + edgeOnly + "); by census line " + byLine);
+                + ", AUDIT " + audit + ", EDGE-ONLY MEMBERS " + edgeOnly + ", LENS " + lens.size() + "); by census line "
+                + byLine);
+    }
+
+    /** The lens guards' census lines (the orchestrator's rulings of 2026-11-18, 06:40): L-A's two-form hooks fed
+     *  upstream's form (ProductFormsUseTheirArgumentsTest) and its branches on upstream's shape (UpstreamBranchesTest),
+     *  and L-B's edge-only data (EdgeOnlyDataTest). */
+    static Set<String> lensLines() {
+        Set<String> out = new TreeSet<>(ProductFormsUseTheirArgumentsTest.lines());
+        out.addAll(UpstreamBranchesTest.lines());
+        out.addAll(EdgeOnlyDataTest.lines());
+        return out;
     }
 }

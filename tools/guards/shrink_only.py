@@ -110,6 +110,12 @@ WATCHED = {
     # APIs, J21's ruled members and the hook entries move only with a dated note
     "core/src/test/java/com/legend/EdgeOnlyMembersTest.java": ["OPEN", "READ_API", "RULED_J21"],
     "core/src/test/java/com/legend/HookRulingTest.java": ["HOOK_ENTRIES"],
+    # the lens guards and K2's shipped-root check (2026-11-18, the GUARD stream, the orchestrator's 06:40 rulings): each
+    # pin's growth admits a new finding, a new uncounted ruling or an edge-rooted artifact
+    "core/src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java": ["UNCALLED", "RULED"],
+    "core/src/test/java/com/legend/UpstreamBranchesTest.java": ["SITES"],
+    "core/src/test/java/com/legend/EdgeOnlyDataTest.java": ["OPEN"],
+    "core/src/test/java/com/legend/ShippedArtifactRootsTest.java": ["REACH_OPEN", "ROOTS_OPEN"],
     "core/src/test/java/com/legend/HookRulingsAgreeTest.java": ["RULED_NOT_HOOKS", "RULED_UNCOUNTED"],
     "core/src/test/java/com/legend/EdgePackageBoundaryTest.java": ["EDGE_JARS_IN_THE_HOSTS_LIST"],
     "core/src/test/java/com/legend/ArchitectureTest.java": ["PLANNER_ENTRIES"],

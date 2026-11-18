@@ -1,0 +1,314 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend;
+
+import com.tngtech.archunit.core.domain.JavaAccess;
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
+import com.tngtech.archunit.core.domain.JavaConstructor;
+import com.tngtech.archunit.core.domain.JavaField;
+import com.tngtech.archunit.core.domain.JavaFieldAccess;
+import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * GUARD L-B: THE PLAN'S AND THE MIR'S DATA, EACH PIECE THE PRODUCT'S OWN (the orchestrator's order of 2026-11-18, after
+ * J28 -- a MIR variant the edge alone made -- and J31 -- legend-engine's template fields, set and read by the edge
+ * alone).
+ * Every record component, enum constant and sealed variant of the MIR ({@code com.legend.sql}), the plans
+ * ({@code com.legend.executionplan}, {@code com.legend.testexecutionplan}) and the typed tree
+ * ({@code com.legend.compiler.spec.typed}) needs a REAL product use:
+ * <ul>
+ *   <li>a component is READ by product code;</li>
+ *   <li>a constant is NAMED by product code (a switch's arm is a case, not a use: javac's switch tables are left
+ *   out);</li>
+ *   <li>a variant is MADE by product code.</li>
+ * </ul>
+ * Copying is no use: the record's own code (its constructor, its {@code withX}), a {@code SqlRewriter} (it rebuilds
+ * every node it walks) and the plans' codecs ({@code MirJson}, {@code PlanJson}, {@code RecordJson}: they carry every
+ * field both ways). Each piece with no real product use is reported, the edge's use beside it, and pinned with its
+ * ruling ({@link #OPEN}); a new one fails. Named limits: a value-level shape (a component the product always sets to
+ * null, a constant it never produces but compares against) is not seen; a constant compiled into a switch through an
+ * {@code invokedynamic} label is a case, as a switch table is.
+ */
+@Tag("guardrail")
+class EdgeOnlyDataTest {
+
+    /** The packages whose data is checked (each exactly, not its subpackages). */
+    static final Set<String> PACKAGES = Set.of("com.legend.sql", "com.legend.executionplan",
+            "com.legend.testexecutionplan", "com.legend.compiler.spec.typed");
+
+    /** The plans' codecs: they carry every field both ways, so their reads and makes are copies. */
+    static final Set<String> CODECS = Set.of("com.legend.executionplan.MirJson", "com.legend.executionplan.PlanJson",
+            "com.legend.testexecutionplan.RecordJson");
+
+    private static final String EDGE = "com.legend.edge.";
+
+    private static final String REWRITER = "com.legend.sql.SqlRewriter";
+
+    /** Each piece with no real product use, "kind owner#piece: who uses it" -> its ruling, measured 2026-11-18 and ruled
+     *  by the orchestrator (06:40): a value starting "L-B." is a census line (counted); "READ_API" a fact of lite's own
+     *  the edge reads (what it MEANS decides, not who reads it); "J40." a piece already counted on that line;
+     *  "DEAD" data no one reads, deleted in train 17 by its package's owner (shrink-only, not a separation line);
+     *  "RULED_PENDING" a question before the user. */
+    static final Map<String, String> OPEN = Map.ofEntries(
+            // the finding: J31's shape, the template kind only the edge reads
+            Map.entry("component com.legend.sql.SqlExpr$PlanParam#kind: by the edge",
+                    "L-B.PlanParam E-SQL (2026-11-18): J31's shape, legend-engine's template kind, read by the edge alone"),
+            // facts of lite's own (the orchestrator's rulings at J40 and 06:40)
+            Map.entry("variant com.legend.sql.SqlDdl$DropSchema: by the edge",
+                    "READ_API (2026-11-18): generic SQL DDL in lite's sealed MIR vocabulary (ruled READ_API at J40)"),
+            Map.entry("component com.legend.compiler.spec.typed.ExecutionContext#connectionInstance: by the edge",
+                    "READ_API (2026-11-18): lite's execution frame's own connection fact (ruled at J40)"),
+            Map.entry("component com.legend.compiler.spec.typed.ExecutionContext#quoteIdentifiers: by the edge",
+                    "READ_API (2026-11-18): lite's execution frame's own connection fact (ruled at J40)"),
+            Map.entry("component com.legend.compiler.spec.typed.ExecutionContext#storeFqn: by the edge",
+                    "READ_API (2026-11-18): lite's execution frame's own connection fact (ruled at J40)"),
+            Map.entry("component com.legend.testexecutionplan.EnumFacts#decodes: by the edge",
+                    "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
+            Map.entry("component com.legend.testexecutionplan.EnumFacts#enums: by the edge",
+                    "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
+            Map.entry("component com.legend.testexecutionplan.EnumFacts#properties: by the edge",
+                    "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
+            // counted on EdgeOnlyMembersTest's J40.SqlExpr line (E-SQL's J40 branch deletes them)
+            Map.entry("variant com.legend.sql.SqlExpr$DeferredTdsString: by the edge",
+                    "J40.SqlExpr E-SQL (2026-11-18): legend-engine's #TDS relation text, deleted by E-SQL's J40 branch"),
+            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#alias: by none",
+                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
+            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#form: by none",
+                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
+            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#renderTdsNull: by none",
+                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
+            Map.entry("constant com.legend.sql.SqlExpr$DeferredTdsString$Form.CSV: by the edge",
+                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
+            Map.entry("variant com.legend.sql.SqlExpr$TempTableInSplice: by the edge",
+                    "J40.SqlExpr E-SQL (2026-11-18): legend-engine's temp-table template, deleted by E-SQL's J40 branch"),
+            // dead data (the orchestrator's ruling: a shrink-only DEAD list, each deleted in train 17 by its owner;
+            // LoadCsv#types checked first: no host plan reader -- engine-client, datacube, python -- and no plan codec
+            // reads LoadCsv, measured 2026-11-18)
+            Map.entry("component com.legend.compiler.spec.typed.Evaluation$Site#origin: by none",
+                    "DEAD (2026-11-18): read by no one; deleted in train 17 by compiler.spec.typed's owner"),
+            Map.entry("component com.legend.compiler.spec.typed.Evaluation$Site#path: by none",
+                    "DEAD (2026-11-18): read by no one; deleted in train 17 by compiler.spec.typed's owner"),
+            Map.entry("component com.legend.sql.SqlDml$LoadCsv#types: by none",
+                    "DEAD (2026-11-18): read by no one, no host or codec either; deleted in train 17 by sql's owner"),
+            Map.entry("variant com.legend.sql.SqlDml$InsertFromTable: by none",
+                    "DEAD (2026-11-18): made by no one; deleted in train 17 by sql's owner"),
+            // the user's pending proposal A
+            Map.entry("component com.legend.executionplan.ExecutionPlan$Sql#tree: by none",
+                    "RULED_PENDING (2026-11-18): the user's proposal A -- drop the unread MIR tree from run plans (G11)"));
+
+    /** The census lines this guard holds: one per "L-B." line. */
+    static Set<String> lines() {
+        Set<String> out = new TreeSet<>();
+        OPEN.values().stream().filter(v -> v.startsWith("L-B.")).forEach(v -> out.add(v.split(" ")[0]));
+        return out;
+    }
+
+    enum Who { PRODUCT, EDGE, COPY }
+
+    static String top(String name) {
+        return name.contains("$") ? name.substring(0, name.indexOf('$')) : name;
+    }
+
+    /** Whose use {@code use} of a piece of {@code owner} is. The record's own code copies in its constructors, in
+     *  {@code equals}, {@code hashCode} and {@code toString}, and in a method returning its own type (a {@code withX});
+     *  its other methods use. */
+    static Who who(JavaAccess<?> use, JavaClass owner) {
+        JavaClass origin = use.getOriginOwner();
+        String name = origin.getName();
+        if (top(name).startsWith(EDGE)) {
+            return Who.EDGE;
+        }
+        if (origin.isAssignableTo(REWRITER) || CODECS.contains(top(name))) {
+            return Who.COPY;
+        }
+        if (name.equals(owner.getName()) || name.startsWith(owner.getName() + "$")) {
+            JavaCodeUnit unit = use.getOrigin();
+            boolean copies = unit instanceof JavaConstructor || unit.getName().equals("<clinit>")
+                    || Set.of("equals", "hashCode", "toString").contains(unit.getName())
+                    || unit.getRawReturnType().getName().equals(owner.getName());
+            return copies ? Who.COPY : Who.PRODUCT;
+        }
+        return Who.PRODUCT;
+    }
+
+    /** The uses of {@code m} and of every supertype's method it implements (a call through the interface, as
+     *  {@code TypedSpec.info()} or {@code SqlExpr.type()}, reaches the record's accessor by dispatch). */
+    static List<JavaAccess<?>> usesOf(JavaClass owner, JavaMethod m) {
+        List<JavaAccess<?>> out = new ArrayList<>(m.getCallsOfSelf());
+        out.addAll(m.getReferencesToSelf());
+        for (JavaClass sup : owner.getAllRawInterfaces()) {
+            sup.tryGetMethod(m.getName()).ifPresent(s -> {
+                out.addAll(s.getCallsOfSelf());
+                out.addAll(s.getReferencesToSelf());
+            });
+        }
+        for (JavaClass sup : owner.getAllRawSuperclasses()) {
+            sup.tryGetMethod(m.getName()).ifPresent(s -> {
+                out.addAll(s.getCallsOfSelf());
+                out.addAll(s.getReferencesToSelf());
+            });
+        }
+        return out;
+    }
+
+    /** The makes of {@code variant}: its constructors' calls and references, a call from a static factory of its own
+     *  or of its top-level class followed to that factory's callers (one step: {@code Call.of(...)}). */
+    static List<JavaAccess<?>> makesOf(JavaClass variant) {
+        List<JavaAccess<?>> out = new ArrayList<>();
+        for (JavaConstructor ctor : variant.getConstructors()) {
+            List<JavaAccess<?>> direct = new ArrayList<>(ctor.getCallsOfSelf());
+            direct.addAll(ctor.getReferencesToSelf());
+            for (JavaAccess<?> a : direct) {
+                JavaCodeUnit unit = a.getOrigin();
+                boolean factory = unit instanceof JavaMethod fm && fm.getModifiers().contains(JavaModifier.STATIC)
+                        && top(a.getOriginOwner().getName()).equals(top(variant.getName()))
+                        && !fm.getName().startsWith("lambda$");
+                if (factory) {
+                    out.addAll(((JavaMethod) unit).getCallsOfSelf());
+                    out.addAll(((JavaMethod) unit).getReferencesToSelf());
+                } else {
+                    out.add(a);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Whether product code enumerates {@code e}'s constants: {@code values()} or {@code valueOf(String)} called
+     *  outside the enum and the codecs (a name read from the user's model or a plan's JSON is each constant's use). */
+    static boolean enumerated(JavaClass e) {
+        for (JavaMethod m : e.getMethods()) {
+            if (m.getName().equals("values") || m.getName().equals("valueOf")) {
+                for (JavaAccess<?> a : m.getCallsOfSelf()) {
+                    if (!a.getOriginOwner().getName().equals(e.getName()) && who(a, e) == Who.PRODUCT) {
+                        return true;
+                    }
+                }
+                for (JavaAccess<?> a : m.getReferencesToSelf()) {
+                    if (who(a, e) == Who.PRODUCT) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** "kind owner#piece: by the edge" or "...: by none", for each piece of {@code classes} in {@code packages} with no
+     *  real product use. */
+    static Set<String> found(JavaClasses classes, Set<String> packages) {
+        Set<String> out = new TreeSet<>();
+        for (JavaClass c : classes) {
+            // the codecs' own tags are their format's words, not the plan's data
+            if (!packages.contains(c.getPackageName()) || c.getName().startsWith(EDGE)
+                    || CODECS.contains(top(c.getName()))) {
+                continue;
+            }
+            Class<?> k = c.reflect();
+            if (k.isRecord()) {
+                for (java.lang.reflect.RecordComponent rc : k.getRecordComponents()) {
+                    List<JavaAccess<?>> uses = new ArrayList<>();
+                    Optional<JavaMethod> accessor = c.tryGetMethod(rc.getName());
+                    accessor.ifPresent(m -> uses.addAll(usesOf(c, m)));
+                    c.tryGetField(rc.getName()).ifPresent(f -> f.getAccessesToSelf().stream()
+                            .filter(a -> a.getAccessType() == JavaFieldAccess.AccessType.GET).forEach(uses::add));
+                    report(out, "component " + c.getName() + "#" + rc.getName(), uses, c);
+                }
+            }
+            if (k.isEnum() && !enumerated(c)) {
+                for (Object constant : k.getEnumConstants()) {
+                    String name = ((Enum<?>) constant).name();
+                    JavaField f = c.getField(name);
+                    List<JavaAccess<?>> uses = new ArrayList<>();
+                    // a switch's table (javac's synthetic $SwitchMap class) names every constant it cases: no use
+                    f.getAccessesToSelf().stream().filter(a -> !a.getOriginOwner().getModifiers()
+                            .contains(JavaModifier.SYNTHETIC)).forEach(uses::add);
+                    report(out, "constant " + c.getName() + "." + name, uses, c);
+                }
+            }
+            if (k.isSealed()) {
+                for (Class<?> variant : k.getPermittedSubclasses()) {
+                    // an enum variant's constants are checked as constants
+                    if (variant.isInterface() || variant.isEnum()
+                            || java.lang.reflect.Modifier.isAbstract(variant.getModifiers())
+                            || !packages.contains(variant.getPackageName())) {
+                        continue;
+                    }
+                    JavaClass v = classes.get(variant);
+                    report(out, "variant " + variant.getName(), makesOf(v), v);
+                }
+            }
+        }
+        return out;
+    }
+
+    private static void report(Set<String> out, String piece, List<JavaAccess<?>> uses, JavaClass owner) {
+        boolean product = false;
+        boolean edge = false;
+        for (JavaAccess<?> use : uses) {
+            switch (who(use, owner)) {
+                case PRODUCT -> product = true;
+                case EDGE -> edge = true;
+                case COPY -> { }
+            }
+        }
+        if (!product) {
+            out.add(piece + (edge ? ": by the edge" : ": by none"));
+        }
+    }
+
+    private static List<java.util.jar.JarFile> jarFiles(List<Path> jars) throws IOException {
+        List<java.util.jar.JarFile> out = new ArrayList<>();
+        for (Path jar : jars) {
+            out.add(new java.util.jar.JarFile(jar.toFile()));
+        }
+        return out;
+    }
+
+    @Test
+    void everyPieceOfThePlansDataHasAProductUse() throws IOException {
+        JavaClasses classes = new ClassFileImporter().importJars(jarFiles(ConstantPools.jars("legend.product.jars",
+                "legend.authored.jars", "legend.edge.jars")));
+        Set<String> found = found(classes, PACKAGES);
+        Map<String, String> byKind = new TreeMap<>();
+        found.forEach(f -> byKind.merge(f.substring(f.lastIndexOf(": ") + 2), "1", (a, b) -> String.valueOf(
+                Integer.parseInt(a) + 1)));
+        assertEquals(new TreeSet<>(OPEN.keySet()), found, "a piece of the plan's or the MIR's data with no real product"
+                + " use -- the edge's data in the product (J28's, J31's shape): move it to the edge, delete it, or rule"
+                + " it here (" + byKind + ")");
+    }
+
+    @Test
+    void theGuardBites() {
+        JavaClasses planted = new ClassFileImporter().importClasses(com.legend.sql.PlantedEdgeOnlyMir.class,
+                com.legend.sql.PlantedEdgeOnlyMir.Node.class, com.legend.sql.PlantedEdgeOnlyMir.Made.class,
+                com.legend.sql.PlantedEdgeOnlyMir.Shared.class, com.legend.sql.PlantedEdgeOnlyMir.Kind.class,
+                com.legend.edge.PlantedEdgeOnlyMirMaker.class);
+        String p = "com.legend.sql.PlantedEdgeOnlyMir$";
+        assertEquals(new TreeSet<>(Set.of(
+                "variant " + p + "Made: by the edge",
+                "component " + p + "Made#text: by the edge",
+                "component " + p + "Shared#template: by the edge",
+                "constant " + p + "Kind.RAW: by the edge")), found(planted, Set.of("com.legend.sql")),
+                "J28's shape (a variant the edge alone makes) and J31's (a field and a constant the edge alone reads)");
+    }
+}
