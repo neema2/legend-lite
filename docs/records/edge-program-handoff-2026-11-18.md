@@ -110,7 +110,8 @@ heavy round (it includes `//pct:edge_contract_test` and `//core:cypher_parity_te
 - 2026-11-18 ~05:10: "Yes, raise both" (EnginePlans 762 → 763, AggAwareActivities 211 → 226).
 - 2026-11-18 ~11:12: "Yes, raise both: K10 essential +40,874 (transitional), and v57 +31 per Decimal(p,s) column."
   E-P5's trim lands with it and ends the essential pin 526 below its pre-K10 value.
-- (L14's +75 plan-JSON characters: filled in when the user answers.)
+- 2026-11-18 ~11:35 (in the orchestrator's session): "yes to L14 +75" (lean_sql_baseline plan JSON on DuckDB core:
+  TypedDrop +8, TypedLimit +25, TypedSlice +42, from explicit NULLS_LAST on formerly bare sort keys; SQL unchanged).
 
 ## 4. What went wrong, and what a redo should do differently
 
