@@ -37,5 +37,6 @@
 # own_corpus.matched 3287 -> 3290 (2026-11-17, A1 0902f0f33 (its 1c18e97f4): BoundaryLiteExportsTest's model -- its t::P, t::DB and t::M -- matches the reference grammar; UP; stage-linux run 44097841621)
 # own_corpus.matched 3290 -> 3302 (2026-11-18, D's train 8, measured on d-int8 ce6132f60: twelve more own-corpus models, added by trains 7 and 8's tests, match the reference grammar (red on d-int7 a789d7095 too, E-P5's report); UP)
 # own_corpus.matched 3302 -> 3309 (2026-11-18, the host train claude/total-wall-h-datacube at cd7d1eece, found by its gate pass (update_ratchets_test): seven more own-corpus models, added by the host train's tests, match the reference grammar, measured by //parser-equivalence:update_ratchets on its tree (D's d-int18 measures 3302); a floor rising, UP)
+# own_corpus.matched 3309 -> 3310 (2026-11-18, PR #118 fix round: one more own-corpus model, added by the batch's tests, matches the reference grammar; UP)
 mutation.deck	950
-own_corpus.matched	3309
+own_corpus.matched	3310
