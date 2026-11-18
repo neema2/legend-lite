@@ -911,6 +911,8 @@ public class Trino extends AnsiSqlRenderer {
             return writer.append("CAST(NULL AS ").append(castTypeName(t.type())).append(")");
         }
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -950,7 +952,7 @@ public class Trino extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, CELL_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());

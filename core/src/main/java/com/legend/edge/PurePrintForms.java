@@ -11,7 +11,7 @@ import com.legend.sql.SqlFn;
  * form of it, which each product dialect spells for the judges already -- a Float's ({@link SqlFn#FLOAT_TO_TEXT}, lite's
  * six decimals) as legend-engine writes it in a query ({@link #floatOf}: the database's cast, a literal legend-pure's
  * print; Phase 5, 2026-11-16, until then {@link SqlFn#FLOAT_SHORTEST_TEXT}), a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
- * {@link SqlFn#DATETIME_PRINT} (a literal's written text kept, its second operand), a joined element's
+ * legend-pure's print form ({@link PureDateTimePrint}; a literal's written text kept), a joined element's
  * ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
  * legend-pure writes (D1.3: the product refuses them by name), {@code format}'s padded {@code %0<w>d}
  * (at lowering since B8 (i), 2026-11-17: {@code EdgePureOnlyTexts}) and an instance's {@code @_} id ({@link SqlFn#INSTANCE_TEXT}), as it writes them. The
@@ -176,11 +176,8 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
             return floatOf(expr(c.args().get(0)), floatLiteral);
         }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_TO_TEXT) {
-            java.util.List<SqlExpr> args = new java.util.ArrayList<>(c.args().size());
-            for (SqlExpr a : c.args()) {
-                args.add(expr(a));
-            }
-            return new SqlExpr.Call(SqlFn.DATETIME_PRINT, args);
+            // legend-pure's print form, composed here (census B12, 2026-11-17: the DATETIME_PRINT node gone)
+            return PureDateTimePrint.of(expr(c.args().get(0)));
         }
         return super.expr(e);
     }

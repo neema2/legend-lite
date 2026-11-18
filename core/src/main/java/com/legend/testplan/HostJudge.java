@@ -182,7 +182,7 @@ final class HostJudge {
         HostJudgment.SideFacts e = facts(args.get(0));
         HostJudgment.SideFacts a = facts(args.get(1));
         HostJudgment.Keys keys = JudgmentFacts.keys(args.get(0), args.get(1), env.ctx());
-        return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+        return new HostSides.Check(List.of(canonAsk(com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(args.get(0)), hook), canonAsk(args.get(1), hook)),
                 new HostJudgment.SameElements(e, a, gridPair, keys));
     }
 
@@ -307,16 +307,8 @@ final class HostJudge {
                 AssertVerdicts.bareRowStamp(args.get(0), letPrefix), AssertVerdicts.bareRowStamp(args.get(1), letPrefix),
                 AssertVerdicts.wrappedRelationStamp(args.get(0), letPrefix),
                 AssertVerdicts.wrappedRelationStamp(args.get(1), letPrefix));
-        return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+        return new HostSides.Check(List.of(canonAsk(com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(args.get(0)), hook), canonAsk(args.get(1), hook)),
                 new HostJudgment.Equals(name, wantEqual, incidental, gridPair, e, a, keys, flat));
-    }
-
-    /** Upstream's {@code assertEquals} failure text for two values ({@code '\nexpected: %r\nactual:   %r'}, the host
-     *  judge's spelling): an engine-text arm declining the texts its verdict step read, a plain String equality that
-     *  failed (2026-11-04, the core program). */
-    static String equalsMessage(Object expected, Object actual) {
-        return "\nexpected: " + com.legend.testexecutionplan.Verdicts.repr(expected) + "\nactual:   "
-                + com.legend.testexecutionplan.Verdicts.repr(actual);
     }
 
     static HostSides.Check planJsonStringsEqual(List<TypedSpec> args, List<TypedSpec> letPrefix,

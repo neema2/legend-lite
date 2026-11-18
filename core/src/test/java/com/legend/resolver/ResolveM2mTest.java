@@ -139,7 +139,7 @@ class ResolveM2mTest {
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
                 com.legend.testing.Own.spec("m::Person.all()->project(~[full: p|$p.fullName])")));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, "m::RT");
-        String sql = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
+        String sql = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(resolved));
         assertEquals(1, count(sql, "SELECT"), sql);
         assertEquals(List.of("Bob Bay"), exec(sql),
                 "the mapping's ~filter composes through the upstream bindings");
@@ -178,9 +178,9 @@ class ResolveM2mTest {
             StoreResolver one = new StoreResolver(ctx, specs);
             String q = "m::Person.all()->project(~[l: p|$p.label])";
             var b1 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(q)));
-            String sql1 = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(one.resolve(b1, "m::RT1")));
+            String sql1 = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(one.resolve(b1, "m::RT1")));
             var b2 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(q)));
-            String sql2 = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(one.resolve(b2, "m::RT2")));
+            String sql2 = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(one.resolve(b2, "m::RT2")));
             assertTrue(sql1.contains("FROM A"), sql1);
             assertTrue(sql2.contains("FROM B"),
                     "the SAME resolver instance under a different runtime must"

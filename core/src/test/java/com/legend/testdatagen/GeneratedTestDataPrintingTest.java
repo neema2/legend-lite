@@ -86,7 +86,9 @@ class GeneratedTestDataPrintingTest {
         // the compatibility rules: upstream's text, the fraction cut
         assertEquals(List.of("assertEquals true"), run(backend, ctx, body("default\nEVENT\nID,STAMP\n"
                 + "1,2020-01-02 03:04:05\n2,---null---\n-----\n"),
-                ExecuteOptions.NONE.withJudgeMode(judge).withEngineCompat(true)
+                ExecuteOptions.recording(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
+                        com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
+                        .withJudgeMode(judge)
                         // upstream's timestamp text is the edge's style's (the UpstreamPlans facet; Phase 6's B13,
                         // 2026-11-17): the compatibility rules run on the edge's style, as PCT runs them
                         .withStyle(com.legend.edge.PureText.UPSTREAM)), what + " compat");
@@ -97,7 +99,7 @@ class GeneratedTestDataPrintingTest {
     private static List<String> run(TestBackend backend, ModelContext ctx, String body, ExecuteOptions options)
             throws Exception {
         List<String> verdicts = new ArrayList<>();
-        try (Connection c = backend.open()) {
+        try (Connection c = backend.open(options.planning().style())) {   // the run's style's database (the audit's J22)
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect())) {
                     s.execute(sql);
@@ -113,7 +115,9 @@ class GeneratedTestDataPrintingTest {
             try {
                 TestExecution.runProgram(GeneratedTestDataProgramTest.typed(ctx, body), "t::RT",
                         com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener,
-                        com.legend.testexec.NoEdgeRun.NONE, options);
+                        // the run's hook goes with its style (census C1, 2026-11-17): the edge's for the edge's
+                        options.planning().style() == com.legend.database.PlanStyle.PRODUCT
+                                ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(null), options);
             } catch (AssertionError | RuntimeException e) {
                 // a failed verdict ends the body; the listener told it
                 if (verdicts.isEmpty()) {

@@ -145,7 +145,8 @@ class LiteV1PlanningTest {
         assertEquals(200, parsed.status(), parsed.json());
         assertTrue(parsed.json().contains("MATCH (p:Person)"), parsed.json());
         // legend-engine's grammarToJson, the edge's, reads legend-engine's grammar: no island of lite's
-        assertThrows(RuntimeException.class, () -> com.legend.door.Parse.lambdaJson(text, false));
+        // legend-engine's grammar refuses it (its entry is the edge's door alone, J21: the parser asked here directly)
+        assertThrows(RuntimeException.class, () -> com.legend.parser.SpecParser.lambdaJson(text, false));
     }
 
     @Test

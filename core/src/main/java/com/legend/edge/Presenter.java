@@ -200,7 +200,35 @@ public final class Presenter {
      *  column's winner at the precision its digits show, with {@code +0000} from a minute on; a relation's timestamp
      *  cell at nine fraction digits and {@code +0000}. Handed to a writer the edge's receiver makes (W8: a run is
      *  handed the receiver, never this text). */
-    public static final CellText.DateText LEGEND_PURE = Presenter::legendPure;
+    public static final CellText.Forms LEGEND_PURE = new CellText.Forms() {
+        @Override
+        public String date(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
+            return legendPure(d, type, c, nested);
+        }
+
+        /** legend-pure's text of a List (the prelude's List.toString(): its values' texts joined, joinStrings('[',
+         *  ', ', ']')) and of a Map (its entries as 'key=value' in braces, comma-joined: its Java map's text), moved here
+         *  from result.CellText (the audit's K13, 2026-11-17: the product writes each as its JSON). */
+        @Override
+        public String structure(Object value, String type, ExecutionPlan.Column c) {
+            java.util.List<String> args = CellText.typeArguments(type);
+            StringBuilder out = new StringBuilder();
+            if (value instanceof java.util.List<?> l) {
+                out.append('[');
+                for (int i = 0; i < l.size(); i++) {
+                    out.append(i == 0 ? "" : ", ").append(CellText.element(l.get(i), args.get(0), c, this));
+                }
+                return out.append(']').toString();
+            }
+            java.util.Map<?, ?> m = (java.util.Map<?, ?>) value;
+            out.append('{');
+            for (java.util.Map.Entry<?, ?> e : m.entrySet()) {
+                out.append(out.length() > 1 ? ", " : "").append(CellText.element(e.getKey(), args.get(0), c, this))
+                        .append('=').append(CellText.element(e.getValue(), args.get(1), c, this));
+            }
+            return out.append('}').toString();
+        }
+    };
 
     private static String legendPure(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
         if (nested) {

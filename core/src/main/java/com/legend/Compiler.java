@@ -49,9 +49,10 @@ public final class Compiler {
     /** A query's text as its lambda's protocol JSON at the PRODUCT level, without source information: text with no
      *  leading {@code |} reads as a lambda of no parameters. Lite's API v1 {@code query/parse} (2026-11-17: lite's own
      *  grammar, its islands included -- {@code #Cypher{...}#}, {@code #SQL}, {@code #TS}; legend-engine's grammarToJson,
-     *  the edge's, reads legend-engine's). The level is decided here, as {@link #parseQuery}'s is. */
+     *  the edge's, reads legend-engine's). Through the parse door's product entry, which reads legend-lite's one grammar
+     *  (J21 of the edge audit, 2026-11-17). */
     public static String parseQueryJson(String query) {
-        return com.legend.door.Parse.lambdaJson(query, false, com.legend.parser.GrammarLevel.LEGEND_LITE);
+        return com.legend.door.Parse.lambdaJson(query, false);
     }
 
 
@@ -968,11 +969,14 @@ public final class Compiler {
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
                 .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf)
+                // the product's text facets and raises, chosen explicitly (the audit's K6, 2026-11-17)
+                .withStyled(com.legend.lowering.Styled.PRODUCT)
                 // a Float literal as the runtime's database computes it in the product (register S20, Phase 5b)
                 .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
                         .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());
         if (!temporalRoot) {
-            lw = lw.withExistsAsJoinDistinct();
+            // the style's forms decide its shape (J19, S367): the product's keeps the EXISTS
+            lw = lw.withExistsJoinable();
         }
         return lw.lower(body);
     }

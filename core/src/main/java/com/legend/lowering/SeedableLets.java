@@ -39,6 +39,8 @@ public final class SeedableLets {
                 new Lowerer(t -> ClassLayouts.layoutOf(ctx, t),
                         f -> ctx.findClass(f).isPresent(), ctx.implementations())
                         .withFloatLiteralKind(() -> com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE)
+                        // the product's style, explicitly (the audit's K6, 2026-11-17): the probe asks only "can it seed?"
+                        .withStyled(Styled.PRODUCT)
                         .lower(List.of(let, qe.getValue()));
                 out.add(let);
             } catch (RuntimeException notScalar) {

@@ -34,7 +34,7 @@ class PureDatesArrowTest {
     private static final ExecutionPlan.Column NESTED = new ExecutionPlan.Column("nested", "p::C",
             new ExecutionPlan.Multiplicity(0, 1), null, null, null);
 
-    private static String arrow(CellText.DateText dates) throws Exception {
+    private static String arrow(CellText.Forms dates) throws Exception {
         List<ExecutionPlan.Column> columns = List.of(WRITTEN, INSTANT, NESTED);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ArrowWriter w = new ArrowWriter(out, cs -> Map.of(), dates);

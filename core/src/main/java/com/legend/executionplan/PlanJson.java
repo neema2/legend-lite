@@ -676,12 +676,14 @@ public final class PlanJson {
     }
 
     /** {@code columns} with their three type facts, as a JSON array's text: a result's columns handed to a host that
-     *  runs its statement, and read back with its rows ({@link #readColumns}). */
+     *  runs its statement, and read back with its rows ({@link #readColumns}). A PRODUCT API, stated (J40 of the edge
+     *  audit, 2026-11-18): the lite plan format's own spelling of a plan's columns, which a host's answer carries; the
+     *  edge's host answers reuse it rather than spell the format a second time. */
     public static String writeColumns(List<ExecutionPlan.Column> columns) {
         return Json.toCompact(columns(columns));
     }
 
-    /** {@link #writeColumns}'s text read back. */
+    /** {@link #writeColumns}'s text read back (a product API, as {@link #writeColumns}: J40, 2026-11-18). */
     public static List<ExecutionPlan.Column> readColumns(String json) {
         if (!(Json.parse(json) instanceof Json.Arr columns)) {
             throw new IllegalArgumentException("a plan's columns are a JSON array: " + json);
@@ -921,7 +923,8 @@ public final class PlanJson {
     }
 
     /** A load step's JSON, as a plan's load writes it: the compatibility edge's record of the referee's copy of a load
-     *  writes its steps so (B2b, 2026-11-11). */
+     *  writes its steps so (B2b, 2026-11-11). A PRODUCT API, stated (J40 of the edge audit, 2026-11-18): the lite plan
+     *  format's own spelling of a load step; the edge's records reuse it rather than spell the format a second time. */
     public static Map<String, Object> loadStepJson(LoadStep step) {
         return setupStep(step);
     }

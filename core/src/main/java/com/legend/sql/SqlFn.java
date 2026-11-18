@@ -62,6 +62,11 @@ public enum SqlFn {
     CEILING, FLOOR, ROUND, SIGN, XOR,
     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
     REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH,
+    /** isNumeric(s): whether the whole of {@code s} is a decimal number -- an optional sign, digits with an optional
+     *  fraction (or a fraction alone), an optional exponent; no space, no other character; NULL on NULL. One rule on
+     *  every database (the user's ruling of 2026-11-17 23:05, census J20): each dialect writes it as a full match of
+     *  {@link #NUMERIC_TEXT}. */
+    IS_NUMERIC,
     MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT,
     // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
     SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
@@ -147,18 +152,13 @@ public enum SqlFn {
     FLOAT_TO_TEXT,
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
-     *  base renderer expands it to ({@code dialect.DateTimeText}). A literal's call carries, second, the text the
-     *  literal was written in -- the compatibility edge's (legend-pure prints a literal at its written precision); the
-     *  product reads the value alone. The compatibility edge writes {@link #DATETIME_PRINT} for it. */
+     *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
+     *  a literal's written text, which legend-pure prints at its written precision, is the edge's alone, through the
+     *  style's two-form DateTimeTexts). The compatibility edge's dialects print it legend-pure's way
+     *  (edge.PureDateTimePrint; census B12, 2026-11-17). */
     DATETIME_TO_TEXT,
-    /** A DateTime's text as legend-pure prints it: the fraction's digits with their trailing zeros trimmed, then
-     *  {@code +0000}; a literal's (a second operand, its written text) that text and {@code +0000}. The compatibility
-     *  edge's form of a DateTime in a message (census B9, 2026-11-17: the two-form hook lowering.DateTimeTexts) and its
-     *  text of {@link #DATETIME_TO_TEXT};
-     *  never the product's (phase D's D1.2, 2026-11-15: until then the lowering composed it in place,
-     *  LiteralSpelling.dateTimeText). Expanded before every other pass ({@code dialect.DateTimePrintText}), for the
-     *  judges' canon alone since census B9 (2026-11-17: C5, E-P5's, LiteralSpelling.temporalCanon). */
-    DATETIME_PRINT,
+    // (DATETIME_PRINT, legend-pure's print form of a DateTime: gone 2026-11-17, census B12 -- the edge composes it from
+    // the product's nodes, edge.PureDateTimePrint, at lowering and in its print pass)
     /** THE JUDGES' CANON OF A TIMESTAMP (census C5's step C, 2026-11-17): {@code T}-separated, the fraction's digits
      *  with their trailing zeros trimmed (a timestamp carries no written precision), {@code Z} -- lite's spelling, which
      *  every side of a comparison is written in, so lite's date equality (A1) is kept and no message reads it.
@@ -192,6 +192,10 @@ public enum SqlFn {
     /** The pretty-printed JSON text (meta::json::toPrettyJSONString). */
     JSON_PRETTY;
 
+    /** {@link #IS_NUMERIC}'s rule as a regular expression every dialect's full match reads alike (classes and groups
+     *  alone, no backslash: a backslash is an escape in some databases' string literals). */
+    public static final String NUMERIC_TEXT = "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?";
+
     /** The functions that raise, or answer a fresh value, when evaluated (an ERROR, a parse, a domain or range check, a
      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
      *  SubselectPrune). */
@@ -213,6 +217,8 @@ public enum SqlFn {
                     // SQLite's pad helper branches on the length (the PR1 re-review's B6, 2026-11-16: in a helper, not
                     // an arm, which the arm census missed; MaySkipCensusTest renders whole calls)
                     LPAD, RPAD,
+                    // SQLite writes isNumeric as its regular expression's walk, NULL on NULL by a CASE (census J20, 2026-11-18)
+                    IS_NUMERIC,
                     // every function some dialect renders with a branch, found by MaySkipCensusTest (the PR1 re-review's
                     // A6, 2026-11-16, made conservative: a strict function read as may-skip costs a missed binding, the
                     // reverse a wrong raise; E-SQL may take one out with a per-dialect proof that it never skips)
@@ -224,7 +230,7 @@ public enum SqlFn {
                     VARIANT_GET,
                     // a Float's and a DateTime's text, branching on the value's magnitude and kind (D's W3, its
                     // instrument, and S312's form, 2026-11-16; found by MaySkipCensusTest at the merge of PR1's head)
-                    FLOAT_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
+                    FLOAT_TO_TEXT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
                     // the product's join of a row's cells skips a NULL part by design (Phase 3, 2026-11-17; found by
                     // MaySkipCensusTest: MariaDB, MySQL, SQLite, BigQuery and MongoDB branch or skip)
                     CONCAT_WS));

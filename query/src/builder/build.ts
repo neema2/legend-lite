@@ -241,10 +241,8 @@ export function buildLambda(graph: ModelGraph, q: QueryState, options: BuildOpti
         const [map, reduce] = columnAggregate(c, q.columns);
         return agg(c.name, map, reduce);
       });
-      // with no key, `groupBy(~[], ...)`: the whole relation's aggregate, which lite accepts (Typer's empty column-spec
-      // array; 2026-11-17, the edge program's N4: the product builds what lite accepts, not legend-engine's bend to
-      // `aggregate(~[...])`)
-      r = r.groupBy(keys, aggs);
+      // with no key: `aggregate(~[...])` -- legend-engine fails on `groupBy(~[], ...)` (measured, 4.145.0)
+      r = keys.length > 0 ? r.groupBy(keys, aggs) : r.apply('aggregate', colSpecs(aggs));
     }
     for (const w of q.windows ?? []) {
       const sort = w.sort ? [w.sort.direction === 'asc' ? asc(w.sort.column) : desc(w.sort.column)] : [];

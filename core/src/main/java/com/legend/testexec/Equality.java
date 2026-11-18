@@ -11,7 +11,6 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -27,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@code assertSameElements} = sort, then ordered); class instances and maps
  * structurally through the same leaf; the two JSON comparators the engine
  * has, each named ({@link #pureJson} — the Pure JSON model, a number's kind is
- * part of its value; {@link #serviceJson} — the service-test
+ * part of its value; (the service-test EqualToJson comparator moved to the edge, edge.EqualToJson, 2026-11-17) — the service-test
  * {@code JsonNodeComparator}, numbers by decimal value). Every entry returns
  * {@code null} for equal or the FIRST-DIFFERENCE narrative — never a boolean
  * a caller re-interprets.
@@ -45,7 +44,7 @@ public final class Equality {
     /** The kinds a value is compared under: its carrier's at run, or the one its declaration names where that is
      *  numeric (the plan-as-data design's step 1, 2026-11-08: the judge's own kinds, read off the value and the
      *  plan's type name -- until then the compiler's primitive types). */
-    enum Kind { INTEGER, FLOAT, DECIMAL, STRING, BOOLEAN, STRICT_DATE, DATE, DATE_TIME }
+    public enum Kind { INTEGER, FLOAT, DECIMAL, STRING, BOOLEAN, STRICT_DATE, DATE, DATE_TIME }
 
     /** The numeric kind a declared type names, in the plan's spelling ({@code Integer}, {@code Float},
      *  {@code Decimal}, a precise decimal {@code Decimal(p,s)}; a precise primitive spells as its base), or null: every
@@ -88,15 +87,15 @@ public final class Equality {
     // ---- THE LENIENCY (one, counted) --------------------------------------
 
     /** THE ONE FLOAT LENIENCY (§5a, one home): two finite doubles within
-     * {@code 2 * ulp(max(|x|, |y|))}. The host cell rule (TdsCompare) and
+     * {@code floatUlps * ulp(max(|x|, |y|))}, the plan's rules' number (census C1's J11, 2026-11-17). The host cell rule (TdsCompare) and
      * the referee (RefereeVerify) call HERE; the database judge spells the same
      * predicate in SQL (VerdictSql.lenient). */
-    public static boolean withinTwoUlp(double x, double y) {
+    public static boolean withinUlps(double x, double y, int floatUlps) {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
             return false;
         }
         double ulp = Math.ulp(Math.max(Math.abs(x), Math.abs(y)));
-        boolean ok = Math.abs(x - y) <= com.legend.values.FloatTolerance.ULPS * ulp;
+        boolean ok = Math.abs(x - y) <= floatUlps * ulp;
         if (ok && x != y) {
             Census.inc(Census.Key.ULP_FIRINGS);
             if (System.getenv("LL_TOL_COUNT") != null) {
@@ -160,22 +159,11 @@ public final class Equality {
                 || k == Kind.INTEGER;
     }
 
-    /** Equal, or the first difference. */
-    public static @com.legend.base.Nullable String scalar(Typed e, Typed a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        return same(e, a, rules) ? null
-                : "\nexpected: " + com.legend.testexecutionplan.Verdicts.repr(e.value())
-                        + "\nactual:   " + com.legend.testexecutionplan.Verdicts.repr(a.value());
-    }
-
     /** The decision itself (the narrative is the caller's when it has a
      * better one — a row, a path). */
-    public static boolean same(Typed et, Typed at, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        java.util.Objects.requireNonNull(rules, "an equality names the rules it judges by");
+    public static boolean same(Typed et, Typed at, HostRules rules) {
         Object e = et.value();
         Object a = at.value();
-        if ("TDSNull".equals(e) && a == null) {
-            return true;   // the engine's null sentinel in a TDS cell
-        }
         if (e == null || a == null) {
             return e == a;
         }
@@ -199,8 +187,7 @@ public final class Equality {
             // value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false, legend-pure's interpreted rule); in backwards-compatibility
             // mode compiled legend-pure's (CompiledSupport.eq(Number, Number), what a test's assert runs upstream): an
             // Integer and a Decimal equal by their texts (1D == 1), a Float equal to neither
-            return rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT && integerAndDecimal(ek, ak)
-                    && String.valueOf(e).equals(String.valueOf(a));
+            return rules.forms().equalAcrossNumberKinds(ek, ak, e, a);
         }
         if (ek == Kind.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -239,7 +226,7 @@ public final class Equality {
             // clean mode compares a Float exactly; the 2-ULP tolerance is compatibility mode's alone (S15/S132, the
             // user's ruling of 2026-11-05: "I like our clean float"; built 2026-11-05 after the report found one core
             // test relying on it, the policy's own pin)
-            boolean within = rules.floatTolerance() && e instanceof Double de && a instanceof Double da && withinTwoUlp(de, da);
+            boolean within = rules.floatTolerance() && e instanceof Double de && a instanceof Double da && withinUlps(de, da, rules.floatUlps());
             if (within) {
                 // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
                 com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);
@@ -249,7 +236,7 @@ public final class Equality {
         if (ek == Kind.STRING) {
             // two Strings compare exactly, as legend-pure's equal does, under every rule set and both judges (2026-11-06,
             // the user's "okay" to the S132 scope fix): S132's 2-ULP floats apply to a RENDERED result's text alone --
-            // the host's rendered arm compares its cells (TdsCompare.renderedText), the database judge its rows in the
+            // the host's rendered arm compares its cells (the edge's UpstreamRenderedTexts), the database judge its rows in the
             // same verdict row (VerdictSql.either) -- never to two Strings a body computed
             return e.equals(a);
         }
@@ -259,41 +246,35 @@ public final class Equality {
         return e.equals(a);   // dates: the literal's own equality
     }
 
-    /** Whether {@code x} and {@code y} are an Integer and a Decimal, either way round: the pair compiled legend-pure
-     *  equates by text (S127). */
-    private static boolean integerAndDecimal(Kind x, Kind y) {
-        return x == Kind.INTEGER && y == Kind.DECIMAL
-                || x == Kind.DECIMAL && y == Kind.INTEGER;
-    }
-
-    private static boolean structural(Object e, Object a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static boolean structural(Object e, Object a, HostRules rules) {
         return firstDiff(e, a, "$", (x, y) -> same(Typed.of(x), Typed.of(y), rules)) == null;
     }
 
     // ---- COLLECTIONS ------------------------------------------------------
 
-    /** Element by element, in order. */
-    public static @com.legend.base.Nullable String ordered(List<Typed> e, List<Typed> a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    /** Element by element, in order: the decision alone (C5's step C, C-3, 2026-11-17: the first difference's text
+     *  went, no caller read it; a message is the run's words, {@code PureWords} or lite's own). */
+    public static boolean ordered(List<Typed> e, List<Typed> a, HostRules rules) {
         if (e.size() != a.size()) {
-            return "\nexpected " + e.size() + " element(s), actual " + a.size();
+            return false;
         }
         for (int i = 0; i < e.size(); i++) {
             if (!same(e.get(i), a.get(i), rules)) {
-                return "\nelement " + i + scalar(e.get(i), a.get(i), rules);
+                return false;
             }
         }
-        return null;
+        return true;
     }
 
     /** The engine's {@code assertSameElements}: sort both sides by the
      * value order, then ordered. */
-    public static @com.legend.base.Nullable String sameElements(List<Typed> e, List<Typed> a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    public static boolean sameElements(List<Typed> e, List<Typed> a, HostRules rules) {
         return ordered(sorted(e), sorted(a), rules);
     }
 
     /** True when every element of {@code needle} has an equal in
      * {@code hay} (membership, the contains / forAll family). */
-    public static boolean contains(List<Typed> hay, Typed needle, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    public static boolean contains(List<Typed> hay, Typed needle, HostRules rules) {
         for (Typed h : hay) {
             if (same(needle, h, rules)) {
                 return true;
@@ -315,7 +296,7 @@ public final class Equality {
 
     /** Rows of width {@code w} as a MULTISET (each expected row consumes one
      * equal actual row); cells through {@link #same}. */
-    public static boolean rowMultiset(List<Typed> e, List<Typed> a, int w, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    public static boolean rowMultiset(List<Typed> e, List<Typed> a, int w, HostRules rules) {
         if (e.size() != a.size()) {
             return false;
         }
@@ -323,7 +304,7 @@ public final class Equality {
         for (List<Typed> row : chunk(e, w)) {
             int hit = -1;
             for (int i = 0; i < pool.size() && hit < 0; i++) {
-                if (ordered(row, pool.get(i), rules) == null) {
+                if (ordered(row, pool.get(i), rules)) {
                     hit = i;
                 }
             }
@@ -474,109 +455,6 @@ public final class Equality {
 
     private static String abbreviate(String s) {
         return s.length() <= 120 ? s : s.substring(0, 120) + "…";
-    }
-
-    // ---- JSON: the service-test comparator (EqualToJson) -------------------
-
-    /** The engine's service-test {@code JsonNodeComparator}: objects by the
-     * union of their keys (null ≡ missing), arrays as multisets, numbers by
-     * decimal value (kind-blind) with the referee's 2-ULP policy for the
-     * database's C-library doubles, strings and booleans exact. */
-    public static @com.legend.base.Nullable String serviceJson(@com.legend.base.Nullable Object expected,
-            @com.legend.base.Nullable Object actual) {
-        return serviceDiff(expected, actual, "$");
-    }
-
-    private static @com.legend.base.Nullable String serviceDiff(@com.legend.base.Nullable Object e,
-            @com.legend.base.Nullable Object a, String path) {
-        if (e == null && a == null) {
-            return null;
-        }
-        if (e == null || a == null) {
-            return path + " expected " + show(e) + ", got " + show(a);
-        }
-        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
-            TreeSet<String> keys = new TreeSet<>();
-            em.keySet().forEach(k -> keys.add(String.valueOf(k)));
-            am.keySet().forEach(k -> keys.add(String.valueOf(k)));
-            for (String k : keys) {
-                String d = serviceDiff(em.get(k), am.get(k), path + "." + k);
-                if (d != null) {
-                    return d;
-                }
-            }
-            return null;
-        }
-        if (e instanceof List<?> el && a instanceof List<?> al) {
-            if (el.size() != al.size()) {
-                return path + " expected " + el.size() + " elements, got " + al.size();
-            }
-            List<Object> remaining = new ArrayList<>(al);
-            for (int i = 0; i < el.size(); i++) {
-                Object x = el.get(i);
-                int at = -1;
-                for (int j = 0; j < remaining.size() && at < 0; j++) {
-                    if (serviceDiff(x, remaining.get(j), path) == null) {
-                        at = j;
-                    }
-                }
-                if (at < 0) {
-                    Object nearest = nearest(x, remaining);
-                    String why = nearest == null ? "no actual element shares its first field"
-                            : "nearest actual " + show(nearest) + " differs: "
-                                    + serviceDiff(x, nearest, path + "[" + i + "]");
-                    return path + "[" + i + "] expected " + show(x)
-                            + " has no equal element in the actual array (" + why + ")";
-                }
-                remaining.remove(at);
-            }
-            return null;
-        }
-        if (e instanceof Number en && a instanceof Number an) {
-            if (decimal(en).compareTo(decimal(an)) == 0) {
-                return null;
-            }
-            if (withinTwoUlp(en.doubleValue(), an.doubleValue())) {
-                com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-json " + en + " ~ " + an);
-                return null;
-            }
-            return path + " expected " + en + ", got " + an;
-        }
-        if (e instanceof String es && a instanceof String as) {
-            return es.equals(as) ? null : path + " expected " + show(es) + ", got " + show(as);
-        }
-        if (e instanceof Boolean eb && a instanceof Boolean ab) {
-            return eb.equals(ab) ? null : path + " expected " + eb + ", got " + ab;
-        }
-        return path + " expected " + jsonKind(e) + " " + show(e) + ", got " + jsonKind(a) + " " + show(a);
-    }
-
-    private static @com.legend.base.Nullable Object nearest(Object expected, List<Object> candidates) {
-        if (!(expected instanceof Map<?, ?> em) || em.isEmpty()) {
-            return null;
-        }
-        var first = em.entrySet().iterator().next();
-        for (Object c : candidates) {
-            if (c instanceof Map<?, ?> cm
-                    && serviceDiff(first.getValue(), cm.get(first.getKey()), "$") == null) {
-                return c;
-            }
-        }
-        return null;
-    }
-
-    private static String jsonKind(Object o) {
-        return o instanceof Map ? "object" : o instanceof List ? "array"
-                : o instanceof Number ? "number" : o instanceof String ? "string"
-                : o instanceof Boolean ? "boolean" : "null";
-    }
-
-    private static String show(@com.legend.base.Nullable Object o) {
-        if (o == null) {
-            return "null";
-        }
-        String s = o instanceof String str ? "'" + str + "'" : String.valueOf(o);
-        return s.length() > 160 ? s.substring(0, 157) + "..." : s;
     }
 
     // ---- carriers -----------------------------------------------------------

@@ -1237,6 +1237,20 @@ final class ArchitectureTest {
             // (and the edge's list text, PureListTexts, a mixed list's elements printed by the same facade: B8's TEXT_FORMS,
             // 2026-11-17)
             "lowering.RelationTexts#*", "com.legend.edge.RelationTextLowering com.legend.edge.PureListTexts",
+            // C5 step A (2026-11-17, the orchestrator's ruling: one facade, each member listed, no #*): legend-pure's
+            // representation (toRepresentation, an assert's message) is the edge's (edge.EdgePureOnlyTexts), and the
+            // product parts it is built from -- a concatenation, a Pure toString, an integer's held kind, a date
+            // literal's text -- are the facade's (lowering.ReprParts); a date-time's text and the style's date-time
+            // facet are the lowering's own readers, the same as RelationTextLowering's
+            "lowering.ReprParts#cat([Lcom.legend.sql.SqlExpr;)", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
+                    + "com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.ReprParts#heldAsInteger(com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.ReprParts#dateLiteralText(com.legend.compiler.spec.typed.TypedSpec)",
+            "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",
+            "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
@@ -1247,8 +1261,10 @@ final class ArchitectureTest {
             "testplan.PlanningOptions#edge()", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#judgeMode()", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#judgingRules()", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#rules(boolean)", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#withEngineCompat(boolean)", "com.legend.ExecuteOptions",
+            // testplan.PlanningOptions#rules(boolean) from ExecuteOptions gone (2026-11-17, census C1: the edge hook names
+            // its run's rules, Edge.rules())
+            // (testplan.PlanningOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge
+            // hook's, Edge.rules())
             "testplan.PlanningOptions#withFeatures(java.util.Set)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withJudgeMode(com.legend.testplan.PlanningOptions$JudgeMode)",
             "com.legend.ExecuteOptions",
@@ -1272,13 +1288,21 @@ final class ArchitectureTest {
             "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
                     + "com.legend.platform.ImplementationTable)", "com.legend.Compiler com.legend.edge.EnginePlans",
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
-            "lowering.Lowerer#withExistsAsJoinDistinct()", "com.legend.Compiler com.legend.edge.EnginePlans",
+            // the planner's fact that a statement's EXISTS may take the style's join form (the edge audit's J19, 2026-11-17:
+            // withExistsAsJoinDistinct renamed, the choice the plan style's forms')
+            "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler",
             // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
             // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
             // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
             "lowering.Lowerer#withFloatLiteralKind(java.util.function.Supplier)",
             "com.legend.Compiler com.legend.edge.EnginePlans",
             "planner.PlanEnv#floatLiteralKind()", "com.legend.edge.EnginePlans",
+            // the audit's K6 (2026-11-17, the orchestrator's ruling (a)): a Lowerer's style is chosen, never an implicit
+            // product default -- the product's lowerResolved chooses the product's, the edge's engine SQL its plan
+            // environment's (it ran with the implicit product default until then)
+            "lowering.Lowerer#withStyled(com.legend.lowering.Styled)", "com.legend.Compiler com.legend.edge.EnginePlans",
+            "lowering.Styled#PRODUCT", "com.legend.Compiler",
+            "planner.PlanEnv#styled()", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withInstanceKeys(java.util.function.Function)", "com.legend.Compiler",
             "lowering.Lowerer#withObjectIdentity(java.util.function.Function)", "com.legend.Compiler",
             "lowering.ObjectSites#<init>()", "com.legend.Compiler",
@@ -1353,7 +1377,11 @@ final class ArchitectureTest {
             // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
-            "lowering.LoweringShape#<init>(boolean, boolean, boolean, boolean, boolean, boolean)", "com.legend.edge.EnginePlans",
+            // re-keyed 2026-11-17 (the audit's K5, then the edge audit's J23 and J19): the shape's edge-only flags became its form's choices
+            "lowering.LoweringShape#<init>(com.legend.lowering.LoweringForms, boolean)",
+            "com.legend.edge.EnginePlans",
+            "lowering.LoweringShape#withExistsJoinable()",
+            "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",
@@ -1858,6 +1886,10 @@ final class ArchitectureTest {
      * ratified adjudication's mechanical guard: a database VALUE can
      * never be produced inside the channel, because the channel cannot
      * reach a connection.
+     *
+     * <p>The channel left the product for the compatibility edge (2026-11-17: PlanText with J4/K3 of the edge audit,
+     * AggAwareActivities with J5), so the rule checks the product's and the edge's classes together: it would fail on an
+     * empty set if it read the product's alone, and the channel still must not reach a connection.
      */
     @Test
     void theInterpreterPerformsNoJdbc() {
@@ -1868,7 +1900,7 @@ final class ArchitectureTest {
             .as("E4: the metamodel channel evaluates model constants"
                     + " only — grid chains compile to SQL at the"
                     + " GridReads.tryLower exec seam")
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -3541,6 +3573,55 @@ final class ArchitectureTest {
                 callers, "PureText.PURE_V1 is selected by the pure/v1 routes alone (B7, 2026-11-17)");
     }
 
+    /**
+     * THE PRODUCT HAS ONE GRAMMAR (J21 of the edge audit, 2026-11-17, the user's ruling "yes to the rule"): legend-lite's
+     * (the platform's own sources have theirs). Legend-engine's level -- its
+     * refusals and its shapes -- is the parser's to define and the edge's to ask for, where the edge parses legend-engine's
+     * protocol: no product parse is made at it. (1) Outside the parser and the edge nothing names
+     * legend-engine's level. (2) The parsers' level-less text-to-JSON entries, which are legend-engine's
+     * ({@code PmcdParser.parseDocument}/{@code parseModel}/{@code parseSections}, {@code SpecParser.parseLambda}/
+     * {@code lambdaJson}), are reached outside the parser through the parse door's engine entries alone, and (3) those
+     * ({@code door.Parse.engineDocumentJson}/{@code engineLambdaJson}) by the edge alone. A new caller is a ruling.
+     */
+    @Test
+    void legendEnginesGrammarIsTheEdgesAlone() {
+        java.util.Set<String> engineEntries = java.util.Set.of(
+                "com.legend.parser.PmcdParser.parseDocument(java.lang.String)",
+                "com.legend.parser.PmcdParser.parseDocument(java.lang.String, boolean)",
+                "com.legend.parser.PmcdParser.parseModel(java.lang.String)",
+                "com.legend.parser.PmcdParser.parseSections(java.lang.String)",
+                "com.legend.parser.SpecParser.parseLambda(java.lang.String)",
+                "com.legend.parser.SpecParser.lambdaJson(java.lang.String, boolean)");
+        java.util.Set<String> edgeDoor = java.util.Set.of(
+                "com.legend.door.Parse.engineRecords(java.lang.String)",
+                "com.legend.door.Parse.engineDocumentJson(java.lang.String)",
+                "com.legend.door.Parse.engineLambdaJson(java.lang.String)");
+        java.util.List<String> bad = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
+            String origin = c.getName().replaceAll("\\$.*$", "");
+            boolean parser = origin.startsWith("com.legend.parser.");
+            boolean edge = origin.startsWith("com.legend.edge.");
+            for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
+                if (!parser && !edge && a.getTargetOwner().getName().equals("com.legend.parser." + "GrammarLevel")
+                        && a.getName().equals("LEGEND" + "_ENGINE")) {
+                    bad.add(origin + " names legend-engine's grammar level");
+                }
+            }
+            for (com.tngtech.archunit.core.domain.JavaMethodCall call : c.getMethodCallsFromSelf()) {
+                String target = call.getTarget().getFullName().replace(",", ", ");
+                if (!parser && engineEntries.contains(target)
+                        && !(origin.equals("com.legend.door.Parse") && call.getOrigin().getName().startsWith("engine"))) {
+                    bad.add(origin + "." + call.getOrigin().getName() + " calls " + target);
+                }
+                if (!edge && edgeDoor.contains(target)) {
+                    bad.add(origin + "." + call.getOrigin().getName() + " calls " + target);
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), bad,
+                "legend-engine's grammar is the edge's alone: the product has one grammar (J21, 2026-11-17)");
+    }
+
     private static JavaClasses coreAndTheHostsDoors() {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
@@ -3816,10 +3897,10 @@ final class ArchitectureTest {
             // was deleted long before -- the ledger's Equality row records it gone -- and the D71 audit found the
             // exemption naming nothing; deleted, a dated note)
             // JUDGING_TWO_MODES step 2: the host judge and the service-test
-            // judge are the seam's own (Equality decides; TestAssertions
-            // routes EqualToJson to it)
+            // judge are the seam's own (Equality decides; the edge's EqualToJson, moved from test.TestAssertions
+            // 2026-11-17 with J11's residue, reads its one float bound)
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.Equality")
-            .and().doNotHaveFullyQualifiedName("com.legend.test.TestAssertions")
+            .and().doNotHaveFullyQualifiedName("com.legend.edge.EqualToJson")
             // leg 3.4 (2026-09-20): the verdict seam's SENDING arm — the
             // body's deferred verdict statements as one statement; it
             // counts the census rows the arm counted at the assert

@@ -1,15 +1,30 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 package com.legend.error;
 
 /**
- * A RUN'S PARAMETER VALUES ITS DECLARED TYPES DO NOT TAKE (lite's API v1 spec §3, kind {@code parameters}; the audit's
- * J18, 2026-11-17): each value its parameter refuses, named with the parameter's type and multiplicity, every one at
- * once. Its words are the run's ({@code exec.PlanParameters.check}); a typed failure so that every binding classifies it
- * as the caller's values -- neither the data's nor a defect -- as it classifies {@link MissingParameters}. The
- * compatibility edge names it as legend-engine's clients read it ({@code edge.PureMessages.typeName}).
+ * A RUN'S PARAMETER VALUES THAT THEIR PARAMETERS DO NOT TAKE (J8 of the edge audit, 2026-11-17; beside
+ * {@link MissingParameters}): each problem named with its parameter, in lite's sentence; legend-engine's
+ * ({@code Invalid provided parameter(s): [...]}) is the compatibility edge's ({@code edge.PureMessages.compile}), which
+ * words it where an upstream client reads the error.
  */
 public final class InvalidParameters extends IllegalArgumentException {
+    private static final long serialVersionUID = 1L;
+    private final java.util.List<String> problems;
 
-    public InvalidParameters(String message) {
-        super(message);
+    public InvalidParameters(java.util.List<String> problems) {
+        super(sentence(problems));
+        this.problems = java.util.List.copyOf(problems);
+    }
+
+    /** Lite's sentence: each value its parameter does not take. */
+    public static String sentence(java.util.List<String> problems) {
+        return "invalid value(s) for the parameter(s): " + String.join("; ", problems);
+    }
+
+    /** Each problem, as {@code parameter 'p' (Type[m]): why}. */
+    public java.util.List<String> problems() {
+        return problems;
     }
 }

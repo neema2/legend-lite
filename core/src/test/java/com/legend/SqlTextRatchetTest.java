@@ -83,7 +83,8 @@ class SqlTextRatchetTest {
         // it populates supplies our rows), never an emission of ours.
         // (moved 2026-11-09, slice 5: the driver deleted; the recognizer is one of the helpers both halves call, the
         // test plan's Verdicts -- the planner and the run's text arm read it alike)
-        REGISTER.put("testexecutionplan/Verdicts.java", 1);
+        // (moved 2026-11-18, J33: the recognizer is the edge's, SqlTextReferee -- only the SQL-text arm and its run call it)
+        REGISTER.put("edge/SqlTextReferee.java", 1);
         // 0 -> 2 (2026-10-13, the dialect program's Phase 0, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): not new
         // sites -- the rule now sees `create schema`, and two were there: dropAndCreateSchemaInDb's H2 text and a
         // schema's create in the module DDL. They go to the dialect (a SqlDdl node) with the program's Phase 3

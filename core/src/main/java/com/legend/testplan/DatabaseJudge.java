@@ -93,7 +93,7 @@ public final class DatabaseJudge {
                 // X4: the engine has no cross-kind PRIMITIVE equality — a
                 // VERDICT (false), decided statically, the one comparison SQL
                 // never sees
-                com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+                staticallyDecided(env);
                 return wantEqual ? com.legend.testexecutionplan.Verdicts.fail(name + ": kinds differ (" + AssertVerdicts.typeName(eSpec)
                         + " vs " + AssertVerdicts.typeName(aSpec) + ")") : com.legend.testexecutionplan.Verdicts.ok();
             }
@@ -163,7 +163,7 @@ public final class DatabaseJudge {
                     // both spelled in the expected's kinds where the columns' kinds differ (the grid owner's rule)
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
                             gridSide(wa.plan(), gridPairArm && sameNames(se, sa) ? se : sa, csvStrings),
-                            canonicalOrder, env.options().judgingRules().floatTolerance(), lite(env));
+                            canonicalOrder, env.options().judgingRules().floatUlps(), lite(env));
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
@@ -200,7 +200,7 @@ public final class DatabaseJudge {
                     com.legend.sql.SqlQuery gq = cellPool
                             ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE, lite(env))
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
-                                    canonicalOrder, lite(env));
+                                    canonicalOrder, lite(env), env.options().judgingRules().floatUlps());
                     return runVerdict(name, wantEqual, message.apply(gq),
                             env.withTarget(gw.storeFree() ? pw.target() : gw.target()));
                 }
@@ -230,10 +230,8 @@ public final class DatabaseJudge {
         // sort for assertSameElements' cell pool), where its elements are of one known primitive kind (2026-11-04, the
         // assert bar: the message read the canons, Strings unquoted and assertSameElements in canon-text order)
         boolean lite = lite(env);
-        com.legend.lowering.VerdictSql.Message me = written(re, ie, cellPool,
-                java.util.Objects.requireNonNull(we).plan(), eSpec, lite, env.plan().styled());
-        com.legend.lowering.VerdictSql.Message ma = written(ra, ia, cellPool,
-                java.util.Objects.requireNonNull(wa).plan(), aSpec, lite, env.plan().styled());
+        com.legend.lowering.VerdictSql.Message me = written(re, ie, cellPool, java.util.Objects.requireNonNull(we).plan(), eSpec, env);
+        com.legend.lowering.VerdictSql.Message ma = written(ra, ia, cellPool, java.util.Objects.requireNonNull(wa).plan(), aSpec, env);
         if (lite && me != null && ma != null && !me.canon() && !ma.canon()) {
             // each side's kind, for lite's sentence where the two texts tie; two DateTime literals each with its
             // written precision (the orchestrator's ruling, 2026-11-17)
@@ -258,7 +256,7 @@ public final class DatabaseJudge {
                         ra.many(), canonicalOrder,
                         ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma,
                         com.legend.lowering.VerdictSql.decimalByValue(env.options().judgingRules().decimalScale(), ra.kinds().get(ia))),
-                env.options().judgingRules().floatTolerance());
+                env.options().judgingRules().floatUlps());
         // two single Strings compared by their raw text (no literal channel, whose canon is quoted already): the
         // message prints them as upstream's %r prints a String, quoted and escaped (2026-11-03, round 18: a TDS's
         // toString against its golden read unquoted under the database judge alone on Postgres, MariaDB, MySQL and
@@ -282,8 +280,7 @@ public final class DatabaseJudge {
         // two single numbers of different kinds (register S127, the user's ruling of 2026-11-04): never equal in lite's
         // own runs -- decided false at planning, the rows read for the message; in backwards-compatibility mode compiled
         // legend-pure's rule, an Integer and a Decimal compared by their texts (the canon's) and a Float equal to neither
-        if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia),
-                env.options().judgingRules().integerDecimalByText())) {
+        if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia), numbers(env))) {
             vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
         }
         // a single Decimal's text as upstream's %r writes it, its D (the canon the comparison reads drops it)
@@ -299,22 +296,18 @@ public final class DatabaseJudge {
      *  no element's, but an empty side's, Nil, which writes no element); null where it is no one primitive. */
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
             com.legend.lowering.CanonRider r, int i, boolean sorted, com.legend.sql.SqlQuery plan, TypedSpec side,
-            boolean lite, com.legend.lowering.Styled styled) {
-        com.legend.lowering.VerdictSql.Message m = written(r, i, sorted, plan, side, styled);
-        if (!lite) {
+            BodyDriver.ExecEnv env) {
+        com.legend.lowering.Styled styled = env.plan().styled();
+        // a date literal's text the style's (census C1, 2026-11-17): lite's own, or legend-pure's at the edge
+        com.legend.lowering.VerdictSql.Message m = written(r, i, sorted, plan, side, styled,
+                env.options().style().twoForm(DateLiteralTexts.class, LiteDateLiteralTexts.LITE));
+        if (!lite(env)) {
             return m;
         }
         if (m == null) {
             // no one primitive kind (a mixed-kind collection, a literal channel, an instance carried as its JSON):
             // each element from its canon's mark, an instance's class-prefixed
             return com.legend.lowering.VerdictSql.Message.fromCanon(sorted, classOf(side), styled);
-        }
-        if (m.literal() != null && side instanceof com.legend.compiler.spec.typed.TypedCDate d) {
-            // a date LITERAL: lite's text of its value, spelled at planning (the host's LiteWords.dateText rule: its
-            // day, or ISO 8601 in UTC with six fraction digits and Z) -- its written text may name a precision no
-            // database timestamp reads (an hour alone)
-            return new com.legend.lowering.VerdictSql.Message(m.kind(), sorted, false, liteDate(d.value()), styled)
-                    .withLite(true);
         }
         return m.withLite(true);
     }
@@ -342,19 +335,18 @@ public final class DatabaseJudge {
     /** Whether the database judge words a failure by lite's own sentences: lite's own rules; the compatibility rules
      *  keep legend-pure's words. */
     static boolean lite(BodyDriver.ExecEnv env) {
-        return !env.options().judgingRules().legendPureWords();
+        return !env.options().style().twoForm(FailureWords.class, LiteFailureWords.LITE).upstreamWords();
     }
 
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
             com.legend.lowering.CanonRider r, int i, boolean sorted, com.legend.sql.SqlQuery plan, TypedSpec side,
-            com.legend.lowering.Styled styled) {
+            com.legend.lowering.Styled styled, DateLiteralTexts dates) {
         com.legend.compiler.element.type.Type kind = r.kinds().get(i);
         if (side instanceof com.legend.compiler.spec.typed.TypedCDate d) {
-            // a date LITERAL: its text spelled once at planning, as upstream's toRepresentation writes it ('%' + its
-            // toString: the written precision, the zone where a minute is written) -- the host's own printer; the
-            // database carries the literal's precision in no value it could print (2026-11-05, the user: "clean
-            // datetime for the clean plan")
-            return com.legend.lowering.VerdictSql.Message.literal(kind, "%" + Verdicts.pureText(d.value()), styled);
+            // a date LITERAL: its text spelled once at planning, the style's (DateLiteralTexts: lite's own, or
+            // upstream's toRepresentation at the edge) -- the database carries the literal's precision in no value it
+            // could print (2026-11-05, the user: "clean datetime for the clean plan")
+            return com.legend.lowering.VerdictSql.Message.literal(kind, dates.text(d.value()), styled);
         }
         if (kind instanceof com.legend.compiler.element.type.Type.GenericType g && !com.legend.compiler.element.type
                 .Type.isRelation(g) && plan instanceof com.legend.sql.SqlSelect ps
@@ -370,17 +362,15 @@ public final class DatabaseJudge {
      *  pair in lite's own runs; in backwards-compatibility mode all but an Integer and a Decimal, which compiled
      *  legend-pure compares by text. An unrefined Number is no known kind. */
     private static boolean crossNumberKinds(com.legend.compiler.element.type.Type e,
-            com.legend.compiler.element.type.Type a, boolean integerDecimalByText) {
+            com.legend.compiler.element.type.Type a, CrossKindNumbers numbers) {
         com.legend.compiler.element.type.Type fe = fineNumber(e);
         com.legend.compiler.element.type.Type fa = fineNumber(a);
-        if (fe == null || fa == null || fe == fa) {
-            return false;
-        }
-        boolean integerAndDecimal = fe == com.legend.compiler.element.type.Type.Primitive.INTEGER
-                && fa == com.legend.compiler.element.type.Type.Primitive.DECIMAL
-                || fe == com.legend.compiler.element.type.Type.Primitive.DECIMAL
-                && fa == com.legend.compiler.element.type.Type.Primitive.INTEGER;
-        return !(integerDecimalByText && integerAndDecimal);
+        return fe != null && fa != null && fe != fa && !numbers.byText(fe, fa);
+    }
+
+    /** How the plan's style compares two numbers of different fine kinds (register S127; census C1, 2026-11-17). */
+    private static CrossKindNumbers numbers(BodyDriver.ExecEnv env) {
+        return env.options().style().twoForm(CrossKindNumbers.class, LiteCrossKindNumbers.NEVER);
     }
 
     /** {@code kind}'s fine number kind -- Integer, Float, Decimal (a declared precision one's too) -- or null. */
@@ -632,9 +622,9 @@ public final class DatabaseJudge {
         // both written as upstream's message writes them where each names one primitive kind (2026-11-04, the assert
         // bar: the canons left a String unquoted)
         com.legend.lowering.VerdictSql.Message cm = literal ? null
-                : written(cr, 0, false, java.util.Objects.requireNonNull(c.side()).plan(), coll, lite(env), env.plan().styled());
+                : written(cr, 0, false, java.util.Objects.requireNonNull(c.side()).plan(), coll, env);
         com.legend.lowering.VerdictSql.Message vm = literal ? null
-                : written(vr, 0, false, java.util.Objects.requireNonNull(v.side()).plan(), val, lite(env), env.plan().styled());
+                : written(vr, 0, false, java.util.Objects.requireNonNull(v.side()).plan(), val, env);
         if (cm != null && vm != null && !cr.tdsWrapped()) {
             return runVerdict(name, !negated, com.legend.lowering.VerdictSql.contains(
                     com.legend.lowering.VerdictSql.writtenRows(java.util.Objects.requireNonNull(c.side()).plan(),
@@ -671,7 +661,7 @@ public final class DatabaseJudge {
         List<String> n1 = s1.columns().stream().map(c -> c.name()).toList();
         List<String> n2 = s2.columns().stream().map(c -> c.name()).toList();
         if (!n1.equals(n2)) {
-            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+            staticallyDecided(env);
             return com.legend.testexecutionplan.Verdicts.fail(name + ": columns differ " + n1 + " vs " + n2);   // a static verdict
         }
         List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
@@ -851,10 +841,12 @@ public final class DatabaseJudge {
         }
     }
 
-    /** A statically identified {@code is} pair: decided by the compiler (the same count as
-     * the static kind gate). */
-    static void staticallyDecided(String name) {
-        com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+    /** A verdict decided at planning (a static decision: a statically identified {@code is} pair, the static kind
+     *  gate, a grid's columns, a rendered header), planned as a step of the open root that the census counts at its
+     *  turn (J39, 2026-11-18, the orchestrator's ruling (b): until then counted here, as it was planned). The database
+     *  judge plans under its body's verdict batch, always. */
+    static void staticallyDecided(BodyDriver.ExecEnv env) {
+        java.util.Objects.requireNonNull(env.verdictBatch(), "a static verdict planned with no verdict batch").judged();
     }
 
     /** The database arm, chosen once per adjudication by the router. */
@@ -868,8 +860,8 @@ public final class DatabaseJudge {
             return AssertVerdicts.renderedValueVerdict(name, wantEqual, args, letPrefix, specs, env, hook,
                     orderedForm);
         }
-        @Override public void staticallyDecided(String name) {
-            DatabaseJudge.staticallyDecided(name);
+        @Override public void staticallyDecided(BodyDriver.ExecEnv env) {
+            DatabaseJudge.staticallyDecided(env);
         }
         @Override public TypedSide jsonStringsEqual(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -952,9 +944,9 @@ public final class DatabaseJudge {
             com.legend.compiler.element.type.Type ak = actual.type();
             com.legend.testexecutionplan.TestPlan.JudgingRules rules = env.options().judgingRules();
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
-                    crossNumberKinds(ek, ak, rules.integerDecimalByText()),
-                    rules.floatTolerance() && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
-                            && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
+                    crossNumberKinds(ek, ak, numbers(env)),
+                    ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                            && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT ? rules.floatUlps() : 0,
                     com.legend.lowering.VerdictSql.decimalByValue(rules.decimalScale(), ek), lite(env), env.plan().styled());
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "

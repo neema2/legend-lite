@@ -181,8 +181,8 @@ public final class LiteV1Planning {
                 continue;
             }
             if (!p.has("genericType")) {
-                throw new com.legend.error.InvalidParameters("parameter '" + name + "' declares no type: a query's"
-                        + " parameters are typed ({" + name + ": String[1]|...})");
+                throw new com.legend.error.InvalidParameters(List.of("parameter '" + name + "' declares no type: a query's"
+                        + " parameters are typed ({" + name + ": String[1]|...})"));
             }
             String type = p.getObj("genericType").getObj("rawType").getString("fullPath");
             out.put(name, value instanceof Json.Arr list
@@ -214,8 +214,8 @@ public final class LiteV1Planning {
             default -> v instanceof Json.Str s ? s.value() : null;
         };
         if (read == null) {
-            throw new com.legend.error.InvalidParameters("parameter '" + name + "' (" + type + "): given "
-                    + Json.toCompact(v) + ", which is no " + type + "'s JSON value");
+            throw new com.legend.error.InvalidParameters(List.of("parameter '" + name + "' (" + type + "): given "
+                    + Json.toCompact(v) + ", which is no " + type + "'s JSON value"));
         }
         return read;
     }
@@ -228,8 +228,8 @@ public final class LiteV1Planning {
         }
         java.math.BigDecimal exact = n.decimalValue();
         if (exact != null && n.token() == null && exact.scale() <= 0) {
-            throw new com.legend.error.InvalidParameters("parameter '" + name + "' (Integer): given "
-                    + exact.toPlainString() + ", which is beyond the 64-bit range an Integer holds");
+            throw new com.legend.error.InvalidParameters(List.of("parameter '" + name + "' (Integer): given "
+                    + exact.toPlainString() + ", which is beyond the 64-bit range an Integer holds"));
         }
         return null;
     }
@@ -247,16 +247,16 @@ public final class LiteV1Planning {
         try {
             return java.time.LocalDate.parse(text);
         } catch (java.time.format.DateTimeParseException e) {
-            throw new com.legend.error.InvalidParameters("parameter '" + name + "': given \"" + text + "\", which is no"
-                    + " StrictDate's text (YYYY-MM-DD)");
+            throw new com.legend.error.InvalidParameters(List.of("parameter '" + name + "': given \"" + text + "\", which is no"
+                    + " StrictDate's text (YYYY-MM-DD)"));
         }
     }
 
     private static java.time.LocalDateTime dateTime(String name, String text) {
         java.util.regex.Matcher m = DATE_TIME.matcher(text);
         if (!m.matches()) {
-            throw new com.legend.error.InvalidParameters("parameter '" + name + "': given \"" + text + "\", which is no"
-                    + " DateTime's text (its ISO 8601 text in UTC, YYYY-MM-DD[T ]HH:MM[:SS[.fffffffff]][Z])");
+            throw new com.legend.error.InvalidParameters(List.of("parameter '" + name + "': given \"" + text + "\", which is no"
+                    + " DateTime's text (its ISO 8601 text in UTC, YYYY-MM-DD[T ]HH:MM[:SS[.fffffffff]][Z])"));
         }
         String fraction = m.group(7) == null ? "" : m.group(7);
         try {
@@ -265,8 +265,8 @@ public final class LiteV1Planning {
                     m.group(6) == null ? 0 : Integer.parseInt(m.group(6)),
                     fraction.isEmpty() ? 0 : Integer.parseInt((fraction + "000000000").substring(0, 9)));
         } catch (java.time.DateTimeException e) {
-            throw new com.legend.error.InvalidParameters("parameter '" + name + "': given \"" + text + "\", which is no"
-                    + " DateTime: " + e.getMessage());
+            throw new com.legend.error.InvalidParameters(List.of("parameter '" + name + "': given \"" + text + "\", which is no"
+                    + " DateTime: " + e.getMessage()));
         }
     }
 

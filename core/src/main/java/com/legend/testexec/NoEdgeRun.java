@@ -40,6 +40,12 @@ public final class NoEdgeRun implements EdgeRun {
         return new Hearing(callers);
     }
 
+    @Override
+    public boolean wordsAlike() {
+        // lite's own rules: both judges write lite's sentences
+        return true;
+    }
+
     /** A run that hears no appeal: the caller's listener as it is. */
     private record Hearing(@Nullable AssertListener listener) implements EdgeHearing {
 
@@ -55,9 +61,26 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
+        public PureWords pureWords() {
+            throw new NotImplementedException("legend-pure's words of an assert's failure " + WHY);
+        }
+
+        @Override
         public com.legend.testexecutionplan.JsonGrammar json() {
             // lite's own runs read strict JSON (register S144)
             return com.legend.testexecutionplan.JudgeJson.STRICT;
+        }
+
+        @Override
+        public RenderedTexts renderedTexts() {
+            // lite's own runs: the two strings are the verdict
+            return LiteRenderedTexts.STRINGS;
+        }
+
+        @Override
+        public HostForms hostForms() {
+            // lite's own runs: two number kinds never equal (S127)
+            return LiteHostForms.STRICT;
         }
 
         @Override

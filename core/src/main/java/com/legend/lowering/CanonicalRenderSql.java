@@ -26,6 +26,17 @@ import java.util.Objects;
  */
 public final class CanonicalRenderSql {
 
+    /** A PRESENT NULL CELL in the judges' canon: the bare, unquoted token {@code null} (census C5's step C, C-2,
+     *  2026-11-17, the orchestrator's ruling (B)) -- every String canon is quoted, so the token is disjoint from any
+     *  string, the way JSON tells null from "null". An ABSENT element is SQL NULL, a different thing by construction. */
+    public static final String NULL_CELL = "null";
+
+    /** A present null cell's VALUE on the wire, where an expected side holds one ({@code TypedNullCell}'s lowering):
+     *  a marker no expected String is written as (U+2400, the symbol for null), read back by the canon as
+     *  {@link #NULL_CELL} and by the host judge as the null cell it stands for. */
+    public static final String NULL_CELL_WIRE = com.legend.sql.SqlExpr.NULL_CELL_WIRE;
+
+
     private CanonicalRenderSql() {
     }
 
@@ -484,7 +495,7 @@ public final class CanonicalRenderSql {
             }
             SqlExpr cell = SqlExpr.Call.of(SqlFn.COALESCE,
                     new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
-                    new SqlExpr.StringLit("TDSNull"));
+                    new SqlExpr.StringLit(NULL_CELL));
             // the reserved separator POISONS the row canon to NULL (a
             // counted decline at the verdict frame — never a silent
             // mis-split); the guard sits OUTSIDE the COALESCE so a
@@ -496,7 +507,7 @@ public final class CanonicalRenderSql {
                 cell = new SqlExpr.Case(List.of(
                         new SqlExpr.Case.When(
                                 SqlExpr.Call.of(SqlFn.IS_NULL, ref),
-                                new SqlExpr.StringLit("TDSNull")),
+                                new SqlExpr.StringLit(NULL_CELL)),
                         new SqlExpr.Case.When(
                                 SqlExpr.Call.of(SqlFn.GREATER,
                                         SqlExpr.Call.of(SqlFn.STRPOS, ref,
@@ -591,7 +602,7 @@ public final class CanonicalRenderSql {
                 SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, ref),
-                        new SqlExpr.StringLit("TDSNull")),
+                        new SqlExpr.StringLit(NULL_CELL)),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, isText,
                         SqlExpr.Call.of(SqlFn.GREATER,
                                 SqlExpr.Call.of(SqlFn.STRPOS, text, new SqlExpr.StringLit(TDS_CELL_SEP)),
@@ -988,7 +999,7 @@ public final class CanonicalRenderSql {
                                 SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT))),
                 objectOnly ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                         isKind(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), com.legend.sql.JsonKind.NULL),
-                        new SqlExpr.StringLit("'TDSNull'"))),
+                        new SqlExpr.StringLit("'" + NULL_CELL_WIRE + "'"))),
                         new SqlExpr.StringLit(TREE_MARKER), SqlExpr.Reason.PRINT)
                         : anyJsonCanon(v), SqlExpr.Reason.PRINT);
     }
@@ -1083,7 +1094,7 @@ public final class CanonicalRenderSql {
                 // ^TDSNull() rewrites to the STRING sentinel, spelled quoted —
                 // the same equivalence the host judge applies
                 new SqlExpr.Case.When(isKind(jt, com.legend.sql.JsonKind.NULL),
-                        new SqlExpr.StringLit("'TDSNull'")),
+                        new SqlExpr.StringLit("'" + NULL_CELL_WIRE + "'")),
                 new SqlExpr.Case.When(isKind(jt, com.legend.sql.JsonKind.STRING), strLit),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR,
                         isKind(jt, com.legend.sql.JsonKind.INTEGER),

@@ -224,14 +224,16 @@ public final class PureTestRunner implements AutoCloseable {
     /** The setup {@code call} run on {@code target} as a fixture (track C, 2026-10-29: the setup's body typed once):
      *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
      *  where a thread-scoped SEED mark around the program counted them until then). */
-    private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options) {
-        // a setup hears no compatibility appeal (it asserts nothing): the product's run (census C2, 2026-11-17)
+    private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options,
+            com.legend.testexec.EdgeRun edgeRun) {
+        // a setup asserts nothing, so it hears no appeal; it is heard by the body's own hook, which goes with the run's
+        // style (census C1, the orchestrator's ruling of 2026-11-17: one choice per run)
         TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
-                com.legend.testexec.NoEdgeRun.NONE, options);
+                edgeRun, options);
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
-            ExecuteOptions options) {
+            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
         List<String> failures = new ArrayList<>();
         for (String fqn : setupCandidates(t.pkg())) {
             if (shared && setupsDone.contains(fqn)) {
@@ -245,7 +247,7 @@ public final class PureTestRunner implements AutoCloseable {
             try {
                 // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's
                 // origin); a package-start fixture keeps the engine's own rule -- the later one wins the name
-                runSetup(call, conn, options);
+                runSetup(call, conn, options, edgeRun);
                 if (shared) {
                     setupsDone.add(fqn);
                 }
@@ -304,7 +306,7 @@ public final class PureTestRunner implements AutoCloseable {
             // suite scores each BeforePackage function as a test case of its own,
             // so a failure there is scored, never tolerated; a body judged on a
             // half-seeded session is no verdict
-            List<String> setupFailures = runSetups(t, conn, shared, options);
+            List<String> setupFailures = runSetups(t, conn, shared, options, referee);
             if (!setupFailures.isEmpty()) {
                 return new Result(t.fqn(), Status.FAIL, List.of(),
                         "setup failed: " + String.join("; ", setupFailures));

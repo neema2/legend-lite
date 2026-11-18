@@ -152,7 +152,6 @@ public final class ColumnFacts {
             case SqlSource.SourceUrl u -> false;
             case SqlSource.GridReport g -> false;
             case SqlSource.Catalog c -> false;
-            case SqlSource.VarSetPlaceholder v -> false;
         };
     }
 
@@ -189,7 +188,6 @@ public final class ColumnFacts {
             case SqlSource.RawSql r -> { }
             case SqlSource.GridReport g -> { }
             case SqlSource.Catalog c -> { }
-            case SqlSource.VarSetPlaceholder v -> { }
         }
     }
 
@@ -345,7 +343,6 @@ public final class ColumnFacts {
             case SqlSource.RawSql r -> null;
             case SqlSource.GridReport g -> null;   // a raw grid's report: declared by nobody's store
             case SqlSource.Catalog c -> null;   // the database's own system tables: declared by nobody's store
-            case SqlSource.VarSetPlaceholder v -> null;
         };
     }
 }

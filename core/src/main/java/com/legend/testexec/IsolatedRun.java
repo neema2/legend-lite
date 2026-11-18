@@ -92,16 +92,17 @@ final class IsolatedRun {
         void run(TestPlan plan, Sessions.Session session, AssertListener listener, @Nullable Output answer);
     }
 
-    /** {@code pair} run on {@code sessions} by {@code runner}: each plan alone, then compared. */
+    /** {@code pair} run on {@code sessions} by {@code runner}: each plan alone, then compared -- their messages too
+     *  where the run hook's judges write alike ({@code EdgeRun.wordsAlike}). */
     static void run(TestPlan.Isolated pair, SessionSource sessions, Runner runner, @Nullable AssertListener callers,
-            @Nullable Output answer) {
+            @Nullable Output answer, boolean wordsAlike) {
         if (sessions instanceof SessionSource.Given && (pair.host().writes() || pair.database().writes())) {
             throw new IllegalArgumentException(NEEDS_A_SESSION_PER_JUDGE);
         }
         Recording host = runAlone(pair.host(), sessions, runner, answer);
         // the database judge's run answers nobody: the host's answer is the body's
         Recording database = runAlone(pair.database(), sessions, runner, null);
-        conclude(host, database, !pair.rules().legendPureWords(), callers);
+        conclude(host, database, wordsAlike, callers);
     }
 
     /** The two recorded runs concluded ({@code messages}: whether the messages are compared too -- lite's own rules,

@@ -33,9 +33,21 @@ public interface EdgeHearing {
     /** The database judge's failed {@code row}, whose appeal is numbered {@code number}, heard. */
     TypedSide rowAppealed(int number, List<Object> row, boolean messaged);
 
+    /** legend-pure's words of an assert's failure at run ({@link PureWords}; C5's step B, 2026-11-17): asked only under
+     *  the compatibility rules. */
+    PureWords pureWords();
+
     /** How the run's host judge reads a JSON text (census C1, 2026-11-17): the product's strict form, upstream's
      *  json-simple grammar at the edge. */
     com.legend.testexecutionplan.JsonGrammar json();
+
+    /** Whether a rendered text that differs from its golden is held (census C1, 2026-11-17): the product's
+     *  {@link LiteRenderedTexts#STRINGS}, upstream's ruled comparison at the edge. */
+    RenderedTexts renderedTexts();
+
+    /** The host judge's behaviours (census C1's step 2c, 2026-11-17): the product's {@link LiteHostForms#STRICT},
+     *  compiled legend-pure's at the edge. */
+    HostForms hostForms();
 
     /** A step of the body that writes is about to run. */
     void writing();

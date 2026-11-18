@@ -47,12 +47,22 @@ public enum ErrorKind {
     DATABASE_ERROR("the database refused the statement"),
     /** A session that could not be opened, or a connection lost (a driver's SQLSTATE class 08): the database's own
      *  message, as {@link #DATABASE_ERROR}'s. Not a raise kind. */
-    CONNECTION_ERROR("the connection to the database failed");
+    CONNECTION_ERROR("the connection to the database failed"),
+    /** A load's file larger than the load admits (J25 of the edge audit, 2026-11-17: {@code base.DataSize.TooLarge},
+     *  its facts the file, its size and the limit): the run refuses it before any statement reads it. Not a raise kind:
+     *  no statement writes it. */
+    FILE_TOO_LARGE("the file is larger than the load admits");
 
     /** Whether the kind is the database's own failure ({@link #DATABASE_ERROR}, {@link #CONNECTION_ERROR}), never a
      *  raise a statement writes. */
     public boolean isDatabases() {
         return this == DATABASE_ERROR || this == CONNECTION_ERROR;
+    }
+
+    /** Whether a statement raises the kind ({@code sql.RaiseKind} names it): every kind but the database's own failures
+     *  and a load's refused file ({@link #FILE_TOO_LARGE}, refused by the run before a statement). */
+    public boolean isRaise() {
+        return !isDatabases() && this != FILE_TOO_LARGE;
     }
 
     private final String sentence;

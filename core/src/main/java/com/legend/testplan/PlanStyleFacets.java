@@ -34,5 +34,36 @@ public final class PlanStyleFacets {
             com.legend.lowering.ListTexts.class,
             // a judge's JSON grammar (census C1, the orchestrator's ruling of 2026-11-17, register S144): the product's
             // strict JSON, the edge's upstream json-simple 1.1.1
-            com.legend.testexecutionplan.JsonGrammar.class);
+            com.legend.testexecutionplan.JsonGrammar.class,
+            // how a test counts a relation passed to assertSize/assertEmpty/assertNotEmpty (census C1, 2026-11-17,
+            // register S137): the product refuses it, the edge counts it as one value
+            com.legend.compiler.spec.RelationCounting.class,
+            // a test-data generator's timestamp text (census C1, 2026-11-17, L9): the product's clean form, the
+            // edge's legend-engine test-data CSV
+            com.legend.testdatagen.TestDataPlanner.Printing.class,
+            // two numbers of different kinds at planning (census C1, 2026-11-17, register S127): never equal in the
+            // product, compiled legend-pure's Integer/Decimal-by-text at the edge
+            CrossKindNumbers.class,
+            // how the database judge plans a rendered text's equality (census C1, 2026-11-17, registers S131, S132):
+            // the product's two strings, the edge's ruled comparison where they differ
+            RenderedTextRule.class,
+            // a date literal's text in the database judge's failure message (census C1, 2026-11-17): lite's own, the
+            // edge's legend-pure toRepresentation
+            DateLiteralTexts.class,
+            // the word a rendered golden writes for a null cell (census C1, 2026-11-17): none in the product (lite
+            // writes it empty), legend-engine's TDSNull at the edge
+            com.legend.compiler.spec.GoldenNullWord.class,
+            // an execute's routing activity (J5 of the edge audit, 2026-11-17): the product records none, the edge
+            // legend-engine's AggregationAwareActivity, the routed query's print
+            com.legend.planner.RoutedQueries.class,
+            // the lowering's two-form choices (the audit's K5, the orchestrator's ruling of 2026-11-17: the product
+            // branched on edge-only flags): a raise (B7's plain set), a view's nesting and a wire cast -- the product
+            // writes every check, lowers a view flat and writes the cast; the edge's forms legend-engine's
+            com.legend.lowering.LoweringForms.class,
+            // whose words the database judge plans a failure in (census C1, 2026-11-17): lite's, the edge's
+            // legend-pure's
+            FailureWords.class,
+            // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
+            // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
+            com.legend.sql.dialect.DatabaseSettingsForm.class);
 }

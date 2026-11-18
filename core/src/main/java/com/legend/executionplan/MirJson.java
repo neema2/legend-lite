@@ -41,7 +41,7 @@ public final class MirJson {
 
     enum QueryTag { select, union, with }
 
-    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet, gridReport }
+    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, gridReport }
 
     enum ExprTag {
         rowOrder, storedRead, reduceCollection, membership, column, starExcept, star, stringLit, intLit, floatLit,
@@ -261,12 +261,6 @@ public final class MirJson {
                 o.put("columnPattern", c.columnPattern());
                 o.put("alias", c.alias());
                 o.put("outputs", outputCols(c.outputs()));
-            }
-            case SqlSource.VarSetPlaceholder v -> {
-                o.put("_type", SourceTag.varSet.name());
-                o.put("varName", v.varName());
-                o.put("alias", v.alias());
-                o.put("outputs", outputCols(v.outputs()));
             }
         }
         return o;
@@ -940,8 +934,6 @@ public final class MirJson {
             case catalog -> new SqlSource.Catalog(named(SqlSource.Catalog.Grid.class, o.getString("grid"), "grid"),
                     o.getStringOr("schemaPattern", null), o.getStringOr("tablePattern", null),
                     o.getStringOr("columnPattern", null), o.getString("alias"), readOutputCols(o.getArr("outputs")));
-            case varSet -> new SqlSource.VarSetPlaceholder(o.getString("varName"), o.getString("alias"),
-                    readOutputCols(o.getArr("outputs")));
         };
     }
 

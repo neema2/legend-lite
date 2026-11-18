@@ -41,8 +41,9 @@ class VerdictChannelRegisterTest {
             // and since 2026-09-20 its float cell rule is the judge's own
             // (Equality.withinTwoUlp; the printed-precision tolerance deleted)
             "core/src/main/java/com/legend/testexec/TdsCompare.java",
-            // the service-test runner's EqualToJson routes to serviceJson
-            "core/src/main/java/com/legend/test/TestAssertions.java",
+            // the service-test runner's EqualToJson, the edge's since 2026-11-17 (J11's residue: moved from
+            // test.TestAssertions and Equality.serviceJson), reads the judge's one float bound (Equality.withinUlps)
+            "core/src/main/java/com/legend/edge/EqualToJson.java",
             // 2026-09-20 (one float rule): the corpus REFEREE's float cell
             // rule is the judge's own — its 2-ULP pairing of leftover rows
             // calls the one home (the ten-digit normalization it replaced
@@ -54,7 +55,19 @@ class VerdictChannelRegisterTest {
             // array a multiset again, its test back beside the strict object-vs-array one
             "core/src/test/java/com/legend/testexec/EqualityJsonUnorderedRootTest.java",
             "core/src/test/java/com/legend/testexec/EqualityWorldsConformanceTest.java",
-            "core/src/test/java/com/legend/testexec/PureAssertsTest.java");
+            "core/src/test/java/com/legend/testexec/PureAssertsTest.java",
+            // (EqualityCompatEdgeTest, 2026-11-17 K14's temporary entry: gone with step 2c -- it judges through the edge's
+            // door now, the run hook's HostForms, and calls no equality of the judge's)
+            // 2026-11-17 (census C1): the compatibility rules' rendered-text comparison moved from TdsCompare to the
+            // edge -- the same 2-ULP cell rule (Equality.withinTwoUlp), not a new caller
+            "core/src/main/java/com/legend/edge/UpstreamRenderedTexts.java",
+            // 2026-11-17 (census C1's step 2c): compiled legend-pure's cross-kind rule moved from Equality to the
+            // edge's HostForms -- it names the judge's kinds (Equality.Kind), never a second equality
+            "core/src/main/java/com/legend/edge/CompiledPureHostForms.java",
+            // the hook's signature and lite's form name the judge's kinds (Equality.Kind) -- the same 2026-11-17 move
+            "core/src/main/java/com/legend/testexec/HostForms.java",
+            // its product form's own class (GUARD's C.9, 2026-11-17)
+            "core/src/main/java/com/legend/testexec/LiteHostForms.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");

@@ -149,8 +149,7 @@ class DecimalKindsTest {
         String scaled = "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)";
         try (Connection c = seeded()) {
             assertTrue(judged(c, scaled).passed());
-            AssertFailed scale = assertThrows(AssertFailed.class, () -> Program.run(model(), scaled, "m::RT", c,
-                    com.legend.ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true)));
+            AssertFailed scale = assertThrows(AssertFailed.class, () -> com.legend.testing.EdgeProgram.run(model(), scaled, "m::RT", c));
             assertEquals("\nexpected: 0.3D\nactual:   0.30D", scale.getMessage());
             AssertFailed kind = assertThrows(AssertFailed.class,
                     () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
@@ -168,8 +167,7 @@ class DecimalKindsTest {
             AssertFailed exact = assertThrows(AssertFailed.class, () -> judged(c, body));
             // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17)
             assertEquals("expected 0.3, got 0.30000000000000004", exact.getMessage());
-            assertTrue(Program.run(model(), body, "m::RT", c, com.legend.ExecuteOptions.NONE
-                    .withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
+            assertTrue(com.legend.testing.EdgeProgram.run(model(), body, "m::RT", c).passed());
         }
     }
 
@@ -178,8 +176,8 @@ class DecimalKindsTest {
     void castKeepsTheValue() throws Exception {
         try (Connection c = seeded()) {
             // judged under the compatibility rules, which compare a Decimal's scale too: 1.25D stays 1.25D
-            assertTrue(Program.run(model(), "|assertEquals(1.25D, 1.25D->cast(@Numeric(10, 2)))", "m::RT", c,
-                    com.legend.ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
+            assertTrue(com.legend.testing.EdgeProgram.run(model(), "|assertEquals(1.25D, 1.25D->cast(@Numeric(10, 2)))",
+                    "m::RT", c).passed());
         }
     }
 

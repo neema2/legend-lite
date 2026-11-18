@@ -263,21 +263,6 @@ async function suite(title, query, signedIn = false) {
     assert.equal((await gridRows(page)).length, 5);
   });
 
-  // the edge program's N4 (2026-11-17): a number's preview is the whole relation's aggregate, `groupBy(~[], ...)` as lite
-  // accepts it (query/src/app/probe.ts), run in the tab
-  await step("a number's preview: its aggregates over every row", async (page) => {
-    await page.goto(app(`#/create/manual/${GAV}/${enc('demo::trading::TradingMapping')}/${enc('demo::trading::Runtime')}?class=${enc('demo::trading::Trade')}`));
-    await page.waitForSelector('.q-node', { timeout: 60000 });
-    await page.click(".q-node:has-text('Quantity')", { button: 'right' });
-    await page.click(".q-menu button:has-text('Preview data')");
-    await page.waitForSelector('.q-dialog table.q-table tbody tr', { timeout: 60000 });
-    const rows = await page.$$eval('.q-dialog table.q-table tbody tr', (trs) => trs.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent)));
-    assert.deepEqual(rows.map((r) => r[0]), ['Count', 'Distinct Count', 'Sum', 'Min', 'Max', 'Average']);
-    assert.equal(rows[0][1], '12', JSON.stringify(rows));
-    assert.ok(rows.every((r) => r[1] !== 'null' && r[1] !== ''), JSON.stringify(rows));
-    await page.click(".q-dialog button:has-text('Close')");
-  });
-
   await step('a parameter: required before running, then bound', async (page) => {
     await page.goto(app(`#/create/manual/${GAV}/${enc('demo::trading::TradingMapping')}/${enc('demo::trading::Runtime')}?class=${enc('demo::trading::Trade')}`));
     await page.waitForSelector('.q-node', { timeout: 60000 });

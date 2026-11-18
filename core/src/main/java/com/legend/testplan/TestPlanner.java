@@ -51,13 +51,11 @@ public final class TestPlanner {
         BodyDriver.refusePlanHandlesOffTheEdge(typed, options);
         // a test-data generator the body binds planned first (B2d.2, 2026-11-11): its reads the values they are, so the
         // body is classed and planned as any other
-        // its texts print a timestamp as the body is judged (L9, the user's ruling of 2026-11-12): lite's own rules the
-        // clean form, the compatibility rules upstream's
-        com.legend.testdatagen.TestDataPlanner.Printing printing = options.judgingRules().upstreamTestDataTimestamps()
-                // asked when a timestamp is printed, never before: a body judged by the compatibility rules on a style
-                // whose facet refuses (a product-style test) plans as before unless it prints one
-                ? x -> options.style().facet(com.legend.planner.UpstreamPlans.class).testDataTimestampText().apply(x)
-                : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
+        // its texts print a timestamp as the plan's style prints one (L9, the user's ruling of 2026-11-12; census C1,
+        // 2026-11-17: a two-form kind): the product's clean form, upstream's at the edge
+        com.legend.testdatagen.TestDataPlanner.Printing printing = options.style().twoForm(
+                com.legend.testdatagen.TestDataPlanner.Printing.class,
+                com.legend.testdatagen.LitePrinting.INSTANCE);
         return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing,
                 options.style())), runtimeFqn,
                 dialect, options, facts);
@@ -86,7 +84,7 @@ public final class TestPlanner {
         TestPlan database = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.DATABASE));
         TestPlan both = new TestPlan(List.of(), List.of(new TestPlan.Isolated(host, database, options.judgingRules())),
                 TestPlan.Judge.AGREEMENT, java.util.Map.of(), java.util.Map.of(), host.answersLastVerdict(),
-                host.session(), host.facts(), host.answerSizeWords());
+                host.session(), host.facts(), host.answerSizeWords(), host.upstreamWords());
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(both);
         return both;
     }
@@ -223,11 +221,8 @@ public final class TestPlanner {
      *  rules refuse it, the compatibility rules count it as upstream does). */
     private static TypedQuery lifted(TypedQuery given, PlanningOptions options) {
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
-        if (options.judgingRules().relationCountedAsOne()) {
-            lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
-        } else {
-            com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
-        }
+        lifted = options.style().twoForm(com.legend.compiler.spec.RelationCounting.class,
+                com.legend.compiler.spec.RelationCountAsserts.REFUSED).counted(lifted);
         TypedQuery out = lifted == given.body() ? given : given.withBody(lifted);
         // the run's planning options reach the body's own statements (its lets, checks and answer, which
         // ProductStatements plans by the query's options) as they reach its asserts (the planner's env): the final

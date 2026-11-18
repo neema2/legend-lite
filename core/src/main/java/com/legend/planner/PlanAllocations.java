@@ -32,12 +32,8 @@ import com.legend.lineage.ScanColumns;
 import com.legend.lineage.ScanRelations;
 import com.legend.lowering.SqlPostProcessors;
 import com.legend.model.ConnectionDefinition;
-import com.legend.plan.EnumMappings;
 import com.legend.plan.LazyRows;
-import com.legend.plan.PlanNode;
 import com.legend.plan.PlanRows;
-import com.legend.plan.PlanSupportFunctions;
-import com.legend.plan.PlanText;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CString;
@@ -50,11 +46,9 @@ import com.legend.sql.SqlSelect;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /** The Allocation plan-node factory for let bindings (extracted from
@@ -66,43 +60,32 @@ public final class PlanAllocations {
     private PlanAllocations() {
     }
 
-    /** The plan's {@code processingTemplateFunctions}: the freemarker
-     * support functions + enum-typed parameters' dynamic enum-map
-     * functions (relationalPlanSupportFunctions(connection),
-     * executionPlan_generation.pure:215). */
-    public static List<String> planTemplateFunctions(
-            TypedNativeCall pep,
-            List<TypedSpec> letPrefix,
-            PlanEnv env) {
-        List<String> supportFns = new ArrayList<>(
-                PlanSupportFunctions
-                        .relationalPlanSupportFunctions(
-                                pep.args().size() > 2
-                                        ? ExecutionContext.reader()
-                                                .bind(v -> Lets.bound(v, letPrefix))
-                                                .read(Optional.empty(), pep.args().get(2))
-                                                .timeZone()
-                                        : null));
-        if (pep.args().get(0) instanceof TypedLambda plam
-                && pep.args().size() > 1
-                && pep.args().get(1) instanceof TypedPackageableRef pmr) {
-            Set<String> seenFns =
-                    new LinkedHashSet<>();
+    /** The execution context's time zone of an {@code executionPlan} call (its third argument), or null: a fact the
+     *  plan's rows are built from (legend-engine's support functions, the edge's). */
+    private static @Nullable String planTimeZone(TypedNativeCall pep, List<TypedSpec> letPrefix) {
+        return pep.args().size() > 2
+                ? ExecutionContext.reader().bind(v -> Lets.bound(v, letPrefix))
+                        .read(Optional.empty(), pep.args().get(2)).timeZone()
+                : null;
+    }
+
+    /** The query's mapping of an {@code executionPlan} call (its second argument, a bare reference), or null. */
+    private static @Nullable String planMapping(TypedNativeCall pep) {
+        return pep.args().get(0) instanceof TypedLambda && pep.args().size() > 1
+                && pep.args().get(1) instanceof TypedPackageableRef pmr ? pmr.fullPath() : null;
+    }
+
+    /** The enumerations of the query's enum-typed parameters, in declaration order (none without a mapping). */
+    private static List<String> planEnumParameters(TypedNativeCall pep) {
+        List<String> out = new ArrayList<>();
+        if (planMapping(pep) != null && pep.args().get(0) instanceof TypedLambda plam) {
             for (QueryParameters.Declared prm : QueryParameters.of(plam)) {
-                if (!(prm.type() instanceof Type.EnumType et)) {
-                    continue;
-                }
-                String fn = PlanText.enumMapFnOf(
-                        env.ctx(), pmr.fullPath(), et.fqn());
-                var em = EnumMappings.of(
-                        env.ctx(), pmr.fullPath(), et.fqn());
-                if (fn != null && em != null && seenFns.add(fn)) {
-                    supportFns.add(PlanSupportFunctions
-                            .enumMapTemplateFunction(fn, em));
+                if (prm.type() instanceof Type.EnumType et) {
+                    out.add(et.fqn());
                 }
             }
         }
-        return supportFns;
+        return out;
     }
 
     /** The plan handle's nodes as rows under its scope id (PlanRows);
@@ -125,10 +108,12 @@ public final class PlanAllocations {
         }
         TypedNativeCall pnBound =
                 (TypedNativeCall) pn.withChildren(bound);
+        // the style asked BEFORE the walk's refusals are caught (J16/K4 of the edge audit, 2026-11-17, G7): the product's
+        // style refuses legend-engine's plan by name, and that refusal fails the body -- it is never "no rows"
+        UpstreamPlans upstream = env.style().facet(UpstreamPlans.class);
         try {
-            PlanNode model = env.style().facet(UpstreamPlans.class).planModel(pnBound, specs, env);
-            var rows = PlanRows.rows(scope, model,
-                    planTemplateFunctions(pnBound, letPrefix, env));
+            var rows = upstream.planRows(scope, pnBound,
+                    planTimeZone(pnBound, letPrefix), planMapping(pnBound), planEnumParameters(pnBound), specs, env);
             env.planRows().put(scope, rows);
             env.planRows().put(PlanRows.scopeId(pnBound), rows);
         } catch (NotImplementedException | com.legend.sql.DialectCapability
@@ -274,14 +259,20 @@ public final class PlanAllocations {
         // program reads the result's activities (no SQL = no rows, as ever)
         env.planRows().put(scope, new LazyRows(
                 () -> activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
-                        AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment, commentParameter)));
+                        env.style().twoForm(RoutedQueries.class, NO_ROUTING_ACTIVITY).routingActivity(chain, env.ctx(), specs),
+                        comment, commentParameter)));
     }
+
+    /** The product's form of an execute's routing activity (J5 of the edge audit, 2026-11-17): none -- lite's activity
+     *  rows are the statements it runs; legend-engine's AggregationAwareActivity, the routed query's print, is the
+     *  compatibility edge's form ({@link RoutedQueries}). */
+    static final RoutedQueries NO_ROUTING_ACTIVITY = (chain, ctx, specs) -> null;
 
     /** The activity row's comment column (results scope, activity id, scope, index, kind, sql, comment, rewritten). */
     private static final int COMMENT = 5;
 
     private static LazyRows.@Nullable Computed activityRows(String scope,
-            @Nullable String sql, @Nullable String rewrittenQuery,
+            @Nullable String sql, @Nullable List<String> routing,
             @Nullable String comment, @Nullable String commentParameter) {
         if (sql == null) {
             return null;
@@ -290,12 +281,16 @@ public final class PlanAllocations {
                 new LinkedHashMap<>();
         rows.put("results", List.of(List.of(scope)));
         List<List<String>> acts = new ArrayList<>();
-        if (rewrittenQuery != null) {
-            // the engine records the aggregation-aware ROUTING activity
-            // first (it happens at routing, before execution): the routed
-            // query print names the set the router chose
-            acts.add(List.of(scope + "/0", scope, "0",
-                    "AggregationAwareActivity", "", "", rewrittenQuery));
+        if (routing != null) {
+            // a routing activity first (it happens at routing, before execution), the style's whole row (J37 of the edge
+            // audit, 2026-11-18): the compatibility edge's legend-engine AggregationAwareActivity alone
+            if (routing.size() != 4) {
+                throw new IllegalStateException("a routing activity is its kind, sql, comment and rewritten query: "
+                        + routing);
+            }
+            List<String> row = new ArrayList<>(List.of(scope + "/0", scope, "0"));
+            row.addAll(routing);
+            acts.add(List.copyOf(row));
         }
         int k = acts.size();
         acts.add(List.of(scope + "/" + k, scope, Integer.toString(k),

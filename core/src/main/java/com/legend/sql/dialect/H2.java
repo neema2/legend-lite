@@ -42,15 +42,8 @@ public class H2 extends AnsiSqlRenderer {
      *  2.5.252: it commits no open transaction). */
     public static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
 
-    /** The settings an H2 database must have, the engine's own (H2Manager / H2Defaults, 4.145.0): {@code MODE=LEGACY},
-     *  and {@code DEFAULT_NULL_ORDERING=HIGH}, the engine's null placement (null is largest -- ascending nulls last,
-     *  descending first), which its printer leaves bare because the database already orders that way. Both are the
-     *  database's, and their {@code SET} commits an open transaction (measured on 2.5.252), so they are the target's
-     *  data, written on the URL of an in-memory database exec opens and read back from a session it did not
-     *  ({@code INFORMATION_SCHEMA.SETTINGS} reports each as written: {@code LEGACY}, {@code HIGH}; the read-back's rows
-     *  are the settings it has otherwise, the database comparing, {@link #differing}). */
-    public static final DatabaseSettings DATABASE_SETTINGS = differing(List.of(new Setting("MODE", "LEGACY"),
-            new Setting("DEFAULT_NULL_ORDERING", "HIGH")));
+    // (the settings an H2 database has: a two-form kind since the audit's J22, 2026-11-17, DatabaseSettingsForm -- the
+    // product's H2's own defaults, ProductDatabaseSettings; legend-engine's the edge's)
 
     /** {@code required} with the statement answering each of them the database does NOT have, as one text
      *  ({@code NAME=VALUE}, by name; {@code NAME=(not reported)} for one it does not report at all): none where it has
@@ -58,7 +51,7 @@ public class H2 extends AnsiSqlRenderer {
      *  final audit's J4, 2026-11-12: until then a setting the database did not report answered no row, so it passed).
      *  Measured on 2.5.252: a bare database answers {@code DEFAULT_NULL_ORDERING=LOW} and {@code MODE=REGULAR}, a name
      *  it does not have {@code (not reported)}. */
-    static DatabaseSettings differing(List<Setting> required) {
+    public static DatabaseSettings settings(List<Setting> required) {
         StringBuilder sql = new StringBuilder("SELECT R.SETTING || '=' || COALESCE(S.SETTING_VALUE, '(not reported)')"
                 + " FROM (VALUES ");
         for (int i = 0; i < required.size(); i++) {
@@ -102,10 +95,10 @@ public class H2 extends AnsiSqlRenderer {
         return SESSION_SETUP;
     }
 
-    /** {@inheritDoc} {@code MODE=LEGACY}, {@code DEFAULT_NULL_ORDERING=HIGH} ({@link #DATABASE_SETTINGS}). */
+    /** {@inheritDoc} This dialect's {@link DatabaseSettingsForm}. */
     @Override
-    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
-        return DATABASE_SETTINGS;
+    public DatabaseSettings databaseSettings() {
+        return settings;
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
@@ -230,8 +223,17 @@ public class H2 extends AnsiSqlRenderer {
      * backend without it), JSON constructors only. */
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
 
+    private final DatabaseSettings settings;
+
+    /** The product's H2 ({@link ProductDatabaseSettings}). */
     public H2() {
+        this(ProductDatabaseSettings.INSTANCE);
+    }
+
+    /** H2 on a database with {@code settings}, the plan style's two-form {@link DatabaseSettingsForm} (data, not an override). */
+    protected H2(DatabaseSettingsForm settings) {
         super(LEXICON);
+        this.settings = settings(settings.required());
     }
 
     @Override
@@ -573,6 +575,8 @@ public class H2 extends AnsiSqlRenderer {
         // every function, each by name: the switch is this dialect's whole table (the dialect program's Phase 1,
         // 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             case FORMAT -> formatArm(writer, c);
             case EQUAL -> equalArm(writer, c, parentPrec);
             case DATE_DIFF -> dateDiffArm(writer, c);
@@ -687,7 +691,7 @@ public class H2 extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, CELL_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

@@ -430,22 +430,22 @@ final class Scalars {
                     SqlExpr shifted = SqlExpr.Call.of(fn,
                             new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR),
                             args.get(1));
-                    if (styled.plain().contains(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE)) {
-                        // the plan style writes the shift plain (B7): the database's own shift, no bound
-                        return shifted;
-                    }
-                    SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
-                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
-                    if (args.get(1) instanceof SqlExpr.IntLit sh) {
-                        return sh.value() < 0 || sh.value() > 62 ? boundError : shifted;
-                    }
-                    // non-literal shift: bound guards AT RUNTIME in SQL
-                    // (deep-audit H4 — the laundering pct remap is deleted)
-                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.AND,
-                                    SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), new SqlExpr.IntLit(0)),
-                                    SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(1), new SqlExpr.IntLit(62))),
-                            shifted)), boundError, SqlExpr.Reason.OPERATOR);
+                    // the style's form (the audit's K5, 2026-11-17): the product's bound, or the database's own shift
+                    // where the style writes it plain (B7)
+                    return styled.forms().raise(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, () -> {
+                        SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
+                                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
+                        if (args.get(1) instanceof SqlExpr.IntLit sh) {
+                            return sh.value() < 0 || sh.value() > 62 ? boundError : shifted;
+                        }
+                        // non-literal shift: bound guards AT RUNTIME in SQL
+                        // (deep-audit H4 — the laundering pct remap is deleted)
+                        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.AND,
+                                        SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                                        SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(1), new SqlExpr.IntLit(62))),
+                                shifted)), boundError, SqlExpr.Reason.OPERATOR);
+                    }, shifted);
                 });
             }
         }
@@ -1747,8 +1747,11 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_STRING_TO_REPRESENTATION) {
             // a USER's toRepresentation: legend-pure's text, the edge's (the user's ruling of 2026-11-16, §10 item 8:
             // "refuse in product but not in compatibility"); the style's facet asked with the product's refusal (B8 (i))
-            RULES.put(f, (StyledRule) (n, args, styled) -> styled.pureOnly().apply(TextRefusals::representation)
-                    .representation(Repr.of(styled, n.args().get(0).info().type(), args.get(0))));
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
+                PureOnlyTexts texts = styled.pureOnly().apply(TextRefusals::representation);
+                // legend-pure's representation, the edge's (C5's step A, 2026-11-17: moved from lowering.Repr)
+                return texts.representation(texts.representationOf(styled, n.args().get(0).info().type(), args.get(0)));
+            });
         }
         // chunk(s, n): fixed-size chunking IS the regex '.{1,n}' swept
         // globally (chunk.pure spec: 'abcdefghijklmnop'->chunk(5) =
@@ -2361,11 +2364,11 @@ final class Scalars {
                             Type.RelationType.trustedColumn(
                                     com.legend.sql.SqlSelect.SYNTH_MAP_COL)));
                 }
-                // a DateTime's text, the product's (D1.2, 2026-11-15: ISO 8601 with Z); a literal's call carries its
-                // written text, legend-pure's precision, for the compatibility edge (%2014-01-01T00:00:00.00 prints
-                // '.00' there, which no timestamp carrier can retain)
+                // a DateTime's text, the style's two-form text (the audit's K15, 2026-11-17): the product's lite's
+                // (D1.2, 2026-11-15: ISO 8601 with Z), the value alone; the edge's legend-pure's print form, a literal at
+                // its written precision (%2014-01-01T00:00:00.00 prints '.00' there, which no timestamp carrier retains)
                 if (t == Type.Primitive.DATE_TIME) {
-                    return dateTimeText(SqlFn.DATETIME_TO_TEXT, n.args().get(0), args.get(0));
+                    return dateTimeOf(styled, n.args().get(0), args.get(0));
                 }
                 // any other date literal's text is fully static: as written
                 SqlExpr lit = dateLiteralText(n.args().get(0));
@@ -2411,7 +2414,7 @@ final class Scalars {
         // bound: DuckDB's string→DECIMAL(p,s) cast rounds half away from
         // zero and raises on overflow, both matching.
         for (com.legend.model.FunctionId f : Pure.AT_STRING_PARSE_DECIMAL) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
                 if (args.size() == 3) {
                     if (!(args.get(1) instanceof SqlExpr.IntLit p
                             && args.get(2) instanceof SqlExpr.IntLit s)) {
@@ -2430,14 +2433,11 @@ final class Scalars {
                     return new SqlExpr.Cast(new SqlExpr.StringLit(clean),
                             new SqlType.Decimal(38, literalScale(clean)), SqlExpr.Reason.USER);
                 }
-                // NON-LITERAL (column) argument: the scale of the string
-                // is runtime data SQL cannot carry — the engine's OWN
-                // 1-arg contract is a hardcoded decimal(5, 2)
-                // (h2Extension2_1_214.pure transformParseDecimalH2), and
-                // its goldens round through it (123.450021 -> 123.45).
-                return new SqlExpr.Cast(
-                        SqlExpr.Call.of(SqlFn.RTRIM, args.get(0), new SqlExpr.StringLit("dD")),
-                        new SqlType.Decimal(5, 2), SqlExpr.Reason.USER);
+                // NON-LITERAL (column) argument: the scale of the string is runtime data SQL cannot carry -- the style's
+                // form (the audit's J1, RULED by the user 2026-11-17): the product's an exact decimal at its Decimal's
+                // precision, legend-engine's H2 its hardcoded decimal(5, 2) (the edge's)
+                return styled.forms().parsedDecimal(
+                        SqlExpr.Call.of(SqlFn.RTRIM, args.get(0), new SqlExpr.StringLit("dD")));
             });
         }
         castFamily(Type.Primitive.BOOLEAN, Pure.AT_STRING_PARSE_BOOLEAN);
@@ -2498,11 +2498,9 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CONVERT_DATE_FORMAT) {
             RULES.put(f, (n, args) -> strptimeOf(args, true));
         }
-        // isNumeric(str): PINNED to the engine's H2 emission
-        // lower(x) = upper(x) — true iff the text has no cased letters
-        // (h2Extension2_1_214.pure:230). Semantically loose ('', '$5' and
-        // '1.2.3' are all "numeric") but it is what generated every corpus
-        // expectation; a tighter regex silently diverges on those inputs.
+        // isNumeric(str): the style's form (census J20, register S370): the product's a real numeric check, the same on
+        // every database (SqlFn.IS_NUMERIC); legend-engine's H2 lower(x) = upper(x) (h2Extension2_1_214.pure:230, true
+        // for any text with no cased letter: '', '$5', '1.2.3') the edge's, which its corpus goldens were written by
         // the time of day of a date-time (lite's timeOf: a CAST to TIME), and the date-time at a time of a date
         // (lite's atTime: the database's date plus time) — the Cypher island's time-of-day leg, 2026-10-16
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TIME_OF) {
@@ -2544,9 +2542,8 @@ final class Scalars {
                     new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"), args.get(0))))));
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_NUMERIC) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
-                    SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),
-                    SqlExpr.Call.of(SqlFn.UPPER, args.get(0))));
+            // the style's form (census J20, the user's ruling of 2026-11-17): a real numeric check, engine H2's at the edge
+            RULES.put(f, (StyledRule) (n, args, styled) -> styled.forms().isNumeric(args.get(0)));
         }
         // convertTimeZone(dt, tz, fmt): the input is UTC, printed in the
         // target zone (engine H2 UDF: utcTime.withZoneSameInstant(target)).
@@ -3021,10 +3018,10 @@ final class Scalars {
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
-    /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} under the plan style ({@code PlanStyle.plainRaises}, B7,
+    /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} under the plan style ({@link LoweringForms#raise}, the audit's K5; B7,
      *  2026-11-17): a kind the style writes plain is the operation alone, the database's own error passing through. */
     static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value, Styled styled) {
-        return styled.plain().contains(msg.kind()) ? value : guarded(cond, msg, value);
+        return styled.forms().raise(msg.kind(), () -> guarded(cond, msg, value), value);
     }
 
     static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value) {
@@ -3119,7 +3116,7 @@ final class Scalars {
 
     static SqlExpr tdsCell(String cell, Type type) {
         if (cell == null || cell.isEmpty()
-                || cell.equals(PlatformTypes.TDS_NULL_CELL)
+                || cell.equals("TDSNull")   // a #TDS literal's null cell, Pure's own literal token: INPUT
                 || (cell.equals("null") && !PlatformTypes.isVariant(type))) {
             // A bare 'null' cell is SQL NULL for EVERY non-variant type —
             // String included (a 'null' name must vanish from joinStrings
@@ -3447,12 +3444,10 @@ final class Scalars {
             // %r: pure's REPR — a string in quotes with \-escapes, a date
             // with its % literal prefix.
             if (d == 'r') {
-                // legend-pure's representation, the judges' Repr: the assert bodies' messages write it, so it moves
-                // with the judges (D1.9; the product's own refusal waits for it, 2026-11-15). A DateTime's %r stays
-                // legend-pure's print form on every style (census B9, the orchestrator's ruling, 2026-11-17): the user's
-                // §10 item 8 refuses format's %r in the product, census B12's 2b (F's), so it is not re-spelled first
-                spread.set(argIdx, Repr.of(new Styled(styled.pureOnly(), styled.plain(), FORMAT_R_DATE_TIMES,
-                        styled.lists()), typed, spread.get(argIdx)));
+                // legend-pure's representation, the edge's (census B12's 2b, 2026-11-17; the user's §10 item 8: "%r and
+                // padding at the edge"): the style's facet asked with %r's own refusal -- the product refuses it by name
+                spread.set(argIdx, styled.pureOnly().apply(TextRefusals::formatR).formatR(styled, typed,
+                        spread.get(argIdx)));
                 out.append("%s");
                 argIdx++;
                 i += 2;
@@ -3481,7 +3476,7 @@ final class Scalars {
             // %s / bare %t over a DATE argument: pure's default date print
             // (the ISO T-form with +0000), not SQL's space-separated cast.
             if ((d == 's' || d == 't') && typed != null) {
-                SqlExpr dp = datePrintOf(typed, spread.get(argIdx));
+                SqlExpr dp = datePrintOf(styled, typed, spread.get(argIdx));
                 if (dp != null) {
                     spread.set(argIdx, dp);
                     out.append("%s");
@@ -3560,39 +3555,21 @@ final class Scalars {
 
     /** A date's text in a format slot ({@code %s}), or null when not a date: a DateTime's the product's
      *  ({@link SqlFn#DATETIME_TO_TEXT}, D1.2), any other date literal's as written. */
-    static @com.legend.base.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
-        return dateText(SqlFn.DATETIME_TO_TEXT, typed, e);
-    }
-
-    /** format's %r of a DateTime: legend-pure's print form ({@link SqlFn#DATETIME_PRINT}) on every style, until census
-     *  B12's 2b refuses format's %r in the product (the user's §10 item 8; F's): no byte moves before then. */
-    private static final DateTimeTexts FORMAT_R_DATE_TIMES = (x, written) -> new SqlExpr.Call(SqlFn.DATETIME_PRINT,
-            written == null ? List.of(x) : List.of(x, new SqlExpr.StringLit(written)));
-
-    /** A date's representation ({@code %r}, the judges' message), or null when not a date: a DateTime's the style's
-     *  two-form text ({@link Styled#dateTimes}: lite's, or legend-pure's print form on the edge's style; census B9,
-     *  2026-11-17), any other date literal's as written. */
-    static @com.legend.base.Nullable SqlExpr dateReprOf(Styled styled, TypedSpec typed, SqlExpr e) {
+    static @com.legend.base.Nullable SqlExpr datePrintOf(Styled styled, TypedSpec typed, SqlExpr e) {
         if (typed.info().type() == Type.Primitive.DATE_TIME) {
-            return styled.dateTimes().dateTimeText(e, typed instanceof TypedCDate cd ? cd.value().toEngineString() : null);
+            return dateTimeOf(styled, typed, e);
         }
         return dateLiteralText(typed);
     }
 
-    private static @com.legend.base.Nullable SqlExpr dateText(SqlFn dateTime, TypedSpec typed, SqlExpr e) {
-        if (typed.info().type() == Type.Primitive.DATE_TIME) {
-            return dateTimeText(dateTime, typed, e);
-        }
-        return dateLiteralText(typed);
+    /** A DateTime's text under the style ({@link Styled#dateTimes}, the audit's K15, 2026-11-17): a literal's written
+     *  text handed to the style's form, which the product's ignores and the edge's prints. */
+    private static SqlExpr dateTimeOf(Styled styled, TypedSpec spec, SqlExpr e) {
+        return styled.dateTimes().dateTimeText(e, spec instanceof TypedCDate cd ? cd.value().toEngineString() : null);
     }
 
-    /** {@code fn} of the DateTime {@code e}; a literal's ({@code spec}) its written text second (the parser already
-     *  shifted a zone-carrying literal to GMT), which the edge and the judges print, the product never reads. */
-    private static SqlExpr dateTimeText(SqlFn fn, TypedSpec spec, SqlExpr e) {
-        return spec instanceof TypedCDate cd
-                ? SqlExpr.Call.of(fn, e, new SqlExpr.StringLit(cd.value().toEngineString()))
-                : SqlExpr.Call.of(fn, e);
-    }
+    // (FORMAT_R_DATE_TIMES, format's %r of a DateTime in legend-pure's print form on every style: gone 2026-11-17 with
+    // census B12's 2b -- %r is the edge's, its DateTime the style's two-form text)
 
     static boolean isClassish(Type t) {
         // a WRAPPED RELATION is a GenericType but NOT an instance kind —
@@ -3606,7 +3583,7 @@ final class Scalars {
 
     /** The static text of a date literal that is no DateTime (a StrictDate, a year, a month): components padded, as
      *  written. {@code null} for a non-literal. A DateTime's is {@link #dateTimeText}'s node (D1.2). */
-    private static @com.legend.base.Nullable SqlExpr dateLiteralText(TypedSpec spec) {
+    static @com.legend.base.Nullable SqlExpr dateLiteralText(TypedSpec spec) {
         return spec instanceof TypedCDate cd ? new SqlExpr.StringLit(cd.value().toEngineString()) : null;
     }
 

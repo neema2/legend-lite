@@ -8,29 +8,27 @@ package com.legend.lowering;
  * SHAPE of a lowered statement without changing its answer. The product lowers {@link #LEAN}; another shape is chosen by
  * whoever asks the lowering for it (the compatibility edge, which writes another engine's text). Each option:
  *
- * @param shareRelations       a relation read more than once is written once, a common table expression its reads name
- *                             (smaller SQL, one evaluation)
- * @param foldKeyedCounts      a count of rows a declared key makes one is the constant 1 ({@link KeyedCounts}: work the
- *                             model's knowledge saves the database)
- * @param pruneComputed        an unread computed projection whose value raises nothing is dropped, beside the unread
- *                             columns always dropped ({@link SubselectPrune}: smaller SQL)
- * @param viewsAsDerivedTables a view at relation position is an aliased derived table of its own, not its body lowered
- *                             flat (a nesting that changes no answer)
- * @param elideWireCasts       a mapping's wire coercion is not written as a SQL cast: the reader converts the value on
- *                             the wire ({@link CastPolicy})
- * @param existsAsJoinDistinct a filter's correlated {@code EXISTS} over a to-many join is a join to the distinct keys
- *                             ({@link ExistsJoinForm}; until 2026-11-17 {@code withEngineExistsJoinForm}): each planner
- *                             chooses it as before, the product's planners too
+ * (existsAsJoinDistinct: since 2026-11-17, the edge audit's J19, the planner's fact {@code existsJoinable} and the plan
+ * style's choice {@link LoweringForms#existsJoin} -- the product's EXISTS the leanest SQL, legend-engine's join to the
+ * distinct keys the edge's style alone.)
+ * (shareRelations, foldKeyedCounts, pruneComputed: members of {@link LoweringForms} since 2026-11-17, the edge audit's J23
+ * -- the product's form writes lean SQL, legend-engine's shape none of it.)
+ *
+ * @param forms                a view at relation position and a mapping's wire coercion, the shape's two-form choices
+ *                             ({@link LoweringForms#view}, {@link LoweringForms#wireCast}; the audit's K5, 2026-11-17:
+ *                             until then two flags the product branched on, set by the edge alone): the product's
+ *                             {@link ProductLoweringForms} lowers a view flat and writes a wire cast; legend-engine's
+ *                             (the edge's) nests a view as a derived table and leaves a wire coercion to its reader
  */
-public record LoweringShape(boolean shareRelations, boolean foldKeyedCounts, boolean pruneComputed,
-        boolean viewsAsDerivedTables, boolean elideWireCasts, boolean existsAsJoinDistinct) {
+public record LoweringShape(LoweringForms forms, boolean existsJoinable) {
+
+    /** This shape, its filter's EXISTS over a to-many join one the plan style's forms may write as a join to the
+     *  distinct keys ({@link LoweringForms#existsJoin}; the planner's own fact of the statement, as each planner set it
+     *  before the edge audit's J19: the product's form never takes it, the edge's always does). */
+    public LoweringShape withExistsJoinable() {
+        return new LoweringShape(forms, true);
+    }
 
     /** The product's shape: lean SQL. */
-    public static final LoweringShape LEAN = new LoweringShape(true, true, true, false, false, false);
-
-    /** This shape, an {@code EXISTS} over a to-many join written as a join to the distinct keys. */
-    public LoweringShape withExistsAsJoinDistinct() {
-        return new LoweringShape(shareRelations, foldKeyedCounts, pruneComputed, viewsAsDerivedTables, elideWireCasts,
-                true);
-    }
+    public static final LoweringShape LEAN = new LoweringShape(ProductLoweringForms.INSTANCE, false);
 }

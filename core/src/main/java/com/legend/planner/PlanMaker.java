@@ -1355,7 +1355,6 @@ public final class PlanMaker {
                     case SqlSource.SourceUrl u -> other[0] = true;
                     case SqlSource.RawSql r -> other[0] = true;
                     case SqlSource.Catalog c -> other[0] = true;
-                    case SqlSource.VarSetPlaceholder v -> other[0] = true;
                     case SqlSource.GridReport g -> other[0] = true;
                     case SqlSource.Pivot p -> { }
                     case SqlSource.Cte c -> { }

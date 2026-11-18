@@ -185,6 +185,16 @@ class PlannerSurfaceTest {
             // relationTypeJsonHeld, relationTypeHeld and refusal (legend-engine's envelope, the edge's
             // EngineEnvelope.refused); pureV1 and execute's halves are the edge's EdgeBoundary since F's A1
             // (2026-11-17), their rows stale here until this step
+            // the edge's doors (EDGE_DOORS: in com.legend.edge.wasm.EdgeBoundary since A1 and E-P5, 2026-11-17), listed so
+            // the hosts' exports that reach them stay checked
+            door("pureV1", p("path", ROUTE), p("rawQuery", OPTION), p("body", ROUTE_BODY)),
+            door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
+            door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
+            door("executeJsonAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            door("executeArrowAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            // legend-engine's refusal envelope for a host's failed call, the edge's (EdgeBoundary.refused; the TS host,
+            // 2026-11-17: Python's native edge half calls it)
+            door("refused", p("message", MESSAGE)),
             door("holdModel", p("model", MODEL_TEXT)),
             // a request's model text compiled once by this host's held models, for the edge's routes (EdgeBoundary; F's
             // A1, 2026-11-17): unlisted until step 2c, which found it so
@@ -248,6 +258,219 @@ class PlannerSurfaceTest {
             door("hashBootSource"),
             door("resolveBootLayer"),
             door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)));
+
+    /** The doors the edge's boundary holds, not the planner's: moved from planner.Boundary to
+     *  com.legend.edge.wasm.EdgeBoundary with A1 and E-P5 (2026-11-17; the drift found when this test first ran in a
+     *  target, //core:census_edge, on d-int6). Their rows stay in {@link #BOUNDARY}, each a public static of the edge's
+     *  boundary source, so the tab's, the native library's and Python's exports that reach them are still checked. */
+    // 2026-11-17 (the TS host, merging d-stage into the host train): refused, legend-engine's refusal envelope for a host's
+    // failed call (EdgeBoundary.refused, which Python's native edge half calls)
+    static final Set<String> EDGE_DOORS = Set.of("pureV1", "executePlan", "executeJsonPlan", "executeJsonAnswer",
+            "executeArrowAnswer", "refused");
+
+    private static final String EDGE_BOUNDARY_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/EdgeBoundary.java";
+
+    /** {@code text} with its balanced {@code open}...{@code close} groups left out (generics' arguments,
+     *  annotations' values), string literals read as text. */
+    private static String withoutGroups(String text, char open, char close) {
+        StringBuilder out = new StringBuilder();
+        int depth = 0;
+        boolean string = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (string) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    string = false;
+                }
+            } else if (c == '"') {
+                string = true;
+            } else if (c == open) {
+                depth++;
+            } else if (c == close) {
+                depth--;
+            } else if (depth == 0) {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    /** {@code params} split at its top-level commas (none inside a generic's {@code <...>} or an annotation's
+     *  {@code (...)}). */
+    private static List<String> topLevel(String params) {
+        List<String> out = new ArrayList<>();
+        int depth = 0;
+        int from = 0;
+        for (int i = 0; i < params.length(); i++) {
+            char c = params.charAt(i);
+            if (c == '<' || c == '(') {
+                depth++;
+            } else if (c == '>' || c == ')') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                out.add(params.substring(from, i));
+                from = i + 1;
+            }
+        }
+        out.add(params.substring(from));
+        return out;
+    }
+
+    private static final Pattern PUBLIC_STATIC = Pattern.compile("\\bpublic\\s+static\\b");
+
+    private static final Pattern NESTED_TYPE = Pattern.compile(
+            "\\s*((final|abstract|sealed|non-sealed|strictfp)\\s+)*(class|record|interface|enum)\\s+\\w+[\\s\\S]*");
+
+    private static final Pattern FIELD = Pattern.compile("\\s*(final\\s+)?[\\w.\\[\\]]+\\s+\\w+\\s*");
+
+    private static final Pattern PARAM = Pattern.compile("(\\w+(?:\\.\\w+)*(?:\\[\\])*)(\\.\\.\\.)?\\s+\\w+");
+
+    /** The edge boundary's public static methods in {@code edgeSource} (comments left out), each its parameters'
+     *  simple types (a generic's arguments dropped, varargs as an array, annotations and {@code final} left out); a
+     *  public static the check cannot read as a method, a field or a nested type is put to {@code unread}. */
+    static Map<String, List<List<String>>> edgeDoorMethods(String edgeSource, List<String> unread) {
+        String source = edgeSource.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("//[^\\n]*", " ");
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        Matcher m = PUBLIC_STATIC.matcher(source);
+        while (m.find()) {
+            String rest = source.substring(m.end());
+            int head = rest.length();
+            int nesting = 0;
+            boolean string = false;
+            for (int i = 0; i < rest.length() && head == rest.length(); i++) {
+                char c = rest.charAt(i);
+                if (string) {
+                    if (c == '\\') {
+                        i++;
+                    } else if (c == '"') {
+                        string = false;
+                    }
+                } else if (c == '"') {
+                    string = true;
+                } else if (c == '(') {
+                    nesting++;
+                } else if (c == ')') {
+                    nesting--;
+                } else if (nesting == 0 && (c == '{' || c == ';' || c == '=')) {
+                    head = i;
+                }
+            }
+            String declaration = rest.substring(0, head);
+            int open = declaration.indexOf('(');
+            String snippet = declaration.strip().replaceAll("\\s+", " ");
+            if (open < 0) {
+                String bare = withoutGroups(declaration, '<', '>');
+                if (!NESTED_TYPE.matcher(bare).matches() && !FIELD.matcher(bare).matches()) {
+                    unread.add(snippet);
+                }
+                continue;
+            }
+            int close = -1;
+            int depth = 0;
+            for (int i = open; i < declaration.length() && close < 0; i++) {
+                if (declaration.charAt(i) == '(') {
+                    depth++;
+                } else if (declaration.charAt(i) == ')' && --depth == 0) {
+                    close = i;
+                }
+            }
+            Matcher name = Pattern.compile("(\\w+)\\s*$").matcher(declaration.substring(0, open));
+            if (close < 0 || !name.find()) {
+                unread.add(snippet);
+                continue;
+            }
+            List<String> types = new ArrayList<>();
+            boolean read = true;
+            for (String param : topLevel(declaration.substring(open + 1, close))) {
+                String p = withoutGroups(withoutGroups(param, '<', '>'), '(', ')')
+                        .replaceAll("@[\\w.]+", " ").replaceAll("\\bfinal\\b", " ").strip().replaceAll("\\s+", " ");
+                if (p.isEmpty() && types.isEmpty() && param.isBlank()) {
+                    continue;
+                }
+                Matcher t = PARAM.matcher(p);
+                if (!t.matches()) {
+                    read = false;
+                    break;
+                }
+                String type = t.group(1).substring(t.group(1).lastIndexOf('.') + 1);
+                types.add(t.group(2) != null ? type + "[]" : type);
+            }
+            if (!read) {
+                unread.add(snippet);
+                continue;
+            }
+            out.computeIfAbsent(name.group(1), k -> new ArrayList<>()).add(types);
+        }
+        return out;
+    }
+
+    /** What is wrong with the edge's doors in {@code edgeSource} (the edge's boundary, read as text: no product target
+     *  carries its class): a public static no {@link #EDGE_DOORS} entry names, an entry it does not declare or
+     *  {@code boundary} does not list, a door declared twice, a door whose parameters' types differ from its row (the
+     *  review of 589168a9b3, 2026-11-17), and a public static the check cannot read (the re-review of 60aa31029b:
+     *  read, never skipped). */
+    static List<String> edgeDoorViolations(String edgeSource, Map<String, Door> boundary) {
+        List<String> out = new ArrayList<>();
+        List<String> unread = new ArrayList<>();
+        Map<String, List<List<String>>> declared = edgeDoorMethods(edgeSource, unread);
+        unread.forEach(u -> out.add("an edge boundary public static the check does not read: " + u));
+        declared.keySet().stream().filter(n -> !EDGE_DOORS.contains(n))
+                .forEach(n -> out.add("an edge boundary door no EDGE_DOORS entry names: " + n));
+        for (String name : new TreeSet<>(EDGE_DOORS)) {
+            if (!declared.containsKey(name)) {
+                out.add("an edge door the edge's boundary no longer has: " + name);
+            } else if (declared.get(name).size() != 1) {
+                out.add("an edge door declared more than once (its row names one): " + name);
+            } else if (!boundary.containsKey(name)) {
+                out.add("an edge door no row lists: " + name);
+            } else if (!declared.get(name).get(0).equals(boundary.get(name).params().stream()
+                    .map(p -> p.type().getSimpleName()).toList())) {
+                out.add("an edge door's parameters differ from its row: " + name + " " + declared.get(name).get(0));
+            }
+        }
+        return out;
+    }
+
+    /** Planted: an edge door whose parameters changed, a public static no entry names, an entry the source lost, an
+     *  overloaded door and a public static the check cannot read are each named; a generic's comma, an annotation, a
+     *  {@code final}, a multi-line parameter list, a field, a nested type and a commented-out door are read as what
+     *  they are; varargs read as an array; the real source is clean. */
+    @Test
+    void theEdgeDoorsAreChecked() {
+        String planted = "class EdgeBoundary {\n"
+                + "    public static final String ROUTE = \"/api/pure/v1\";\n"
+                + "    public static final class Holder { }\n"
+                + "    // public static Answer commentedOut(String x) {}\n"
+                + "    /** public static Answer inJavadoc(String x) */\n"
+                + "    public static Answer pureV1(String path, String rawQuery, String body) {}\n"
+                + "    public static Answer executePlan(String body) {}\n"
+                + "    public static Answer executeJsonPlan(String body, String modelsJson) {}\n"
+                + "    public static Answer executeJsonPlan(String body) {}\n"
+                + "    public static Answer runSqlHere(String sql) {}\n"
+                + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                + "    public static Answer broken(String a\n}\n";
+        assertEquals(List.of("an edge boundary public static the check does not read: Answer broken(String a }",
+                "an edge boundary door no EDGE_DOORS entry names: runHeaders",
+                "an edge boundary door no EDGE_DOORS entry names: runSqlHere",
+                "an edge door the edge's boundary no longer has: executeArrowAnswer",
+                "an edge door the edge's boundary no longer has: executeJsonAnswer",
+                "an edge door declared more than once (its row names one): executeJsonPlan",
+                "an edge door's parameters differ from its row: executePlan [String]",
+                // 2026-11-17 (the TS host, merging d-stage into the host train): refused, an EDGE_DOORS entry the
+                // planted boundary does not declare
+                "an edge door the edge's boundary no longer has: refused"),
+                edgeDoorViolations(planted, BOUNDARY));
+        List<String> unread = new ArrayList<>();
+        assertEquals(Map.of("runHeaders", List.of(List.of("Map", "String[]")), "executeJsonAnswer",
+                List.of(List.of("String", "String"))), edgeDoorMethods("class E {\n"
+                + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                + "    public static Answer executeJsonAnswer(\n            @Deprecated(since = \"1, 2\") final String plan,\n"
+                + "            final String rows) {}\n}\n", unread));
+        assertEquals(List.of(), unread);
+        assertEquals(List.of(), edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
+    }
 
     /** THE EDGE'S DOORS ({@code com.legend.edge.wasm.EdgeBoundary}, F's census line A1, 2026-11-17: legend-engine's
      *  pure/v1 API and execute's halves left planner.Boundary for the edge), each with its fields' kinds -- the rows that
@@ -398,6 +621,9 @@ class PlannerSurfaceTest {
     static final Map<String, Map<String, Kind>> SERVER_FIELDS = new TreeMap<>(Map.of(
             // the pure/v1 routes; planned.* are read of the plan half a host hands back with its rows (jsonAnswer,
             // its variable `planned`): the planner's own, echoed into the answer, never sent
+            // (body, fullPath, genericType, lowerBound, multiplicity, name, parameters, rawType, upperBound, value: read
+            // by upstream's ExecuteInput binding, which moved to the edge with B7's split -- edge.ExecuteInputs, read as
+            // part of this surface by routeFiles(), 2026-11-17)
             "LiteV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
                     "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA, "connectionValue",
                     OBJECT, "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
@@ -601,6 +827,8 @@ class PlannerSurfaceTest {
             Map.entry("Compiler.Target#store()", List.of()),
             Map.entry("Compiler#parseModel(String)", List.of(MODEL_TEXT)),
             Map.entry("Compiler#parseQuery(String)", List.of(LAMBDA)),
+            // 2026-11-17 (lite's API v1, query/parse: lite's own grammar, the level the compiler's -- ParserBoundaryArchTest)
+            Map.entry("Compiler#parseQueryJson(String)", List.of(LAMBDA)),
             Map.entry("Compiler#compileModel(String)", List.of(MODEL_TEXT)),
             // merged main 3a217086a (#81), 2026-11-14: a model compiled over a library's text
             Map.entry("Compiler#compileModel(String, String)", List.of(MODEL_TEXT, MODEL_TEXT)),
@@ -729,7 +957,7 @@ class PlannerSurfaceTest {
             Map.entry("ExecuteOptions#withFeatures(Set<Feature>)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withStyle(PlanStyle)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withOptions(Set<PlanOption>)", List.of(OPTION)),
-            Map.entry("ExecuteOptions#withEngineCompat(boolean)", List.of(OPTION)),
+            // (ExecuteOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge hook's)
             Map.entry("ExecuteOptions#recording(Edge, DataStores)", List.of(CALLBACK, DATA_REFERENCE))));
 
     /** The root doors' classes. */
@@ -756,6 +984,7 @@ class PlannerSurfaceTest {
             // a record of a query the planner lowered: no public door takes one back
             Map.entry("Compiler.LoweredQuery#new(SqlQuery, TypedSpec, ModelContext)", QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#parseQuery(String)", QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#parseQueryJson(String)", QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#query(ModelContext, String)", QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#query(ModelContext, ValueSpecification)", QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#queryResolved(ModelContext, ValueSpecification)", QueryRoad.PLANS_NOTHING),
@@ -960,10 +1189,13 @@ class PlannerSurfaceTest {
                 out.add("a door no row lists: " + boundary.getSimpleName() + "." + name);
             }
         }
+        out.addAll(edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
         for (Door d : BOUNDARY.values()) {
             Method m = found.get(d.name());
             if (m == null) {
-                out.add("a listed door the boundary no longer has: " + d.name());
+                if (!EDGE_DOORS.contains(d.name())) {
+                    out.add("a listed door the boundary no longer has: " + d.name());
+                }
                 continue;
             }
             List<Class<?>> types = d.params().stream().<Class<?>>map(Param::type).toList();

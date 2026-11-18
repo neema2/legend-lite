@@ -22,9 +22,21 @@ EDGE_TEST_SRCS = [
     # upstream's JSON grammar, the edge's form of JsonGrammar (census C1, 2026-11-17)
     "src/test/java/com/legend/testplan/JudgeJsonTest.java",
     "src/test/java/com/legend/PlannerSurfaceTest.java",
+    # census C1's K14 (the orchestrator, 2026-11-17): upstream's behaviour tested on the edge's door
+    "src/test/java/com/legend/RelationCountAssertsEdgeTest.java",
+    "src/test/java/com/legend/testplan/CompiledPureNumbersEdgeTest.java",
+    "src/test/java/com/legend/testplan/RenderedTextEdgeTest.java",
+    # G10 (2026-11-17): an assert whose sides both raise, under the compatibility rules on the edge's door too
+    "src/test/java/com/legend/testplan/HostSideOrderTest.java",
+    # census C1 (2026-11-17): a run whose style and hook disagree, refused by name
+    "src/test/java/com/legend/testexec/MixedRunRefusalTest.java",
+    "src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
+    "src/test/java/com/legend/edge/EngineSpansTest.java",
+    # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
+    "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",
@@ -58,6 +70,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/integration/TextPlanSourceTest.java",
     "src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java",
     "src/test/java/com/legend/integration/WritePlansH2Test.java",
+    # the engine execute()'s values root, the edge's fold beside the product's array (the audit's J3, 2026-11-17)
+    "src/test/java/com/legend/lowering/EngineExecuteCardinalityTest.java",
     "src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java",
     "src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
     "src/test/java/com/legend/lowering/ToOneLaneTest.java",
@@ -86,6 +100,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/sql/dialect/BinaryCollateTest.java",
     "src/test/java/com/legend/sql/dialect/BoundaryRequestFieldsFuzzTest.java",
     "src/test/java/com/legend/sql/dialect/CapabilityMatrix.java",
+    # legend-pure's words of an assert's failure, the edge's (C5's step B, 2026-11-17: edge.EdgePureWords)
+    "src/test/java/com/legend/testexec/PureAssertsTest.java",
     "src/test/java/com/legend/sql/dialect/CapabilityReach.java",
     "src/test/java/com/legend/sql/dialect/CatalogGridTest.java",
     "src/test/java/com/legend/sql/dialect/DialectVocabularyTest.java",
@@ -110,6 +126,13 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/DatabaseHalfDe5Test.java",
     "src/test/java/com/legend/testplan/ExecEnvCatalogTest.java",
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
+    # the judging rules' TYPE flagged, its members sorted (the GUARD stream, C.3, 2026-11-17): it reads the product jars
+    "src/test/java/com/legend/JudgingRulesReachTest.java",
+    # its planted violator, read as bytecode alone (C.3, 2026-11-17)
+    "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
+    "src/test/java/com/legend/testexec/PlantedRulesReach.java",
+    "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
+    "src/test/java/com/legend/testexec/PlantedRulesText.java",
 ]
 
 # a file whose class is not its name

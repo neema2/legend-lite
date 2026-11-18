@@ -39,6 +39,12 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
 
     /** The exception classes a planning failure is raised as, each by its class's name: a closed list (a class not
      *  listed fails the planning that recorded it, by name -- never a stand-in class). */
+    /** An exception that names its own kind (a planning library's class this records layer cannot name). */
+    public interface Kinded {
+        /** The kind this exception is recorded as. */
+        Kind failureKind();
+    }
+
     public enum Kind {
         NOT_IMPLEMENTED("com.legend.error.NotImplementedException"),
         /** a statement's own SQL text refused (a NotImplementedException of its own class; the C4 final fix round's
@@ -56,8 +62,9 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         ASSERT_FAILED("com.legend.error.AssertFailed"),
         DIALECT_CAPABILITY("com.legend.sql.DialectCapability"),
         /** the engine-text arm's refusal of a text side that is not a constant: answered at planning (the body is
-         *  refused by name), never raised at run */
-        NOT_A_CONSTANT("com.legend.testplan.SqlTextVerdicts$NotAConstant"),
+         *  refused by name), never raised at run. Named by the exception itself ({@link Kinded}), never by its class's
+         *  name (the class moved twice; census C1, 2026-11-17: the edge's call failed on a stale name) */
+        NOT_A_CONSTANT(null),
         ILLEGAL_STATE("java.lang.IllegalStateException"),
         ILLEGAL_ARGUMENT("java.lang.IllegalArgumentException"),
         UNSUPPORTED_OPERATION("java.lang.UnsupportedOperationException"),
@@ -71,21 +78,22 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         DATE_TIME("java.time.DateTimeException"),
         UNCHECKED_IO("java.io.UncheckedIOException");
 
-        private final String className;
+        /** The exception class's binary name; null where the exception names its kind itself ({@link Kinded}). */
+        private final @Nullable String className;
 
-        Kind(String className) {
+        Kind(@Nullable String className) {
             this.className = className;
         }
 
-        /** The exception class's binary name. */
-        public String className() {
+        /** The exception class's binary name, or null where the exception names its kind itself ({@link Kinded}). */
+        public @Nullable String className() {
             return className;
         }
 
         /** The kind whose class is named {@code className}, or null where none is. */
         public static @Nullable Kind named(String className) {
             for (Kind k : values()) {
-                if (k.className.equals(className)) {
+                if (className.equals(k.className)) {
                     return k;
                 }
             }

@@ -122,13 +122,20 @@ class AssertVerdictSpliceTest {
     /** {@code query} in the compatibility edge's plan style: these read an activity's SQL, which is legend-engine's
      *  text (the edge's: phase D's O3, 2026-11-13). */
     private static Lean.Result run(String query) throws SQLException {
-        return Program.last(MODEL, query, "e::RT", conn, com.legend.testing.EdgeProgram.upstream());
+        return com.legend.testing.EdgeProgram.last(MODEL, query, "e::RT", conn, com.legend.testing.EdgeProgram.upstream());
+    }
+
+    /** {@code query} in the product's own plan style, the lane's judge: where the product's form decides (a relation
+     *  counted as one value is refused at planning, before any engine text is asked for). */
+    private static Lean.Result runProduct(String query) throws SQLException {
+        return Program.last(MODEL, query, "e::RT", conn, Program.defaults());
     }
 
     /** {@code query} under backwards-compatibility mode's rules (upstream's), the lane's judge. */
     private static Lean.Result runCompat(String query) throws SQLException {
-        return Program.last(MODEL, query, "e::RT", conn,
-                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true));
+        // on the edge's door: its style and its run hook together (census C1, 2026-11-17: whose words a run writes is
+        // the style's at planning and the hook's at run, one choice)
+        return com.legend.testing.EdgeProgram.run(MODEL, query, "e::RT", conn).side();
     }
 
     @Test
@@ -224,13 +231,13 @@ class AssertVerdictSpliceTest {
     @DisplayName("D3 grid pair: two relation-stamped sides adjudicate via the"
             + " grid owner (columns + rows), not a byte decline")
     void gridPairVerdict() throws Exception {
-        Object v = run(
+        Object v = runProduct(
                 "{|assertEquals(#TDS\n  age\n  30\n  40\n#,"
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}").one();
         assertEquals(Boolean.TRUE, v);
         com.legend.error.AssertFailed e = assertThrows(
-                com.legend.error.AssertFailed.class, () -> run(
+                com.legend.error.AssertFailed.class, () -> runProduct(
                 "{|assertEquals(#TDS\n  age\n  30\n  41\n#,"
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}"));
@@ -250,9 +257,10 @@ class AssertVerdictSpliceTest {
                 + " assertSize($result.values, 1);}";
         Object one = runCompat(envelope).one();
         assertEquals(Boolean.TRUE, one);
-        // lite's own rules refuse the relation counted as one value (register S137, the user's ruling of 2026-11-05)
+        // the product refuses the relation counted as one value (register S137, the user's ruling of 2026-11-05; the
+        // edge's style counts it as upstream does, census C1, 2026-11-17)
         com.legend.error.ModelException refused = assertThrows(com.legend.error.ModelException.class,
-                () -> run(envelope));
+                () -> runProduct(envelope));
         assertTrue(refused.getMessage().contains("assertSize over a relation counts the relation as ONE value"),
                 refused.getMessage());
         Object rows = run(
@@ -279,19 +287,19 @@ class AssertVerdictSpliceTest {
         String prefix = "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
                 + " e::M, e::RT.runtimeValue, []);";
-        Object ordered = run(prefix
+        Object ordered = runProduct(prefix
                 + " assertEquals(['p1', 30, 'p2', 40],"
                 + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, ordered);
         // whole-row swap: DB arrival order is incidental — holds
-        Object swapped = run(prefix
+        Object swapped = runProduct(prefix
                 + " assertEquals(['p2', 40, 'p1', 30],"
                 + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, swapped);
         // cross-row CELL shuffle: same loose cells, broken row
         // cohesion — must FAIL (audit 9)
         com.legend.error.AssertFailed e = assertThrows(
-                com.legend.error.AssertFailed.class, () -> run(prefix
+                com.legend.error.AssertFailed.class, () -> runProduct(prefix
                 + " assertEquals(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}"));
         // upstream's words under either judge (2026-11-03, the core parity program: the host's "(TDSRow.values)"
@@ -301,14 +309,16 @@ class AssertVerdictSpliceTest {
     }
 
     @Test
-    @DisplayName("§8 leg 1: the golden's TDSNull sentinel matches a NULL"
+    @DisplayName("§8 leg 1: the golden's TDSNull sentinel, ^TDSNull(), matches a NULL"
             + " cell (expected direction, byte + host)")
     void flatCellsTdsNullSentinel() throws Exception {
         Object v = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.nick], ['name','nick']),"
                 + " e::M, e::RT.runtimeValue, []);"
-                + " assertEquals(['p1', 'TDSNull', 'p2', 'TDSNull'],"
+                // the typed sentinel ^TDSNull() (C5 step C, C-2's fix, 2026-11-17: a WRITTEN 'TDSNull' is a text, as
+                // upstream's String is no TDSNull instance -- in the edge corpus it equals legend-engine's printed cell)
+                + " assertEquals(['p1', ^meta::pure::tds::TDSNull(), 'p2', ^meta::pure::tds::TDSNull()],"
                 + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, v);
     }
@@ -349,8 +359,9 @@ class AssertVerdictSpliceTest {
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
                 + " assertEmpty($result.values.rows);}").one();
         assertEquals(Boolean.TRUE, emptied);
-        // the relation itself: upstream counts it as one value, so lite's own rules refuse it (register S137)
-        assertThrows(com.legend.error.ModelException.class, () -> run(
+        // the relation itself: upstream counts it as one value, so the product refuses it (register S137; the edge's
+        // style counts it as upstream does, census C1, 2026-11-17)
+        assertThrows(com.legend.error.ModelException.class, () -> runProduct(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
                 + " assertNotEmpty($result.values);}"));

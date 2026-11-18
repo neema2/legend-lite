@@ -45,10 +45,10 @@ class AssertErrorNativeTest {
     }
 
     private static Lean.Result run(String query) throws SQLException {
-        // legend-pure's own assertError.pure, ported: its messages are legend-pure's, the edge's to spell (phase D's
-        // D1.1: the product raises a kind in lite's words)
-        return Program.last(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn,
-                com.legend.ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM));
+        // legend-pure's own assertError.pure, ported: its messages are legend-pure's, the edge's run's -- its style and
+        // its hook together (census C1, the orchestrator's ruling of 2026-11-17: one choice per run)
+        return com.legend.testing.EdgeProgram.last(StorelessRuntime.with("", Databases.PLATFORM), query,
+                StorelessRuntime.RUNTIME, conn, com.legend.ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM));
     }
 
     // assertError.pure:36 testSimpleAssertError, verbatim body
@@ -62,15 +62,15 @@ class AssertErrorNativeTest {
     }
 
     @Test
-    @DisplayName("message mismatch fails with lite's sentence, both errors quoted")
+    @DisplayName("message mismatch fails with legend-pure's sentence, both errors quoted")
     void messageMismatch() {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3), 'wrong expectation')}"));
-        // lite's own sentence (the user's judge model, 2026-11-17): legend-pure's assertError.pure:24 spelling is the
-        // compatibility rules'
-        assertEquals("expected the error \"wrong expectation\", got \"The system is trying to get an"
-                + " element at offset 3 where the collection is of size 2\"", e.getMessage());
+        // legend-pure's assertError.pure:24 spelling: the edge's run writes legend-pure's words (census C1, 2026-11-17)
+        assertEquals("Execution error message mismatch.\nThe actual message was \"The system is trying to get an"
+                + " element at offset 3 where the collection is of size 2\"\nwhere the expected message was:"
+                + "\"wrong expectation\"", e.getMessage());
     }
 
     @Test
@@ -79,7 +79,7 @@ class AssertErrorNativeTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|1 + 2, 'anything')}"));
-        assertEquals("expected the error \"anything\", got none", e.getMessage());
+        assertEquals("No error was thrown", e.getMessage());
     }
 
     // leg 2 (assertError positions): the raise emission threads the
@@ -147,7 +147,7 @@ class AssertErrorNativeTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|date(2016, 2, 29), 'anything')}"));
-        assertEquals("expected the error \"anything\", got none", e.getMessage());
+        assertEquals("No error was thrown", e.getMessage());
     }
 
     // ---- B7 (RaisedErrors): the ONE envelope owner's spec — sentinel

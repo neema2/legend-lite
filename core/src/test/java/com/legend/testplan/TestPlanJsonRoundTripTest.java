@@ -65,11 +65,11 @@ class TestPlanJsonRoundTripTest {
                 new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, null, FAILURE, 1, "foreign-dialect:DB2"),
                         new RootLoop.Row("refused", RootLoop.NO_VERDICT, FAILURE, null, RootLoop.NO_APPEAL, null)),
                         new RootLoop.Message(constant(), null, true)),
-                new RootLoop.Root("assert", List.of(new RootLoop.Decided(FAILURE, true)),
+                new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
                         new RootLoop.Message(null, FAILURE, false))),
                 Map.of("fragment", "reason"));
         TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null,
-                TestPlan.JudgingRules.COMPILED_PURE_COMPAT, roots);
+                new TestPlan.JudgingRules(2, true), roots);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
         Map<Integer, List<Extension>> byStep = new LinkedHashMap<>();
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),
@@ -79,7 +79,7 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.Batched("golden", null, false), 1)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
                 byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
-                "the answer's planned size words");
+                "the answer's planned size words", false);
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }

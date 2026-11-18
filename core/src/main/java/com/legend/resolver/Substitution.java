@@ -1733,7 +1733,7 @@ final class Substitution {
             // owner) replaces the lastIndexOf(":{") substring heuristic
             AsorRef.Ref ref = AsorRef.decode(rs.value());
             Object pkObj = ref == null ? null
-                    : com.legend.sql.Json.parseOne(ref.pkJson());
+                    : com.legend.sql.Json.parse(ref.pkJson());
             if (!(pkObj instanceof Map<?, ?> pkMap) || pkMap.isEmpty()) {
                 throw new NotImplementedException("objectReferenceIn pk"
                         + " segment did not decode: " + rs.value());
@@ -2057,6 +2057,7 @@ final class Substitution {
                             m.mapper().parameters().get(0), m.source()));
             // Literals: nothing to substitute.
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;
@@ -2717,6 +2718,7 @@ final class Substitution {
             case com.legend.compiler.spec.typed.TypedSortBy sb ->
                     sb.mapChildren(k -> inlineParam(k, param, source));
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;
