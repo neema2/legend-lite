@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How DataCube Runs</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* layout: one reading column; the figures run wider than the text measure, and the six modes sit side by side so the eye can compare them */
+:root {
+  --bg: #f5f6f9;
+  --surface: #ffffff;
+  --fg: #161b27;
+  --muted: #566074;
+  --rule: #dde2ea;
+  --accent: #2343c0;
+  --accent-soft: #e7ebfb;
+  --code-bg: #edf0f5;
+  --out: #a85510;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11141b; --surface: #181c26; --fg: #e3e6ee; --muted: #9aa2b4; --rule: #2b3141;
+    --accent: #93a8ff; --accent-soft: #1f2742; --code-bg: #1c212d; --out: #f0a968;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11141b; --surface: #181c26; --fg: #e3e6ee; --muted: #9aa2b4; --rule: #2b3141;
+  --accent: #93a8ff; --accent-soft: #1f2742; --code-bg: #1c212d; --out: #f0a968;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+.page {
+  display: flex; flex-direction: column; gap: 72px;
+  max-width: 1040px; margin: 0 auto;
+  padding-block: 48px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+h1, h2, h3 { font-family: var(--font-head); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(32px, 5.4vw, 48px); font-weight: 600; letter-spacing: -.01em; }
+h2 { font-size: 27px; font-weight: 600; }
+h3 { font-size: 18px; font-weight: 600; }
+p, ul, ol, dl { margin: 0; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.lede { font-size: 19px; line-height: 1.55; max-width: 66ch; }
+section, header.top { display: flex; flex-direction: column; gap: 18px; }
+section > p { max-width: 70ch; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, pre { font-family: var(--font-mono); }
+code { font-size: .86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre {
+  margin: 0; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 12px 14px; font-size: 13px; line-height: 1.6; overflow-x: auto; max-width: 100%;
+}
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+strong { font-weight: 600; }
+.muted { color: var(--muted); }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.facts div { padding: 14px 16px 14px 0; display: flex; flex-direction: column; gap: 2px; }
+.facts dt { font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.facts dd { margin: 0; font-family: var(--font-head); font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* figures */
+figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
+figure .scroll { padding: 16px; }
+figcaption { font-size: 13.5px; color: var(--muted); max-width: 74ch; }
+svg.dg { display: block; height: auto; }
+.dg text { font-family: var(--font-body); fill: var(--fg); }
+.dg .nm { font-size: 13px; font-weight: 600; }
+.dg .sub { font-size: 11px; fill: var(--muted); }
+.dg .mono { font-family: var(--font-mono); font-size: 10.5px; fill: var(--muted); }
+.dg .lbl { font-size: 11px; fill: var(--muted); }
+.dg .n { font-weight: 700; fill: var(--accent); }
+.dg .hd { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; fill: var(--muted); }
+.dg .chipt { font-size: 11.5px; font-weight: 600; }
+.dg .tab { fill: var(--bg); stroke: var(--rule); stroke-width: 1.2; }
+.dg .outz { fill: none; stroke: var(--out); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.dg .box { fill: var(--surface); stroke: var(--rule); stroke-width: 1.2; }
+.dg .chip { fill: var(--surface); stroke: var(--muted); stroke-width: 1.1; }
+.dg .wasm { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+.dg .pill { fill: var(--code-bg); stroke: var(--rule); }
+.dg .ln { stroke: var(--muted); stroke-width: 1.3; fill: none; }
+.dg .alt { stroke: var(--out); stroke-width: 1.3; stroke-dasharray: 5 4; fill: none; }
+.dg .hdo { fill: var(--out); }
+.ah { fill: var(--muted); }
+.aho { fill: var(--out); }
+
+.key { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13.5px; color: var(--muted); }
+.key span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 22px; height: 14px; border-radius: 4px; display: inline-block; flex: none; }
+.sw.w { background: var(--accent-soft); border: 1.4px solid var(--accent); }
+.sw.p { background: var(--surface); border: 1.1px solid var(--muted); }
+.sw.o { border: 1.2px dashed var(--out); }
+
+/* the six modes */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 40px 40px; }
+.mode { display: flex; flex-direction: column; gap: 10px; min-width: 0; border-top: 1px solid var(--rule); padding-top: 16px; }
+.mode p { font-size: 14.5px; }
+.mode svg { width: 100%; }
+.how { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.wire { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; font-size: 13.5px; }
+.wire dt { color: var(--muted); }
+.wire dd { margin: 0; }
+
+.steps { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px 32px; }
+.steps li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; font-size: 14.5px; }
+.steps b { font-family: var(--font-head); color: var(--accent); font-size: 17px; line-height: 1.35; }
+
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.5; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+th { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; background: var(--code-bg); }
+tr:last-child td { border-bottom: 0; }
+td.nw { white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.note { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 14.5px; max-width: 74ch; }
+.start { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 24px 40px; }
+.start > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; border-top: 1px solid var(--rule); padding-top: 14px; }
+.start p { font-size: 14.5px; }
+footer { font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 20px; max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker>
+    <marker id="aho" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="aho"/></marker>
+  </defs>
+</svg>
+
+<div class="page">
+
+<header class="top">
+  <p class="eyebrow">Legend Lite · DataCube</p>
+  <h1>How DataCube runs</h1>
+  <p class="lede">DataCube is a pivot grid for your data. Every click you make becomes a small Pure query. Two jobs follow: a <strong>planner</strong> turns the query into SQL, and a <strong>database</strong> runs the SQL. By default both jobs happen inside your browser tab, as WebAssembly. The modes below only change where each job happens.</p>
+  <dl class="facts">
+    <div><dt>Servers needed by default</dt><dd>None</dd></div>
+    <div><dt>WebAssembly engines in the tab</dt><dd>Planner + DuckDB</dd></div>
+    <div><dt>Planner download</dt><dd>1.46 MB gzipped</dd></div>
+    <div><dt>A warm plan in the tab</dt><dd>about 10 ms</dd></div>
+  </dl>
+</header>
+
+<section id="click">
+  <h2>What happens when you click</h2>
+  <p>You group by a column, add a filter or expand a row. The grid describes what it now needs as a Pure query and asks two workers, one after the other. Nothing here leaves the tab.</p>
+  <figure>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 760 404" role="img" style="min-width:640px;width:100%;max-width:820px;margin:0 auto"
+           aria-label="Inside the browser tab, the DataCube grid sends a Pure query to the legend-lite planner and gets back SQL with column types, then sends that SQL to DuckDB-WASM and gets back Arrow rows. Outside the tab, a legend server can plan instead and a warehouse can run the SQL instead.">
+        <rect class="tab" x="10" y="10" width="740" height="296" rx="12"/>
+        <text class="hd" x="30" y="36">YOUR BROWSER TAB</text>
+
+        <rect class="wasm" x="30" y="58" width="170" height="132" rx="8"/>
+        <text class="nm" x="115" y="84" text-anchor="middle">legend-lite planner</text>
+        <text class="sub" x="115" y="104" text-anchor="middle">the Legend compiler,</text>
+        <text class="sub" x="115" y="119" text-anchor="middle">built as WebAssembly</text>
+        <text class="sub" x="115" y="146" text-anchor="middle">runs in a Web Worker</text>
+        <text class="mono" x="115" y="172" text-anchor="middle">classes.wasm</text>
+
+        <rect class="box" x="295" y="58" width="170" height="132" rx="8"/>
+        <text class="nm" x="380" y="84" text-anchor="middle">DataCube grid</text>
+        <text class="sub" x="380" y="104" text-anchor="middle">pivots, filters, charts</text>
+        <text class="sub" x="380" y="119" text-anchor="middle">written in TypeScript</text>
+        <text class="sub" x="380" y="146" text-anchor="middle">runs on the main thread</text>
+        <text class="mono" x="380" y="172" text-anchor="middle">bundle.js</text>
+
+        <rect class="wasm" x="560" y="58" width="170" height="132" rx="8"/>
+        <text class="nm" x="645" y="84" text-anchor="middle">DuckDB-WASM</text>
+        <text class="sub" x="645" y="104" text-anchor="middle">a real SQL database,</text>
+        <text class="sub" x="645" y="119" text-anchor="middle">built as WebAssembly</text>
+        <text class="sub" x="645" y="146" text-anchor="middle">runs in a Web Worker</text>
+        <text class="mono" x="645" y="172" text-anchor="middle">duckdb-eh.wasm</text>
+
+        <path class="ln" d="M291 98 H206" marker-end="url(#ah)"/>
+        <text class="lbl" x="247" y="91" text-anchor="middle"><tspan class="n">1</tspan> Pure query</text>
+        <path class="ln" d="M204 142 H289" marker-end="url(#ah)"/>
+        <text class="lbl" x="247" y="135" text-anchor="middle"><tspan class="n">2</tspan> SQL + types</text>
+        <path class="ln" d="M469 98 H554" marker-end="url(#ah)"/>
+        <text class="lbl" x="512" y="91" text-anchor="middle"><tspan class="n">3</tspan> SQL</text>
+        <path class="ln" d="M556 142 H471" marker-end="url(#ah)"/>
+        <text class="lbl" x="512" y="135" text-anchor="middle"><tspan class="n">4</tspan> Arrow rows</text>
+
+        <rect class="pill" x="295" y="222" width="240" height="64" rx="8"/>
+        <text class="nm" x="311" y="244">Your data</text>
+        <text class="sub" x="311" y="261">files you open, samples, snaps,</text>
+        <text class="sub" x="311" y="275">remote Parquet, CSV or Iceberg</text>
+        <path class="ln" d="M535 254 H610 V194" marker-end="url(#ah)"/>
+        <text class="lbl" x="572" y="270" text-anchor="middle">tables, views</text>
+
+        <text class="hd hdo" x="380" y="366" text-anchor="middle">OPTIONAL,</text>
+        <text class="hd hdo" x="380" y="381" text-anchor="middle">OUTSIDE THE TAB</text>
+
+        <rect class="outz" x="30" y="344" width="230" height="50" rx="8"/>
+        <text class="nm" x="145" y="365" text-anchor="middle">legend-lite or legend-engine</text>
+        <text class="sub" x="145" y="382" text-anchor="middle">a server can plan instead</text>
+        <path class="alt" d="M115 344 V196" marker-end="url(#aho)"/>
+
+        <rect class="outz" x="500" y="344" width="230" height="50" rx="8"/>
+        <text class="nm" x="615" y="365" text-anchor="middle">Warehouse</text>
+        <text class="sub" x="615" y="382" text-anchor="middle">a server can run the SQL instead</text>
+        <path class="alt" d="M680 344 V196" marker-end="url(#aho)"/>
+      </svg>
+    </div>
+    <figcaption>The default arrangement. The blue boxes are WebAssembly. The dashed boxes are stand-ins you can choose: each replaces exactly one blue box, and the grid in the middle does not change.</figcaption>
+  </figure>
+  <ol class="steps">
+    <li><b>1</b><span><strong>The grid writes a query.</strong> Your click changes the cube's state, and the grid builds the Pure query for the rows it needs to show.</span></li>
+    <li><b>2</b><span><strong>The planner compiles it.</strong> The same compiler legend-lite runs on a server answers with SQL and the type of every result column.</span></li>
+    <li><b>3</b><span><strong>The database runs it.</strong> DuckDB executes the SQL exactly as the planner wrote it, over the tables in the tab.</span></li>
+    <li><b>4</b><span><strong>Rows come back typed.</strong> Results arrive as Arrow columns. The plan says what each column is, so the grid never guesses a type.</span></li>
+  </ol>
+</section>
+
+<section id="modes">
+  <h2>Where the two jobs can happen</h2>
+  <p>Each picture has the same three parts in the same order: the grid, the planner, the database. A part sits in the top band when it runs in your tab and in the bottom band when it runs somewhere else. The label on a line that crosses the bands is what travels over the network.</p>
+  <div class="key">
+    <span><i class="sw w"></i>WebAssembly, running in your tab</span>
+    <span><i class="sw p"></i>ordinary code</span>
+    <span><i class="sw o"></i>outside the tab</span>
+  </div>
+
+  <div class="modes">
+
+    <article class="mode">
+      <h3>Everything in the tab</h3>
+      <p class="how">index.html (the default)</p>
+      <svg class="dg" viewBox="0 0 372 180" role="img" aria-label="Grid, WASM planner and DuckDB-WASM all run in the tab. Nothing runs outside.">
+        <rect class="tab" x="4" y="4" width="364" height="88" rx="8"/><text class="hd" x="16" y="22">IN YOUR TAB</text>
+        <rect class="outz" x="4" y="100" width="364" height="76" rx="8"/><text class="hd hdo" x="16" y="118">NO SERVER</text>
+        <rect class="chip" x="16" y="34" width="92" height="30" rx="6"/><text class="chipt" x="62" y="53" text-anchor="middle">Grid</text>
+        <rect class="wasm" x="140" y="34" width="92" height="30" rx="6"/><text class="chipt" x="186" y="53" text-anchor="middle">WASM planner</text>
+        <rect class="wasm" x="264" y="34" width="92" height="30" rx="6"/><text class="chipt" x="310" y="53" text-anchor="middle">DuckDB-WASM</text>
+        <path class="ln" d="M110 49 H136" marker-end="url(#ah)"/><text class="lbl" x="124" y="43" text-anchor="middle">Pure</text>
+        <path class="ln" d="M234 49 H260" marker-end="url(#ah)"/><text class="lbl" x="248" y="43" text-anchor="middle">SQL</text>
+        <text class="sub" x="186" y="152" text-anchor="middle">the site is a folder of static files</text>
+      </svg>
+      <p>Open the page and it works. Your file is read by the database in the tab and never uploaded anywhere.</p>
+      <dl class="wire"><dt>Leaves the tab</dt><dd>Nothing</dd><dt>Good for</dt><dd>Files, samples, static hosting, offline use</dd></dl>
+    </article>
+
+    <article class="mode">
+      <h3>Plan on a server</h3>
+      <p class="how">?planner=remote · ?planner=engine</p>
+      <svg class="dg" viewBox="0 0 372 180" role="img" aria-label="The grid and DuckDB-WASM run in the tab. The planner runs on a legend-lite or legend-engine server. The Pure query goes out and SQL comes back.">
+        <rect class="tab" x="4" y="4" width="364" height="88" rx="8"/><text class="hd" x="16" y="22">IN YOUR TAB</text>
+        <rect class="outz" x="4" y="100" width="364" height="76" rx="8"/><text class="hd hdo" x="76" y="118">LEGEND-LITE OR LEGEND-ENGINE</text>
+        <rect class="chip" x="16" y="34" width="92" height="30" rx="6"/><text class="chipt" x="62" y="53" text-anchor="middle">Grid</text>
+        <rect class="chip" x="140" y="132" width="92" height="30" rx="6"/><text class="chipt" x="186" y="151" text-anchor="middle">Planner</text>
+        <rect class="wasm" x="264" y="34" width="92" height="30" rx="6"/><text class="chipt" x="310" y="53" text-anchor="middle">DuckDB-WASM</text>
+        <path class="ln" d="M62 66 V147 H136" marker-end="url(#ah)"/><text class="lbl" x="68" y="84">Pure</text>
+        <path class="ln" d="M234 147 H310 V68" marker-end="url(#ah)"/><text class="lbl" x="316" y="84">SQL</text>
+      </svg>
+      <p>The same planning call, sent over HTTP to legend-lite (port 8080) or to legend-engine (port 6300). The data still lives and runs in the tab, and the page still uses its own WebAssembly module to set up the database and describe tables you open.</p>
+      <dl class="wire"><dt>Leaves the tab</dt><dd>The model and the query. No rows.</dd><dt>Good for</dt><dd>Checking a server's planner against the tab's; parity with legend-engine</dd></dl>
+    </article>
+
+    <article class="mode">
+      <h3>Warehouse, Live</h3>
+      <p class="how">Open a source → Database</p>
+      <svg class="dg" viewBox="0 0 372 180" role="img" aria-label="The grid and the WASM planner run in the tab. The warehouse server runs the SQL. SQL goes out and rows come back.">
+        <rect class="tab" x="4" y="4" width="364" height="88" rx="8"/><text class="hd" x="16" y="22">IN YOUR TAB</text>
+        <rect class="outz" x="4" y="100" width="364" height="76" rx="8"/><text class="hd hdo" x="16" y="118">WAREHOUSE SERVER</text>
+        <rect class="chip" x="16" y="34" width="92" height="30" rx="6"/><text class="chipt" x="62" y="53" text-anchor="middle">Grid</text>
+        <rect class="wasm" x="140" y="34" width="92" height="30" rx="6"/><text class="chipt" x="186" y="53" text-anchor="middle">WASM planner</text>
+        <rect class="chip" x="264" y="132" width="92" height="30" rx="6"/><text class="chipt" x="310" y="151" text-anchor="middle">Warehouse</text>
+        <path class="ln" d="M110 49 H136" marker-end="url(#ah)"/><text class="lbl" x="124" y="43" text-anchor="middle">Pure</text>
+        <path class="ln" d="M186 66 V147 H260" marker-end="url(#ah)"/><text class="lbl" x="192" y="84">SQL</text>
+      </svg>
+      <p>The tab plans, the warehouse runs. Every group, filter and pivot is a query on the real DuckDB or Postgres tables, as the person signed in. Nothing is copied.</p>
+      <dl class="wire"><dt>Leaves the tab</dt><dd>SQL out, Arrow rows back</dd><dt>Good for</dt><dd>Big or shared tables; always-current numbers</dd></dl>
+    </article>
+
+    <article class="mode">
+      <h3>Warehouse, Snap</h3>
+      <p class="how">click Live to snap</p>
+      <svg class="dg" viewBox="0 0 372 180" role="img" aria-label="The warehouse's rows are copied once into DuckDB-WASM. After that the grid, planner and database all run in the tab.">
+        <rect class="tab" x="4" y="4" width="364" height="88" rx="8"/><text class="hd" x="16" y="22">IN YOUR TAB</text>
+        <rect class="outz" x="4" y="100" width="364" height="76" rx="8"/><text class="hd hdo" x="16" y="118">WAREHOUSE</text>
+        <rect class="chip" x="16" y="34" width="92" height="30" rx="6"/><text class="chipt" x="62" y="53" text-anchor="middle">Grid</text>
+        <rect class="wasm" x="140" y="34" width="92" height="30" rx="6"/><text class="chipt" x="186" y="53" text-anchor="middle">WASM planner</text>
+        <rect class="wasm" x="264" y="34" width="92" height="30" rx="6"/><text class="chipt" x="310" y="53" text-anchor="middle">DuckDB-WASM</text>
+        <rect class="chip" x="264" y="132" width="92" height="30" rx="6"/><text class="chipt" x="310" y="151" text-anchor="middle">Warehouse</text>
+        <path class="ln" d="M110 49 H136" marker-end="url(#ah)"/><text class="lbl" x="124" y="43" text-anchor="middle">Pure</text>
+        <path class="ln" d="M234 49 H260" marker-end="url(#ah)"/><text class="lbl" x="248" y="43" text-anchor="middle">SQL</text>
+        <path class="alt" d="M310 130 V68" marker-end="url(#aho)"/><text class="lbl" x="304" y="84" text-anchor="end">copied once</text>
+      </svg>
+      <p>A snap freezes the rows behind the view into the tab. From then on it behaves like the first mode. The snap always shows its time and row count.</p>
+      <dl class="wire"><dt>Leaves the tab</dt><dd>One copy comes in. After that, nothing.</dd><dt>Good for</dt><dd>Fast exploration; numbers that must not move</dd></dl>
+    </article>
+
+    <article class="mode">
+      <h3>Python</h3>
+      <p class="how">ll.show(df)</p>
+      <svg class="dg" viewBox="0 0 372 180" role="img" aria-label="Only the grid runs in the tab. The Python process plans with the native planner and runs the SQL in its own DuckDB. Pure goes out and rows come back.">
+        <rect class="tab" x="4" y="4" width="364" height="88" rx="8"/><text class="hd" x="16" y="22">IN YOUR TAB OR NOTEBOOK CELL</text>
+        <rect class="outz" x="4" y="100" width="364" height="76" rx="8"/><text class="hd hdo" x="76" y="118">YOUR PYTHON PROCESS</text>
+        <rect class="chip" x="16" y="34" width="92" height="30" rx="6"/><text class="chipt" x="62" y="53" text-anchor="middle">Grid</text>
+        <rect class="chip" x="140" y="132" width="92" height="30" rx="6"/><text class="chipt" x="186" y="151" text-anchor="middle">Native planner</text>
+        <rect class="chip" x="264" y="132" width="92" height="30" rx="6"/><text class="chipt" x="310" y="151" text-anchor="middle">DuckDB</text>
+        <path class="ln" d="M62 66 V147 H136" marker-end="url(#ah)"/><text class="lbl" x="68" y="84">Pure</text>
+        <path class="ln" d="M234 147 H260" marker-end="url(#ah)"/><text class="lbl" x="248" y="141" text-anchor="middle">SQL</text>
+      </svg>
+      <p>The page is the screen only. Python holds your dataframe, plans with the compiler as a native library, and runs on its own DuckDB. The page loads no WebAssembly at all.</p>
+      <dl class="wire"><dt>Leaves the tab</dt><dd>Pure out, Arrow rows back, on this machine</dd><dt>Good for</dt><dd>pandas and polars frames, Jupyter, marimo</dd></dl>
+    </article>
+
+    <article class="mode">
+      <h3>An engine runs it</h3>
+      <p class="how">embedded in Legend Query</p>
+      <svg class="dg" viewBox="0 0 372 180" role="img" aria-label="Only the grid runs in the tab. A legend engine plans and runs the query against its own store. Pure goes out and rows come back.">
+        <rect class="tab" x="4" y="4" width="364" height="88" rx="8"/><text class="hd" x="16" y="22">IN YOUR TAB</text>
+        <rect class="outz" x="4" y="100" width="364" height="76" rx="8"/><text class="hd hdo" x="76" y="118">A LEGEND ENGINE</text>
+        <rect class="chip" x="16" y="34" width="92" height="30" rx="6"/><text class="chipt" x="62" y="53" text-anchor="middle">Grid</text>
+        <rect class="chip" x="140" y="132" width="92" height="30" rx="6"/><text class="chipt" x="186" y="151" text-anchor="middle">Its planner</text>
+        <rect class="chip" x="264" y="132" width="92" height="30" rx="6"/><text class="chipt" x="310" y="151" text-anchor="middle">Its database</text>
+        <path class="ln" d="M62 66 V147 H136" marker-end="url(#ah)"/><text class="lbl" x="68" y="84">Pure</text>
+        <path class="ln" d="M234 147 H260" marker-end="url(#ah)"/><text class="lbl" x="248" y="141" text-anchor="middle">SQL</text>
+      </svg>
+      <p>One call: the query goes to the engine's <code>execute</code> and rows come back. The engine reaches a store the browser cannot. The SQL the grid shows is a report of what ran.</p>
+      <dl class="wire"><dt>Leaves the tab</dt><dd>Pure out, rows back</dd><dt>Good for</dt><dd>Mapped data behind an engine's own connections</dd></dl>
+    </article>
+
+  </div>
+
+  <p class="note">A page never changes mode behind your back. The planner is chosen once, when the page opens, and the status bar names it. If the chosen planner does not answer, the page says so and stops. It does not quietly fall back to another one.</p>
+  <p class="muted" style="font-size:14.5px;max-width:74ch">There is a seventh arrangement with no screen: Python can run DataCube's own logic headless (grouping, totals, pivots, chart rules) in an embedded V8, with the native planner and Python's DuckDB. It is the Python picture with the top band removed.</p>
+</section>
+
+<section id="snowflake">
+  <h2>Example: a Snowflake connection</h2>
+  <p>A browser tab cannot open a Snowflake connection. There is no database driver in a page, and the credentials belong to a server. So the two jobs come apart: the WebAssembly planner keeps answering questions about the query, and a Legend engine does the running.</p>
+  <figure>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 760 272" role="img" style="min-width:640px;width:100%;max-width:820px;margin:0 auto"
+           aria-label="In the tab, the grid asks the WebAssembly planner for column types and query text, then sends the Pure query to a Legend engine. The engine plans Snowflake SQL, runs it in Snowflake, and returns rows with their types and the SQL that ran. DuckDB-WASM is not used.">
+        <rect class="tab" x="10" y="10" width="330" height="250" rx="12"/>
+        <text class="hd" x="30" y="36">YOUR BROWSER TAB</text>
+
+        <rect class="box" x="30" y="50" width="130" height="70" rx="8"/>
+        <text class="nm" x="95" y="80" text-anchor="middle">DataCube grid</text>
+        <text class="sub" x="95" y="98" text-anchor="middle">builds the query</text>
+
+        <rect class="wasm" x="30" y="170" width="130" height="70" rx="8"/>
+        <text class="nm" x="95" y="200" text-anchor="middle">WASM planner</text>
+        <text class="sub" x="95" y="218" text-anchor="middle">types, parses, prints</text>
+
+        <path class="ln" d="M75 124 V166" marker-end="url(#ah)"/>
+        <path class="ln" d="M115 166 V124" marker-end="url(#ah)"/>
+        <text class="lbl" x="172" y="142"><tspan class="n">1</tspan> columns? text?</text>
+        <text class="lbl" x="172" y="157">answered in the tab</text>
+
+        <rect class="outz" x="190" y="180" width="130" height="50" rx="8"/>
+        <text class="sub" x="255" y="202" text-anchor="middle">DuckDB-WASM</text>
+        <text class="sub" x="255" y="217" text-anchor="middle">not used here</text>
+
+        <rect class="outz" x="420" y="50" width="140" height="190" rx="8"/>
+        <text class="nm" x="490" y="80" text-anchor="middle">Legend engine</text>
+        <text class="sub" x="490" y="182" text-anchor="middle">plans Snowflake SQL</text>
+        <text class="sub" x="490" y="198" text-anchor="middle">holds the connection</text>
+        <text class="sub" x="490" y="214" text-anchor="middle">and the credentials</text>
+
+        <rect class="outz" x="640" y="50" width="110" height="190" rx="8"/>
+        <text class="nm" x="695" y="80" text-anchor="middle">Snowflake</text>
+        <text class="sub" x="695" y="198" text-anchor="middle">runs the SQL</text>
+        <text class="sub" x="695" y="214" text-anchor="middle">holds the data</text>
+
+        <path class="ln" d="M164 70 H416" marker-end="url(#ah)"/>
+        <text class="lbl" x="290" y="63" text-anchor="middle"><tspan class="n">2</tspan> Pure query</text>
+        <path class="ln" d="M416 104 H164" marker-end="url(#ah)"/>
+        <text class="lbl" x="290" y="97" text-anchor="middle"><tspan class="n">5</tspan> rows, types, SQL that ran</text>
+
+        <path class="ln" d="M564 108 H636" marker-end="url(#ah)"/>
+        <text class="lbl" x="600" y="101" text-anchor="middle"><tspan class="n">3</tspan> SQL</text>
+        <path class="ln" d="M636 146 H564" marker-end="url(#ah)"/>
+        <text class="lbl" x="600" y="139" text-anchor="middle"><tspan class="n">4</tspan> rows</text>
+      </svg>
+    </div>
+    <figcaption>With Snowflake the database job leaves the tab. The page sends Pure, never SQL, and never holds a Snowflake credential. The SQL the grid shows is the engine's report of what it ran.</figcaption>
+  </figure>
+  <ol class="steps">
+    <li><b>1</b><span><strong>Questions stay local.</strong> What columns a query has, whether a calculated column is valid, how a query reads as text: the planner in the tab answers with no network call.</span></li>
+    <li><b>2</b><span><strong>The query goes to the engine.</strong> One <code>execute</code> call carries the Pure query, the model and the runtime.</span></li>
+    <li><b>3</b><span><strong>The engine plans and runs.</strong> It writes Snowflake SQL and sends it over its own connection.</span></li>
+    <li><b>4</b><span><strong>Snowflake answers.</strong> It computes every value and returns rows to the engine.</span></li>
+    <li><b>5</b><span><strong>Rows come back typed.</strong> The answer names each column's type and the SQL that ran, as JSON or as Arrow.</span></li>
+  </ol>
+  <p class="note">Two limits today. The engine in this picture is legend-engine: legend-lite's own server does not open a Snowflake connection yet. And a grid on this path cannot be snapped, because there is no local copy to freeze the rows into.</p>
+</section>
+
+<section id="wasm">
+  <h2>Why WebAssembly, and why answers match</h2>
+  <p>The planner in your tab is not a rewrite. It is the same Java source that runs on the server, compiled three ways. Tests run the same queries through each build and compare the answers, refusals included, so a cube plans to the same SQL wherever it is planned.</p>
+  <figure>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 720 250" role="img" style="min-width:600px;width:100%;max-width:780px;margin:0 auto"
+           aria-label="One Java compiler source is built three ways: as a JVM server answering over HTTP, as a WebAssembly module running in a Web Worker in the tab, and as a native library loaded by Python.">
+        <rect class="box" x="20" y="85" width="170" height="80" rx="8"/>
+        <text class="nm" x="105" y="113" text-anchor="middle">legend-lite compiler</text>
+        <text class="sub" x="105" y="131" text-anchor="middle">one Java source</text>
+        <text class="mono" x="105" y="149" text-anchor="middle">planner.Boundary</text>
+
+        <path class="ln" d="M190 125 H240 V43 H346" marker-end="url(#ah)"/>
+        <text class="lbl" x="293" y="37" text-anchor="middle">javac</text>
+        <path class="ln" d="M190 125 H346" marker-end="url(#ah)"/>
+        <text class="lbl" x="293" y="119" text-anchor="middle">TeaVM</text>
+        <path class="ln" d="M190 125 H240 V207 H346" marker-end="url(#ah)"/>
+        <text class="lbl" x="293" y="201" text-anchor="middle">native-image</text>
+
+        <rect class="box" x="350" y="14" width="350" height="58" rx="8"/>
+        <text class="nm" x="368" y="38">JVM server</text>
+        <text class="sub" x="368" y="56">answers legend-engine's pure/v1 API over HTTP</text>
+
+        <rect class="wasm" x="350" y="96" width="350" height="58" rx="8"/>
+        <text class="nm" x="368" y="120">WebAssembly module</text>
+        <text class="sub" x="368" y="138">classes.wasm, answering messages in a Web Worker</text>
+
+        <rect class="box" x="350" y="178" width="350" height="58" rx="8"/>
+        <text class="nm" x="368" y="202">Native library</text>
+        <text class="sub" x="368" y="220">libcompiler, loaded by Python with no JVM</text>
+      </svg>
+    </div>
+    <figcaption>One source, three builds. The tab's worker and Python answer the same list of requests, each by the same Java function.</figcaption>
+  </figure>
+
+  <h3>What the page downloads as WebAssembly</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Module</th><th>What it does</th><th>When it loads</th><th>Size</th></tr></thead>
+      <tbody>
+        <tr><td class="nw"><strong>Planner</strong><br><code>classes.wasm</code></td><td>Compiles Pure to SQL; writes the model for a table you open; sets up the database session</td><td>At start. Beside a server planner it no longer plans queries, but it still sets up the tab's database and describes opened tables.</td><td class="num">4.2 MB<br>1.46 MB gzip</td></tr>
+        <tr><td class="nw"><strong>DuckDB</strong><br><code>duckdb-eh.wasm</code></td><td>Runs the SQL; reads CSV, Parquet, Iceberg and remote files</td><td>At start, alongside the planner</td><td class="num">about 36 MB</td></tr>
+        <tr><td class="nw"><strong>Warehouse binding</strong><br><code>vendor/warehouse/</code></td><td>Names every call to the warehouse and reads every answer</td><td>At the first sign-in</td><td class="num muted">small</td></tr>
+        <tr><td class="nw"><strong>Saved-store rules</strong><br><code>vendor/queries/</code></td><td>The rules for saved pages and saved queries</td><td>At the first save or open</td><td class="num muted">small</td></tr>
+        <tr><td class="nw"><strong>In-page SDLC</strong><br><code>vendor/sdlc/</code></td><td>A model home for classes you create, when no server provides one</td><td>When the model home is first used</td><td class="num muted">small</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Both engines run in Web Workers, so compiling and querying never freeze the grid. The planner needs a browser with WebAssembly GC, and DuckDB needs WebAssembly exception handling. Current Chrome, Edge, Firefox and Safari have both. Only the Python page needs neither. All of it is served from the site's own <code>vendor/</code> folder, never from a CDN, so it works behind a firewall.</p>
+</section>
+
+<section id="start">
+  <h2>Try each mode</h2>
+  <div class="start">
+    <div>
+      <h3>In the tab</h3>
+      <pre><code>bazel run //datacube:serve</code></pre>
+      <p>Prints a URL. Use <em>Add a data source</em> to open a CSV or Parquet file, or pick an example.</p>
+    </div>
+    <div>
+      <h3>Plan on legend-lite</h3>
+      <pre><code>bazel run //core:server</code></pre>
+      <p>Then add <code>?planner=remote</code> to the page's address. Use <code>?planner=engine</code> for a running legend-engine.</p>
+    </div>
+    <div>
+      <h3>A Postgres database</h3>
+      <pre><code>bazel run //datacube:app -- postgresql://reader@host:5432/shop</code></pre>
+      <p>Opens on the tables you may read, Live. Click <em>Live</em> to snap one into the tab.</p>
+    </div>
+    <div>
+      <h3>A dataframe</h3>
+      <pre><code>import legend_lite as ll
+cube = ll.show(df)</code></pre>
+      <p>A tab opens, or the cube appears under the notebook cell.</p>
+    </div>
+    <div>
+      <h3>A remote file</h3>
+      <pre><code>index.html?remote=https://host/trades.parquet</code></pre>
+      <p>DuckDB reads it over HTTP range requests and pulls only the bytes a query needs.</p>
+    </div>
+    <div>
+      <h3>Put it on a website</h3>
+      <pre><code>bazel build //datacube:dist</code></pre>
+      <p>The result is a folder. Any static host will serve it. Turn on gzip or brotli.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  The detailed reference, with file paths and build targets, is <code>docs/DATACUBE_ARCHITECTURE.md</code>. Sizes and timings are from <code>wasm/README.md</code> (measured 2026-09-20) and <code>datacube/demo/README-realdata.md</code>; quote the ratios rather than the milliseconds.
+</footer>
+
+</div>
+</body>
+</html>
