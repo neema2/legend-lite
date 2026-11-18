@@ -192,19 +192,29 @@ function wire(read: unknown): unknown {
 /** The saved pages' path under an API root: lite's own (`/api/lite/v1/queries/dataCube`). */
 const CUBES_PATH = '/lite/v1/queries/dataCube';
 
-/** Lite's one error shape (§3), the store's refusals' kinds: `request` for one it refuses, `internal` for its failure. */
-const refusal = (kind: 'request' | 'internal', message: string): string => JSON.stringify({ kind, message });
+/** Lite's one error shape (§3), the store's refusals' kinds: `notFound` for a record that does not exist, `request` for
+ *  one it refuses, `internal` for its failure. */
+const refusal = (kind: 'notFound' | 'request' | 'internal', message: string): string => JSON.stringify({ kind, message });
 
-/** The store's refusal in lite's shape, as the server's lite route answers it (LegendHttpServer.storeRoutes): its words
- *  its own message, its status kept, `internal` at 500 and above, else `request`. */
+/** The store's refusal kinds of a record that does not exist (SavedQueries.Refusal.Kind; lite API v1 §3's notFound, the
+ *  user's ruling of 2026-11-17 ~23:31): a missing id, a batch with missing ids, a missing version. */
+const MISSING = new Set(['query_not_found', 'queries_not_found', 'version_not_found']);
+
+/** The store's refusal in lite's shape, as the server's lite mount answers it (LegendHttpServer.storeRoutes): its words
+ *  its own message, its status kept, its kind by the STORE's own refusal kind, never by the status alone (a route the
+ *  store does not serve is 404 too, and a request) -- a missing record `notFound`, `internal` at 500 and above, else
+ *  `request`. */
 function lite(status: number, body: string): string {
   let message = body;
+  let storeKind: unknown;
   try {
-    const said = JSON.parse(body) as { message?: unknown };
+    const said = JSON.parse(body) as { message?: unknown; kind?: unknown };
     if (typeof said.message === 'string') message = said.message;
+    storeKind = said.kind;
   } catch {
     // not JSON: the body is the message, as the server reads it
   }
+  if (typeof storeKind === 'string' && MISSING.has(storeKind)) return refusal('notFound', message);
   return refusal(status >= 500 ? 'internal' : 'request', message);
 }
 
