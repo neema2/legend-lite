@@ -56,8 +56,8 @@ class IsNumericProbeTest {
             cols.append("c").append(i).append(":r|meta::legend::lite::isNumeric('").append(TEXTS.get(i))
                     .append("'), ");
         }
-        cols.append("cnull:r|meta::legend::lite::isNumeric($r.S)");
-        return "|#>{s::DB.T}#->select(~[ID, S])->extend(~[" + cols + "])";
+        cols.append("cnull:r|meta::legend::lite::isNumeric([])");
+        return "|#TDS\nID\n1\n#->extend(~[" + cols + "])";
     }
 
     @Test
@@ -69,16 +69,13 @@ class IsNumericProbeTest {
             String sql = plan.answerSql().statement();
             List<Boolean> got = new ArrayList<>();
             try (Connection c = TestBackends.of(type).open(); Statement st = c.createStatement()) {
-                st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, S VARCHAR(10))");
-                st.execute("INSERT INTO T (ID, S) VALUES (1, NULL)");
+                // the relation an inline row (no fixture written: FixtureWriteCensusTest), each text a literal
                 try (ResultSet rs = st.executeQuery(sql)) {
                     rs.next();
                     for (int i = 0; i <= TEXTS.size(); i++) {
-                        Object v = rs.getObject(3 + i);
+                        Object v = rs.getObject(2 + i);
                         got.add(v == null ? null : v instanceof Boolean b ? b : ((Number) v).intValue() != 0);
                     }
-                } finally {
-                    st.execute("DROP TABLE T");
                 }
             }
             System.out.println("[isNumeric probe] " + type + ": " + got + " by " + sql);
