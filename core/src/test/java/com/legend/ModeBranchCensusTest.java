@@ -26,13 +26,16 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * G6 OF THE PRESENTATION PROGRAM, REPORT-ONLY (S0, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
- * §6): no code may branch on which mode a plan is in outside the mode records. Until S1m makes the modes data, this
- * census counts today's branches on "which edge style" (§2.7) by their call sites in the product's and the edge's
- * jars, and writes them to {@code mode_branch_census.txt} in the test's outputs: {@code PureText.isEdgeStyle},
- * {@code PlanStyle.judgesEngineText}, {@code PureText.recording}'s template check, and the {@code
- * Boolean.getBoolean} switches (the engine scan order's among them). It fails only when it cannot see a planted
- * branch; it blocks from S7, when every branch is gone.
+ * G6, REPORT-ONLY (S0 of the presentation program, 2026-11-18; carried into the compatibility program as slice 0.2,
+ * docs/records/compat-program-plan-2026-11-19.md on claude/compat-program): the core holds no modes (CP-1, ruled
+ * 2026-11-19) -- compatibility enters through the translator and leaves through the formatters -- so no product code
+ * may branch on which edge style a plan is in. This census counts today's branches on "which edge style" by their
+ * call sites in the product's and the edge's jars, and writes them to {@code mode_branch_census.txt} in the test's
+ * outputs: {@code PureText.isEdgeStyle}, {@code PlanStyle.judgesEngineText}, {@code PureText.recording}'s template
+ * check, and the {@code Boolean.getBoolean} switches (the engine scan order's among them). It fails only when it
+ * cannot see a planted branch; it reports until the program's guard phase makes the count a shrink-only ratchet that
+ * ends at 0. It does not count {@code PlanStyle.twoForm} or {@code facet} calls, {@code LoweringForms} or the
+ * {@code Feature} flags: the program's strand ratchet counts those (the review of PR #123, 2026-11-19).
  */
 @Tag("guardrail")
 class ModeBranchCensusTest {
@@ -91,7 +94,7 @@ class ModeBranchCensusTest {
             total += e.getValue().size();
         }
         report.append("total\t").append(total).append('\n');
-        System.out.println("[G6] " + total + " call sites of today's mode branches (report-only until S7)");
+        System.out.println("[G6] " + total + " call sites of today's mode branches (report-only)");
         String dir = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (dir != null) {
             Files.writeString(Path.of(dir, "mode_branch_census.txt"), report, StandardCharsets.UTF_8);

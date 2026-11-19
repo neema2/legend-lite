@@ -77,9 +77,23 @@ final class JudgeLedger {
     private static final java.util.regex.Pattern IDS = java.util.regex.Pattern.compile(
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
+    /** {@code s} with each id masked by its first appearance ({@code <id1>}, {@code <id2>}, ...; the same id the same
+     *  mask, so a run that gave every row one id cannot hide behind it: the review of PR #123, 2026-11-19). */
+    static String masked(String s) {
+        java.util.regex.Matcher m = IDS.matcher(s);
+        java.util.Map<String, Integer> seen = new java.util.HashMap<>();
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            int n = seen.computeIfAbsent(m.group().toLowerCase(java.util.Locale.ROOT), id -> seen.size() + 1);
+            m.appendReplacement(out, "<id" + n + ">");
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
     /** A failure's message as one ledger cell: its ids masked, its tabs and line ends escaped. */
     static String message(String reason) {
-        return IDS.matcher(reason).replaceAll("<id>").replace("\\", "\\\\").replace('\t', ' ').replace("\r", "")
+        return masked(reason).replace("\\", "\\\\").replace('\t', ' ').replace("\r", "")
                 .replace("\n", "\\n");
     }
 

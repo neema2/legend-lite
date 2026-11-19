@@ -107,11 +107,52 @@ class PureV1EdgeGoldenTest {
         }
     }
 
+    /** {@code s} with each id masked by its first appearance ({@code <id1>}, {@code <id2>}, ...; the same id the same
+     *  mask, so a run that gave every row one id cannot hide behind it: the review of PR #123, 2026-11-19). */
+    static String masked(String s) {
+        java.util.regex.Matcher m = IDS.matcher(s);
+        java.util.Map<String, Integer> seen = new java.util.HashMap<>();
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            int n = seen.computeIfAbsent(m.group().toLowerCase(java.util.Locale.ROOT), id -> seen.size() + 1);
+            m.appendReplacement(out, "<id" + n + ">");
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
     private static void line(StringBuilder out, String name, String line) {
         out.append(name).append('\t')
                 // a backslash escaped first (S0, 2026-11-18): a raw newline and an escaped one are two texts
-                .append(IDS.matcher(line).replaceAll("<id>").replace("\\", "\\\\").replace("\n", "\\n")
+                .append(masked(line).replace("\\", "\\\\").replace("\n", "\\n")
                         .replace("\r", "")).append('\n');
+    }
+
+    /** THE PLAN-TEXT SPLIT, PLANTED (the review of PR #123, 2026-11-19): an execute answer's activities -- lite's SQL
+     *  -- go to the plan-text file and leave the answer line (S0, 2026-11-18). An SQL-only change moves the plan-text
+     *  line and never the answer; a value change moves the answer. */
+    @Test
+    void anSqlOnlyChangeMovesThePlanTextAlone() {
+        String sql = "SELECT t0.YEAR AS year FROM TRADES AS t0";
+        String renamed = sql.replace("t0", "t1");
+        StringBuilder planText = new StringBuilder();
+        StringBuilder renamedPlanText = new StringBuilder();
+        String answer = answer(() -> executed(sql, 2023), a -> line(planText, "activities.x", a));
+        String renamedAnswer = answer(() -> executed(renamed, 2023), a -> line(renamedPlanText, "activities.x", a));
+        org.junit.jupiter.api.Assertions.assertEquals(answer, renamedAnswer, "an alias rename is lite's SQL alone");
+        org.junit.jupiter.api.Assertions.assertFalse(answer.contains("activities"), "the answer line holds no SQL");
+        org.junit.jupiter.api.Assertions.assertNotEquals(planText.toString(), renamedPlanText.toString(),
+                "the plan-text file shows the rename");
+        org.junit.jupiter.api.Assertions.assertNotEquals(answer,
+                answer(() -> executed(sql, 2024), a -> line(new StringBuilder(), "activities.x", a)),
+                "a value change moves the answer");
+    }
+
+    /** An execute answer as the server writes it: legend-engine's TDS JSON with its activities' SQL. */
+    private static LiteV1Api.Answer executed(String sql, int year) {
+        return new LiteV1Api.Answer(200, "{\"builder\":{\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"year\","
+                + "\"type\":\"Integer\"}]},\"activities\":[{\"_type\":\"relational\",\"sql\":\"" + sql + "\"}],"
+                + "\"result\":{\"columns\":[\"year\"],\"rows\":[{\"values\":[" + year + "]}]}}");
     }
 
     @Test

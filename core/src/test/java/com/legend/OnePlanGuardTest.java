@@ -37,15 +37,16 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * G1 OF THE PRESENTATION PROGRAM, REPORT-ONLY (S0, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
- * §6): no upstream text built as SQL. Every method of the compatibility edge ({@code com.legend.edge..}), and every
+ * G1, REPORT-ONLY (S0 of the presentation program, 2026-11-18; carried into the compatibility program as slice 0.2,
+ * docs/records/compat-program-plan-2026-11-19.md on claude/compat-program): no upstream text built as SQL. Every method of the compatibility edge ({@code com.legend.edge..}), and every
  * product method it reaches through a call ArchUnit resolves, that builds text-producing MIR is a site: a
  * {@code StringLit}, a {@code Call} of a function the product's own typing makes text ({@link #textFns}: VARCHAR or
  * JSON, {@code SqlTyping.callType} over string operands), a JSON constructor ({@code JsonObject}, {@code JsonArray},
- * {@code JsonArrayAgg}), or a {@code Cast} to VARCHAR or JSON. In the end state each site is a row of exactly one
- * ledger (KIND_B per mode, KIND_C, KIND_D, INPUT); until those ledgers exist (S1m onward) the census writes every
- * site to {@code one_plan_g1_report.txt} in the test's outputs, the baseline the slices shrink. It fails only when it
- * cannot see a planted site; it blocks from S7. Dispatch through an interface is followed to its declaration only.
+ * {@code JsonArrayAgg}), or a {@code Cast} to VARCHAR or JSON. Under CP-1 (ruled 2026-11-19) upstream text is the
+ * formatters' after the run or the translator's input, never SQL the edge builds, so the program's slices shrink this
+ * set toward 0; the census writes every site to {@code one_plan_g1_report.txt} in the test's outputs, the baseline they
+ * shrink. It fails only when it cannot see a planted site; it reports until the program's guard phase makes the count
+ * a shrink-only ratchet. Dispatch through an interface is followed to its declaration only.
  */
 @Tag("guardrail")
 class OnePlanGuardTest {
@@ -170,7 +171,7 @@ class OnePlanGuardTest {
         }
         report.append("edge\t").append(edge).append("\nproduct\t").append(product).append('\n');
         System.out.println("[G1] " + edge + " edge methods and " + product + " product methods the edge reaches build"
-                + " text-producing MIR (report-only until S7)");
+                + " text-producing MIR (report-only)");
         String dir = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (dir != null) {
             Files.writeString(Path.of(dir, "one_plan_g1_report.txt"), report, StandardCharsets.UTF_8);

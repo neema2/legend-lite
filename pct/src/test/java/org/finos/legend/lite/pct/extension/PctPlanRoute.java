@@ -117,7 +117,7 @@ final class PctPlanRoute {
      *  their statements compared, in order: {@code IDENTICAL}, {@code DIFFERS <n of m>} (the statements that differ),
      *  {@code PRODUCT_REFUSES <its class>}, or {@code EDGE_REPLAN_REFUSES <its class>} (a plan the measurement cannot
      *  remake outside the run, reported, never failing the case). Recorded beside the case when the net asks
-     *  ({@code -Dlegend.edge.oneplan}); attribution to kind-B rows begins with S1m. */
+     *  ({@code -Dlegend.edge.oneplan}). */
     static String onePlan(TypedQuery query, java.util.Set<com.legend.platform.Feature> features) {
         java.util.List<String> edge;
         try {
