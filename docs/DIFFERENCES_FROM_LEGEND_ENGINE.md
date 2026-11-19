@@ -43,9 +43,15 @@ you need legend-engine's answer.
     `indexOf`: item 10.)
   - **An operator may choose to warn instead:** the server setting `LEGEND_LITE_PURE_MEANING=warn` answers Pure's way,
     with a log line and a response header, `x-legend-lite-pure-meaning`.
-  - **Or keep legend-engine's answer:** the user ruled an `engine` setting YES (2026-11-19), built in this batch.
-    Once it lands, an operator may set `LEGEND_LITE_PURE_MEANING=engine` to keep legend-engine's answer. Its
-    details are its design's.
+  - **Or keep legend-engine's answer:** an operator may set `LEGEND_LITE_PURE_MEANING=engine` (the user ruled it YES,
+    2026-11-19, built in this batch).
+    - The door then sends each flagged `substring` to the database as its own SUBSTRING over the arguments as
+      given, and each 2-argument `indexOf` as its own position function. That is legend-engine's answer, computed
+      by the database, on H2 and DuckDB.
+    - On any other database such a request is refused by name.
+    - A host-side `let`, which legend-engine computes before the query, keeps Pure's meaning.
+    - An M2M chain's transforms and a `~func` mapping are refused under `engine`: the door cannot reach them to
+      rewrite them.
   - **The setting is read at the legend-engine door alone**, never in lite's core: the switch rule (the user,
     2026-11-19 ~20:35; `docs/records/compat-rules-of-record-2026-11-19.md`).
   - **When the door lets the query through:** for `substring`, when the request sets legend-engine's corrected option.
@@ -75,15 +81,15 @@ you need legend-engine's answer.
   expected SQL and comparing answers.
 - **To get legend-engine's answer:** compare results, not SQL strings.
 - **When:** stage A.
-- **Measured:** of legend-engine's 2,761 corpus tests, 145 on H2 and 149 on DuckDB stop passing. The merged batch's
-  lanes settle both numbers. Their kinds (`A2-roster.tsv`):
+- **Measured:** of legend-engine's 2,761 corpus tests, 145 on H2 and 149 on DuckDB stop passing, as the merged batch's
+  lanes measured: H2's fail roster goes 276 to 421, DuckDB's 108 to 257. Their kinds (`A2-roster.tsv`):
   - **text only:** 139 on H2 and 143 on DuckDB check only the SQL text;
   - **plan structure:** 6 on each check legend-engine's plan structure (a `supportsStream` flag on its plan's
     parameter-validation node);
   - **answers the text had hidden** (items 12 and 13) are not among them. The user ruled them legend-engine defects
     before (2026-09-05 and 2026-09-08), so they are accepted divergences again (the user, 2026-11-19 ~20:35). Four
     of batch 144's rows go back on the accepted rosters, and two H2 rows are new. The accepted rosters go H2 41 to
-    44 and DuckDB 46 to 49, also settled by the merged batch.
+    44 and DuckDB 46 to 49. Each of those rows left its fail roster on the merged batch, so each witness matched.
 - That becomes 148 and 152 once item 1 lands: three more text tests that the old `indexOf` hid.
 - Every other SQL-text test passes by its answer.
 - Studio's "generate plan" for an ordinary query answers byte for byte as before.
@@ -235,8 +241,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:**
   - The corpus's `testToSqlGenerationFirstDayOfWeek` on DuckDB (class b of `A2-roster.tsv`). Its rows were appealed
     against legend-engine's H2 under `en_US`: `2014-11-30` there, `2014-12-01` from lite.
-  - With this batch it is an accepted divergence, on the accepted rosters (item 2). On H2 that holds now that lite
-    answers the Monday there too; the merged batch's lane settles it.
+  - With this batch it is an accepted divergence on both databases (item 2). On H2 the merged batch's lane accepts
+    it with legend-engine's answer as the witness, `2014-11-30`.
   - Both databases were asked directly under `en_US`, `en_GB` and `fr_FR`
     (`docs/records/compat-homework/A3-piece4/first-day-of-week-probe.md`, on `claude/census-b2`).
 - **Register:** S387 (provisional).
