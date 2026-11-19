@@ -286,6 +286,9 @@ jobs:
             bazel-bin/spec/judge_host_*/host.log
             bazel-bin/spec/judge_host_*/verdict.txt
             bazel-bin/spec/judge_*/*-*.txt
+            bazel-bin/pct/edge_norm/*.tsv
+            bazel-bin/spec/judge_host_*/*.tsv
+            bazel-bin/core/edge/*/*.tsv
           if-no-files-found: ignore
       # the wheel this platform built (//python:wheel: the warehouse lane builds it for //python:wheel_test), kept for
       # anyone to install without building it -- only once the lane is green, so a kept wheel is a tested one: macOS,
