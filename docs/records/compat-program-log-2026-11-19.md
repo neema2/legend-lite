@@ -3004,3 +3004,10 @@ who confirms or changes phases 1-3.
   73 → 76; the EngineSubstitutes funnel row). census, guardrails_edge, spec_tests green; guardrails red only on piece
   1's own FUNCTION_FQN_LITERALS_MAX 346 → 347, green once piece 1 is in the batch. The judges merge it after the
   translator's pieces.
+- **~22:31 UTC, //gates:local green on the engine runner fix `b648c377b`** (CI-health worker; `--lockfile_mode=error`;
+  571 tests, 34.5 min): 557 pass, 1 skipped, 13 fail on the container's two known limits only (12 Postgres-backed tests
+  refused by initdb as root, 12 of 12 PASS re-run as the documented unprivileged user; `stress_markets_test` killed for
+  memory with four tests in parallel, PASS alone in 56.7 s); none of the 13 reaches tools/engine-runner. Net 570 pass,
+  1 skipped. The user asked about lean option 2: answered (sound but not worth it; a second wording system kept for
+  good, half a match with compile errors in lite's words, no much leaner form within CP-7; reversible later at about
+  today's cost if option 1 skips the operand cleanup); recommendation still option 1.
