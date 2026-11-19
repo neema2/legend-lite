@@ -47,7 +47,10 @@ class LeanSqlCorpusTest {
         // the corpus's resource store, as its run has (MinimalCorpus's options): a body that loads a CSV plans its
         // load against the file's digest. Only the store: the measure keeps lite's own rules and spelling (round 55f,
         // 2026-11-15: a DataError, "this run was given no store for it", had been counted as a refusal)
-        com.legend.ExecuteOptions options = options(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+        // planned under the host judge (A4 of the compatibility program, stage A ratified by the user 2026-11-19: the
+        // corpus is a compatibility audience, and rule 4 of the rules of record judges it by the host alone); the measure
+        // counts the body's product statements alone, which neither judge's verdict steps add to
+        com.legend.ExecuteOptions options = options(com.legend.testplan.PlanningOptions.JudgeMode.HOST);
         for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
             String family = t.pkg();
             List<String> productSql = new ArrayList<>();

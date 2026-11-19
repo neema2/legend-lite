@@ -83,7 +83,11 @@ class GeneratedTestDataPrintingTest {
         assertEquals(List.of("assertEquals true"), run(backend, ctx, body("default\nEVENT\nID,STAMP\n"
                 + "1,2020-01-02T03:04:05.123000Z\n2,---null---\n-----\n"),
                 ExecuteOptions.NONE.withJudgeMode(judge)), what);
-        // the compatibility rules: upstream's text, the fraction cut
+        // the compatibility rules: upstream's text, the fraction cut -- under the host judge alone (rule 4 of the
+        // compatibility program's rules of record; A4, stage A ratified by the user 2026-11-19: until A4 under every judge)
+        if (judge != PlanningOptions.JudgeMode.HOST) {
+            return;
+        }
         assertEquals(List.of("assertEquals true"), run(backend, ctx, body("default\nEVENT\nID,STAMP\n"
                 + "1,2020-01-02 03:04:05\n2,---null---\n-----\n"),
                 ExecuteOptions.recording(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),

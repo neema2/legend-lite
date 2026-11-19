@@ -336,9 +336,11 @@ public final class MinimalCorpus {
         com.legend.testplan.PlanningOptions.JudgeMode judgeMode = switch (
                 System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
             case "host" -> com.legend.testplan.PlanningOptions.JudgeMode.HOST;
-            case "both" -> com.legend.testplan.PlanningOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
+            // 'both' left with A4 of the compatibility program (stage A ratified by the user 2026-11-19): the corpus is
+            // a compatibility audience, judged by the host alone (rule 4 of the rules of record)
             default -> throw new IllegalArgumentException("legend.judge.mode='"
-                    + System.getProperty("legend.judge.mode") + "': 'host' or 'both' (the corpus's database pass left 2026-11-17)");
+                    + System.getProperty("legend.judge.mode") + "': 'host' (the corpus's database pass left 2026-11-17; its"
+                    + " agreement gate with A4, 2026-11-19: the host judge is the only judge in compatibility)");
         };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(),

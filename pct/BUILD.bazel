@@ -470,9 +470,9 @@ _ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legen
 
 test_suite(
     name = "pct_channel_b",
-    # with the HOST channel-B pass (O5, E-5c): DuckDB's suites and H2's relation suite under the host judge alone
-    tests = [":pct_channel_b_" + s.lower() for s in _SUITES] + [":pct_channel_b_host_" + s.lower() for s in _SUITES] +
-            [":pct_channel_b_host_h2_relation"] +
+    # the HOST channel-B pass (O5, E-5c) left with A4 of the compatibility program (stage A ratified by the user
+    # 2026-11-19): every compatibility lane is judged by the host alone now (rule 4), so the pass was these lanes twice
+    tests = [":pct_channel_b_" + s.lower() for s in _SUITES] +
             # the runner's own unit tests: the ledger matched on full text, the twice guard's planted violators
             # (2026-11-15, PR1's review: found in no lane)
             [":pct_channel_b_ledger_test", ":pct_channel_b_twice_guard_test"],
@@ -651,43 +651,10 @@ _LANE_LEDGER = "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%s_%sFun
     runtime_deps = [":pct_tests_lib"] + deps,
 ) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items() if lane == "h2" for s in suites]
 
-# THE HOST CHANNEL-B PASS (O5's term, the user's ruling of 2026-11-13): BOTH plans the database judge's fused program
-# (E-5c), so a side planned as its OWN statement -- the host judge's road -- would go unexercised on PCT. These lanes run
-# channel B under the HOST judge alone (-Dpct.channelb.judge=HOST) on the in-process databases: DuckDB, every suite, and
-# H2, the relation suite (the twice lanes' two), each judged against its ledger as usual.
-[junit_test(
-    name = "pct_channel_b_host_" + s.lower(),
-    memory_mb = 768,
-    data = [
-        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
-        _ENGINE_MANIFEST % s,
-    ],
-    jvm_flags = [
-        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
-        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
-        "-Dpct.channelb.judge=HOST",
-    ],
-    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
-    upstream = True,
-    runtime_deps = [
-        ":pct_tests_lib",
-        "//core:drivers",
-    ],
-) for s in _SUITES]
-
-[junit_test(
-    name = "pct_channel_b_host_h2_%s" % s.lower(),
-    memory_mb = 2048,
-    data = [_LANE_LEDGER % (cls, s)] + [_LANE_MANIFEST % (d, d, d, s) for d in ([] if db == None else [db])] + data,
-    env = {"LEGENDLITE_PCT_BACKEND": "h2"},
-    jvm_flags = [
-        "-Dpct.suite.%s=$(rlocationpath %s)" % (s, _LANE_LEDGER % (cls, s)),
-        "-Dpct.channelb.judge=HOST",
-    ] + ["-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _LANE_MANIFEST % (d, d, d, s)) for d in ([] if db == None else [db])] + flags,
-    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
-    upstream = True,
-    runtime_deps = [":pct_tests_lib"] + deps,
-) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items() if lane == "h2" for s in suites if s == "Relation"]
+# THE HOST CHANNEL-B PASS (O5's term, the user's ruling of 2026-11-13) is deleted (A4 of the compatibility program,
+# stage A ratified by the user 2026-11-19): it ran channel B under -Dpct.channelb.judge=HOST because the lanes above ran
+# BOTH; under rule 4 of the rules of record every compatibility lane is judged by the host alone, so its targets were the
+# lanes above run twice.
 
 # the ledger matches a failure's full text, never its clipped display (ChannelBLedgerTest, 2026-11-15)
 junit_test(

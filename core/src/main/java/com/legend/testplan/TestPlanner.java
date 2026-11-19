@@ -33,6 +33,7 @@ public final class TestPlanner {
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
     public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        refuseTheDatabaseJudgeInCompatibility(options);
         if (options.judgeMode() == PlanningOptions.JudgeMode.BOTH) {
             // both judges ISOLATED (the user's judge model, 2026-11-17): each plans the body alone; under lite's own
             // rules their verdicts and messages agree, under the compatibility rules their verdicts (the words are the
@@ -62,6 +63,23 @@ public final class TestPlanner {
         return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing,
                 options.style())), runtimeFqn,
                 dialect, options, facts);
+    }
+
+    /**
+     * THE HOST JUDGE IS THE ONLY JUDGE IN COMPATIBILITY (rule 4 of the compatibility program's rules of record, the
+     * user's words of 2026-11-19: "Host judge is only judge in compatibility, database and host both in product with
+     * carve out that host is allowed to compare"; A4 of the compatibility program, stage A ratified by the user
+     * 2026-11-19). A body planned for a legend-pure or legend-engine audience -- any style but the product's -- plans
+     * no database-judge verdict: its judge is the host's alone, and a DATABASE or BOTH judge is refused by name, before
+     * the style is asked anything. The product's style plans either judge, or both.
+     */
+    static void refuseTheDatabaseJudgeInCompatibility(PlanningOptions options) {
+        if (options.judgeMode() != PlanningOptions.JudgeMode.HOST && options.style() != com.legend.database.PlanStyle.PRODUCT) {
+            throw new IllegalArgumentException("the host judge is the only judge in compatibility (rule 4 of the"
+                    + " compatibility program's rules of record): a body planned in a compatibility style plans no"
+                    + " database-judge verdict, and was asked for the " + options.judgeMode() + " judge; judge it with"
+                    + " HOST");
+        }
     }
 
     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */

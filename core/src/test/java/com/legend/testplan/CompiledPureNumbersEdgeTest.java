@@ -29,9 +29,10 @@ class CompiledPureNumbersEdgeTest {
             function t::check2(x: Integer[1]): Boolean[1] { assertEquals(2, $x); true; }
             """;
 
+    /** The edge's judges: the host's alone (rule 4 of the compatibility program's rules of record; A4 of the
+     *  compatibility program, stage A ratified by the user 2026-11-19: until A4 the host's, the database's and both). */
     private static final List<com.legend.testplan.PlanningOptions.JudgeMode> JUDGES = List.of(
-            com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE,
-            com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
+            com.legend.testplan.PlanningOptions.JudgeMode.HOST);
 
     private static void run(Connection c, String body, ExecuteOptions options) {
         com.legend.testing.EdgeProgram.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), body,

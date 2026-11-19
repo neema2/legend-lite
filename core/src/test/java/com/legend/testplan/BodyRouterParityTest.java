@@ -57,6 +57,21 @@ class BodyRouterParityTest {
         void run() throws Exception;
     }
 
+    /** Whether {@code body} runs in the edge's style: under the compatibility rules, or binding legend-engine's plan
+     *  handle or result envelope, which only the edge plans. */
+    private static boolean edgeStyle(String body) {
+        return COMPAT.get() || body.contains("meta::pure::executionPlan::executionPlan(")
+                || body.contains("meta::legend::executeLegendQuery(");
+    }
+
+    /** The judge {@code body} runs under for the asked {@code mode}: in the edge's style the host's alone (rule 4 of the
+     *  compatibility program's rules of record; A4 of the compatibility program, stage A ratified by the user
+     *  2026-11-19: until A4 the asked judge on both roads), the asked one in the product's. */
+    private static com.legend.testplan.PlanningOptions.JudgeMode judgeFor(String body,
+            com.legend.testplan.PlanningOptions.JudgeMode mode) {
+        return edgeStyle(body) ? com.legend.testplan.PlanningOptions.JudgeMode.HOST : mode;
+    }
+
     private static void inCompatibilityMode(Body body) throws Exception {
         COMPAT.set(Boolean.TRUE);
         try {
@@ -1966,8 +1981,8 @@ class BodyRouterParityTest {
         assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true),
                 "the body is a moved class's under one judge: " + body);
         Run moved = run(backend, ctx, runtime, body, check, setup, mode);
-        // BOTH plans the body once per judge, each alone (isolated BOTH, 2026-11-17)
-        assertEquals(mode == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1, moved.moved,
+        // BOTH plans the body once per judge, each alone (isolated BOTH, 2026-11-17); the edge's style one judge (A4)
+        assertEquals(judgeFor(body, mode) == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1, moved.moved,
                 "the router moved the body: " + body);
         return moved;
     }
@@ -2034,8 +2049,7 @@ class BodyRouterParityTest {
             String check, List<String> setup, com.legend.testplan.PlanningOptions.JudgeMode mode) throws Exception {
         // the session is the database the run's style plans for (the audit's J22, 2026-11-17: H2's settings are the
         // style's): the edge's where the run below is handed the edge's style
-        boolean edgeStyle = COMPAT.get() || body.contains("meta::pure::executionPlan::executionPlan(")
-                || body.contains("meta::legend::executeLegendQuery(");
+        boolean edgeStyle = edgeStyle(body);
         try (Connection c = backend.open(edgeStyle ? com.legend.edge.PureText.UPSTREAM
                 : com.legend.database.PlanStyle.PRODUCT)) {
             try (Statement st = c.createStatement()) {
@@ -2058,7 +2072,7 @@ class BodyRouterParityTest {
                     : body.contains("meta::pure::executionPlan::executionPlan(")
                             || body.contains("meta::legend::executeLegendQuery(")
                             ? ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM)
-                            : ExecuteOptions.NONE).withJudgeMode(mode);
+                            : ExecuteOptions.NONE).withJudgeMode(judgeFor(body, mode));
             Capture capture = new Capture();
             // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's
             // process-wide observer is gone)

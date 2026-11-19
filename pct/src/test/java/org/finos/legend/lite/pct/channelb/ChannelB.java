@@ -393,10 +393,11 @@ public final class ChannelB {
                     com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
             // the tests' planning options: as-of joins the same row on every database (PlanOption)
             .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
-            // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
-            // bodies under one judge, to read which shapes the program road plans for it
-            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
-                    System.getProperty("pct.channelb.judge", "BOTH")))
+            // the host judge alone (rule 4 of the compatibility program's rules of record: "Host judge is only judge
+            // in compatibility"; A4 of the compatibility program, stage A ratified by the user 2026-11-19): until A4
+            // these runs took -Dpct.channelb.judge, BOTH by default; the test planner now refuses a database-judge
+            // verdict for a compatibility audience by name (TestPlanner.refuseTheDatabaseJudgeInCompatibility)
+            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.HOST)
             // legend-pure's texts, spelled by the edge (phase D's D1.0)
             .withStyle(com.legend.edge.PureText.UPSTREAM);
 
