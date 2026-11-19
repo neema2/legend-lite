@@ -1143,8 +1143,8 @@ public class H2 extends AnsiSqlRenderer {
             case CORR -> h2Aggregate(writer, "CORR", r);
             case COVAR_SAMP -> h2Aggregate(writer, "COVAR_SAMP", r);
             case COVAR_POP -> h2Aggregate(writer, "COVAR_POP", r);
-            case ARG_MAX -> h2Aggregate(writer, "ARG_MAX", r);
-            case ARG_MIN -> h2Aggregate(writer, "ARG_MIN", r);
+            case ARG_MAX -> argExtreme(writer, r, " DESC", null);
+            case ARG_MIN -> argExtreme(writer, r, " ASC", null);
             case BOOL_AND -> h2Aggregate(writer, "BOOL_AND", r);
             case BOOL_OR -> h2Aggregate(writer, "BOOL_OR", r);
             case VARIANCE -> h2Aggregate(writer, "VARIANCE", r);
@@ -1206,6 +1206,35 @@ public class H2 extends AnsiSqlRenderer {
         return writer.append(name).append("(")
                 .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
                 .append(desc ? " DESC" : "").append(")");
+    }
+
+    /** The value at the first row in the key's {@code direction}, rows of a NULL key ignored, over a group or a
+     *  window: H2 has no ARG_MAX or ARG_MIN (measured on 2.5.252: Function "ARG_MAX" not found), so its
+     *  {@code (ARRAY_AGG(v ORDER BY k) FILTER (WHERE k IS NOT NULL)[ OVER (...)])[1]}, Postgres's form. H2 sorts an
+     *  aggregate's values stably, so a tie answers the earliest of its rows, as Pure's maxBy and minBy (a stable sort
+     *  of the zipped pairs, head) and DuckDB's ARG_MAX do (PivotTwoValueReducerTest's tie; the orchestrator's word,
+     *  2026-11-19). */
+    private SqlWriter argExtreme(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r, String direction,
+            @com.legend.base.Nullable SqlExpr.WindowCall over) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached H2");
+        }
+        writer.append("(ARRAY_AGG(").expr(r.args().get(0), 0).append(" ORDER BY ").expr(r.args().get(1), 0)
+                .append(direction).append(") FILTER (WHERE ").expr(r.args().get(1), 4).append(" IS NOT NULL)");
+        if (over != null) {
+            over(writer, over);
+        }
+        return writer.append(")[1]");
+    }
+
+    /** A windowed ARG_MAX or ARG_MIN is {@link #argExtreme}'s array read after its window; any other the base's. */
+    @Override
+    protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
+        if (w.fn() instanceof com.legend.sql.SqlAgg.Reducer r
+                && (r.fn() == com.legend.sql.SqlAgg.Fn.ARG_MAX || r.fn() == com.legend.sql.SqlAgg.Fn.ARG_MIN)) {
+            return argExtreme(writer, r, r.fn() == com.legend.sql.SqlAgg.Fn.ARG_MAX ? " DESC" : " ASC", w);
+        }
+        return super.windowCall(writer, w);
     }
 
     /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}. */

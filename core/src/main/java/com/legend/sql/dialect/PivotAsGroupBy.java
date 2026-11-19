@@ -44,8 +44,15 @@ final class PivotAsGroupBy extends com.legend.sql.SqlRewriter {
                     throw new DialectCapability("a pivot whose aggregate takes no argument reached a dialect without a"
                             + " native pivot");
                 }
-                args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null, SqlExpr.Reason.DIALECT));
+                SqlExpr isValue = SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v);
+                args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(isValue, args.get(0))), null,
+                        SqlExpr.Reason.DIALECT));
+                // a reducer of two row values takes the value's rows on both (SqlAgg.Fn.twoRowValues; 2026-11-19: the
+                // second was every row's, so a maxBy ranked the other values' rows too)
+                if (args.size() == 2 && agg.fn().twoRowValues()) {
+                    args.set(1, new SqlExpr.Case(List.of(new SqlExpr.Case.When(isValue, args.get(1))), null,
+                            SqlExpr.Reason.DIALECT));
+                }
                 String name = pivotValueText(v) + "__|__" + u.alias();
                 ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(agg.fn(), args, agg.distinct(), agg.orderBy()),
                         name, CarrierStrategies.generatedSlot(p, u, name)));

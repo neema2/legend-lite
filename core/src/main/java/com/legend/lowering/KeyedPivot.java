@@ -45,6 +45,7 @@ public final class KeyedPivot {
     private KeyedPivot() {
     }
 
+
     /** The probe plan's statements and outputs: {@code keys} (one row per key: its text, then each per-key output's
      *  name), {@code body} (the fixed columns, then the per-key ones), {@code outputs} in the body's order. */
     public record Parts(SqlQuery keys, SqlQuery body, List<Output> outputs, int perKeyAt) {
@@ -214,6 +215,14 @@ public final class KeyedPivot {
                 args.add(new SqlExpr.Case(List.of(new SqlExpr.Case.When(isKey, new SqlExpr.IntLit(1))), null, SqlExpr.Reason.OPERATOR));
             } else {
                 args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(isKey, args.get(0))), null, SqlExpr.Reason.OPERATOR));
+                // a reducer of TWO row values -- maxBy's and minBy's key, a correlation's or a covariance's other side
+                // -- takes the key's rows on both: until 2026-11-19 the second was every row's, so ARG_MAX(CASE WHEN
+                // key THEN name END, w) ranked the other keys' rows by w and answered their null (a literal argument,
+                // a separator or a percentile, stays as it is)
+                if (args.size() == 2 && agg.fn().twoRowValues()) {
+                    args.set(1, new SqlExpr.Case(List.of(new SqlExpr.Case.When(isKey, args.get(1))), null,
+                            SqlExpr.Reason.OPERATOR));
+                }
             }
             String stem = stem(i);
             ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(agg.fn(), args, agg.distinct(), agg.orderBy()), stem,

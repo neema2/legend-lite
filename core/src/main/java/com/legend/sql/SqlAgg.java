@@ -33,6 +33,13 @@ public sealed interface SqlAgg {
             return this == WAVG || this == HASH_LIST
                     || this == IS_DISTINCT_MARK || this == UNIQUE_VALUE_ONLY;
         }
+
+        /** Whether both of its two arguments are a row's values -- maxBy's and minBy's key, a correlation's or a
+         *  covariance's other side -- never a literal (a separator, a percentile): a pivot's per-key form restricts
+         *  both to the key's rows (2026-11-19: it restricted the first alone). */
+        public boolean twoRowValues() {
+            return this == ARG_MAX || this == ARG_MIN || this == CORR || this == COVAR_SAMP || this == COVAR_POP;
+        }
     }
 
     Fn fn();

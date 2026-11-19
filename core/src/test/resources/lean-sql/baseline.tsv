@@ -1258,7 +1258,7 @@ channel_a	H2	TypedExtendAgg	2	623	14843	0	0	0
 channel_a	H2	TypedExtendWindow	201	125790	1868651	0	17404	4
 channel_a	H2	TypedFilter	29	12569	184574	11	1385	2
 channel_a	H2	TypedFold	3	390	8248	0	0	10
-channel_a	H2	TypedGroupBy	46	18617	358384	4	682	1
+channel_a	H2	TypedGroupBy	46	18760	358535	4	682	1
 channel_a	H2	TypedIf	12	898	30410	0	0	0
 channel_a	H2	TypedJoin	4	2204	27453	1	278	0
 channel_a	H2	TypedLimit	10	1686	34128	2	26	2
@@ -3462,7 +3462,7 @@ core	DuckDB	TypedFrom	68	13453	323595	30	418	0
 core	DuckDB	TypedGetAll	1	80	2041	0	0	0
 core	DuckDB	TypedGroupBy	124	23131	527897	6	450	0
 core	DuckDB	TypedIf	6	514	13089	0	0	0
-core	DuckDB	TypedJoin	33	13366	388000	14	1138	0
+core	DuckDB	TypedJoin	33	13258	385996	14	1138	0
 core	DuckDB	TypedLimit	41	6351	141564	10	169	0
 core	DuckDB	TypedMap	5	1578	23914	0	0	0
 core	DuckDB	TypedMatch	7	270	9929	0	0	0
