@@ -2672,3 +2672,7 @@ who confirms or changes phases 1-3.
   is exempt there): use `substring(1, 2)`. S1: the javadoc quotes program wording as the user's; S2: an unresolved
   mapping reported unverified, never clean. Proof gap: record `core_edge_tests`, the pure/v1 goldens and the batteries.
   The merged `own_corpus.matched` is regenerated on the merged tree. Sent to B1-R.
+- **~20:41 UTC, the translator: A3 piece 2 built locally** (`claude/compat-a3-switch`: `2f01b45b` the core switch and
+  S383's raise, `c2cb56bf` the PCT adapter's option off, on A2's `6551c203` plus piece 1); its fast loop, PCT DuckDB A
+  and B and the corpus lanes running. It will not push on a relayed word (its start rule: "push only to
+  claude/compat-translator-spike"); its three asks in its session were cut off by worker restarts; it asks again there.
