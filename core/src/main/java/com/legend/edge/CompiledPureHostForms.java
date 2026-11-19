@@ -18,7 +18,15 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
     public boolean equalAcrossNumberKinds(Equality.Kind ek, Equality.Kind ak, Object e, Object a) {
         boolean integerAndDecimal = ek == Equality.Kind.INTEGER && ak == Equality.Kind.DECIMAL
                 || ek == Equality.Kind.DECIMAL && ak == Equality.Kind.INTEGER;
-        return integerAndDecimal && String.valueOf(e).equals(String.valueOf(a));
+        boolean r = integerAndDecimal && String.valueOf(e).equals(String.valueOf(a));
+        // H6 PROTOTYPE (MEASUREMENT ONLY): lite answers false
+        if (r) {
+            com.legend.diagnostics.LeniencyProbe.changed("S127", e + " vs " + a);
+            if (com.legend.diagnostics.LeniencyProbe.off("S127")) {
+                return false;
+            }
+        }
+        return r;
     }
 
     /** The units in the last place two Floats may differ by and be equal: compiled legend-pure's 2 (S15/S132). */
@@ -28,7 +36,16 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
      *  ({@code 3.0D} differs from {@code 3.00D}; register S139; train 17, 2026-11-18: moved from testexec.Equality). */
     @Override
     public boolean equalDecimals(java.math.BigDecimal e, java.math.BigDecimal a) {
-        return e.equals(a);
+        boolean r = e.equals(a);
+        // H6 PROTOTYPE (MEASUREMENT ONLY): lite compares by value
+        boolean lite = e.compareTo(a) == 0;
+        if (r != lite) {
+            com.legend.diagnostics.LeniencyProbe.changed("S139", e + " vs " + a);
+            if (com.legend.diagnostics.LeniencyProbe.off("S139")) {
+                return lite;
+            }
+        }
+        return r;
     }
 
     /** Two Floats within {@link #FLOAT_ULPS} ULP are equal (S15/S132; train 17, 2026-11-18: moved from
@@ -36,6 +53,13 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
     @Override
     public boolean equalFloatsApart(double e, double a) {
         boolean within = withinUlps(e, a);
+        // H6 PROTOTYPE (MEASUREMENT ONLY): lite answers false for two Floats apart
+        if (within) {
+            com.legend.diagnostics.LeniencyProbe.changed("S15", e + " ~ " + a);
+            if (com.legend.diagnostics.LeniencyProbe.off("S15")) {
+                return false;
+            }
+        }
         if (within) {
             // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
             com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);

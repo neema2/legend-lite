@@ -24,7 +24,25 @@ public enum UpstreamRenderedTexts implements com.legend.testexec.RenderedTexts {
      * tolerant. */
     @Override
     public boolean held(String expected, String actual, String form, boolean sorted) {
-        boolean held = renderedTextVerdict(expected, actual, form, sorted);
+        // H6 PROTOTYPE (MEASUREMENT ONLY): S131 off compares the lines in order; S132 off compares cells exactly
+        boolean held = renderedTextVerdict(expected, actual, form,
+                sorted || com.legend.diagnostics.LeniencyProbe.off("S131"));
+        if (held && !expected.equals(actual)) {
+            NO_TOLERANCE.set(true);
+            boolean exactCells;
+            try {
+                exactCells = renderedTextVerdict(expected, actual, form, sorted);
+            } finally {
+                NO_TOLERANCE.set(false);
+            }
+            boolean inOrder = renderedTextVerdict(expected, actual, form, true);
+            if (!exactCells) {
+                com.legend.diagnostics.LeniencyProbe.changed("S132", "rendered " + form + " cell within 2 ULP");
+            }
+            if (!sorted && !inOrder) {
+                com.legend.diagnostics.LeniencyProbe.changed("S131", "rendered " + form + " lines as a multiset");
+            }
+        }
         // R1b divergence instrument — measurement only, cannot affect
         // the verdict (CANONICAL_FORM_SPEC §0); the chain's sortedness
         // rides along so the byte channel judges unordered grids under
@@ -153,9 +171,15 @@ public enum UpstreamRenderedTexts implements com.legend.testexec.RenderedTexts {
      * tolerance is DELETED (it hid H2's DECFLOAT arithmetic from the
      * host judge: the 21 calendar rows). Integers and scientific forms
      * compare as strings. Counted under {@code LL_TOL_COUNT}. */
+    /** H6 PROTOTYPE (MEASUREMENT ONLY): set while the probe re-judges a text with exact cells. */
+    private static final ThreadLocal<Boolean> NO_TOLERANCE = ThreadLocal.withInitial(() -> false);
+
     private static boolean cellEquals(String e, String a) {
         if (e.equals(a)) {
             return true;
+        }
+        if (NO_TOLERANCE.get() || com.legend.diagnostics.LeniencyProbe.off("S132")) {
+            return false;
         }
         if (e.indexOf('.') < 0 || a.indexOf('.') < 0) {
             return false;

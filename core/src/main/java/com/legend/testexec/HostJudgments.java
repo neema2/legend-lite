@@ -133,6 +133,13 @@ final class HostJudgments {
                 int w = g != null ? g.columns().size() : 1;
                 hostHeld = com.legend.testexec.Equality.rowMultiset(
                         te, ta, w > 1 && e.size() % w == 0 ? w : 1, rules);
+                // H6 PROTOTYPE (MEASUREMENT ONLY): the incidental-order fallback held where the ordered compare failed
+                if (hostHeld) {
+                    com.legend.diagnostics.LeniencyProbe.changed("S131", name + " cells as a row multiset");
+                    if (com.legend.diagnostics.LeniencyProbe.off("S131")) {
+                        hostHeld = false;
+                    }
+                }
             }
         }
         return finish(name, wantEqual, hostHeld,
@@ -819,6 +826,13 @@ final class HostJudgments {
         boolean equal = incidental
                 ? com.legend.testexec.Equality.sameElements(te, ta, rules)
                 : com.legend.testexec.Equality.ordered(te, ta, rules);
+        // H6 PROTOTYPE (MEASUREMENT ONLY): an incidental order compared as a multiset where the ordered compare fails
+        if (incidental && equal && !com.legend.testexec.Equality.ordered(te, ta, rules)) {
+            com.legend.diagnostics.LeniencyProbe.changed("S131", name + " values as a multiset");
+            if (com.legend.diagnostics.LeniencyProbe.off("S131")) {
+                equal = false;
+            }
+        }
         // R1a divergence instrument (CANONICAL_FORM_SPEC §0): the host lattice vs a canonical render of the same
         // values, measurement only (the byte verdict it once shadowed is deleted, P1, 2026-11-07)
         com.legend.testexec.CanonicalDivergence.probeEqual(
@@ -869,6 +883,16 @@ final class HostJudgments {
         String diff = incidentalRoot
                 ? com.legend.testexec.Equality.pureJsonUnorderedRoot(expected, actual)
                 : com.legend.testexec.Equality.pureJson(expected, actual);
+        // H6 PROTOTYPE (MEASUREMENT ONLY): a JSON root array compared as a multiset where the ordered compare fails
+        if (incidentalRoot && diff == null) {
+            String ordered = com.legend.testexec.Equality.pureJson(expected, actual);
+            if (ordered != null) {
+                com.legend.diagnostics.LeniencyProbe.changed("S131", "JSON root array as a multiset");
+                if (com.legend.diagnostics.LeniencyProbe.off("S131")) {
+                    diff = ordered;
+                }
+            }
+        }
         return diff == null ? com.legend.testexecutionplan.Verdicts.ok()
                 : com.legend.testexecutionplan.Verdicts.fail(words(rules).jsonDiffers(ejson, ajson, incidentalRoot, diff));
     

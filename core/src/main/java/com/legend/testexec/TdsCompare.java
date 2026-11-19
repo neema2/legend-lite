@@ -76,6 +76,13 @@ public final class TdsCompare {
         if (!Equality.rowMultiset(te, ta, Math.max(1, eKinds.size()), rules)) {
             return false;
         }
+        // H6 PROTOTYPE (MEASUREMENT ONLY): an unordered grid compared as a row multiset where the ordered compare fails
+        if (!Equality.ordered(te, ta, rules)) {
+            com.legend.diagnostics.LeniencyProbe.changed("S131", "grid rows as a multiset");
+            if (com.legend.diagnostics.LeniencyProbe.off("S131")) {
+                return false;
+            }
+        }
         // C0.4: a multiset pass the POSITIONAL compare would reject is a
         // pass that depends on order leniency — countable per sweep
         ordLeniency("row-multiset", () -> Equality.ordered(te, ta, rules));

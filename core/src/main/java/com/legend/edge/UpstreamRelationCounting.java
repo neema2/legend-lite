@@ -21,7 +21,15 @@ public enum UpstreamRelationCounting implements com.legend.compiler.spec.Relatio
 
     @Override
     public List<TypedSpec> counted(List<TypedSpec> body) {
-        return countedAsOne(body);
+        List<TypedSpec> r = countedAsOne(body);
+        // H6 PROTOTYPE (MEASUREMENT ONLY): a rewrite is S137 deciding; off, lite's refusal answers
+        if (r != body) {
+            com.legend.diagnostics.LeniencyProbe.changed("S137", "a relation counted as one value");
+            if (com.legend.diagnostics.LeniencyProbe.off("S137")) {
+                return com.legend.compiler.spec.RelationCountAsserts.REFUSED.counted(body);
+            }
+        }
+        return r;
     }
 
     /**

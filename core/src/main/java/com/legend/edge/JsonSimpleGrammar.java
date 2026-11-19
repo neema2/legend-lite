@@ -32,6 +32,30 @@ public enum JsonSimpleGrammar implements com.legend.testexecutionplan.JsonGramma
 
     @Override
     public @Nullable Object read(String text) {
+        // H6 PROTOTYPE (MEASUREMENT ONLY): where lite's strict JSON reads the text otherwise (or refuses it), S144/S366
+        // changed the read; off, the strict read answers
+        Object strict;
+        try {
+            strict = com.legend.testexecutionplan.JudgeJson.STRICT.read(text);
+        } catch (RuntimeException refused) {
+            strict = refused;
+        }
+        Object lenient = readLenient(text);
+        if (!java.util.Objects.equals(String.valueOf(strict), String.valueOf(lenient))) {
+            com.legend.diagnostics.LeniencyProbe.changed("S144", strict instanceof RuntimeException
+                    ? "strict refuses: " + text : "reads otherwise: " + text);
+            if (com.legend.diagnostics.LeniencyProbe.off("S144")) {
+                if (strict instanceof RuntimeException r) {
+                    throw r;
+                }
+                return strict;
+            }
+        }
+        return lenient;
+    }
+
+    /** The grammar's own read (the body of {@link #read} before the H6 probe). */
+    private @Nullable Object readLenient(String text) {
         return new Parser(text).parse();
     }
 
