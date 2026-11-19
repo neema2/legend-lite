@@ -388,6 +388,75 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** F4's equality over each numeric pairing the host's Equality decides (track A5, 2026-11-19; the fix batch's
+     *  JUDGES-WORDS-8: F4's test covered an Integer literal against a Decimal over INTEGER alone): a Float property over
+     *  an INTEGER column (its declaration Float, the column's carrier an integer), a Decimal property over a DOUBLE
+     *  column, and a Number property -- an unrefined declaration, which keeps its carrier's kind -- over an INTEGER and a
+     *  DOUBLE column. Lite's rules (S127: two numbers of different kinds never equal; S139: Decimals by value): one
+     *  outcome, and one message, per assert under every judge, read from its row and from a map. */
+    private static final String PAIRINGS_ON = """
+            ###Pure
+            Class p::N { id: Integer[1]; f: Float[1]; d: Decimal[1]; n: Number[1]; m: Number[1]; }
+            ###Relational
+            Database p::DB ( Table T (ID INTEGER PRIMARY KEY, F INTEGER, D DOUBLE, N INTEGER, M DOUBLE) )
+            ###Mapping
+            Mapping p::M ( p::N: Relational { ~mainTable [p::DB] T id: T.ID, f: T.F, d: T.D, n: T.N, m: T.M } )
+            ###Connection
+            RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+                specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,F,D,N,M\\n1,1,1.5,1,1.5\\n'; }; auth: DefaultH2; }
+            ###Runtime
+            Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+            """;
+
+    @Test
+    void anEqOverEachNumericPairingIsOneVerdictUnderEveryJudge() throws Exception {
+        // property, the literal of its kind, a literal of another kind
+        String[][] pairings = {{"f", "1.0", "1"}, {"d", "1.5D", "1.5"}, {"n", "1", "1.0"}, {"m", "1.5", "1.5D"}};
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        for (String[] p : pairings) {
+            for (String side : List.of("p::N.all()->filter(x | $x.id == 1)->toOne()." + p[0],
+                    "p::N.all()->map(x | $x." + p[0] + ")->toOne()")) {
+                want.put("{|assertEq(" + p[1] + ", " + side + ")}", "pass");
+                want.put("{|assertEq(" + p[2] + ", " + side + ")}", "AssertFailed");
+                want.put("{|assertNotEq(" + p[1] + ", " + side + ")}", "AssertFailed");
+                want.put("{|assertNotEq(" + p[2] + ", " + side + ")}", "pass");
+            }
+        }
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String model = PAIRINGS_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                // the map reads a list, which a dialect without a list encoding refuses by name (as F4's test)
+                if (e.getKey().contains("map(x") && !database.equals(Databases.PLATFORM)) {
+                    continue;
+                }
+                String message = null;
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(model, e.getKey(), "p::RT", database, ExecuteOptions.NONE.withJudgeMode(mode),
+                                com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed";
+                        if (message == null) {
+                            message = f.getMessage();
+                        } else if (!message.equals(f.getMessage())) {
+                            got = "AssertFailed, worded otherwise: " + f.getMessage() + " (not " + message + ")";
+                        }
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!e.getValue().equals(got)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
     /** J3 (the PR #118 follow-ups, track A5, 2026-11-18; G2 under register S131: "each side typed by its own declared
      *  kind"): {@code assertContains}, {@code assertNotContains} and the forAll-contains subset compare a number by its
      *  side's DECLARED kind, under both judges -- as assertEq does (F4), and as legend-engine's result decode makes the

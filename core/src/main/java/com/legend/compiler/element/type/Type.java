@@ -414,6 +414,12 @@ public sealed interface Type permits
         return new GenericType(com.legend.compiler.element.type.PlatformTypes.RELATION, List.of(schema));
     }
 
+    /** Whether {@code t} is a scalar leaf: a {@link Primitive}, or a {@link PrecisionDecimal} -- a Decimal written
+     *  with its precision ({@code 1.5D} is a {@code Decimal(2,1)}), the scalar a primitive's comparison takes as well. */
+    static boolean isScalarLeaf(Type t) {
+        return t instanceof Primitive || t instanceof PrecisionDecimal;
+    }
+
     /** Whether {@code t} is a relation (table) type — the wrapped form,
      * whatever the argument's resolution state (a {@code Relation<T>}
      * with an unsolved {@code T} is still a table type). */

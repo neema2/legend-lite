@@ -885,8 +885,10 @@ public final class AssertVerdicts {
     /** Whether {@code is(left, right)} compares two PRIMITIVE values (both statically of a primitive type):
      *  compiled pure's {@code Is} native writes {@code left == right} for two primitive operands -- their values. */
     static boolean primitivePair(TypedSpec left, TypedSpec right) {
-        return left.info().type() instanceof com.legend.compiler.element.type.Type.Primitive
-                && right.info().type() instanceof com.legend.compiler.element.type.Type.Primitive
+        // a Decimal written with its precision (1.5D) a primitive too (track A5, 2026-11-19: assertNotEq(1.5D, x) and
+        // assertIsNot were refused by both judges' planners where assertEq(1.5D, x) plans)
+        return com.legend.compiler.element.type.Type.isScalarLeaf(left.info().type())
+                && com.legend.compiler.element.type.Type.isScalarLeaf(right.info().type())
                 && !isAnyStamped(left) && !isAnyStamped(right);
     }
 
