@@ -1,0 +1,19 @@
+product classes: 3468
+== com/legend/database/PlanStyle
+  methods (10): [dialect, traceCell, twoForm, graphKeyDate, graphKeyString, errorWords, siteWords, facet, judgesEngineText, facet]
+  product classes naming it: 36
+  parameters of its type: 49 in 19 classes
+  fields of its type: 4
+  calls of its methods: 50 {dialect=8, errorWords=1, facet=16, graphKeyDate(ref)=1, graphKeyString(ref)=1, judgesEngineText=4, siteWords=1, siteWords(ref)=1, traceCell=1, twoForm=16}
+  calls carrying it: 112 in 22 classes
+  parameters by class: {com/legend/ExecuteOptions=1, com/legend/Execution=2, com/legend/TypedQuery=4, com/legend/planner/PlanEnv=2, com/legend/planner/PlanMaker=14, com/legend/planner/ProductStatements=5, com/legend/planner/ProgramState=1, com/legend/planner/SystemCatalog=1, com/legend/planner/SystemRoutes$Route=1, com/legend/testplan/AssertErrorNative=1, com/legend/testplan/EngineTestText=2, com/legend/testplan/EngineTextGates=3, com/legend/testplan/EngineTextPlanning=1, com/legend/testplan/GeneratedTestData=3, com/legend/testplan/GeneratedTestData$1=1, com/legend/testplan/JudgePlans=2, com/legend/testplan/PlanningOptions=2, com/legend/testplan/Seeds=1, com/legend/testplan/TestDoor=2}
+  naming classes: [com/legend/Compiler, com/legend/ExecuteOptions, com/legend/Execution, com/legend/TypedQuery, com/legend/planner/BodyPlanner, com/legend/planner/FramePlanner, com/legend/planner/OutputPlan, com/legend/planner/PlanAllocations, com/legend/planner/PlanEnv, com/legend/planner/PlanMaker, com/legend/planner/PlanTextRoutines, com/legend/planner/ProductStatements, com/legend/planner/ProgramState, com/legend/planner/SystemCatalog, com/legend/planner/SystemRoutes, com/legend/planner/SystemRoutes$Route, com/legend/testplan/AssertErrorNative, com/legend/testplan/AssertVerdicts, com/legend/testplan/BodyDriver, com/legend/testplan/BodyDriver$ExecEnv, com/legend/testplan/DatabaseAsserts, com/legend/testplan/DatabaseJudge, com/legend/testplan/EffectPlanner, com/legend/testplan/EngineTestText, com/legend/testplan/EngineTextGates, com/legend/testplan/EngineTextPlanning, com/legend/testplan/GeneratedTestData, com/legend/testplan/GeneratedTestData$1, com/legend/testplan/HostAsserts, com/legend/testplan/JudgePlans, com/legend/testplan/PlanningOptions, com/legend/testplan/SeedSqlForms, com/legend/testplan/Seeds, com/legend/testplan/TestDoor, com/legend/testplan/TestKinds, com/legend/testplan/TestPlanner]
+== com/legend/lowering/LoweringForms
+  methods (15): [raise, view, wireCast, executeValues, isNumeric, objectReferenceConnection, assertFailed, relations, keyedCounts, computedPruning, parsedDecimal, parsedJson, existsJoin, unionFrame, whereZones]
+  product classes naming it: 10
+  parameters of its type: 6 in 3 classes
+  fields of its type: 1
+  calls of its methods: 25 {assertFailed=1, computedPruning=2, executeValues=2, existsJoin=1, isNumeric=1, keyedCounts=1, objectReferenceConnection=1, parsedDecimal=1, parsedJson=1, raise=4, relations=1, unionFrame=6, view=1, whereZones=1, wireCast=1}
+  calls carrying it: 11 in 4 classes
+  parameters by class: {com/legend/lowering/CastPolicy=4, com/legend/lowering/ListEncodings=1, com/legend/lowering/Styled=1}
+  naming classes: [com/legend/lowering/CastPolicy, com/legend/lowering/Coercions, com/legend/lowering/JsonLane, com/legend/lowering/ListEncodings, com/legend/lowering/Lowerer, com/legend/lowering/ProductLoweringForms, com/legend/lowering/Scalars, com/legend/lowering/Styled, com/legend/planner/PlanEnv, com/legend/testplan/PlanStyleFacets]

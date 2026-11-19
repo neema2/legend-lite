@@ -1,0 +1,122 @@
+import com.legend.tools.meaning.ClassFiles;
+import com.legend.tools.meaning.ClassFiles.ClassFile;
+import com.legend.tools.meaning.ClassFiles.Insn;
+import com.legend.tools.meaning.ClassFiles.Method;
+import com.legend.tools.meaning.ClassFiles.Ref;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+/**
+ * H8 (a), census B2, 2026-11-19: PlanStyle's and LoweringForms' spread in the PRODUCT (every class of
+ * //core:product_jars outside com/legend/edge/), read from the bytecode.
+ *
+ * Run from the repository root after `bazel build //core:product_jars //tools/meaning:census`:
+ *   java -cp bazel-bin/tools/meaning/libcensus.jar H8a_StrandMap.java bazel-bin/core/product_jars.jars \
+ *       bazel-bin/tools/guards/meaning_host_jars.jars   (the hosts' Java, after `bazel build //tools/guards:meaning_host_jars`)
+ *
+ * Counts, for each hook type T:
+ *   - T's methods (its declared methods, private and synthetic ones left out);
+ *   - PARAMETERS of type T: declared on product methods and constructors (a record's canonical constructor
+ *     included; bridges and synthetic methods, lambdas' bodies among them, left out);
+ *   - FIELDS of type T in product classes (a record component is a field too);
+ *   - CALLS OF T: product invoke instructions whose owner is T (T's own methods called), and method references
+ *     to T's methods (a MethodHandle constant, called through invokedynamic);
+ *   - CALLS CARRYING T: product invoke instructions whose target takes a T parameter (the style passed along);
+ *   - PRODUCT CLASSES naming T anywhere in their constant pool.
+ */
+public class H8a_StrandMap {
+
+    public static void main(String[] args) throws Exception {
+        List<Path> jars = new ArrayList<>();
+        for (String list : args) {
+            for (String l : Files.readAllLines(Path.of(list))) {
+                if (!l.isBlank()) {
+                    jars.add(Path.of("bazel-bin", l.strip().replaceFirst("^_main/", "")));
+                }
+            }
+        }
+        Map<String, ClassFile> all = ClassFiles.ofJars(jars);
+        Map<String, ClassFile> product = new TreeMap<>();
+        all.forEach((n, c) -> {
+            if (!n.startsWith("com/legend/edge/")) {
+                product.put(n, c);
+            }
+        });
+        System.out.println("product classes: " + product.size());
+        for (String t : List.of("com/legend/database/PlanStyle", "com/legend/lowering/LoweringForms")) {
+            report(t, all.get(t), product);
+        }
+    }
+
+    static void report(String t, ClassFile type, Map<String, ClassFile> product) {
+        String desc = "L" + t + ";";
+        System.out.println("== " + t);
+        List<String> methods = new ArrayList<>();
+        for (Method m : type.methods()) {
+            if (!m.isSynthetic() && !m.name().equals("<clinit>") && (m.access() & 0x0002) == 0) {
+                methods.add(m.name());
+            }
+        }
+        System.out.println("  methods (" + methods.size() + "): " + methods);
+        int params = 0;
+        int fields = 0;
+        int callsOf = 0;
+        int callsCarrying = 0;
+        TreeMap<String, Integer> byMethod = new TreeMap<>();
+        TreeMap<String, Integer> paramsByClass = new TreeMap<>();
+        TreeMap<String, Integer> carryByClass = new TreeMap<>();
+        List<String> naming = new ArrayList<>();
+        for (ClassFile c : product.values()) {
+            if (c.name().equals(t) || c.name().startsWith(t + "$")) {
+                continue;
+            }
+            if (c.utf8s().stream().anyMatch(s -> s.contains(desc) || s.equals(t))) {
+                naming.add(c.name());
+            }
+            fields += (int) c.fields().stream().filter(f -> f.descriptor().equals(desc)).count();
+            // a method reference (Type::method) is a MethodHandle constant, called through invokedynamic: counted as a call
+            for (ClassFiles.Constant k : c.pool()) {
+                if (k != null && k.tag() == 15) {
+                    Ref r = c.ref(k.b());
+                    if (r.owner().equals(t)) {
+                        callsOf++;
+                        byMethod.merge(r.name() + "(ref)", 1, Integer::sum);
+                    }
+                }
+            }
+            for (Method m : c.methods()) {
+                if (!m.isSynthetic() && !m.isBridge()) {
+                    long n = ClassFiles.params(m.descriptor()).stream().filter(desc::equals).count();
+                    params += (int) n;
+                    if (n > 0) {
+                        paramsByClass.merge(c.name(), (int) n, Integer::sum);
+                    }
+                }
+                for (Insn in : m.code()) {
+                    if (in.op() >= 0xb6 && in.op() <= 0xb9) {
+                        Ref r = c.ref(in.operand());
+                        if (r.owner().equals(t)) {
+                            callsOf++;
+                            byMethod.merge(r.name(), 1, Integer::sum);
+                        }
+                        if (ClassFiles.params(r.descriptor()).contains(desc)) {
+                            callsCarrying++;
+                            carryByClass.merge(c.name(), 1, Integer::sum);
+                        }
+                    }
+                }
+            }
+        }
+        System.out.println("  product classes naming it: " + naming.size());
+        System.out.println("  parameters of its type: " + params + " in " + paramsByClass.size() + " classes");
+        System.out.println("  fields of its type: " + fields);
+        System.out.println("  calls of its methods: " + callsOf + " " + byMethod);
+        System.out.println("  calls carrying it: " + callsCarrying + " in " + carryByClass.size() + " classes");
+        System.out.println("  parameters by class: " + paramsByClass);
+        System.out.println("  naming classes: " + naming);
+    }
+}
