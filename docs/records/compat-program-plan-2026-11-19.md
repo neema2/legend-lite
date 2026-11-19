@@ -1,6 +1,6 @@
 # The compatibility program: the re-cut plan (2026-11-19)
 
-**Status: r5, RATIFIED to start (phase 0) on 2026-11-19 ~10:45 UTC; phases 1-3 are confirmed at the phase-0 checkpoint.**
+**Status: r6, RATIFIED to start (phase 0) on 2026-11-19 ~10:45 UTC; phases 1-3 are confirmed at the phase-0 checkpoint. r6 folds in the independent review (`session_0195rQEnCA5MRQEk6iGfgDnb`, verdict: sound with changes).**
 - **r1** (`71aa0fc7`) was reviewed by B1's lead (2026-11-19 ~04:08 UTC).
 - **r2** recorded the user's first rulings and revised CP-5.
 - **r3** folds in B1's review: the strand map corrected; the judges split before 1.3; 2.3 widened by the appeal stack and
@@ -81,12 +81,13 @@ orchestrator's PR #121.
 The program is done when all six hold, each checked by a test that runs per push:
 
 1. **No mode in the core.** `PlanStyle`, the facets (`facet(...)`), the two-form hooks (`twoForm(...)`),
-   `LoweringForms`, `PureText`, B1's `Mode` records and the test runner's per-decision seams (`testexec` `EdgeRun`,
-   `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording`) do not
-   exist. A door chooses a whole translator, presenter and judge; nothing inside the core asks which. The one
+   `LoweringForms`, `PureText`, B1's `Mode` records, upstream's `Feature` flags inside the core
+   (`Lowerer.withFeatures`), and the test runner's per-decision seams (`testexec` `EdgeRun`, `EdgeHearing`, `HostWords`,
+   `HostForms`) do not exist. A door chooses a whole translator, presenter and judge; nothing inside the core asks which. The one
    allowed seam: the test planner and the test runner each call the judge the door handed in through one narrow
    typed interface (planning, run), at exactly two call sites (`TestDoor`, `TestRunner`), which the SQL-text appeal
-   needs. An ArchUnit rule forbids their return, and B1's
+   needs. The planning interface writes into the test plan's typed extension point, so the plan stays data (the
+   2026-11-08 ruling). An ArchUnit rule forbids their return, and B1's
    `ModeBranchCensusTest` reads 0 and blocks.
 2. **No upstream meaning in the product.** The census (`MeaningCensusTest`) runs with `BLOCKING = true`. Its (a) and
    (p) counts are 0; every remaining hit is a (b) row citing the user's ruling.
@@ -192,6 +193,7 @@ and H1's TSV, and the confirmed map is the ratchet. Paths are under `core/src/ma
 | `LoweringForms.view`, `wireCast`, `unionFrame` | executed edge forms equal the product's (`EdgeLoweringForms.java:44/49` against `ProductLoweringForms.java:31/36`; `unionFrame` null in both); only `EngineShape` differs (`:223`, `:234`, `UNION_FRAME`) | S, pure text, no answer risk | 2.3 |
 | `LoweringForms.existsJoin`, `whereZones` | run in EXECUTED SQL on every edge style (`EdgeLoweringForms.java:143`, `:176`): legend-engine's exists-join rule (C2, LOWERSQL-4), and its WHERE conjunct order feeding it (user conditions, then correlation, then temporal; `EngineWhereZones`) | S: answer-equal by S367's own measurement; but they change the executed statement and with it H2's row order for unordered results, so they go after 2.2's multiset compare | 2.3 (after 2.2) |
 | `LoweringForms.assertFailed` | "Assert failed" vs lite's "expected true, got false" (20:10-R1, R10) | P | 1.2 |
+| upstream's `Feature` flags in the core: `Execution.run`, `TypedQuery`, `Lowerer.withFeatures` (`lowering/Lowerer.java:216-235`); `LEGACY_SQL_NULL_UNSAFE_EQUALS` switches the core's equality; `CORRECT_SQL_SUBSTRING_INDEXING` switches `substring` (the independent review) | a mode by another name | the translator's input, or not supported, under CP-12 | 3.2 |
 | `PlanStyle.siteWords(text, sites)` | records legend-pure's raise-site words per planning call (`SiteWordsRecorder`); called twice in the product (B2's 0.4 (a)) | P: deleted with the recorder | 1.2 |
 | `PlanStyle.errorWords` | a planning failure's upstream sentence (also the test plan's `Failure.message`, `testplan/AssertErrorNative.java:81`) | P (a kind, operands and lite's wrapper as data; worded after) | 1.2 |
 | the test plan's words: `TestPlan.words`, `answerSizeWords` (`testexecutionplan/TestPlan.java:45-48`), `SideShape.sizeWords` (`SideShape.java:37`) | upstream words planned into the test plan | P | 1.2 |
@@ -283,7 +285,10 @@ cherry-picked; S1m is not carried, and S1's deletions are re-done in 1.2).
 - (i) **Floats inside database-written JSON:** whether each dialect's JSON writer (serialize, graph fetch) keeps a
   Float's round-trip digits. If one rounds, no formatter can recover them, and the fix is a product correctness fix
   (lite writes JSON floats round-trip), not a special function.
-- (j) **CP-5's honest cost** (B1's review): PCT channel A as ENGINE on H2 and DuckDB, plus pure/v1, run with S20's
+- (k) **E-R2 against the corpus:** corpus tests that EXPECT legend-engine's refusal (an asserted error) and that lite
+  would now answer; counted, then classed (the independent review).
+- (j) **CP-5's honest cost** (B1's review): PCT channel A as ENGINE on H2 and DuckDB, the relational corpus (the suite
+  S20's literal affects most; the independent review), plus pure/v1, run with S20's
   bare-DECIMAL literal and `LoweringForms.raise`'s plain set switched off. The 3.4 guard rewrites
   (`if($x < 0, |[], |sqrt($x))`) are counted where they apply. The result is "N answers that match legend-engine
   today would stop matching", by case. It goes to the user before 3.6 deletes either. Today pure/v1's
@@ -430,8 +435,8 @@ error record the translator's refusals are worded through.
 - **Changes:**
   - legend-engine's `tdsBuilder`, `classBuilder` and json-builder `values` envelopes, the cardinality fold, the
     object-reference constant and the graph keys are written by the ENGINE presenter over typed rows;
-  - legend-engine's plan FORMAT (generatePlan's `SingleExecutionPlan`, the plan-text family's envelope) becomes an
-    ENGINE presenter carrying lite's own SQL (CP-4);
+  - legend-engine's plan FORMAT (generatePlan's `SingleExecutionPlan`) is phase 5's export by another name. It moves
+    to 5.1, and until then generatePlan keeps today's answer (the independent review);
   - the activity rows' trace comment (`-- "executionTraceID" : "<id>"`, today `PlanStyle.traceCell`) and the
     graph-fetch output's qualified-property keys (today `graphKeyDate`/`graphKeyString`, written by the database at
     planning) are written by the presenter after the run; the keys are renamed from the typed graph tree;
@@ -499,15 +504,22 @@ error record the translator's refusals are worded through.
 ### Phase 2: deletions that need no replacement (about 14.5 days; tracks J and G)
 
 **2.1 The 36 combinations ported into core** (C4, part 1).
-- **Changes:** the 36 judge shapes the compatibility database judge covers are ported as core LITE tests under both
-  judges (BOTH), so parity (G2) is proven in the product without PCT's database judge.
+- **Changes:**
+  - the 36 judge shapes the compatibility database judge covers are ported as core LITE tests under both judges
+    (BOTH), so parity (G2) is proven in the product without PCT's database judge;
+  - **a LITE-PCT lane:** PCT runs under LITE's rules with BOTH judges, with its own known-failure ledger (where LITE's
+    exact rules differ from the S15/S131/S132 leniencies). G2's guard therefore stays on PCT (the independent review;
+    §12 I5). Its cost is measured in phase 0 by the judges session.
 - **Deletes:** nothing yet.
 - **Check:** core's isolated BOTH green on the ported shapes.
-- **Size:** 2 days.
-- **Depends on:** CP-1. **Owner:** a judges session (new). **Coordination:** the previous orchestrator's A5 (Q3, Q3b,
+- **Size:** 3 days.
+- **Depends on:** CP-1, the phase-0 LITE-PCT measurement. **Owner:** a judges session (new). **Coordination:** the previous orchestrator's A5 (Q3, Q3b,
   J1-J4) touches the same judges. The two sessions agree by message before either builds.
 
-**2.2 Compatibility judging becomes host-only** (C4, part 2; rule 9).
+**2.2 Compatibility judging becomes host-only** (C4, part 2; rule 9). **Split in two** (the independent review): 2.2a
+deletes the compatibility database judge's half and switches PCT to host-only, which unblocks 1.3 and 1.4; 2.2b
+replaces the appeal's run seams. They run on two sessions, and 2.2a goes first. **2.1's LITE-PCT lane is a
+precondition of 2.2a**, unless the user amends G2 ("the agreement judge on every lane").
 - **Changes:**
   - legend-pure's comparison rules and words for PURE and ENGINE live only in the edge's host judge: compiled
     legend-pure's `eq` (S15), the multiset compare of an unordered actual (S131, which retires `StableScanOrder`'s
@@ -517,8 +529,7 @@ error record the translator's refusals are worded through.
     (JUDGES-3: `IsolatedRun#difference`);
   - the door hands the test runner a WHOLE judge: the product's, or the edge's compatibility host judge. The
     per-decision seams by which the edge reaches into the product's judges and runner go (`testexec` `EdgeRun`,
-    `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording`;
-    `CompatEdge`'s ledger);
+    `EdgeHearing`, `HostWords`, `HostForms`; `ExecuteOptions.recording` becomes the door's choice of judge);
   - **the SQL-text appeal and the referee move with the edge's judge, unchanged in behaviour** (B1's design,
     2026-11-19). The appeal needs things the door cannot hand over in advance:
     - **planning-time artifacts:** each effect step's statement texts and query flags (`testplan/TestDoor.java:144`);
@@ -529,7 +540,13 @@ error record the translator's refusals are worded through.
       (`testexec/TestRunner.java:126`, `:132`); per-step events (`:440`, `:466`); the verdict callbacks;
   - so the edge judge is ONE object handed in at the door, with TWO narrow typed interfaces, one for planning and one
     for the run. The product keeps exactly two call sites: `TestDoor` (planning) and `TestRunner` (verdicts and
-    steps).
+    steps);
+  - **the planning half stays DATA** (the independent review, 2026-11-19; the user's ruling of 2026-11-08, plan as
+    data). Today the edge plans its effect and seed records into the test plan's typed extension point
+    (`TestDoor.java:141-149`, `TestPlan.extensionsByStep`, `testexecutionplan/Extension.java`). That stays: the
+    planning interface is `testexecutionplan.Edge`, which writes into the plan, and the corpus's decoded-plan guard
+    keeps seeing it. Only the per-decision RUN seams are replaced by the one run interface: `EdgeRun`, `EdgeHearing`,
+    `HostWords`, `HostForms`.
 - **Deletes:**
   - `VerdictSql`'s two-form branches (the census's N-JUDGE, 38 hits);
   - `UpstreamVerdictWords` (198), `CompiledPureVerdictNumbers` (54);
@@ -537,8 +554,8 @@ error record the translator's refusals are worded through.
   - two-forms `JsonGrammar`, `RelationCounting`, `VerdictNumbers`, `RenderedTextRule`, `DateLiteralTexts`,
     `GoldenNullWord`, `VerdictWords` (the edge's form), and `CrossKindNumbers`' judge half;
   - `edge.StableScanOrder` (598) and `sql.ScanOrder`'s edge use;
-  - the four residue pins ratified at 20:10-R3 shrink (`DatabaseJudge` 851, `HostJudgments` 679, `BodyDriver` 545,
-    `EngineTextPlanning` 151), each re-pinned with the user's word and a dated note;
+  - the four residue pins ratified at 20:10-R3 shrink (`DatabaseJudge` 852 at `main` after R9, `HostJudgments` 679,
+    `BodyDriver` 545, `EngineTextPlanning` 151), each re-pinned with the user's word and a dated note;
   - the guard lists that name today's seams move, for the user's word: `HookRulingTest.RULED`,
     `ProductFormsUseTheirArgumentsTest.RULED` (`NoEdgeRun$Hearing#decide`/`afterFailure`), `HookLambdasTest`,
     `EdgeOnlyMembersTest`.
@@ -548,7 +565,7 @@ error record the translator's refusals are worded through.
   - the corpus rosters unchanged, except unordered-assert lines that now pass as multisets (listed);
   - core's BOTH green.
 - **Guards:** the census's 52 J hits leave (a); `JavaEvalLedgerTest`'s pins shrink.
-- **Size:** 7.5 days (the judges, 4; the appeal's move into the edge judge, 3 to 4).
+- **Size:** 7.5 days: 2.2a about 4, 2.2b about 3.5.
 - **Depends on:** 2.1. **Owner:** the judges session.
 
 **2.3 Upstream's SQL text and shapes go, checked by answers** (rule 4, CP-4).
@@ -605,7 +622,10 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
   - lite's Cypher translator writes Pure in the core's meaning, not legend-engine's 1-based `substring`
     (`CypherToPure.java`);
   - the `###Relational` dynaFunction `substring` gets its own rule (SQL's 1-based function, upstream's DSL meaning in
-    every audience), separate from the Pure function's.
+    every audience), separate from the Pure function's;
+  - lite's `#SQL` island (`protocol/sql/PostgresFunctions.java:447-458`) and `#IQ` island (about 13 `substring`/`indexOf`
+    emissions in `IqFunctions`, plus `IqAggregates:1489`) write Pure in today's meaning too: each is checked and moved
+    to Pure's (the independent review).
 - **Deletes:** the shared rule.
 - **Check:** `CypherIslandIntegrationTest`, the DynaFunction property-mapping tests, the corpus's `propertyfunc` tests
   unchanged.
@@ -628,8 +648,12 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
     not a mode);
   - **its output:** a lite model and query, or a refusal by name worded by 1.2's presenter;
   - **rewrites are lite programs:** an edge-owned compatibility library of Pure source per audience and target (H3's
-    `compat-engine-<target>.pure`), plus typed call retargeting over the parsed model. A JSON rename is not enough: H3
-    found it untyped and refusing by the wrong name;
+    `compat-engine-<target>.pure`), plus call retargeting. A parsed model has no types: which overload a call means
+    (String `indexOf` or the collection one) is decided at G. So the rewrite works on RESOLVED calls, through today's
+    public entries (`Compiler.parseSources`, `buildModule`, `resolveQuery`, `queryResolved`), or overloads every
+    upstream overload as H3 did (the independent review);
+  - **a model compiles once per (audience, target):** what that costs the server's pure/v1 projects and the
+    `HeldModels` caches is measured in the phase-0 spike;
   - **upstream's flags are the translator's input,** never the core's: S130's `CORRECT_SQL_SUBSTRING_INDEXING`
     first;
   - **the target's settings are the translator's knowledge:** by default (CP-8) the edge's H2 runs H2's own settings,
@@ -821,7 +845,8 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
   later, each with its numbers.
 - **The two checkpoints the user accepted:**
   - after phase 0: the exact lists, the counts and the independent review; the user confirms or changes phases 1-3;
-  - after the translator's first real rewrite (3.3): if it needed a change inside the core, or took far longer than
+  - after the translator's first real rewrite, moved by the independent review to the end of the phase-0 translator
+    spike (H5 and task 0): if it needed a change inside the core, or took far longer than
     planned, stop and re-plan.
 - **A standing rule:** a slice that needs a new hook in the core stops and goes to the user.
 
@@ -958,7 +983,9 @@ worry or even support older database versions".
 - **What it means:**
   - lite never emulates them, and an answer that differs only for that reason is not chased (`cell.float`'s 8
     digits, O5; a Decimal division's scale, S141, whose K15 is dropped; legend-engine's H2 UDFs);
-  - one blanket register row records the ruling, so the upstream-fidelity tenet holds without a row per case;
+  - one blanket register row records the ruling, so the upstream-fidelity tenet holds without a row per case. The
+    oracle's diff file still lists each version-caused difference by case, so differences stay attributable (the
+    independent review);
   - `DatabaseSettingsForm` is deleted (3.2). Lite's own sorts already stamp Pure's null placement, so S368 needs no
     rewrite. `DEFAULT_NULL_ORDERING=HIGH` changes only raw `executeInDb` SQL a program authored, which no rewrite can
     reach: a register row, unless 0.4 (h) shows material moves (then the target's settings become data, 3.2).
@@ -994,6 +1021,25 @@ worry or even support older database versions".
   D16, C27; `PureText.refusesDecimalArithmetic`).
 - **Recommendation:** keep ruling (c) as a translator rewrite on SQLite (ordinary functions, a ledgered
   approximation), not a hook. The alternative is to refuse by name, as rule 5 would by default.
+
+**CP-12. When legend-engine differs from Pure's own definition: copy it, or answer Pure's way?** *Gates 0.6, 3.3, 3.4.*
+Raised by the independent review: the plan contradicts itself here.
+- **The tension:**
+  - CP-3 says "where legend-engine answers wrongly, lite answers correctly", rule 5 says upstream's bugs are never
+    copied, and §12 I11 says the product follows Pure;
+  - yet 3.3 rewrites legend-engine's uncorrected `substring` (legend-engine itself calls its flag a CORRECTION kept
+    for old queries), and 3.4 rewrites `isNumeric`'s `lower(s) = upper(s)`, `parseDecimal`'s `DECIMAL(5,2)` and
+    `parseJson`'s `}{` tolerance, all departures from Pure's definition;
+  - S22 and `joinStrings`' separator are classed as defects and not copied;
+  - the user's 2026-11-17 23:05 rule ("the product follows Pure's own definition ... legend-engine's quirk stays at
+    the edge") kept those quirks at the edge.
+- **Option A, strict (the review's reading):** where Pure defines the answer and legend-engine departs from it, the
+  legend-engine route answers Pure's way, with a register row. lite copies legend-engine only where Pure is silent.
+  Most of 3.3 and 3.4 becomes register rows, and the translator shrinks to almost nothing: perhaps only the short
+  rename list, or nothing at all. This revises the 2026-11-17 rule for the legend-engine route.
+- **Option B, fidelity:** where legend-engine's behaviour is its documented, tested meaning, copy it (with ordinary
+  functions); answer Pure's way only for its outright defects. More translator work; more answers match legend-engine.
+- **Decided with task 0's numbers:** how many tests each strand loses (the translator session, phase 0).
 
 **Held by the previous orchestrator:** R-a, a fractional cell under an Integer property (PR #121). Its ENGINE
 answer, when ruled, becomes a translator rewrite or a refusal in phase 3.
@@ -1047,7 +1093,17 @@ Every guard ships with a planted violator it must catch. No guard depends on a c
 | G, guards and close-out | B2 (`session_0195rQEjuF2imym274M9Qvva`) | 0.4, 2.3, 4.1; B3's items as they fall into slices | weeks 1-6 |
 | orchestration | this session | rulings, shape notes, reviews, PRs, the user | throughout |
 
-**The critical path:** phase 0 (about 2.5 days, its slices in parallel), then 3.1 and 3.2 (4.5), then the longer of
+**Restated after the independent review** (it recomputed the critical path from the plan's own sizes and "Depends
+on" lines):
+- the path is 2.1 -> 2.2 -> 1.4 -> 2.3 -> 4.1, not the translator;
+- phase 0 is about 4.5 days by its own dependencies (0.4 (j) needs 0.3; CP-5 needs 0.4 (j); 0.6 comes before the first
+  rewrite);
+- with one session per track and the checkpoint gate, the work ends near day 30. So the realistic calendar is **7 to 9
+  weeks**, not 5 to 6;
+- the remedies, applied: 2.2 split into 2.2a and 2.2b on two sessions; 1.3 and 1.4 on two sessions; and CP-12 may
+  shrink phase 3 a great deal.
+
+The earlier estimate, kept for the record: phase 0 (about 2.5 days, its slices in parallel), then 3.1 and 3.2 (4.5), then the longer of
 the two translator lanes (3.3 + 3.4, 7.5; 3.5 + 3.6, 3), then 4.1 (3.5). That is about
 18 session-days, so about 5 to 6 weeks of calendar time with lane rounds, reviews and merge waits.
 
