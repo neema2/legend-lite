@@ -155,8 +155,99 @@ H2, the relation suite:
 
 ## 3. The batteries
 
-(written as they land)
+**The requests** (`tools/engine-runner/src/test/resources/batteries/substring_indexof.tsv`, 49 in all):
+- H3's 25 substring and indexOf requests over the trades seed's `desk` column (`col.`);
+- the same 24 string expressions over a literal, `'Credit'` (`lit.`). DuckDB's constant folder and its runtime
+  disagree on SUBSTRING (H3 §3), so a literal-only battery would test the wrong path.
+
+The cases covered:
+- literal and computed starts and ends;
+- starts of 0, negative starts, and starts before the first character;
+- an end past the string, an end before the start, a negative length;
+- the 2- and 3-argument forms, the list form, and nested calls.
+
+**The heavy half** (`//tools/engine-runner:batteries_oracle_test`, in `//gates:heavy`).
+- legend-engine 4.145.0 is re-asked through the oracle, one JVM per database: `engine_batteries_{h2,duckdb}`, on the
+  goldens' LocalH2 seed and on the DuckDB file seeded from it.
+- Its answers are pinned in `tools/engine-runner/src/test/resources/batteries/engine_{h2,duckdb}_answers.tsv`
+  (`bazel run //tools/engine-runner:update_batteries`); a drift fails the diff test.
+- The same target pins the rows legend-engine's DuckDB file holds (`trades_duckdb_digest.txt`: 128 rows, sum(qty)
+  509, and an md5 of every row). That file is written by legend-engine's DuckDB 1.3.0 and read with lite's own 1.5.6
+  driver. This is the ruled `jars_table` entry's one use.
+
+**The per-push half** (`//pct:batteries_test`, in `//gates:pct_duckdb`). No legend-engine JVM runs.
+- lite answers each request as legend-engine's audience: pure/v1's execute route as the edge ships it
+  (`PureV1Routes.execute` over `EdgeServer.runner`; `pct/src/test/java/.../oracle/LiteBatteries.java`).
+- It answers on H2, and on a DuckDB file lite seeds with its own driver from the same statements.
+- The comparison (`planoracle.enginelane.Batteries`) refuses to run if lite's file holds other rows than
+  legend-engine's: the two digests must be equal.
+- Each request is compared by kind and rows: AGREE, BOTH_FAIL, or DIFFER, with both sides' answers listed. Refusals
+  compare by status; their classes are listed and words are never compared.
+- The agreement is pinned in `pct/batteries/agreement_{h2,duckdb}.tsv` (`bazel run //pct:update_batteries`), so a
+  move toward legend-engine, or away from it, shows as a diff.
+
+**Today, `main`'s lite against legend-engine:**
+
+| | AGREE | BOTH_FAIL | DIFFER |
+|---|---|---|---|
+| H2 (49) | 46 | 1 (the list `indexOf`, which neither plans on H2) | 2 (the 3-argument `indexOf`: legend-engine refuses, lite answers) |
+| DuckDB (49) | 31 | 0 | 18 |
+
+The 18 DuckDB differences:
+- 16 are a start at or below 0: `col.s01 s06 s07 s11 s14 s15 s18 i07` and `lit.s01 s06 s11 s12 s13 s14 s15 s18`.
+- 2 are the 3-argument `indexOf`, column and literal.
+
+On the column operands this is H3's measurement of main exactly: DuckDB 16 of 25. Phase 3's target-aware rewrite
+moves these rows to AGREE, and the pin shows each move.
+
+**How a move is recorded:**
+- A legend-engine bump or a changed seed fails the heavy half. Run `bazel run //tools/engine-runner:update_batteries`,
+  then `bazel run //pct:update_batteries`, and say which way each row moved.
+- A product change that moves an answer fails the per-push half. Run `bazel run //pct:update_batteries`.
 
 ## 4. The per-push cost (CP-9)
 
-(measured last)
+Measured on this container: 4 cores, 15 GB. Each action was timed from a Bazel profile with the disk cache off and
+one job at a time. These are action times, not test times.
+
+| check | actions | time each | serial total |
+|---|---|---|---|
+| the ENGINE lane, `//pct:engine_lane_<db>_<suite>` | 6 | essential 45.2 s, grammar 36.4 s, relation 63.1 s, standard 44.3 s, unclassified 24.3 s, H2 relation 59.5 s | **272.7 s** |
+| its tables and summary, `engine_lane_table_*`, `engine_lane_summary` | 7 | about 0.1 s | under 1 s |
+| the batteries' per-push half: `battery_seed`, `battery_lite_{h2,duckdb}`, `battery_compare_{h2,duckdb}` | 5 | 0.9 s, 3.0 s, 3.7 s, 0.1 s, 0.1 s | **7.7 s** |
+| the batteries' heavy half (heavy only): `trades_duckdb`, `engine_batteries_{h2,duckdb}`, the answers, the file check | 6 | 3.0 s, 16.4 s, 13.8 s, 0.1 s, 0.1 s, 0.6 s | 34.0 s |
+
+**What a push pays:**
+- **The batteries: about 8 s.**
+- **The ENGINE lane: about 4.5 minutes of single-job time,** spread over 6 independent actions.
+  - Each action is about 15-20 s of start-up (the interpreted Pure runtime and the adapter's PAR) plus its suite's
+    tests. The suites' own times: 27, 18, 45, 27, 6 and 41 s.
+  - Wall time on a runner is that 4.5 minutes divided by the actions it runs at once. Each asks 4 GB
+    (`memory_mb = 4096`, as the edge net's lanes do).
+  - So on a 16 GB Linux runner, about 3 at once: roughly 1.5-2 minutes. On CI's 7 GB macOS runner, one at a time:
+    the full 4.5 minutes.
+- **The lever:** the lane's live heap peak is 1.6-1.8 GB per suite (each run's log), so `memory_mb = 2560` would let
+  more run at once. Not changed here: it is the user's per-push budget to rule (CP-9), and the edge net's lanes hold
+  4096 too.
+- **The lane reruns only when its inputs change.** Those are the PCT library, the adapter and the core libraries,
+  which is nearly every push that touches the core. The tables, the summary and the batteries' comparisons cost
+  nothing measurable.
+
+## 5. Files
+
+| file | what |
+|---|---|
+| `pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Engine_PCT.java` | the lane's suite: one PCT suite by `-Dpct.engine.suite`, no expected failures |
+| `pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoute.java` | the audience switch, `-Dpct.audience=engine` (+12 lines; the default unchanged) |
+| `tools/junit/JUnitMain.java` | `-Dlegend.junit.outcomes.full`: each test's outcome by its full name (+29 lines) |
+| `tools/engine-runner/src/main/java/planoracle/enginelane/EngineLaneTable.java` | the lane's classification against the manifests |
+| `tools/engine-runner/src/main/java/planoracle/enginelane/Batteries.java` | the batteries' answer form, comparison and file check |
+| `pct/src/test/java/org/finos/legend/lite/pct/oracle/LiteBatteries.java` | the batteries' per-push half: lite's seed and lite's answers |
+| `pct/BUILD.bazel`, `tools/engine-runner/BUILD.bazel` | the actions, the pins, `//pct:engine_lane_test`, `//pct:batteries_test`, `//tools/engine-runner:batteries_oracle_test` |
+| `gates/BUILD.bazel` | the two per-push checks in `pct_duckdb`; the heavy half in `heavy` |
+| `tools/deps/jars_table.bzl` | `tools/engine-runner` as a `duckdb_jdbc` user (CP-9, the user's ruling, dated) |
+| `core/BUILD.bazel` | the trades model's export gains `//pct` (its own `exports_files` block): a Bazel visibility, not a guard file |
+| `pct/engine_lane/`, `pct/batteries/`, `tools/engine-runner/src/test/resources/batteries/` | the pins |
+
+No other pin, ceiling, ledger or allowlist moved. The guarded `EDGE_TEST_SRCS` list is not touched: the lite runner
+lives in the PCT package, which reaches the edge already.
