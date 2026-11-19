@@ -2066,3 +2066,11 @@ who confirms or changes phases 1-3.
   dialect-construction ratchet 17 → 12 (not 14); the JavaEvalLedger edge list GAINS `LiteSqlText.java` (flagged). The
   CP-4 register row was drafted as S371, which is taken: **told to use S380**, provisional until landing. No rule
   broken. `//gates:local` running; then it asks the user in its session.
+- **~17:30 UTC, status.** **H14 V2** (whole Float `2.0`): DuckDB's probe prints `2.0`, `-2.0`, `100.0`,
+  `100000000000000000000.0`; `-0.0` and `±1e-7` print `0.0` where V1 printed `0`; NaN and the infinities unchanged.
+  SQLite, H2 and Postgres probes being rerun; the V2 PCT lanes and lite's suites running (at V1's head 33 of 35 suites
+  passed; `core_edge_tests` and `core_tests_exec` fail from the spike's own `toString` change, being listed). D1 and D2
+  (the abstract Date's text) follow. **#125** (the Maven mirror): every Linux, arm and Windows job green but Windows
+  `warehouse`, `//python:markets_test` TIMEOUT in 300 s (the known slow test the markets_test PR fixes, not #125's);
+  Linux `core` and most macOS jobs still running or queued. **B2** agreed to S380; it edits the id after its
+  `//gates:local` run.
