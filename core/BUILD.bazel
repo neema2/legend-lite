@@ -278,6 +278,7 @@ _PLANNER_DOORS = [
     # the models a host holds, compiled once and planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9)
     "src/main/java/com/legend/HeldModels.java",
     "src/main/java/com/legend/TypedQuery.java",
+    "src/main/java/com/legend/H15Census.java",  # PROBE (H15, scratch branch only)
 ]
 _PLANNER_SRCS = _PLANNER_DOORS + glob(["src/main/java/com/legend/planner/*.java"])
 

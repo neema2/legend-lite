@@ -94,6 +94,7 @@ public final class TypedQuery {
         if (b == null) {
             b = List.copyOf(specs.typeQueryBody(resolved));
             body = b;
+            H15Census.note(this, b);   // PROBE (H15, scratch branch only)
         }
         return b;
     }
