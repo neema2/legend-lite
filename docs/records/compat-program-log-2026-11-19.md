@@ -640,3 +640,10 @@ who confirms or changes phases 1-3.
   - **For the final plan:** `ModeBranchCensusTest` does not count `twoForm`, `facet`, `LoweringForms` or the Feature
     flags, so "no mode in the core" will rest on B2's bytecode ratchet (49 parameters, 50 calls → 0), not on that
     test.
+- **~12:36 UTC, PR #124's scope, named by B1-R:** 50 files, +5,275/−34: slice R's oracle (19 files, +1,596); B1's
+  requests commit (2 files); H7 (33 files, +3,642, of which 12 are code). Guarded files touched: `jars_table.bzl`
+  (ruled); `gates/BUILD.bazel` (`pct_duckdb` gains `engine_lane_test` and `batteries_test`; `heavy` gains the two
+  oracle tests); visibility lines (`//json` to `//tools/engine-runner`, core's two `exports_files` blocks, four
+  engine-runner targets to `//pct`); the runner pool's 10 artifacts; JUnitMain's opt-in flag; no census inventory. It
+  overlaps #123 in two files (the pure/v1 requests); whichever lands second merges. CI run `44524802258` is in
+  progress on linux, macos and windows.
