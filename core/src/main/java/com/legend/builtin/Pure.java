@@ -446,6 +446,17 @@ public final class Pure {
          *  multiplied that into statements of megabytes. Emitted by the SQL islands only, where both operands are
          *  integers and the divisor's zero is tested before. */
         public static final String QUOTIENT = PKG + "quotient";
+        /** SQL's SUBSTRING, by name (A3 of the compatibility program, 2026-11-19): {@code sqlSubstring(s, start[,
+         *  length])} is the database's SUBSTRING verbatim -- a 1-based start and a length, the meaning lite's SQL,
+         *  Cypher and IQ islands and the {@code ###Relational} {@code substring} dynaFunction write. Pure's own
+         *  {@code substring} is 0-based and end-exclusive; the frontends say SQL's meaning by this name, so Pure's
+         *  function can take Pure's meaning (docs/records/compat-homework/A3-shape-note.md, PR1, option (a)). */
+        public static final String SQL_SUBSTRING = PKG + "sqlSubstring";
+        /** SQL's POSITION, by name (A3, as {@link #SQL_SUBSTRING}): {@code sqlPosition(s, t)} is where {@code t}
+         *  first occurs in {@code s}, 1-based, 0 when it does not -- the database's STRPOS verbatim, which the islands
+         *  and the {@code indexOf} and {@code position} dynaFunctions write. Pure's {@code indexOf} is 0-based, -1
+         *  on a miss. */
+        public static final String SQL_POSITION = PKG + "sqlPosition";
         /** A temporal value in text carriage (2026-10-18, the Cypher island's nanosecond values as a date and a time
          *  of day, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13): {@code dateTimeOfText(text)} is the date-time,
          *  {@code timeOfText(text)} the time of day, the database's ISO text spells, carried to the caller as that
@@ -654,7 +665,7 @@ public final class Pure {
                     Lite.INSTANT_IN,
                     Lite.LOCAL_IN,
                     Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT,
-                    Lite.QUOTIENT)
+                    Lite.QUOTIENT, Lite.SQL_SUBSTRING, Lite.SQL_POSITION)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -1159,6 +1170,10 @@ public final class Pure {
      *  missing one is shifted forward by the gap (A6, 2026-11-10). Measured: Trino and Databricks follow it whole; H2 and
      *  ClickHouse read a missing wall time in its later offset; DuckDB reads a repeated one in its later offset. */
     public static final NativeFunctionDefinition QUOTIENT__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::quotient(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
+    /** SQL's SUBSTRING and POSITION by name ({@link Lite#SQL_SUBSTRING}, {@link Lite#SQL_POSITION}): A3, PR1. */
+    public static final NativeFunctionDefinition SQL_SUBSTRING__STRING_1__INTEGER_1 = signature("native function meta::legend::lite::sqlSubstring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition SQL_SUBSTRING__STRING_1__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::sqlSubstring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], length:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition SQL_POSITION__STRING_1__STRING_1 = signature("native function meta::legend::lite::sqlPosition(str:meta::pure::metamodel::type::String[1], toFind:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition INSTANT_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::instantIn(local:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition LOCAL_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::localIn(instant:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::convertTimeZoneFormat(d:meta::pure::metamodel::type::DateTime[0..1], tz:meta::pure::metamodel::type::String[1], fmt:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[0..1];");
@@ -2627,6 +2642,8 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_POSITION = com.legend.model.FunctionId.ofAll(SQL_POSITION__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_SUBSTRING = com.legend.model.FunctionId.ofAll(SQL_SUBSTRING__STRING_1__INTEGER_1, SQL_SUBSTRING__STRING_1__INTEGER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_STAGE = com.legend.model.FunctionId.ofAll(STAGE__RELATION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
