@@ -650,3 +650,116 @@ printer is cheaper than the engine-text printer it replaces. The H2 lane even ru
 So keeping the appeal as CP-4's judge costs no corpus time. Deleting the engine-text printers also removes the
 printing work itself.
 
+## (j) CP-5's honest cost: S20's bare DECIMAL and the plain set, switched off
+
+**The question.** How many answers that match legend-engine today would stop matching, by case, if both were
+switched off? For each one, does an ordinary-function rewrite (3.4's guards) reproduce legend-engine's answer? The
+two strands:
+- S20's bare-DECIMAL literal;
+- `LoweringForms.raise`'s plain set.
+
+**The probe** (`H8j_probe.patch.txt`, never for main):
+- the five `PureText` `floatLiteralKind` overrides (DuckDB `:350`, H2 `:406`, Postgres `:438`, Databricks `:484`,
+  Trino `:649`) return the product's `super.floatLiteralKind()`;
+- `PureText.ENGINE_UNCHECKED` is empty, so every raise is written checked;
+- the engine-text printer's own literal (`EngineStyleH2.floatLiteralKind`) is left alone: it is text, CP-4's.
+
+**The harness is B1-R's ENGINE lane, not a second one.** It is `claude/compat-engine-lane` at `815690a57`
+(`docs/records/compat-homework/H7-engine-lane.md` there). PCT channel A runs as legend-engine's audience under
+`PureText.PURE_V1`, and each test is classed against legend-engine's manifests (SAME, LITE_ANSWERS, LITE_FIXES,
+BOTH_FAIL, LITE_BEHIND).
+- The probe ran in a local worktree of that commit. Its product equals `b75d6c73a`.
+- The regenerated tables were diffed against B1-R's pins (`H8j_engine_lane_diff.py.txt`).
+- Beside it ran:
+  - PCT channel A's default audience: the edge golden net, every case's ANSWER recorded, at main and under the probe
+    (`H8j_pct_a_answers.py.txt`);
+  - pure/v1's golden net;
+  - both corpus lanes.
+
+All ran on 2026-11-19, 12:31-12:58 UTC.
+
+### (j.1) The results, suite by suite
+
+**PCT channel A as ENGINE** (B1-R's six lanes: DuckDB's 5 suites, 1,249 tests, and H2's relation suite, 469). **6
+tests move, all from BOTH_FAIL to LITE_FIXES. No SAME test moves.** All 6 are DuckDB error tests
+(`H8j-engine-lane-moved.tsv`). Before the probe, lite let the database answer as legend-engine does, so both failed
+PCT; under the probe lite raises PCT's expected error.
+
+| Test (DuckDB) | The expression | legend-engine (manifest) | DuckDB's answer to the unchecked SQL | Lite under the probe |
+|---|---|---|---|---|
+| `slice::testSliceError` | `[1,2,3,4,5]->slice(3, 2)` | no error: a value | `[]` | PCT's error |
+| `rem::testRemError` | `5->rem(0)` | no error: a value | `null` | PCT's error |
+| `range::testRangeStepError` | `range(0, 5, 0)` | no error: a value | `[]` | PCT's error |
+| `bitShiftRight::testBitShiftRight_MoreThan62Bits` | `1->bitShiftRight(63)` | no error: a value | `0` | PCT's error |
+| `testSquareRootError` | `sqrt(-1.0)` | an error (the database's) | Out of Range Error | PCT's error: still an error |
+| `bitShiftLeft::testBitShiftLeft_MoreThan62Bits` | `1->bitShiftLeft(63)` | an error (the database's) | Out of Range Error | PCT's error: still an error |
+
+DuckDB's answers come from DuckDB 1.5.6 itself (`H8j_DuckDbPlain.java.txt`, output `H8j-duckdb-plain.txt`). The SQL
+there is written by hand to the plain form, not lite's own text.
+
+S20 moves no verdict in this lane. It does move two answers the verdict cannot see; see the next suite.
+
+**PCT channel A, its default audience** (the edge golden net, `//pct:edge_duckdb_*` and `//pct:edge_h2_relation`,
+under `UPSTREAM`, whose raises are already checked). **No outcome moves.** Comparing each case's recorded answer
+(`H8j-pct-a-answers-moved.tsv`):
+- **2 values move, both S20's.** In `plus::testFloatPlus` case 1, `1.7` (S20's exact decimal: legend-engine's bare
+  literal, which DuckDB computes as a DECIMAL) becomes `1.7000000000000002`, Pure's double. In `times::testFloatTimes`
+  case 2, `2.1` becomes the double, likewise. PCT passes both ways, and B1-R's lane reads both SAME before and after.
+  Under the ENGINE audience the same two answers move, because `PURE_V1` dials the same passes, but its verdict cannot
+  see it either.
+- **9 cases move their SQL text alone, with equal rows:**
+  - DuckDB: `testProjectNumbersPlusTimesMinus`, `testSimpleExtendFloat` and its `_MultipleExpressions` variant,
+    `testSimpleRelationProjectLiterals`, `testPercentile_Relation_Aggregate`, `testPercentile_Relation_Window`;
+  - H2: the first three again.
+
+  A Float literal's cast is written differently. This is CP-4's (text not promised).
+- 192 relation cases differ only in the order their rows arrived. The recorder writes rows as they come, and the golden
+  net's normalizer compares them as a set, so these are not answers.
+
+**pure/v1's golden net** (`//core:edge_pure_v1`, 28 answers, H2; `H8j-pure-v1-diff.txt`). Four requests move. Each one's
+plan twin moves its SQL text with it.
+
+| Request | legend-engine 4.145.0 (B1-R's oracle, `engine_h2_answers.tsv`) | Lite today | Lite under the probe |
+|---|---|---|---|
+| `raise.sqrtOfNegative` | 200, `[null]` | 200, `[null]` | **500**, "Raised: Unable to compute sqrt of -2.0" |
+| `raise.divideByZero` | 500, H2's "Division by zero" | 500, H2's words | 500, "Raised: DIVIDE_BY_ZERO" (the same status; the words are the presenter's) |
+| `cell.float` | 200, `0.33333333` | 200, `0.3333333333333333` | the same value; the SQL's cast text moves |
+| `cell.floatWhole` | 200, `6.0` | 200, `6.0` | the same value; the SQL text moves |
+
+**The relational corpus** (S20 is its strand: the plain set never reaches it, since `UPSTREAM` is checked;
+`H8j-corpus.txt`):
+- **No test moves from pass to fail, on either lane.**
+- **On H2, 2 tests move from fail to pass:**
+  - `graphFetch::tests::qualifier::testSubAggregationInQualifier`;
+  - `mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping`.
+
+  With S20's DECIMAL literal, H2 answers `52` and `1` where the tests expect the Floats `52.0` and `1.0`. The fail
+  roster goes from 276 to 274.
+- **DuckDB's roster is unchanged.**
+- **4 tests on each lane move from DIFFERENTIAL+literal to LITERAL:** `embedded::advanced::testGroupBy`,
+  `otherwiseTestGroupBy`, `inline::nested::testGroupBy`, `inline::targetid::testGroupBy`. With the product's literal,
+  the engine text is byte-equal to the golden, so no appeal is needed. Their 4 unordered-chain register lines go with
+  them.
+
+### (j.2) The answers that stop matching legend-engine, by case
+
+| Case | Where | Answers | An ordinary-function rewrite |
+|---|---|---:|---|
+| legend-engine answers a value where Pure raises (the plain set) | PCT ENGINE, DuckDB: `slice`, `rem`, `range`, `bitShiftRight` | 4 | Yes, each a guard: `if($low > $high, \|[], \|$x->slice($low, $high))` → `[]`; `if($d == 0, \|[], \|$x->rem($d))` → `null`; `if($step == 0, \|[], \|range(...))` → `[]`; `if($n > 62, \|0, \|$x->bitShiftRight($n))` → `0`. A negative operand of `>>` shifts in ones, so a negative `$x` needs `-1` there |
+| legend-engine answers null where Pure raises (the plain set) | pure/v1, H2: `sqrt(-2.0)` | 1 | Yes: `if($x < 0, \|[], \|sqrt($x))` (3.4's own example) |
+| legend-engine's exact-decimal Float arithmetic (S20) | PCT A (both audiences), DuckDB: `testFloatPlus`, `testFloatTimes` | 2 | Only through Decimal: `toDecimal()` on each literal, then `toFloat()`. Whether the translator may write that is 3.6's to rule. PCT's verdict cannot see these two |
+| **Total, by value or status** | | **7** | 5 by a guard, 2 through Decimal |
+
+**The status is kept and only the words move (3 cases):** PCT DuckDB `sqrt` and `bitShiftLeft`, where both sides raise
+the database's error, and pure/v1's `raise.divideByZero`, which stays 500. Words are the presenter's.
+
+**Answers that START matching the tests' expected values: 2.** These are the H2 corpus tests above. Under S20 today,
+lite answers an Integer-printed value where the test, and legend-engine's own corpus run, expect a Float.
+
+**Not measured:**
+- the plain set's kinds on databases the ENGINE lane does not run;
+- H2's essential and standard suites, which hold (c)'s H2 value cells for `sqrt` and both shifts;
+- `CAST_IMPOSSIBLE` and `SIZE_NOT_MULTIPLICITY`, which no PCT test reaches ((c.3)).
+
+pure/v1's golden net covers H2's `sqrt` and divide. The ENGINE lane can grow those suites (B1-R's) if 3.6 needs them.
+

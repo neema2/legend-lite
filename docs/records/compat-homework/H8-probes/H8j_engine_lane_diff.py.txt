@@ -1,0 +1,45 @@
+"""H8 (j), census B2, 2026-11-19: CP-5's cost on B1-R's ENGINE lane.
+
+Joins B1-R's pinned tables (pct/engine_lane/<db>_<suite>.tsv at claude/compat-engine-lane 815690a57: PCT channel A as
+legend-engine's audience, under PureText.PURE_V1, classified against legend-engine's manifests) with the same tables
+regenerated under the probe (S20's bare-DECIMAL literal off, LoweringForms.raise's plain set empty), and prints every
+test whose lite outcome or verdict moved, with the lane's failure line for it.
+usage: python3 -I H8j_diff.py <pinned dir> <probe table dir> <probe lanes dir> <out tsv>
+"""
+import pathlib, re, sys, collections
+pinned, probe, lanes, out = (pathlib.Path(a) for a in sys.argv[1:5])
+
+def table(p):
+    rows = {}
+    for l in p.read_text().splitlines():
+        if l.startswith("#") or l.startswith("test\t") or not l.strip():
+            continue
+        c = l.split("\t")
+        rows[c[0]] = c
+    return rows
+
+moved = []
+tally = collections.Counter()
+for f in sorted(pinned.glob("*_*.tsv")):
+    if f.name in ("summary.tsv", "refusals.tsv"):
+        continue
+    lane = f.stem
+    a, b = table(f), table(probe / f.name)
+    log = (lanes / lane / "run.log")
+    text = log.read_text(errors="replace") if log.exists() else ""
+    for t in sorted(set(a) | set(b)):
+        ra, rb = a.get(t), b.get(t)
+        if ra is None or rb is None:
+            moved.append([lane, t, "MISSING", "", "", "", ""])
+            continue
+        if ra[3:6] != rb[3:6]:
+            short = t.split("::")[-1]
+            m = re.search(re.escape(short) + r"[^\n]*\n(?:[^\n]*\n){0,3}", text)
+            why = m.group(0).replace("\n", " | ")[:400] if m else ""
+            moved.append([lane, t, ra[1] + ":" + ra[2], ra[3] + ":" + ra[4], ra[5], rb[3] + ":" + rb[4], rb[5], why])
+            tally[(lane, ra[5], rb[5])] += 1
+out.write_text("lane\ttest\tengine\tlite_before\tverdict_before\tlite_probe\tverdict_probe\tprobe_line\n"
+               + "\n".join("\t".join(r) for r in moved) + "\n")
+for k, v in sorted(tally.items()):
+    print(v, *k)
+print(len(moved), "moved")

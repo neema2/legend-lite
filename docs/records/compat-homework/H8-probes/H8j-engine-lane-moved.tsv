@@ -1,0 +1,7 @@
+lane	test	engine	lite_before	verdict_before	lite_probe	verdict_probe	probe_line
+duckdb_essential	meta::pure::functions::collection::tests::slice::testSliceError	DEFECT:ERROR_MISMATCH	FAIL:ERROR_MISMATCH	BOTH_FAIL	PASS:	LITE_FIXES	
+duckdb_essential	meta::pure::functions::math::tests::rem::testRemError	DEFECT:ERROR_MISMATCH	FAIL:ERROR_MISMATCH	BOTH_FAIL	PASS:	LITE_FIXES	
+duckdb_essential	meta::pure::functions::math::tests::testSquareRootError	DEFECT:PLANNER_FAULT	FAIL:ERROR_MISMATCH	BOTH_FAIL	PASS:	LITE_FIXES	
+duckdb_grammar	meta::pure::functions::collection::tests::range::testRangeStepError	DEFECT:ERROR_MISMATCH	FAIL:ERROR_MISMATCH	BOTH_FAIL	PASS:	LITE_FIXES	
+duckdb_standard	meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_MoreThan62Bits	DEFECT:ERROR_MISMATCH	FAIL:ERROR_MISMATCH	BOTH_FAIL	PASS:	LITE_FIXES	
+duckdb_standard	meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_MoreThan62Bits	DEFECT:ERROR_MISMATCH	FAIL:ERROR_MISMATCH	BOTH_FAIL	PASS:	LITE_FIXES	

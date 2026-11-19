@@ -1,0 +1,29 @@
+# H8 (j): both corpus lanes under the probe (wt-j2: claude/compat-engine-lane 815690a57, whose product equals b75d6c73a, + H8j_probe.patch.txt), against the committed rosters
+## h2
+[corpus2] pass=2291 fail=274 skipped=7 of 2613 in 200s
+[corpus2] strength LITERAL=1282
+[corpus2] strength DIFFERENTIAL+literal=791
+[corpus2] strength DIFFERENTIAL-only=169
+[corpus2] strength CARDINALITY=27
+[corpus2] strength SPELLING=22
+# fail roster (< left the roster = now passes, > joined = now fails):
+< meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier
+< meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping
+# unordered register:
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupBy
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupBy
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupBy
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::testGroupBy
+## duckdb
+[corpus2] pass=2452 fail=108 skipped=7 of 2613 in 639s
+[corpus2] strength LITERAL=1417
+[corpus2] strength DIFFERENTIAL+literal=817
+[corpus2] strength DIFFERENTIAL-only=169
+[corpus2] strength CARDINALITY=27
+[corpus2] strength SPELLING=22
+# fail roster (< left the roster = now passes, > joined = now fails):
+# unordered register:
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupBy
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupBy
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupBy
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::testGroupBy

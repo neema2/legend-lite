@@ -1,0 +1,64 @@
+"""H8 (j), census B2, 2026-11-19: PCT channel A's recorded answers (the edge golden net's answers.tsv, PctCaseRecorder:
+a value's typed cells, a relation's columns, activities and rows, an error's message, ids masked), main against the
+probe (S20's bare-DECIMAL literal off, the plain set empty), case by case. A relation's activities are its SQL TEXT
+(CP-4: not promised), so a case whose columns and rows are equal and whose SQL alone moved is SQL_ONLY; rows compare
+as a multiset (the recorder's row order is the run's).
+usage: python3 -I H8j_answers.py <main bazel-bin/pct/edge> <probe bazel-bin/pct/edge> <out tsv>
+"""
+import pathlib, re, sys, collections
+main, probe, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+
+def cases(p):
+    d = {}
+    for l in p.read_text(errors="replace").split("\n"):  # not splitlines(): the recorder separates rows with \u001e
+        c = l.split("\t", 3)
+        if len(c) == 4:
+            d[(c[0], c[1])] = (c[2], c[3])
+    return d
+
+def parts(kind, payload):
+    if kind != "RELATION":
+        return {"value": payload}
+    m = re.match(r"columns=(.*?) activities=(.*) rows=(.*)$", payload, re.S)
+    if not m:
+        return {"value": payload}
+    rows = m.group(3).split("\x1e")
+    return {"columns": m.group(1), "sql": m.group(2), "rows": tuple(sorted(rows))}
+
+rows_out, tally = [], collections.Counter()
+for lane in sorted(p.name for p in main.iterdir() if p.is_dir()):
+    a, b = cases(main / lane / "answers.tsv"), cases(probe / lane / "answers.tsv")
+    for k in sorted(set(a) | set(b)):
+        if a.get(k) == b.get(k):
+            continue
+        if k not in a or k not in b:
+            cls = "CASE_MISSING"
+            before = after = ""
+        else:
+            (ka, pa), (kb, pb) = a[k], b[k]
+            if ka != kb:
+                cls = "KIND " + ka + "->" + kb
+            else:
+                xa, xb = parts(ka, pa), parts(kb, pb)
+                if ka == "RELATION" and "rows" in xa and "rows" in xb:
+                    if xa["columns"] != xb["columns"]:
+                        cls = "COLUMNS"
+                    elif xa["rows"] != xb["rows"]:
+                        cls = "ROWS"
+                    elif xa["sql"] != xb["sql"]:
+                        cls = "SQL_ONLY"
+                    else:
+                        cls = "ROW_ORDER_ONLY"
+                else:
+                    cls = ka + "_CHANGED"
+            before, after = a[k][1][:300], b[k][1][:300]
+            if cls in ("ROWS", "VALUE_CHANGED", "ERROR_CHANGED"):
+                # the first differing cell, for the record
+                if cls == "ROWS":
+                    ra, rb = set(xa["rows"]), set(xb["rows"])
+                    before, after = ";".join(sorted(ra - rb))[:300], ";".join(sorted(rb - ra))[:300]
+        tally[(lane, cls)] += 1
+        rows_out.append([lane, k[0], k[1], cls, before.replace("\t", " "), after.replace("\t", " ")])
+out.write_text("lane\ttest\tcase\tclass\tmain\tprobe\n" + "\n".join("\t".join(r) for r in rows_out) + "\n")
+for (lane, cls), n in sorted(tally.items()):
+    print(n, lane, cls)

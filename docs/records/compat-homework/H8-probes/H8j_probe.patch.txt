@@ -1,0 +1,69 @@
+diff --git a/core/src/main/java/com/legend/edge/PureText.java b/core/src/main/java/com/legend/edge/PureText.java
+index 165b978f1..b2f3d76f6 100644
+--- a/core/src/main/java/com/legend/edge/PureText.java
++++ b/core/src/main/java/com/legend/edge/PureText.java
+@@ -204,12 +204,9 @@ public final class PureText {
+      *  route writes no check for in its SQL -- the database decides (rem's and divide's {@code mod} and {@code /},
+      *  {@code sqrt}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice}, {@code range}, {@code processCast},
+      *  the parses' plain casts). */
++    // PROBE (census B2's H8 (j), 2026-11-19; never for main): LoweringForms.raise's plain set off -- every raise checked
+     static final java.util.Set<com.legend.sql.RaiseKind> ENGINE_UNCHECKED = java.util.Collections.unmodifiableSet(
+-            java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
+-                    com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+-                    com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, com.legend.sql.RaiseKind.RANGE_STEP_ZERO,
+-                    com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,
+-                    com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, com.legend.sql.RaiseKind.TEXT_NOT_DATE));
++            java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class));
+ 
+     /** THE PURE/V1 ROUTE'S STYLE (B7, the user's ruling of 2026-11-17: pure/v1 matches legend-engine): {@link #UPSTREAM}
+      *  in every dialect and facet, but a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain
+@@ -348,7 +345,8 @@ public final class PureText {
+          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+         @Override
+         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
++            // PROBE (census B2's H8 (j), 2026-11-19; never for main): S20's bare-DECIMAL literal off -- the product's form
++            return super.floatLiteralKind();
+         }
+ 
+         /** legend-engine's H2 text (its connection declares {@link RawSqlBoundary#ENGINE_TEXT}, as legend-engine's test
+@@ -404,7 +402,8 @@ public final class PureText {
+          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+         @Override
+         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
++            // PROBE (census B2's H8 (j), 2026-11-19; never for main): S20's bare-DECIMAL literal off -- the product's form
++            return super.floatLiteralKind();
+         }
+ 
+         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+@@ -436,7 +435,8 @@ public final class PureText {
+          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+         @Override
+         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
++            // PROBE (census B2's H8 (j), 2026-11-19; never for main): S20's bare-DECIMAL literal off -- the product's form
++            return super.floatLiteralKind();
+         }
+ 
+         /** legend-engine's H2 text translated in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
+@@ -482,7 +482,8 @@ public final class PureText {
+          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+         @Override
+         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
++            // PROBE (census B2's H8 (j), 2026-11-19; never for main): S20's bare-DECIMAL literal off -- the product's form
++            return super.floatLiteralKind();
+         }
+ 
+         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
+@@ -647,7 +648,8 @@ public final class PureText {
+          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+         @Override
+         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
++            // PROBE (census B2's H8 (j), 2026-11-19; never for main): S20's bare-DECIMAL literal off -- the product's form
++            return super.floatLiteralKind();
+         }
+ 
+         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */

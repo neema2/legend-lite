@@ -1,0 +1,6 @@
+slice([1,2,3,4,5], 3, 2)	SELECT list_slice([1,2,3,4,5], 4, 2)	VALUE []
+rem(5, 0)	SELECT 5 % 0	VALUE null
+range(0, 5, 0)	SELECT range(0, 5, 0)	VALUE []
+sqrt(-1.0)	SELECT sqrt(-1.0)	ERROR Out of Range Error: cannot take square root of a negative number
+1->bitShiftRight(63)	SELECT 1::BIGINT >> 63	VALUE 0
+1->bitShiftLeft(63)	SELECT 1::BIGINT << 63	ERROR Out of Range Error: Overflow in left shift (1 << 63)
