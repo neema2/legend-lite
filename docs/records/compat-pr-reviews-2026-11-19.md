@@ -674,3 +674,81 @@ and the batch's roster must agree.
   ("NOT BUILT ... history"), "Its tests", the A3 row's size cell and the plain plan's row 1. Two phrases remain:
   - the A3 row's "user's words it needs" cell still ends "the detector's default (ruled: warn, with the report)";
   - §4a's "What it does" still describes the warning as the default, and the refusal as `=refuse`'s.
+
+### Re-check 2: `5b337b867` (reading copy `febd1adee`, with `A3-piece4-since-review.patch.txt` and `first-day-of-week-probe.md`)
+
+**Verdict: APPROVED, with one should-fix outstanding (`x / 0`, below, with the reading supplied) and two conditions at
+the batch.** Nothing blocks the PR.
+
+**How this was checked:**
+- The whole patch applies to A2's head (`6551c2036`): six files.
+- The page copy is byte-identical to the patched file.
+- Against `c957c2b49`'s tree, only the page and the register differ, as the README says.
+- The stated delta applies to the previous tree.
+
+**`firstDayOfWeek` (item 13, S387): the owner's correction holds.** I read each citation at legend-engine 4.145.0's pin:
+- `relationalMappingExecution.pure:440-443`: `useDialectTranslation` is true for `DatabaseType.H2`.
+- `sqlDialectTranslation/toPostgresModel.pure:356`: `firstDayOfWeek` is `dateTruncCall('week', true)`, and
+  `dateTruncCall` is at `:612-619`.
+- `testToSQLString.pure:650` pins `cast(cast(date_trunc('week', ...) as timestamp) as date)` for H2.
+- `h2Extension2_1_214.pure:223` and `h2Extension1_4_200.pure:118` hold the `dateadd` text, which is not on the SELECT
+  route.
+- `duckdbExtension.pure:228` holds the `isodow` text.
+
+The H2 extension's text is the wrong place to read legend-engine's H2 answer: its SELECTs go through the dialect
+translation.
+
+**The locale probe is sound.** The sources and verbatim outputs are in the record, on H2 2.1.214 and 2.5.252 and DuckDB
+1.5.6.0, under three locales.
+
+**Lite's tests are deterministic, so the referee's `2014-11-30` is stable.** Every test JVM pins `en_US`:
+- `tools/junit/defs.bzl:53-54`;
+- `spec/BUILD.bazel`'s four corpus targets;
+- `tools/java_run/defs.bzl:87-88`.
+
+**A5's `7cd59a57` (`iso_week`) is in #127's approved head `6f21bed29`**, so lite answers the Monday on every database
+in this batch.
+
+**S386 and S387 now cite the user's own rulings, read in GATES.md at A2's head:**
+- batch 67b, the user 2026-09-05: joinStrings and firstDayOfWeek "are both just broken on H2 basically? …
+  quarantine/bucket those as engine bugs";
+- batch 144, the user 2026-09-08: "i agree with all 11", with `digest-joinStrings`, `joinStrings-literal-collection`
+  and `firstDayOfWeek-h2-week-start` among them.
+
+So these two rows are user-ruled meanings. The cited `7dfbdf601` is real: "Block-compiler rung 2a: text asserts are
+verdict rows", 2026-09-21, where a text byte-equal to the golden became the verdict. That bears out the "passed on its
+SQL text alone from 2026-09-21" sentence.
+
+**Outstanding, should-fix: legend-pure's `x / 0`.** Item 3 still says "legend-pure's own answer is still to be read".
+That was the owner's second addition, and it is not in `5b337b867`. Here is what the pin says:
+- **Compiled legend-pure** raises for any zero divisor: `CompiledSupport.divide:1481-1486`,
+  `PureExecutionException(..., "Cannot divide " + right + " by zero")`.
+- **Interpreted legend-pure**, through `NumericAccumulator`:
+  - with a Float or Decimal operand, BigDecimal's division raises an `ArithmeticException` (`BigDecimalWrapper.divide`,
+    `:893-895`; a Float literal is a `BigDecimal` there, S120);
+  - an Integer divided by an Integer 0 goes `LongWrapper.divide(long)` (`:1562-1565`) → `DoubleWrapper` `this.value /=
+    number` (`:1170-1175`, "TODO check for underflow and overflow"), so it answers Infinity, with no raise.
+
+So "Pure's error" in the table holds for compiled legend-pure, and for interpreted legend-pure with any Float or
+Decimal. Interpreted legend-pure's Integer-by-Integer zero answers Infinity, a value Pure's Float has no spelling for.
+- **Fix:** replace the clause with one sentence saying that, citing both. Lite's raise follows the compiled runtime,
+  where legend-pure's tests run their asserts (S127).
+- This does not move a verdict.
+
+**Conditions at the batch:**
+1. **The H2 count for `testToSqlGenerationFirstDayOfWeek`.** The merged batch's H2 corpus lane settles whether the test
+   moves on H2 now that lite answers the Monday there. Item 13 rightly defers to that run. If it moves, item 2's H2
+   figures ("2 on H2"; 147 and 150) and S380's must be updated in the same batch, so the page and the roster agree.
+2. **The user's word on the PROPOSED rows** (S130, S134, S380, S382-S385) at the PR, as each row says. S386 and S387 are
+   ruled meanings with drafted rows.
+
+**Nits:**
+- S386 and item 12 still cite `joinStrings.pure:23`. The rule is the doc block at `:18-21`.
+- Item 13's "When: today" holds only with this batch. One clause would make it exact: "with this batch: A5's H2 fix,
+  in #127; before it lite's H2 followed the locale too", as S387 already says.
+
+**Observation, for the product track: lite's own H2 still follows the locale for week numbers.** The probe found this
+on the way. On lite's H2, `extract(WEEK ...)` and `DATEDIFF(WEEK, ...)` follow the JVM locale: under `en_US` a Sunday
+is week 49, under `en_GB` week 48. Tests cannot see it, because every test JVM pins `en_US`. A product server started
+outside those launchers would answer by its machine's locale, and DuckDB's week is ISO. It is lite's defect, not a
+difference by design. It needs an owner and a record (IN_FLIGHT or an issue) so it is not lost.
