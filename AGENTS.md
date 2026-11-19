@@ -140,6 +140,10 @@
 > 6. **No modes in the core.** The core never branches on who is asking;
 >    differences between audiences live only at the door (input) and in the
 >    presenters (output).
+>    Made precise by the switch rule (the user, 2026-11-19 ~20:35, "Agree with
+>    the decision 2 and 3"): only door switches, read in one place and turned
+>    into a rewrite or a refusal before the planner; one closed registry; a
+>    ceiling of 5; guarded (`docs/records/compat-rules-of-record-2026-11-19.md`).
 >
 > Two readings were ruled the same minute. **Folds:** the compiler may fold
 > constants and facts fixed by the types, never row data. **Error records:** a
