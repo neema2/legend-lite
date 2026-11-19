@@ -590,3 +590,15 @@ who confirms or changes phases 1-3.
   the 12 Postgres-backed tests pass unprivileged. B1-R watches its CI. The independent reviewer takes it after #123.
   - **How PRs go to the user from now on:** quietly. A PR is brought to the user once, when CI is green on every OS
     and its review is in.
+- **~12:34 UTC, B2's H8 (e): the rest of CP-4's cost** (`claude/census-b2` at `0b720d27d`):
+  - **The appeal carries a great deal today:** 964 corpus tests on H2 and 990 on DuckDB pass THROUGH a successful
+    appeal (the SQL text failed and the rows held); for 169 on each lane the appeal alone carries the pass.
+  - **With every SQL-text assert sent to the appeal** (lite's own text), it decides 1,433 on H2 and 1,475 on DuckDB:
+    469 and 485 more, and they stay passing, by answer. Tests passing on text alone fall from 22 to 0.
+  - **Not decidable by the appeal: the 143** (F1), plus 3 diverged and 6 on plan structure.
+  - **Programs that execute generated text:** `toDDL`, 3 aggregation-aware tests (57 statements), which pass at `main`
+    and, on H2, under lite's own DDL too; `setUpDataSQLs`, 0 (S192's read-only reload). So 2.3b's "executed generated
+    DDL" is 3 tests.
+  - **Run time, with every SQL-text assert going to the appeal:** H2 187 s → 179 s; DuckDB 628 s → 630 s. It costs no
+    corpus time.
+  - (j) is running on B1-R's ENGINE lane.
