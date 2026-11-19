@@ -1799,3 +1799,16 @@ who confirms or changes phases 1-3.
   statement over a side that can raise; else every DuckDB test plan), as plan data the target declares; product plans
   untouched; stop if a PCT lane grows more than ~10%; the setting named in the PR body for the user's word, with G10 as
   its reason.
+- **~14:50 UTC, H13's note against the rules** (§23 at `4da796b1`; nothing built). Rule 1: the product's raise message
+  stays the database's (today a planner-known constant, kind plus where; if lite's message is ever to print a value,
+  the SQL prints it). `at`'s size from the multiplicity is a type fact (in the fold list put to the user). **Rule 3, a
+  design for stage B (B1 option "typed raise slots"):** the planner declares each withheld slot's position and Pure type
+  on the site (no value); the SQL prints each value into the raise's envelope in a lossless per-dialect spelling; exec
+  decodes the slots by their declared types; compatibility words upstream's sentence in Java from those typed values.
+  Then the `<computed>` placeholder, its register row and both `statedSize` pieces go, and every operand legend-pure
+  prints is printed. Per kind: INDEX_OUT_OF_BOUNDS offset and size; SIZE_NOT_MULTIPLICITY size (the 9 run-time `toOne`
+  tests); SQRT_OF_NEGATIVE a Float; DIVIDE_BY_ZERO the dividend; DATE_PART_ABSENT a date at its precision;
+  SLICE_BOUNDS_INVERTED both bounds; DATE_COMPONENT_INVALID at 1 of 4 sites; the three TEXT_NOT_* a String. To measure
+  first: each dialect's error-text limits, Snowflake's and ClickHouse's quoting, the SQLite Float round trip. **This
+  session's call:** recorded as a B1 option, for the user with stage B's ratification. Rule 4: the +15/-4 database-judge
+  change is not needed in the product (both judges say lite's own message); dropped (-0.25 day).
