@@ -2942,3 +2942,14 @@ who confirms or changes phases 1-3.
   without a hook), measured first, switching the lanes' mode rather than adding lanes; PCT no (Pure's expected answers;
   legend-engine runs PCT corrected; the relation suite's failures are table printing, B2's). Added as Q14 to
   `compat-stage-b-questions-2026-11-19.md`.
+- **~22:11 UTC, B1-R: three branches pushed.** `claude/compat-a3-detector` at `8a2af5770` (the section fix alone;
+  parser_parity green in full; the function-typed class replaced by a lambda read out of a collection, which
+  legend-engine's grammar writes, plant P3 still biting; so the leniency ledger, the adjudication kind and an extension
+  census row do NOT move, and the fourth guard move put to the user at ~21:50 falls away; own_corpus.matched 3315 → 3321
+  under ~20:10). `claude/compat-a3-engine` at `1e6d9c68c` (the landing branch: the section fix plus the mechanism and
+  design note rev 2; the funnel row PENDING). `claude/compat-a3-engine-review` at `2dec438b0` (review only: B1's
+  native merged to compile, the wiring, the batteries). **The reviewer's S2 met:** against the runner's pins, DuckDB 16
+  rows DIFFER → AGREE under `engine` (47 of 49), H2 46; the two left are the 3-argument `indexOf` (legend-engine refuses,
+  lite answers, E-R2), untouched by `engine`. Sent to the judges (merge the detector fix now; the engine after B1's
+  native) and the reviewer. **With the user now: three moves** (the two funnel rows, the counters +2/+2, the two new
+  engine pin files).
