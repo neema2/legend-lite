@@ -517,6 +517,24 @@ side as `#TDS` text"), and judges it at `EdgeHearing.judged`. That record is a p
   names its form today); how an audience spells it is the run's". `Rendered`'s form already stands on that reading,
   so I think no new amendment is needed, only that one stated.
 
+**Every assert family that compares a printed side plans `Printed`** (the owner's requirement, from H11's corpus
+half). Today only `assertEquals`/`assertNotEquals` consult the edge's engine-text claim
+(`AssertVerdicts.planArm`, `:925-932`). `assertSameElements` goes straight to the product's `renderedPlan`
+(`testplan/AssertVerdicts.java:950-956`, `renderedPlan` at `:1025`), so a print there is planned by the product's
+lowering and never reaches the hearing. That is 22 corpus sides, 11 of them in the lanes, by H11's count.
+- **Where it is planned:** `Printed` sits in the product's per-assert planner ahead of every family's own arm. It is
+  planned wherever a compared side's root (through the lets) is a presentation call: the toString of a relation, and
+  any other print the corpus or PCT compares, by H11's count per family. That covers `assertEquals`,
+  `assertNotEquals`, `assertSameElements` and any other family H11 finds over a print.
+- **What it carries:** the family's own comparison, `HostJudgment.Printed(int side, PrintCall call, Comparison
+  family)` with `Comparison` one of EQUAL, NOT_EQUAL or SAME_ELEMENTS.
+- **The run:** the hearing prints (`Hearing.print`). The family's comparison is then applied to the printed text
+  through the run's rendered-text rule (`Hearing.renderedTexts()`, the `Rendered` kind's rule, the edge's under
+  (iii)), and a failure is presented through `present`.
+- **The guard:** no planning arm routes a print past the hearing. A planned side whose root is a presentation call,
+  in any judgment other than `Printed`, is refused by name at planning. That makes the claim mechanical, not a
+  convention, and the guard's test names each family.
+
 This makes 1.3's build sit on 2.2b's `JudgeRun`. 1.3 also needs 2.2a first (H11 §3: the compatibility database
 judge cannot judge it). The order is 2.2a, 2.2b, 1.3.
 
