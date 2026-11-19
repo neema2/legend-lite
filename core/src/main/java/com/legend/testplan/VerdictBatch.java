@@ -759,9 +759,10 @@ public final class VerdictBatch {
 
     /** {@code ps} in runs, in order, a new run at each member whose statement may raise ({@link MayRaise}): within a run
      *  only its first member may, so a rejection of a run's fused statement -- or of a half of it, the budget's split
-     *  keeps the order -- is that first member's (the compatibility owner's (beta), 2026-11-19). The gap, named: a
-     *  literal a database refuses (a date past its range) beside no raising expression is not seen, and stays blamed
-     *  on its run's first member. */
+     *  keeps the order -- is that first member's (the compatibility owner's (beta), 2026-11-19). The gap, named: what
+     *  a database refuses beside no raising function -- a literal past its range (a date's), or a cast reading text as
+     *  a number it does not spell (casts are left out of SqlExpr.raisesItself, measured) -- is not seen, and stays
+     *  blamed on its run's first member. */
     private static List<List<Pending>> raisingRuns(List<Pending> ps) {
         List<List<Pending>> out = new ArrayList<>();
         List<Pending> run = new ArrayList<>();

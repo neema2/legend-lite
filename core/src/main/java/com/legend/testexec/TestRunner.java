@@ -280,14 +280,12 @@ public final class TestRunner {
             // rejection (the compatibility owner's (b1), 2026-11-19)
             if (runs.closes(verdict) || run.rejected()) {
                 run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing().hostForms().words()), rowAppeals, this.run);
-                // unreachable, an invariant kept loud (PR #127's review, 2026-11-19): judge walks every root and every
-                // step of each, a failure thrown at its root's end, so it returns only where every Row read its row; a
-                // rejected group's verdicts are members (received refuses any other), and a member read with no row
-                // raises the held rejection
-                if (run.rejected()) {
-                    throw new IllegalStateException("a segment whose fused statement was rejected judged no root"
-                            + " without a row: " + verdict.name());
-                }
+                // where the judged segment raised none, the held rejection fails the body with the database's error (PR
+                // #127's review, 2026-11-19, the owner's ruling) -- not reached by any plan: judge walks every root and
+                // every step of each, a failure thrown at its root's end, so it returns only where every Row read its
+                // row; a rejected group's verdicts are members (received refuses any other), and a member read with no
+                // row raises the held rejection first
+                run.raiseRejection();
             }
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }

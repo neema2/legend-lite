@@ -122,6 +122,16 @@ public final class RootLoops {
             return rejected != null;
         }
 
+        /** The held rejection raised, where one was held: where the judged segment raised none, the body fails with the
+         *  database's error, a rejected fused statement's rule (PR #127's review, 2026-11-19, the owner's ruling) -- not
+         *  reached by any plan: judge reads every member's row, and a member read with no row raises it first. */
+        public void raiseRejection() {
+            com.legend.error.DataError held = rejected;
+            if (held != null) {
+                throw held;
+            }
+        }
+
         /** The row the runner read for {@code verdict} (null where none: a verdict with no statement); the root loop
          *  reaches an absent row at its place. A verdict of no row of the loop answers none: the segment's carrier where
          *  every root was decided at planning. */
