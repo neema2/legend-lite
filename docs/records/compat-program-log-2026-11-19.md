@@ -362,3 +362,11 @@ who confirms or changes phases 1-3.
     equals legend-pure past 2^53 (legend-pure prints 2^60 as `1152921504606846980.0`, DecimalFormat over FloatingDecimal),
     and `RelationTextLowering` is deleted in 1.3, where the PURE presenter can write legend-pure's exact digits in
     Java. The worker lists the edge golden moves and orders its landing with B1's 0.2 PR.
+- **~11:54 UTC, an edge fidelity question from the product orchestrator** (the numbers worker's S20 work): the edge
+  keeps `floatLiteralKind` → DECIMAL on BigQuery, ClickHouse and Snowflake while the product moves to the double.
+  - **This session's answer:** drop the BigQuery and ClickHouse overrides and keep Snowflake's. legend-engine writes
+    the literal bare, and the database types it. BigQuery's bare `0.1` is FLOAT64 and ClickHouse's Float64, so
+    legend-engine's literal there IS the double; only Snowflake's bare `0.1` is a NUMBER.
+  - The pin (`EdgeSpellingHookTest.OVERRIDES`) shrinks by 2. The BigQuery and ClickHouse PCT ledgers are re-measured
+    in their next lane round, and the dated note cites each database's own literal-typing rule.
+  - This matches CP-5's direction: S20's edge literal goes entirely if the user rules "none".
