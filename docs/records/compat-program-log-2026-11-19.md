@@ -2857,3 +2857,11 @@ who confirms or changes phases 1-3.
   on every in-process database. Heads, local: `claude/compat-a3-frontends` `a4c1f2b1`, `claude/compat-a3-switch`
   `bc356444`. The translator is putting the push and the up moves to the user in its session.
 - **~21:42 UTC, the ~21:40 rulings applied:** the window-in-a-list session (session_0195rQEjkEZDfj2GjXCAhyJr) resumed under this session (its two asks answered; numbers before any pin; push to its own branch; the judges merge it into the batch); the product orchestrator told, for its records. The engine runner job to the CI-health worker (session_0195rQEmJ9D6cn7yjYczb2bi), about 2 hours: the artifact read from the pin, @maven_runner only, the translator's probe as its proof; a branch `claude/compat-engine-runner-storeless` on the user's word in that session if it works, a note and stage-after-A if not. Q3 put to the user first, in depth.
+- **~21:40 UTC, the reviewer** (record `49b1d0a16`): **B1's native at `64adcc05e` APPROVED as code**, not landable
+  until the user rules its three moves (with the user since ~21:30); S2: the bar for DuckDB under `engine` is the
+  agreement battery against the engine runner's pins (legend-engine 4.145.0, H2 2.1.214, DuckDB v1.3.0), DuckDB's
+  substring DIFFER rows turning AGREE, not only equality with DuckDB's own call (sent to B1-R). **A2 PR 2 at
+  `059cc71df` APPROVED**; its should (nothing pins the plan-text conditional refusal) goes to the judges as one planted
+  test on the batch branch. D-M1's refinement unseen: B1-R to push the section fix alone on `claude/compat-a3-detector`
+  and the mechanism with its design note rev 2 on a new `claude/compat-a3-engine` (merging the batch head later, never
+  rebasing a pushed branch).
