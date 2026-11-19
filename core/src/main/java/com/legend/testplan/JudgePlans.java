@@ -227,20 +227,6 @@ public final class JudgePlans {
         return plannedOf(side, env, true, pv.root());
     }
 
-    /** A DATE LITERAL a host judge's side is, as the plan's constant (the compatibility program's A4 gate, 2026-11-19,
-     *  G2): never sent to the database -- legend-pure evaluates an assert's literal in Pure, never in the database,
-     *  and the database judge carries it as its text; the host's side batch read {@code %33803336-12-17} as
-     *  {@code DATE '33803336-12-17'}, which DuckDB cannot hold, so the host's run failed on the expected literal where
-     *  the database judge's failed on the actual side (PCT's testAdjustBy*BigNumber, JudgesDisagree under lite's
-     *  rules). Null where {@code value} is not a date literal. */
-    static @com.legend.base.Nullable PlannedSide dateLiteral(TypedSpec value) {
-        if (!(value instanceof com.legend.compiler.spec.typed.TypedCDate d)) {
-            return null;
-        }
-        TypedSide answered = new TypedSide.Scalar(d.value(), value.info().type().typeName());
-        return new PlannedSide(constantSide(answered, false), Kind.CONSTANT, null, answered, null, null);
-    }
-
     /** {@code w}'s plan value: a graph fetch's one-cell statement; a grid's typed rows (a late-bound grid framed by
      *  the database's reported columns; a dynamic pivot nothing names as a keyed result; a grid under assertion
      *  stabilized); a value root's one-column rows. */
@@ -455,11 +441,9 @@ public final class JudgePlans {
             case Boolean b -> b.toString();
             case Number n when !(n instanceof Double) && !(n instanceof Float)
                     && !(n instanceof java.math.BigDecimal) -> n.toString();
-            // a date literal its canonical text, which reads back as itself (PureDateLiteral.parse)
-            case com.legend.values.PureDateLiteral d -> d.canonicalText();
             default -> throw new com.legend.error.NotImplementedException("a constant side's " + type
                     + " cell carried as " + v.getClass().getSimpleName()
-                    + ": the folds admit String, Integer, Boolean and a date literal");
+                    + ": the folds admit String, Integer and Boolean");
         };
     }
 
