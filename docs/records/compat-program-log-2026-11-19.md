@@ -1937,3 +1937,6 @@ who confirms or changes phases 1-3.
   builder; the independent reviewer asked to review each stage-A PR before it goes to the user. The user asked to learn
   why PCT under lite's own rules passes 787 of 1,249 (a first answer given in chat; a full breakdown when A1's lane
   lands).
+- **~16:11 UTC, B2: A2 brief received;** building PR 1 locally on `claude/compat-a2-printers` from `main` `b75d6c73a`.
+  Its own rules need the user's word in its session to push outside `claude/census-b2` and to open a PR; it will ask
+  the user there in two lines once PR 1 is green locally.
