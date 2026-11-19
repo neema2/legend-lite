@@ -1279,3 +1279,53 @@ who confirms or changes phases 1-3.
     **N3:** the rulebook amendment rides with A3's PR; B5 keeps refusing every other legend-engine flag by name; query
     cost on users' warehouses added to "not measured".
   - All folded into the final plan, the plain plan and this log (~13:55).
+- **~13:36 UTC, B1: PR #123's Windows lines** (run 44529766966, the windows-lane-edge_net artifact). **Case (a): every
+  moved line is the last digit or two of a Double the database's own maths computed;** no order, locale, path or line
+  ending moved. 30 lines, over this session's ~20, so B1 stopped and built no overlay.
+  - DuckDB essential 2 (`testCubeRoot` 002 3.0000000000000004 → 3.0; 003 0.1 → 0.09999999999999999); SQLite essential 2
+    (`testComplexPow` 002 182.88729271224375 → ...372; `testCubeRoot` 003 0.10000000000000002 → 0.1); DuckDB standard
+    13 and the SAME 13 with identical values on SQLite standard (sinh, cosh, tanh: `testCosH_Identities`,
+    `testSinH_*`, `testTanH_*`).
+  - **The finding:** DuckDB and SQLite take sinh, cosh, tanh, cbrt and pow from the platform's C maths library (glibc
+    on Linux, the MSVC runtime on Windows); their hyperbolic results are identical to each other on each OS; cbrt
+    differs in opposite directions on the two databases. H2 (Java maths), every relation and grammar suite, channel B,
+    the corpus, pure/v1 and the edge cases matched on Windows. macOS still running; Linux arm runs no edge_net lane.
+  - **Times:** Windows edge_net about 26 min this run (with the corpus pass; the split removes it); `main`'s longest
+    lanes are core (Linux 33.5, Windows 23.4, macOS 24.1) and macOS datacube (26.7).
+  - **This session's call (14:00):** a keyed overlay, one file per OS, 17 rows (suite, test, case, databases, function,
+    the Linux value, that OS's value), every digit pinned; applied only on its OS; the net fails on an unused row or a
+    row whose Linux value differs from the golden; any other difference still fails. Not per-OS copies of whole
+    goldens, not fewer digits, not Linux-only. macOS the same rule (stop if over ~20 facts or anything but last-place
+    maths). The overlay files are new pinned files, named in the PR body for the user's word; the finding goes in the PR
+    body and the net's README.
+- **~13:37 UTC, the judges' answers (H10 §9 at `c1aae56f` on `claude/compat-judges-homework`).**
+  - **The referee:** H6 §6.3 corrected (`ce94cda6`). `ReplayReferee.verifyAuto` (:353-367) replays on the body's
+    session only if `TestBackends.of(session) == TestBackends.referee()` (:362), which never holds, so
+    `verifyOnSession` is dead; every golden replays into legend-engine's isolated 2.1.214 (`ReplayReferee:200-201`,
+    `EngineH2Referee.openReferee` :63-72, MODE=LEGACY, DEFAULT_NULL_ORDERING=HIGH). A build may delete it.
+  - **The 7 cell cases:** the same verdicts under row tuples and pooled `assertSameElements`; corpus-wide no assert
+    goes FAIL to PASS, so no row-tuple compare is needed at the edge. The JSON root becomes the edge's Json whole-kind
+    rule; test6 passes again.
+  - **S131's narrowing** is its own step with the door rewrite, in neither 2.2a nor 2.2b's refactor.
+  - **Size words:** `VerdictRecord.SizeNotMultiplicity(size, multiplicity)` presented through `Hearing.present` at the
+    3 product raise sites; deletes `SideShape.sizeWords`, `TestPlan.answerSizeWords`, `EngineTestText`/
+    `EngineTextGates.sizeWords`, `JudgePlans.sizeWords`, `TestDoor.answerSizeWords`; about 0.25 day in 2.2b.
+  - **H13:** the shapes meet (`caughtMessage(RuntimeException)` is H13's `HostWords.caught`); whoever lands second
+    drops `Appeals`' `siteWords` lookup; a typed parameter (Site | Planned | Message) suggested to both.
+  - **H11:** make the relation text a PRODUCT judgment kind, `HostJudgment.Printed(side, PrintCall)`, planned from the
+    program's own `toString(rel[, false])` call at a side's root (a fact of the typed tree, like `OrderView`), one
+    `Hearing.print(Tabular, PrintCall)`; the edge's print is H11's printer, the product's refuses by name; no edge
+    record, `EdgeCodec` tag or engine-text claim in the plan. Done-when 3 amended: "a plan may name the program's own
+    presentation call at a side's root (toString, toCSV, as Rendered names its form today); how an audience spells it
+    is the run's". Order 2.2a, 2.2b, 1.3. **Accepted as B2's design**, for the reviewer at stage B.
+  - **The corpus door:** (a) an edge-owned door would copy about 230 of the runner's 288 code lines (sessions per
+    package, setup inheritance, the private workspace, verdict bookkeeping), product surface for `<<test.Test>>` users
+    too: two copies drift. (b) a body preparer is a hook by another name (its only implementation compatibility; a JDK
+    `UnaryOperator` escapes `HookLambdasTest`; its identity answer fails `HookRulingTest`'s criterion (b)).
+    **Recommended, a third shape with no callback:** `PureTestRunner.prepare(TestCase)` returns a public `Prepared`
+    (the typed query and its facts), `run(Prepared)` runs it, `Prepared.withBody` re-states the facts; the spec harness
+    composes prepare, the edge's rewrites, run, as ChannelB does. About 30 lines of public surface, one runner, no hook.
+    **This session's call (14:00): taken**, on condition that all four rewrites run there (R-S15 first) and S137's
+    `RelationCounting` two-form is deleted in the same step. It is not a hook or a switch, so it does not need the
+    user's ruling; the user is told. The final plan's B3 row says so.
+  - A5 (`session_0195rQEn49s2BEcy7BVaoAL4`) has its answers.
