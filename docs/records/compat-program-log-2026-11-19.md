@@ -153,3 +153,13 @@ who confirms or changes phases 1-3.
   - the parity bugs were sent to the previous orchestrator (A5's area) by the judges session.
   - **What it means:** the LITE-PCT lane is cheap and finds real bugs at once. Its known-failure ledger is mostly one
     class (PCT tests that assert legend-pure's print forms or words: 449), which the PURE presenter's lane covers.
+- **~11:07 UTC, the judges session's H6 record** (`b39b3799` on `claude/compat-judges-homework`, §3: all 463 LITE
+  failures classed).
+  - **Its recommendation:** a LITE-PCT lane, about 75 s (`pct_channel_b_lite_<suite>`), with its own exact ledger, as
+    an addition to 2.1.
+  - **A correction to the plan's framing:** channel A has no lite judge. legend-pure's interpreter judges, and lite
+    only answers each execute. So BOTH applies to channel B alone. The judges session is also running channel A under
+    LITE's planning style, which judges lite's answers by value against legend-pure itself (the 423 relation tests
+    included).
+  - **The 36 combinations are defined** in `docs/records/e-java-shape-port-2026-11-17.md` on
+    `claude/total-wall-e-shape-port` (`1bb0f3151`); their core coverage at `main` is being re-measured.
