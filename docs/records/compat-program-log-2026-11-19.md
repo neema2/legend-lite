@@ -2806,3 +2806,9 @@ who confirms or changes phases 1-3.
 - **~21:17 UTC, the reviewer confirmed 3314** on the batch at `5ab730cd` (its record `9a557188` corrected); it checks the
   value again in the combination review, which waits for the judges' merged measurement, the restored batch-144 rows
   and the two new H2 rows.
+- **~21:18 UTC, S383's wrap read at the pin (legend-pure 5.99.0):** interpreted, a native's non-Pure RuntimeException
+  becomes `PureExecutionException(source, e.getMessage())`, printed `Execution error at (resource:… line:… column:…),
+  "<JDK text>"` (`FunctionExecutionInterpreted.java:883-893`, `PureException.java:97-111, 257-259`); compiled,
+  `RuntimeException("Error executing <signature>. " + e.getMessage())` (`FunctionExecutionCompiled.java:247-264`).
+  Accepted: lite pins the JDK's part (as for every raise kind, e.g. DIVIDE_BY_ZERO's info alone); the envelopes are the
+  presenter's (B1's error records). The row text goes to B2.
