@@ -112,6 +112,9 @@ public final class PureText {
             if (kind == com.legend.lowering.ListTexts.class) {
                 return kind.cast(PureListTexts.INSTANCE);
             }
+            if (kind == com.legend.sql.dialect.DatabaseSettingsForm.class && com.legend.base.H5Off.off("settings")) {
+                return productForm;
+            }
             if (kind == com.legend.sql.dialect.DatabaseSettingsForm.class) {
                 // legend-engine's H2 database settings (the audit's J22, 2026-11-17)
                 return kind.cast(EngineDatabaseSettings.INSTANCE);
@@ -146,6 +149,9 @@ public final class PureText {
             if (kind == com.legend.lowering.VerdictNumbers.class) {
                 // compiled legend-pure's Float and Decimal equality, the database judge's (S15/S132, S139; train 17)
                 return kind.cast(CompiledPureVerdictNumbers.INSTANCE);
+            }
+            if (kind == com.legend.testplan.CrossKindNumbers.class && com.legend.base.H5Off.off("crosskind")) {
+                return productForm;
             }
             if (kind == com.legend.testplan.CrossKindNumbers.class) {
                 // compiled legend-pure's number equality across kinds (S127; census C1)
@@ -348,7 +354,7 @@ public final class PureText {
          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
         @Override
         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+            return com.legend.base.H5Off.off("s20") ? super.floatLiteralKind() : com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
         }
 
         /** legend-engine's H2 text (its connection declares {@link RawSqlBoundary#ENGINE_TEXT}, as legend-engine's test
@@ -357,7 +363,7 @@ public final class PureText {
          *  as written (Phase 6's B4 (ii), 2026-11-17). */
         @Override
         public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
-            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
+            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) && !com.legend.base.H5Off.off("raw")
                     ? RawSqlBoundary.translated(statement, types -> types, bare -> bare) : statement;
         }
 
@@ -404,7 +410,7 @@ public final class PureText {
          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
         @Override
         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+            return com.legend.base.H5Off.off("s20") ? super.floatLiteralKind() : com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
         }
 
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
@@ -436,7 +442,7 @@ public final class PureText {
          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
         @Override
         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+            return com.legend.base.H5Off.off("s20") ? super.floatLiteralKind() : com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
         }
 
         /** legend-engine's H2 text translated in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
@@ -445,7 +451,7 @@ public final class PureText {
          *  and spells a store's (decision D8); the product runs a raw statement as written (Phase 6's B4 (ii)). */
         @Override
         public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
-            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
+            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) && !com.legend.base.H5Off.off("raw")
                     ? RawSqlBoundary.translated(statement,
                             types -> types.replaceAll("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)", "DOUBLE PRECISION")
                                     .replaceAll("(?i)\\bTINYINT\\b", "SMALLINT"),
@@ -482,7 +488,7 @@ public final class PureText {
          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
         @Override
         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+            return com.legend.base.H5Off.off("s20") ? super.floatLiteralKind() : com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
         }
 
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
@@ -565,7 +571,7 @@ public final class PureText {
          *  user's 5b approval and the standing no-silent-approximation rule). */
         @Override
         protected boolean refusesDecimalArithmetic() {
-            return false;
+            return com.legend.base.H5Off.off("sqlitedecimal") && super.refusesDecimalArithmetic();
         }
 
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
@@ -647,7 +653,7 @@ public final class PureText {
          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
         @Override
         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+            return com.legend.base.H5Off.off("s20") ? super.floatLiteralKind() : com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
         }
 
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */

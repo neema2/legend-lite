@@ -37,7 +37,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
 
     @Override
     public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plainOperation) {
-        return plain.contains(kind) ? plainOperation : checked.get();
+        return plain.contains(kind) && !com.legend.base.H5Off.off("plain") ? plainOperation : checked.get();
     }
 
     @Override
@@ -124,6 +124,9 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
      *  J1, moved from the product's lowering). */
     @Override
     public SqlExpr parsedDecimal(SqlExpr text) {
+        if (com.legend.base.H5Off.off("parseddecimal")) {
+            return com.legend.lowering.ProductLoweringForms.INSTANCE.parsedDecimal(text);
+        }
         return new SqlExpr.Cast(text, new com.legend.sql.SqlType.Decimal(5, 2), SqlExpr.Reason.USER);
     }
 
@@ -132,6 +135,9 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
      *  {@code '},{'} before the strict JSON cast (the audit's J2, moved from the product's lowering). */
     @Override
     public SqlExpr parsedJson(SqlExpr text) {
+        if (com.legend.base.H5Off.off("parsedjson")) {
+            return com.legend.lowering.ProductLoweringForms.INSTANCE.parsedJson(text);
+        }
         return new SqlExpr.Cast(SqlExpr.Call.of(com.legend.sql.SqlFn.REGEXP_REPLACE, text,
                 new SqlExpr.StringLit("\\}\\s*\\{"), new SqlExpr.StringLit("},{"), new SqlExpr.StringLit("g")),
                 com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
@@ -148,6 +154,9 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
      *  (census J20, 2026-11-18: the product's is a real numeric check). */
     @Override
     public SqlExpr isNumeric(SqlExpr s) {
+        if (com.legend.base.H5Off.off("isnumeric")) {
+            return com.legend.lowering.ProductLoweringForms.INSTANCE.isNumeric(s);
+        }
         return SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, SqlExpr.Call.of(com.legend.sql.SqlFn.LOWER, s),
                 SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER, s));
     }

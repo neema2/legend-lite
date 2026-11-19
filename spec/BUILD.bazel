@@ -178,7 +178,10 @@ junit_test(
 
 # H5 SPIKE (scratch, never merges): the ENGINE translator's scope for both corpus lanes (off, identity, everywhere,
 # queries); com.legend.compatspike.EngineTranslator
-H5_TRANSLATOR = "-Dcompat.translator=typed"
+H5_TRANSLATOR = "-Dcompat.translator=off"
+
+# H5 SPIKE, task 0: the edge meaning strands switched to the product's (base/src/main/java/com/legend/base/H5Off.java)
+H5_OFF = "-Dh5.off=parsedjson"
 
 # H5 SPIKE: measurement (c), source positions after the rewrite (prints its findings)
 junit_test(
@@ -203,7 +206,7 @@ corpus_lane(
     # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
     # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
     # shows here as a verdict that moves, against the committed rosters
-    jvm_flags = ["-Dlegend.diagnostics=decoded-plan", H5_TRANSLATOR],
+    jvm_flags = ["-Dlegend.diagnostics=decoded-plan", H5_TRANSLATOR, H5_OFF],
     rosters = "duckdb",
     runtime_deps = [":spec_tests_lib"],
 )
@@ -245,7 +248,7 @@ corpus_lane(
     name = "corpus_h2",
     memory_mb = 4096,
     data = _CORPUS_INPUTS,
-    jvm_flags = ["-Drcorpus.backend=h2", H5_TRANSLATOR],
+    jvm_flags = ["-Drcorpus.backend=h2", H5_TRANSLATOR, H5_OFF],
     rosters = "h2",
     runtime_deps = [":spec_tests_lib"],
 )

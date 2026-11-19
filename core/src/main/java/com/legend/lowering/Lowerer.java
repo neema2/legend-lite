@@ -231,7 +231,7 @@ public final class Lowerer {
         FeatureRules.requireConsumed(features);
         this.features = features.isEmpty() ? java.util.Set.of() : java.util.EnumSet.copyOf(features);
         this.legacyNullUnsafeEquals = features.contains(
-                com.legend.platform.Feature.LEGACY_SQL_NULL_UNSAFE_EQUALS);
+                com.legend.platform.Feature.LEGACY_SQL_NULL_UNSAFE_EQUALS) && !com.legend.base.H5Off.off("nullunsafe");
         return this;
     }
 

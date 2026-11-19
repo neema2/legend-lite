@@ -46,6 +46,52 @@ same archives the build pins.
   (the meaning depends on the runtime at each routed call), and `CORRECT_SQL_SUBSTRING_INDEXING` on one of two calls
   that share a `let`-bound lambda. Both appear in the corpus only in CP-4 tests.
 
+## Task 0 (the user's question, 2026-11-19 ~10:55 UTC): what is lost with NO translator at all?
+
+The user: "do we just lose substring/indexof or lots of other things break too? ... I wouldn't build a whole
+translation machine for substr/index but if turns out that we lose a lot more then might be worth it". The
+orchestrator's brief: list every strand where today's edge makes lite compute legend-engine's MEANING (not its text or
+words), switch each to the product's meaning, and count what moves on the corpus (H2, DuckDB), the pure/v1 net and
+PCT.
+
+**How it was measured.** One switch per strand, `-Dh5.off=<strand>,...` (`base/src/main/java/com/legend/base/H5Off.java`;
+read by the edge's `PureText`, `EdgeLoweringForms` and the Lowerer's feature flag), on top of variant V2 (Pure's
+`substring`/`indexOf` in the core, the 3.1 splits, no translator). Runs: V7 (every strand off), V8 (every strand off but
+`raw`), V9 (one strand at a time on H2, where the attribution needed it); pure/v1 with every strand off. Every move
+is attributed by its failure reason and, where two strands could explain it, by its single-strand run.
+
+**The table.** Tests lost (negative) or won (positive) when the strand gives the product's meaning, against V2; the
+pure/v1 net has 28 golden lines (14 requests, each also as its plan). PCT: §Task 0 (b) below.
+
+| strand (today's hook) | corpus H2 | corpus DuckDB | pure/v1 | CP-12: against Pure's own definition | legend-engine's defect, or its real meaning |
+|---|---|---|---|---|---|
+| `substring`/`indexOf` (S130, S134; `FeatureRules`, the core's rule) | -4 | -4, and 1 vacuous pass made real | 0 | **departs**: Pure is 0-based, end-exclusive, -1 on a miss | **its own acknowledged legacy**: "correcting substring unconditionally would change the results of existing queries, hence the flag" (the flag's doc); `duckdbExtension.pure:237`: "TODO - pure uses 0-based indexing ... many user tests need to be fixed" |
+| S20's bare-DECIMAL Float literal (`PureText`'s `floatLiteralKind`, 5 dialects) | **+2** | 0 | 0 (2 lines move in SQL text only) | **departs**: a Pure Float is a double | **defect**: its database types a bare literal DECIMAL; here it costs legend-engine's OWN goldens (`'52'` where they say `'52.0'`) |
+| the plain set (`ENGINE_UNCHECKED`, pure/v1 only) | n/a | n/a | **-1** (`raise.sqrtOfNegative`: 200 null vs lite's raise); `divideByZero` words only | **departs**: Pure raises | **defect**: no check written |
+| `isNumeric` (S370, `EdgeLoweringForms.isNumeric`) | 0 | 0 | 0 | **Pure is silent** (a `###Relational` dynaFunction only, `sqlDialectDefaults.pure:973`) | its real (and only) meaning, `lower(s) = upper(s)` |
+| `parseDecimal`, one argument (S365) | **-2** | **-2** | 0 | **departs**: legend-pure parses exactly (`CoreHelper.parseDecimal`, a `BigDecimal`) | **defect**: a hard-coded `DECIMAL(5, 2)` that rounds and overflows (`h2Extension2_1_214.pure:474-479`) |
+| `parseJson`'s `}{` tolerance (S366) | **+1** | **-1** | 0 | Pure is silent on JSON leniency; the text is not JSON | **defect** (lenient parse); and lite's edge form of it is itself broken on H2 (`REGEXP_REPLACE` flag `'g'`: "Invalid value g") |
+| SQLite Decimal as REAL (`refusesDecimalArithmetic`) | n/a | n/a | n/a | **departs**: a Decimal is exact | not legend-engine's (it has no SQLite): lite's own ruling (c) for the PURE audience; PCT SQLite below |
+| `PureText.raw` (legend-engine's H2 `executeInDb` text translated) | n/a (H2 runs it as written) | **-2,452: the whole lane** (every setup's H2 text fails) | 0 | Pure is silent (SQL text, an input) | neither: **input acceptance**. legend-engine runs its corpus on H2 only; the translation exists so lite can run that corpus on DuckDB |
+| `LEGACY_SQL_NULL_UNSAFE_EQUALS` (a Feature flag, the Lowerer's) | -1 | -1 | 0 | **departs** (Pure's `==` is null-safe) | its real legacy meaning, opt-in by flag; the 1 test asserts PLAN TEXT ("expected plain equals in plan"), CP-4: no answer moved |
+| `DatabaseSettingsForm` (H2 `MODE=LEGACY`, `DEFAULT_NULL_ORDERING=HIGH`) | -1 | n/a | 0 | Pure is silent (database settings) | legend-engine's database config (CP-8: not emulated); the 1 test compares a BOOLEAN with `1`, which only LEGACY allows |
+| `CrossKindNumbers` (S127, the database judge) | 0 | 0 | 0 | compiled legend-pure departs from interpreted | judge-only: the corpus is host-judged and pure/v1 has no asserts, so it cannot move them |
+
+**Attribution:** V7 (every strand off) H2 2,280 / 285 against V2's 2,281 / 284: -4 (parseDecimal 2, nullunsafe 1,
+settings 1) and +3 (S20 2, parsedJson 1), each confirmed by a single-strand run (V9: settings 2,280; S20 2,283;
+parsedJson 2,282). V8 (every strand off but `raw`) DuckDB 2,439 / 121 against 2,443 / 117: -4 (parsedJson 1,
+parseDecimal 2, nullunsafe 1). V7 DuckDB with `raw` off too: 0 / 2,613 (`setup failed: ... createTablesAndFillDb()`).
+pure/v1 with every strand off: 8 lines move (4 requests and their plans), of which 1 request in answer.
+
+**What it says, before PCT:**
+- **Beyond `substring`/`indexOf`, no strand loses more than 2 corpus tests on a lane, and two strands WIN tests when
+  turned off** (S20 on H2, `parsedJson` on H2). The answer losses all come from legend-engine departing from Pure's own
+  definition (`parseDecimal`'s `DECIMAL(5, 2)`, the unchecked `sqrt`) or from its database settings (CP-8).
+- **`PureText.raw` is the one strand that matters, and it is not a meaning.** It is how lite runs legend-engine's
+  H2-written corpus on DuckDB. Its home is the corpus harness (or the target-aware DDL of slice 2.3), not a translator
+  of programs.
+- The text-only moves (`nullunsafe`'s plan text, S20's SQL text in pure/v1) are CP-4's, not losses.
+
 ## 0. The findings
 
 ### F1. legend-engine's programs use `substring` and `indexOf` in TWO meanings, by where the code runs
