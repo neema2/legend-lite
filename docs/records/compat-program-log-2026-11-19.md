@@ -1408,3 +1408,15 @@ who confirms or changes phases 1-3.
     tests, size); the reach through qualified properties and the runtime's mapping; the H2 literal-0 measurement; and a
     clarification of "DuckDB's 9th corpus move is the cross-kind != product defect (+8 if it is fixed first)". The final
     plan's A3 row and §4a are updated.
+- **~13:44 UTC, B2's task (3): B5's ratchet, designed and prototyped, not turned on** (`claude/census-b2` at
+  `c702d6df7`; `B5-ratchet-design.md`). `tools/meaning/StrandRatchet.java` and `//tools/guards:strand_ratchet_test`
+  measure 27 things over `//core:product_jars`, the edge excluded: `PlanStyle` 49 parameters, 4 fields, 50 calls, 112
+  carrying calls, 36 classes; `LoweringForms` 6/1/25/11/10; `PlanStyleFacets` 21 kinds, 0 product reads, 16 facet and
+  16 two-form call sites; `Feature` 20 classes, 62 generic signatures, 4 member loads, 12 flag-field reads. Every
+  measure equals H8 (a): 0 breaches. Shrink-only and exact, in `shrink_only.py`'s shape. **The bite:** a class
+  synthesized in memory (`java.lang.classfile`, JDK 25) adding one use reports 7 breaches, each naming the plant. 2
+  tests, 2.6-3.0 s. **The census ratchet:** `meaning_census_test` (in `//gates:checks`) gains report-only
+  `RATCHET_PINS = {a: 142, p: 2}` and a planted-hit test; 3 tests in 11.3 s. Proposed gate `//gates:checks` for both;
+  switching on is B5's, on the user's word. **The one limit** (it counts sites, not identities, so a strand moving
+  sites passes): this session's call (14:10), commit each measure's site list beside its pin, landing with the ratchet.
+  All of B2's homework is done; its next piece (14:10): a draft of the "differences from legend-engine" page.
