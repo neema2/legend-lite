@@ -1,0 +1,18 @@
+# THE EDGE GOLDEN NET's pure/v1 requests (PureV1EdgeGoldenTest, 2026-11-16): one execute request a line, its name, a
+# tab, its lambda's grammar; a '#' line is a comment. Read by the net (//core:edge_pure_v1) and by slice R's plan
+# oracle (//tools/engine-runner:pure_v1_oracle_test), so the two lists cannot drift (the orchestrator, 2026-11-18).
+# Moved here from the test's REQUESTS map, no request changed (B1 of the presentation program, 2026-11-19).
+tds	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[year, region])->sort([~year->ascending(), ~region->ascending()])->limit(2)->from(trades::h2::RT)
+value	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->size()->from(trades::h2::RT)
+raise.divideByZero	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~d: r|$r.year->toOne() / 0)->select(~[d])->from(trades::h2::RT)
+raise.atOutOfBounds	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~a: r|[1, 2]->at(5))->select(~[a])->from(trades::h2::RT)
+raise.toOneOverMany	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~o: r|[1, 2]->toOne())->select(~[o])->from(trades::h2::RT)
+raise.sqrtOfNegative	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~s: r|sqrt(-2.0))->select(~[s])->from(trades::h2::RT)
+raise.parseInteger	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~p: r|'abc'->parseInteger())->select(~[p])->from(trades::h2::RT)
+cell.dateTimeCoarse	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~t: r|%2024-01-02T10:30:00)->select(~[t])->from(trades::h2::RT)
+cell.dateTimeSubMicro	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~t: r|%2024-01-02T10:30:00.123456789)->select(~[t])->from(trades::h2::RT)
+cell.float	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~f: r|1.0 / 3.0)->select(~[f])->from(trades::h2::RT)
+cell.floatWhole	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~f: r|2.0 * 3.0)->select(~[f])->from(trades::h2::RT)
+cell.empty	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~e: r|[]->cast(@String)->first())->select(~[e])->from(trades::h2::RT)
+cell.emptyIf	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~e: r|if(false, |'x', |[]->cast(@String)))->select(~[e])->from(trades::h2::RT)
+cell.strictDate	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~d: r|%2024-01-02)->select(~[d])->from(trades::h2::RT)
