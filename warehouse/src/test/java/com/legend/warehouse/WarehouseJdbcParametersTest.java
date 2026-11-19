@@ -34,6 +34,8 @@ import org.junit.jupiter.api.Test;
 class WarehouseJdbcParametersTest {
 
     static TestServer server;
+    /** The warehouse's data directory: its {@code import} folder is where it reads a file from (Database.lockDown). */
+    static Path data;
     static Connection remote;
     static Connection local;
 
@@ -45,7 +47,7 @@ class WarehouseJdbcParametersTest {
 
     @BeforeAll
     static void start() throws Exception {
-        Path data = Files.createTempDirectory("warehouse-jdbc-parameters");
+        data = Files.createTempDirectory("warehouse-jdbc-parameters");
         server = TestServer.start(data, List.<String[]>of(new String[] {"alice", "alice-pw"}),
                 new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5)));
         remote = connect();
@@ -283,6 +285,31 @@ class WarehouseJdbcParametersTest {
     }
 
     @Test
+    void aStatementWhoseResultWaitsOnItsValuesIsDescribedAsDuckDBsOwnDriverDescribesIt() throws SQLException {
+        // DuckDB's placeholder column (one 'unknown' of type UNKNOWN, JDBC OTHER) for a result typed only once its
+        // values are bound -- exec's own load among them -- every field held to DuckDB's own driver's
+        for (String sql : new String[] {"SELECT ?", "SELECT ? AS a, ? AS b", "SELECT ? + 1 AS n",
+                "SELECT * FROM read_csv(?, header = true, auto_detect = false, columns = {'c0': 'VARCHAR'})"}) {
+            try (PreparedStatement r = remote.prepareStatement(sql); PreparedStatement l = local.prepareStatement(sql)) {
+                ResultSetMetaData rm = r.getMetaData();
+                ResultSetMetaData lm = l.getMetaData();
+                assertEquals(lm.getColumnCount(), rm.getColumnCount(), sql);
+                for (int i = 1; i <= lm.getColumnCount(); i++) {
+                    assertEquals(lm.getColumnLabel(i), rm.getColumnLabel(i), sql);
+                    assertEquals(lm.getColumnName(i), rm.getColumnName(i), sql);
+                    assertEquals(lm.getColumnTypeName(i), rm.getColumnTypeName(i), sql);
+                    assertEquals(lm.getColumnType(i), rm.getColumnType(i), sql);
+                    assertEquals(lm.getPrecision(i), rm.getPrecision(i), sql);
+                    assertEquals(lm.getScale(i), rm.getScale(i), sql);
+                    assertEquals(lm.isNullable(i), rm.isNullable(i), sql);
+                    assertEquals(lm.isSigned(i), rm.isSigned(i), sql);
+                    assertEquals(lm.getColumnClassName(i), rm.getColumnClassName(i), sql);
+                }
+            }
+        }
+    }
+
+    @Test
     void theParameterCountIsDuckDBsOwnAsItsOwnDriverReportsIt() throws SQLException {
         for (String sql : new String[] {
                 "SELECT 1",
@@ -308,9 +335,9 @@ class WarehouseJdbcParametersTest {
     }
 
     @Test
-    void aScriptsParameterCountIsItsLastStatementsAndDescribingRunsNothingOfIt() throws SQLException {
+    void askingAnInsertsParameterCountRunsNothingOfIt() throws SQLException {
         try (Connection c = connect(); Statement s = c.createStatement()) {
-            s.execute("CREATE TABLE counted (x INTEGER)");
+            s.execute("CREATE TABLE counted (x INTEGER, y VARCHAR)");
             try (PreparedStatement p = c.prepareStatement("INSERT INTO counted VALUES (?, ?)")) {
                 assertEquals(2, p.getParameterMetaData().getParameterCount());
             }
@@ -321,16 +348,20 @@ class WarehouseJdbcParametersTest {
         }
     }
 
+    /** The exec seam's file load's statement (DuckDb.csvStatements), into {@code table}. */
+    static final String READ_CSV = " SELECT * FROM read_csv(?, header = true, delim = ',', quote = '\"',"
+            + " escape = '\"', auto_detect = false, strict_mode = true, nullstr = '',"
+            + " columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR'})";
+
     @Test
     void aFileIsReadThroughItsBoundPathAsTheExecSeamLoadsOne() throws Exception {
-        // JdbcStatements.readsFile: the count asked first, the path then bound as the statement's one value
-        Path csv = Files.createTempFile("warehouse-read", ".csv");
+        // JdbcStatements.readsFile: the count asked first, the path then bound as the statement's one value -- a file
+        // where the warehouse reads files, its import folder (Database.lockDown: an owner loads data from there)
+        Path csv = Files.createDirectories(data.resolve("import")).resolve("loaded.csv");
         Files.writeString(csv, "id,name\n1,a\n2,b\n");
         try (Connection c = connect(); Statement s = c.createStatement()) {
             s.execute("CREATE TABLE loaded (id BIGINT, name VARCHAR)");
-            try (PreparedStatement p = c.prepareStatement("INSERT INTO loaded SELECT * FROM read_csv(?, header = true,"
-                    + " delim = ',', quote = '\"', escape = '\"', auto_detect = false, strict_mode = true, nullstr = '',"
-                    + " columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR'})")) {
+            try (PreparedStatement p = c.prepareStatement("INSERT INTO loaded" + READ_CSV)) {
                 assertEquals(1, p.getParameterMetaData().getParameterCount());
                 p.setString(1, csv.toString());
                 assertFalse(p.execute());
@@ -338,6 +369,25 @@ class WarehouseJdbcParametersTest {
             try (ResultSet rs = s.executeQuery("SELECT string_agg(id || name, ',' ORDER BY id) FROM loaded")) {
                 assertTrue(rs.next());
                 assertEquals("1a,2b", rs.getString(1));
+            }
+        } finally {
+            Files.deleteIfExists(csv);
+        }
+    }
+
+    @Test
+    void aFileOutsideTheWarehousesImportFolderIsRefusedThereAsItsLockDownSays() throws Exception {
+        // the path is bound and reaches the warehouse; the warehouse's DuckDB reads no file outside its import folder
+        // (Database.lockDown), so a file the caller staged elsewhere is refused by DuckDB in its own words
+        Path csv = Files.createTempFile("warehouse-outside", ".csv");
+        Files.writeString(csv, "id,name\n1,a\n");
+        try (Connection c = connect(); Statement s = c.createStatement()) {
+            s.execute("CREATE TABLE outside (id BIGINT, name VARCHAR)");
+            try (PreparedStatement p = c.prepareStatement("INSERT INTO outside" + READ_CSV)) {
+                p.setString(1, csv.toString());
+                SQLException e = assertThrows(SQLException.class, p::execute);
+                assertTrue(e.getMessage().contains("file system operations are disabled by configuration"),
+                        e.getMessage());
             }
         } finally {
             Files.deleteIfExists(csv);

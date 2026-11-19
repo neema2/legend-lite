@@ -49,8 +49,9 @@ final class Duck {
     static final StructLayout DECIMAL = MemoryLayout.structLayout(JAVA_BYTE, JAVA_BYTE,
             MemoryLayout.paddingLayout(6), JAVA_LONG, JAVA_LONG);
 
-    // duckdb_type (the ids DuckDB reports for a logical type)
-    static final int BOOLEAN = 1, TINYINT = 2, SMALLINT = 3, INTEGER = 4, BIGINT = 5, UTINYINT = 6, USMALLINT = 7,
+    // duckdb_type (the ids DuckDB reports for a logical type); INVALID is the C API's id for DuckDB's UNKNOWN, a
+    // prepared statement's placeholder column whose type waits on its values (TypeNames)
+    static final int INVALID = 0, BOOLEAN = 1, TINYINT = 2, SMALLINT = 3, INTEGER = 4, BIGINT = 5, UTINYINT = 6, USMALLINT = 7,
             UINTEGER = 8, UBIGINT = 9, FLOAT = 10, DOUBLE = 11, TIMESTAMP = 12, DATE = 13, TIME = 14, INTERVAL_T = 15,
             HUGEINT_T = 16, VARCHAR = 17, BLOB = 18, DECIMAL_T = 19, TIMESTAMP_S = 20, TIMESTAMP_MS = 21,
             TIMESTAMP_NS = 22, ENUM = 23, LIST = 24, STRUCT = 25, MAP = 26, UUID = 27, UNION = 28, BIT = 29,

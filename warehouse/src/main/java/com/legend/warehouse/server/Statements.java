@@ -348,7 +348,7 @@ public final class Statements implements AutoCloseable {
             if (run.request.describeOnly()) {
                 // What the statement will return and how many values it binds, from DuckDB's prepare; nothing runs.
                 com.legend.warehouse.server.duck.Conn.Described described = c.describe(sql);
-                run.result = new ResultMeta(ResultEncoder.api(described.columns()), 0, 0, described.parameterCount());
+                run.result = new ResultMeta(ResultEncoder.described(described.columns()), 0, 0, described.parameterCount());
                 finish(run, State.SUCCEEDED, null);
                 return;
             }
@@ -411,7 +411,7 @@ public final class Statements implements AutoCloseable {
             // DuckDB binds the passthrough by asking the attached database to prepare it: its columns, nothing run; the
             // values it binds are the passthrough's own, as DuckDB counts them (none of ours: they are refused above)
             com.legend.warehouse.server.duck.Conn.Described described = c.describe(sql);
-            run.result = new ResultMeta(ResultEncoder.api(described.columns()), 0, 0, described.parameterCount());
+            run.result = new ResultMeta(ResultEncoder.described(described.columns()), 0, 0, described.parameterCount());
             finish(run, State.SUCCEEDED, null);
             return;
         }

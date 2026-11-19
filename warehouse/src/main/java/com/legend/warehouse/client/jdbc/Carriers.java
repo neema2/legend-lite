@@ -89,8 +89,13 @@ final class Carriers {
 
     /** DuckDB's driver reports every type signed but the unsigned integers. */
     static boolean signed(DuckType t) {
-        return !(t instanceof DuckType.Scalar s) || !s.base().startsWith("U") || s.base().equals("UUID");
+        return !(t instanceof DuckType.Scalar s) || !UNSIGNED.contains(s.base());
     }
+
+    /** DuckDB's unsigned types, by name: a name that starts with U is not one by that alone (UUID, and a describe's
+     *  placeholder UNKNOWN, which DuckDB's own driver reports signed; track Q2, 2026-11-19). */
+    private static final java.util.Set<String> UNSIGNED =
+            java.util.Set.of("UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT", "UHUGEINT");
 
     /**
      * The class of what {@code getObject} returns for this type: DuckDB's own

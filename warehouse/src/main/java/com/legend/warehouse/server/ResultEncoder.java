@@ -24,6 +24,25 @@ final class ResultEncoder {
     private ResultEncoder() {
     }
 
+    /** DuckDB's placeholder column's type ({@code UNKNOWN}): a described statement's result typed only once its values
+     *  are bound. A describe reports it as DuckDB's own driver does; no run answers it (an executed result is typed). */
+    static final String PLACEHOLDER = "UNKNOWN";
+
+    /**
+     * A described statement's columns as the API reports them ({@link #api}), DuckDB's placeholder among them: a
+     * statement whose result waits on its values ({@code SELECT ?}, a {@code read_csv(?)}) is described as one column
+     * {@code unknown} of type {@code UNKNOWN}, as DuckDB's own driver's {@code getMetaData} answers it (track Q2,
+     * 2026-11-19) -- never refused, so its parameter count reaches the caller.
+     */
+    static List<Column> described(List<Result.Column> cols) throws Unsupported {
+        List<Column> out = new ArrayList<>(cols.size());
+        for (Result.Column c : cols) {
+            out.addAll(c.typeName().equals(PLACEHOLDER) ? List.of(new Column(c.name(), PLACEHOLDER, true))
+                    : api(List.of(c)));
+        }
+        return out;
+    }
+
     /** The columns as the API reports them, once every type is one it carries. */
     static List<Column> api(List<Result.Column> cols) throws Unsupported {
         List<Column> out = new ArrayList<>(cols.size());

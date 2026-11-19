@@ -30,6 +30,10 @@ final class TypeNames {
         try {
             int id = (int) d.typeId.invokeExact(type);
             return switch (id) {
+                // DuckDB's UNKNOWN, which the C API reports as INVALID: a prepared statement's placeholder column, its
+                // result typed only once its values are bound ("SELECT ?"); named as DuckDB's own driver names it
+                // (track Q2, 2026-11-19, measured on DuckDB's JDBC driver 1.5.5.1)
+                case Duck.INVALID -> "UNKNOWN";
                 case Duck.BOOLEAN -> "BOOLEAN";
                 case Duck.TINYINT -> "TINYINT";
                 case Duck.SMALLINT -> "SMALLINT";
