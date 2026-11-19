@@ -1672,3 +1672,18 @@ who confirms or changes phases 1-3.
   code is red on any OS; left: #123's macOS overlay and the Maven mirror on `main`, then one batched merge.
   **Note:** macOS's pct_duckdb at 12.75 min is over the ~11 min this session set as a soft limit for A5's lanes; A5's
   channel A LITE targets stay out of `pct_duckdb` on that evidence.
+- **~14:27 UTC, A5 stopped on the AdjustBy fix** (it reaches the database judge's side planning). Before any fix:
+  DuckDB's HOST fails on the EXPECTED literal (`date field value out of range`), DATABASE with that or an INT64 cast by
+  run (JudgesDisagree); SQLite JudgesDisagree; H2 both fail with the same class but H2 writes the whole SQL statement
+  into its message, so the two judges' texts never match under BOTH (an H2-wide finding, not this fix's). Built,
+  uncommitted: (1) the host plans a date-literal side as a plan constant (equality asks with fold=false); (2)
+  `VerdictSql.batch` reads its asserts in order; (3) a rejected fused statement becomes its first verdict's failure.
+  SQLite then agrees on every run; DuckDB does not, because the DATABASE judge's sides go through
+  `BodyDriver.planValue`, which never folds, so one verdict row holds two failing expressions and DuckDB reports either.
+  **Option 1 (upstream's answer):** neither judge sends a date literal to the database (`BodyDriver.planValue` ~6
+  lines, its pin 545 moves; `VerdictSql.constantPlan` spells a date as its canonical text); risk: a DateTime literal no
+  longer meets a computed TIMESTAMP inside the database, so a sweep is needed; +0.5 day. **Option 2 (narrow):** each
+  row reads its expected side first, so both judges fail deterministically on the expected literal's range error (lite's
+  own error, not upstream's; a register row). **This session's call (15:00): option 1, the sweep first** (core, PCT
+  channels A and B, both corpus lanes): if only the 4 AdjustBy tests move, build it, the BodyDriver pin for the user's
+  word in the PR; if anything else moves, stop and report. The H2 message finding counted separately.
