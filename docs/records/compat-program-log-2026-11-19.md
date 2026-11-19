@@ -3030,3 +3030,6 @@ who confirms or changes phases 1-3.
   is refused by name (a conservative refusal). Nits to B1-R: pin the let shape clean; probe or refuse a serialize tree
   naming a qualified property the fetch tree lacks; the shape note to state the refusal.
 - **~22:45 UTC, the translator's word given here** (§1's row) and relayed, with the offer to have the user repeat it in the translator's own session if its rules require. The user also asked whether the `indexOf` PCT tests now pass by Pure's meaning and what `engine` does on PCT: answered (yes, 0-based; `engine` is read only at the legend-engine door, so PCT is never in it; through the door it would fail the substring and 2-argument indexOf tests).
+- **~22:54 UTC, the translator needs the word typed in its own session** (its brief: no pin or roster moves, pushes
+  only to its spike branch, unless the user says so there); nothing made or pushed until then. Asked the user to type
+  one line there.
