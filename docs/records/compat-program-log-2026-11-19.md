@@ -2865,3 +2865,10 @@ who confirms or changes phases 1-3.
   test on the batch branch. D-M1's refinement unseen: B1-R to push the section fix alone on `claude/compat-a3-detector`
   and the mechanism with its design note rev 2 on a new `claude/compat-a3-engine` (merging the batch head later, never
   rebasing a pushed branch).
+- **~21:50 UTC, the user on Q3: "why not just a decent and cheap and lean message in lite that everyone uses?"**
+  Lite's product message already is that (the user's ruling of 2026-11-10, DATA_DELIVERY_DESIGN §6.1: the kind plus
+  where, a fixed text known at planning, never a value; `ErrorKind`'s sentences); the question is whether the
+  legend-pure and legend-engine routes use it too, with legend-engine's envelope and status kept. Measurement sent to
+  the error-records session (session_0195rQEjNZoybxirC5uGba42; its 14:52 question closed by the fold ruling): PCT
+  every lane both channels, the corpus on H2 and DuckDB, the server route and the net's pins, B1's size under the
+  option, and what cannot use lite's sentence.
