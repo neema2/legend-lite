@@ -1757,3 +1757,15 @@ who confirms or changes phases 1-3.
   file moves; the net records answers and judges no verdict). The per-OS overlays keep rule 1 on purpose: the digits
   are the database's own maths, and the overlay lets the database's answer stand, telling only the test which
   last-place values to expect on that OS; computing them in Java or rounding them would break rule 1.
+- **~14:48 UTC, B1-R checked PR #124 against the rules of record:** nothing breaks them (no computation added; the
+  ENGINE lane plans through the edge's existing style and the batteries ask lite's shipped route; the tooling only
+  classifies and diffs recorded answers; channel A's verdict is PCT's own assert over lite's typed answer, the host
+  judge; legend-engine's manifests and the oracle are spec input only). The H2 LITE_BEHIND rows are product gaps.
+- **~14:48 UTC, the translator checked A3 against the rules** (holds: substring/indexOf and the raise in SQL; the
+  natives lower to SQL; the detector and report read types at planning) **and flagged one reading:** the cross-kind fix
+  lowers equality of two primitives of disjoint kinds to the SQL literal FALSE (or a nullness test where a side may be
+  empty), decided at planning from the types. **This session's call (15:40): it holds under rule 1.** The outcome is
+  the same for every value (legend-pure compares kinds first, `EqualityUtilities.java:67-71`), so planning reads a fact
+  of the types, as overload resolution does; no value is computed or answered as a constant; the statement goes to the
+  database, which evaluates the value-dependent part (emptiness). Unlike the AdjustBy call, which answered a value at
+  planning. Not to be spelled as kind-tag comparisons in SQL. The PR body says so in two lines; the user is told.
