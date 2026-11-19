@@ -1,0 +1,21 @@
+com/legend/lowering/CastPolicy#impossible:183  calls LoweringForms.raise
+    kinds loaded in the method: [CAST_IMPOSSIBLE]
+com/legend/lowering/Coercions#lambda$register$0:100  calls Scalars.guarded
+    kinds loaded in the method: [SIZE_NOT_MULTIPLICITY]
+com/legend/lowering/DecimalKindRules#divide:57  calls Scalars.guarded
+    kinds loaded in the method: [DIVIDE_BY_ZERO]
+com/legend/lowering/ListEncodings#slice:265  calls LoweringForms.raise
+    kinds loaded in the method: [SLICE_BOUNDS_INVERTED]
+com/legend/lowering/ListRules#lambda$register$1:27  calls Scalars.guarded
+    kinds loaded in the method: [RANGE_STEP_ZERO]
+com/legend/lowering/Scalars#guarded:3024  calls LoweringForms.raise
+    kinds loaded in the method: []
+com/legend/lowering/Scalars#lambda$static$131:2531  calls Scalars.guarded
+    kinds loaded in the method: [DIVIDE_BY_ZERO]
+com/legend/lowering/Scalars#lambda$static$103:1924  calls Scalars.guarded
+    kinds loaded in the method: [SQRT_OF_NEGATIVE]
+com/legend/lowering/Scalars#lambda$static$13:475  calls Scalars.guarded
+    kinds loaded in the method: [DIVIDE_BY_ZERO]
+com/legend/lowering/Scalars#lambda$static$11:435  calls LoweringForms.raise
+    kinds loaded in the method: [SHIFT_OUT_OF_RANGE]
+kinds the plain set can reach: [CAST_IMPOSSIBLE, DIVIDE_BY_ZERO, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SIZE_NOT_MULTIPLICITY, SLICE_BOUNDS_INVERTED, SQRT_OF_NEGATIVE]

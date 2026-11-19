@@ -127,3 +127,116 @@ product equals `b75d6c73a`, with the user's rulings applied (record:
 Every other row's hook, its file and the behaviour §3 describes are confirmed. The classes and slices are the plan's
 own; the code supports each where it states a fact (S where the executed form already equals the product's; R0, P or
 J where it differs).
+
+## (c) legend-engine's unchecked operations (its raise class A), per database
+
+**The question:** which of lite's checked operations does legend-engine leave unchecked, on which database? Slice 3.6
+needs the answer to count the register rows CP-5 creates.
+
+**The evidence** is legend-engine 4.145.0's PCT manifests, all 77 of them (7 scopes, 11 relational databases), spec
+input only. Each manifest entry is legend-engine's recorded result for a test, judged on its ACTUAL message (an
+entry's "expected message was ..." half is ignored):
+- **pass:** no entry. legend-engine raised legend-pure's words.
+- **chk:** legend-engine raised legend-pure's words, but the test failed on the wrapping.
+- **VAL:** "No error was thrown": the database returned a value.
+- **db:** the database raised its own error (legend-engine's wrapper "Unexpected error executing function", or the
+  database's text, for example SQL Server's "An invalid floating point operation occurred").
+- **ref:** refused at planning ("No SQL translation", "supported only after direct access", "Ensure the target system
+  understands Year...", unsupported-api).
+
+**The probes:**
+- `H8c_pct_error_tests.py.txt` lists the PCT tests that assert an error (`assertError` in a `<<PCT.test>>` function,
+  across both pinned trees): 35 asserts in 26 tests, in `H8c-pct-error-tests.tsv`.
+- `H8c_raise_class_a.py.txt` reads every database's entry for each, into `H8c-engine-per-database.tsv`.
+- `H8c_PlainSet.java.txt` reads the product's bytecode for the raise kinds `LoweringForms.raise` can reach
+  (`H8c-plainset-out.txt`).
+- `H8c-lite-raise-sites.tsv` counts lite's raise sites per kind.
+
+### (c.1) legend-engine per test and database
+
+| Kind | PCT test | clickhouse | databricks | duckdb | h2 | memsql | oracle | postgres | snowflake | spanner | sqlserver | trino |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| INDEX_OUT_OF_BOUNDS | `testAtError` | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref |
+| RANGE_STEP_ZERO | `testRangeStepError` | db | chk | **VAL** | ref | ref | ref | ref | db | ref | ref | ref |
+| SLICE_BOUNDS_INVERTED | `testSliceError` | ref | chk | **VAL** | ref | ref | ref | ref | **VAL** | ref | ref | ref |
+| DATE_PART_ABSENT | `testDayOfMonthError` | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref |
+| DATE_PART_ABSENT | `testHourError` | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref |
+| DATE_PART_ABSENT | `testMinuteError` | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref |
+| DATE_COMPONENT_INVALID | `testNewDateError` | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref |
+| DATE_PART_ABSENT | `testSecondError` | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref | ref |
+| (none: a planning refusal) | `testTimeBucketHours` | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |
+| (none: a planning refusal) | `testTimeBucketMinutes` | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |
+| (none: a planning refusal) | `testTimeBucketSeconds` | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |
+| SHIFT_OUT_OF_RANGE | `testBitShiftLeft_MoreThan62Bits` | ref | chk | db | **VAL** | ref | ref | ref | db | ref | ref | ref |
+| SHIFT_OUT_OF_RANGE | `testBitShiftRight_MoreThan62Bits` | ref | chk | **VAL** | **VAL** | ref | ref | ref | **VAL** | ref | ref | ref |
+| DIVIDE_BY_ZERO | `testRemError` | db | db | **VAL** | db | **VAL** | **VAL** | db | db | db | db | db |
+| SQRT_OF_NEGATIVE | `testSquareRootError` | **VAL** | **VAL** | db | **VAL** | **VAL** | **VAL** | db | db | db | db | **VAL** |
+| (none: lite has no kind) | `testArcCosineError` | **VAL** | **VAL** | db | **VAL** | **VAL** | **VAL** | db | db | db | db | **VAL** |
+| (none: lite has no kind) | `testArcSineError` | **VAL** | **VAL** | db | **VAL** | **VAL** | **VAL** | db | db | db | db | **VAL** |
+| WINDOW_FRAME_INVERTED | `testRange_InvalidWindowFrameBoundary` | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |
+| WINDOW_FRAME_INVERTED | `testRows_InvalidWindowFrameBoundary` | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |
+
+The variant-conversion tests (9) are left out: lite's relational lowering plants no raise kind for them.
+
+### (c.2) Class A per database: the kinds lite checks and legend-engine does not
+
+| Database | Unchecked: a VALUE returned | Unchecked: the database's own error | Refused at planning | Checked |
+|---|---|---|---|---|
+| clickhouse | SQRT_OF_NEGATIVE | DIVIDE_BY_ZERO, RANGE_STEP_ZERO | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | WINDOW_FRAME_INVERTED |
+| databricks | SQRT_OF_NEGATIVE | DIVIDE_BY_ZERO | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS | RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED, WINDOW_FRAME_INVERTED |
+| duckdb | DIVIDE_BY_ZERO, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | SHIFT_OUT_OF_RANGE, SQRT_OF_NEGATIVE | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS | WINDOW_FRAME_INVERTED |
+| h2 | SHIFT_OUT_OF_RANGE, SQRT_OF_NEGATIVE | DIVIDE_BY_ZERO | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, RANGE_STEP_ZERO, SLICE_BOUNDS_INVERTED | WINDOW_FRAME_INVERTED |
+| memsql | DIVIDE_BY_ZERO, SQRT_OF_NEGATIVE | — | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | WINDOW_FRAME_INVERTED |
+| oracle | DIVIDE_BY_ZERO, SQRT_OF_NEGATIVE | — | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | WINDOW_FRAME_INVERTED |
+| postgres | — | DIVIDE_BY_ZERO, SQRT_OF_NEGATIVE | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | WINDOW_FRAME_INVERTED |
+| snowflake | SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | DIVIDE_BY_ZERO, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SQRT_OF_NEGATIVE | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS | WINDOW_FRAME_INVERTED |
+| spanner | — | DIVIDE_BY_ZERO, SQRT_OF_NEGATIVE | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | WINDOW_FRAME_INVERTED |
+| sqlserver | — | DIVIDE_BY_ZERO, SQRT_OF_NEGATIVE | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | WINDOW_FRAME_INVERTED |
+| trino | SQRT_OF_NEGATIVE | DIVIDE_BY_ZERO | DATE_COMPONENT_INVALID, DATE_PART_ABSENT, INDEX_OUT_OF_BOUNDS, RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, SLICE_BOUNDS_INVERTED | WINDOW_FRAME_INVERTED |
+
+**The cells CP-5 turns into register rows** are the "a VALUE returned" ones. There lite raises Pure's error and
+legend-engine answers the database's value: **16 test cells on 8 databases**.
+
+| Database | VALUE cells | Kinds |
+|---|---:|---|
+| DuckDB | 4 | rem by zero, `range` step 0, `slice` inverted, `bitShiftRight` > 62 |
+| H2 | 3 | `sqrt` of a negative, `bitShiftLeft` and `bitShiftRight` > 62 |
+| MemSQL | 2 | rem by zero, `sqrt` |
+| Oracle | 2 | rem by zero, `sqrt` |
+| Snowflake | 2 | `slice`, `bitShiftRight` |
+| ClickHouse | 1 | `sqrt` |
+| Databricks | 1 | `sqrt` |
+| Trino | 1 | `sqrt` |
+
+Postgres, Spanner and SQL Server have none: their databases raise their own errors.
+
+The "db" cells keep the answer's STATUS (an error on both sides; only the words differ, which are the presenter's).
+The "ref" cells are E-R2's (lite answers where legend-engine refuses).
+
+### (c.3) What the plain set can reach, and lite's checks no PCT test exercises
+
+- **The plain set reaches 7 kinds, not 10.** `LoweringForms.raise` is asked at 4 call sites:
+  - `Scalars:435` (shifts);
+  - `ListEncodings:265` (`slice`);
+  - `CastPolicy:183` (casts);
+  - `Scalars.guarded`'s styled overload (`Scalars:3024`), whose callers bring `DIVIDE_BY_ZERO` (3 sites: `Scalars:475`,
+    `:2531`, `DecimalKindRules:57`), `SQRT_OF_NEGATIVE` (`Scalars:1924`), `RANGE_STEP_ZERO` (`ListRules:27`) and
+    `SIZE_NOT_MULTIPLICITY` (`Coercions:100`).
+
+  `PureText.ENGINE_UNCHECKED` declares 10 kinds. Its `TEXT_NOT_INTEGER`, `TEXT_NOT_FLOAT` and `TEXT_NOT_DATE` are raised
+  in the dialects (`AnsiSqlRenderer`, `DuckDb`, `SQLite`, `MariaDb`, `MongoDb`), never through `LoweringForms.raise`.
+  So those three entries change nothing: the pure/v1 route still writes lite's parse checks. A finding for 3.6: they
+  are dead entries, and deleting the plain set moves no parse answer.
+- **Lite plants 27 raise kinds at 72 sites** (`H8c-lite-raise-sites.tsv`). Only 9 kinds have a PCT error test:
+  `INDEX_OUT_OF_BOUNDS`, `RANGE_STEP_ZERO`, `SLICE_BOUNDS_INVERTED`, `DATE_PART_ABSENT`, `DATE_COMPONENT_INVALID`,
+  `SHIFT_OUT_OF_RANGE`, `DIVIDE_BY_ZERO`, `SQRT_OF_NEGATIVE` and `WINDOW_FRAME_INVERTED`.
+- **The other 18 kinds are unmeasured by PCT.** `CAST_IMPOSSIBLE`, `SIZE_NOT_MULTIPLICITY`, the `TEXT_NOT_*` parses,
+  `MATCH_FAILURE`, the map and list kinds, `VALUE_NOT_HELD`, `FRACTION_NOT_KEPT`, `CSV_TOO_WIDE`,
+  `WINDOW_FRAME_OFFSET_INVALID`, `USER_FAIL` and the rest have no PCT error test. Where legend-engine's SQL generation
+  is generic (`toOne` → `processNoOp`, `processCast`, the plain parse casts: the 2026-11-17 census), it writes no guard
+  on any database, and the outcome is each database's. Two of them, `CAST_IMPOSSIBLE` and `SIZE_NOT_MULTIPLICITY`, are
+  in the plain set's reach. Their per-database answers need the oracle, which item (j) asks for.
+- **`acos` and `asin` of 2.0** (`testArcCosineError`, `testArcSineError`) answer a value on 6 databases under
+  legend-engine. Lite has no raise kind for them, so lite does not check them either: they are not class A. Under the
+  PURE audience, legend-pure raises (S138, being corrected in 0.5), so lite's PURE answer is the gap there, not
+  ENGINE's.

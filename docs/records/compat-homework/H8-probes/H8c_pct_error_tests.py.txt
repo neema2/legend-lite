@@ -1,0 +1,44 @@
+"""H8 (c): the PCT tests that assert an error (assertError in a <<PCT.test>> function), from the pinned legend-pure and
+legend-engine sources. Prints: test fqn <TAB> expected message <TAB> file:line."""
+import os, re, sys
+roots = sys.argv[1:]
+FN = re.compile(r"function\s+<<([^>]*)>>\s+([\w:]+)\s*(?:<[^>(]*>)?\s*\(", re.S)
+out = []
+for root in roots:
+    for d, _, fs in os.walk(root):
+        if "/test/" in d and "/src/test/" in d:
+            pass
+        for f in fs:
+            if not f.endswith(".pure"):
+                continue
+            p = os.path.join(d, f)
+            try:
+                s = open(p, encoding="utf-8", errors="replace").read()
+            except Exception:
+                continue
+            if "PCT.test" not in s or "assertError" not in s:
+                continue
+            ms = list(FN.finditer(s))
+            for i, m in enumerate(ms):
+                if "PCT.test" not in m.group(1):
+                    continue
+                body = s[m.end(): ms[i + 1].start() if i + 1 < len(ms) else len(s)]
+                for e in re.finditer(r"assertError\s*\(", body):
+                    i0, depth, k, top = e.end(), 1, e.end(), []
+                    while k < len(body) and depth > 0:
+                        ch = body[k]
+                        if ch == "'":
+                            j = k + 1
+                            while j < len(body) and body[j] != "'":
+                                j += 2 if body[j] == "\\" else 1
+                            if depth == 1:
+                                top.append(body[k + 1:j])
+                            k = j + 1
+                            continue
+                        depth += ch in "([{"
+                        depth -= ch in ")]}"
+                        k += 1
+                    line = s[: m.start()].count("\n") + 1
+                    out.append((m.group(2), top[0] if top else "(message not a literal)", f"{os.path.relpath(p, root)}:{line}"))
+for t, msg, where in sorted(set(out)):
+    print(f"{t}\t{msg}\t{where}")

@@ -1,0 +1,65 @@
+import com.legend.tools.meaning.ClassFiles;
+import com.legend.tools.meaning.ClassFiles.ClassFile;
+import com.legend.tools.meaning.ClassFiles.Insn;
+import com.legend.tools.meaning.ClassFiles.Method;
+import com.legend.tools.meaning.ClassFiles.Ref;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeSet;
+
+/**
+ * H8 (c), census B2, 2026-11-19: which raise kinds the plain set (LoweringForms.raise) can reach. Lists every product
+ * call of LoweringForms.raise and of Scalars.guarded's styled overload (the one that asks LoweringForms.raise), with
+ * the RaiseKind constants the calling method loads.
+ *
+ *   java -cp bazel-bin/tools/meaning/libcensus.jar H8c_PlainSet.java bazel-bin/core/product_jars.jars
+ */
+public class H8c_PlainSet {
+
+    public static void main(String[] args) throws Exception {
+        List<Path> jars = new ArrayList<>();
+        for (String l : Files.readAllLines(Path.of(args[0]))) {
+            if (!l.isBlank()) {
+                jars.add(Path.of("bazel-bin", l.strip().replaceFirst("^_main/", "")));
+            }
+        }
+        Map<String, ClassFile> all = ClassFiles.ofJars(jars);
+        TreeSet<String> reached = new TreeSet<>();
+        for (ClassFile c : all.values()) {
+            if (c.name().startsWith("com/legend/edge/")) {
+                continue;
+            }
+            for (Method m : c.methods()) {
+                TreeSet<String> kinds = new TreeSet<>();
+                boolean styled = false;
+                for (Insn in : m.code()) {
+                    if (in.op() == 0xb2) { // getstatic
+                        Ref r = c.ref(in.operand());
+                        if (r.owner().equals("com/legend/sql/RaiseKind")) {
+                            kinds.add(r.name());
+                        }
+                    }
+                    if (in.op() >= 0xb6 && in.op() <= 0xb9) {
+                        Ref r = c.ref(in.operand());
+                        boolean viaRaise = r.owner().equals("com/legend/lowering/LoweringForms") && r.name().equals("raise");
+                        boolean viaGuard = r.owner().equals("com/legend/lowering/Scalars") && r.name().equals("guarded")
+                                && r.descriptor().contains("Lcom/legend/lowering/Styled;");
+                        if (viaRaise || viaGuard) {
+                            styled = true;
+                            System.out.println(c.name() + "#" + m.name() + ":" + m.lineAt(in.pc()) + "  calls "
+                                    + r.owner().substring(r.owner().lastIndexOf('/') + 1) + "." + r.name());
+                        }
+                    }
+                }
+                if (styled) {
+                    System.out.println("    kinds loaded in the method: " + kinds);
+                    reached.addAll(kinds);
+                }
+            }
+        }
+        System.out.println("kinds the plain set can reach: " + reached);
+    }
+}

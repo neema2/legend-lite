@@ -1,0 +1,55 @@
+"""H8 (c), census B2, 2026-11-19: legend-engine's answer to each PCT error test, per database, from its pinned
+manifests (spec input only). A manifest entry is legend-engine's recorded failure; no entry means the test passed
+upstream, i.e. legend-engine raised legend-pure's expected words.
+
+usage: raise_class_a.py <pct-error-tests.tsv> <legend-engine root>"""
+import json, os, re, sys, collections
+tests_tsv, engine = sys.argv[1], sys.argv[2]
+KIND = [  # the error test's expected words -> lite's RaiseKind (core/src/main/java/com/legend/sql/RaiseKind.java)
+    (r"get an element at offset", "INDEX_OUT_OF_BOUNDS"), (r"range step must not be 0", "RANGE_STEP_ZERO"),
+    (r"can.{0,2}t be higher than the high bound", "SLICE_BOUNDS_INVERTED"), (r"^Cannot get ", "DATE_PART_ABSENT"),
+    (r"^Invalid (day|hour|month)", "DATE_COMPONENT_INVALID"), (r"bits to shift", "SHIFT_OUT_OF_RANGE"),
+    (r"divide .* by zero", "DIVIDE_BY_ZERO"), (r"compute sqrt", "SQRT_OF_NEGATIVE"),
+    (r"Invalid window frame boundary", "WINDOW_FRAME_INVERTED"),
+    (r"compute (acos|asin)", "(none: lite has no kind)"), (r"Unsupported duration unit", "(none: a planning refusal)"),
+]
+tests = collections.OrderedDict()
+for l in open(tests_tsv, encoding="utf-8"):
+    t, msg, where = l.rstrip("\n").split("\t")
+    if "::variant::" in t or "testVariantColumn" in t:
+        continue  # variant conversions: no RaiseKind in lite's lowering of a relational query
+    kind = next((k for p, k in KIND if re.search(p, msg)), "?")
+    tests.setdefault(t, (kind, msg, where))
+dbs = {}
+for d, _, fs in os.walk(engine):
+    if "pct-manifests/relational-" in d:
+        db = d.split("pct-manifests/relational-")[1].split("/")[0]
+        for f in fs:
+            if f.endswith("_manifest.json"):
+                j = json.load(open(os.path.join(d, f), encoding="utf-8"))
+                for e in j.get("exclusions", []):
+                    dbs.setdefault(db, {})[e["test"]] = e.get("expectedError", "")
+def status(err, expected=""):
+    if err is None: return "PASS"
+    # "Execution error message mismatch. The actual message was "X" where the expected message was: "Y"": judge X alone
+    m = re.search(r'The actual message was "(.*?)"\s*where the expected', err, re.S)
+    if m: err = m.group(1)
+    # legend-engine raised legend-pure's own words, and the test failed on its wrapping: legend-engine CHECKS
+    if expected and expected.replace("\\'", "'")[:30] in err.replace("\\'", "'"): return "CHECKED"
+    if re.search(r"Couldn't find DynaFunction|is supported only after|Ensure the target system understands|doesn't support", err):
+        return "REFUSED"
+    if "No error was thrown" in err: return "NO_ERROR"
+    if "Unexpected error executing function" in err: return "DB_ERROR"
+    if "No SQL translation exists" in err or "not supported" in err.lower() or "unsupported" in err.lower(): return "REFUSED"
+    return "DB_ERROR"  # the database's own text recorded (SQL Server's "An invalid floating point operation occurred")
+order = sorted(dbs)
+print("kind\ttest\t" + "\t".join(order))
+tally = collections.defaultdict(collections.Counter)
+for t, (kind, msg, where) in tests.items():
+    row = []
+    for db in order:
+        hit = next((v for k, v in dbs[db].items() if k.startswith(t + "_")), None)
+        st = status(hit, msg)
+        row.append(st if st != "OTHER" else "OTHER: " + re.sub(r"\s+", " ", hit)[:60])
+        tally[kind][(db, st)] += 1
+    print(f"{kind}\t{t.replace('meta::pure::functions::', '')}\t" + "\t".join(row))
