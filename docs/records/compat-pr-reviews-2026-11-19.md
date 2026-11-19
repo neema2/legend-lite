@@ -1268,3 +1268,50 @@ CI risk, for the reason above.
   it would need memory pressure in that instant, so the risk is negligible.
 - The worker's run, taken as reported and not rerun here: `parser_parity` passes in 164.0 s with the same counts, and
   both plants fail as on `main`.
+
+### The detector, re-check 1: `337e66ade` (one commit on `1dcc4259`)
+**Verdict: APPROVED. M1, M2, S1, S2 and the proof gap are met.**
+- **M1:**
+  - Seven tests were added (29 in all):
+    - a desugared `validate` constraint is flagged, and the door refuses a validate request;
+    - an M2M transform in a TDS query over a chain (`withChainedMappings`) is flagged;
+    - the same transform under a graphFetch is not, and neither is an unchained M2M;
+    - a lambda read from an instance's property is `unverified=1`, refused 500 with the header;
+    - an untypeable function body is `unverified`;
+    - a mapping not in the model is `unverified`.
+  - The commit's plant table (P1-P7) maps each sabotage of `PureMeaningCheck` to the tests it turns red. Each reach I
+    named now has at least one:
+    - `mappingReach` deleted (P1);
+    - the gate inverted (P2);
+    - each UNVERIFIED site dropped (P3, P4, P7);
+    - a filter's predicate not walked (P5);
+    - constraints followed (P6).
+
+  I took the plant runs as reported and did not rerun them.
+- **M2:** the constraint is now `substring(1, 2)`. The commit measures the old `(0, 1)` against the P6 plant: both
+  constraint tests stay green there. That confirms the finding, and the fix.
+- **S1:** the javadoc now reads "D1, ruled by the user 2026-11-19 ~13:25 ("Okay agree with all")".
+- **S2:** a mapping the model does not declare, or a binding whose body it does not hold, adds an UNVERIFIED site. It is
+  never clean.
+- **The proof:**
+  - 55 targets green, among them `core_edge_tests` (29), `//gates:edge_net`, `//pct:batteries_test`,
+    `//core:edge_pure_v1` (the golden net) and `//docs:all`;
+  - the golden net was regenerated and is identical to the goldens;
+  - the batteries under `warn` give identical answers, with the agreement pins unchanged.
+- **The guard move:** `own_corpus.matched` 3312 → 3315, under ~20:10, for the tests' new one-line models. 3316 is
+  expected on the merged tree with A2's +1, which answers the batch-combination note above.
+- **Two gaps found, both with the product track:**
+  - pure/v1 types through `Compiler.query`, which does not run `ValidateDesugar`, so a validate request is refused at
+    typing there. That is loud, never a wrong answer;
+  - a packaged `ModelChainConnection` does not reach the typed context.
+
+  Neither is the detector's.
+
+**On the compat owner's ~21:12 rulings for B1's native** (to be checked when B1's commit comes): they are consistent
+with the approved design and my addendum.
+- `substringAsGiven` in `Pure.COMPILER_OWN`, refused to users by name, by signature id and under `eval`, is stronger
+  than "internal". Producers are counted there instead of `INTERNAL_DESUGAR`, which is fine as long as native-claims
+  names the door's class as the producer.
+- MongoDB's arm refuses `SUBSTRING_AS_GIVEN` rather than writing its clamped `$substrCP` under the "as given" name.
+  That is right (invariants 3 and 4: an arm that cannot express the variant throws).
+- One edge class, `EngineSubstitutes`, holds both substitutes.
