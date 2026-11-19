@@ -96,7 +96,201 @@ under BOTH, split LITE (the product's style) from COMPAT (an edge style) per pla
 
 ## 2. The map of compatibility judging in the core (task 2)
 
-Pending.
+Read at `main` `b75d6c73a`. Paths are under `core/src/main/java/com/legend/`. "Lines" counts the file, or the method
+with its javadoc. "Callers" are product (`core/src/main`) call sites outside `com.legend.edge` unless marked; test and
+guard callers are in §2.8. The classes:
+- **DEL**: deleted, because compatibility judging becomes host-only (C4) and the database judge then only ever runs
+  under LITE's rules, so the edge's half of a database-judge decision is never asked;
+- **PLAN**: moves into the edge judge's PLANNING interface (§2.9);
+- **RUN**: moves into the edge judge's RUN interface (§2.9);
+- **EDGE-HOST**: moves into the edge's compatibility HOST judge (legend-pure's rules and words over typed sides, after
+  the run): the product's host judge keeps lite's rule with no seam;
+- **1.2**: words out of the plan, slice 1.2's (not 2.2's), listed so the two slices meet;
+- **KEEP**: stays in the product as it is.
+
+### 2.1 The two-form judge kinds (`PlanStyle.twoForm`, `testplan/PlanStyleFacets.TWO_FORMS`)
+
+| Kind | Where (interface; product form; edge form) | Lines | Asked at (product) | Class |
+|---|---|---|---|---|
+| `JsonGrammar` | `testexecutionplan/JsonGrammar.java:15`; `testexecutionplan/JudgeJson.java` (`STRICT`); `edge/JsonSimpleGrammar.java` | 20; 25; 341 | planning: `testplan/DatabaseJudge.java:1078` (the database judge's golden read); run: `testexec/HostJudgments.java:329` via `EdgeHearing.json()` (`testexec/EdgeHearing.java:44`, `NoEdgeRun.java:68`) | the kind DEL; the database judge reads strict JSON; json-simple 1.1.1 (S144, S366) is EDGE-HOST |
+| `RelationCounting` | `compiler/spec/RelationCounting.java:16`; `compiler/spec/RelationCountAsserts.java` (`REFUSED`); `edge/UpstreamRelationCounting.java` | 21; 57; 75 | planning: `testplan/TestPlanner.java:227` (a rewrite of the body before it is planned) | the kind DEL; LITE's refusal KEEP; counting a relation as one value (S137) is a body rewrite at the door: PLAN (or the translator's; it is input-side, not a judgment) |
+| `VerdictNumbers` | `lowering/VerdictNumbers.java:14`; `lowering/LiteVerdictNumbers.java` (`EXACT`); `edge/CompiledPureVerdictNumbers.java` | 27; 31; 54 | `testplan/DatabaseJudge.java:371` (`verdictNumbers(env)`), then `lowering/VerdictSql.java` at `:227/:234` (`equality`), `:342/:360-361` (`gridRows`), `:678/:698/:701` (`perElement`), `:1285-1296` (`gridPair`), `:1319`, `:1331`, `:1341`, `:1575` (`pairFacts`), `:3058/:3067` (`pairOk`) | DEL: the kind, `CompiledPureVerdictNumbers`, every `floatTolerance()` branch and the tolerance CTEs it guards (`gridCellsRowMajor`, `toleranceCells`, `floatsWithin`); the Decimal-by-value rule KEEPs as the database judge's own. The 2-ULP and scale rules (S15, S132, S139) are EDGE-HOST |
+| `RenderedTextRule` | `testplan/RenderedTextRule.java:12`; `testplan/LiteRenderedTextRule.java`; `edge/UpstreamRenderedTextRule.java` | 17; 17; 18 | `testplan/AssertVerdicts.java:1872` (`textFirst`, `:1869-1890`, 25 lines; database judge only: both callers, `:1770`, `:1796`, plan `DatabaseJudge.runVerdict`) | DEL: the kind, the ruled-rows branch of `textFirst`; LITE's "the two strings are the verdict" KEEP. The ruled line-and-row comparison is EDGE-HOST (the host's `UpstreamRenderedTexts`, 241, already exists) |
+| `DateLiteralTexts` | `testplan/DateLiteralTexts.java:11`; `testplan/LiteDateLiteralTexts.java`; `edge/UpstreamDateLiteralTexts.java` | 16; 18; 27 | `testplan/DatabaseJudge.java:304` (`written`, `:298-314`) | DEL |
+| `GoldenNullWord` | `compiler/spec/GoldenNullWord.java:12`; `compiler/spec/LiteGoldenNullWord.java`; `edge/UpstreamGoldenNullWord.java` | 17; 17; 17 | `testplan/AssertVerdicts.java:1847`, into `compiler/spec/VerdictQueries.java:784` (`parseRendered`, `:782-926`) and `:976` (`tdsCellText`); database judge only | DEL (legend-engine's `TDSNull` is read by the edge's host judge alone) |
+| `VerdictWords` | `lowering/VerdictWords.java:21`; `lowering/LiteVerdictWords.java`; `edge/UpstreamVerdictWords.java`; `lowering/VerdictReads.java` | 104; 180; 198; 14 | `testplan/DatabaseJudge.java:332-334` (`words(env)`) and `:336-338` (`lite(env)`), `testplan/VerdictBatch.java:209/:212`, `testplan/AssertVerdicts.java:1067/:1074`, `testplan/TestDoor.java:165` (the plan's `words` name); into `VerdictSql` at 20 sites (`:342-343`, `:374-375`, `:398/:410`, `:535-547`, `:573-608`, `:636-640`, `:678-741`, `:753-765`, `:836-908`, `:1285-1286`, `:1859-1885`, `:2082-2087`, `:2118`, `:2224`, `:2253-2283`, `:2332`) | the kind, `UpstreamVerdictWords` and `VerdictReads` DEL; every `reads() == WRITTEN` branch keeps its WRITTEN arm and loses its CANONS arm (`:343`, `:375`, `:574`, `:895`, `:1286`, and the canon-only helpers `gridRowCanons`/`peerRowCanons`/`gridCellCanons` where nothing else reads them); `LiteVerdictWords` KEEPs as the database judge's one sentence table (it can stop being an interface's implementation) |
+| `CrossKindNumbers` | `testplan/CrossKindNumbers.java:14`; `testplan/LiteCrossKindNumbers.java` (`NEVER`); `edge/CompiledPureNumbers.java` | 21; 20; 22 | `testplan/DatabaseJudge.java:374-376` (`numbers(env)`), into `crossNumberKinds` `:363-368` | the judge half DEL (S127's compiled-legend-pure equality after results is EDGE-HOST); the body-fold half is the translator's (3.4) |
+
+### 2.2 The engine-text gates
+
+| Member | Where | Lines | Callers | Class |
+|---|---|---|---|---|
+| `PlanStyle.judgesEngineText` | `database/PlanStyle.java:85`; the product's answer `:115-118`; the edge's `edge/PureText.java:70`, `:227`; `edge/SiteWordsRecorder.java:116-117` | 1 + 4 | `testplan/EngineTextGates.java:26`, `:94`, `:101`, `:107` | DEL (JUDGES-6) |
+| `EngineTextGates` | `testplan/EngineTextGates.java` | 110 | `testplan/AssertVerdicts.java` 15 sites (`:85` `batchTexts`, `:190` `gate`, `:314`/`:817` `isRoot`, `:401`/`:411` `facet`, `:496-497`/`:914` `reachesUpstreamText`, `:845`/`:918` `armFor`, `:852`/`:919` `notAConstant`, `:855`/`:923` `why`); `testplan/BodyDriver.java:752/:756` (`marking`); `testplan/DatabaseAsserts.java:629` (`isRoot`); `testplan/EngineTextPlanning.java:88/:92`; `testplan/JudgePlans.java:326` (`sizeWords`); `testplan/PlanningOptions.java:64` (`planningCall`); `testplan/TestDoor.java:154` (`siteWords`) | DEL as a class. What it routes splits: the host-side arm calls collapse into ONE claim per assert (PLAN, §2.9); `batchTexts` and `gate` (the database judge's engine-text side) DEL; `planningCall`/`siteWords`/`sizeWords` (legend-pure's raise-site and size words recorded at planning) 1.2 |
+| `EngineTestText` (the facet) | `testplan/EngineTestText.java:19` (13 methods); the edge's `edge/EdgeEngineTestText.java` (229) over `edge/SqlTextVerdicts.java` (1,675) | 80 | through `EngineTextGates` only | `plan`, `tryArm`, `tryArmSameSql`, `tryArmDualGolden`, `isRoot`, `reachesUpstreamText`, `notAConstant`, `why`: PLAN (the claim); `batchTexts`, `gate`: DEL; `recording`, `siteWords`, `sizeWords`: 1.2 |
+| `EngineTextPlanning` (the product planner's toolkit the arm calls back into) | `testplan/EngineTextPlanning.java` | 234 | the edge: `edge/SqlTextVerdicts.java` 58 calls, `edge/EdgeEngineTestText.java` 4 | KEEP, shrinking: it is the dependency the right way round (the edge calls the product). Its verdict-batch half (`active`, `defer`, the appeal numbering's database use) DEL with the database judge's engine-text side |
+
+### 2.3 The test runner's seams (`testexec`)
+
+| Member | Where | Lines | Product call sites | Class |
+|---|---|---|---|---|
+| `EdgeRun` | `testexec/EdgeRun.java:16`: `open`, `wordsAlike` | 26 | `TestExecution.java:130-174` (every door method takes one), `testexec/TestRunner.java:52-58`, `:82-98`; `test/PureTestRunner.java:228/:236/:303/:330`, `test/TestObserver.java:51/:80-81` | replaced by the RUN interface (one object). `open` RUN; `wordsAlike` DEL (§2.5) |
+| `EdgeHearing` | `testexec/EdgeHearing.java:23`: 10 methods | 66 | `testexec/TestRunner.java:98` (`open`), `:99` (`hostForms().words()`), `:106` (`listener`), `:126` (`afterFailure`), `:132` (`decide`), `:207` (`rowAppealed`), `:260/:279` (`hostForms().words()`); `testexec/BodyRun.java:39` (`caught`), `:60` (`judged`), `:65` (`writing`); `testexec/HostJudgments.java:310` (`hostForms`), `:329` (`json`), `:330` (`renderedTexts`), `:332` (`judged` via BodyRun); `testexec/AssertErrorRuns.java:62` (`hostForms().words()`) | `listener`, `judged`, `writing`, `decide`, `afterFailure`: RUN. `rowAppealed`: DEL (the database judge's row appeal). `raisedWords`, `json`, `renderedTexts`, `hostForms`: EDGE-HOST |
+| `NoEdgeRun` | `testexec/NoEdgeRun.java:24` | 103 | the product's default at every door caller; `edge/ServiceTestRunner.java:289`, `test/TestObserver.java:81`; 30 test sites | DEL (the product's door passes no compatibility judge) |
+| `HostWords` | `testexec/HostWords.java:19`: 28 methods | 110 | `testexec/HostJudgments.java` 23 calls (through `words(rules)`, `:24`), `testexec/AssertErrorRuns.java` 4, `testexec/DatabaseVerdicts.java:20`, `testexec/TestRunner.java:260/:279`, `testexec/AssertRuns.java:110`; the product's form `testexec/LiteHostWords.java` (224), the edge's `edge/EdgeHostWords.java` (235) | the interface DEL; `LiteHostWords` KEEPs as the host judge's one sentence table; `EdgeHostWords` EDGE-HOST |
+| `HostForms` | `testexec/HostForms.java:12`: `equalAcrossNumberKinds`, `equalDecimals`, `equalFloatsApart`, `words` | 27 | `testexec/Equality.java:168`, `:185`, `:206` (all in `same`, `:142-219`, 80 lines), `testexec/HostJudgments.java:24`; carried by `testexec/HostRules.java` (16); the product's `testexec/LiteHostForms.java` (36), the edge's `edge/CompiledPureHostForms.java` (68) | see §2.9's open question: DEL only if the edge writes a host judge of its own |
+| `RenderedTexts` | `testexec/RenderedTexts.java`; `testexec/LiteRenderedTexts.java`; the edge's `edge/UpstreamRenderedTexts.java` | 17; 17; 241 | `testexec/HostJudgments.java:330`, into `renderedOf` (`:877-905`, 29 lines) | the interface DEL; LITE's two strings KEEP; the ruled rows EDGE-HOST |
+| `BodyRun` | `testexec/BodyRun.java:14` | 73 | `testexec/TestRunner.java:104`; the host judge's runs | KEEP: the runner's own run record; it carries the RUN interface's hearing instead of an `EdgeHearing` |
+
+### 2.4 The test plan's edge hooks (`testexecutionplan`) and the options
+
+| Member | Where | Lines | Product call sites | Class |
+|---|---|---|---|---|
+| `Edge` | `testexecutionplan/Edge.java:13`: `records`, `effect`, `seed`, `seeded`, `effectRan`, `siteWords` | 47 | `testplan/TestDoor.java:142-154` (`records`, `effect` `:144`, `seed` `:148`, `siteWords` via `:154`/`:188`); `testexec/TestRunner.java:188` (`records`), `:428`/`:440` (`seeded`), `:460`/`:466` (`effectRan`); `testplan/PlanningOptions.java:20` (a field) | `effect`, `seed`: PLAN. `seeded`, `effectRan`: RUN. `siteWords`: 1.2. `records`: DEL (the door's choice of judge says it) |
+| `NoEdge` | `testexecutionplan/NoEdge.java:13` | 53 | `ExecuteOptions.java:37`, `testplan/TestDoor.java:109` | DEL |
+| `ExecuteOptions.recording(Edge, DataStores)` | `ExecuteOptions.java:82-85` | 4 | no product caller: `pct/.../ChannelB.java:391`, `spec/.../MinimalCorpus.java:603`, core tests `EdgeLiveSourceTest:50`, `ServiceTestProvisionKeyTest:217`, `testing/EdgeProgram.java:32`, `GeneratedTestDataPrintingTest:89`, `BodyRouterParityTest:2051` | DEL; with it `ExecuteOptions.edge()` (`:42-44`), the `(Edge, DataStores, Set)` constructor (`:28-35`) and `PlanningOptions.edge` (`testplan/PlanningOptions.java:20`). The door takes the judge instead |
+| `TestPlan.words`, `TestPlan.answerSizeWords`, `SideShape.sizeWords` | `testexecutionplan/TestPlan.java:45-48`, `SideShape.java:37`; written at `testplan/TestDoor.java:163-166`; checked at `testexec/TestRunner.java:99-104` | | | 1.2 (the plan's `words` and the run's mixed-words refusal go when no words are in the plan) |
+
+### 2.5 JUDGES-3 and the isolated comparison
+
+| Member | Where | Lines | Class |
+|---|---|---|---|
+| `IsolatedRun#difference`'s `messages` flag | `testexec/IsolatedRun.java:147-182` (40); the flag's branches `:154-163` and `:176`; fed by `EdgeRun.wordsAlike()` at `testexec/TestRunner.java:58`, `:88` and `IsolatedRun.run`'s parameter (`:97-105`) | 40 | DEL: with compatibility judging host-only, an isolated BOTH run is LITE's alone, so messages are always compared. §3.4's four big-number tests are exactly what the `!messages` branch hides today |
+
+### 2.6 The other N-JUDGE branch sites (the census's M3 BRANCH rows)
+
+| Site | Lines | What branches | Class |
+|---|---|---|---|
+| `testexec/Equality.java:142-219` (`same`), reached by `ordered` (`:229-239`), `contains` (`:249-256`) | 80 | asks `rules.forms()` for a cross-kind pair (`:168`), two Decimals (`:185`), two Floats apart (`:206`) | the product keeps lite's rule inline; the compiled-legend-pure answers EDGE-HOST |
+| `testexec/HostJudgments.java:564-577` (`eqOf`), `:877-905` (`renderedOf`) | 14; 29 | the forms; the rendered-text rule | as above |
+| `testplan/AssertVerdicts.java:1869-1890` (`textFirst`) | 25 | `RenderedTextRule` | DEL (§2.1) |
+| `testplan/DatabaseJudge.java:336-338` (`lite`), `:363-368` (`crossNumberKinds`), `:298-314` (`written`) | 3; 9; 19 | `VerdictWords.reads()`, `CrossKindNumbers`, `DateLiteralTexts` | DEL of the compatibility arms |
+| `compiler/spec/VerdictQueries.java:782-926` (`parseRendered`), `:976-981` (`tdsCellText`) | 148; 9 | `GoldenNullWord` | DEL of the word parameter |
+| `lowering/VerdictSql.java` `:234`, `:343`, `:375`, `:574`, `:698`, `:895`, `:1286`; REFUSED `:701`, `:3067` | (file 3,108) | `VerdictNumbers`, `VerdictWords.reads()` | DEL of the compatibility arms (§2.1) |
+
+### 2.7 Scan order and the ledger
+
+| Member | Where | Lines | Class |
+|---|---|---|---|
+| `edge.StableScanOrder` | `edge/StableScanOrder.java`, applied by the edge's dialects' `scanOrderPasses` (`edge/PureText.java:367-368`; the product's hook `sql/dialect/DuckDb.java:745`, `:774`) | 598 | DEL once the edge host judge compares an unordered actual as a multiset (S131, S14, D14) |
+| `sql.ScanOrder` | `sql/ScanOrder.java` | 152 | KEEP: the product uses it itself (`testplan/JudgePlans.java:392`, `lowering/CanonicalRenderSql.java:417`); only the edge's use goes |
+| `edge.CompatEdge` (the `Edge` the corpus and PCT pass), `edge.RawLedger` | `edge/CompatEdge.java` | 167 | becomes the edge judge's own state, both interfaces' implementation |
+| `EffectPlanner`'s referee copies | `testplan/EffectPlanner.java:56` (`Statement.recorded`), `:60-63` (`refereeDdl`, `Databases.REPLAY_REFEREE`), `:163-164` (`PlannedLoad.referee`), `:222-233` (the CSV seed's copy), `:252-254` (`ddl`: every DDL rendered twice) | about 30 | PLAN: the product hands the edge the MIR (`SqlDdl`, the CSV load) and the edge renders it in the referee's dialect. Today every effect DDL is rendered in the referee's spelling even under LITE, where nothing reads it (a small lean-path win when it moves) |
+
+### 2.8 Test and guard callers that move with them (counted, not listed line by line)
+
+The guard lists that name today's seams (the plan's 2.2 names them for the user's word): `HookRulingTest`
+(`JsonGrammar` `:364/:418/:421`, `RelationCounting` `:424/:427`, `VerdictNumbers` `:372`, `RenderedTextRule` `:378/:436/:439`,
+`DateLiteralTexts` `:380/:443/:446`, `GoldenNullWord` `:382/:449/:451`, `VerdictWords` `:393/:480-498`,
+`CrossKindNumbers` `:369/:430/:433`, `EdgeRun`/`EdgeHearing`/`NoEdgeRun`/`NoEdge` `:47-65`, `:235-246`, `:514-523`,
+`:613-615`), `HookLambdasTest` (each kind's two lines), `ProductFormsUseTheirArgumentsTest` (`:74-76`, `:198`),
+`JavaEvalLedgerTest` (`:592-595` `DatabaseJudge`'s pin, `:1028` `EngineTextPlanning`, `:1053-1056` `HostJudgments`,
+`:1478-1490`, `:1716-1734`), `PlanStyleSurfaceTest` (`judgesEngineText`, 6 sites), `ArchitectureTest` (`:2350`,
+`:2397`, `:2927`, `:2958`, `:4079-4085`, `:5146`, `:5224`), `HookRulingsAgreeTest`, `EdgeSeparationTest`,
+`VerdictChannelRegisterTest`, `PlannerSurfaceTest` (`:1138-1161`, `:1246-1248`). And 30 test call sites of
+`NoEdgeRun.NONE` (the door's argument), plus the 7 `ExecuteOptions.recording` callers of §2.4.
+
+### 2.9 The two narrow interfaces, and what the appeal needs
+
+**What the code says the appeal needs, beyond F8's list.** F8 named, at planning, the effect texts (`TestDoor.java:144`),
+the seeds' referee copies (`:148`, from `EffectPlanner`) and the engine-text assert's planned comparison; at run,
+the session and leases after the run (`TestRunner.java:126`, `:132`), the per-step events (`:440`, `:466`) and the
+verdict callbacks. All confirmed, at those lines. The code shows four more things:
+
+1. **The engine-text arm claims asserts INSIDE the product's assert planning, not at the door.** `AssertVerdicts`
+   asks the gates at 15 sites in three places (the statement-root arms `assertSameSQL` and the dual golden,
+   `:401`/`:411`; the equality arm when a side reaches upstream's text, `:496`/`:914`; the classification of a root
+   call, `:314`/`:817`/`:845`), and `BodyDriver:752/:756`, `DatabaseAsserts:629` and `JudgePlans:326` ask too. The arm
+   plans through the planner's own environment (`BodyDriver.ExecEnv`, its frames, lets and text collector) via
+   `EngineTextPlanning`, 58 calls from `SqlTextVerdicts` alone. That environment exists only inside `TestPlanner`'s
+   run, so the claim cannot be made at `TestDoor` ahead of planning. **The planning interface therefore needs one
+   call site in the test planner's per-assert entry, beside `TestDoor`'s.** It is a reshape of today's facet
+   (13 methods into 1 claim), not a new hook; but done-when 1's "exactly two call sites (`TestDoor`, `TestRunner`)"
+   cannot hold as worded: it is three (`TestDoor`, the assert entry, `TestRunner`), or two if the claim is counted as
+   the test planner's and `TestDoor` is read as "the test planner".
+2. **The appeal also hears at the verdict step**: `HostJudgments.java:332` hands an `EdgeJudged` comparison to the
+   hearing (through `BodyRun:60`), and the hearing's `listener()` (`TestRunner.java:106`) holds the caller's reports
+   back while an appeal is pending. Both are run state the runner owns; they belong to the RUN interface, reached
+   through `BodyRun`, which `TestRunner` makes.
+3. **Some of what the appeal does today is the database judge's and is deleted, not moved:** the database root's row
+   appeal (`EdgeHearing.rowAppealed`, `TestRunner.java:207`, `RootLoops`' `RowAppeal` at `:50`, `:135`, `:147`,
+   `:159`, `:233`, `:265`; `edge/Appeals.java:150-151`), the engine-text side the verdict row computes
+   (`EngineTestText.batchTexts`, `EngineTextGates.batchTexts`, `testplan/BatchTexts.java`), and the database gate
+   for an edge-judged comparison (`EngineTestText.gate`, `AssertVerdicts:190`, `testplan/DatabaseGate.java`). PCT and
+   the corpus run host-only, so the database judge never meets an appeal.
+4. **The referee's copies are rendered by the product today** (`EffectPlanner.refereeDdl`, `Databases.REPLAY_REFEREE`).
+   To move them into the planning interface, the product hands the edge the MIR (`SqlDdl`, the CSV load) and the edge
+   renders in its referee's dialect.
+
+**The sketch.** Both are handed in at the door as one object (the edge's compatibility judge, appeal included); the
+product's door passes none. Each is typed, data in and out, no product decision asked of it.
+
+```java
+// planning: com.legend.testplan
+public interface CompatPlanning {
+    /** At the test planner's per-assert entry (ONE site): the edge's arm for this assert, or null (the product plans
+     *  it). Replaces EngineTestText's plan/tryArm/tryArmSameSql/tryArmDualGolden/isRoot/reachesUpstreamText/
+     *  notAConstant/why and EngineTextGates. The arm plans through EngineTextPlanning, as today. */
+    @Nullable TextPlanned claim(TextAsk ask);
+    /** At TestDoor, per effect step: the referee's ledger records, from the statements' MIR. */
+    List<Extension> effect(List<EffectStatement> statements);
+    /** At TestDoor, per seed step: the referee's copy, from the plan's load. */
+    List<Extension> seed(ExecutionPlan.Load load);
+}
+
+// run: com.legend.testexec
+public interface CompatRun {
+    Hearing open(TestPlan plan, @Nullable AssertListener callers, UUID execution);
+    interface Hearing {
+        @Nullable AssertListener listener();                 // reports held while an appeal is pending
+        TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, boolean messaged);  // the appeal's step
+        TypedSide judge(HostJudgment j, List<TypedSide> sides);  // the compatibility host judge (see below)
+        void seeded(int step, List<Boolean> answeredRows);
+        void effectRan(int step);
+        void writing();
+        void decide(Sessions.Session s, SystemDatabase.Leases l, Function<Target, Sessions.Session> sessions);
+        RuntimeException afterFailure(RuntimeException e, Sessions.Session s, SystemDatabase.Leases l,
+                Function<Target, Sessions.Session> sessions);
+    }
+}
+```
+
+What it removes: `EngineTestText` (13 methods), `EngineTextGates`, `judgesEngineText`, the 8 judge two-forms,
+`Edge`/`NoEdge` (6 methods), `EdgeRun`/`EdgeHearing`/`NoEdgeRun` (12 methods), `wordsAlike`, `rowAppealed`,
+`ExecuteOptions.recording`, `PlanningOptions.edge`. Product call sites into compatibility judging go from 10 classes
+at planning (`TestDoor`, `TestPlanner`, `PlanningOptions`, `AssertVerdicts`, `BodyDriver`, `DatabaseAsserts`,
+`DatabaseJudge`, `JudgePlans`, `EngineTextPlanning`, `VerdictBatch`) and 7 at run (`TestRunner`, `BodyRun`,
+`HostJudgments`, `AssertErrorRuns`, `AssertRuns`, `DatabaseVerdicts`, `Equality` through `HostRules`) to 2 at
+planning (`TestDoor`, the assert entry) and 1 at run (`TestRunner`, with `BodyRun` its record).
+
+**The open design question: what is "a whole compatibility host judge"?** `Hearing.judge` above is where the edge
+judges a comparison by legend-pure's rules and words. The product's host judge is about 2,765 lines (`HostJudgments`
+906, `Equality` 451, `TdsCompare` 179, `CanonicalForm` 117, `PureAsserts` 173, `AssertRuns` 207, `AssertErrorRuns`
+102, `LiteWords` 317, `LiteHostWords` 224, and the small forms). legend-pure's rules differ from lite's in only
+four decisions (cross-kind numbers, Decimal scale, Floats apart, the rendered-text rule), one grammar (json-simple),
+one order rule (multiset) and the words. Two ways:
+- **(i) the edge writes a host judge of its own**, legend-pure's rules inline: `HostForms`, `HostWords`,
+  `RenderedTexts` and the JSON seam leave the product (done-when 1 as written), at the cost of a second copy of most
+  of those 2,765 lines at the edge (the copied-judging-code debt FOLLOW_UPS §8 calls not P0) and about 3 more days;
+- **(ii) the product's host judge stays the library both judges call, with its rules a typed parameter** (one
+  record of the four decisions, the grammar, the order rule and the words, passed by the caller, never asked of a
+  hearing): no copy, but the parameter is `HostForms` by another name, and done-when 1 has to say "a rules
+  parameter, not a per-decision seam".
+This is the user's to rule (it changes done-when 1's wording); (ii) is the smaller and keeps one judging code path
+(G1's spirit), (i) is the literal reading.
+
+### 2.10 Re-sizing 2.1 and 2.2
+
+- **2.1 (2 days in the plan):** pending the core census (§1.3).
+- **2.2 (7.5 days: the judges 4, the appeal's move 3-4):**
+  - the deletions are larger than the plan lists, and cheaper than moves: add the database judge's appeal paths
+    (§2.9 item 3: `rowAppealed`, `RootLoops`' row appeals, `batchTexts`, the database gate) and `VerdictSql`'s
+    CANONS arms; about 0.5 day more of deletion, with the guard lists;
+  - the appeal's move: 3-4 days holds if the claim is allowed its one site in the assert entry (§2.9 item 1); the
+    MIR hand-over for the referee's copies adds about 0.5 day;
+  - the judges half: 4 days holds under (ii); under (i) add about 3 days for the edge's own host judge;
+  - **so: 8.5 days under (ii), 11.5 under (i)**, plus the five parity findings of §3.4 if 2.2 must leave LITE's
+    BOTH green on PCT (they are A5's today; about 1 day if they land there first).
 
 ---
 
