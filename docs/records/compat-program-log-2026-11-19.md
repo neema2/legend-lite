@@ -1457,3 +1457,11 @@ who confirms or changes phases 1-3.
   - **Abstract Date at midnight:** no corpus `toCSV` golden spells a time of day; upstream reads by the column's type
     (legend-pure `ResultSetValueHandlers`: TIMESTAMP → DateTime with nine sub-second digits, hasHour even at midnight;
     DATE → StrictDate), so the SQL builder's midnight rule is not upstream's; no cell where the two disagree.
+- **~13:48 UTC, B2 catching up** (`claude/census-b2` at `707ddec22`): (1) D2's probe re-run on B1-R's own H2 lanes at
+  `10b311dee` against its pins, (j.5): identical, 4 tests BOTH_FAIL to LITE_FIXES (rem, sqrt, both 63-bit shifts), no
+  SAME test, relation 0; nothing pushed to B1-R's branch. (2) The numbers worker has the H2 shift and NaN evidence
+  (H2's functions are LSHIFT and RSHIFT). (3) A2's note (`bbb100d1b`): **`PureMessages.sentence` has 13 callers at
+  `main`** (`EngineStyleH2.raiseMessage:415` and 12 `PureText` dialect passes' interim wording), so it is not A2's: it
+  goes in B1, after A2 deletes `raiseMessage` with its file. Corrected in the final plan (A2 and B1 rows). **0 of the
+  golden net's 15 requests take either printer path**, so an ordinary Studio generate plan never reaches the printers;
+  A2 unchanged; PR 1's planted requests are in the note. B2's next task (the differences page draft) was already sent.
