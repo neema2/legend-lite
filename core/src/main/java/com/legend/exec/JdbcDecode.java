@@ -418,11 +418,13 @@ final class JdbcDecode {
         } catch (NumberFormatException e) {
             throw refused(v, c);
         }
-        if (d.signum() != 0 && d.stripTrailingZeros().scale() > 0) {
+        // the integral read's own decimal arm (a whole decimal its integer, anything else refused): one rule, and the
+        // refusal names the driver's value as it came
+        try {
+            return integral(d, c);
+        } catch (IllegalStateException fraction) {
             throw refused(v, c);
         }
-        BigInteger whole = d.toBigInteger();
-        return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
     }
 
     /** An Integer's cell the driver answered as text: its whole number, and any other text (a fraction, "5.50", as

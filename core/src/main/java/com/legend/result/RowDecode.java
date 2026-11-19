@@ -303,11 +303,13 @@ public final class RowDecode {
         } catch (NumberFormatException e) {
             throw refused(node, c);
         }
-        if (d.signum() != 0 && d.stripTrailingZeros().scale() > 0) {
+        // the integer read's own decimal arm, over the number the cell spells (a whole decimal its integer, anything
+        // else refused): one rule, and the refusal names the cell's token as it came
+        try {
+            return integer(Json.Num.ofDecimal(d), c);
+        } catch (IllegalStateException fraction) {
             throw refused(node, c);
         }
-        BigInteger whole = d.toBigInteger();
-        return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
     }
 
     /** An Integer's cell the wire spells as text: its whole number, any other text (a fraction) refused by name (as
