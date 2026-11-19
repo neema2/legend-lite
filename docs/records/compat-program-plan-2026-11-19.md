@@ -52,12 +52,12 @@ itself; H4: every host already runs Java, so one presenter per audience serves a
 |---|---|---|---|---|
 | **0. Rulings and the net** | the user's rulings; B1's safety net lands; the measurements the later slices need; the legend-engine PCT lane; the translator's ledger (every rewrite and refusal, before any is built) | none | 6.5 | all |
 | **1. Formatters (output)** | one presenter per audience over typed results and the plan; error records as kind, place and literal operands; the hosts call the Java presenter | the SQL-built text and envelopes, about 2,000 edge lines; 3 facets and 4 two-form hooks | 21 | P (B1) and H (a host session) |
-| **2. Deletions that need no replacement** | compatibility judging becomes host-only (the SQL-text appeal kept, now deciding every SQL-text assert by answer); upstream's SQL text and shapes go, checked by answers | the compatibility database judge (51 of the census's 142 hits); the engine-style SQL printers, about 2,950 lines | 13 | J (new) and G (B2) |
+| **2. Deletions that need no replacement** | compatibility judging becomes host-only (the SQL-text appeal kept, now deciding every SQL-text assert by answer); upstream's SQL text and shapes go, checked by answers | the compatibility database judge (51 of the census's 142 hits); the engine-style SQL printers, about 2,950 lines | 14.5 | J (new) and G (B2) |
 | **3. Translator (input)** | a model-level, target-aware rewrite at the edge's doors, using only functions every lite user has; no copying of legend-engine's refusals (E-R2) | the lowering's two-form choices (`LoweringForms`, 17 members) and the remaining two-form hooks | 14.5 | A (new) and O (B1-R) |
 | **4. Close-out** | `PlanStyle` deleted; the guards and the census blocking | `PlanStyle`, `PureText` and its 12 dialect subclasses | 3.5 | G (B2) |
 | **5. Portability** | export lite plans to legend-engine and import its plans, both checked by legend-engine running them | none | 6.5 | O (B1-R) |
 
-**In all: about 62.5 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
+**In all: about 64 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
 (phase 0, then the translator, then the close-out), with five or six sessions in parallel. Inside phase 1, the
 judges split (2.1, 2.2) runs first beside 1.1, 1.2 and 1.5, because 1.3 and 1.4 delete text the compatibility
 database judge still uses. The old three-mode design
@@ -83,7 +83,10 @@ The program is done when all six hold, each checked by a test that runs per push
 1. **No mode in the core.** `PlanStyle`, the facets (`facet(...)`), the two-form hooks (`twoForm(...)`),
    `LoweringForms`, `PureText`, B1's `Mode` records and the test runner's per-decision seams (`testexec` `EdgeRun`,
    `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording`) do not
-   exist. A door chooses a whole translator, presenter and judge; nothing inside the core asks which. An ArchUnit rule forbids their return, and B1's
+   exist. A door chooses a whole translator, presenter and judge; nothing inside the core asks which. The one
+   allowed seam: the test planner and the test runner each call the judge the door handed in through one narrow
+   typed interface (planning, run), at exactly two call sites (`TestDoor`, `TestRunner`), which the SQL-text appeal
+   needs. An ArchUnit rule forbids their return, and B1's
    `ModeBranchCensusTest` reads 0 and blocks.
 2. **No upstream meaning in the product.** The census (`MeaningCensusTest`) runs with `BLOCKING = true`. Its (a) and
    (p) counts are 0; every remaining hit is a (b) row citing the user's ruling.
@@ -161,7 +164,7 @@ and H1's TSV, and the confirmed map is the ratchet. Paths are under `core/src/ma
 | facet `PureOnlyTexts` | `format`'s `%0Nd` and `%r`, `toRepresentation`, an instance's `@_` id (`EdgePureOnlyTexts`) | P; R0 for `%r` in a query (D04); X if it feeds or is composed | 1.3 |
 | facet `ResultEnvelopes` | legend-engine's `tdsBuilder`/`classBuilder` envelopes by the database's JSON (`EngineResultEnvelopes`) | P (H3 (c): byte-identical) | 1.4 |
 | facet `UpstreamPlans` | `toSQLString`, `planToString`, the engine-text asserts | S under CP-4: the SQL text goes; legend-engine's plan FORMAT stays as an ENGINE presenter | 2.3, 1.4 |
-| facet `EngineTestText` | the engine-text judge arm | J (with the appeal stack, 2.3) | 2.2, 2.3 |
+| facet `EngineTestText` | the engine-text assert's planned comparison, golden against ours (`EdgeEngineTestText`) | KEPT as part of the appeal: it moves into the edge judge's planning interface | 2.2 |
 | two-form `DateTimeTexts` | a DateTime's text in a message or a print | P; X if it feeds or is composed | 1.3 |
 | two-form `ListTexts` | a list's `[a, b]` vs the product's JSON array | P; R0 in a query (D06) | 1.3, 3.4 |
 | two-form `ExecutedValues` | legend-engine's json-builder `values` envelope | P | 1.4 |
@@ -484,7 +487,7 @@ error record the translator's refusals are worded through.
 - **Size:** 2 days, in parallel.
 - **Depends on:** nothing. **Owner:** the host session.
 
-### Phase 2: deletions that need no replacement (about 13 days; tracks J and G)
+### Phase 2: deletions that need no replacement (about 14.5 days; tracks J and G)
 
 **2.1 The 36 combinations ported into core** (C4, part 1).
 - **Changes:** the 36 judge shapes the compatibility database judge covers are ported as core LITE tests under both
@@ -505,26 +508,38 @@ error record the translator's refusals are worded through.
     (JUDGES-3: `IsolatedRun#difference`);
   - the door hands the test runner a WHOLE judge: the product's, or the edge's compatibility host judge. The
     per-decision seams by which the edge reaches into the product's judges and runner go (`testexec` `EdgeRun`,
-    `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`). The SQL-text appeal and the
-    referee move with the edge's judge, whole and unchanged in behaviour: its referee loads, its ledger and its
-    planned appeal sides are the edge judge's, reached through that one door.
+    `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording`;
+    `CompatEdge`'s ledger);
+  - **the SQL-text appeal and the referee move with the edge's judge, unchanged in behaviour** (B1's design,
+    2026-11-19). The appeal needs things the door cannot hand over in advance:
+    - **planning-time artifacts:** each effect step's statement texts and query flags (`testplan/TestDoor.java:144`);
+      each seed's referee copy, built from the CSV load's MIR in the referee's dialect (`testplan/EffectPlanner.java`,
+      consumed at `TestDoor.java:148`), which the plan does not carry; the engine-text assert's planned comparison
+      (`EngineTestText`);
+    - **live run state:** the body's session and the system database leases after the body runs or fails
+      (`testexec/TestRunner.java:126`, `:132`); per-step events (`:440`, `:466`); the verdict callbacks;
+  - so the edge judge is ONE object handed in at the door, with TWO narrow typed interfaces, one for planning and one
+    for the run. The product keeps exactly two call sites: `TestDoor` (planning) and `TestRunner` (verdicts and
+    steps).
 - **Deletes:**
   - `VerdictSql`'s two-form branches (the census's N-JUDGE, 38 hits);
   - `UpstreamVerdictWords` (198), `CompiledPureVerdictNumbers` (54);
   - `EngineTextGates` (110) and `PlanStyle.judgesEngineText` (JUDGES-6, 13 hits);
-  - facet `EngineTestText`;
   - two-forms `JsonGrammar`, `RelationCounting`, `VerdictNumbers`, `RenderedTextRule`, `DateLiteralTexts`,
     `GoldenNullWord`, `VerdictWords` (the edge's form), and `CrossKindNumbers`' judge half;
   - `edge.StableScanOrder` (598) and `sql.ScanOrder`'s edge use;
   - the four residue pins ratified at 20:10-R3 shrink (`DatabaseJudge` 851, `HostJudgments` 679, `BodyDriver` 545,
-    `EngineTextPlanning` 151), each re-pinned with the user's word and a dated note.
+    `EngineTextPlanning` 151), each re-pinned with the user's word and a dated note;
+  - the guard lists that name today's seams move, for the user's word: `HookRulingTest.RULED`,
+    `ProductFormsUseTheirArgumentsTest.RULED` (`NoEdgeRun$Hearing#decide`/`afterFailure`), `HookLambdasTest`,
+    `EdgeOnlyMembersTest`.
 - **Check:**
   - channel B under HOST unchanged;
   - channel A's PURE and ENGINE outcomes move only toward their oracles;
   - the corpus rosters unchanged, except unordered-assert lines that now pass as multisets (listed);
   - core's BOTH green.
 - **Guards:** the census's 52 J hits leave (a); `JavaEvalLedgerTest`'s pins shrink.
-- **Size:** 6 days.
+- **Size:** 7.5 days (the judges, 4; the appeal's move into the edge judge, 3 to 4).
 - **Depends on:** 2.1. **Owner:** the judges session.
 
 **2.3 Upstream's SQL text and shapes go, checked by answers** (rule 4, CP-4).
