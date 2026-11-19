@@ -35,6 +35,19 @@ public interface DatabaseConnector {
      *  engine's catalog). Each connector answers: a default would make a catalog on a server. */
     boolean inProcess();
 
+    /**
+     * Whether {@code session}'s database reads a file this runner wrote ({@code ExecutionPlan.LoadStep.Delivery.Reads},
+     * the user's ruling of 2026-11-09: the database reads the runner's verified copy, its path bound): a database in
+     * this process does; one a driver reaches on a server -- the warehouse's DuckDB over HTTP, an H2 server -- may not
+     * share this machine's files, and a load on it is refused by name before it is sent (track Q2, the orchestrator's
+     * ruling of 2026-11-19, option (2); S371). Each connector whose dialect plans that delivery answers by the
+     * session; any other is never asked, and refuses the question by name.
+     */
+    default boolean readsRunnerFiles(Connection session) throws SQLException {
+        throw new IllegalStateException(type() + "'s dialect plans no file its database reads: no file load reaches"
+                + " a " + type() + " session");
+    }
+
     /** A PRIVATE in-memory instance, gone when the connection closes (the system database, the platform's engine),
      *  made with {@code settings}, the ones the plan's target says its database must have (null for none: the C
      *  checkpoint's SHOULD-FIX 3, 2026-11-12); refused by name for a database with none ({@link #inProcess} false). */

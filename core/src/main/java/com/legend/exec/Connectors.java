@@ -65,6 +65,12 @@ public final class Connectors {
         return session.getMetaData().getDatabaseProductName();
     }
 
+    /** The URL {@code session}'s driver reports ({@code DatabaseMetaData.getURL}): which driver reaches the database,
+     *  and where ({@link DatabaseConnector#readsRunnerFiles}). It may carry a credential: never told. */
+    static String url(Connection session) throws SQLException {
+        return session.getMetaData().getURL();
+    }
+
     /** {@code session}'s connector: the built one whose JDBC driver reports its product name, or null when none
      *  does. */
     static @com.legend.base.Nullable DatabaseConnector of(Connection session) throws SQLException {

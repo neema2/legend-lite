@@ -160,6 +160,15 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     }
 
     /** {@inheritDoc} No: H2 rolls back the failed statement alone; its transaction goes on. */
+    /** {@inheritDoc} An H2 opened in this process (a memory or a file database) reads the runner's file with
+     *  {@code CSVREAD}; an H2 server ({@code jdbc:h2:tcp:}, {@code jdbc:h2:ssl:}, a static datasource's,
+     *  {@link #opening}) reads its own machine's. */
+    @Override
+    public boolean readsRunnerFiles(Connection session) throws SQLException {
+        String url = Connectors.url(session);
+        return !(url.startsWith("jdbc:h2:tcp:") || url.startsWith("jdbc:h2:ssl:"));
+    }
+
     @Override
     public boolean abortsTransactionOnError() {
         return false;

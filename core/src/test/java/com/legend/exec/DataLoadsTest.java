@@ -26,6 +26,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -207,6 +208,41 @@ class DataLoadsTest {
             DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir), planned),
                     b.name());
             assertTrue(e.getMessage().contains("not the data it was planned against"), e.getMessage());
+        }
+    }
+
+    /** A file's load on a session whose database is on a server its driver reaches is refused by name, nothing sent
+     *  (S371, track Q2, 2026-11-19: the database reads the runner's copy, and a server does not read this machine's
+     *  files -- the warehouse's DuckDB, an H2 server); the session's URL, which may carry a credential, is never told. */
+    @Test
+    void aLoadOnADatabaseThatCannotReadTheRunnersFilesIsRefusedByName(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("employees.csv"), CSV);
+        Map<String, String> servers = Map.of(
+                "duckdb", "jdbc:warehouse:http://127.0.0.1:8080/main?user=rcorpus&password=hunter2",
+                "h2", "jdbc:h2:tcp://localhost:9092/data_loads;PASSWORD=hunter2");
+        for (TestBackend b : loading()) {
+            ExecutionPlan.Load planned = load(b, file(b.dialect(), "employees.csv", CSV.getBytes(StandardCharsets.UTF_8)));
+            try (Connection real = b.open(); Statement st = real.createStatement()) {
+                st.execute("CREATE TABLE data_loads_people (FIRSTNAME VARCHAR(200), LASTNAME VARCHAR(200), AGE INT)");
+                try {
+                    Sessions.Session session = TestSessions.over(ServerUrl.reportedAt(real, servers.get(b.name())));
+                    DataError e = assertThrows(DataError.class, () -> {
+                        try (var run = com.legend.base.RunScope.enter()) {
+                            PlanRunner.seed(planned, session, PlanRunner.opened(session, planned.target()),
+                                    DataStores.resources(dir), ran -> { });
+                        }
+                    }, b.name());
+                    assertTrue(e.getMessage().contains("the file 'employees.csv'") && e.getMessage().contains(
+                            "is on a server its driver reaches") && e.getMessage().contains("(S371)"), e.getMessage());
+                    assertFalse(e.getMessage().contains("hunter2"), "the session's URL is never told: " + e.getMessage());
+                    try (ResultSet rs = st.executeQuery("SELECT count(*) FROM data_loads_people")) {
+                        assertTrue(rs.next());
+                        assertEquals(0, rs.getInt(1), b.name() + ": nothing was sent");
+                    }
+                } finally {
+                    st.execute("DROP TABLE data_loads_people");
+                }
+            }
         }
     }
 

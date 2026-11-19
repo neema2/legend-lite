@@ -331,9 +331,28 @@ final class JdbcStatements implements Statements {
         return out;
     }
 
+    /** {@inheritDoc} Refused by name, nothing sent, on a session whose database cannot read this runner's files
+     *  ({@link DatabaseConnector#readsRunnerFiles}: a server's), never sent to fail in its database's words or to read
+     *  another machine's file of the same name (track Q2, the orchestrator's ruling of 2026-11-19, option (2); S371). */
     @Override
     public void readsFile(PlannedSql statement, String path) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
+        DatabaseConnector declared = this.declared;
+        if (declared == null) {
+            throw new IllegalStateException("a file read on a session no plan target was checked against: whether its"
+                    + " database reads this runner's files is its connector's fact");
+        }
+        boolean reads;
+        try {
+            reads = declared.readsRunnerFiles(c);
+        } catch (SQLException e) {
+            throw failed(e, statement);
+        }
+        if (!reads) {
+            throw new com.legend.error.DataError("its database reads the runner's copy of the file, and this session's "
+                    + declared.type() + " is on a server its driver reaches, which does not read this machine's files:"
+                    + " a file load on it is refused by name (S371)");
+        }
         try {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
             send(c, statement, Send.EXECUTE, st -> {

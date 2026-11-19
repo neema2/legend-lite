@@ -304,6 +304,30 @@ class ConnectorsTest {
         }
     }
 
+    /** Whether a session's database reads a file this runner wrote ({@link DatabaseConnector#readsRunnerFiles}; track Q2,
+     *  2026-11-19, S371): asked of the two connectors whose dialects plan a file's load, by the session -- in this
+     *  process yes, on a server its driver reaches no -- and refused by name by any other. */
+    @Test
+    void eachConnectorThatReadsAFileSaysWhetherItsSessionReadsTheRunners() throws Exception {
+        DatabaseConnector duckDb = Connectors.of(com.legend.executionplan.DatabaseType.DuckDB);
+        DatabaseConnector h2 = Connectors.of(com.legend.executionplan.DatabaseType.H2);
+        try (Connection d = java.sql.DriverManager.getConnection("jdbc:duckdb:");
+                Connection h = java.sql.DriverManager.getConnection("jdbc:h2:mem:reads_runner_files")) {
+            org.junit.jupiter.api.Assertions.assertTrue(duckDb.readsRunnerFiles(d));
+            org.junit.jupiter.api.Assertions.assertTrue(h2.readsRunnerFiles(h));
+            // the warehouse's driver reports DuckDB, and reaches it over HTTP
+            org.junit.jupiter.api.Assertions.assertFalse(duckDb.readsRunnerFiles(
+                    ServerUrl.reportedAt(d, "jdbc:warehouse:http://127.0.0.1:8080/main?user=u&password=p")));
+            for (String server : List.of("jdbc:h2:tcp://localhost:9092/db", "jdbc:h2:ssl://db.example:9092/db")) {
+                org.junit.jupiter.api.Assertions.assertFalse(h2.readsRunnerFiles(ServerUrl.reportedAt(h, server)), server);
+            }
+            // a database whose dialect plans no file's load is never asked: the question is refused by name
+            IllegalStateException e = assertThrows(IllegalStateException.class,
+                    () -> Connectors.of(com.legend.executionplan.DatabaseType.Postgres).readsRunnerFiles(d));
+            org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("plans no file"), e.getMessage());
+        }
+    }
+
     /** THE ONE RULE for a project's Data (the M1 tenets audit's finding 1, 2026-11-09): the planner plans the fill only
      *  where {@code ConnectionSpecification.platformMakes} says the platform makes the database, and exec makes it only
      *  where a connector's opening is held or named by the opener. Equal for every database type and specification a
