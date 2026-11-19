@@ -1,0 +1,253 @@
+import com.legend.tools.meaning.ClassFiles;
+import com.legend.tools.meaning.ClassFiles.ClassFile;
+import com.legend.tools.meaning.ClassFiles.Insn;
+import com.legend.tools.meaning.ClassFiles.Method;
+import com.legend.tools.meaning.ClassFiles.Ref;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+/**
+ * A2's shape note, census B2, 2026-11-19: does a root reach legend-engine's SQL-text printers? A forward walk over the
+ * bytecode of //core:product_jars and //core:edge, refined two ways from A2_Graph's conservative graph:
+ *  - RAPID TYPE ANALYSIS: a virtual or interface call reaches an override only in a class INSTANTIATED (new) in a
+ *    method already reached (fixpoint); a static or special call is exact; an invokedynamic reaches the method handles
+ *    its bootstrap names (a lambda's body, a method reference), and the class its handle names is taken as instantiated
+ *    for a constructor reference; a class's first use reaches its <clinit>;
+ *  - THE STYLE'S KEYED HOOKS: PlanStyle.twoForm(Class, F) and facet(Class[, refusal]) answer by their Class key, so a
+ *    call site reaches, of a style's implementation, only the stretch of code between that key's `ldc Class` and the
+ *    next one in the implementation's bytecode (the hooks' if-chain); the key is the `ldc Class` nearest before the call.
+ *    A site whose key the walk cannot read reaches the whole implementation (conservative).
+ * The TARGET is what obtains a printer: PureText.engineText, PureText.enginePlanText (the only `new EngineStyle*` sites).
+ *
+ *   java -cp bazel-bin/tools/meaning/libcensus.jar A2_Reach.java <jar list> <root prefix> ...
+ */
+public class A2_Reach {
+    static Map<String, ClassFile> all;
+    static Map<String, List<String>> subs = new HashMap<>();
+    static final Set<String> HOOKS = Set.of("twoForm", "facet");
+    static final String STYLE = "com/legend/database/PlanStyle";
+    /** keys whose hook answers are cut (-Dexclude=a/b/C,...): the walk asks what ELSE reaches the target */
+    static final Set<String> EXCLUDE = new HashSet<>(Arrays.asList(System.getProperty("exclude", "").split(",")));
+
+    public static void main(String[] args) throws Exception {
+        List<Path> jars = new ArrayList<>();
+        for (String l : Files.readAllLines(Path.of(args[0]))) if (!l.isBlank()) jars.add(Path.of("bazel-bin", l.strip().replaceFirst("^_main/", "")));
+        all = ClassFiles.ofJars(jars);
+        for (ClassFile c : all.values()) {
+            if (c.superName() != null) subs.computeIfAbsent(c.superName(), k -> new ArrayList<>()).add(c.name());
+            for (String i : c.interfaces()) subs.computeIfAbsent(i, k -> new ArrayList<>()).add(c.name());
+        }
+        for (int i = 1; i < args.length; i++) walk(args[i]);
+    }
+
+    record Node(String cls, Method m, int from, int to, String hookKey) {  // a method, or a keyed stretch [from, to) of a hook
+        Node(String cls, Method m, int from, int to) { this(cls, m, from, to, null); }
+        String key() { return cls + "#" + m.name() + m.descriptor() + (from < 0 ? "" : "[" + from + "," + to + ")") + (hookKey == null ? "" : "{" + hookKey + "}"); }
+    }
+
+    static boolean isTarget(String cls, Method m) {
+        return cls.equals("com/legend/edge/PureText") && (m.name().equals("engineText") || m.name().equals("enginePlanText"));
+    }
+
+    static void walk(String rootPrefix) {
+        Set<String> inst = new HashSet<>();
+        Map<String, Node> reached = new LinkedHashMap<>();
+        Map<String, String> parent = new HashMap<>();
+        Deque<Node> work = new ArrayDeque<>();
+        List<Object[]> virtualSites = new ArrayList<>(); // {fromKey, Ref, keyClassOrNull}
+        for (ClassFile c : all.values()) for (Method m : c.methods()) {
+            String k = c.name() + "#" + m.name() + m.descriptor();
+            if (k.startsWith(rootPrefix)) { Node n = new Node(c.name(), m, -1, -1); reached.put(n.key(), n); work.add(n); parent.put(n.key(), null); }
+        }
+        int roots = work.size();
+        String hit = null;
+        boolean changed = true;
+        while (changed && hit == null) {
+            changed = false;
+            while (!work.isEmpty() && hit == null) {
+                Node n = work.poll();
+                if (isTarget(n.cls(), n.m())) { hit = n.key(); break; }
+                ClassFile c = all.get(n.cls());
+                List<Insn> code = n.m().code();
+                for (int i = 0; i < code.size(); i++) {
+                    Insn in = code.get(i);
+                    if (n.from() >= 0 && (in.pc() < n.from() || in.pc() >= n.to())) continue;
+                    int op = in.op();
+                    if (op == 0xbb) { String o = c.className(in.operand()); if (inst.add(o)) changed = true; add(work, reached, parent, n, clinitOf(o)); }
+                    else if (op == 0xb2 || op == 0xb3) add(work, reached, parent, n, clinitOf(c.ref(in.operand()).owner()));
+                    else if (op == 0xb7 || op == 0xb8) { Ref r = c.ref(in.operand()); add(work, reached, parent, n, exact(r)); add(work, reached, parent, n, clinitOf(r.owner())); }
+                    else if (op == 0xb6 || op == 0xb9) {
+                        Ref r = c.ref(in.operand());
+                        boolean hook = HOOKS.contains(r.name()) && isSubtype(r.owner(), STYLE);
+                        String keyClass = hook ? keyBefore(c, code, i) : null;
+                        // a delegating hook (PURE_V1's twoForm -> UPSTREAM.twoForm(kind, ...)) passes its own key on: the
+                        // key argument is the method's first parameter (aload_1), not a constant
+                        if (hook && n.hookKey() != null && HOOKS.contains(n.m().name()) && loadsParam1Before(code, i, r)) keyClass = n.hookKey();
+                        virtualSites.add(new Object[] {n, r, keyClass});
+                    } else if (op == 0xba) {
+                        Ref r = c.indy(in.operand());
+                        int bsm = Integer.parseInt(r.owner().substring(1));
+                        if (bsm < c.bootstraps().size()) for (int a : c.bootstraps().get(bsm).args()) {
+                            ClassFiles.Constant k = c.pool()[a];
+                            if (k != null && k.tag() == 15) {
+                                Ref h = c.ref(k.b());
+                                if (h.name().equals("<init>") && inst.add(h.owner())) changed = true;
+                                add(work, reached, parent, n, exactOrAll(h, k.a()));
+                            }
+                        }
+                    }
+                }
+            }
+            // resolve the virtual sites against the classes instantiated so far
+            for (Object[] s : virtualSites) {
+                Node from = (Node) s[0]; Ref r = (Ref) s[1]; String keyClass = (String) s[2];
+                if (keyClass != null && EXCLUDE.contains(keyClass)) continue;
+                for (String cls : impls(r, inst)) {
+                    ClassFile ic = all.get(cls);
+                    for (Method m : ic.methods()) if (m.name().equals(r.name()) && m.descriptor().equals(r.descriptor()) && !m.isAbstract()) {
+                        List<Node> targets = keyClass != null && !cls.equals(STYLE) ? stretch(ic, m, keyClass) : List.of(new Node(cls, m, -1, -1));
+                        if (keyClass != null) { List<Node> keyed = new ArrayList<>(); for (Node x : targets) keyed.add(new Node(x.cls(), x.m(), x.from(), x.to(), keyClass)); targets = keyed; }
+                        for (Node t : targets) if (!reached.containsKey(t.key())) { reached.put(t.key(), t); parent.put(t.key(), from.key()); work.add(t); changed = true; }
+                    }
+                }
+            }
+        }
+        System.out.println("== forward from " + rootPrefix + " (" + roots + " roots): " + reached.size() + " nodes, " + inst.size()
+                + " classes instantiated; reaches a printer factory: " + (hit != null));
+        for (String p = hit; p != null; p = parent.get(p)) System.out.println("    " + p);
+        // the keys asked at reached hook sites
+        TreeMap<String, Integer> keys = new TreeMap<>();
+        for (Object[] s : virtualSites) if (s[2] != null || (HOOKS.contains(((Ref) s[1]).name()) && isSubtype(((Ref) s[1]).owner(), STYLE))) keys.merge(String.valueOf(s[2]), 1, Integer::sum);
+        System.out.println("  style hook keys asked: " + keys);
+    }
+
+    /** whether the hook call at i takes its key from the calling method's first parameter: the call's first argument
+     *  slot pushed by aload_1, found by counting the arguments pushed back from the call (each pushed by one instruction
+     *  in the delegating hooks' shape: getstatic receiver, aload_1, aload_2 | an aload, an indy) */
+    static boolean loadsParam1Before(List<Insn> code, int i, Ref r) {
+        int args = ClassFiles.params(r.descriptor()).size();
+        int j = i - args; // the instruction that pushed the first argument, in the one-instruction-per-argument shape
+        return j >= 0 && code.get(j).op() == 0x2b; // aload_1
+    }
+
+    /** the class constant loaded by the nearest ldc before instruction i (within 12 instructions) */
+    static String keyBefore(ClassFile c, List<Insn> code, int i) {
+        for (int j = i - 1; j >= 0 && j >= i - 12; j--) {
+            Insn in = code.get(j);
+            if (in.op() == 0x12 || in.op() == 0x13) {
+                ClassFiles.Constant k = c.pool()[in.operand()];
+                if (k != null && k.tag() == 7) return c.className(in.operand());
+            }
+        }
+        return null;
+    }
+
+    /** the stretch of a keyed hook's implementation that answers `key`: from its `ldc key` to the next `ldc Class`;
+     *  no ldc of key at all: the whole method (a delegating or default implementation) */
+    static List<Node> stretch(ClassFile c, Method m, String key) {
+        List<Insn> code = m.code();
+        List<Integer> ldcs = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (Insn in : code) if (in.op() == 0x12 || in.op() == 0x13) {
+            ClassFiles.Constant k = c.pool()[in.operand()];
+            if (k != null && k.tag() == 7) { ldcs.add(in.pc()); names.add(c.className(in.operand())); }
+        }
+        List<Node> out = new ArrayList<>();
+        int end = code.isEmpty() ? 0 : code.get(code.size() - 1).pc() + 1;
+        int first = ldcs.isEmpty() ? end : ldcs.get(0);
+        out.add(new Node(c.name(), m, 0, first));   // the prologue before any key test, and the fall-through below
+        boolean any = false;
+        for (int i = 0; i < ldcs.size(); i++) if (names.get(i).equals(key)) { any = true; out.add(new Node(c.name(), m, ldcs.get(i), i + 1 < ldcs.size() ? ldcs.get(i + 1) : end)); }
+        // the stretch after the last key test is the default answer, taken by every key the chain does not name
+        if (!any && !ldcs.isEmpty()) out.add(new Node(c.name(), m, lastStretchStart(code, ldcs), end));
+        return out;
+    }
+
+    static int lastStretchStart(List<Insn> code, List<Integer> ldcs) {
+        // after the last key's ldc, its comparison and its branch: the code a branch jumps over to (the else) -- taken
+        // conservatively as everything after the last ldc
+        return ldcs.get(ldcs.size() - 1);
+    }
+
+    static void add(Deque<Node> work, Map<String, Node> reached, Map<String, String> parent, Node from, Collection<Node> ts) {
+        for (Node t : ts) if (!reached.containsKey(t.key())) { reached.put(t.key(), t); parent.put(t.key(), from.key()); work.add(t); }
+    }
+
+    static List<Node> clinitOf(String o) {
+        ClassFile c = all.get(o);
+        if (c == null) return List.of();
+        for (Method m : c.methods()) if (m.name().equals("<clinit>")) return List.of(new Node(o, m, -1, -1));
+        return List.of();
+    }
+
+    static List<Node> exact(Ref r) {
+        Deque<String> up = new ArrayDeque<>(List.of(r.owner()));
+        Set<String> seen = new HashSet<>();
+        while (!up.isEmpty()) {
+            String o = up.poll();
+            if (!seen.add(o)) continue;
+            ClassFile c = all.get(o);
+            if (c == null) continue;
+            for (Method m : c.methods()) if (m.name().equals(r.name()) && m.descriptor().equals(r.descriptor())) return List.of(new Node(o, m, -1, -1));
+            if (c.superName() != null) up.add(c.superName());
+            up.addAll(c.interfaces());
+        }
+        return List.of();
+    }
+
+    static List<Node> exactOrAll(Ref h, int kind) {
+        if (kind == 5 || kind == 9) { // invokevirtual / invokeinterface handle: every project override
+            List<Node> out = new ArrayList<>();
+            for (String cls : down(h.owner())) { ClassFile c = all.get(cls); if (c != null) for (Method m : c.methods()) if (m.name().equals(h.name()) && m.descriptor().equals(h.descriptor()) && !m.isAbstract()) out.add(new Node(cls, m, -1, -1)); }
+            out.addAll(exact(h));
+            return out;
+        }
+        return exact(h);
+    }
+
+    static Set<String> down(String o) {
+        Set<String> out = new HashSet<>();
+        Deque<String> d = new ArrayDeque<>(List.of(o));
+        while (!d.isEmpty()) { String x = d.pop(); if (out.add(x)) d.addAll(subs.getOrDefault(x, List.of())); }
+        return out;
+    }
+
+    static boolean isSubtype(String o, String sup) {
+        Deque<String> up = new ArrayDeque<>(List.of(o));
+        Set<String> seen = new HashSet<>();
+        while (!up.isEmpty()) {
+            String x = up.poll();
+            if (x.equals(sup)) return true;
+            if (!seen.add(x)) continue;
+            ClassFile c = all.get(x);
+            if (c == null) continue;
+            if (c.superName() != null) up.add(c.superName());
+            up.addAll(c.interfaces());
+        }
+        return false;
+    }
+
+    /** the instantiated classes whose dispatch of r lands in a project declaration: each instantiated subtype of r's
+     *  owner, and the class that declares the method it inherits */
+    static Set<String> impls(Ref r, Set<String> inst) {
+        Set<String> out = new HashSet<>();
+        if (!all.containsKey(r.owner())) return out;
+        for (String cls : inst) {
+            if (!isSubtype(cls, r.owner())) continue;
+            // the declaration cls dispatches to: walk up from cls
+            Deque<String> up = new ArrayDeque<>(List.of(cls));
+            Set<String> seen = new HashSet<>();
+            boolean found = false;
+            while (!up.isEmpty() && !found) {
+                String x = up.poll();
+                if (!seen.add(x)) continue;
+                ClassFile c = all.get(x);
+                if (c == null) continue;
+                for (Method m : c.methods()) if (m.name().equals(r.name()) && m.descriptor().equals(r.descriptor()) && !m.isAbstract()) { out.add(x); found = true; }
+                if (!found) { if (c.superName() != null) up.add(c.superName()); up.addAll(c.interfaces()); }
+            }
+        }
+        return out;
+    }
+}

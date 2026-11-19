@@ -1,0 +1,15 @@
+== forward from com/legend/edge/PureV1Routes#generatePlan (2 roots): 13230 nodes, 1436 classes instantiated; reaches a printer factory: true
+    com/legend/edge/PureText#engineText(Lcom/legend/model/ConnectionDefinition$DatabaseType;)Lcom/legend/edge/EngineTextDialect;
+    com/legend/edge/EnginePlans#ddlText(Lcom/legend/compiler/spec/typed/TypedNativeCall;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;
+    com/legend/edge/EnginePlans$1#ddlText(Lcom/legend/compiler/spec/typed/TypedNativeCall;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;
+    com/legend/planner/BodyPlanner#prepare(Ljava/util/List;Lcom/legend/planner/PlanEnv;)Lcom/legend/planner/Prepared;
+    com/legend/planner/ProductStatements#prepare(Lcom/legend/TypedQuery;Ljava/util/List;Ljava/lang/String;Ljava/lang/Integer;Ljava/util/Set;Lcom/legend/planner/ProgramFrames;Ljava/util/Map;ZLcom/legend/database/PlanStyle;)Lcom/legend/planner/ProductStatements$Statement;
+    com/legend/planner/PlanMaker#planStatement(Lcom/legend/planner/ProgramState;ILcom/legend/compiler/spec/typed/TypedSpec;ZLcom/legend/planner/ProgramState$Door;Lcom/legend/executionplan/ExecutionPlan$Target;)V
+    com/legend/planner/PlanMaker#programmed(Lcom/legend/TypedQuery;Ljava/lang/String;Ljava/util/List;Ljava/util/Set;Lcom/legend/planner/ProgramState$Door;Lcom/legend/planner/ProgramKinds;ZZZLcom/legend/database/PlanStyle;)Lcom/legend/planner/PlanMaker$Programmed;
+    com/legend/planner/PlanMaker#plan(Lcom/legend/TypedQuery;Ljava/lang/String;Ljava/util/Set;ZLcom/legend/database/PlanStyle;)Lcom/legend/executionplan/ExecutionPlan;
+    com/legend/TypedQuery#planned(Ljava/lang/String;Ljava/util/Set;ZLcom/legend/database/PlanStyle;)Lcom/legend/executionplan/ExecutionPlan;
+    com/legend/TypedQuery#executionPlan(Ljava/lang/String;Ljava/util/Set;Lcom/legend/database/PlanStyle;)Lcom/legend/executionplan/ExecutionPlan;
+    com/legend/edge/PureV1Routes#lambda$generatePlan$1(Lcom/legend/protocol/spec/LambdaFunction;Lcom/legend/json/Json$Obj;Lcom/legend/edge/ModelInput;Lcom/legend/compiler/element/ModelContext;)Ljava/lang/String;
+    com/legend/edge/PureV1Routes#lambda$generatePlan$0(Ljava/lang/String;Lcom/legend/server/LiteV1Api$Models;)Ljava/lang/String;
+    com/legend/edge/PureV1Routes#generatePlan(Ljava/lang/String;Lcom/legend/server/LiteV1Api$Models;)Lcom/legend/server/LiteV1Api$Answer;
+  style hook keys asked: {com/legend/lowering/DateTimeTexts=1, com/legend/lowering/ListTexts=1, com/legend/lowering/LoweringForms=1, com/legend/lowering/PureOnlyTexts=1, com/legend/lowering/RelationTexts=1, com/legend/lowering/ResultEnvelopes=1, com/legend/planner/ExecutedValues=1, com/legend/planner/UpstreamPlans=4, com/legend/sql/dialect/DatabaseSettingsForm=1, null=5}

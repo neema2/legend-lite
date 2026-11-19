@@ -1,0 +1,25 @@
+== calls into the target from outside it
+  enginePlanText <- com/legend/edge/EngineAllocations#node(Lcom/legend/compiler/spec/typed/TypedLet;Ljava/lang/String;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;Lcom/legend/edge/EngineParams;Ljava/util/Map;ZLjava/lang/String;Lcom/legend/model/ConnectionDefinition$DatabaseType;Ljava/lang/String;)Ljava/lang/String;:133
+  enginePlanText <- com/legend/edge/EnginePlans#crossDbTdsPlan(Lcom/legend/compiler/spec/typed/TypedLambda;Ljava/lang/String;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;ZLjava/lang/String;Ljava/lang/String;Lcom/legend/model/ConnectionDefinition$DatabaseType;Ljava/lang/String;Ljava/util/List;)Ljava/lang/String;:536
+  enginePlanText <- com/legend/edge/EnginePlans#planModel(Lcom/legend/compiler/spec/typed/TypedNativeCall;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;)Lcom/legend/edge/PlanNode;:843
+  enginePlanText <- com/legend/edge/EnginePlans#planToString(Lcom/legend/compiler/spec/NativeDispatch$RoutineCall;Ljava/util/List;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;:440
+  enginePlanText <- com/legend/edge/EnginePlans#planToString(Lcom/legend/compiler/spec/NativeDispatch$RoutineCall;Ljava/util/List;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;:455
+  enginePlanText <- com/legend/edge/EnginePlans#planToString(Lcom/legend/compiler/spec/NativeDispatch$RoutineCall;Ljava/util/List;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;:463
+  enginePlanText <- com/legend/edge/EnginePlans#sequencePlan(Lcom/legend/compiler/spec/typed/TypedLambda;Ljava/lang/String;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;ZLjava/lang/String;Ljava/lang/String;Lcom/legend/model/ConnectionDefinition$DatabaseType;)Ljava/lang/String;:700
+  enginePlanText <- com/legend/edge/EnginePlans#sequencePlan(Lcom/legend/compiler/spec/typed/TypedLambda;Ljava/lang/String;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;ZLjava/lang/String;Ljava/lang/String;Lcom/legend/model/ConnectionDefinition$DatabaseType;)Ljava/lang/String;:708
+  engineText <- com/legend/edge/EnginePlans#activitySql(Ljava/util/List;Ljava/lang/String;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;Z)Ljava/lang/String;:298
+  engineText <- com/legend/edge/EnginePlans#ddlText(Lcom/legend/compiler/spec/typed/TypedNativeCall;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;:1002
+  engineText <- com/legend/edge/EnginePlans#ddlText(Lcom/legend/compiler/spec/typed/TypedNativeCall;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;:971
+  engineText <- com/legend/edge/EnginePlans#ddlText(Lcom/legend/compiler/spec/typed/TypedNativeCall;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;:991
+  engineText <- com/legend/edge/EnginePlans#planConnOf(Lcom/legend/compiler/spec/typed/ExecutionContext;Lcom/legend/planner/PlanEnv;)Lcom/legend/edge/PlanConn;:754
+  engineText <- com/legend/edge/EnginePlans#planConnOf(Lcom/legend/compiler/spec/typed/ExecutionContext;Lcom/legend/planner/PlanEnv;)Lcom/legend/edge/PlanConn;:767
+  engineText <- com/legend/edge/EnginePlans#toSqlString(Lcom/legend/compiler/spec/NativeDispatch$RoutineCall;Ljava/util/List;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;:88
+  engineText <- com/legend/edge/EnginePlans$1#engineSeedSql(Ljava/lang/String;Lcom/legend/model/DatabaseDefinition;Ljava/util/function/Function;)Ljava/util/List;:268
+  engineText <- com/legend/edge/EnginePlans$1#engineSeedSqlFromRecords(Ljava/util/List;Lcom/legend/model/DatabaseDefinition;Ljava/util/function/Function;)Ljava/util/List;:276
+  engineText <- com/legend/edge/EnginePlans$1#generatedTestDataPlan(Lcom/legend/compiler/spec/typed/TypedTestDataGen;Lcom/legend/compiler/element/ModelContext;)Ljava/lang/String;:283
+== backward closure (may reach the target): 353 methods; by class (in closure / methods)
+  NEW com/legend/edge/EngineStyleH2 in com/legend/edge/PureText#engineText(Lcom/legend/model/ConnectionDefinition$DatabaseType;)Lcom/legend/edge/EngineTextDialect;:300
+  NEW com/legend/edge/EngineStyleDB2 in com/legend/edge/PureText#engineText(Lcom/legend/model/ConnectionDefinition$DatabaseType;)Lcom/legend/edge/EngineTextDialect;:301
+  NEW com/legend/edge/EngineStyleComposite in com/legend/edge/PureText#engineText(Lcom/legend/model/ConnectionDefinition$DatabaseType;)Lcom/legend/edge/EngineTextDialect;:302
+  NEW com/legend/edge/EngineStyleH2 in com/legend/edge/PureText#enginePlanText(Lcom/legend/model/ConnectionDefinition$DatabaseType;ZLjava/lang/String;)Lcom/legend/edge/EngineTextDialect;:315
+  NEW com/legend/edge/EngineStyleDB2 in com/legend/edge/PureText#enginePlanText(Lcom/legend/model/ConnectionDefinition$DatabaseType;ZLjava/lang/String;)Lcom/legend/edge/EngineTextDialect;:316

@@ -1,0 +1,23 @@
+== forward from com/legend/edge/PureV1Routes#generatePlan (2 roots): 17980 nodes, 1625 classes instantiated; reaches a printer factory: true
+    com/legend/edge/PureText#engineText(Lcom/legend/model/ConnectionDefinition$DatabaseType;)Lcom/legend/edge/EngineTextDialect;
+    com/legend/edge/EnginePlans#activitySql(Ljava/util/List;Ljava/lang/String;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;Z)Ljava/lang/String;
+    com/legend/edge/PureText$1#twoForm(Ljava/lang/Class;Ljava/lang/Object;)Ljava/lang/Object;[204,220){com/legend/planner/ActivityTexts}
+    com/legend/planner/PlanAllocations#activitySql(Ljava/util/List;Ljava/lang/String;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;Z)Ljava/lang/String;
+    com/legend/planner/PlanAllocations#lambda$activitySql$0(Lcom/legend/compiler/spec/typed/TypedSpec;Ljava/lang/String;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;
+    com/legend/planner/PlanAllocations#activitySql(Lcom/legend/compiler/spec/typed/TypedNativeCall;Lcom/legend/compiler/spec/typed/TypedSpec;Ljava/util/List;Lcom/legend/compiler/spec/SpecCompiler;Lcom/legend/planner/PlanEnv;)Ljava/lang/String;
+    com/legend/planner/ProgramFrames$Recorder#relationalActivitySql(Ljava/lang/String;J)Ljava/lang/String;
+    com/legend/compiler/spec/ResultEnvelopeSplice#relationalSqlRead(Lcom/legend/compiler/spec/typed/TypedSpec;Lcom/legend/compiler/spec/ResultEnvelopeSplice$Frames;)Lcom/legend/compiler/spec/typed/TypedSpec;
+    com/legend/compiler/spec/ResultEnvelopeSplice#rewrite(Lcom/legend/compiler/spec/typed/TypedSpec;Lcom/legend/compiler/spec/ResultEnvelopeSplice$Frames;)Lcom/legend/compiler/spec/typed/TypedSpec;
+    com/legend/compiler/spec/ResultEnvelopeSplice#lambda$hook$0(Lcom/legend/compiler/spec/ResultEnvelopeSplice$Frames;Lcom/legend/compiler/spec/typed/TypedSpec;Ljava/util/Set;)Lcom/legend/compiler/spec/typed/TypedSpec;
+    com/legend/compiler/spec/ResultEnvelopeSplice#hook(Lcom/legend/compiler/spec/ResultEnvelopeSplice$Frames;)Ljava/util/function/BiFunction;
+    com/legend/planner/ProductStatements#inline(Lcom/legend/compiler/spec/SpecCompiler;Ljava/util/List;Ljava/lang/Integer;Lcom/legend/planner/ProgramFrames$Recorder;Z)Lcom/legend/planner/ProductStatements$Inlined;
+    com/legend/planner/ProductStatements#prepare(Lcom/legend/TypedQuery;Ljava/util/List;Ljava/lang/String;Ljava/lang/Integer;Ljava/util/Set;Lcom/legend/planner/ProgramFrames;Ljava/util/Map;ZLcom/legend/database/PlanStyle;)Lcom/legend/planner/ProductStatements$Statement;
+    com/legend/planner/PlanMaker#planStatement(Lcom/legend/planner/ProgramState;ILcom/legend/compiler/spec/typed/TypedSpec;ZLcom/legend/planner/ProgramState$Door;Lcom/legend/executionplan/ExecutionPlan$Target;)V
+    com/legend/planner/PlanMaker#programmed(Lcom/legend/TypedQuery;Ljava/lang/String;Ljava/util/List;Ljava/util/Set;Lcom/legend/planner/ProgramState$Door;Lcom/legend/planner/ProgramKinds;ZZZLcom/legend/database/PlanStyle;)Lcom/legend/planner/PlanMaker$Programmed;
+    com/legend/planner/PlanMaker#plan(Lcom/legend/TypedQuery;Ljava/lang/String;Ljava/util/Set;ZLcom/legend/database/PlanStyle;)Lcom/legend/executionplan/ExecutionPlan;
+    com/legend/TypedQuery#planned(Ljava/lang/String;Ljava/util/Set;ZLcom/legend/database/PlanStyle;)Lcom/legend/executionplan/ExecutionPlan;
+    com/legend/TypedQuery#executionPlan(Ljava/lang/String;Ljava/util/Set;Lcom/legend/database/PlanStyle;)Lcom/legend/executionplan/ExecutionPlan;
+    com/legend/edge/PureV1Routes#lambda$generatePlan$1(Lcom/legend/protocol/spec/LambdaFunction;Lcom/legend/json/Json$Obj;Lcom/legend/edge/ModelInput;Lcom/legend/compiler/element/ModelContext;)Ljava/lang/String;
+    com/legend/edge/PureV1Routes#lambda$generatePlan$0(Ljava/lang/String;Lcom/legend/server/LiteV1Api$Models;)Ljava/lang/String;
+    com/legend/edge/PureV1Routes#generatePlan(Ljava/lang/String;Lcom/legend/server/LiteV1Api$Models;)Lcom/legend/server/LiteV1Api$Answer;
+  style hook keys asked: {com/legend/lowering/DateTimeTexts=2, com/legend/lowering/ListTexts=2, com/legend/lowering/LoweringForms=2, com/legend/lowering/PureOnlyTexts=3, com/legend/lowering/RelationTexts=3, com/legend/lowering/ResultEnvelopes=3, com/legend/planner/ActivityTexts=2, com/legend/planner/ExecutedValues=2, com/legend/planner/RoutedQueries=2, com/legend/planner/UpstreamPlans=4, com/legend/sql/dialect/DatabaseSettingsForm=2}

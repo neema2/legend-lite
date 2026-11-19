@@ -1,0 +1,55 @@
+import com.legend.tools.meaning.ClassFiles;
+import com.legend.tools.meaning.ClassFiles.ClassFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+/**
+ * A2's shape note, census B2, 2026-11-19: the class-level reference graph of //core:product_jars and //core:edge (a class
+ * REFERENCES another when its constant pool names it). Prints, for the printers and their interface, every class naming
+ * them; then the FAMILY: the edge classes whose every referrer (outside its own nest) is the family or a printer --
+ * code that exists only for legend-engine's text (a fixpoint from the printers outward).
+ */
+public class A2_Family {
+    public static void main(String[] args) throws Exception {
+        List<Path> jars = new ArrayList<>();
+        for (String l : Files.readAllLines(Path.of(args[0]))) if (!l.isBlank()) jars.add(Path.of("bazel-bin", l.strip().replaceFirst("^_main/", "")));
+        Map<String, ClassFile> all = ClassFiles.ofJars(jars);
+        // top-level granularity: a class and its nested classes are one unit
+        java.util.function.Function<String, String> top = n -> n.contains("$") ? n.substring(0, n.indexOf('$')) : n;
+        Map<String, Set<String>> referrers = new TreeMap<>();
+        for (ClassFile c : all.values()) {
+            Set<String> named = new HashSet<>();
+            for (int i = 0; i < c.pool().length; i++) { ClassFiles.Constant k = c.pool()[i]; if (k != null && k.tag() == 7) named.add(c.className(i)); }
+            for (String u : c.utf8s()) { int at = 0; while ((at = u.indexOf("Lcom/legend/", at)) >= 0) { int semi = u.indexOf(';', at); if (semi < 0) break; named.add(u.substring(at + 1, semi)); at = semi; } }
+            for (String t2 : named) {
+                if (!all.containsKey(t2)) continue;
+                String a = top.apply(c.name()), b = top.apply(t2);
+                if (!a.equals(b)) referrers.computeIfAbsent(b, x -> new TreeSet<>()).add(a);
+            }
+        }
+        Set<String> tops = new TreeSet<>();
+        for (String n : all.keySet()) tops.add(top.apply(n));
+        Set<String> family = new TreeSet<>();
+        for (String n : tops) if (n.matches("com/legend/edge/(EngineStyle(H2|DB2|Composite)|EngineTextDialect)")) family.add(n);
+        System.out.println("== top-level classes naming the printers or EngineTextDialect:");
+        for (String f : new TreeSet<>(family)) System.out.println("  " + f + " <- " + referrers.getOrDefault(f, Set.of()));
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            for (String n : tops) {
+                if (family.contains(n) || !n.startsWith("com/legend/edge/")) continue;
+                Set<String> rs = referrers.getOrDefault(n, Set.of());
+                if (!rs.isEmpty() && family.containsAll(rs)) { family.add(n); grew = true; }
+            }
+        }
+        System.out.println("== the family: top-level edge classes only the printers and the family refer to:");
+        for (String f : family) System.out.println("  " + f + "  <- " + referrers.getOrDefault(f, Set.of()));
+        System.out.println("== top-level edge classes referring to the family from outside it:");
+        for (String n : tops) if (!family.contains(n)) {
+            Set<String> into = new TreeSet<>();
+            for (String f : family) if (referrers.getOrDefault(f, Set.of()).contains(n)) into.add(f.substring(f.lastIndexOf('/') + 1));
+            if (!into.isEmpty()) System.out.println("  " + n + " -> " + into);
+        }
+    }
+}

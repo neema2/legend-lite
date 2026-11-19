@@ -1,0 +1,4 @@
+== forward from com/legend/edge/PureV1Routes#generatePlan (2 roots): 26945 nodes, 2035 classes instantiated; reaches a printer factory: false
+  style hook keys asked: {com/legend/lowering/DateTimeTexts=2, com/legend/lowering/ListTexts=2, com/legend/lowering/LoweringForms=2, com/legend/lowering/PureOnlyTexts=3, com/legend/lowering/RelationTexts=3, com/legend/lowering/ResultEnvelopes=3, com/legend/planner/ActivityTexts=1, com/legend/planner/ExecutedValues=2, com/legend/planner/RoutedQueries=2, com/legend/planner/UpstreamPlans=4, com/legend/sql/dialect/DatabaseSettingsForm=2}
+
+[exited with code 0]

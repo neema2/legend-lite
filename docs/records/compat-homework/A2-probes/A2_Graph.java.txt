@@ -1,0 +1,181 @@
+import com.legend.tools.meaning.ClassFiles;
+import com.legend.tools.meaning.ClassFiles.ClassFile;
+import com.legend.tools.meaning.ClassFiles.Insn;
+import com.legend.tools.meaning.ClassFiles.Method;
+import com.legend.tools.meaning.ClassFiles.Ref;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+/**
+ * A2's shape note, census B2, 2026-11-19: a method-level call graph over //core:product_jars and //core:edge's
+ * libedge.jar, read from the bytecode, conservative (a call reaches every override in the owner's hierarchy, up and
+ * down; an invokedynamic reaches every method handle its bootstrap names; a class's first use reaches its <clinit>).
+ *
+ *   java -cp bazel-bin/tools/meaning/libcensus.jar A2_Graph.java <jar list> [<root method key prefix> ...]
+ *
+ * Prints: (1) the TARGET (the three engine-text printers' classes, PureText.engineText / enginePlanText); (2) every
+ * call into the target from outside it, by class, method and line; (3) the BACKWARD closure (every method that may
+ * reach the target), per class, with how many of the class's methods it holds; (4) for each root prefix given, whether
+ * a forward walk from it reaches the target, and one path if it does.
+ */
+public class A2_Graph {
+    static Map<String, ClassFile> all;
+    static Map<String, List<String>> subs = new HashMap<>();
+    static Map<String, Set<String>> edges = new HashMap<>();
+    static Map<String, List<String>> sites = new HashMap<>();  // callee -> "caller:line"
+
+    public static void main(String[] args) throws Exception {
+        List<Path> jars = new ArrayList<>();
+        for (String l : Files.readAllLines(Path.of(args[0]))) {
+            if (!l.isBlank()) jars.add(Path.of("bazel-bin", l.strip().replaceFirst("^_main/", "")));
+        }
+        all = ClassFiles.ofJars(jars);
+        for (ClassFile c : all.values()) {
+            if (c.superName() != null) subs.computeIfAbsent(c.superName(), k -> new ArrayList<>()).add(c.name());
+            for (String i : c.interfaces()) subs.computeIfAbsent(i, k -> new ArrayList<>()).add(c.name());
+        }
+        for (ClassFile c : all.values()) {
+            for (Method m : c.methods()) {
+                String from = key(c.name(), m.name(), m.descriptor());
+                Set<String> out = edges.computeIfAbsent(from, k -> new HashSet<>());
+                for (Insn in : m.code()) {
+                    int op = in.op();
+                    if (op >= 0xb6 && op <= 0xb9) {
+                        Ref r = c.ref(in.operand());
+                        for (String t : (op == 0xb7 || op == 0xb8) ? exact(r) : resolve(r)) { out.add(t); sites.computeIfAbsent(t, k -> new ArrayList<>()).add(from + ":" + m.lineAt(in.pc())); }
+                        clinit(out, r.owner());
+                    } else if (op == 0xb2 || op == 0xb3 || op == 0xbb) {
+                        String owner = op == 0xbb ? c.className(in.operand()) : c.ref(in.operand()).owner();
+                        clinit(out, owner);
+                        if (op == 0xbb) { sites.computeIfAbsent("NEW " + owner, k -> new ArrayList<>()).add(from + ":" + m.lineAt(in.pc())); }
+                    } else if (op == 0xba) {
+                        Ref r = c.indy(in.operand());
+                        int bsm = Integer.parseInt(r.owner().substring(1));
+                        if (bsm < c.bootstraps().size()) {
+                            for (int a : c.bootstraps().get(bsm).args()) {
+                                ClassFiles.Constant k = c.pool()[a];
+                                if (k != null && k.tag() == 15) {
+                                    Ref h = c.ref(k.b());
+                                    for (String t : (k.a() == 5 || k.a() == 9) ? resolve(h) : exact(h)) { out.add(t); sites.computeIfAbsent(t, kk -> new ArrayList<>()).add(from + ":" + m.lineAt(in.pc()) + "(ref)"); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // THE TARGET: what OBTAINS an engine-text printer -- the two factories, and every method that instantiates a
+        // printer class (a printer's own methods are reached only through an instance, so a renderer's virtual call into
+        // an override is not a use: the instance must come from one of these)
+        Set<String> target = new TreeSet<>();
+        for (ClassFile c : all.values()) {
+            for (Method m : c.methods()) {
+                String k = key(c.name(), m.name(), m.descriptor());
+                if (c.name().equals("com/legend/edge/PureText") && (m.name().equals("engineText") || m.name().equals("enginePlanText"))) target.add(k);
+                for (Insn in : m.code()) {
+                    if (in.op() == 0xbb && c.className(in.operand()).matches("com/legend/edge/EngineStyle(H2|DB2|Composite)(\\$.*)?")) {
+                        System.out.println("  NEW " + c.className(in.operand()) + " in " + k + ":" + m.lineAt(in.pc()));
+                        if (!c.name().matches("com/legend/edge/EngineStyle(H2|DB2|Composite)(\\$.*)?")) target.add(k);
+                    }
+                }
+            }
+        }
+        System.out.println("== target: " + target.size() + " methods");
+        System.out.println("== calls into the target from outside it");
+        TreeMap<String, TreeSet<String>> into = new TreeMap<>();
+        for (String t : target) for (String s : sites.getOrDefault(t, List.of())) {
+            String caller = s.substring(0, s.lastIndexOf(':') > 0 ? s.indexOf(':', s.indexOf('#')) : s.length());
+            if (!target.contains(caller.replaceAll("\\(ref\\)$", ""))) into.computeIfAbsent(t.substring(t.indexOf('#') + 1).replaceAll("\\(.*", "") + " <- ", k -> new TreeSet<>()).add(s);
+        }
+        // also NEW sites of the printer classes
+        for (String k : sites.keySet()) if (k.startsWith("NEW com/legend/edge/EngineStyle")) for (String s : sites.get(k)) into.computeIfAbsent(k + " <- ", x -> new TreeSet<>()).add(s);
+        into.forEach((k, v) -> v.forEach(s -> { if (!target.contains(s.replaceAll(":\\d+(\\(ref\\))?$", ""))) System.out.println("  " + k + s); }));
+        // backward closure
+        Map<String, Set<String>> rev = new HashMap<>();
+        edges.forEach((f, ts) -> ts.forEach(t -> rev.computeIfAbsent(t, k -> new HashSet<>()).add(f)));
+        Set<String> back = new HashSet<>(target);
+        Deque<String> q = new ArrayDeque<>(target);
+        while (!q.isEmpty()) for (String f : rev.getOrDefault(q.pop(), Set.of())) if (back.add(f)) q.push(f);
+        System.out.println("== backward closure (may reach the target): " + back.size() + " methods; by class (in closure / methods)");
+        TreeMap<String, int[]> byClass = new TreeMap<>();
+        for (ClassFile c : all.values()) for (Method m : c.methods()) {
+            int[] n = byClass.computeIfAbsent(c.name(), k -> new int[2]);
+            n[1]++;
+            if (back.contains(key(c.name(), m.name(), m.descriptor()))) n[0]++;
+        }
+        byClass.forEach((k, n) -> { if (n[0] > 0) System.out.println("  " + n[0] + "/" + n[1] + "\t" + k); });
+        for (int i = 1; i < args.length; i++) {
+            String root = args[i];
+            List<String> roots = edges.keySet().stream().filter(k -> k.startsWith(root)).sorted().toList();
+            System.out.println("== forward from " + root + " (" + roots.size() + " roots)");
+            Map<String, String> parent = new HashMap<>();
+            Deque<String> w = new ArrayDeque<>(roots);
+            roots.forEach(r -> parent.put(r, null));
+            String hit = null;
+            int seen = 0;
+            while (!w.isEmpty() && hit == null) {
+                String f = w.poll();
+                seen++;
+                if (target.contains(f)) { hit = f; break; }
+                for (String t : edges.getOrDefault(f, Set.of())) if (!parent.containsKey(t)) { parent.put(t, f); w.add(t); }
+            }
+            System.out.println("  reachable methods walked: " + seen + "; reaches the target: " + (hit != null));
+            for (String p = hit; p != null; p = parent.get(p)) System.out.println("    " + p);
+        }
+    }
+
+    static String key(String o, String n, String d) { return o + "#" + n + d; }
+
+    static void clinit(Set<String> out, String owner) {
+        ClassFile c = all.get(owner);
+        if (c != null) for (Method m : c.methods()) if (m.name().equals("<clinit>")) out.add(key(owner, "<clinit>", m.descriptor()));
+    }
+
+    /** invokespecial, invokestatic, a static or special method handle: the first declaration up from the owner */
+    static Set<String> exact(Ref r) {
+        Deque<String> up = new ArrayDeque<>(List.of(r.owner()));
+        Set<String> seen = new HashSet<>();
+        while (!up.isEmpty()) {
+            String o = up.poll();
+            if (!seen.add(o)) continue;
+            ClassFile c = all.get(o);
+            if (c == null) continue;
+            for (Method m : c.methods()) if (m.name().equals(r.name()) && m.descriptor().equals(r.descriptor())) return Set.of(key(o, m.name(), m.descriptor()));
+            if (c.superName() != null) up.add(c.superName());
+            up.addAll(c.interfaces());
+        }
+        return Set.of();
+    }
+
+    /** a virtual or interface call: every declaration of r's name and descriptor in r's owner's hierarchy, up and down
+     *  (a JDK owner is not descended into the project: an Object.toString() call does not reach every override) */
+    static Set<String> resolve(Ref r) {
+        if (!all.containsKey(r.owner())) return Set.of();
+        Set<String> out = new HashSet<>();
+        Set<String> classes = new HashSet<>();
+        Deque<String> up = new ArrayDeque<>(List.of(r.owner()));
+        while (!up.isEmpty()) {
+            String o = up.pop();
+            if (!classes.add(o)) continue;
+            ClassFile c = all.get(o);
+            if (c == null) continue;
+            if (c.superName() != null) up.push(c.superName());
+            c.interfaces().forEach(up::push);
+        }
+        Deque<String> down = new ArrayDeque<>(List.of(r.owner()));
+        Set<String> seenDown = new HashSet<>();
+        while (!down.isEmpty()) {
+            String o = down.pop();
+            if (!seenDown.add(o)) continue;
+            classes.add(o);
+            down.addAll(subs.getOrDefault(o, List.of()));
+        }
+        for (String o : classes) {
+            ClassFile c = all.get(o);
+            if (c == null) continue;
+            for (Method m : c.methods()) if (m.name().equals(r.name()) && m.descriptor().equals(r.descriptor()) && !m.isAbstract()) out.add(key(o, m.name(), m.descriptor()));
+        }
+        return out;
+    }
+}

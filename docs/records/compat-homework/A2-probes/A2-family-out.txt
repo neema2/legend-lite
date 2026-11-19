@@ -1,0 +1,16 @@
+== top-level classes naming the printers or EngineTextDialect:
+  com/legend/edge/EngineStyleComposite <- [com/legend/edge/PureText]
+  com/legend/edge/EngineStyleDB2 <- [com/legend/edge/EngineStyleComposite, com/legend/edge/PureText]
+  com/legend/edge/EngineStyleH2 <- [com/legend/edge/EngineStyleDB2, com/legend/edge/PureText]
+  com/legend/edge/EngineTextDialect <- [com/legend/edge/EngineAllocations, com/legend/edge/EnginePlans, com/legend/edge/EngineStyleH2, com/legend/edge/PlanEnvelope, com/legend/edge/PureText, com/legend/edge/TestDataPlanText]
+== the family: top-level edge classes only the printers and the family refer to:
+  com/legend/edge/EngineStyleComposite  <- [com/legend/edge/PureText]
+  com/legend/edge/EngineStyleDB2  <- [com/legend/edge/EngineStyleComposite, com/legend/edge/PureText]
+  com/legend/edge/EngineStyleH2  <- [com/legend/edge/EngineStyleDB2, com/legend/edge/PureText]
+  com/legend/edge/EngineTextDialect  <- [com/legend/edge/EngineAllocations, com/legend/edge/EnginePlans, com/legend/edge/EngineStyleH2, com/legend/edge/PlanEnvelope, com/legend/edge/PureText, com/legend/edge/TestDataPlanText]
+== top-level edge classes referring to the family from outside it:
+  com/legend/edge/EngineAllocations -> [EngineTextDialect]
+  com/legend/edge/EnginePlans -> [EngineTextDialect]
+  com/legend/edge/PlanEnvelope -> [EngineTextDialect]
+  com/legend/edge/PureText -> [EngineStyleComposite, EngineStyleDB2, EngineStyleH2, EngineTextDialect]
+  com/legend/edge/TestDataPlanText -> [EngineTextDialect]
