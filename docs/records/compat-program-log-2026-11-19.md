@@ -1432,3 +1432,28 @@ who confirms or changes phases 1-3.
   4. **the cross-kind `!=` fix**, done at `63421e0a` on `claude/hosts-followups`, not landed. **Gates A3.**
   The product orchestrator stays reachable for questions. **Put to the user (14:15):** the program takes over 1, 3 and 4
   now as stage-A prerequisites (and 2 at stage B), each landing on the user's word.
+- **~13:48 UTC, H11 continued: the corpus half's interim** (`claude/compat-relation-text-spike`, census at `ebb99c01`).
+  Java printers on (toString, toCSV, toCSV→replace as the CSVJOIN form, a TDS's csv), the SQL builder off, against a
+  baseline of the same head: the baseline is green with every roster equal (so the stopped session's "2 suites fail"
+  was its own measurement run).
+  - **DuckDB:** 282 comparisons, 253 byte-equal, 18 held by the ruled comparison (S131/S132), 11 differ, all 11 on
+    `main` too (10 accepted divergences, 1 failing on both): **0 differences caused by the printer.** **H2:** 282, 270
+    byte-equal, 1 ruled, the same 11.
+  - **Moves:** both lanes 12 pass to fail; H2 also 3 fail to pass (calendar CSVJOIN `testMtdValue`,
+    `testSubclassValue`; `testGroupByWithFilterFunction_noDatePath`: the golden spells a whole Float `3.0`, the SQL
+    builder printed `3`, the Java printer prints upstream's). The 12 losses all reached the SQL builder, which is off:
+    11 `assertSameElements(..., toCSV(...))` (testGroupBy x5, resultSourcing x6) and 1 `testEnumInRelation`'s
+    `cast(@TDS<Any>).csv` (a missed cast receiver, fixed, re-running).
+  - **Stop-and-tell, no hook added:** the edge's hook (`EngineTestText` via `AssertVerdicts.planArm`) is consulted only
+    for `assertEquals`/`assertNotEquals`; `assertSameElements` over a print goes straight to the product's
+    `renderedPlan`. 22 corpus sides (11 run). **This session's answer (14:20):** the judges' `HostJudgment.Printed`
+    design (H10 §9.6, B2's) closes it if `Printed` is planned for every assert family over a printed side; sent to both
+    sessions as a requirement. H11 runs a hybrid run to show nothing else moves, then writes the record.
+  - **The census:** PCT's judge side 431 prints, all relation toString at a side's root, 0 composed. The corpus's 980
+    assert sides in 828 tests: relation texts at the root 455 (toString 253, toCSV 160, csv 1), plus one composed
+    shape, `toCSV->replace('\n', sep)`, 41 tests, covered by the CSVJOIN form; the other 525 are cell values the test
+    composes over `.rows`, not relation texts. Only 1 corpus test reaches an edge value text in lowering.
+  - **Calendar 41 per lane:** DuckDB 20 byte-equal + 14 ruled + 7 accepted divergences; H2 33 + 1 + 7.
+  - **Abstract Date at midnight:** no corpus `toCSV` golden spells a time of day; upstream reads by the column's type
+    (legend-pure `ResultSetValueHandlers`: TIMESTAMP → DateTime with nine sub-second digits, hasHour even at midnight;
+    DATE → StrictDate), so the SQL builder's midnight rule is not upstream's; no cell where the two disagree.
