@@ -1594,3 +1594,15 @@ who confirms or changes phases 1-3.
   as a render form with `orderedForm=false` (lines as a multiset), so `Printed` must carry that order fact. The value
   half (composed cell values, the product's own text, no `Printed` needed): corpus `assertEquals` 361,
   `assertSameElements` 158, `assert` 5, `assertEq` 1; PCT 0. H11 stopped.
+- **~14:15 UTC, A5's first counts** (`claude/compat-judges-parity`, local: `main` + `7cd59a571` firstDayOfWeek,
+  `0fbae4318` testDateFromHour, `fd589b21b` the ruling-3 cases; the channel B LITE switch and its 5 targets built,
+  uncommitted). **LITE channel B, DuckDB, BOTH judges: 787 PASS, 462 FAIL of 1,249** (the homework's 786/463 plus
+  `testDateFromHour`). Per suite: essential 313/32 (39 s), grammar 136/1 (23 s), relation 100/369 (59 s), standard
+  145/60 (34 s), unclassified 93/0 (9 s). **The 462 by class:** 423 legend-pure's relation text (refused by name by
+  design); 16 legend-pure's error words; 7 legend-pure's print of a value (Float 3, DateTime 3, a date's format 1); 3
+  refused by name (format's `%05d`, `%r`, one more); **7 R4** (substring `testStart`, `testStartEnd`, the 2 sort keys,
+  indexOf `testSimple`, `testFromIndex`, `testIndexOfOneElement`: they leave in A3, told to the translator); 2
+  pre-existing (`acos(2.0)`, `asin(2.0)` raise nothing; legend-engine's manifest ledgers them too); 4 judge parity
+  (`AdjustBy*BigNumber`, being fixed: they become "both judges fail, the same database error"). Expected ledger: 462
+  rows, none a judge disagreement. **Size: about 1.5 days** (the AdjustBy fix half a day; channel A LITE half a day;
+  ledgers, ratchets and the PR a quarter; CI the rest).
