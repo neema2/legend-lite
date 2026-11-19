@@ -185,6 +185,12 @@ class NumbersProbeTest {
             if (!sum.contains(e.getValue()) || sum.contains("BIGNUMERIC") || sum.contains("Decimal(")) {
                 wrong.add(type + ": 0.1 + 0.2 is not over the doubles " + e.getValue() + ": " + sum);
             }
+            // BigQuery coerces a float literal cast to BIGNUMERIC as its own decimal digits (rem(0.3, 0.1) answered 0.0,
+            // its lane at 4d2f383c): the remainder's literal is a FLOAT64 cast from its text, whose value is the double
+            if (type == DatabaseType.BigQuery && !sql(model, "|rem(0.3, 0.1)").contains("CAST(CAST('0.3' AS FLOAT64)"
+                    + " AS BIGNUMERIC)")) {
+                wrong.add(type + ": rem(0.3, 0.1) casts the literal itself to BIGNUMERIC: " + sql(model, "|rem(0.3, 0.1)"));
+            }
             if (type == DatabaseType.SQLite) {
                 continue;   // a Decimal's arithmetic is refused by name there (D2a): the live half holds it
             }

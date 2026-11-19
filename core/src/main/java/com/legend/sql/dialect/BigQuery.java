@@ -2109,14 +2109,26 @@ public class BigQuery extends AnsiSqlRenderer {
      *  BIGNUMERIC: MOD takes no FLOAT64, measured); a zero divisor is NULL, as DuckDB's % (measured). */
     private SqlWriter.Piece remainder(SqlFn fn, List<SqlExpr> a) {
         boolean dbl = a.stream().anyMatch(BigQuery::isDouble);
-        SqlWriter.Piece x = dbl ? w -> w.append("CAST(").expr(a.get(0), 0).append(" AS BIGNUMERIC)")
+        SqlWriter.Piece x = dbl ? w -> w.append("CAST(").piece(exactOfDouble(a.get(0))).append(" AS BIGNUMERIC)")
                 : w -> w.expr(a.get(0), 0);
-        SqlWriter.Piece y = dbl ? w -> w.append("CAST(").expr(a.get(1), 0).append(" AS BIGNUMERIC)")
+        SqlWriter.Piece y = dbl ? w -> w.append("CAST(").piece(exactOfDouble(a.get(1))).append(" AS BIGNUMERIC)")
                 : w -> w.expr(a.get(1), 0);
         SqlWriter.Piece rem = w -> w.append("MOD(").piece(x).append(", ").piece(y).append(")");
         SqlWriter.Piece body = fn == SqlFn.REM ? rem
                 : w -> w.append("MOD(").piece(rem).append(" + ").piece(y).append(", ").piece(y).append(")");
         return w -> w.append("(CASE WHEN ").piece(y).append(" = 0 THEN NULL ELSE ").piece(body).append(" END)");
+    }
+
+    /** A remainder's operand on its way to BIGNUMERIC: a Float literal (the double, S20) as a FLOAT64 cast from its
+     *  text, since BigQuery coerces a float LITERAL cast to BIGNUMERIC as the literal's own decimal digits
+     *  ({@code CAST(0.3E0 AS BIGNUMERIC)} is exactly 0.3, so rem(0.3, 0.1) answered 0.0: the lane session's probe at
+     *  4d2f383c, 2026-11-19), where a FLOAT64 value keeps its binary value (a Float column's rem answers
+     *  0.09999999999999998, measured); any other operand as it is. */
+    private static SqlWriter.Piece exactOfDouble(SqlExpr e) {
+        if (e instanceof SqlExpr.FloatLit f && f.isDouble() && Double.isFinite(f.value())) {
+            return w -> w.append("CAST('" + Double.toString(f.value()) + "' AS FLOAT64)");
+        }
+        return w -> w.expr(e, 0);
     }
 
     /** GREATEST/LEAST over the arguments, each replaced by the next non-NULL one when it is NULL: NULL only when every
