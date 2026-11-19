@@ -3050,3 +3050,13 @@ who confirms or changes phases 1-3.
   variable to a relation-valued let); R2-S1 (an eval of a variable whose let the walk no longer takes reads clean:
   make it unverified, a plant); R2-S2 (refuseSharedLetRoots is wider than its reason for a value let; narrow it unless
   the probe says otherwise); a javadoc nit. Relayed, the probe first.
+- **~23:14 UTC, B1-R: heads** detector `0490d059a`, engine `1e522ab81`, review `1035b8f2e`. The class shapes guarded as
+  PureMeaningEngineTest cases (class project and filter substring, class project indexOf, DuckDB's own `substr(name,
+  0, 2)` planned under `engine`, the tree's qualified substring and indexOf refused by name under `engine`); no battery
+  pin moved. The reviewer's first-round nits done (the let shape pinned clean; the shape note's refusal sentence).
+  **A finding, ruled here:** a serialize tree naming a qualified property the fetch tree lacks: legend-engine never
+  computes it (`null`, or a NullPointerException mid-stream), lite computes it as legend-pure does. Not a refusal: a
+  recorded difference (lite follows Pure), PROPOSED row **S388** (allocated here) drafted by B2 for the user's word at
+  the batch PR, marked pre-existing. The reviewer's second round (7b70932b3: the relation-valued let probe, R2-S1,
+  R2-S2, a javadoc nit) re-sent to B1-R, the probe first (messages crossed). The translator is making piece 2's moves
+  on the user's word given in its session.
