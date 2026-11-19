@@ -70,13 +70,15 @@ const refusal = (status: number, message: string, kind: 'request' | 'notFound' |
  *  constant's name in lower case): lite's notFound, 404 (the user, 2026-11-17 ~23:31) -- a batch with missing IDs too,
  *  naming them (the orchestrator's ruling, the same night), as the server's mount reads them (LegendHttpServer.
  *  storeRoutes' MISSING). A path the store does not serve is no record missing: a malformed request, below. */
-const MISSING: ReadonlySet<string> = new Set(['query_not_found', 'queries_not_found', 'version_not_found']);
+// and a path under lite's mount the store does not serve (no_such_route: 404, as every unknown /api/lite/v1/ path; the
+// orchestrator's ruling of 2026-11-19; until then a malformed request)
+const MISSING: ReadonlySet<string> = new Set(['query_not_found', 'queries_not_found', 'version_not_found', 'no_such_route']);
 
 /** The store's refusals of a malformed request, whatever the store's status (upstream's 500 or 404, the edge's alone):
  *  lite's request, 400 (spec §3; PR #118 fix round, 2026-11-18) -- a path the store does not serve, a body's field it
  *  cannot read, a body it cannot read, a search with no term -- as the server's mount reads them (LegendHttpServer.
  *  MALFORMED_REQUEST). */
-const MALFORMED_REQUEST: ReadonlySet<string> = new Set(['no_such_route', 'field_unread', 'unreadable', 'no_search_term']);
+const MALFORMED_REQUEST: ReadonlySet<string> = new Set(['field_unread', 'unreadable', 'no_search_term']);
 
 /** The store's own answer: a refusal (400 and up) as lite's, its words the store's message, its kind read from the
  *  store's own (never from the status); anything else as it is. */

@@ -196,7 +196,8 @@ class LiteV1PlanningTest {
         for (String old : List.of("grammar/parseLambda", "grammar/printLambda", "grammar/modelElements",
                 "compilation/lambdaRelationType", "compilation/compile", "execution/plan", "execution/execute",
                 "grammar/tsItem", "grammar/jsonToTs/lambda")) {
-            refused(call(old, request()), "request", 400, "no such legend-lite API: /api/lite/v1/" + old);
+            // an unknown route, 404 notFound (the orchestrator's ruling of 2026-11-19: until then request, 400)
+            refused(call(old, request()), "notFound", 404, "no such legend-lite API: /api/lite/v1/" + old);
         }
     }
 
@@ -424,10 +425,25 @@ class LiteV1PlanningTest {
         assertEquals("{\"user\":\"someone\"}", LiteV1Api.user("POST", LiteV1Api.USER, " {} ", "someone").json());
         refused(LiteV1Api.user("POST", LiteV1Api.USER, "{\"x\":1}", "someone"), "request", 400,
                 "a user request has no key x (it holds none)");
-        refused(LiteV1Api.user("GET", LiteV1Api.USER, "", "someone"), "request", 400,
-                "lite's user operation is POST /api/lite/v1/user, not GET /api/lite/v1/user");
-        refused(LiteV1Api.notPosted("GET", LiteV1Planning.API + "model/check"), "request", 400,
-                "lite's operations take POST, not GET: /api/lite/v1/model/check");
+        LiteV1Api.Answer getUser = LiteV1Api.user("GET", LiteV1Api.USER, "", "someone");
+        refused(getUser, "methodNotAllowed", 405, "lite's user operation takes POST, not GET: /api/lite/v1/user");
+        assertEquals(Map.of("Allow", "POST"), getUser.headers());
+        refused(LiteV1Api.user("POST", LiteV1Api.USER + "/x", "", "someone"), "notFound", 404,
+                "no such legend-lite API: /api/lite/v1/user/x");
+        LiteV1Api.Answer put = LiteV1Api.notPosted("PUT", LiteV1Planning.API + "model/check");
+        refused(put, "methodNotAllowed", 405, "lite's operations take POST, not PUT: /api/lite/v1/model/check");
+        assertEquals(Map.of("Allow", "POST"), put.headers());
+        refused(LiteV1Api.notPosted("GET", LiteV1Planning.API + "model/nothing"), "notFound", 404,
+                "no such legend-lite API: /api/lite/v1/model/nothing");
+        // the known routes are the one road's: each answered by it, an unknown one refused notFound (the orchestrator's
+        // ruling of 2026-11-19: the set held equal to the switch; the census holds the switch to LITE_ROUTES)
+        for (String route : LiteV1Api.ROUTES) {
+            if (route.equals(LiteV1Api.USER) || route.equals(LiteV1Planning.API + "query/run")) {
+                continue;
+            }
+            assertFalse(Json.parseObject(LiteV1Api.answer(() -> LiteV1Api.operate(route, "{}", LiteV1Api.Models.COMPILED,
+                    com.legend.TypedQuery::projectPlan)).json()).getStringOr("kind", "").equals("notFound"), route);
+        }
     }
 
     @Test
@@ -450,9 +466,23 @@ class LiteV1PlanningTest {
             java.net.http.HttpResponse<String> get = client.send(java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create(base + "query/run")).GET().build(),
                     java.net.http.HttpResponse.BodyHandlers.ofString());
-            assertEquals(400, get.statusCode(), get.body());
-            assertEquals("{\"kind\":\"request\",\"message\":\"lite's operations take POST, not GET: "
+            // a known route by another method: 405, its Allow (the orchestrator's ruling of 2026-11-19: until then 400)
+            assertEquals(405, get.statusCode(), get.body());
+            assertEquals("{\"kind\":\"methodNotAllowed\",\"message\":\"lite's operations take POST, not GET: "
                     + LiteV1Planning.API + "query/run\"}", get.body());
+            assertEquals(java.util.Optional.of("POST"), get.headers().firstValue("Allow"));
+            // an unknown route by any method: 404, the path read first
+            java.net.http.HttpResponse<String> nowhere = client.send(java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(base + "query/nowhere")).GET().build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertEquals(404, nowhere.statusCode(), nowhere.body());
+            assertEquals("{\"kind\":\"notFound\",\"message\":\"no such legend-lite API: " + LiteV1Planning.API
+                    + "query/nowhere\"}", nowhere.body());
+            java.net.http.HttpResponse<String> getUser = client.send(java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(base + "user")).GET().build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertEquals(405, getUser.statusCode(), getUser.body());
+            assertEquals(java.util.Optional.of("POST"), getUser.headers().firstValue("Allow"));
             java.net.http.HttpResponse<String> user = client.send(java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create(base + "user"))
                     .POST(java.net.http.HttpRequest.BodyPublishers.noBody()).build(),

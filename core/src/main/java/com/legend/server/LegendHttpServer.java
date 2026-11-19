@@ -244,19 +244,19 @@ public class LegendHttpServer {
 
     /** The store's refusals of a record that does not exist, as the store writes their kind (lower case,
      *  {@code SavedQueries.refused}): lite's {@code notFound}, 404 (the user, 2026-11-17 ~23:31) -- a batch with
-     *  missing IDs too, naming them (the orchestrator's ruling, the same night: upstream's 500 is the edge's alone). A
-     *  path the store does not serve ({@code NO_SUCH_ROUTE}) is no such record: a malformed request,
-     *  {@link #MALFORMED_REQUEST}. */
+     *  missing IDs too, naming them (the orchestrator's ruling, the same night: upstream's 500 is the edge's alone) --
+     *  and a path under lite's mount the store does not serve ({@code NO_SUCH_ROUTE}: no such route, 404, as every
+     *  unknown {@code /api/lite/v1/} path; the orchestrator's ruling of 2026-11-19, handed to the host-parity track by the compatibility owner; until then a malformed request). */
     private static final java.util.Set<String> MISSING = java.util.Set.of(
             SavedQueries.Refusal.Kind.QUERY_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
             SavedQueries.Refusal.Kind.QUERIES_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
-            SavedQueries.Refusal.Kind.VERSION_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT));
+            SavedQueries.Refusal.Kind.VERSION_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
+            SavedQueries.Refusal.Kind.NO_SUCH_ROUTE.name().toLowerCase(java.util.Locale.ROOT));
 
     /** The store's refusals of a malformed request whatever the store's status (upstream's 500 or 404, the edge's
-     *  alone): lite's {@code request}, 400 (spec §3; PR #118 fix round, 2026-11-18) -- a path the store does not serve,
-     *  a body's field it cannot read, a body it cannot read, a search with no search term. */
+     *  alone): lite's {@code request}, 400 (spec §3; PR #118 fix round, 2026-11-18) -- a body's field it cannot read, a
+     *  body it cannot read, a search with no search term. */
     private static final java.util.Set<String> MALFORMED_REQUEST = java.util.Set.of(
-            SavedQueries.Refusal.Kind.NO_SUCH_ROUTE.name().toLowerCase(java.util.Locale.ROOT),
             SavedQueries.Refusal.Kind.FIELD_UNREAD.name().toLowerCase(java.util.Locale.ROOT),
             SavedQueries.Refusal.Kind.UNREADABLE.name().toLowerCase(java.util.Locale.ROOT),
             SavedQueries.Refusal.Kind.NO_SEARCH_TERM.name().toLowerCase(java.util.Locale.ROOT));

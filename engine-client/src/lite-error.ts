@@ -7,9 +7,9 @@
 // The kinds (spec §3), one closed list, and the HTTP status each is answered with: GENERATED from the product's own
 // (LiteV1Api.Kind; H4's P2, the user's CP-13 of 2026-11-19), never a hand list. A kind no binding writes is refused by
 // name.
-import { LITE_ERROR_KINDS, LITE_ERROR_STATUS, type LiteErrorKind } from './generated/lite-errors.ts';
+import { LITE_ERROR_HEADERS, LITE_ERROR_KINDS, LITE_ERROR_STATUS, type LiteErrorKind } from './generated/lite-errors.ts';
 
-export { LITE_ERROR_KINDS, LITE_ERROR_STATUS, type LiteErrorKind };
+export { LITE_ERROR_HEADERS, LITE_ERROR_KINDS, LITE_ERROR_STATUS, type LiteErrorKind };
 
 /** A refusal as every binding writes it. `where`: a position or a site, where there is one. `raise`: a data refusal's
  *  raise kind, in lower camel (`divideByZero`). */

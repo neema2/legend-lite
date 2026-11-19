@@ -214,7 +214,7 @@ public final class Boundary {
     }
 
     /** Lite's refusal kinds as every binding writes them, each with the HTTP status a refusal of it is answered with
-     *  ({@code {NAME: {wire, status}}}, {@link com.legend.server.LiteV1Api.Kind}): what a host's decoder reads a
+     *  ({@code {NAME: {wire, status, headers}}}, {@link com.legend.server.LiteV1Api.Kind}): what a host's decoder reads a
      *  refusal's {@code kind} against, and what its routes answer it with -- never a status table of the host's own
      *  (H4's P2, the user's CP-13 of 2026-11-19: Python's own rule answered a {@code notFound} with 400). */
     public static String refusalKinds() {
@@ -223,6 +223,8 @@ public final class Boundary {
             java.util.Map<String, Object> kind = new java.util.LinkedHashMap<>();
             kind.put("wire", k.wire());
             kind.put("status", k.status());
+            // the headers a refusal of the kind is answered with (a 405's Allow: the orchestrator's ruling of 2026-11-19)
+            kind.put("headers", k.headers());
             out.put(k.name(), kind);
         }
         return com.legend.json.Json.toCompact(out);

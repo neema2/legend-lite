@@ -198,12 +198,14 @@ const refusal = (kind: 'notFound' | 'request' | 'internal', message: string): st
 
 /** The store's refusal kinds of a record that does not exist (SavedQueries.Refusal.Kind; lite API v1 §3's notFound, the
  *  user's ruling of 2026-11-17 ~23:31): a missing id, a batch with missing ids, a missing version. */
-const MISSING = new Set(['query_not_found', 'queries_not_found', 'version_not_found']);
+// and a path under lite's mount the store does not serve (no_such_route: 404, as every unknown /api/lite/v1/ path; the
+// orchestrator's ruling of 2026-11-19; until then a malformed request)
+const MISSING = new Set(['query_not_found', 'queries_not_found', 'version_not_found', 'no_such_route']);
 
 /** The store's refusal kinds of a malformed request (lite API v1 §3's request, 400, whatever the store's status --
  *  legend-engine's 500 or 404 are the edge's alone; PR #118 fix round, 2026-11-18): a path the store does not serve, a
  *  body's field it cannot read, a body it cannot read, a search with no term (LegendHttpServer.MALFORMED_REQUEST). */
-const MALFORMED_REQUEST = new Set(['no_such_route', 'field_unread', 'unreadable', 'no_search_term']);
+const MALFORMED_REQUEST = new Set(['field_unread', 'unreadable', 'no_search_term']);
 
 /** The store's refusal in lite's shape, as the server's lite mount answers it (LegendHttpServer.storeRoutes): its words
  *  its own message, its kind by the STORE's own refusal kind, never by the status alone -- a missing record

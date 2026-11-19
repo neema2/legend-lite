@@ -395,12 +395,14 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
 
 
 # the store's refusals of a record that does not exist, as the store writes their kind (SavedQueries.refused):
-# lite's notFound, 404 (the user, 2026-11-17 ~23:31), as the server's lite route reads them (LegendHttpServer.MISSING)
-_MISSING = frozenset({'query_not_found', 'queries_not_found', 'version_not_found'})
+# lite's notFound, 404 (the user, 2026-11-17 ~23:31), as the server's lite route reads them (LegendHttpServer.MISSING) --
+# and a path under lite's mount the store does not serve (no_such_route: 404, as every unknown /api/lite/v1/ path; the
+# orchestrator's ruling of 2026-11-19; until then a malformed request)
+_MISSING = frozenset({'query_not_found', 'queries_not_found', 'version_not_found', 'no_such_route'})
 # the store's refusals of a malformed request, whatever the store's status (upstream's 500 or 404, the edge's alone):
 # lite's request, 400 (spec §3; PR #118 fix round, 2026-11-18), as the server's lite route reads them
 # (LegendHttpServer.MALFORMED_REQUEST)
-_MALFORMED_REQUEST = frozenset({'no_such_route', 'field_unread', 'unreadable', 'no_search_term'})
+_MALFORMED_REQUEST = frozenset({'field_unread', 'unreadable', 'no_search_term'})
 
 
 def _lites_refusal(answer: Answer) -> Answer:
@@ -662,7 +664,8 @@ class Engine:
         by the product's one rule (``compiler.lite_route``: the server's router), its planning on the compiler's
         threads."""
         status, said = _on_compiler_threads(lambda: compiler.lite_route(path, body, method))
-        return Answer(status, 'application/json', said.encode('utf-8'))
+        # a refusal's headers its kind's, the product's (a 405's Allow: the orchestrator's ruling of 2026-11-19)
+        return Answer(status, 'application/json', said.encode('utf-8'), compiler.route_headers(status, said))
 
     def _query_run(self, body: str) -> Answer:
         """LITE'S query/run ON PYTHON'S SERVER (the spec's §2, §4; the host train, 2026-11-17): ``{model, query, runtime,

@@ -30,6 +30,7 @@ LegendError = _folded.LegendError
 # product says them (``lite_refusal_kinds``), each read once
 _KINDS: dict[str, str] | None = None
 _STATUSES: dict[str, int] | None = None
+_HEADERS: dict[str, dict[str, str]] | None = None
 
 
 def _said_kinds() -> dict[str, dict[str, Any]]:
@@ -166,6 +167,27 @@ def answered_http(text: str) -> tuple[int, str, str]:
         return _folded.unfold_http(text)
     except LegendError as refused:
         raise _known(refused) from None
+
+
+def refusal_headers(kind: str) -> dict[str, str]:
+    """The HTTP headers a refusal of ``kind`` (its wire text) is answered with beside its status -- a 405's ``Allow`` --
+    the product's (``LiteV1Api.Kind.headers``, through ``lite_refusal_kinds``), read once; none for most kinds."""
+    global _HEADERS
+    if _HEADERS is None:
+        _HEADERS = {said['wire']: dict(said['headers']) for said in _said_kinds().values()}
+    return _HEADERS.get(kind, {})
+
+
+def route_headers(status: int, said: str) -> dict[str, str]:
+    """The headers lite's route answer ``said`` (its JSON) goes with: a refusal's kind's (``refusal_headers``), none for
+    an answer (the native entry folds a route's status and body, never its headers: ``Folded.http``)."""
+    if status < 400:
+        return {}
+    try:
+        kind = _json.loads(said).get('kind')
+    except (ValueError, AttributeError):
+        return {}
+    return refusal_headers(kind) if isinstance(kind, str) else {}
 
 
 def refused_route(refused: LegendError) -> tuple[int, str]:

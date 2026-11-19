@@ -726,14 +726,16 @@ class PureV1ApiTest {
         assertEquals(404, missing.status());
         assertEquals("{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: /api/pure/v1/nope\",\"status\":\"error\"}",
                 missing.json());
-        // lite's own routes refuse a path that names no operation in lite's one shape, kind request (lite's API v1 spec
-        // §3, 2026-11-17; until then the engine's envelope)
+        // lite's own routes refuse a path that names no operation in lite's one shape, kind notFound, 404 (lite's API v1
+        // spec §3, 2026-11-17; until then the engine's envelope; notFound since the orchestrator's ruling of 2026-11-19,
+        // until then request, 400)
         LiteV1Api.Answer nope = lite("/api/lite/v1/nope", "");
-        assertEquals(400, nope.status(), nope.json());
-        assertEquals("{\"kind\":\"request\",\"message\":\"no such legend-lite API: /api/lite/v1/nope\"}", nope.json());
+        assertEquals(404, nope.status(), nope.json());
+        assertEquals("{\"kind\":\"notFound\",\"message\":\"no such legend-lite API: /api/lite/v1/nope\"}", nope.json());
         // the product names no legend-engine path: one of its, unknown to lite's own routes, is answered in lite's words
-        // (B7, the orchestrator's ruling (3) of 2026-11-17; until then "no such legend-engine API in legend-lite")
-        assertEquals("{\"kind\":\"request\",\"message\":\"no such legend-lite API: /api/pure/v1/nope\"}",
+        // (B7, the orchestrator's ruling (3) of 2026-11-17; until then "no such legend-engine API in legend-lite") -- the
+        // lite route's answer, in LITE's shape; legend-engine's own route keeps its envelope (above)
+        assertEquals("{\"kind\":\"notFound\",\"message\":\"no such legend-lite API: /api/pure/v1/nope\"}",
                 lite("/api/pure/v1/nope", "").json());
 
         String[] ran = new String[1];

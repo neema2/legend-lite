@@ -976,7 +976,7 @@ class TheProductsStore(unittest.TestCase):
         # the edge's mount's)
         said = self.engine.answer('GET', '/api/lite/v1/queries/dataCube/a/b', '', None)
         self.assertEqual((said.status, json.loads(said.body)),
-                         (400, {'kind': 'request', 'message': 'no such legend-lite API: /api/lite/v1/queries/dataCube/a/b'}))
+                         (404, {'kind': 'notFound', 'message': 'no such legend-lite API: /api/lite/v1/queries/dataCube/a/b'}))
 
     def test_a_path_or_parameter_not_percent_encoded_is_a_malformed_request(self):
         # PH-1 of the PR #118 fix batch's audit (2026-11-18): the decoder's exception was the store's failure, 500

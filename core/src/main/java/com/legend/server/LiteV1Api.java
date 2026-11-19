@@ -181,7 +181,7 @@ public final class LiteV1Api {
             }
             // every other path, in lite's own words (B7, the orchestrator's ruling (3) of 2026-11-17: the product names
             // nothing engine-shaped, not even its paths' prefix; with the edge mounted, the edge serves legend-engine's)
-            default -> throw new MalformedRequest("no such legend-lite API: " + path);
+            default -> throw new UnknownRoute(path);
         };
     }
 
@@ -282,7 +282,8 @@ public final class LiteV1Api {
     /**
      * LITE'S ERROR KINDS (lite's API v1 spec §3, the audit's J18, 2026-11-17): every refusal, on every binding, is one of
      * these, written {@code {kind, message, where?, raise?}} ({@link Refusal}). Over HTTP the status follows the kind:
-     * 400 for parse, compile, unsupported, request and parameters; 422 for data; 500 for internal. There is no
+     * 400 for parse, compile, unsupported, request and parameters; 405 for a method a route does not take, with its
+     * {@code Allow} header; 404 for what does not exist; 422 for data; 500 for internal. There is no
      * {@code PARSER}/{@code COMPILATION}, no {@code code: -1}, no {@code status: "error"} and no {@code errorType} in the
      * product: legend-engine's envelope is the edge's ({@code com.legend.edge.EngineEnvelope}).
      */
@@ -299,18 +300,33 @@ public final class LiteV1Api {
         PARAMETERS(400, "parameters"),
         /** The request itself is malformed: a key it does not read or lacks, a value of the wrong kind. */
         REQUEST(400, "request"),
-        /** A saved query or saved page the request names does not exist (the user, 2026-11-17 ~23:31; spec §3). */
+        /** A known operation asked by a method it does not take (lite's operations take POST): the route exists, the
+         *  method does not; answered with {@code Allow: POST} (the orchestrator's ruling of 2026-11-19, H4's routes). */
+        METHOD_NOT_ALLOWED(405, "methodNotAllowed", Map.of("Allow", "POST")),
+        /** A saved query or saved page the request names, or a route under {@code /api/lite/v1/}, does not exist (the
+         *  user, 2026-11-17 ~23:31; spec §3; a route since the orchestrator's ruling of 2026-11-19). */
         NOT_FOUND(404, "notFound"),
         /** Anything else: a defect, said as one. */
         INTERNAL(500, "internal");
 
         private final int status;
         private final String wire;
+        private final Map<String, String> headers;
 
         // each kind's word explicit (2026-11-17, notFound: lower camel, which no spelling of the constant's name gives)
         Kind(int status, String wire) {
+            this(status, wire, Map.of());
+        }
+
+        Kind(int status, String wire, Map<String, String> headers) {
             this.status = status;
             this.wire = wire;
+            this.headers = headers;
+        }
+
+        /** The HTTP headers a refusal of this kind is answered with, beside its status (a 405's {@code Allow}). */
+        public Map<String, String> headers() {
+            return headers;
         }
 
         /** The kind as every binding writes it: {@code parse}, {@code compile}, ..., {@code notFound}. */
@@ -346,9 +362,17 @@ public final class LiteV1Api {
             return Json.toCompact(out);
         }
 
-        /** The refusal answered over HTTP: the kind's status, its JSON. */
+        /** The refusal answered over HTTP: the kind's status and headers, its JSON. */
         public Answer answer() {
-            return new Answer(kind.status(), json());
+            return new Answer(kind.status(), json(), "application/json", null, kind.headers());
+        }
+    }
+
+    /** A route under {@code /api/lite/v1/} that lite does not serve (kind {@code notFound}; the orchestrator's ruling of
+     *  2026-11-19: until then kind request, 400). */
+    public static final class UnknownRoute extends IllegalArgumentException {
+        public UnknownRoute(String path) {
+            super("no such legend-lite API: " + path);
         }
     }
 
@@ -387,23 +411,43 @@ public final class LiteV1Api {
     public static final String USER = "/api/lite/v1/user";
 
     /**
-     * A call of lite's routes in another method than POST, refused by name, kind {@code request} -- every binding's
-     * answer (H4's P4, the user's CP-13 of 2026-11-19: until then a GET was 400 lite JSON on the server and 404 text in
-     * Python).
+     * EVERY ROUTE LITE SERVES under {@code /api/lite/v1/} by POST (spec §2): the operations of {@link #operate}'s switch,
+     * {@code query/run} (a host's: {@link #route}) and {@code user} (a host's: {@link #user}) -- what tells a route that
+     * does not exist (404) from one asked by a method it does not take (405) (the orchestrator's ruling of 2026-11-19).
+     * Held equal to the switch's cases by the census (PlannerSurfaceTest, whose LITE_ROUTES rows are the switch's).
+     */
+    public static final java.util.Set<String> ROUTES = java.util.Set.of(
+            "/api/lite/v1/model/check", "/api/lite/v1/model/elements", "/api/lite/v1/query/parse",
+            "/api/lite/v1/query/print", "/api/lite/v1/query/type", "/api/lite/v1/query/plan", "/api/lite/v1/query/run",
+            "/api/lite/v1/model/createClass", "/api/lite/v1/model/createAssociation",
+            "/api/lite/v1/model/createDataSpace", "/api/lite/v1/ts/item", "/api/lite/v1/ts/statement", USER);
+
+    /**
+     * A call of lite's routes in another method than POST -- every binding's answer (H4's P4, the user's CP-13 of
+     * 2026-11-19; the orchestrator's ruling of that day): a route lite does not serve, kind {@code notFound} (the path
+     * is read first); a route it serves, kind {@code methodNotAllowed}, its {@code Allow: POST}, the method asked named.
+     * Until then a GET was 400 lite JSON on the server and 404 text in Python.
      */
     public static Answer notPosted(String method, String path) {
-        return refuse(Kind.REQUEST, "lite's operations take POST, not " + method + ": " + path);
+        if (!ROUTES.contains(path)) {
+            return refusal(new UnknownRoute(path)).answer();
+        }
+        return refuse(Kind.METHOD_NOT_ALLOWED, "lite's operations take POST, not " + method + ": " + path);
     }
 
     /**
      * LITE'S {@code user} OPERATION (spec §2; the orchestrator's Q-b ruling of 2026-11-17): {@code {user}}, who the store
      * keeps saved queries for -- {@code who}, the host's own caller (the server's {@code SavedQueries.ANONYMOUS},
      * Python's local user). POST, its request none: an empty body, or an empty object; any other request refused by
-     * name, kind {@code request} -- every binding's answer, so their words cannot differ (H4's P4, 2026-11-19).
+     * name, kind {@code request}; another method, kind {@code methodNotAllowed}; a path below it, kind {@code notFound}
+     * -- every binding's answer, so their words cannot differ (H4's P4, 2026-11-19).
      */
     public static Answer user(String method, String path, String body, String who) {
-        if (!"POST".equals(method) || !path.equals(USER)) {
-            return refuse(Kind.REQUEST, "lite's user operation is POST " + USER + ", not " + method + " " + path);
+        if (!path.equals(USER)) {
+            return refusal(new UnknownRoute(path)).answer();
+        }
+        if (!"POST".equals(method)) {
+            return refuse(Kind.METHOD_NOT_ALLOWED, "lite's user operation takes POST, not " + method + ": " + path);
         }
         return answer(() -> {
             // strip().isEmpty(), not isBlank(): text the tab writes alike (ArchitectureTest's portable-text rule)
@@ -440,6 +484,9 @@ public final class LiteV1Api {
         }
         if (e instanceof MalformedRequest) {
             return new Refusal(Kind.REQUEST, String.valueOf(e.getMessage()), null, null);
+        }
+        if (e instanceof UnknownRoute) {
+            return new Refusal(Kind.NOT_FOUND, String.valueOf(e.getMessage()), null, null);
         }
         return new Refusal(Kind.INTERNAL, e.getClass().getSimpleName() + ": " + e.getMessage(), null, null);
     }

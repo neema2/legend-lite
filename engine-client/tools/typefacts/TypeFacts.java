@@ -153,6 +153,22 @@ public final class TypeFacts {
         for (com.legend.server.LiteV1Api.Kind k : kinds) {
             out.append("  ").append(k.wire()).append(": ").append(k.status()).append(",\n");
         }
+        out.append("};\n\n")
+                .append("/** The HTTP headers a refusal of each kind is answered with, beside its status (a 405's Allow;\n")
+                .append(" *  LiteV1Api.Kind.headers): a kind with none is not named. */\n")
+                .append("export const LITE_ERROR_HEADERS: Readonly<Partial<Record<LiteErrorKind, Readonly<Record<string, string>>>>> = {\n");
+        for (com.legend.server.LiteV1Api.Kind k : kinds) {
+            if (k.headers().isEmpty()) {
+                continue;
+            }
+            out.append("  ").append(k.wire()).append(": {");
+            String sep = " ";
+            for (Map.Entry<String, String> h : new TreeMap<>(k.headers()).entrySet()) {
+                out.append(sep).append('\'').append(h.getKey()).append("': '").append(h.getValue()).append('\'');
+                sep = ", ";
+            }
+            out.append(" },\n");
+        }
         out.append("};\n");
         return out.toString();
     }

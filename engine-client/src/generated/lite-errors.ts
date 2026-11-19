@@ -4,7 +4,7 @@
 
 /** LITE'S ERROR KINDS (lite's API v1 spec §3), as every binding writes them: LiteV1Api.Kind's wire words, in
  *  its order. */
-export const LITE_ERROR_KINDS = ['parse', 'compile', 'unsupported', 'data', 'parameters', 'request', 'notFound', 'internal'] as const;
+export const LITE_ERROR_KINDS = ['parse', 'compile', 'unsupported', 'data', 'parameters', 'request', 'methodNotAllowed', 'notFound', 'internal'] as const;
 
 /** A refusal's kind. */
 export type LiteErrorKind = (typeof LITE_ERROR_KINDS)[number];
@@ -17,6 +17,13 @@ export const LITE_ERROR_STATUS: Readonly<Record<LiteErrorKind, number>> = {
   data: 422,
   parameters: 400,
   request: 400,
+  methodNotAllowed: 405,
   notFound: 404,
   internal: 500,
+};
+
+/** The HTTP headers a refusal of each kind is answered with, beside its status (a 405's Allow;
+ *  LiteV1Api.Kind.headers): a kind with none is not named. */
+export const LITE_ERROR_HEADERS: Readonly<Partial<Record<LiteErrorKind, Readonly<Record<string, string>>>>> = {
+  methodNotAllowed: { 'Allow': 'POST' },
 };
