@@ -639,3 +639,23 @@ H13's reply (2026-11-19, `claude/compat-error-records-spike` at `538ab17d`): its
 - H13's database-judge change binds a planned failure's words at the verdict's turn instead of planting them at
   planning (+15/−4). It fixes the 4 `*_InvalidWindowFrameBoundary` channel B tests and ports to this spike's
   `TestRun` as written. It is unneeded once 2.2a deletes the compatibility database judge.
+
+### 9.9 The owner's calls (2026-11-19, 13:38) and R-S137 on the prepared body
+
+The owner ruled the corpus door as §9.7's third shape. `PureTestRunner.prepare(TestCase)` returns a public `Prepared`,
+`run(Prepared)` runs it, and `Prepared.withBody` re-states the facts. The spec harness composes prepare, the edge's
+rewrites (R-S15 first, then R-S131, R-S137, R-S144) and run. The `RelationCounting` two-form is deleted in the same
+step. B2's design takes H11's relation text as the product kind `Printed`, with §9.6's amendment.
+
+**R-S137 is a rewrite of the prepared body.** `UpstreamRelationCounting.countedAsOne` is already a typed
+`List<TypedSpec>` walk: the relation argument of `assertSize` or `assertNotEmpty` is replaced by the literal 1.
+
+**Its one refusal, `assertEmpty($rel)`** (`UpstreamRelationCounting.java:71`, a `ModelException` with the
+compatibility text), is raised by the edge's rewrite in the harness, before `run(Prepared)`.
+- The harness reports it as the test's FAIL with the runner's own reason text: a public `Result`, built as
+  `"ModelException: " + PureTestRunner.whole(message)`.
+- The only difference is that it is reported before the package's setups run.
+- It meets no lane: no corpus FAIL line carries the text, and S137's 21 decisions per lane are all
+  `assertSize`/`assertNotEmpty`.
+
+`RelationCountAsserts.REFUSED` stays, called directly by the test planner, as lite's own refusal.
