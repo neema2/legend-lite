@@ -763,3 +763,35 @@ lite answers an Integer-printed value where the test, and legend-engine's own co
 
 pure/v1's golden net covers H2's `sqrt` and divide. The ENGINE lane can grow those suites (B1-R's) if 3.6 needs them.
 
+### (j.3) pure/v1's plain-set answers, per database
+
+The orchestrator's addition. pure/v1 is the only door that reaches the plain set ((d)). Its 6 plain answers there
+(`DIVIDE_BY_ZERO` 3, `SQRT_OF_NEGATIVE` 3) are the lowerings of two golden-net requests, through their execute and
+plan routes:
+- `raise.divideByZero`: `$r.year->toOne() / 0`;
+- `raise.sqrtOfNegative`: `sqrt(-2.0)`.
+
+legend-engine 4.145.0's answers are B1-R's oracle's (`tools/engine-runner/src/test/resources/pure_v1/engine_{h2,duckdb}_answers.tsv`
+at `815690a57`). DuckDB's own answers come from DuckDB 1.5.6, lite's version (`H8j_DuckDbDivide.java.txt`, appended to
+`H8j-duckdb-plain.txt`).
+
+| Request | Database | legend-engine | Lite, plain (today) | Lite, checked (the probe) | Ordinary-function rewrite |
+|---|---|---|---|---|---|
+| `raise.divideByZero` | H2 | 500, H2's "Division by zero" | 500, the same error | 500, lite's raise | **none needed**: the status is kept, the words are the presenter's |
+| `raise.divideByZero` | DuckDB | 200, `null` | not run here; DuckDB 1.5.6 answers the unchecked `/ 0` with `Infinity` (IEEE division), so the plain form would NOT reproduce legend-engine's `null` | 500, lite's raise | **yes:** `if($d == 0, \|[], \|$x / $d)` answers `null` |
+| `raise.sqrtOfNegative` | H2 | 200, `null` | 200, `null` (measured) | **500** (measured) | **yes:** `if($x < 0, \|[], \|sqrt($x))` answers `null` |
+| `raise.sqrtOfNegative` | DuckDB | 500, DuckDB's "Out of Range Error" | 500, the same error (DuckDB 1.5.6: Out of Range Error) | 500, lite's raise | **none needed**: the status is kept |
+
+**Each rewrite is needed on one database and wrong on the other.** On H2 the divide raises as legend-engine does, and
+the square root needs the guard. On DuckDB it is the reverse. A guard written on both databases would turn
+legend-engine's error into a null on the other one. So the rewrites must be per target, as the translator's
+"target-aware" rule says.
+
+**The plain set does not reproduce legend-engine on DuckDB's divide either.** Its answer depends on the database's
+version: lite's DuckDB answers `Infinity`, where legend-engine's answers null. So the guard is the only way to match
+there.
+
+The translator session measured the same strand on its own branch (`claude/compat-translator-spike` `d5ba073e`, `h5/purev1`):
+`plain` moves pure/v1's `raise.sqrtOfNegative` from 200 null to a raise, and changes only `divideByZero`'s words. That
+agrees with (j.1).
+
