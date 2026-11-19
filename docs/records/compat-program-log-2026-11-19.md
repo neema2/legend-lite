@@ -1179,3 +1179,35 @@ who confirms or changes phases 1-3.
   (§7: find the door first; thread the hearing, not a function; presenters as thin adapters; a failing fixture per
   record kind, since the lanes reach 9 of 25; measure the base's noise first). H6 corrected: `HostWords` has 27
   methods (25 kinds). The answers to this session's four door questions (13:28) crossed with this message; awaited.
+- **~13:32 UTC, B2's A2 shape note** (`claude/census-b2` at `1e8e817ee`: `A2-shape-note.md`, `A2-roster.tsv`,
+  `A2-probes/`).
+  - **The deletion list, from the bytecode:** 4 whole files (`EngineStyleH2`, `EngineStyleDB2`,
+    `EngineStyleComposite`, `EngineTextDialect`: 2,990 lines), a closed set instantiated only by the two `PureText`
+    factories (`engineText` :298, `enginePlanText` :312). In-file: the two factories; `EdgeLoweringForms.engineSql`
+    and `EngineShape` (:155-162, :186-272); `RelationalRootForm.apply` and `enumRawColumn` (:44-206;
+    `primaryKeyColumns`, `stripQ`, `dedup` stay, the product's key rule at 9 sites). A correction: `apply` has a second
+    caller, `Compiler.lowerResolved:962-964`, dead (every caller passes false), so the flag goes and two
+    `PlannerSurfaceTest` signatures move. The plan-text family (`EnginePlans`, `PlanText`, `PlanEnumForm`,
+    `InProtocol`, `PlanVariables`, `EngineParams`, `EngineSpans`, `EngineAllocations`, `PlanEnvelope`,
+    `TestDataPlanText`) is referred to from outside the printers: only its printer seams go (17 call sites, each with
+    its answer afterwards).
+  - **Afterwards:** lite's own SQL where lite has a dialect, which widens `toSQLString` and plan text from H2, DB2 and
+    Composite to all 12 lite dialects (a move toward E-R2); the 13 databases without a dialect refused by name at
+    `Databases.dialect` (`Databases.java:95-97`). `toDDL`: `ddlText` makes both the printed text and the 3 executed
+    setups, so PR 1 writes lite's H2 DDL (passed all 3 on both lanes) and leaves raw to PR 2.
+  - **generatePlan, by bytecode** (rapid type analysis plus each style hook's key): it reaches the printers through 2
+    hooks under PURE_V1 (the `UpstreamPlans` facet: plan-text natives, DDL natives, executionPlan reads,
+    `BodyPlanner.prepare:311`; the `ActivityTexts` two-form: a query reading an execute's `activities[].sql`,
+    `ResultEnvelopeSplice` → `PlanAllocations.activitySql`). With both cut, no path (26,945 nodes). So "generatePlan
+    reaches none of the deleted code" holds for an ordinary query only. **This session's call:** that is CP-4's
+    promise; PR 1 proves it with planted requests (an ordinary one byte-identical; one of each hook's shape answering
+    lite's text). The plain plan's line is corrected.
+  - **The roster, 155 tests:** H2 147 move with A2 today (64, 20, 52, 3, 2 and 6 by cause) plus the 3
+    `testPlanForDateTimeConstantParameter*` once R4 lands, 150; DuckDB 152 (64, 22, 53, 4, 3, 6) plus 3, 155.
+    Reconciled with H12: all 147 and 152 are text-attributed there, 0 mismatches.
+  - **Guards:** 9 guard tests plus the rosters, the edge nets and the lean-SQL baseline, each with its lines and a
+    dated justification ("slice 2.3a (A2) ... CP-4 ..."); all but the rosters and nets shrink; `DialectBoundaryTest`'s
+    ratchet 17 to 14.
+  - **Slices: two PRs, about 5 days** (PR 1, 2 to 3 days: the printers out and an adapter in, every ruled move; PR 2,
+    about 2: the family's spelling-only code, nothing further moving). Accepted (13:45); the final plan's A2 row
+    rewritten from it.

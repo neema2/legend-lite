@@ -91,11 +91,10 @@ reverse). They are with the product track.
 written for H2. To run it on DuckDB, the door converts that setup SQL. Without it, all 2,452 DuckDB corpus tests fail at
 setup. That conversion stays, at the door.
 
-**Being re-checked:** Studio's "generate plan" for an ordinary query is built from lite's own plan in legend-engine's
-plan envelope (`PureV1Routes.generatePlan`). That was read from the code. B2's check of the compiled code finds one path
-to the SQL-spelling code A2 deletes: a query that itself asks for SQL text (`toSQLString`, `planToString`, the DDL
-functions) sent through the legend-engine server. B2 is confirming it by a run, counting the recorded requests that
-take it, and naming what such a request answers after A2.
+**Checked in the compiled code:** Studio's "generate plan" for an ordinary query reaches none of the code A2 deletes
+(26,945 call paths walked). Two kinds of query do reach it: one that itself asks for SQL text (`toSQLString`,
+`planToString`, the DDL functions), and one that reads the SQL out of an execute's activities. After A2 both answer lite's
+own SQL, which is row 2 above (SQL text not promised). A2's first pull request proves both by a planted request.
 
 **Not measured by anyone yet:** other legend-engine databases (Snowflake, Postgres, Databricks and the rest) for the
 rows above; real deployed legend-engine projects (legend-engine's six public showcase projects have 0 calls of the
