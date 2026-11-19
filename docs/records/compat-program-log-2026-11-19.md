@@ -2376,3 +2376,12 @@ who confirms or changes phases 1-3.
   corpus differences explained). Limits: 6,759 helper bodies would not type (every H11 side was still found). Asked:
   the 46 tests' outcomes on `main` and under the ruled B2, whether any lite text could pass the 41, and whether
   `println(<relation text>)` can count as a last step.
+- **~19:24 UTC, A3 piece 4 for the reviewer** (B2: `claude/compat-a3-docs` at `a0505ebe6`, local; reading copy on
+  `origin/claude/census-b2` at `0eacaecdc`): the differences page now says "nothing changes silently" (refuse by
+  default, `warn` an operator's choice, no load-time report), S130 and S134 the same; the rules of record carried as a
+  copy (refreshed at assembly); ids S380-S385 as allocated; `//gates:checks` 197 pass. Sent to the reviewer.
+- **~19:23 UTC, the user asked what the closed edge-file list guards against.** Answered: `JavaEvalLedgerTest`'s
+  closed registers keep Java from quietly doing the database's work (a new file fails until it is named with a reason,
+  existing ones only shrink, an addition needs the user's word); `LiteSqlText.java` computes no value (it asks lite's
+  dialect for the plan's SQL text) and the list shrinks net (four printers, about 3,000 lines, out; one 95-line file
+  in). Recommended yes.
