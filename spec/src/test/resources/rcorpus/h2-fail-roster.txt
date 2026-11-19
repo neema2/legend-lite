@@ -280,14 +280,12 @@ meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionFor
 meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInWeeks
 meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInYears
 meta::relational::tests::functions::sqlstring::testGreatestLeast
-meta::relational::tests::functions::sqlstring::testHashFunctions
 meta::relational::tests::functions::sqlstring::testIsDistinctSQLGeneration
 meta::relational::tests::functions::sqlstring::testLeftRight
 meta::relational::tests::functions::sqlstring::testNotEqualityInFilterOnOptionalPropertiesLegacy
 meta::relational::tests::functions::sqlstring::testPad
 meta::relational::tests::functions::sqlstring::testSqlGenerationDivide_AllDBs
 meta::relational::tests::functions::sqlstring::testToSQLStringComposite
-meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin
 meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat
 meta::relational::tests::functions::sqlstring::testToSQLStringNonPrestoSchemaNameShouldNotConvertDollarSign
 meta::relational::tests::functions::sqlstring::testToSQLStringReverse
