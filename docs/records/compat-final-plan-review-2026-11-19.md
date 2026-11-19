@@ -239,3 +239,37 @@ replays on the session only if `TestBackends.of(session) == TestBackends.referee
 4. **"2 to 3 weeks":** the best case. About 3, and 4 if the product-track gates slip (S4).
 5. **The verdict:** not yet. Write M1-M5 into the plan, then it is ready for the user to ratify stage A. S1-S4 can ride
    in the same edit.
+
+## 6. Re-check of `51888e28` (~13:40 UTC)
+
+I read the final plan's §3-§5 and §4a, the plain plan's row 1 and H6 §6.3 at their new heads.
+
+**Must-fix:**
+- **M1, met.** `indexOf` always warns. The option quiets `substring` only, citing `pureToSQLQuery.pure:4662` against
+  `:10644`. The test for it is planted: "quiet for `substring` and NOT for `indexOf`".
+- **M2, met.** The order is fixed (A1, A2, A3, A4). A2 moves its roster by name (H2 147, DuckDB 152) with 0 mismatches
+  against the dry run. A3 moves exactly 7 per database by name: 4 answers and the 3 hidden text tests.
+- **M3, met.** A3 drops lite's PCT adapter's option after the core switches. Its proof is channels A and B unchanged
+  without the option, and the user's word on reversing the 2026-09-12 and 2026-11-07 rulings is listed.
+- **M4, met.**
+  - A2 is rebuilt from B2's shape note (`1e8e817ee`): 2,990 lines in four files, the 17 printer seams, two PRs, about 5
+    days.
+  - The pure/v1 SQL-text answer is decided (lite's own SQL under CP-4), pinned as a golden line with a register row.
+  - Studio's ordinary generate-plan answer is proven byte-identical by a planted request.
+- **M5, met.** A4 is gated on the 5 parity fixes and the both-judges PCT lane. Its done-when adds both corpus rosters
+  byte-identical, and S131 stays out.
+
+**Should-fix and minor:** S1-S4 and N1-N3 are folded in:
+- the row-6 strands are in B4 with their counts;
+- §4a has the reach, the H2 literal-0 exemption (conditional on a measurement), the bounded header with its client
+  test, and the load-time report;
+- row 1 is corrected;
+- the size reads "about 3 weeks; 2 at best; 4 if the product's gates slip";
+- the 22 is split into 12 and 10;
+- H6 §6.3 is marked CORRECTED;
+- the amendment rides A3's PR;
+- B5 keeps refusing the other flags by name;
+- warehouse query cost is listed as not measured.
+
+**Verdict: stage A is ready for the user to ratify.** One decision is the user's at ratification: the detector's
+default. My view stands: warn, with the load-time report; refuse by default if the report is not built.
