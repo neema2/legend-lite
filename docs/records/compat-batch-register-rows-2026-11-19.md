@@ -35,4 +35,4 @@ test files declare `DuckDB { path: ... }`: `ElementParserTest` only parses it; t
 legend-engine's models declare no DuckDB path. None has two failing parts in different pipelines, so no test reaches
 the gap today.
 
-- **S388** (allocated 2026-11-19 ~23:15, PROPOSED, for the user's word at the batch PR): a graphFetch serialize tree naming a qualified property the fetch tree lacks; legend-engine serializes `null` or fails with a NullPointerException; lite computes it as legend-pure does. Found during A3 (B1-R's probes `graph.serialize.extra.*`), pre-existing on main. Drafted by B2 on `claude/compat-a3-docs`.
+- **S388** (allocated 2026-11-19 ~23:15; RULED by the user ~23:20, "Yes to A": recorded, not refused): a graphFetch serialize tree naming a qualified property the fetch tree lacks; legend-engine serializes `null` or fails with a NullPointerException; lite computes it as legend-pure does. Found during A3 (B1-R's probes `graph.serialize.extra.*`), pre-existing on main. Drafted by B2 on `claude/compat-a3-docs`.
