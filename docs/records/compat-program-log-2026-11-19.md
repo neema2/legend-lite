@@ -3090,3 +3090,7 @@ who confirms or changes phases 1-3.
 - **~23:32 UTC, B1-R: nothing pending** (heads detector `afcb77770`, engine `d92b73a51`, review `a6830f2db`; a doc commit
   recording the S388 call in shape note §11; all ten let probe rows on the detector branch). Next: the wiring lands by an
   ordinary merge of the batch head once B1's native is in the batch.
+- **~23:33 UTC, the reviewer: nothing open on the engine rewrite** (record `0082c293c`): R2-S1 and R2-S2 approved,
+  backed by legend-engine's answers (`let.value.sub3.then.upper` "CRE", `let.value.idx.then.plus` 13); every probed let
+  shape handled right; the class-shape tests carry the probed answers. Ready for the combination review on the judges'
+  merged measurement.
