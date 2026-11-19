@@ -34,6 +34,8 @@ legend_java_library(
         "Flow.java",
         "FormsLens.java",
         "MeaningCensus.java",
+        # B5's ratchet measure (census B2, 2026-11-19, a prototype: //tools/guards:strand_ratchet_test, not turned on)
+        "StrandRatchet.java",
     ],
     visibility = ["//tools/guards:__pkg__"],
     deps = [

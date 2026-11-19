@@ -436,6 +436,25 @@ file_list(
     ],
 )
 
+# B5's STRAND RATCHET, a PROTOTYPE (census B2, 2026-11-19; NOT turned on: it lands with stage B on the user's word):
+# the compatibility strands' reach into the core, read from //core:product_jars' bytecode, held to shrink-only pins;
+# report-only until StrandRatchetTest.TURNED_ON, but it fails if it goes blind (a planted parameter and call unseen).
+# Not in //gates yet: its place there is the user's decision with stage B.
+junit_test(
+    name = "strand_ratchet_test",
+    memory_mb = 1024,
+    size = "small",
+    srcs = ["StrandRatchetTest.java"],
+    data = ["//core:product_jars"],
+    jvm_flags = ["-Dmeaning.product.jars=$(rlocationpath //core:product_jars)"],
+    select = ["--select-class=com.legend.tools.guards.StrandRatchetTest"],
+    deps = [
+        "//testing",
+        "//tools/meaning:census",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 junit_test(
     name = "meaning_census_test",
     memory_mb = 2048,

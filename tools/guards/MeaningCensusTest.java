@@ -66,6 +66,29 @@ class MeaningCensusTest {
 
     private static final Predicate<String> EDGE_CLASS = n -> n.startsWith("com/legend/edge/");
 
+    /** B5'S CENSUS RATCHET, A PROTOTYPE (census B2, 2026-11-19; NOT turned on, it lands with stage B on the user's word):
+     *  the (a) class -- upstream meaning in the product -- and the (p) class held to shrink-only pins, exact: a count
+     *  above its pin is new upstream meaning in the product, below it a pin to lower with a dated note. Report-only
+     *  until {@link #RATCHET_ON}; {@link #theRatchetSeesAPlantedHit} holds it to its plant either way. */
+    static final boolean RATCHET_ON = false;
+
+    /** The ratchet's pins: H8 (a.1)'s starting counts at main b75d6c73a (2026-11-19, census B2). */
+    static final Map<String, Integer> RATCHET_PINS = Map.of("a", 142, "p", 2);
+
+    /** The ratchet's breaches of {@code byClass}: each pinned class whose count moved, by how much. */
+    static List<String> ratchetBreaches(Map<String, Integer> byClass) {
+        List<String> out = new ArrayList<>();
+        new TreeMap<>(RATCHET_PINS).forEach((cls, pin) -> {
+            int n = byClass.getOrDefault(cls, 0);
+            if (n > pin) {
+                out.add("(" + cls + ") GREW " + pin + " -> " + n);
+            } else if (n < pin) {
+                out.add("(" + cls + ") shrank " + pin + " -> " + n + ": lower the pin with a dated note");
+            }
+        });
+        return out;
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
     // The real run
 
@@ -185,6 +208,24 @@ class MeaningCensusTest {
         if (BLOCKING) {
             assertEquals(0, byClass.getOrDefault("a", 0) + unclassified.size(), "upstream meaning in the product");
         }
+        List<String> breaches = ratchetBreaches(byClass);
+        System.out.println("[census-ratchet] (a) " + byClass.getOrDefault("a", 0) + " (pin " + RATCHET_PINS.get("a")
+                + "), (p) " + byClass.getOrDefault("p", 0) + " (pin " + RATCHET_PINS.get("p") + "); "
+                + (RATCHET_ON ? "ON" : "REPORT-ONLY") + ", breaches " + breaches);
+        if (RATCHET_ON) {
+            assertEquals(List.of(), breaches, "upstream meaning in the product moved");
+        }
+    }
+
+    /** The census ratchet sees a new (a) hit: one more than its pin is a breach, named; the lenses' own bite on their
+     *  plants is {@link #eachLensBitesItsPlant}'s. */
+    @Test
+    void theRatchetSeesAPlantedHit() {
+        Map<String, Integer> planted = new TreeMap<>(RATCHET_PINS);
+        planted.merge("a", 1, Integer::sum);
+        assertEquals(List.of("(a) GREW " + RATCHET_PINS.get("a") + " -> " + (RATCHET_PINS.get("a") + 1)),
+                ratchetBreaches(planted));
+        assertEquals(List.of(), ratchetBreaches(RATCHET_PINS));
     }
 
     /** The Java hosts' product entries: the classes M7's reach starts at, per shipped artifact. */
