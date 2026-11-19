@@ -150,6 +150,11 @@ final class Scalars {
                     if (taggedEq != null) {
                         return taggedEq;
                     }
+                    // two primitives of disjoint kinds are never equal (`'x' != -1` is true), as legend-pure's equal
+                    SqlExpr disjoint = MixedEncoding.disjointEquality(n.args().get(0), args.get(0), n.args().get(1), args.get(1));
+                    if (disjoint != null) {
+                        return disjoint;
+                    }
                     Integer p0 = partialPrecision(n.args().get(0));
                     Integer p1 = partialPrecision(n.args().get(1));
                     if (p0 != null || p1 != null) {
