@@ -164,7 +164,7 @@ What it does not carry as a literal:
 - all literal: CAST_IMPOSSIBLE, INSTANCE_NOT_OF, MATCH_FAILURE, LIST_LENGTHS_DIFFER, VALUE_NOT_HELD, CSV_TOO_WIDE,
   CONSTRAINT_UNEVALUABLE (as data), DATE_COMPONENT_INVALID, TEXT_NOT_DATE, TEXT_NOT_INTEGER, and the no-operand ones
   (RANGE_STEP_ZERO, SHIFT_OUT_OF_RANGE, INSERT_OUT_OF_BOUNDS, DIVIDE_BY_ZERO's bare form);
-- sometimes computed: DIVIDE_BY_ZERO (8 of 175 by a column), INDEX_OUT_OF_BOUNDS (every size), SIZE_NOT_MULTIPLICITY
+- sometimes computed: DIVIDE_BY_ZERO (8 of 193 by a column), INDEX_OUT_OF_BOUNDS (every size), SIZE_NOT_MULTIPLICITY
   (12 of 154: the size), SLICE_BOUNDS_INVERTED (23 of 61), SQRT_OF_NEGATIVE (32 over a computed value), TEXT_NOT_FLOAT
   (5 of 10, the product's).
 
