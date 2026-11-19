@@ -762,3 +762,6 @@ who confirms or changes phases 1-3.
     in it or the corpus run through an edge-owned door. **This session's steer:** no hook; measure an edge-owned door
     composed of public entries, and judge honestly whether a "body preparer" parameter would be a legitimate product
     extension point or a hook by another name.
+- **~12:48 UTC:** the window-inside-a-list-encoding defect (H11 §8 P1) has its own product track
+  (`session_0195rQEjkEZDfj2GjXCAhyJr`, `claude/window-list-lowering`). It gates slice 1.3, and it will report when the
+  fix is on its branch.
