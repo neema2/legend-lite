@@ -3033,3 +3033,5 @@ who confirms or changes phases 1-3.
 - **~22:54 UTC, the translator needs the word typed in its own session** (its brief: no pin or roster moves, pushes
   only to its spike branch, unless the user says so there); nothing made or pushed until then. Asked the user to type
   one line there.
+- **~22:56 UTC, the judges: the detector's graphFetch walk merged** (batch head `f4525a31e`, clean; 55 of 55 touched
+  lanes; no ledger, golden or ratchet moved; own_corpus stays 3325). Waiting on the translator's heads.
