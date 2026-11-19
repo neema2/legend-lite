@@ -2664,3 +2664,11 @@ who confirms or changes phases 1-3.
 - **~20:41 UTC, #124's re-run:** 53 of 54 green, none red; macOS `corpus_duckdb` re-run PASSED (20:33), macOS
   `checks` (attempt 2) running. The CI-health worker's permission check refuses a relayed push word ("Unsanctioned
   Communication"); it has asked the user in its own session.
+- **~20:41 UTC, the reviewer: the detector APPROVED WITH 2 MUST-FIX** (record `88e3def8`). Holds: it never changes a
+  query; it refuses before anything runs on every route (runner count 0); the setting read once at
+  `EdgeServer.UPSTREAM`; no database named outside `PureText`; the reach in code matches §4a; the ~20:10 moves dated; 21
+  of 22 tests bite. M1: three reaches untested (unverified; M2M under a TDS chain against graphFetch; a constraint via
+  validate): add tests, each failing on its plant. M2: `aConstraintIsNotFollowed` cannot fail on H2 (a literal-0 start
+  is exempt there): use `substring(1, 2)`. S1: the javadoc quotes program wording as the user's; S2: an unresolved
+  mapping reported unverified, never clean. Proof gap: record `core_edge_tests`, the pure/v1 goldens and the batteries.
+  The merged `own_corpus.matched` is regenerated on the merged tree. Sent to B1-R.
