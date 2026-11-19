@@ -2792,3 +2792,14 @@ who confirms or changes phases 1-3.
   (3310 − 1 for A2's corrected DOWN + 2 + 3 for A3; B1-R's 3316 assumed A2's uncorrected +1); checked here against main
   and the detector's lines; the reviewer told. A3's fast loop running on the merged tree; the full measurement waits for
   the last pieces.
+- **~21:16 UTC, the translator: S383's raise text, read and measured.** The engine runner cannot answer: every storeless
+  function test (the in-range control included) errors with "package
+  org.finos.legend.engine.plan.dependencies.store.shared does not exist" (legend-engine compiles the function to Java;
+  the @maven_runner pool lacks the plan-dependencies jar). The pinned sources: no test pins the text; legend-pure's
+  substring is the JDK's `String.substring` with no message of its own (`SubString.java:56,61` interpreted,
+  `CompiledSupport.java:1546-1556` compiled). The JDKs measured: remotejdk_25 25.0.4 (lite's and the runner's) and the
+  container's 21.0.13 both say "Range [-1, 6) out of bounds for length 6". **Ruled here:** no pool change in the batch
+  (the source reading settles the text); the runner's gap recorded as a tooling finding for the user after stage A; the
+  translator to read, file:line, whether legend-pure wraps the exception on either path before pinning, so S383 pins the
+  text a legend-pure user sees and says which part is the JDK's. Piece 2's PCT essential lanes running on SQLite,
+  MariaDB, MySQL, ClickHouse, Trino, MongoDB and Postgres for the rows by lane.
