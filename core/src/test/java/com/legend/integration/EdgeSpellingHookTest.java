@@ -214,7 +214,13 @@ class EdgeSpellingHookTest {
             Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", withRow21(D1_2)),
             Map.entry("DuckDb", withRow21(D1_2_SCAN_ORDER_RAW)), Map.entry("H2", withRow21(D1_2)), Map.entry("MariaDb", D1_2),
             Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", withRow21(D1_2_RAW)),
-            Map.entry("SQLite", withRow22(D1_2)), Map.entry("Snowflake", D1_2), Map.entry("Trino", withRow21(D1_2))));
+            // Snowflake's row 21 (Q1 of the PR #118 follow-ups, 2026-11-19, the orchestrator's approval under the user's
+            // delegation of small explained pin steps): the product's Float literal became the double there (S20), and
+            // the edge keeps legend-engine's bare literal, a NUMBER on Snowflake (its SYSTEM$TYPEOF reference: 1E10 is
+            // NUMBER(11,0)); BigQuery's and ClickHouse's bare literal is a double (BigQuery's lexical reference,
+            // "presumed to be type double"; ClickHouse's Float64), so their edge inherits the product's: no row 21
+            Map.entry("SQLite", withRow22(D1_2)), Map.entry("Snowflake", withRow21(D1_2)),
+            Map.entry("Trino", withRow21(D1_2))));
 
     /** The methods {@code c} declares that override a product dialect's method which is not a
      *  {@link com.legend.sql.dialect.SpellingArm}: a decision the edge must not take ({@code EdgeMayOverride}, used

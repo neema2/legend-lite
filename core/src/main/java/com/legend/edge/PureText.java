@@ -510,9 +510,13 @@ public final class PureText {
 
     /** Snowflake, spelled as upstream spells it. */
     public static final class Snowflake extends com.legend.sql.dialect.Snowflake {
-        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
-         *  orchestrator's ruling R2 of 2026-11-17). The product's is the double (register S20, built on Snowflake
-         *  2026-11-19); the edge inherited the product's DECIMAL until then, and keeps it here. */
+        /** A Float literal computes as legend-engine's bare literal does here: Snowflake types a numeric constant a
+         *  NUMBER, with or without an exponent ({@code SYSTEM$TYPEOF(1E10)} is {@code NUMBER(11,0)}, its SYSTEM$TYPEOF
+         *  reference), so the edge keeps the DECIMAL (row 21 of the edge program's §6; Q1 of the PR #118 follow-ups,
+         *  2026-11-19, where the product's became the double, register S20). BigQuery's and ClickHouse's edge inherit
+         *  the product's double: a bare literal with a point is a double on each (BigQuery's lexical reference: "presumed
+         *  to be type double"; ClickHouse: a Float64), as legend-engine's bare literal is there (the compatibility
+         *  session's ruling, 2026-11-19). */
         @Override
         public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
             return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
@@ -543,14 +547,6 @@ public final class PureText {
 
     /** BigQuery, spelled as upstream spells it. */
     public static final class BigQuery extends com.legend.sql.dialect.BigQuery {
-        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
-         *  orchestrator's ruling R2 of 2026-11-17). The product's is the double (register S20, built on BigQuery
-         *  2026-11-19); the edge inherited the product's DECIMAL until then, and keeps it here. */
-        @Override
-        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
-        }
-
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
@@ -691,14 +687,6 @@ public final class PureText {
 
     /** ClickHouse, spelled as upstream spells it. */
     public static final class ClickHouse extends com.legend.sql.dialect.ClickHouse {
-        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
-         *  orchestrator's ruling R2 of 2026-11-17). The product's is the double (register S20, built on ClickHouse
-         *  2026-11-19); the edge inherited the product's DECIMAL until then, and keeps it here. */
-        @Override
-        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
-        }
-
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {

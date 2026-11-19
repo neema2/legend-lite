@@ -2824,8 +2824,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * Float's own text (a point always present, never E-notation), so the
      * database types it DECIMAL, never INTEGER (1e18 spells
      * {@code 1000000000000000000.0}) and never DOUBLE. */
-    /** The product's: the double (register S20, "IEEE everywhere"). A dialect whose DOUBLE literal its lane has not
-     *  measured yet says DECIMAL (ClickHouse, BigQuery, Snowflake: an F-row of the edge program, 2026-11-17). */
+    /** The product's: the double (register S20, "IEEE everywhere"), on every product dialect since 2026-11-19 (F39 and
+     *  Q1 of the PR #118 follow-ups built it on ClickHouse, BigQuery and Snowflake, each in its own spelling). */
     @Override
     public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
         return com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE;
