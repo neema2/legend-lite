@@ -267,10 +267,11 @@ class PureMeaningEngineTest {
     }
 
     /** The seed rewritten on DuckDB, both ways on any tree (the reviewer's E-S2): a 3-argument {@code substring} with a
-     *  literal start of 0, which DuckDB's literal-0 exemption does not cover (the 2-argument form alone). DuckDB's own
-     *  SUBSTRING('abcdef', 0, 3) is 'ab', so under engine the seed is ID 4; Pure's answer is 'abc', and lite's lowering
-     *  before the switch clamps the start to 1, so under warn it is ID 3. A seed lowered unrewritten (plant W2) answers
-     *  ID 3 under engine. */
+     *  literal start of 0, which DuckDB's literal-0 exemption does not cover (the 2-argument form alone). The test
+     *  asserts the SQL of the seed statement the route hands its runner, planned on DuckDB, never run: under engine it
+     *  holds DuckDB's own {@code substr('abcdef', 0, 3)} (whose answer is 'ab', as legend-engine's would be); under warn
+     *  it does not (lite's lowering clamps the start to 1 before the switch, and means Pure's 'abc' after it). A seed
+     *  lowered unrewritten (plant W2) plans the clamped call under engine too. */
     @Test
     void theSeedIsRewrittenOnDuckDb_aThreeArgumentStartOfZero() {
         String duckdb = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
