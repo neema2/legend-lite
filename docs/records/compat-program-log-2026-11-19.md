@@ -2419,3 +2419,8 @@ who confirms or changes phases 1-3.
   default, `warn` an operator's choice, `engine` not accepted; the load-time report dropped. About 1.5 to 2 days:
   about 380 main lines (`PureMeaningCheck` ~300, wiring ~80), about 400 test lines; guard moves `ENV_FLAGS` +1 and one
   funnel-register row, re-checked on the real code.
+- **~19:29 UTC, #127's one red: macOS `parser_equivalence`**, `//parser-equivalence:parser_parity` timed out at 901.3 s
+  against its 900 s limit on a slow runner (critical path 1220 s), no assertion failed; #127 touches nothing there; the
+  lane passed on Linux and Windows and on macOS in #126's run. No re-run (#127 never merges alone; the batch's run is the
+  evidence). The CI-health worker asked to measure parser_parity's times per OS on `main` and the smallest fix, read-only,
+  so the batch does not trip on it.
