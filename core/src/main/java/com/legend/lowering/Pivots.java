@@ -8,6 +8,7 @@ import com.legend.compiler.spec.typed.TypedAggCol;
 import com.legend.compiler.spec.typed.TypedPivot;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.sql.OutputCol;
+import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
@@ -74,7 +75,7 @@ final class Pivots {
             // the using carries its LOWERING-typed result slot — the
             // typed fact pivot-generated columns inherit (E1)
             Type aggT = a.reduce().functionType().result().type();
-            usings.add(new SqlSource.Pivot.Using(lw.aggExpr(forAgg, a),
+            usings.add(new SqlSource.Pivot.Using(absentIsEmpty(lw.aggExpr(forAgg, a)),
                     a.name(), PureSql.type(aggT)));
         }
         // Static pivot values pin the output columns via PIVOT ... IN (v…).
@@ -112,5 +113,34 @@ final class Pivots {
         // a cast over the pivot names its values later (Lowerer.castOverDynamicPivot)
         return SqlSelect.starOf(new SqlSource.Pivot(inner, on, in, List.of(), usings, lw.nextAlias(),
                 lw.outputsOf(pv.info())));
+    }
+
+    /**
+     * A pivot's cell for a (group, key) pair with no rows is empty for every aggregate, a count's too: Pure's pivot is
+     * TestTDS.applyPivot (both runtimes), which writes no value where the pair has no rows (register S379, proposed
+     * 2026-11-19 by the orchestrator under the user's goal of ~13:25 UTC, "lite follows Pure", the user's ruling of this
+     * case pending; legend-engine's database PIVOT answers 0). Every other
+     * aggregate over no rows is already null in SQL; a count is 0, so a count is written as the sum of each row's 1 where
+     * its value is present and 0 where it is empty -- a sum over no rows is null on every database, whatever the pivot's
+     * form (a native PIVOT's filter, the CASE emulation, the dynamic pivot's keyed run), and a present pair whose values
+     * are all empty still counts 0. A value proven never null counts 1 each. A distinct count has no such sum, and is
+     * refused by name rather than answered 0.
+     */
+    private static SqlAgg.Reducer absentIsEmpty(SqlAgg.Reducer agg) {
+        if (agg.fn() != SqlAgg.Fn.COUNT) {
+            return agg;
+        }
+        if (agg.distinct()) {
+            throw new com.legend.error.NotImplementedException("a pivot's distinct count: its cell for a group with no"
+                    + " rows of a key is empty in Pure, and a distinct count over no rows is 0 in SQL (register S379)");
+        }
+        SqlExpr each;
+        if (agg.args().isEmpty() || agg.args().get(0).type() instanceof com.legend.sql.TypeFact.Typed t && !t.nullable()) {
+            each = new SqlExpr.IntLit(1);
+        } else {
+            each = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, agg.args().get(0)),
+                    new SqlExpr.IntLit(0))), new SqlExpr.IntLit(1), SqlExpr.Reason.OPERATOR);
+        }
+        return new SqlAgg.Reducer(SqlAgg.Fn.SUM, List.of(each), false, agg.orderBy());
     }
 }
