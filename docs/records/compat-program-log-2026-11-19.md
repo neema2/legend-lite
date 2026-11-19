@@ -2293,3 +2293,11 @@ who confirms or changes phases 1-3.
 - **~18:50 UTC, #124's run 44580527071 at `f832a6671`:** 40 of 54 jobs green, none red; the 14 left are macOS (13
   queued, warehouse running). Windows `warehouse` green, 23 of 23 (`markets_test` done by ~99 s; it timed out at 300 s
   before). Every H2 lane on Linux and Windows green, no 404 or 429 (the mirror). Linux and linux-arm `warehouse` green.
+- **~18:51 UTC, #127's CI** (run 44587411059 at `6f21bed29`): 25 of 55 done, all green, none failed (Windows 13 of 16,
+  Linux 3 of 16, linux-arm warehouse, the cross-OS checks); macOS mostly queued. A5 told the reviewer's approval.
+- **~18:51 UTC, the user asked** whether `indexOf`/`substring` has a mode giving legend-engine's answer, and whether
+  B2's takeover needs a planner flag. Answered: no mode today (D1: Pure's way, loud); legend-engine's answer cannot be
+  fixed on the output (the value feeds the query), but could be an opt-in REWRITE AT THE LEGEND-ENGINE DOOR (the core
+  keeps one meaning; tenet 6 allows the door), to be measured against #124's 49 pinned batteries per database first.
+  B2's takeover needs no planner flag: the legend-pure door hands the planner the program without its last
+  `toString()` (or rewrites the assert side), lite's route hands it whole. Offered the door-rewrite measurement.
