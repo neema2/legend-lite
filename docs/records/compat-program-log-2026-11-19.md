@@ -36,6 +36,8 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~16:40 | "Adopt tenets yes / Folds okay / Error records yes / Let's show steps of A again now that we are ready to go" | The six tenets adopted (written into the rules of record). Folds: the compiler may fold constants and facts fixed by the types, never row data (so `substring`'s index arithmetic stays a compile-time fold). Error records: a raised error's record is lite's typed output, so compatibility words upstream's sentences in Java from it (B1 stands) |
 
+| ~16:45 | "Okay let's go / I'm very interested in why PCT only passes 787 so when we get there would love to learn what the problems are there" (to this session's restated stage A: A1 to A4 with their builders, proofs and sizes, "Say go and I'll brief the builders now") | **STAGE A RATIFIED** as `docs/records/compat-final-plan-2026-11-19.md` §4 at `0b62425a`, governed by `compat-rules-of-record-2026-11-19.md`. Builders briefed: A1 B1, B1-R, A5, CI-health; A2 B2; A3 the translator; A4 the judges session. Every step a PR, CI on every OS, the independent reviewer's review, merged only on the user's word. The user wants the PCT-under-lite's-rules failures explained when A1's lane lands |
+
 **Superseded ~13:25:** **Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
 each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
 being built by the product's judges track (C3).
@@ -1931,3 +1933,7 @@ who confirms or changes phases 1-3.
   and error records (yes)** (recorded in §1; the rules of record gain the tenets and both readings). A3's `substring`
   index arithmetic stays a compile-time fold; B1 stands. The user asked to see stage A's steps again, "now that we are
   ready to go".
+- **~16:45 UTC, THE USER RATIFIED STAGE A: "Okay let's go"** (recorded in §1). Briefs sent at once (16:50) to every
+  builder; the independent reviewer asked to review each stage-A PR before it goes to the user. The user asked to learn
+  why PCT under lite's own rules passes 787 of 1,249 (a first answer given in chat; a full breakdown when A1's lane
+  lands).
