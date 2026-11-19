@@ -962,3 +962,99 @@ words are the host's alone...)". BOTH under a compatibility style is refused two
 
 The batch's merged run (the judges' measurement) must show them green with the unchanged rosters. That is A4's
 done-when.
+
+## A3 piece 3 (piece): the pure-meaning detector, `origin/claude/compat-a3-detector` at `64ead02b7` (on #124's branch, `f832a667`)
+
+**Verdict: APPROVED WITH 2 MUST-FIX (tests), 2 should-fixes and a proof gap.**
+
+The detector's code meets §4a as amended. Its tests do not yet show three of the reaches the owner listed, and one test
+cannot fail on its own plant.
+
+Checked against:
+- the final plan §4a, as amended at `2330eb98`: refuse by default, `warn` an operator's choice, no load-time report,
+  `engine` not accepted;
+- the rules of record;
+- the shape note's revision 2 on the branch;
+- the user's ~20:10 ruling, which I read in the owner's log §1: "Yes", to the three guard moves.
+
+### What holds
+- **It never changes a query.** `PureMeaningCheck.of` reads the typed tree and computes no value. Each route plans and
+  runs the `TypedQuery` it already held. The generatePlan test compares the warned plan's SQL with a fresh plan of the
+  same query.
+- **It refuses before anything runs.** `checkMeaning` is called right after `Compiler.query` types the request, and
+  before `executionPlan`, `plan` or `runner.run`. That holds in generatePlan, in execute, in executeArrow, and in
+  `TestDataRoutes.doored` for the three test-data routes. A refusal is a `NotImplementedException` inside `answer(500,
+  "COMPILATION", ...)`, legend-engine's envelope, with the header. `aRefusedRequestRunsNoStatement_...` counts the
+  runner's calls on every route: 0 when refused, 1 when clean.
+- **It reads the setting in one place.** `System.getenv("LEGEND_LITE_PURE_MEANING")` appears once, at
+  `EdgeServer.UPSTREAM`:
+  - unset, empty or `refuse` gives REFUSE;
+  - `warn` gives WARN;
+  - any other value stops the start, and `engine` is tested and refused.
+
+  The batteries pass `Mode.WARN` as an argument and do not read the variable. No load-time report is built.
+- **It names no database outside PureText.** The literal-0 table is `PureText.ZERO_START_AS_PURE` (H2 for both
+  arities, DuckDB for 2). The detector asks `zeroStartAnswersAsPure`. A runtime with more than one database type gets no
+  exemption, which is conservative.
+- **The reach in code matches §4a:**
+  - host-side statements (`readsAStore` false) are not walked;
+  - a let-bound lambda that store-bound code names is walked, to a fixpoint;
+  - user functions and qualified properties are followed;
+  - CONSTRAINT and CONSTRAINT_MSG lifted bodies are skipped. A `validate`'s constraints are walked, because
+    `ValidateDesugar` (`Compiler.java:883`) inlines them as `filter({this | !body})` before typing;
+  - an M2M binding is followed only when `chained` and not `graphFetch`;
+  - a function value that is not a lambda, variable or reference is UNVERIFIED, and so is an untypeable body. Both are
+    counted, never clean, and refused under REFUSE.
+- **The guard moves are dated and ruled ~20:10:**
+  - `DialectBoundaryTest` PureText 1 → 2;
+  - `own_corpus.matched` 3310 → 3312;
+  - native-claims names `PureMeaningCheck` for indexOf and both substrings.
+
+  Also dated: `ObservabilityGuardrailTest.ENV_FLAGS` +1 and the JavaEvalLedger funnel register +1.
+- **22 tests, all bite but one.** Read one by one, 21 bite on the plant their name implies:
+  - each "flagged" or "quiet" test has its partner;
+  - `theCheckBites_bothWays` catches "flag nothing" and "flag everything".
+
+  The exception is the must-fix below.
+
+### MUST-FIX
+**M1. Three of §4a's reaches are untested.** The shape note's own §4 plans them:
+- item 6: `unverified`, a lambda read from an instance's property reported, and refused under `refuse`;
+- item 11: an M2M transform under a TDS query over a chain, flagged; the same under a graphFetch, not flagged; a
+  constraint reached through `validate`, flagged.
+
+None was built. MODEL has no M2M mapping, and no test asserts `unverified`. So any of these breaks passes all 22 tests:
+- deleting `w.mappingReach(features)`;
+- inverting the `chained`/`graphFetch` gate;
+- dropping either UNVERIFIED site;
+- skipping `validate`'s inlined filter.
+
+None of these needs piece 1. Add the four tests (plus the unchained-M2M case), each shown to fail on its plant.
+
+**M2. `aConstraintIsNotFollowed_legendEngineChecksItInJava` cannot fail on its plant.** Its constraint is
+`$this.name->substring(0, 1)`. On t::RT's H2, a literal 0 start is exempt in both arities. So a check that wrongly
+followed constraints would still answer clean.
+
+Fix: give the constraint a non-zero start, for example `substring(1, 2)`. Then this test bites. The exact count in
+`aQualifiedPropertyTheQueryReadsIsFollowed` (`substring/3=1`) bites on the same plant too.
+
+### SHOULD-FIX
+**S1. A user quote in the javadoc that is not the user's.** `PureMeaningCheck`'s javadoc quotes "the user's rulings of
+2026-11-19, ~13:25 "Pure's way, LOUD, no translator"". The user's words at ~13:25 were "Okay agree with all", the same
+attribution fixed in A3 piece 4's M1. Word it "D1, ruled ~13:25 ("Okay agree with all")".
+
+**S2. A mapping it cannot resolve is skipped as if clean.** `mappingReach` does `ctx.findMapping(m).orElse(null)` →
+`continue`, and an empty `findFunction` for a binding is skipped too. Such a request probably fails typing or planning
+anyway. Either report it `unverified` or say in a comment why it cannot reach here.
+
+### For the batch combination check
+`own_corpus.matched` is 3312 here (the detector's two test models), and A2 takes it to 3311 (PureV1SqlTextTest's
+model). If the three models are distinct, the merged tree's count is 3313. The note's "regenerated again on the merged
+tree with A2's move" has to say which.
+
+### Proof gap
+The commit says "The local gate, the edge net and the batteries are running on this commit. Their result follows in
+the report". No result is recorded on the branch. Show:
+- `//core:core_edge_tests` with the 22, and later 25, tests green;
+- `PureV1EdgeGoldenTest` with its goldens untouched (shape note §4 item 15);
+- the batteries under `warn`.
