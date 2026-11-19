@@ -520,3 +520,16 @@ who confirms or changes phases 1-3.
   - **To reconcile:** the judges session's H6 §6 (b) said the referee replays on the body's own target's session.
     Asked of it (~12:23); if B2 is right, plan 3.2's step "the referee first gets its own declared target" is
     unnecessary.
+- **~12:23 UTC, the pivot row did not reproduce.** The product's hosts worker tested lite's probe-plan pivot on H2,
+  DuckDB and SQLite with a group missing a key: sum, max, first, mode, joinStrings, maxBy and minBy answer null and
+  count answers 0, as DuckDB's native PIVOT does; no Pure aggregate reaches a list in a pivot. So H1's "unrecorded
+  difference" from S110 has no reachable case, and the pending row is **withdrawn from PR #122** (`6b65330b`; S374 is
+  left unused). PR #122 now adds S372, S373, S375, S376 and S377.
+  - **A new case found there, the product orchestrator's to put to the user:** legend-pure's pivot
+    (`TestTDS.applyPivot`) leaves an absent (group, key) cell NULL for every aggregate, count included; lite and
+    legend-engine answer 0 for count. Its recommendation: keep 0, with a register row. This session's note to it:
+    that sides with legend-engine against legend-pure, the reverse of today's direction, so it should be put to the
+    user as an exception. The deciding question is whether `applyPivot` is Pure's definition or only its in-memory
+    test implementation.
+  - **A lesson for the ledger:** H1's rows are readings, not measurements. Two of its "new" findings have now failed a
+    test (this one, and its S138 claim was itself a correction). The 0.6 ledger marks each row "measured" or "read".
