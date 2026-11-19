@@ -1953,3 +1953,19 @@ who confirms or changes phases 1-3.
   engine-runner targets testonly; the one allowlist entry dated (CP-9); no core switch; rules 3 and 4 hold. Notes: B5's
   count must include this lane's PURE_V1 use; A3 moves 12 of its pinned rows (each a pin move for the user's word);
   say in the body that "report-only" fails on class moves, not on lite's failures.
+- **~16:35 UTC, the judges session: A4 step 1** (`claude/compat-a4-host-only` from `main`, pushed; no PR yet; it asked
+  the user in its own session for the PR). `78dd1e2d`: **the guard** (`TestPlanner.plan` refuses, by name and before
+  the style is asked anything, a DATABASE or BOTH judge for any style but the product's; `HostOnlyCompatibilityTest`
+  plants a look-alike style; shown to bite). **Roads:** ChannelB's compatibility options HOST, the duplicate host
+  channel-B pass deleted; `core_edge_tests_judge_{database,both}` deleted; 81 edge cases run under the host (their
+  product halves keep every judge); MinimalCorpus's 'both' refused. **Results:** channel B passes its ledgers on DuckDB's
+  5, H2 relation, SQLite's 5 and all 6 twice lanes (PCT unchanged; COMPAT/BOTH and COMPAT/HOST differ in 0 lines);
+  `core_edge_tests` (958) and the H2/SQLite integration pass. **A surprise for the user's word:** `LeanSqlCorpusTest`
+  (G3's corpus product-SQL baseline) planned the corpus under the DATABASE judge in the edge's style; under the host,
+  the corpus's real road, the body's own statements count as their own (DuckDB 350 → 2,319, 1.40M → 2.36M chars; H2
+  349 → 2,313, 1.34M → 2.41M; 246 families per lane); the product's SQL is unchanged, the measure's road changed. Pins
+  regenerated in their own commit, marked for the user's word. **This session's call (17:05):** re-pin (no carve-out,
+  not the product style), explained plainly in the PR body. Next: step 2 (legend-pure's comparison rules out of the
+  database judge: `VerdictNumbers`' 2-ULP SQL, `RenderedTextRule`, `DateLiteralTexts`, `GoldenNullWord`,
+  `CrossKindNumbers`, the JSON grammar's database read, `VerdictWords`' CANONS reads); step 3 (the database judge's
+  SQL-text appeal path) sized before building.
