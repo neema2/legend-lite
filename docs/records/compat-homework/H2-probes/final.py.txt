@@ -1,0 +1,66 @@
+import csv, collections, sys
+SRC = [("PCT essential", "out/pct-comb.tsv", "essential"), ("PCT grammar", "out/pct-comb.tsv", "grammar"),
+       ("PCT standard", "out/pct-comb.tsv", "standard"), ("PCT relation", "out/pct-comb.tsv", "relation"),
+       ("PCT unclassified", "out/pct-comb.tsv", "unclassified"), ("relational corpus", "out/corpus-comb.tsv", "corpus"),
+       ("core/src/test Java snippets", "out/coretest-java-comb.tsv", "core-java"),
+       ("core/src/test .pure", "out/coretest-pure-comb.tsv", "coretest-pure"), ("projects/ (timeseries included)", "out/projects-comb.tsv", "projects")]
+COMB = {"plus(text)", "joinStrings", "plus(?)"}
+def kind(r):
+    if r["fn"] in COMB: return "combine"
+    parts = [p for p in r["operandType"].split(",") if p]
+    if r["fn"] == "format": return "text-only" if parts and all(p == "String" for p in parts) else "spells"
+    return "text-only" if r["operandType"] == "String" else "spells"
+cache = {}
+def rows(path, suite):
+    if path not in cache: cache[path] = list(csv.DictReader(open(path), delimiter="\t"))
+    return [r for r in cache[path] if r["suite"] == suite]
+def origin(r):
+    o = r["operandOrigin"]
+    if "DATA" in o: return "DATA"
+    if o in ("LITERAL",) or o == "LITERAL,LITERAL": return "LITERAL"
+    if "COMPUTED" in o: return "COMPUTED"
+    return o or "?"
+print("| source | spelling sites | judge side (harness) | query side | FEEDS | of which over DATA | RETURNED-COMPOSED | RETURNED-BARE | other (dropped, unreached, assert-in-query) | text-only toString/format | combiner sites query-side (FEEDS) |")
+print("|---|---|---|---|---|---|---|---|---|---|---|")
+tot = collections.Counter()
+for name, path, suite in SRC:
+    rs = rows(path, suite)
+    sp = [r for r in rs if kind(r) == "spells"]
+    h = [r for r in sp if r["class"] == "HARNESS"]
+    q = [r for r in sp if r["class"] != "HARNESS"]
+    f = [r for r in q if r["class"] == "FEEDS"]
+    fd = [r for r in f if origin(r) in ("DATA", "COMPUTED")]
+    c = sum(1 for r in q if r["class"] == "RETURNED-COMPOSED"); b = sum(1 for r in q if r["class"] == "RETURNED-BARE")
+    other = len(q) - len(f) - c - b
+    to = [r for r in rs if kind(r) == "text-only" and r["class"] != "HARNESS"]
+    cb = [r for r in rs if kind(r) == "combine" and r["class"] != "HARNESS" and r["fn"] != "plus(?)"]
+    cbf = [r for r in cb if r["class"] == "FEEDS"]
+    vals = [len(sp), len(h), len(q), len(f), len(fd), c, b, other, len(to), f"{len(cb)} ({len(cbf)})"]
+    for k, v in zip(["sp", "h", "q", "f", "fd", "c", "b", "o", "to"], vals[:9]): tot[k] += v
+    tot["cb"] += len(cb); tot["cbf"] += len(cbf)
+    print(f"| {name} | " + " | ".join(str(v) for v in vals) + " |")
+print(f"| **all** | {tot['sp']} | {tot['h']} | {tot['q']} | {tot['f']} | {tot['fd']} | {tot['c']} | {tot['b']} | {tot['o']} | {tot['to']} | {tot['cb']} ({tot['cbf']}) |")
+print()
+print("FEEDS spelling sites: source x fn x value type x origin x sink")
+cc = collections.Counter()
+for name, path, suite in SRC:
+    for r in rows(path, suite):
+        if kind(r) == "spells" and r["class"] == "FEEDS":
+            sinks = "+".join(sorted({e.split(":")[1].replace("-predicate", "") for e in r["events"].split(",") if e.startswith("FEEDS")}))
+            cc[(name, r["fn"], r["operandType"], origin(r), sinks)] += 1
+for k, v in sorted(cc.items()): print(f"| {' | '.join(k)} | {v} |")
+print()
+print("RETURNED spelling sites (query side) by value type, all sources")
+cc = collections.Counter()
+for name, path, suite in SRC:
+    for r in rows(path, suite):
+        if kind(r) == "spells" and r["class"] in ("RETURNED-BARE", "RETURNED-COMPOSED"):
+            t = r["operandType"]
+            cc[(r["class"], t if r["fn"] != "format" else "format(" + t + ")", origin(r))] += 1
+for k, v in sorted(cc.items(), key=lambda x: (x[0][0], -x[1])): print(f"| {' | '.join(k)} | {v} |")
+print()
+print("programs (tests/functions) with a query-side FEEDS spelling site, per source:")
+for name, path, suite in SRC:
+    ps = {r["program"] for r in rows(path, suite) if kind(r) == "spells" and r["class"] == "FEEDS"}
+    reach = sum(int(r.get("reached") or 0) for r in rows(path, suite) if kind(r) == "spells" and r["class"] == "FEEDS")
+    print(f"  {name}: {len(ps)} programs; site-reaches {reach}")

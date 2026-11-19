@@ -1,0 +1,7 @@
+suite	class	fn	operandType	operandOrigin	detail	events	harness	program	source	line	snippet	reached
+coretest-pure	RETURNED-BARE	plus(text)	String,null	DATA,LITERAL		RETURNED-BARE		refdata::formatSector	core/src/test/resources/bazel_smoke/refdata/model.pure	43	$s.code + '/' + $s.region.code 	2
+coretest-pure	RETURNED-BARE	plus(text)	String	DATA,LITERAL		RETURNED-BARE		m2m::src::Deal.ref	core/src/test/resources/stress/8114-m2m.pure	69	ref() { $this.dealId + ':' + $this.currency }: String[1]; 	1
+coretest-pure	RETURNED-BARE	plus(text)	String	DATA,LITERAL		RETURNED-BARE		m2m::src::Party.display	core/src/test/resources/stress/8114-m2m.pure	87	display() { $this.shortName + ' (' + $this.domicile + ')' }: String[1]; 	1
+coretest-pure	RETURNED-BARE	plus(text)	String	DATA,LITERAL		RETURNED-BARE		relmap::RmDeal.ref	core/src/test/resources/stress/8116-relmap.pure	43	ref() { $this.dealId + ':' + $this.status }: String[1]; 	1
+coretest-pure	RETURNED-BARE	plus(text)	String	DATA,LITERAL		RETURNED-BARE		timeseries::TimeSeries.tickerOn	core/src/test/resources/stress/834-timeseries.pure	46	tickerOn(vendor: String[1]) { $vendor + '/' + $this.sourceCode + ':' + $this.seriesId } : String[1]; 	1
+coretest-pure	RETURNED-BARE	plus(text)	String	DATA,LITERAL		RETURNED-BARE		demo::trading::Person.fullName	core/src/test/resources/upstream-api/query-app/trading.pure	50	{meta::pure::profiles::doc.doc = 'First and last name.'} fullName() {$this.firstName + ' ' + $this.lastName}: String[1]; 	1

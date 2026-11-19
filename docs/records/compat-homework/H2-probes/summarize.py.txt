@@ -1,0 +1,44 @@
+import csv, sys, collections
+COMB = {"plus(text)", "joinStrings", "plus(?)"}
+def kind(r):
+    if r["fn"] in COMB: return "combine"
+    parts = [p for p in r["operandType"].split(",") if p]
+    if r["fn"] == "format":
+        return "text-only" if parts and all(p == "String" for p in parts) else "spells"
+    return "text-only" if r["operandType"] == "String" else "spells"
+CLASSES = ["FEEDS", "RETURNED-COMPOSED", "RETURNED-BARE", "DROPPED", "UNKNOWN", "UNREACHED", "QUERY-ASSERT"]
+def table(rows, title, k):
+    print(f"### {title}")
+    suites = list(dict.fromkeys(r["suite"] for r in rows))
+    print("| source | all sites | harness | query-side | " + " | ".join(CLASSES) + " |")
+    print("|---|" + "---|" * (3 + len(CLASSES)))
+    for s in suites + ["ALL"]:
+        rs = [r for r in rows if (s == "ALL" or r["suite"] == s) and kind(r) in k]
+        h = sum(1 for r in rs if r["class"] == "HARNESS")
+        q = [r for r in rs if r["class"] != "HARNESS"]
+        c = collections.Counter(r["class"] for r in q)
+        print(f"| {s} | {len(rs)} | {h} | {len(q)} | " + " | ".join(str(c.get(x, 0)) for x in CLASSES) + " |")
+    print()
+def main(paths):
+    rows = []
+    for p in paths:
+        with open(p) as f: rows += list(csv.DictReader(f, delimiter="\t"))
+    table(rows, "SPELLING sites (a non-text value spelled as text)", {"spells"})
+    table(rows, "TEXT-ONLY producer sites (toString/format over Strings)", {"text-only"})
+    table(rows, "COMBINER sites (joinStrings, string plus; plus(?) = operand types unresolved)", {"combine"})
+    print("### query-side spelling sites by class x fn x operand type x origin")
+    q = [r for r in rows if r["class"] != "HARNESS" and kind(r) == "spells"]
+    cc = collections.Counter((r["suite"], r["class"], r["fn"], r["operandType"], r["operandOrigin"]) for r in q)
+    for key, v in sorted(cc.items(), key=lambda x: (x[0][0], CLASSES.index(x[0][1]), -x[1])): print(f"  {v:4d}  {' | '.join(key)}")
+    print()
+    print("### FEEDS sites (all kinds), with the program and the sink")
+    for r in rows:
+        if r["class"] == "FEEDS":
+            ev = ",".join(e for e in r["events"].split(",") if e.startswith("FEEDS"))
+            print(f"  {r['suite']} | {kind(r)} | {r['fn']} | {r['operandType']} | {r['operandOrigin']} | {ev} | {r['program']} | {r['source'].split('/resources/')[-1]}:{r['line']}")
+    print()
+    print("### programs with a query-side FEEDS spelling site:", len({r['program'] for r in rows if r['class'] == 'FEEDS' and kind(r) == 'spells'}))
+    print("### harness spelling sites by fn x operand x first sink (top)")
+    cc = collections.Counter((r["suite"], r["fn"], r["operandType"], (r["harness"].split(",")[0] if r["harness"] else "-")) for r in rows if r["class"] == "HARNESS" and kind(r) == "spells")
+    for key, v in sorted(cc.items(), key=lambda x: -x[1])[:15]: print(f"  {v:4d}  {' | '.join(key)}")
+main(sys.argv[1:])

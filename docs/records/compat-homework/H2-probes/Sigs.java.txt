@@ -1,0 +1,44 @@
+import com.legend.door.ModelFromText;
+import com.legend.model.*;
+import com.legend.parser.GrammarLevel;
+import com.legend.protocol.TypeExpression;
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.*;
+
+/** Every function declared in the given trees whose return type is String: name, params, native or not, file. */
+public class Sigs {
+    static String t(TypeExpression te) {
+        if (te == null) return "?";
+        return switch (te) {
+            case TypeExpression.NameRef n -> n.name();
+            case TypeExpression.Generic g -> g.name() + "<" + g.arguments().stream().map(Sigs::t).collect(Collectors.joining(",")) + ">";
+            default -> te.getClass().getSimpleName();
+        };
+    }
+    public static void main(String[] a) throws Exception {
+        int files = 0, walls = 0;
+        for (String root : a) {
+            List<Path> ps;
+            try (var s = Files.walk(Path.of(root))) { ps = s.filter(p -> p.toString().endsWith(".pure")).sorted().toList(); }
+            for (Path p : ps) {
+                files++;
+                ParsedModel m;
+                try { m = ModelFromText.parse(Files.readString(p), GrammarLevel.LEGEND_PLATFORM); }
+                catch (Throwable e) { walls++; System.err.println("WALL " + p + ": " + String.valueOf(e.getMessage()).split("\n")[0]); continue; }
+                for (var el : m.elements()) {
+                    String name; List<FunctionDefinition.ParameterDefinition> params; TypeExpression rt; boolean nat; List<StereotypeApplication> st;
+                    if (el instanceof FunctionDefinition fd) { name = fd.qualifiedName(); params = fd.parameters(); rt = fd.returnType(); nat = false; st = fd.stereotypes(); }
+                    else if (el instanceof NativeFunctionDefinition nf) { name = nf.qualifiedName(); params = nf.parameters(); rt = nf.returnType(); nat = true; st = nf.stereotypes(); }
+                    else continue;
+                    if (!"String".equals(t(rt))) continue;
+                    String ps2 = params.stream().map(x -> x.name() + ":" + t(x.type())).collect(Collectors.joining(", "));
+                    boolean nonText = params.stream().anyMatch(x -> !t(x.type()).equals("String"));
+                    String stx = st == null ? "" : st.stream().map(s -> s.profileName() + "." + s.stereotypeName()).collect(Collectors.joining(","));
+                    System.out.println((nat ? "native" : "pure") + "\t" + (nonText ? "NONTEXT" : "text") + "\t" + name + "(" + ps2 + ")\t" + stx + "\t" + p.getFileName());
+                }
+            }
+        }
+        System.err.println("files=" + files + " walls=" + walls);
+    }
+}

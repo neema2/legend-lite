@@ -1,0 +1,1546 @@
+import com.legend.door.ModelFromText;
+import com.legend.model.*;
+import com.legend.parser.GrammarLevel;
+import com.legend.parser.SpecParser;
+import com.legend.protocol.DerivedPropertyDefinition;
+import com.legend.protocol.TypeExpression;
+import com.legend.protocol.SourceInfo;
+import com.legend.protocol.Realization;
+import com.legend.protocol.spec.*;
+
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.*;
+
+/**
+ * H2's census (compat homework, 2026-11-19): every site where a query builds text, and where that text goes.
+ *
+ * <p>Parses with lite's own parser (ModelFromText / SpecParser), then runs a FORWARD TAINT INTERPRETER over each
+ * program's ValueSpecification: a PRODUCER (a function that spells a value as text) creates a taint; a text->text
+ * function carries it on, marked COMPOSED; a content-dependent consumer (a comparison, a predicate, a sort, group,
+ * join or window key, distinct, an aggregate, a text->non-text function) records FEEDS; the query's result records
+ * RETURNED. Relation and TDS columns carry their taint by name, so text built in an extend and filtered on later is
+ * seen. Measurement only: nothing here is product code.
+ */
+public class TextCensus {
+
+    // ===================================================================== the function tables
+
+    /** Producers: a value spelled as text (upstream's String-returning functions with a non-text parameter, read
+     *  from the pinned sources by Sigs.java; the text->text ones are COMBINE). */
+    static final Set<String> SPELL = Set.of("toString", "toRepresentation", "format", "formatDate", "char", "s",
+            "enumName", "id", "elementToPath", "encrypt", "toStringWithFormat");
+
+    /** text -> text: the producer's text is carried on inside a bigger or cut string. */
+    static final Set<String> COMBINE = Set.of("plus", "joinStrings", "substring", "substr", "left", "right", "lpad",
+            "rpad", "trim", "ltrim", "rtrim", "toUpper", "toLower", "toUpperFirstCharacter", "toLowerFirstCharacter",
+            "replace", "reverseString", "repeatString", "splitPart", "split", "regexpExtract", "regexpReplace",
+            "encodeBase64", "decodeBase64", "encodeUrl", "decodeUrl", "hash", "chunk", "toCSVString", "concat",
+            "makeString", "decrypt", "md5", "sha1", "sha256", "coalesce", "translate");
+
+    /** Content-dependent consumers whose result is not the text: the text FEEDS them. */
+    static final Set<String> CONSUME = Set.of("equal", "eq", "lessThan", "lessThanEqual", "greaterThan",
+            "greaterThanEqual", "compare", "contains", "startsWith", "endsWith", "indexOf", "length", "parseInteger",
+            "parseFloat", "parseDecimal", "parseDate", "parseBoolean", "matches", "in", "levenshteinDistance",
+            "jaroWinklerSimilarity", "ascii", "isDigit", "isLetter", "isUpperCase", "isLowerCase", "isAlphaNumeric",
+            "isNoLongerThan", "isNotLongerThan", "toInteger", "toFloat", "toDecimal", "isNumeric", "notEqual",
+            "notEqualAnsi", "lessThanOrEqual", "greaterThanOrEqual", "between", "like", "containsIgnoreCase",
+            "equalIgnoreCase", "startsWithIgnoreCase", "endsWithIgnoreCase", "parseJSON", "ilike", "match_",
+            "isEmptyString", "isNotEmptyString", "isBlank", "position", "strpos", "countSubstring",
+            "occurrences", "durationBetween", "toNumber", "date", "toDate", "parseDateTime", "parseStrictDate",
+            "variantFromString", "toVariant", "fromJson", "dateTimeOfText", "executeInDb", "setUpDataSQLs",
+            "parseJson", "toVariantFromString", "fromJSON", "fromString");
+
+    /** Content-dependent and pass the text on (its order or its identity decides). */
+    static final Set<String> CONSUME_PASS = Set.of("distinct", "removeDuplicates", "max", "min", "greatest", "least",
+            "mode", "uniqueValueOnly", "maxBy", "minBy", "argMax", "argMin");
+
+    /** Content-independent: the text's spelling cannot change the result (the taint is DROPPED). */
+    static final Set<String> DROP = Set.of("size", "count", "isEmpty", "isNotEmpty", "type", "genericType", "instanceOf",
+            "not", "and", "or", "hashCode", "rowNumber", "rank", "denseRank", "percentRank", "cumulativeDistribution",
+            "ntile", "print", "println", "debug", "assertSize", "assertEmpty", "assertNotEmpty", "isOne", "isZeroOne",
+            "countDistinct_");
+
+    /** Pass the value through, content-independent (the first value argument, or all value arguments). */
+    static final Set<String> PASS = Set.of("toOne", "toOneMany", "at", "first", "last", "head", "tail", "take", "limit",
+            "drop", "slice", "concatenate", "add", "union", "reverse", "list", "cast", "toMany", "getAll", "init",
+            "zip", "pair", "newMap", "put", "get", "getIfAbsentPutWithKey", "keyValues", "values", "keys", "eval_",
+            "range", "letFunction", "copy", "dynamicNew", "from", "meta::pure::mapping::from", "withPairs", "toList",
+            "asOf", "reprocess", "examine", "removeAll", "except", "intersection", "defaultIfEmpty", "ifEmpty",
+            "toOneManyOrDefault", "orElse", "lag", "lead", "nth", "offset", "firstNotNull", "nullif", "elementAt",
+            "allVersions", "allVersionsInRange", "graphFetch", "graphFetchChecked", "serialize", "unique",
+            "asc", "desc", "ascending", "descending", "over", "rows", "range_", "_range", "unbounded",
+            "averageRank", "cumulativeSum");
+
+    /** Arithmetic and numeric functions: typed, and a text reaching one FEEDS it. */
+    static final Set<String> ARITH = Set.of("minus", "times", "divide", "abs", "round", "floor", "ceiling", "mod",
+            "rem", "power", "pow", "sqrt", "cbrt", "exp", "log", "log10", "sign", "sin", "cos", "tan", "asin", "acos",
+            "atan", "atan2", "toRadians", "toDegrees", "bitAnd", "bitOr", "bitXor", "bitNot", "bitShiftLeft",
+            "bitShiftRight");
+
+    /** The judge: an assertion compares (or prints) what the query returned. */
+    static final Set<String> ASSERT = Set.of("assertEquals", "assertEq", "assert", "assertSameElements",
+            "assertContains", "assertFalse", "assertTrue", "assertJsonStringsEqual", "assertEqWithinTolerance",
+            "assertNotEquals", "assertNotEq", "assertIs", "assertInstanceOf", "assertNotContains",
+            "assertEqualsH2Compatible", "assertSameSQL", "assertError", "fail", "assertLambdaJSONEquals",
+            "assertLambdaEquals", "assertCollectionsEqualIgnoreOrder", "assertCollectionsEqual",
+            "assertEqualsWithDeltas", "assertTdsEquivalent", "assertEqualsIgnoreWhitespaces",
+            "assertJsonEquals", "assertStartsWith", "assertEqualsWithTolerance", "assertDeepEquals");
+
+    /** Higher-order functions over a collection or a relation (the lambda's first parameter is bound to the row). */
+    static final Set<String> HOF = Set.of("filter", "map", "exists", "forAll", "find", "sortBy", "fold", "partition",
+            "removeDuplicatesBy", "groupBy", "sort", "extend", "project", "select", "rename", "aggregate", "distinct",
+            "join", "asOfJoin", "pivot", "restrict", "renameColumns", "olapGroupBy", "groupByWithWindowSubset",
+            "write", "if", "match", "eval", "apply", "letFunction", "agg", "col", "lateral", "flatten", "joinStrings",
+            "sum", "average", "mean", "stdDev", "stdDevSample", "stdDevPopulation", "variance", "varianceSample",
+            "variancePopulation", "median", "percentile", "covarSample", "covarPopulation", "corr",
+            "wavg", "concatenate");
+
+    // ===================================================================== the abstract value
+
+    /** A producer site: the AppliedFunction node, where it is, and what happened to its text. */
+    static final class Site {
+        final AppliedFunction node;
+        final String source;
+        final String program;
+        final String suite;
+        final String fn;
+        String operandType = "?";
+        String operandOrigin = "?";
+        String detail = "";
+        boolean query;       // created inside a query (vs the harness/judge)
+        final LinkedHashSet<String> events = new LinkedHashSet<>();     // in the query
+        final LinkedHashSet<String> harness = new LinkedHashSet<>();    // after the query, in the test harness
+        final LinkedHashSet<String> reached = new LinkedHashSet<>();    // the programs whose evaluation met it
+        Site(AppliedFunction node, String source, String program, String suite, String fn) {
+            this.node = node; this.source = source; this.program = program; this.suite = suite; this.fn = fn;
+        }
+    }
+
+    /** What the interpreter knows of a value: which producers' text it carries (and whether composed), its type, its
+     *  columns or properties (rows, relations, instances), and the lambda it is, if one. */
+    static final class AV {
+        final IdentityHashMap<Site, Boolean> t = new IdentityHashMap<>();
+        Map<String, AV> cols;        // a row's, a relation's or an instance's members
+        String type;                 // a simple type name, or null
+        String origin = "?";         // LITERAL, DATA, COMPUTED
+        LambdaFunction lambda;
+        Map<String, AV> lambdaEnv;
+        boolean tainted() { if (!t.isEmpty()) return true; if (cols != null) for (AV c : cols.values()) if (c != null && !c.t.isEmpty()) return true; return false; }
+        static AV of(String type, String origin) { AV a = new AV(); a.type = type; a.origin = origin; return a; }
+        AV copy() { AV a = new AV(); a.t.putAll(t); a.cols = cols == null ? null : new LinkedHashMap<>(cols); a.type = type; a.origin = origin; a.lambda = lambda; a.lambdaEnv = lambdaEnv; return a; }
+        void absorb(AV o, boolean composed) {
+            if (o == null) return;
+            for (var e : o.t.entrySet()) t.merge(e.getKey(), composed || e.getValue(), Boolean::logicalOr);
+        }
+        /** every taint, its columns' included */
+        IdentityHashMap<Site, Boolean> all() {
+            IdentityHashMap<Site, Boolean> m = new IdentityHashMap<>(t);
+            if (cols != null) for (AV c : cols.values()) if (c != null) for (var e : c.all().entrySet()) m.merge(e.getKey(), e.getValue(), Boolean::logicalOr);
+            return m;
+        }
+    }
+
+    // ===================================================================== the world (classes, functions)
+
+    /** class simple name -> property -> type simple name (merged over every parsed source) */
+    final Map<String, Map<String, String>> classes = new HashMap<>();
+    /** function simple name -> its definitions (user and platform functions with bodies) */
+    final Map<String, List<FunctionDefinition>> functions = new HashMap<>();
+    /** function simple name -> return type simple names (from every declaration, native or not) */
+    final Map<String, Set<String>> returns = new HashMap<>();
+    final Set<String> enums = new HashSet<>();
+    /** class simple name -> derived property name -> its definition (inline bodies) */
+    final Map<String, Map<String, DerivedPropertyDefinition>> derived = new HashMap<>();
+    /** derived property name -> every class declaring it (for a receiver whose type is unknown) */
+    final Map<String, List<DerivedPropertyDefinition>> derivedByName = new HashMap<>();
+
+    static String simple(String n) {
+        if (n == null) return null;
+        int i = n.lastIndexOf("::");
+        return i < 0 ? n : n.substring(i + 2);
+    }
+
+    static String typeName(TypeExpression te) {
+        if (te == null) return null;
+        return switch (te) {
+            case TypeExpression.NameRef n -> simple(n.name());
+            case TypeExpression.Generic g -> simple(g.name());
+            case TypeExpression.RelationType r -> "Relation";
+            default -> te.getClass().getSimpleName();
+        };
+    }
+
+    void index(ParsedModel m) {
+        for (var el : m.elements()) {
+            switch (el) {
+                case ClassDefinition cd -> {
+                    var props = classes.computeIfAbsent(simple(cd.qualifiedName()), k -> new HashMap<>());
+                    for (var p : cd.properties()) props.putIfAbsent(p.name(), typeName(p.type()));
+                    for (var d : cd.derivedProperties()) {
+                        props.putIfAbsent(d.name(), typeName(d.type()));
+                        if (d.realization() instanceof Realization.Inline) {
+                            derived.computeIfAbsent(simple(cd.qualifiedName()), k -> new HashMap<>()).putIfAbsent(d.name(), d);
+                            derivedByName.computeIfAbsent(d.name(), k -> new ArrayList<>()).add(d);
+                        }
+                    }
+                }
+                case EnumDefinition ed -> enums.add(simple(ed.qualifiedName()));
+                case FunctionDefinition fd -> {
+                    functions.computeIfAbsent(simple(fd.qualifiedName()), k -> new ArrayList<>()).add(fd);
+                    returns.computeIfAbsent(simple(fd.qualifiedName()), k -> new HashSet<>()).add(typeName(fd.returnType()));
+                }
+                case NativeFunctionDefinition nf ->
+                    returns.computeIfAbsent(simple(nf.qualifiedName()), k -> new HashSet<>()).add(typeName(nf.returnType()));
+                default -> { }
+            }
+        }
+    }
+
+    static final Set<String> TYPE_PARAMS = Set.of("T", "V", "U", "K", "X", "Y", "Z", "Q", "R", "S", "W", "P", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "L", "M", "N", "O");
+    static final Set<String> NUMERIC = Set.of("Integer", "Float", "Decimal", "Number");
+    static final Set<String> DATES = Set.of("Date", "StrictDate", "DateTime", "LatestDate", "StrictTime");
+
+    static final boolean COMBINE_MODE = Boolean.getBoolean("census.combiners");
+
+    /** combine mode: a text->text site the brief names (joinStrings, string plus) counted as its own site */
+    void combineSite(AppliedFunction af, String fn, List<AV> operands, boolean carries, AV out) {
+        Site s = producer(af, fn);
+        s.operandType = operands.stream().map(a -> String.valueOf(a.type)).distinct().collect(Collectors.joining(","));
+        s.operandOrigin = operands.stream().map(a -> a.origin).distinct().collect(Collectors.joining(","));
+        boolean spelled = operands.stream().anyMatch(a -> a.all().keySet().stream().anyMatch(x -> SPELL.contains(x.fn)));
+        s.detail = spelled ? "carries-spelling" : "";
+        out.t.put(s, false);
+    }
+
+    static String joinType(String a, String b) {
+        if (a == null) return b;
+        if (b == null || a.equals(b)) return a;
+        if (a.contains("|") || b.contains("|")) {
+            TreeSet<String> u = new TreeSet<>(Arrays.asList(a.split("\\|")));
+            u.addAll(Arrays.asList(b.split("\\|")));
+            return String.join("|", u);
+        }
+        if (NUMERIC.contains(a) && NUMERIC.contains(b)) {
+            if (a.equals("Decimal") || b.equals("Decimal")) return "Decimal";
+            if (a.equals("Float") || b.equals("Float")) return "Float";
+            return "Number";
+        }
+        if (DATES.contains(a) && DATES.contains(b)) return "Date";
+        return a + "|" + b;
+    }
+
+    // ===================================================================== the interpreter
+
+    String source, program, suite;
+    String queryParam;       // the PCT adapter parameter ($f), or null
+    Set<String> queryFns = Set.of();
+    boolean inQuery;
+    final IdentityHashMap<AppliedFunction, Site> sites = new IdentityHashMap<>();
+    final List<Site> all = new ArrayList<>();
+    final Map<String, Integer> unknownFns = new TreeMap<>();
+    final Map<String, Integer> queryShapes = new TreeMap<>();
+    final Map<String, Integer> unhandled = new TreeMap<>();
+    final Map<String, Integer> staticQueries = new TreeMap<>();
+    int depth;
+    final Deque<FunctionDefinition> inlining = new ArrayDeque<>();
+    boolean inlineUser = false;
+
+    void event(AV v, String what) {
+        if (v == null) return;
+        for (var e : v.all().entrySet()) {
+            Site s = e.getKey();
+            if (inQuery && s.query) s.events.add(what);
+            else s.harness.add(what);
+        }
+    }
+
+    AV evalBody(List<ValueSpecification> body, Map<String, AV> env) {
+        AV last = new AV();
+        for (ValueSpecification v : body) last = eval(v, env);
+        return last;
+    }
+
+    AV evalLambda(LambdaFunction l, Map<String, AV> outer, List<AV> args) {
+        if (l == null) return new AV();
+        Map<String, AV> env = new HashMap<>(outer);
+        for (int i = 0; i < l.parameters().size(); i++) {
+            AV a = i < args.size() ? args.get(i) : null;
+            env.put(l.parameters().get(i).name(), a == null ? AV.of(typeName(l.parameters().get(i).type()), "DATA") : a);
+        }
+        if (depth > 60) return new AV();
+        depth++;
+        try { return evalBody(l.body(), env); } finally { depth--; }
+    }
+
+    /** a lambda written in place, or a variable bound to one */
+    LambdaFunction lambdaOf(ValueSpecification v, Map<String, AV> env) {
+        if (v instanceof LambdaFunction l) return l;
+        if (v instanceof Variable var && env.get(var.name()) != null) return env.get(var.name()).lambda;
+        return null;
+    }
+
+    AV eval(ValueSpecification v, Map<String, AV> env) {
+        return switch (v) {
+            case CInteger c -> AV.of("Integer", "LITERAL");
+            case CFloat c -> AV.of("Float", "LITERAL");
+            case CDecimal c -> AV.of("Decimal", "LITERAL");
+            case CString c -> AV.of("String", "LITERAL");
+            case CBoolean c -> AV.of("Boolean", "LITERAL");
+            case CDate c -> AV.of(dateKind(c), "LITERAL");
+            case CTime c -> AV.of("StrictTime", "LITERAL");
+            case CLatestDate c -> AV.of("LatestDate", "LITERAL");
+            case CByteArray c -> AV.of("Byte", "LITERAL");
+            case EnumValue e -> AV.of("enum " + simple(e.fullPath()), "LITERAL");
+            case PackageableElementPtr p -> {
+                String sn = simple(p.fullPath());
+                AV a = AV.of(enums.contains(sn) ? "Enumeration " + sn : sn, "LITERAL");
+                yield a;
+            }
+            case TypeAnnotation ta -> AV.of("@type", "LITERAL");
+            case Variable var -> {
+                AV a = env.get(var.name());
+                if (a == null) { AV b = AV.of(typeName(var.type()), "DATA"); yield b; }
+                yield a;
+            }
+            case LambdaFunction l -> { AV a = new AV(); a.lambda = l; a.lambdaEnv = env; a.type = "Lambda"; yield a; }
+            case PureCollection pc -> {
+                AV a = new AV();
+                String ty = null; String origin = null;
+                for (var x : pc.values()) {
+                    AV e = eval(x, env);
+                    a.absorb(e, false);
+                    if (e.cols != null) { if (a.cols == null) a.cols = new LinkedHashMap<>(); a.cols.putAll(e.cols); }
+                    if (e.lambda != null && a.lambda == null) { a.lambda = e.lambda; a.lambdaEnv = e.lambdaEnv; }
+                    ty = ty == null ? e.type : joinType(ty, e.type);
+                    origin = origin == null ? e.origin : (origin.equals(e.origin) ? origin : "COMPUTED");
+                }
+                a.type = ty; a.origin = origin == null ? "LITERAL" : origin;
+                yield a;
+            }
+            case AppliedProperty ap -> {
+                AV r = eval(ap.receiver(), env);
+                AV dv = derivedCall(ap.property(), r, List.of(), env);
+                if (dv != null) yield dv;
+                AV out = new AV();
+                if (r.cols != null && r.cols.get(ap.property()) != null) {
+                    AV c = r.cols.get(ap.property());
+                    out.absorb(c, false);
+                    out.type = c.type; out.cols = c.cols;
+                } else if (r.type != null && classes.containsKey(r.type)) {
+                    out.type = classes.get(r.type).get(ap.property());
+                    if (out.type != null && classes.containsKey(out.type)) out.cols = null;
+                }
+                // a taint on the receiver itself (a property of a computed instance): carried
+                out.absorb(r, false);
+                if (r.t.isEmpty()) out.t.keySet().removeIf(k -> false);
+                out.origin = "DATA";
+                yield out;
+            }
+            case TdsLiteral tl -> tds(tl.tdsString());
+            case NewInstance ni -> {
+                AV a = AV.of(simple(ni.className()), "COMPUTED");
+                a.cols = new LinkedHashMap<>();
+                for (var kb : ni.properties()) a.cols.put(kb.key(), eval(kb.expression().value(), env));
+                yield a;
+            }
+            case NewInstanceCast nc -> eval(nc.src(), env);
+            case ColSpec cs -> { AV a = new AV(); a.type = "ColSpec"; yield a; }
+            case ColSpecArray ca -> { AV a = new AV(); a.type = "ColSpec"; yield a; }
+            case AppliedFunction af -> call(af, env);
+            default -> {
+                AV a = new AV();
+                for (var c : v.children()) a.absorb(eval(c, env), false);
+                yield a;
+            }
+        };
+    }
+
+    static String dateKind(CDate c) {
+        String k = c.value().getClass().getSimpleName();
+        return switch (k) {
+            case "StrictDate" -> "StrictDate";
+            case "Year", "YearMonth" -> "Date";
+            default -> "DateTime";
+        };
+    }
+
+    /** a #TDS literal: its columns and their types (declared, else read off the first row) */
+    AV tds(String text) {
+        AV a = AV.of("Relation", "LITERAL");
+        a.cols = new LinkedHashMap<>();
+        List<String> lines = Arrays.stream(text.split("\n")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+        if (lines.isEmpty()) return a;
+        String[] head = lines.get(0).split(",");
+        String[] row = lines.size() > 1 ? lines.get(1).split(",") : new String[0];
+        for (int i = 0; i < head.length; i++) {
+            String h = head[i].trim();
+            String name = h, ty = null;
+            int colon = h.indexOf(':');
+            if (colon > 0) { name = h.substring(0, colon).trim(); ty = simple(h.substring(colon + 1).trim().replaceAll("\\[.*", "").replaceAll("\\(.*", "")); }
+            if (ty == null && i < row.length) {
+                String c = row[i].trim();
+                if (c.matches("-?\\d+")) ty = "Integer";
+                else if (c.matches("-?\\d*\\.\\d+([eE]-?\\d+)?")) ty = "Float";
+                else if (c.startsWith("%")) ty = c.contains("T") ? "DateTime" : "StrictDate";
+                else if (c.equals("true") || c.equals("false")) ty = "Boolean";
+                else if (!c.isEmpty() && !c.equals("null")) ty = "String";
+            }
+            a.cols.put(name, AV.of(ty, "DATA"));
+        }
+        return a;
+    }
+
+    /** the column names a sort/group/select argument names (~c, ~[a,b], 'c', ['a','b'], asc('c'), ~c->ascending()) */
+    static List<String> colNames(ValueSpecification v) {
+        List<String> out = new ArrayList<>();
+        switch (v) {
+            case ColSpec cs -> out.add(cs.name());
+            case ColSpecArray ca -> ca.colSpecs().forEach(c -> out.add(c.name()));
+            case CString s -> out.add(s.value());
+            case PureCollection pc -> pc.values().forEach(x -> out.addAll(colNames(x)));
+            case AppliedFunction af -> af.parameters().forEach(x -> out.addAll(colNames(x)));
+            default -> { }
+        }
+        return out;
+    }
+
+    Site producer(AppliedFunction af, String fn) {
+        Site s = producer0(af, fn);
+        s.reached.add(program);
+        return s;
+    }
+
+    Site producer0(AppliedFunction af, String fn) {
+        Site s = sites.get(af);
+        if (s == null) {
+            s = new Site(af, nodeFile.getOrDefault(af, source), program, suite, fn);
+            s.query = inQuery;
+            sites.put(af, s);
+            all.add(s);
+        } else if (inQuery) {
+            s.query = true;
+        }
+        return s;
+    }
+
+    AV call(AppliedFunction af, Map<String, AV> env) {
+        String fn = simple(af.function());
+        List<ValueSpecification> ps = af.parameters();
+
+        // ---------------------------------------------------------- the query boundary
+        boolean pctEval = fn.equals("eval") && queryParam != null && !ps.isEmpty()
+                && ps.get(0) instanceof Variable fv && fv.name().equals(queryParam);
+        boolean corpusQuery = queryFns.contains(fn) && !ps.isEmpty() && lambdaOf(ps.get(0), env) != null
+                && lambdaOf(ps.get(0), env).parameters().isEmpty();
+        if (pctEval || corpusQuery) {
+            LambdaFunction q = pctEval ? (ps.size() > 1 ? lambdaOf(ps.get(1), env) : null) : lambdaOf(ps.get(0), env);
+            queryShapes.merge(fn + (q == null ? "(non-lambda)" : ""), 1, Integer::sum);
+            AV res;
+            if (q != null) {
+                boolean was = inQuery;
+                inQuery = true;
+                Map<String, AV> qenv = env;
+                if (ps.get(pctEval ? 1 : 0) instanceof Variable vv && env.get(vv.name()) != null && env.get(vv.name()).lambdaEnv != null) qenv = env.get(vv.name()).lambdaEnv;
+                AV r;
+                try { r = evalLambda(q, qenv, List.of()); }
+                finally { inQuery = was; }
+                // RETURNED: the query's result, each taint by whether it was composed
+                for (var e : r.all().entrySet()) if (e.getKey().query) e.getKey().events.add(e.getValue() ? "RETURNED-COMPOSED" : "RETURNED-BARE");
+                res = r;
+            } else {
+                res = new AV();
+                for (int i = 1; i < ps.size(); i++) res.absorb(eval(ps.get(i), env), false);
+            }
+            for (int i = pctEval ? 2 : 1; i < ps.size(); i++) eval(ps.get(i), env);
+            return res;
+        }
+
+        // ---------------------------------------------------------- producers
+        if (SPELL.contains(fn) && !(fn.equals("id") && ps.size() != 1) && !(fn.equals("s") && ps.isEmpty())) {
+            List<AV> args = new ArrayList<>();
+            for (var p : ps) args.add(eval(p, env));
+            AV out = AV.of("String", "COMPUTED");
+            Site s = producer(af, fn);
+            if (fn.equals("format") || fn.equals("toStringWithFormat")) {
+                // operands: the second argument's elements
+                List<String> types = new ArrayList<>();
+                List<String> origins = new ArrayList<>();
+                if (ps.size() > 1) {
+                    List<ValueSpecification> elems = ps.get(1) instanceof PureCollection pc ? pc.values() : List.of(ps.get(1));
+                    for (var x : elems) { AV e = eval(x, env); types.add(String.valueOf(e.type)); origins.add(e.origin); }
+                }
+                s.operandType = String.join(",", types);
+                s.operandOrigin = origins.stream().distinct().collect(Collectors.joining(","));
+                if (!ps.isEmpty() && ps.get(0) instanceof CString f) s.detail = f.value();
+                for (int i = 1; i < args.size(); i++) out.absorb(args.get(i), true);
+            } else if (!args.isEmpty()) {
+                AV op = args.get(0);
+                s.operandType = String.valueOf(op.type);
+                s.operandOrigin = op.origin;
+                if (fn.equals("formatDate") && ps.size() > 1) s.detail = String.valueOf(args.get(1).type);
+                out.absorb(op, true);     // spelling an already-tainted text carries the old taint, composed
+            } else {
+                s.operandType = "(none)";
+            }
+            out.t.put(s, false);
+            return out;
+        }
+
+        // ---------------------------------------------------------- text -> text
+        if (COMBINE.contains(fn) && !HOF.contains(fn)) {
+            AV out = AV.of("String", "COMPUTED");
+            List<AV> operands = new ArrayList<>();
+            for (var p : ps) {
+                if (fn.equals("plus") && p instanceof PureCollection pc) for (var x : pc.values()) operands.add(eval(x, env));
+                else operands.add(eval(p, env));
+            }
+            String ty = null;
+            boolean anyTaint = false;
+            for (AV a : operands) { out.absorb(a, true); ty = ty == null ? a.type : joinType(ty, a.type); if (a.tainted()) anyTaint = true; }
+            if (fn.equals("plus")) {
+                boolean text = operands.stream().anyMatch(a -> "String".equals(a.type) || a.all().keySet().stream().anyMatch(x -> !x.fn.equals("plus(?)")));
+                boolean numeric = !text && operands.stream().allMatch(a -> a.type != null && NUMERIC.contains(a.type));
+                boolean someNumeric = operands.stream().anyMatch(a -> a.type != null && NUMERIC.contains(a.type));
+                if (numeric || (!text && someNumeric)) { out.type = ty; return out; }          // arithmetic: no text
+                if (!text) {
+                    // every operand's type unresolved: counted (the error bar), never carried as text
+                    out.type = ty;
+                    if (COMBINE_MODE) { combineSite(af, "plus(?)", operands, anyTaint, out); out.t.remove(sites.get(af)); }
+                    return out;
+                }
+                if (COMBINE_MODE) combineSite(af, "plus(text)", operands, anyTaint, out);
+                return out;
+            }
+            if (COMBINE_MODE && fn.equals("joinStrings")) combineSite(af, "joinStrings", operands.subList(0, Math.min(1, operands.size())), anyTaint, out);
+            return out;
+        }
+
+        // ---------------------------------------------------------- the judge
+        if (ASSERT.contains(fn)) {
+            for (var p : ps) {
+                AV a = eval(p, env);
+                if (p instanceof LambdaFunction l) { AV r = evalLambda(l, env, List.of()); event(r, "ASSERT:" + fn); }
+                event(a, "ASSERT:" + fn);
+            }
+            return AV.of("Boolean", "COMPUTED");
+        }
+
+        // ---------------------------------------------------------- consumers
+        if (CONSUME.contains(fn)) {
+            for (var p : ps) {
+                AV a = eval(p, env);
+                if (p instanceof LambdaFunction l) a = evalLambda(l, env, List.of());
+                event(a, "FEEDS:" + fn);
+            }
+            Set<String> r = returns.getOrDefault(fn, Set.of());
+            return AV.of(r.size() == 1 ? r.iterator().next() : (fn.startsWith("parse") ? fn.substring(5) : "Boolean"), "COMPUTED");
+        }
+        if (CONSUME_PASS.contains(fn) && ps.size() <= 1) {
+            AV a = ps.isEmpty() ? new AV() : eval(ps.get(0), env);
+            event(a, "FEEDS:" + fn);
+            return a;
+        }
+        if (DROP.contains(fn)) {
+            AV first = null;
+            for (var p : ps) { AV a = eval(p, env); if (first == null) first = a; event(a, "DROPPED:" + fn); }
+            if (fn.equals("not") || fn.equals("and") || fn.equals("or")) return AV.of("Boolean", "COMPUTED");
+            return AV.of("Integer", "COMPUTED");
+        }
+
+        // ---------------------------------------------------------- arithmetic: typed, no text
+        if (ARITH.contains(fn)) {
+            AV r = AV.of(null, "COMPUTED");
+            String origin = null;
+            for (var p : ps) {
+                AV a = eval(p, env);
+                if (a.tainted()) event(a, "FEEDS:" + fn);
+                String ty = a.type;
+                r.type = r.type == null ? ty : joinType(r.type, ty);
+                origin = origin == null ? a.origin : (origin.equals(a.origin) ? origin : "COMPUTED");
+            }
+            if (fn.equals("divide") && r.type != null && !r.type.equals("Decimal")) r.type = "Float";
+            if (Set.of("round", "floor", "ceiling", "sign").contains(fn) && !"Decimal".equals(r.type)) r.type = fn.equals("round") && ps.size() > 1 ? r.type : "Integer";
+            if (Set.of("sqrt", "cbrt", "exp", "log", "log10", "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "power", "toRadians", "toDegrees").contains(fn)) r.type = "Float";
+            // a unary minus over a literal is still a literal (the parser reads -1 as minus(1))
+            r.origin = fn.equals("minus") && ps.size() == 1 ? origin : "COMPUTED";
+            return r;
+        }
+        if (fn.equals("new")) {
+            String cls = !ps.isEmpty() && ps.get(0) instanceof PackageableElementPtr p ? simple(p.fullPath()) : "?";
+            AV r = AV.of(cls, "COMPUTED");
+            for (int i = 1; i < ps.size(); i++) { AV a = eval(ps.get(i), env); r.absorb(a, false); if (a.cols != null) r.cols = a.cols; }
+            return r;
+        }
+
+        // ---------------------------------------------------------- higher-order and relational
+        AV out = switch (fn) {
+            case "removeDuplicates", "removeDuplicatesBy", "uniqueValueOnly" -> {
+                AV c = eval(ps.get(0), env);
+                if (ps.size() == 1) { event(c, "FEEDS:" + fn); yield c; }
+                LambdaFunction l = lambdaOf(ps.get(1), env);
+                if (l != null) {
+                    AV k = evalLambda(l, env, l.parameters().size() == 2 ? List.of(c, c) : List.of(c));
+                    event(k, l.parameters().size() == 2 ? "FEEDS:dedup-comparator" : "FEEDS:dedup-key");
+                } else event(eval(ps.get(1), env), "FEEDS:" + fn);
+                yield c;
+            }
+            case "letFunction" -> {
+                AV val = ps.size() > 1 ? eval(ps.get(1), env) : new AV();
+                if (!ps.isEmpty() && ps.get(0) instanceof CString name) env.put(name.value(), val);
+                yield val;
+            }
+            case "if" -> {
+                AV cond = ps.isEmpty() ? new AV() : eval(ps.get(0), env);
+                if (!ps.isEmpty() && ps.get(0) instanceof LambdaFunction cl) cond = evalLambda(cl, env, List.of());
+                event(cond, "FEEDS:if-condition");
+                AV r = new AV();
+                for (int i = 1; i < ps.size(); i++) {
+                    AV b = ps.get(i) instanceof LambdaFunction l ? evalLambda(l, env, List.of()) : eval(ps.get(i), env);
+                    r.absorb(b, false);
+                    if (b.cols != null) r.cols = b.cols;
+                    r.type = r.type == null ? b.type : joinType(r.type, b.type);
+                }
+                yield r;
+            }
+            case "match" -> {
+                AV subj = ps.isEmpty() ? new AV() : eval(ps.get(0), env);
+                AV r = new AV();
+                if (ps.size() > 1) {
+                    List<ValueSpecification> ls = ps.get(1) instanceof PureCollection pc ? pc.values() : List.of(ps.get(1));
+                    for (var x : ls) if (x instanceof LambdaFunction l) r.absorb(evalLambda(l, env, List.of(subj)), false);
+                }
+                event(subj, "FEEDS:match");
+                yield r;
+            }
+            case "eval", "apply" -> {
+                LambdaFunction l = ps.isEmpty() ? null : lambdaOf(ps.get(0), env);
+                List<AV> args = new ArrayList<>();
+                for (int i = 1; i < ps.size(); i++) args.add(eval(ps.get(i), env));
+                if (l != null) yield evalLambda(l, env, args);
+                AV r = new AV(); for (AV a : args) r.absorb(a, false); yield r;
+            }
+            case "filter", "exists", "forAll", "find", "partition" -> {
+                AV c = eval(ps.get(0), env);
+                LambdaFunction l = ps.size() > 1 ? lambdaOf(ps.get(1), env) : null;
+                if (l != null) {
+                    AV pred = evalLambda(l, env, List.of(c));
+                    event(pred, "FEEDS:" + fn + "-predicate");
+                }
+                if (fn.equals("exists") || fn.equals("forAll")) yield AV.of("Boolean", "COMPUTED");
+                yield c;
+            }
+            case "map" -> {
+                AV c = eval(ps.get(0), env);
+                LambdaFunction l = ps.size() > 1 ? lambdaOf(ps.get(1), env) : null;
+                if (l == null) yield c;
+                AV r = evalLambda(l, env, List.of(elementOf(c)));
+                yield r;
+            }
+            case "fold" -> {
+                AV c = eval(ps.get(0), env);
+                AV init = ps.size() > 2 ? eval(ps.get(2), env) : new AV();
+                LambdaFunction l = ps.size() > 1 ? lambdaOf(ps.get(1), env) : null;
+                if (l == null) yield init;
+                AV r = evalLambda(l, env, List.of(elementOf(c), init));
+                r.absorb(init, false);
+                yield r;
+            }
+            case "sortBy" -> {
+                AV c = eval(ps.get(0), env);
+                LambdaFunction l = ps.size() > 1 ? lambdaOf(ps.get(1), env) : null;
+                if (l != null) event(evalLambda(l, env, List.of(elementOf(c))), "FEEDS:sort-key");
+                yield c;
+            }
+            case "sort" -> {
+                AV c = eval(ps.get(0), env);
+                if (ps.size() == 1) { event(c, "FEEDS:sort"); yield c; }
+                LambdaFunction key = lambdaOf(ps.get(1), env);
+                if (key != null) {
+                    AV k = evalLambda(key, env, key.parameters().size() == 2 ? List.of(elementOf(c), elementOf(c)) : List.of(elementOf(c)));
+                    event(k, key.parameters().size() == 2 ? "FEEDS:sort-comparator" : "FEEDS:sort-key");
+                    if (ps.size() > 2) { LambdaFunction cmp = lambdaOf(ps.get(2), env); if (cmp != null) evalLambda(cmp, env, List.of(k, k)); }
+                } else {
+                    for (int i = 1; i < ps.size(); i++) {
+                        for (String n : colNames(ps.get(i))) if (c.cols != null) event(c.cols.get(n), "FEEDS:sort-key");
+                        eval(ps.get(i), env);
+                    }
+                }
+                yield c;
+            }
+            case "extend" -> {
+                AV r = eval(ps.get(0), env).copy();
+                if (r.cols == null) r.cols = new LinkedHashMap<>(); else r.cols = new LinkedHashMap<>(r.cols);
+                for (int i = 1; i < ps.size(); i++) {
+                    ValueSpecification arg = ps.get(i);
+                    if (arg instanceof AppliedFunction ov && simple(ov.function()).equals("over")) {
+                        // a window: its partition and order keys
+                        for (var op : ov.parameters()) for (String n : colNames(op)) event(r.cols.get(n), "FEEDS:window-key");
+                        continue;
+                    }
+                    defineColumns(arg, r, r.cols, env);
+                }
+                r.type = "Relation";
+                yield r;
+            }
+            case "project" -> {
+                AV src = eval(ps.get(0), env);
+                AV r = AV.of("Relation", "COMPUTED");
+                r.cols = new LinkedHashMap<>();
+                if (ps.size() > 1) {
+                    if (ps.get(1) instanceof PureCollection pc && ps.size() > 2 && ps.get(2) instanceof PureCollection names) {
+                        for (int i = 0; i < pc.values().size(); i++) {
+                            String n = i < names.values().size() && names.values().get(i) instanceof CString cs ? cs.value() : "col" + i;
+                            LambdaFunction l = lambdaOf(pc.values().get(i), env);
+                            r.cols.put(n, l == null ? eval(pc.values().get(i), env) : evalLambda(l, env, List.of(elementOf(src))));
+                        }
+                    } else if (ps.get(1) instanceof LambdaFunction l1 && ps.size() > 2) {
+                        String n = ps.get(2) instanceof PureCollection names && !names.values().isEmpty() && names.values().get(0) instanceof CString cs ? cs.value() : "col0";
+                        r.cols.put(n, evalLambda(l1, env, List.of(elementOf(src))));
+                    } else {
+                        for (int i = 1; i < ps.size(); i++) defineColumns(ps.get(i), src, r.cols, env);
+                    }
+                }
+                yield r;
+            }
+            case "select", "restrict" -> {
+                AV src = eval(ps.get(0), env);
+                AV r = src.copy();
+                if (ps.size() > 1 && src.cols != null) {
+                    List<String> keep = colNames(ps.get(1));
+                    if (!keep.isEmpty()) { r.cols = new LinkedHashMap<>(); for (String k : keep) r.cols.put(k, src.cols.get(k)); }
+                    // a select that keeps a computed column: not consumed, carried
+                    if (ps.get(1) instanceof ColSpecArray || ps.get(1) instanceof ColSpec) {
+                        for (var cs : (ps.get(1) instanceof ColSpecArray ca ? ca.colSpecs() : List.of((ColSpec) ps.get(1))))
+                            if (cs.function1() != null) defineColumns(cs, src, r.cols, env);
+                    }
+                }
+                yield r;
+            }
+            case "rename", "renameColumns" -> {
+                AV src = eval(ps.get(0), env);
+                AV r = src.copy();
+                if (src.cols != null && ps.size() > 2) {
+                    List<String> a = colNames(ps.get(1)), b = colNames(ps.get(2));
+                    if (a.size() == 1 && b.size() == 1) { r.cols = new LinkedHashMap<>(src.cols); r.cols.put(b.get(0), r.cols.remove(a.get(0))); }
+                }
+                yield r;
+            }
+            case "distinct" -> {
+                AV src = eval(ps.get(0), env);
+                if (ps.size() > 1 && src.cols != null) for (String n : colNames(ps.get(1))) event(src.cols.get(n), "FEEDS:distinct");
+                else event(src, "FEEDS:distinct");
+                yield src;
+            }
+            case "groupBy", "aggregate", "olapGroupBy", "groupByWithWindowSubset" -> groupBy(fn, ps, env);
+            case "join", "asOfJoin", "lateral" -> {
+                AV a = eval(ps.get(0), env);
+                AV b = ps.size() > 1 ? eval(ps.get(1), env) : new AV();
+                AV r = AV.of("Relation", "COMPUTED");
+                r.cols = new LinkedHashMap<>();
+                if (a.cols != null) r.cols.putAll(a.cols);
+                if (b.cols != null) r.cols.putAll(b.cols);
+                for (int i = 2; i < ps.size(); i++) {
+                    LambdaFunction l = lambdaOf(ps.get(i), env);
+                    if (l != null) event(evalLambda(l, env, List.of(a, b)), "FEEDS:join-condition");
+                    else eval(ps.get(i), env);
+                }
+                yield r;
+            }
+            case "pivot" -> {
+                AV src = eval(ps.get(0), env);
+                if (ps.size() > 1 && src.cols != null) for (String n : colNames(ps.get(1))) event(src.cols.get(n), "FEEDS:pivot-key");
+                AV r = AV.of("Relation", "COMPUTED");
+                for (int i = 2; i < ps.size(); i++) r.absorb(aggregates(ps.get(i), src, new LinkedHashMap<>(), env), false);
+                yield r;
+            }
+            case "read" -> {
+                // lite's dynamic column read: $r->read(~c) or $r->read($colVar)
+                AV row = eval(ps.get(0), env);
+                AV r = new AV();
+                List<String> names = ps.size() > 1 ? colNames(ps.get(1)) : List.of();
+                if (row.cols != null) {
+                    if (!names.isEmpty()) for (String n : names) { AV c = row.cols.get(n); r.absorb(c, false); if (c != null) r.type = c.type; }
+                    else for (AV c : row.cols.values()) r.absorb(c, false);
+                }
+                for (int i = 1; i < ps.size(); i++) eval(ps.get(i), env);
+                r.origin = "DATA";
+                yield r;
+            }
+            case "without" -> {
+                AV src = eval(ps.get(0), env);
+                AV r = src.copy();
+                if (src.cols != null && ps.size() > 1) { r.cols = new LinkedHashMap<>(src.cols); for (String n : colNames(ps.get(1))) r.cols.remove(n); }
+                yield r;
+            }
+            case "getString", "getInteger", "getFloat", "getDate", "getBoolean", "getNumber", "getDecimal",
+                 "getStrictDate", "getDateTime", "getEnum", "isNull", "isNotNull" -> {
+                AV row = eval(ps.get(0), env);
+                AV r = new AV();
+                if (ps.size() > 1 && ps.get(1) instanceof CString n && row.cols != null && row.cols.get(n.value()) != null) {
+                    AV c = row.cols.get(n.value());
+                    r.absorb(c, false); r.type = c.type;
+                }
+                if (fn.startsWith("is")) { event(r, "DROPPED:" + fn); yield AV.of("Boolean", "COMPUTED"); }
+                if (r.type == null) r.type = fn.substring(3);
+                r.origin = "DATA";
+                yield r;
+            }
+            case "sum", "average", "mean", "stdDev", "stdDevSample", "stdDevPopulation", "variance", "varianceSample",
+                 "variancePopulation", "median", "percentile", "covarSample", "covarPopulation", "corr", "wavg" -> {
+                AV r = AV.of(fn.equals("sum") ? null : "Float", "COMPUTED");
+                for (var p : ps) { AV a = eval(p, env); event(a, "FEEDS:" + fn); if (r.type == null) r.type = a.type; }
+                yield r;
+            }
+            case "concatenate", "union" -> {
+                AV r = new AV();
+                for (var p : ps) { AV a = eval(p, env); r.absorb(a, false); if (a.cols != null) { if (r.cols == null) r.cols = new LinkedHashMap<>(); r.cols.putAll(a.cols); } r.type = r.type == null ? a.type : joinType(r.type, a.type); }
+                yield r;
+            }
+            case "joinStrings" -> {
+                // the collection form, and the relation form joinStrings(rel, ~col|f, sep[, sort]): an aggregate
+                AV r = AV.of("String", "COMPUTED");
+                AV src = ps.isEmpty() ? new AV() : eval(ps.get(0), env);
+                AV operand = src;
+                if (src.cols != null && ps.size() > 1 && (ps.get(1) instanceof ColSpec || ps.get(1) instanceof ColSpecArray)) {
+                    operand = new AV();
+                    for (String n : colNames(ps.get(1))) { AV c = src.cols.get(n); operand.absorb(c, false); if (c != null) operand.type = c.type; }
+                } else if (src.cols != null && ps.size() > 1 && ps.get(1) instanceof LambdaFunction l) {
+                    operand = evalLambda(l, env, List.of(src));
+                }
+                r.absorb(operand, true);
+                for (int i = 1; i < ps.size(); i++) {
+                    AV a = eval(ps.get(i), env);
+                    r.absorb(a, true);
+                    if (i == 3 && src.cols != null) for (String n : colNames(ps.get(i))) event(src.cols.get(n), "FEEDS:sort-key");
+                }
+                if (COMBINE_MODE) combineSite(af, "joinStrings", List.of(operand), operand.tainted(), r);
+                yield r;
+            }
+            default -> null;
+        };
+        if (out != null) return out;
+
+        if (PASS.contains(fn) || CONSUME_PASS.contains(fn)) {
+            AV r = ps.isEmpty() ? new AV() : eval(ps.get(0), env).copy();
+            for (int i = 1; i < ps.size(); i++) {
+                AV a = eval(ps.get(i), env);
+                if (fn.equals("concatenate") || fn.equals("add") || fn.equals("union") || fn.equals("list") || fn.equals("pair") || fn.equals("put") || fn.equals("zip")) r.absorb(a, false);
+                if (CONSUME_PASS.contains(fn)) event(a, "FEEDS:" + fn);
+            }
+            if (CONSUME_PASS.contains(fn)) event(r, "FEEDS:" + fn);
+            if (fn.equals("cast") && ps.size() > 1 && ps.get(1) instanceof TypeAnnotation ta) r.type = r.type;
+            return r;
+        }
+
+        // ---------------------------------------------------------- a user function: inline its body (the G½ step)
+        List<FunctionDefinition> defs = functions.get(fn);
+        if (inlineUser && defs != null && defs.size() == 1 && !inlining.contains(defs.get(0))
+                && inlining.size() < 6 && inlinable(defs.get(0))) {
+            FunctionDefinition fd = defs.get(0);
+            Map<String, AV> callee = new HashMap<>();
+            for (int i = 0; i < fd.parameters().size() && i < ps.size(); i++) callee.put(fd.parameters().get(i).name(), eval(ps.get(i), env));
+            inlining.push(fd);
+            try {
+                AV r = evalBody(fd.body(), callee);
+                if (r.type == null) r.type = typeName(fd.returnType());
+                return r;
+            } finally { inlining.pop(); }
+        }
+
+        // ---------------------------------------------------------- a qualified property called with arguments
+        if (!ps.isEmpty() && (af.propertyCall() || derivedByName.containsKey(fn)) && functions.get(fn) == null) {
+            AV recv = eval(ps.get(0), env);
+            List<AV> rest = new ArrayList<>();
+            for (int i = 1; i < ps.size(); i++) rest.add(eval(ps.get(i), env));
+            AV dv = derivedCall(fn, recv, rest, env);
+            if (dv != null) return dv;
+        }
+
+        // ---------------------------------------------------------- unknown: carried, and named
+        if (inQuery) unhandled.merge(fn + (defs != null ? " (user)" : ""), 1, Integer::sum);
+        AV r = new AV();
+        boolean anyTaint = false;
+        AV receiver = null;
+        for (var p : ps) {
+            AV a = eval(p, env);
+            if (receiver == null) receiver = a;
+            // an unhandled higher-order call: its lambda sees the receiver's rows
+            if (p instanceof LambdaFunction l) {
+                List<AV> bind = new ArrayList<>();
+                for (int i = 0; i < l.parameters().size(); i++) bind.add(receiver);
+                a = evalLambda(l, env, bind);
+            }
+            if (a.tainted()) anyTaint = true;
+            r.absorb(a, false);
+        }
+        if (anyTaint) { unknownFns.merge(fn, 1, Integer::sum); event(r, "UNKNOWN:" + fn); }
+        Set<String> rt = returns.getOrDefault(fn, Set.of());
+        if (rt.size() == 1) {
+            String t = rt.iterator().next();
+            r.type = TYPE_PARAMS.contains(t) ? null : t;
+        }
+        if ("String".equals(r.type) && !r.t.isEmpty()) { /* carried as text */ }
+        else if (r.type != null && !"String".equals(r.type) && !TYPE_PARAMS.contains(r.type)) { event(r, "FEEDS:" + fn + "(non-text result)"); r.t.clear(); }
+        return r;
+    }
+
+    static AV elementOf(AV c) { return c; }
+
+    final Deque<DerivedPropertyDefinition> inDerived = new ArrayDeque<>();
+
+    /** a derived (qualified) property of the receiver's class, inlined with $this bound (its body is part of the
+     *  query, as the resolver inlines it); null when there is none */
+    AV derivedCall(String name, AV recv, List<AV> args, Map<String, AV> env) {
+        DerivedPropertyDefinition d = null;
+        if (recv.type != null && derived.containsKey(recv.type)) d = derived.get(recv.type).get(name);
+        if (d == null) {
+            List<DerivedPropertyDefinition> c = derivedByName.get(name);
+            if (c != null && c.size() == 1 && (recv.type == null || !classes.containsKey(recv.type))) d = c.get(0);
+        }
+        if (d == null || inDerived.contains(d) || inDerived.size() > 6) return null;
+        Map<String, AV> e = new HashMap<>();
+        e.put("this", recv);
+        for (int i = 0; i < d.parameters().size() && i < args.size(); i++) e.put(d.parameters().get(i).name(), args.get(i));
+        inDerived.push(d);
+        try {
+            AV r = evalBody(d.expression(), e);
+            if (r.type == null) r.type = typeName(d.type());
+            return r;
+        } finally { inDerived.pop(); }
+    }
+
+    /** a program's own helper (inlined, as G½ does), never a platform function under test */
+    static boolean inlinable(FunctionDefinition fd) {
+        if (hasStereo(fd.stereotypes(), "PCT", "function")) return false;
+        String q = fd.qualifiedName();
+        if (q.startsWith("meta::pure::functions::") && !q.contains("::tests::") && !q.contains("::test::")) return false;
+        return true;
+    }
+
+    /** the columns a ColSpec / ColSpecArray / col(...) list defines, each evaluated over the row */
+    void defineColumns(ValueSpecification arg, AV row, Map<String, AV> into, Map<String, AV> env) {
+        switch (arg) {
+            case ColSpec cs -> {
+                if (cs.function1() == null) { into.put(cs.name(), row.cols == null ? null : row.cols.get(cs.name())); return; }
+                AV v = evalLambda(cs.function1(), env, cs.function1().parameters().size() == 3 ? List.of(row, row, row) : List.of(row));
+                if (cs.function2() != null) v = reduce(cs.function2(), v, env);
+                into.put(cs.name(), v);
+            }
+            case ColSpecArray ca -> ca.colSpecs().forEach(c -> defineColumns(c, row, into, env));
+            case PureCollection pc -> pc.values().forEach(x -> defineColumns(x, row, into, env));
+            case AppliedFunction f when simple(f.function()).equals("col") -> {
+                String name = null; LambdaFunction l = null;
+                for (var p : f.parameters()) { if (p instanceof CString s) name = s.value(); if (p instanceof LambdaFunction ll) l = ll; }
+                into.put(name == null ? "col?" : name, l == null ? new AV() : evalLambda(l, env, List.of(row)));
+            }
+            case AppliedFunction f when simple(f.function()).equals("agg") -> into.putAll(aggregatesMap(f, row, env));
+            default -> { AV v = eval(arg, env); into.put("expr?" + into.size(), v); }
+        }
+    }
+
+    /** an aggregate's reduce lambda over the mapped values */
+    AV reduce(LambdaFunction l, AV mapped, Map<String, AV> env) {
+        AV r = evalLambda(l, env, List.of(mapped));
+        return r;
+    }
+
+    Map<String, AV> aggregatesMap(ValueSpecification arg, AV row, Map<String, AV> env) {
+        Map<String, AV> m = new LinkedHashMap<>();
+        aggregates(arg, row, m, env);
+        return m;
+    }
+
+    AV aggregates(ValueSpecification arg, AV row, Map<String, AV> into, Map<String, AV> env) {
+        AV all = new AV();
+        switch (arg) {
+            case ColSpec cs -> {
+                if (cs.function1() == null) return all;
+                AV v = evalLambda(cs.function1(), env, List.of(row));
+                if (cs.function2() != null) v = reduce(cs.function2(), v, env);
+                into.put(cs.name(), v); all.absorb(v, false);
+            }
+            case ColSpecArray ca -> ca.colSpecs().forEach(c -> all.absorb(aggregates(c, row, into, env), false));
+            case PureCollection pc -> pc.values().forEach(x -> all.absorb(aggregates(x, row, into, env), false));
+            case AppliedFunction f when simple(f.function()).equals("agg") -> {
+                String name = null; List<LambdaFunction> ls = new ArrayList<>();
+                for (var p : f.parameters()) { if (p instanceof CString s) name = s.value(); if (p instanceof LambdaFunction ll) ls.add(ll); }
+                AV v = ls.isEmpty() ? new AV() : evalLambda(ls.get(0), env, List.of(row));
+                if (ls.size() > 1) v = reduce(ls.get(1), v, env);
+                into.put(name == null ? "agg?" + into.size() : name, v); all.absorb(v, false);
+            }
+            default -> all.absorb(eval(arg, env), false);
+        }
+        return all;
+    }
+
+    AV groupBy(String fn, List<ValueSpecification> ps, Map<String, AV> env) {
+        AV src = eval(ps.get(0), env);
+        AV r = AV.of("Relation", "COMPUTED");
+        r.cols = new LinkedHashMap<>();
+        if (fn.equals("aggregate")) {
+            for (int i = 1; i < ps.size(); i++) aggregates(ps.get(i), src, r.cols, env);
+            return r;
+        }
+        if (ps.size() < 2) return r;
+        // keys: ~[a,b] / ['a','b'] (TDS) / [x|..., y|...] (class TDS, with names last)
+        ValueSpecification keys = ps.get(1);
+        List<ValueSpecification> keyLambdas = new ArrayList<>();
+        if (keys instanceof PureCollection pc) for (var x : pc.values()) if (x instanceof LambdaFunction) keyLambdas.add(x);
+        if (keys instanceof LambdaFunction) keyLambdas.add(keys);
+        if (keyLambdas.isEmpty()) {
+            for (String n : colNames(keys)) {
+                AV c = src.cols == null ? null : src.cols.get(n);
+                event(c, "FEEDS:group-key");
+                r.cols.put(n, c);
+            }
+            if (keys instanceof ColSpecArray ca) for (var cs : ca.colSpecs()) if (cs.function1() != null) {
+                AV v = evalLambda(cs.function1(), env, List.of(src)); event(v, "FEEDS:group-key"); r.cols.put(cs.name(), v);
+            }
+        } else {
+            List<String> names = ps.size() > 3 && ps.get(ps.size() - 1) instanceof PureCollection nm ? colNames(nm) : List.of();
+            for (int i = 0; i < keyLambdas.size(); i++) {
+                AV v = evalLambda((LambdaFunction) keyLambdas.get(i), env, List.of(src));
+                event(v, "FEEDS:group-key");
+                r.cols.put(i < names.size() ? names.get(i) : "key" + i, v);
+            }
+        }
+        for (int i = 2; i < ps.size(); i++) {
+            if (fn.equals("groupBy") && i == ps.size() - 1 && ps.size() > 3 && ps.get(i) instanceof PureCollection) break;
+            aggregates(ps.get(i), src, r.cols, env);
+        }
+        return r;
+    }
+
+    // ===================================================================== programs
+
+    static boolean hasStereo(List<StereotypeApplication> st, String profileSuffix, String name) {
+        return st != null && st.stream().anyMatch(s -> name.equals(s.stereotypeName())
+                && (s.profileName().equals(profileSuffix) || s.profileName().endsWith("::" + profileSuffix)));
+    }
+
+    void runProgram(String suite, String source, String program, List<ValueSpecification> body, Map<String, AV> env, boolean wholeIsQuery) {
+        this.suite = suite; this.source = source; this.program = program;
+        boolean was = inQuery;
+        inQuery = wholeIsQuery;
+        AV r;
+        try { r = evalBody(body, env); } catch (RuntimeException e) { System.err.println("EVAL-ERROR " + program + ": " + e); r = new AV(); }
+        finally { inQuery = was; }
+        if (wholeIsQuery) for (var e : r.all().entrySet()) e.getKey().events.add(e.getValue() ? "RETURNED-COMPOSED" : "RETURNED-BARE");
+        // a producer the interpreter never reached (a lambda nobody applied): said, never dropped
+        sweep(body, program, source, suite);
+    }
+
+    void sweep(List<ValueSpecification> body, String program, String source, String suite) {
+        Deque<ValueSpecification> st = new ArrayDeque<>(body);
+        while (!st.isEmpty()) {
+            ValueSpecification v = st.pop();
+            if (v instanceof AppliedFunction af && SPELL.contains(simple(af.function())) && !sites.containsKey(af)) {
+                String fn = simple(af.function());
+                if (fn.equals("id") && af.parameters().size() != 1) { }
+                else if (fn.equals("s") && af.parameters().isEmpty()) { }
+                else {
+                    Site s = new Site(af, source, program, suite, fn);
+                    s.events.add("UNREACHED");
+                    sites.put(af, s); all.add(s);
+                }
+            }
+            for (var c : v.children()) st.push(c);
+        }
+    }
+
+    // ===================================================================== output
+
+    static String classOf(Site s) {
+        if (s.events.stream().anyMatch(e -> e.startsWith("FEEDS:"))) return "FEEDS";
+        if (s.events.stream().anyMatch(e -> e.startsWith("UNKNOWN:"))) return "UNKNOWN";
+        if (s.events.contains("UNREACHED")) return "UNREACHED";
+        if (s.events.contains("RETURNED-COMPOSED")) return "RETURNED-COMPOSED";
+        if (s.events.contains("RETURNED-BARE")) return "RETURNED-BARE";
+        if (!s.query) return "HARNESS";
+        if (s.events.stream().anyMatch(e -> e.startsWith("ASSERT:"))) return "QUERY-ASSERT";
+        if (s.events.stream().anyMatch(e -> e.startsWith("DROPPED:"))) return "DROPPED";
+        return "DROPPED";
+    }
+
+    final Map<String, String> texts = new HashMap<>();
+
+    String snippet(Site s) {
+        String t = texts.get(s.source);
+        SourceInfo p = s.node.pos();
+        if (t == null || p == null) return "";
+        String[] lines = t.split("\n", -1);
+        int a = Math.max(0, p.startLine() - 1), b = Math.min(lines.length - 1, p.endLine() - 1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = a; i <= b && i < a + 3; i++) sb.append(lines[i].trim()).append(' ');
+        String x = sb.toString().replace('\t', ' ');
+        return x.length() > 220 ? x.substring(0, 220) + "..." : x;
+    }
+
+    void report(Path out) throws Exception {
+        List<String> rows = new ArrayList<>();
+        rows.add("suite\tclass\tfn\toperandType\toperandOrigin\tdetail\tevents\tharness\tprogram\tsource\tline\tsnippet\treached");
+        for (Site s : all) {
+            SourceInfo p = s.node.pos();
+            s.operandType = Arrays.stream(s.operandType.split(",")).map(x -> enums.contains(x) ? "enum " + x : x).collect(Collectors.joining(","));
+            rows.add(String.join("\t", s.suite, classOf(s), s.fn, s.operandType, s.operandOrigin, s.detail.replace("\t", " ").replace("\n", "\\n"),
+                    String.join(",", s.events), String.join(",", s.harness), s.program, s.source, p == null ? "?" : String.valueOf(p.startLine()), snippet(s), String.valueOf(s.reached.size())));
+        }
+        Files.write(out, rows);
+    }
+
+    // ===================================================================== main
+
+    public static void main(String[] args) throws Exception {
+        String mode = args[0];
+        Path out = Path.of(args[1]);
+        TextCensus tc = new TextCensus();
+        switch (mode) {
+            case "pct" -> tc.pct(Arrays.copyOfRange(args, 2, args.length));
+            case "corpus" -> tc.corpus(Arrays.copyOfRange(args, 2, args.length));
+            case "pure" -> tc.pureDirs(Arrays.copyOfRange(args, 2, args.length));
+            case "java" -> tc.javaSnippets(Arrays.copyOfRange(args, 2, args.length));
+            default -> throw new IllegalArgumentException(mode);
+        }
+        tc.report(out);
+        System.err.println("unknown sinks: " + tc.unknownFns);
+        System.err.println("query shapes: " + tc.queryShapes);
+        System.err.println("static queries: " + tc.staticQueries);
+        System.err.println("unhandled in queries (top): " + tc.unhandled.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(60).map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(", ")));
+        Map<String, Map<String, Integer>> byClass = new TreeMap<>();
+        for (Site s : tc.all) byClass.computeIfAbsent(s.suite, k -> new TreeMap<>()).merge(classOf(s), 1, Integer::sum);
+        byClass.forEach((k, v) -> System.err.println(k + " " + v));
+    }
+
+    final List<String> walls = new ArrayList<>();
+    final Map<String, Integer> programs = new TreeMap<>();
+
+    List<Path> pureFiles(Path root) throws Exception {
+        try (var s = Files.walk(root)) { return s.filter(p -> p.toString().endsWith(".pure") && Files.isRegularFile(p)).sorted(Comparator.comparing(Path::toString)).toList(); }
+    }
+
+    /** each producer node -> the file it was written in (a derived property's body is in its class's file) */
+    final IdentityHashMap<ValueSpecification, String> nodeFile = new IdentityHashMap<>();
+
+    void mapNodes(ParsedModel m, String file) {
+        Deque<ValueSpecification> st = new ArrayDeque<>();
+        for (var el : m.elements()) {
+            if (el instanceof FunctionDefinition fd) st.addAll(fd.body());
+            if (el instanceof ClassDefinition cd) for (var d : cd.derivedProperties()) if (d.realization() instanceof Realization.Inline in) st.addAll(in.body());
+        }
+        while (!st.isEmpty()) {
+            ValueSpecification v = st.pop();
+            if (v instanceof AppliedFunction) nodeFile.put(v, file);
+            for (var c : v.children()) st.push(c);
+        }
+    }
+
+    ParsedModel parse(Path p) {
+        try {
+            String t = Files.readString(p);
+            texts.put(p.toString(), t);
+            ParsedModel pm = ModelFromText.parse(t, GrammarLevel.LEGEND_PLATFORM);
+            mapNodes(pm, p.toString());
+            return pm;
+        } catch (Throwable e) {
+            walls.add(p + ": " + String.valueOf(e.getMessage()).split("\n")[0]);
+            return null;
+        }
+    }
+
+    /** args: <modelRoot>... -- <suite>=<scopeDir> ... */
+    void pct(String[] args) throws Exception {
+        int sep = Arrays.asList(args).indexOf("--");
+        List<Path> roots = Arrays.stream(args, 0, sep).map(Path::of).toList();
+        Map<Path, ParsedModel> parsed = new LinkedHashMap<>();
+        for (Path r : roots) for (Path f : pureFiles(r)) { ParsedModel m = parse(f); if (m != null) { parsed.put(f, m); index(m); } }
+        inlineUser = Boolean.getBoolean("census.inline");
+        for (int i = sep + 1; i < args.length; i++) {
+            String[] kv = args[i].split("=", 2);
+            String suiteName = kv[0];
+            Path scope = Path.of(kv[1]);
+            int tests = 0, nonAdapter = 0;
+            for (var e : parsed.entrySet()) {
+                if (!e.getKey().startsWith(scope)) continue;
+                for (var el : e.getValue().elements()) {
+                    if (!(el instanceof FunctionDefinition fd) || !hasStereo(fd.stereotypes(), "PCT", "test")) continue;
+                    tests++;
+                    queryParam = fd.parameters().size() == 1 ? fd.parameters().get(0).name() : null;
+                    Deque<ValueSpecification> st0 = new ArrayDeque<>(fd.body());
+                    while (!st0.isEmpty()) {
+                        ValueSpecification x = st0.pop();
+                        if (x instanceof AppliedFunction q && simple(q.function()).equals("eval") && !q.parameters().isEmpty()
+                                && q.parameters().get(0) instanceof Variable fv && fv.name().equals(queryParam)) staticQueries.merge(suiteName, 1, Integer::sum);
+                        for (var c : x.children()) st0.push(c);
+                    }
+                    if (queryParam == null) nonAdapter++;
+                    runProgram(suiteName, e.getKey().toString(), fd.qualifiedName(), fd.body(), new HashMap<>(), false);
+                }
+            }
+            programs.put(suiteName, tests);
+            System.err.println("suite " + suiteName + ": PCT.test=" + tests + " non-adapter=" + nonAdapter);
+        }
+        System.err.println("walls: " + walls.size());
+        walls.forEach(w -> System.err.println("  WALL " + w));
+    }
+
+    /** args: <corpusRoot> <libraryRoot>... */
+    void corpus(String[] args) throws Exception {
+        Path root = Path.of(args[0]);
+        Map<Path, ParsedModel> parsed = new LinkedHashMap<>();
+        for (int i = 0; i < args.length; i++) for (Path f : pureFiles(Path.of(args[i]))) { ParsedModel m = parse(f); if (m != null) { if (i == 0) parsed.put(f, m); index(m); } }
+        queryParam = null;
+        queryFns = Set.of("execute", "executeInDb", "toSQLString", "toSQLStringPretty", "executionPlan", "generatePlan",
+                "plan", "executeWithDebug", "toSQL", "sqlQueryToString", "testFunction", "executeLegacy",
+                "toSQLStringWithDebug", "buildSQLQuery", "executeRelationalTDS", "toSqlString", "executeDirect",
+                "executeQuery", "executeFunction", "executeRuntime", "doExecute", "executeAndTestSQL", "toRelationalPlan",
+                "toSqlStringWithOutFormat", "getSQL", "executeInMemory", "executeService", "toSQLStringNoTrans", "executeInDbWithDebug");
+        inlineUser = true;
+        int tests = 0;
+        Map<String, Integer> lambdaTakers = new TreeMap<>();
+        for (var e : parsed.entrySet()) for (var el : e.getValue().elements()) {
+            if (!(el instanceof FunctionDefinition fd) || !hasStereo(fd.stereotypes(), "test", "Test")) continue;
+            Deque<ValueSpecification> st = new ArrayDeque<>(fd.body());
+            while (!st.isEmpty()) {
+                ValueSpecification v = st.pop();
+                if (v instanceof AppliedFunction af) for (int i = 0; i < af.parameters().size(); i++)
+                    if (af.parameters().get(i) instanceof LambdaFunction l && l.parameters().isEmpty()) lambdaTakers.merge(simple(af.function()) + "@" + i, 1, Integer::sum);
+                for (var c : v.children()) st.push(c);
+            }
+        }
+        System.err.println("zero-arg lambda takers: " + lambdaTakers.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(40).map(x -> x.getKey() + "=" + x.getValue()).collect(Collectors.joining(", ")));
+        for (var e : parsed.entrySet()) {
+            for (var el : e.getValue().elements()) {
+                if (!(el instanceof FunctionDefinition fd) || !hasStereo(fd.stereotypes(), "test", "Test")) continue;
+                tests++;
+                Deque<ValueSpecification> st0 = new ArrayDeque<>(fd.body());
+                while (!st0.isEmpty()) {
+                    ValueSpecification x = st0.pop();
+                    if (x instanceof AppliedFunction q && queryFns.contains(simple(q.function())) && !q.parameters().isEmpty()
+                            && (q.parameters().get(0) instanceof LambdaFunction || q.parameters().get(0) instanceof Variable)) staticQueries.merge("corpus:" + simple(q.function()), 1, Integer::sum);
+                    for (var c : x.children()) st0.push(c);
+                }
+                runProgram("corpus", e.getKey().toString(), fd.qualifiedName(), fd.body(), new HashMap<>(), false);
+            }
+        }
+        programs.put("corpus", tests);
+        System.err.println("corpus <<test.Test>>=" + tests + " walls=" + walls.size());
+        walls.forEach(w -> System.err.println("  WALL " + w));
+    }
+
+    final List<Object[]> bareQueries = new ArrayList<>();
+
+    /** args: <suite>=<dir> ...: every function body and derived property is a program (its result returned) */
+    void pureDirs(String[] args) throws Exception {
+        Map<String, Map<Path, ParsedModel>> bySuite = new LinkedHashMap<>();
+        for (String a : args) {
+            String[] kv = a.split("=", 2);
+            Map<Path, ParsedModel> m = bySuite.computeIfAbsent(kv[0], k -> new LinkedHashMap<>());
+            for (Path f : pureFiles(Path.of(kv[1]))) {
+                ParsedModel pm = parse(f);
+                if (pm != null) { m.put(f, pm); index(pm); continue; }
+                // a .pure file that is one query (a lambda or an expression), not a model
+                try {
+                    String t = Files.readString(f);
+                    ValueSpecification v = SpecParser.parse(t.strip(), GrammarLevel.LEGEND_PLATFORM);
+                    walls.remove(walls.size() - 1);
+                    Deque<ValueSpecification> st = new ArrayDeque<>(List.of(v));
+                    while (!st.isEmpty()) { ValueSpecification x = st.pop(); if (x instanceof AppliedFunction) nodeFile.put(x, f.toString()); for (var c : x.children()) st.push(c); }
+                    bareQueries.add(new Object[]{kv[0], f.toString(), v});
+                } catch (Throwable ignored) { }
+            }
+        }
+        for (Object[] q : bareQueries) {
+            ValueSpecification v = (ValueSpecification) q[2];
+            List<ValueSpecification> body = v instanceof LambdaFunction l && l.parameters().isEmpty() ? l.body() : List.of(v);
+            runProgram((String) q[0], (String) q[1], "query " + Path.of((String) q[1]).getFileName(), body, new HashMap<>(), true);
+        }
+        inlineUser = true;
+        for (var s : bySuite.entrySet()) {
+            int n = 0;
+            for (var e : s.getValue().entrySet()) {
+                for (var el : e.getValue().elements()) {
+                    if (el instanceof FunctionDefinition fd) {
+                        n++;
+                        Map<String, AV> env = new HashMap<>();
+                        for (var p : fd.parameters()) env.put(p.name(), AV.of(typeName(p.type()), "DATA"));
+                        runProgram(s.getKey(), e.getKey().toString(), fd.qualifiedName(), fd.body(), env, true);
+                    } else if (el instanceof ClassDefinition cd) {
+                        for (var d : cd.derivedProperties()) {
+                            if (!(d.realization() instanceof Realization.Inline)) continue;
+                            n++;
+                            Map<String, AV> env = new HashMap<>();
+                            AV self = AV.of(simple(cd.qualifiedName()), "DATA");
+                            env.put("this", self);
+                            for (var p : d.parameters()) env.put(p.name(), AV.of(typeName(p.type()), "DATA"));
+                            runProgram(s.getKey(), e.getKey().toString(), cd.qualifiedName() + "." + d.name(), d.expression(), env, true);
+                        }
+                    }
+                }
+            }
+            programs.put(s.getKey(), n);
+            System.err.println("suite " + s.getKey() + ": programs=" + n);
+        }
+        System.err.println("walls: " + walls.size());
+        walls.forEach(w -> System.err.println("  WALL " + w));
+    }
+
+    // ===================================================================== Java-embedded snippets
+    // literalRuns and its helpers: copied verbatim from parser-equivalence's InlineSnippets (scratch, measurement only)
+    static List<String> literalRuns(String s) {   //
+        // section-normalize rewriter verifies its edits with THIS scanner
+
+        List<String> out = new ArrayList<>();
+        int i = 0;
+        int n = s.length();
+        StringBuilder run = null;
+        while (i < n) {
+            char c = s.charAt(i);
+            if (c == '/' && i + 1 < n && s.charAt(i + 1) == '/') {
+                while (i < n && s.charAt(i) != '\n') {
+                    i++;
+                }
+                continue;
+            }
+            if (c == '/' && i + 1 < n && s.charAt(i + 1) == '*') {
+                int end = s.indexOf("*/", i + 2);
+                i = end < 0 ? n : end + 2;
+                continue;
+            }
+            if (c == '\'') {                     // char literal — skip, handles '\''
+                i++;
+                while (i < n && s.charAt(i) != '\'') {
+                    i += s.charAt(i) == '\\' ? 2 : 1;
+                }
+                i++;
+                continue;
+            }
+            if (c == '"') {
+                int[] cursor = {i};
+                String lit = s.startsWith("\"\"\"", i)
+                        ? scanTextBlock(s, cursor)
+                        : scanOrdinary(s, cursor);
+                i = cursor[0];
+                if (run == null) {
+                    run = new StringBuilder();
+                }
+                run.append(lit);
+                // continue the run only over  [ws/comments] '+' [ws/comments] '"'
+                int j = skipWsAndComments(s, i);
+                if (j < n && s.charAt(j) == '+') {
+                    j = skipWsAndComments(s, j + 1);
+                    if (j < n && s.charAt(j) == '"') {
+                        i = j;
+                        continue;
+                    }
+                }
+                out.add(run.toString());
+                run = null;
+                continue;
+            }
+            i++;
+        }
+        if (run != null) {
+            out.add(run.toString());
+        }
+        return out;
+    }
+
+    private static int skipWsAndComments(String s, int i) {
+        int n = s.length();
+        while (i < n) {
+            char c = s.charAt(i);
+            if (Character.isWhitespace(c)) {
+                i++;
+            } else if (c == '/' && i + 1 < n && s.charAt(i + 1) == '/') {
+                while (i < n && s.charAt(i) != '\n') {
+                    i++;
+                }
+            } else if (c == '/' && i + 1 < n && s.charAt(i + 1) == '*') {
+                int end = s.indexOf("*/", i + 2);
+                i = end < 0 ? n : end + 2;
+            } else {
+                break;
+            }
+        }
+        return i;
+    }
+
+    /** Ordinary literal at cursor (on the opening quote); decodes standard escapes. */
+    private static String scanOrdinary(String s, int[] cursor) {
+        int i = cursor[0] + 1;
+        int n = s.length();
+        StringBuilder b = new StringBuilder();
+        while (i < n && s.charAt(i) != '"') {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < n) {
+                i += decodeEscape(s, i, b);
+            } else {
+                b.append(c);
+                i++;
+            }
+        }
+        cursor[0] = Math.min(i + 1, n);
+        return b.toString();
+    }
+
+    /** Text block at cursor (on the first of three quotes): incidental-indent stripping per the
+     *  Java spec (minimum indent over non-blank lines and the closing delimiter line). */
+    private static String scanTextBlock(String s, int[] cursor) {
+        int start = s.indexOf('\n', cursor[0] + 3);        // content starts after the opening line
+        int end = s.indexOf("\"\"\"", start < 0 ? cursor[0] + 3 : start);
+        if (start < 0 || end < 0) {
+            cursor[0] = s.length();
+            return "";
+        }
+        String body = s.substring(start + 1, end);
+        cursor[0] = end + 3;
+        String[] lines = body.split("\n", -1);
+        int minIndent = Integer.MAX_VALUE;
+        for (int k = 0; k < lines.length; k++) {
+            String line = lines[k];
+            boolean lastLine = k == lines.length - 1;      // holds the closing delimiter's indent
+            if (line.isBlank() && !lastLine) {
+                continue;
+            }
+            int indent = 0;
+            while (indent < line.length() && Character.isWhitespace(line.charAt(indent))) {
+                indent++;
+            }
+            minIndent = Math.min(minIndent, indent);
+        }
+        StringBuilder b = new StringBuilder();
+        for (int k = 0; k < lines.length; k++) {
+            String line = lines[k];
+            if (k == lines.length - 1 && line.isBlank()) {
+                break;                                     // the closing-delimiter line itself
+            }
+            String stripped = line.length() > minIndent ? line.substring(minIndent)
+                    : line.strip();
+            // decode the escapes text blocks honor
+            for (int i = 0; i < stripped.length(); i++) {
+                char c = stripped.charAt(i);
+                if (c == '\\' && i + 1 < stripped.length()) {
+                    i += decodeEscape(stripped, i, b) - 1;
+                } else {
+                    b.append(c);
+                }
+            }
+            b.append('\n');
+        }
+        return b.toString();
+    }
+
+    /** Decode one backslash escape at {@code i}; returns chars consumed. Unknown escapes are
+     *  kept raw — the reference parser adjudicates whatever comes out. */
+    private static int decodeEscape(String s, int i, StringBuilder b) {
+        char e = s.charAt(i + 1);
+        switch (e) {
+            case 'n' -> b.append('\n');
+            case 't' -> b.append('\t');
+            case 'r' -> b.append('\r');
+            case 'b' -> b.append('\b');
+            case 'f' -> b.append('\f');
+            case 's' -> b.append(' ');
+            case '"' -> b.append('"');
+            case '\'' -> b.append('\'');
+            case '\\' -> b.append('\\');
+            case 'u' -> {
+                if (i + 5 < s.length()) {
+                    try {
+                        b.append((char) Integer.parseInt(s.substring(i + 2, i + 6), 16));
+                        return 6;
+                    } catch (NumberFormatException ignored) {
+                        // fall through to raw
+                    }
+                }
+                b.append('\\').append(e);
+            }
+            default -> b.append('\\').append(e);
+        }
+        return 2;
+    }
+
+
+    static boolean looksLikeModel(String t) {
+        String x = t.strip();
+        return x.startsWith("###") || x.startsWith("Class ") || x.startsWith("function ") || x.startsWith("Enum ")
+                || x.startsWith("import ") || x.startsWith("Association ") || x.startsWith("Profile ") || x.startsWith("native ")
+                || x.contains("\nClass ") || x.contains("\nfunction ") || x.contains("\n###");
+    }
+
+    /** args: <suite>=<dir> ...: every Java file's string-literal runs; a model run's functions and derived properties
+     *  and an expression run itself are programs (their result returned). Identical runs are counted once. */
+    final List<String> unparsedArrow = new ArrayList<>();
+    int fragments, blocks;
+
+    void javaSnippets(String[] args) throws Exception {
+        Map<String, List<String[]>> bySuite = new LinkedHashMap<>();
+        Set<String> seenRuns = new HashSet<>();
+        int runs = 0, dup = 0, models = 0, exprs = 0, unparsed = 0, files = 0;
+        List<Object[]> programsToRun = new ArrayList<>();   // suite, file, name, body, env, model?
+        for (String a : args) {
+            String[] kv = a.split("=", 2);
+            List<Path> js;
+            try (var st = Files.walk(Path.of(kv[1]))) { js = st.filter(p -> p.toString().endsWith(".java")).sorted(Comparator.comparing(Path::toString)).toList(); }
+            for (Path f : js) {
+                files++;
+                String text = Files.readString(f);
+                int k = 0;
+                for (String run : literalRuns(text)) {
+                    if (run.length() < 4 || !(run.contains("->") || run.contains("|") || looksLikeModel(run))) continue;
+                    runs++;
+                    if (!seenRuns.add(run)) { dup++; continue; }
+                    String id = f.toString() + "#" + (k++);
+                    texts.put(id, run);
+                    if (looksLikeModel(run)) {
+                        try {
+                            ParsedModel pm = ModelFromText.parse(run, GrammarLevel.LEGEND_PLATFORM);
+                            mapNodes(pm, id);
+                            index(pm);
+                            models++;
+                            for (var el : pm.elements()) {
+                                if (el instanceof FunctionDefinition fd) programsToRun.add(new Object[]{kv[0], id, fd.qualifiedName(), fd.body(), fd, null});
+                                else if (el instanceof ClassDefinition cd) for (var d : cd.derivedProperties())
+                                    if (d.realization() instanceof Realization.Inline) programsToRun.add(new Object[]{kv[0], id, cd.qualifiedName() + "." + d.name(), d.expression(), null, cd});
+                            }
+                        } catch (Throwable e) { unparsed++; }
+                    } else {
+                        try {
+                            String src2 = run.strip().startsWith("->") ? "$__receiver" + run.strip() : run;
+                            if (!src2.equals(run)) fragments++;
+                            List<ValueSpecification> body;
+                            try {
+                                ValueSpecification v = SpecParser.parse(src2, GrammarLevel.LEGEND_PLATFORM);
+                                body = v instanceof LambdaFunction l && l.parameters().isEmpty() ? l.body() : List.of(v);
+                            } catch (Throwable first) {
+                                // a statement block (a; b;) or a body's tail with its closing brace
+                                String blk = src2.strip();
+                                while (blk.endsWith("}")) blk = blk.substring(0, blk.length() - 1).strip();
+                                body = SpecParser.parseCodeBlock(blk, GrammarLevel.LEGEND_PLATFORM);
+                                blocks++;
+                            }
+                            exprs++;
+                            Deque<ValueSpecification> st = new ArrayDeque<>(body);
+                            while (!st.isEmpty()) { ValueSpecification x = st.pop(); if (x instanceof AppliedFunction) nodeFile.put(x, id); for (var c : x.children()) st.push(c); }
+                            programsToRun.add(new Object[]{kv[0], id, "snippet " + f.getFileName() + "#" + (k - 1), body, null, null});
+                        } catch (Throwable e) { unparsed++; if (run.contains("->")) unparsedArrow.add(f.getFileName() + ": " + run.replace("\n", " ").substring(0, Math.min(160, run.length())) + "  [" + String.valueOf(e.getMessage()).split("\n")[0] + "]"); }
+                    }
+                }
+            }
+        }
+        inlineUser = true;
+        for (Object[] p : programsToRun) {
+            Map<String, AV> env = new HashMap<>();
+            if (p[4] instanceof FunctionDefinition fd) for (var prm : fd.parameters()) env.put(prm.name(), AV.of(typeName(prm.type()), "DATA"));
+            if (p[5] instanceof ClassDefinition cd) env.put("this", AV.of(simple(cd.qualifiedName()), "DATA"));
+            @SuppressWarnings("unchecked") List<ValueSpecification> body = (List<ValueSpecification>) p[3];
+            runProgram((String) p[0], (String) p[1], (String) p[2], body, env, true);
+        }
+        programs.put("java", programsToRun.size());
+        try { Files.write(Path.of("out/unparsed-arrow.txt"), unparsedArrow); } catch (Exception ignored) { }
+        System.err.println("unparsed runs containing '->': " + unparsedArrow.size() + "; '->' fragments tried with a placeholder receiver: " + fragments + "; parsed as statement blocks: " + blocks);
+        System.err.println("java files=" + files + " candidate runs=" + runs + " duplicates=" + dup + " models=" + models
+                + " expressions=" + exprs + " unparsed=" + unparsed + " programs=" + programsToRun.size());
+    }
+}

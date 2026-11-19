@@ -1,0 +1,7 @@
+#!/bin/bash
+cd $SCRATCH
+U=$PWD/upstream; PR=$U/legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources; E=$U/legend-engine/legend-engine-core/legend-engine-core-pure
+ST=$E/legend-engine-pure-code-functions-standard/legend-engine-pure-functions-standard-pure/src/main/resources
+RE=$E/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources
+UN=$E/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources
+java -Xmx3g $JOPTS -cp build/classes:build/tool TextCensus pct ${OUT:-out/pct.tsv} $PR $ST $RE $UN -- essential=$PR/platform/pure/essential grammar=$PR/platform/pure/grammar/functions standard=$ST/core_functions_standard relation=$RE/core_functions_relation unclassified=$UN/core_functions_unclassified 2>&1 | grep -v Picked

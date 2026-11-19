@@ -1,0 +1,68 @@
+import com.legend.door.ModelFromText;
+import com.legend.model.*;
+import com.legend.parser.GrammarLevel;
+import com.legend.protocol.spec.*;
+import java.lang.reflect.RecordComponent;
+import java.nio.file.*;
+import java.util.*;
+
+/** Every relational dynafunction call (RelationalOperation.FunctionCall) and every Pure text producer inside a
+ *  NON-function element (mappings, stores, services, runtimes) of the given trees, by name, by element kind. */
+public class StoreScan {
+    static final Set<String> SPELL = Set.of("toString", "toRepresentation", "format", "formatDate", "char", "enumName", "joinStrings", "plus");
+    static Map<String, Integer> dyna = new TreeMap<>(), pureInMappings = new TreeMap<>();
+    static Map<String, List<String>> examples = new TreeMap<>();
+    static IdentityHashMap<Object, Boolean> seen = new IdentityHashMap<>();
+    static Map<String,Integer> ctx = new TreeMap<>();
+    static void walk(Object o, String where) throws Exception { walk(o, where, ""); }
+    static void walk(Object o, String where, String path) throws Exception {
+        if (o == null || seen.put(o, true) != null) return;
+        if (o instanceof RelationalOperation.FunctionCall fc) {
+            dyna.merge(fc.name(), 1, Integer::sum);
+            if (Set.of("toString","convertVarchar128","concat").contains(fc.name())) {
+                String argKinds = fc.args().stream().map(x -> x.getClass().getSimpleName()).toList().toString();
+                ctx.merge(fc.name() + " @ " + path.replaceAll("^/", "") + " args=" + argKinds, 1, Integer::sum);
+            }
+            examples.computeIfAbsent("dyna:" + fc.name(), k -> new ArrayList<>()).add(where);
+        }
+        if (o instanceof AppliedFunction af) {
+            String n = af.function(); n = n.contains("::") ? n.substring(n.lastIndexOf("::") + 2) : n;
+            if (SPELL.contains(n)) { pureInMappings.merge(n, 1, Integer::sum); examples.computeIfAbsent("pure:" + n, k -> new ArrayList<>()).add(where); }
+        }
+        if (o instanceof Collection<?> c) { for (Object x : c) walk(x, where, path); return; }
+        if (o instanceof Map<?, ?> m) { for (Object x : m.values()) walk(x, where, path); return; }
+        if (o.getClass().isRecord()) {
+            for (RecordComponent rc : o.getClass().getRecordComponents()) {
+                if (rc.getType().isPrimitive() || rc.getType() == String.class) continue;
+                String step = o.getClass().getSimpleName();
+                String np = path.endsWith("/" + step) ? path : path + "/" + step;
+                if (np.split("/").length > 6) np = path;
+                walk(rc.getAccessor().invoke(o), where, np);
+            }
+        }
+    }
+    public static void main(String[] a) throws Exception {
+        int files = 0, walls = 0; Map<String, Integer> kinds = new TreeMap<>();
+        for (String root : a) {
+            List<Path> ps;
+            try (var s = Files.walk(Path.of(root))) { ps = s.filter(p -> p.toString().endsWith(".pure")).sorted().toList(); }
+            for (Path p : ps) {
+                files++;
+                ParsedModel m;
+                try { m = ModelFromText.parse(Files.readString(p), GrammarLevel.LEGEND_PLATFORM); }
+                catch (Throwable e) { walls++; continue; }
+                for (var el : m.elements()) {
+                    if (el instanceof FunctionDefinition || el instanceof NativeFunctionDefinition || el instanceof ClassDefinition) continue;
+                    kinds.merge(el.getClass().getSimpleName(), 1, Integer::sum);
+                    walk(el, p.getFileName() + " " + el.qualifiedName());
+                }
+            }
+        }
+        System.out.println("files=" + files + " walls=" + walls + " elements=" + kinds);
+        System.out.println("dynafunctions: " + dyna);
+        ctx.forEach((k, v) -> System.out.println("  ctx " + v + "  " + k));
+        System.out.println("pure text producers inside non-function elements: " + pureInMappings);
+        for (var e : examples.entrySet()) if (e.getKey().startsWith("pure:") || Set.of("dyna:toString","dyna:convertVarchar128","dyna:concat","dyna:format","dyna:castToString","dyna:toChar","dyna:dateToString").contains(e.getKey()))
+            System.out.println(e.getKey() + " (" + e.getValue().size() + "): " + new LinkedHashSet<>(e.getValue()).stream().limit(8).toList());
+    }
+}

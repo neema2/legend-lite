@@ -1,0 +1,4 @@
+#!/bin/bash
+cd $SCRATCH
+L=/home/user/legend-lite; ARGS=""; for d in $L/projects/*/; do ls $d/*.pure >/dev/null 2>&1 && ARGS="$ARGS projects=$d"; done
+java -Xmx3g $JOPTS -cp build/classes:build/tool TextCensus pure ${OUT:-out/projects.tsv} $ARGS 2>&1 | grep -v Picked | grep -v "^suite projects"

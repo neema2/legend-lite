@@ -1,0 +1,7 @@
+#!/bin/bash
+cd $SCRATCH
+U=$PWD/upstream/legend-engine
+REL=$U/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational
+CORE=$U/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core
+PR=$PWD/upstream/legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform
+java -Xmx4g $JOPTS -cp build/classes:build/tool TextCensus corpus ${OUT:-out/corpus.tsv} $REL $CORE $PR 2>&1 | grep -v Picked
