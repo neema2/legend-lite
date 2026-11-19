@@ -214,3 +214,31 @@ who confirms or changes phases 1-3.
       rules as a typed parameter? Now CP-14, with a third option the architecture prefers: verdict records worded
       by a presenter, valid if the leniencies change no verdict (being measured);
   - **2.2:** 8.5 days under (ii), 11.5 under (i). Plan updated: done-when 1 says three call sites.
+- **~11:19 UTC, the translator session's H5 first counts** (`claude/compat-translator-spike` at `4da71056`).
+  Variant V3: Pure's `substring`/`indexOf` in the core, plus 3.1's dynaFunction split, plus a use-site translator.
+  - **The corpus against `main`:**
+    - **H2:** 2,285 pass / 280 fail (main 2,289/276). The +4 fails are all in B2's 143 "not promised" (plan or SQL text
+      only);
+    - **DuckDB:** 2,447 / 113 (main 2,452/108). The same 4, plus `testPlanForDateTimeVariableESTTimeZone`, a VACUOUS
+      pass at `main` (its `indexOf(...) != -1` was always true under the old meaning). Under Pure's meaning it reaches
+      legend-engine's own typo, `'...' != -1` (String against Integer), which DuckDB raises on: **a product defect**
+      (a cross-kind `!=` raises instead of answering true), handed to the product owner;
+    - **11 of H3's 15 pass on both lanes:** 3 query-lambda tests by the translator, 7 dynaFunction tests by the core's
+      3.1 split, 1 by the appeal. 8 tests now pass BY ANSWER through the appeal.
+  - **No new core hook was needed.** The translator is 494 lines, using the public API only (javac-checked); 26 s per
+    corpus world uncached, of which `buildModule` is 3.5 s.
+  - **The findings that change phase 3:**
+    - **F1, two meanings by where code runs:** legend-engine's programs use `substring`/`indexOf` in the DATABASE's
+      meaning only for code sent to the store (a routed query lambda, helpers forwarding one, an M2M mapping chained
+      over relational), and in PURE's everywhere else (test bodies after the run, host-side helpers like `sortCsv`, M2M
+      in memory). So the rewrite is per USE, not per definition, and **a whole-model rename (option B) would be
+      wrong.** The corpus has **5 store-bound `substring` calls and 0 string `indexOf`**; 40 routed calls need data
+      flow to follow;
+    - **F2:** the `###Relational` dynaFunctions (7 of the 15) belong to the core's 3.1 split, not the translator. The
+      spike did it in the normalizer, with no new native;
+    - **F3:** 3.1 is bigger than planned: about 49 sites in 5 files (Cypher 20, `#SQL`/Postgres 12, `#IQ` 17);
+    - errors keep their positions, but no lite error on these doors prints one, and the words leak the rewrite's name
+      ("in call to 'meta::legend::compat::engine::substring'"), a presenter's job.
+  - **Next:** V2 (the core only, no translator: the "nothing" option for substring/indexOf), V4 (a definition-site
+    rename), V5 (an identity pass-through), then 3.1's sizing and the 0.6 ledger (127 rows drafted, 51 flagged
+    unclear).
