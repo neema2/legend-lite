@@ -1,0 +1,32 @@
+rows 245
+177 EXACT
+44 EXACT_BOOLEAN
+14 NONE
+8 WEAK
+1 NO_EVAL+WEAK
+1 EXACT+WEAK
+--- weak or unclear: 24
+duckdb_essential	meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference	LITE_FIXES	DEFECT:UNSUPPORTED	assertIs(Integer, $a->type()->toOne()); assertIs(Any, $b->type()->toOne()); assertIs(CO_GeographicEntity, $c->type()->toOne())
+duckdb_essential	meta::pure::functions::collection::tests::head::testHeadOnEmptySet	LITE_FIXES	DEFECT:RUNTIME_FAULT	assertEmpty($f->eval(|[]->head()))
+duckdb_essential	meta::pure::functions::collection::tests::zip::testZipBothListsEmpty	LITE_FIXES	DEFECT:PLANNER_FAULT	assertEmpty($f->eval(|$a->zip($b)))
+duckdb_essential	meta::pure::functions::collection::tests::zip::testZipFirstListEmpty	LITE_FIXES	DEFECT:PLANNER_FAULT	assertEmpty($f->eval(|$a->zip($b)))
+duckdb_essential	meta::pure::functions::collection::tests::zip::testZipSecondListEmpty	LITE_FIXES	DEFECT:PLANNER_FAULT	assertEmpty($f->eval(|$a->zip($b)))
+duckdb_essential	meta::pure::functions::string::tests::parseDate::testParseDateTypes	LITE_FIXES	DEFECT:UNSUPPORTED	assertInstanceOf($dt, DateTime); assertInstanceOf($date, StrictDate)
+duckdb_grammar	meta::pure::functions::lang::tests::letFn::testAssignNewInstance	LITE_FIXES	DEFECT:UNSUPPORTED	assertIs(LA_Person, genericType($res).rawType->toOne())
+duckdb_grammar	meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction	LITE_ANSWERS	REFUSES:letFunction_String_1__T_m__T_m_	assertNotEmpty($f->eval(|TestClass->letChainedWithAnotherFunction()))
+duckdb_grammar	meta::pure::functions::math::tests::minus::testSingleMinusType	LITE_ANSWERS	REFUSES:genericType_Any_MANY__GenericType_1_	assertIs(Integer, $f->eval(|type(-1)->toOne())); assertIs(Float, $f->eval(|type(-1.0)->toOne()))
+duckdb_grammar	meta::pure::functions::math::tests::plus::testSinglePlusType	LITE_ANSWERS	REFUSES:genericType_Any_MANY__GenericType_1_	assertIs(Integer, $f->eval(|type(+1)->toOne())); assertIs(Float, $f->eval(|type(+1.0)->toOne()))
+h2_relation	meta::pure::functions::relation::tests::composition::testStaticPivot_AfterConcatenate	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::composition::testStaticPivot_AfterExtendConcatenate	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle	LITE_FIXES	DEFECT:UNSUPPORTED	NONE
+h2_relation	meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle_StringPivotValue	LITE_FIXES	DEFECT:UNSUPPORTED	NONE

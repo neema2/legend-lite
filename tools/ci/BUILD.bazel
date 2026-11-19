@@ -8,4 +8,7 @@ filegroup(
     visibility = ["//tools/guards:__pkg__"],
 )
 
+# Bazel's downloader in CI: Maven Central, then Google's mirror of it (.bazelrc's `common:ci --downloader_config`)
+exports_files(["downloader.cfg"])
+
 guards_package()

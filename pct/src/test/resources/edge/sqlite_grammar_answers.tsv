@@ -60,7 +60,7 @@ testDateCompare	005	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower
 testDateCompare	006	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testDateCompare	007	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testDateCompare	008	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
-testDecimalDivide	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
+testDecimalDivide	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.5238095238095238;
 testDecimalDivide	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.5;
 testDecimalDivide	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:-2.0;
 testDecimalDivide	004	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:-0.5;
@@ -75,7 +75,7 @@ testDecimalPlus	003	VALUE	type=ExprType[type=DECIMAL, multiplicity=Bounded[lower
 testDecimalTimes	001	VALUE	type=ExprType[type=DECIMAL, multiplicity=Bounded[lower=1, upper=1]] values=BigDecimal:353791.470;
 testDecimalTimes	002	VALUE	type=ExprType[type=DECIMAL, multiplicity=Bounded[lower=1, upper=1]] values=BigDecimal:353791.470;
 testDecimalTimes	003	VALUE	type=ExprType[type=DECIMAL, multiplicity=Bounded[lower=1, upper=1]] values=BigDecimal:353791.470;
-testDivideWithNonTerminatingExpansion	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
+testDivideWithNonTerminatingExpansion	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.010416666666666666;
 testEqBoolean	001	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testEqBoolean	002	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testEqBoolean	003	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:false;
@@ -284,11 +284,11 @@ testFloatMinus	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1,
 testFloatMinus	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:-1.5;
 testFloatMinus	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:-1.5;
 testFloatMinus	004	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:-4.5;
-testFloatPlus	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.<id>;
+testFloatPlus	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.7000000000000002;
 testFloatPlus	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.7;
 testFloatPlus	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.7;
 testFloatTimes	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.75;
-testFloatTimes	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:2.<id>;
+testFloatTimes	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:2.0999999999999996;
 testGreaterThanEqual_Boolean	001	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testGreaterThanEqual_Boolean	002	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testGreaterThanEqual_Boolean	003	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;

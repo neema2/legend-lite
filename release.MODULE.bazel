@@ -231,6 +231,19 @@ _RUNNER_ARTIFACTS = [
     "org.finos.legend.engine:legend-engine-protocol-pure:" + LEGEND_ENGINE_RELEASE,
     "org.finos.legend.engine:legend-engine-shared-core:" + LEGEND_ENGINE_RELEASE,
     "org.finos.legend.engine:legend-engine-testable:" + LEGEND_ENGINE_RELEASE,
+    # USED DIRECTLY by the plan oracle (slice R of the presentation program, 2026-11-18: tools/engine-runner's
+    # planoracle, legend-engine's generatePlan and its PlanExecutor over a plan's JSON), each already in this pool's
+    # closure at the version it resolves: declared, so strict_visibility lets the oracle's BUILD name them
+    "com.fasterxml.jackson.core:jackson-core",
+    "com.fasterxml.jackson.core:jackson-databind",
+    "org.eclipse.collections:eclipse-collections-api",
+    "org.finos.legend.engine:legend-engine-executionPlan-execution:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-identity-core:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-code-compiled-core:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-code-core-extension:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-platform-dsl-store-java:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-mapping-pure:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m3-core:" + LEGEND_PURE_RELEASE,
 ]
 
 maven.install(

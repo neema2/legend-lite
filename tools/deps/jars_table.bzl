@@ -18,10 +18,15 @@ JARS = {
     # docs/SESSION_HANDOFF_2026_09_02.md). Bumped to 1.5.6.0 on the user's ask (the result boundary program, D60): the
     # LIMIT shapes answer correctly there (probes/duckdb_1_5_6.txt), and ASOF LEFT JOIN keeps its left rows against a
     # derived table the planner proves empty, where 1.4.4 dropped them (register S126); the whole chain measured.
+    # tools/engine-runner added 2026-11-19 (CP-9 of docs/records/compat-program-plan-2026-11-19.md, RULED by the user
+    # ~10:45 UTC: "yes to 1-5", item 4, the per-push checks and the oracle's entry): the legend-engine oracle's
+    # batteries read the DuckDB file legend-engine seeded (its own 1.3.0) with lite's 1.5.6, and seed lite's own file
+    # from the same statements, so both sides answer from the same rows (H7). Test tooling only: every target there is
+    # testonly.
     "duckdb_jdbc": struct(
         coordinate = "org.duckdb:duckdb_jdbc:1.5.6.0",
         sha256 = "04ae3375d7c40dc88dc9bf0014b82ba5e66715564584af4e3abea39c7ba144d3",
-        users = ["core", "spec"],
+        users = ["core", "spec", "tools/engine-runner"],
     ),
     # THE WAREHOUSE's DuckDB (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): 1.5.x for chunked fetching and host functions.
     # The warehouse loads its native library through FFM (//warehouse:duckdb_library extracts it). It moves ahead of

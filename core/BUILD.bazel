@@ -2634,6 +2634,10 @@ junit_test(
         "--select-class=com.legend.EdgeOnlyMembersTest",
         # L-B (2026-11-18): the plans' and the MIR's data, each piece with a real product use
         "--select-class=com.legend.EdgeOnlyDataTest",
+        # the presentation program's guards, report-only from S0 (2026-11-18, docs/records/presentation-program-design-
+        # 2026-11-18.md §6): G6 counts today's mode branches, G1 the text-producing MIR the edge builds or reaches
+        "--select-class=com.legend.ModeBranchCensusTest",
+        "--select-class=com.legend.OnePlanGuardTest",
         # K2 (the user's ruling of 2026-11-18, product root, edge opt-in): every shipped artifact starts at the product
         "--select-class=com.legend.ShippedArtifactRootsTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
@@ -3616,15 +3620,22 @@ java_run(
         "edge/pure_v1/verdict.txt",
         "edge/pure_v1/run.log",
         "edge/pure_v1/answers.tsv",
+        "edge/pure_v1/plan_text.tsv",
     ],
     arguments = [
         "{OUT_DIR}/verdict.txt",
         "{OUT_DIR}/run.log",
         "{OUT_DIR}/answers.tsv",
+        "{OUT_DIR}/plan_text.tsv",
         "--",
         "--select-class=com.legend.server.PureV1EdgeGoldenTest",
     ],
-    jvm_flags = ["-Dlegend.edge.purev1={OUT_DIR}/answers.tsv"],
+    # the answers, and the plan text apart (S0 of the presentation program, 2026-11-18): lite's own SQL, each execute's
+    # activities and each generated plan, in a diff file of its own, so a slice that moves the SQL names that move
+    jvm_flags = [
+        "-Dlegend.edge.purev1={OUT_DIR}/answers.tsv",
+        "-Dlegend.edge.purev1.plantext={OUT_DIR}/plan_text.tsv",
+    ],
     main_class = "com.legend.tools.junit.JUnitAction",
     memory_mb = 2048,
     mnemonic = "EdgeContractPureV1",
@@ -3636,11 +3647,77 @@ java_run(
     ],
 )
 
+# the net's pure/v1 requests, its model and its goldens (the answers, and since #123 the plan text: each execute
+# answer's activities and each generated plan), read by the plan oracle (slice R of the presentation program,
+# 2026-11-18): the same requests sent to legend-engine 4.145.0, each golden set against its answer
+# (//tools/engine-runner:pure_v1_oracle_test)
+exports_files(
+    [
+        "src/test/resources/edge/pure_v1_answers.tsv",
+        "src/test/resources/edge/pure_v1_plan_text.tsv",
+        "src/test/resources/edge/pure_v1_requests.tsv",
+    ],
+    visibility = ["//tools/engine-runner:__pkg__"],
+)
+
+# the net's model, the oracle's seed: read by the oracle and by its batteries' per-push half (//pct:batteries_test,
+# H7, 2026-11-19), which answers the same requests on the same rows
+exports_files(
+    ["src/test/resources/upstream-api/trades-h2.pure"],
+    visibility = [
+        "//pct:__pkg__",
+        "//tools/engine-runner:__pkg__",
+    ],
+)
+
 write_source_files(
     name = "update_edge_pure_v1",
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA pure/v1 answer moved (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); a regression unless it is a ruled move -- then bazel run //core:update_edge_pure_v1, citing the ruling",
-    files = {"src/test/resources/edge/pure_v1_answers.tsv": ":edge/pure_v1/answers.tsv"},
+    files = {
+        "src/test/resources/edge/pure_v1_answers.tsv": ":edge/pure_v1/answers.tsv",
+        "src/test/resources/edge/pure_v1_plan_text.tsv": ":edge/pure_v1/plan_text.tsv",
+    },
+    visibility = ["//pct:__pkg__"],
+)
+
+# THE EDGE GOLDEN NET's missing cases (S0 of the presentation program, 2026-11-18,
+# docs/records/presentation-program-design-2026-11-18.md §4 (d)): EdgeCasesGoldenTest's texts the PR #118 audit found
+# wrong or unwatched (EDGE-1 to EDGE-3), each answered on DuckDB and H2 under both edge styles, diffed against the
+# golden recorded at the base (bazel run //core:update_edge_cases, a ruled move citing its ruling).
+java_run(
+    name = "edge_cases",
+    tags = ["edge_test"],
+    testonly = True,
+    outs = [
+        "edge/cases/verdict.txt",
+        "edge/cases/run.log",
+        "edge/cases/answers.tsv",
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/answers.tsv",
+        "--",
+        "--select-class=com.legend.integration.EdgeCasesGoldenTest",
+    ],
+    jvm_flags = ["-Dlegend.edge.cases={OUT_DIR}/answers.tsv"],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 2048,
+    mnemonic = "EdgeContractCases",
+    deps = [
+        ":core_tests_lib",
+        ":core_edge_tests_lib",
+        ":drivers",
+        "//tools/junit",
+    ],
+)
+
+write_source_files(
+    name = "update_edge_cases",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nAn edge text moved (the edge golden net's missing cases): in the diff, < is this tree (generated) and > the golden (the reference); a regression unless it is a ruled move -- then bazel run //core:update_edge_cases, citing the ruling",
+    files = {"src/test/resources/edge/edge_cases_answers.tsv": ":edge/cases/answers.tsv"},
     visibility = ["//pct:__pkg__"],
 )
 
