@@ -1,6 +1,6 @@
 # The compatibility program: the re-cut plan (2026-11-19)
 
-**Status: r5, for the user's ratification.**
+**Status: r5, RATIFIED to start (phase 0) on 2026-11-19 ~04:50 UTC; phases 1-3 are confirmed at the phase-0 checkpoint.**
 - **r1** (`71aa0fc7`) was reviewed by B1's lead (2026-11-19 ~04:08 UTC).
 - **r2** recorded the user's first rulings and revised CP-5.
 - **r3** folds in B1's review: the strand map corrected; the judges split before 1.3; 2.3 widened by the appeal stack and
@@ -796,6 +796,25 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
   5. the per-push lanes and the database versions.
 - **So:** CP-2, CP-3 and CP-4 are RULED (option A each), and CP-8 is RULED (not supported). CP-5's recommendation was
   revised in answer to the question, and is with the user. CP-1 is confirmed with the plan's ratification.
+- **~04:30 UTC:** "Switch e-r1", so CP-3 is E-R2. The user also ruled that the SQL-text appeal is kept: "We definitively
+  should not delete the fallback that checks answers when SQL doesn't match right? That's one of the crown jewels of
+  this project".
+- **~04:50 UTC:** "yes to 1-5 and the independent review, do as much homework, research, measurements right now up
+  front as possible and write down all the learning/outcomes/details immediately". The five were this session's start
+  list, so these are RULED:
+  1. CP-1, the architecture: translator in, formatters out, no modes in lite's core;
+  2. program sessions may create and push their own `claude/compat-*` branches;
+  3. two new sessions now (judges, translator) and a third for the hosts in week 2, all at xhigh;
+  4. CP-9: the compatibility checks on every push, and the oracle's `jars_table` entry for the heavy lane;
+  5. CP-10: the housekeeping.
+- **Also started:** an independent review of the design and the plan. Phase 0 proceeds now. CP-6, CP-7, the 6
+  plan-structure tests and PCT under the LITE judges (§12 I5) wait for the phase-0 checkpoint; CP-5 and CP-11 come
+  later, each with its numbers.
+- **The two checkpoints the user accepted:**
+  - after phase 0: the exact lists, the counts and the independent review; the user confirms or changes phases 1-3;
+  - after the translator's first real rewrite (3.3): if it needed a change inside the core, or took far longer than
+    planned, stop and re-plan.
+- **A standing rule:** a slice that needs a new hook in the core stops and goes to the user.
 
 **CP-1. Translator in, formatters out, instead of three modes.** *Gates every phase.*
 - **The question:** replace the three modes (ruled 2026-11-18 19:45) with this design? The core has one meaning; an
