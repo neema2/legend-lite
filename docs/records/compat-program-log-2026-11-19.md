@@ -28,6 +28,8 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~14:55 | "Detector default warn is okay" (to this session's options: (a) warn plus a report when a project loads, recommended; (b) refuse by default) | D1's detector warns by default, with the load-time report as planned (the reviewer's condition for warn); refusal by the server setting `LEGEND_LITE_PURE_MEANING=refuse` |
 
+| ~15:05 | "Wait what? Why are you going against our tenets - everything must be pushed to database" (to this session's call of option 1 on A5's AdjustBy fix) | Option 1 (neither judge sends a date literal to the database) REVERSED as against G6 and G3. Option 2: both judges send the literal to the database, ordered reads make both fail deterministically on the database's own range error, and the difference from upstream is a register row. A standing lesson: a call that takes evaluation out of the database is the user's, and is checked against G6 first |
+
 **Superseded ~13:25:** **Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
 each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
 being built by the product's judges track (C3).
@@ -1687,3 +1689,15 @@ who confirms or changes phases 1-3.
   own error, not upstream's; a register row). **This session's call (15:00): option 1, the sweep first** (core, PCT
   channels A and B, both corpus lanes): if only the 4 AdjustBy tests move, build it, the BodyDriver pin for the user's
   word in the PR; if anything else moves, stop and report. The H2 message finding counted separately.
+- **~15:05 UTC, THE USER corrected this session** (recorded in §1): "Wait what? Why are you going against our tenets -
+  everything must be pushed to database". **This session's 15:00 call (option 1: neither judge sends a date literal to
+  the database, upstream's answer) was wrong**: it chose upstream's answer over G6 (the database does the work) and G3
+  (values matched by type in the database), without checking them. Reversed at once (15:06) to **option 2**: both
+  judges keep sending the literal; each verdict row reads its expected side first, so both fail deterministically with
+  the database's own range error (G2, G10, G7 hold); A5's change (1) (the host's date-literal constant) is removed;
+  (2) and (3) kept if neither moves a value out of the database; no BodyDriver change, no pin; the difference from
+  upstream (legend-pure answers; a database refuses a date beyond its type's range: DuckDB DATE to year 5881580,
+  TIMESTAMP to 294247) a register row for the user's word. **Lesson, standing for this program:** where upstream's
+  answer and the tenets differ, the tenets win; a design that moves evaluation out of the database is checked against G6
+  before it is chosen, and goes to the user if it does. The other Java-side pieces of the plan were re-checked against
+  G6 the same hour (the next entry).
