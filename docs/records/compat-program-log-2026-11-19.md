@@ -2131,3 +2131,16 @@ who confirms or changes phases 1-3.
   `2000-10-25T06:30:00.000000Z`), and **one text on every database** (each failing test's whole text identical to
   DuckDB's on H2 30/30, SQLite 33/33, Postgres 33/33; each database's own cast gone). DuckDB's five suites otherwise
   unchanged. D2 next.
+- **~17:50 UTC, the four PRs combined** (the user: "Combine PRs and explain everything in them Clearly in plain
+  English"). #125 and #126 merged into #124's branch `claude/compat-engine-lane` as ordinary merges (`aa002b6a`,
+  `f832a667`; #123's head was already in it); pushed, no force. #124 retitled "Compatibility safety nets and two CI
+  fixes, as one PR (was #123, #124, #125, #126)", its body rewritten in plain English (one section per part, the guarded
+  files, the rules of record, the status; merge with a merge commit so each part reverts alone). #123, #125, #126 closed
+  unmerged with a pointer each. #124's owner (B1-R) and the CI-health worker told not to push without word and to watch
+  the one run; the reviewer asked to check the combination only.
+- **~17:52 UTC, legend-pure's date text, READ** (the user: "Is pure date/time printing some iso or other standard?";
+  `DateFormat.append`, legend-pure-m4 `DateFormat.java:237-267` at `7fbc7d6`): year (unpadded), `-`, month, `-`, day,
+  `T`, hour, `:`, minute, `:`, second, then `.` and the subsecond digits exactly as the value holds them (no fixed
+  width), then the literal `+0000` once the value has minutes. ISO 8601-shaped, but not strictly ISO or RFC 3339: the
+  `+0000` offset is ISO's basic form glued to the extended date, and RFC 3339 requires `Z` or `+00:00`. Lite's
+  `2000-10-25T06:30:00.000000Z` is valid ISO 8601 and RFC 3339.
