@@ -469,3 +469,10 @@ who confirms or changes phases 1-3.
   - **Sequencing risk:** five product tracks are changing the same judge, number and host files now. The product's
     judges track must land before 2.1 and 2.2a.
   - **Nothing has run on CI on every OS yet** (the first PR is not up).
+- **~12:20 UTC, two more spikes started, under the user's standing ask for up-front homework:**
+  - **H10, the judges session:** a prototype of 2.2b on a slice (verdict records worded by an edge presenter; one run
+    interface; the appeal unchanged; `assertError`'s match; one door rewrite, S131's typed half). The check: both
+    corpus rosters and channel B's outcomes and messages byte-identical. Record `H10-judge-records-spike.md`;
+  - **H11, a new session** (`session_0195rQEjVtMXfZdcaQdweUzf`, `claude/compat-relation-text-spike`): legend-pure's
+    relation `toString` printed in Java over typed rows, judged by PCT channel B's relation suite with the SQL builder
+    off. Record `H11-relation-text-spike.md`.
