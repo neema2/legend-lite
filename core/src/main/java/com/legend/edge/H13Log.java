@@ -48,6 +48,24 @@ final class H13Log {
         }
     }
 
+    private static final @com.legend.base.Nullable String DEFECTS = file("defect_cells");
+
+    /** A checked graph's unevaluable-constraint cell the edge writes legend-engine's sentence into, at render. */
+    static void defect(String constraintId) {
+        if (DEFECTS == null) {
+            return;
+        }
+        String line = constraintId + "\t" + new Throwable().getStackTrace()[2] + "\n";
+        synchronized (H13Log.class) {
+            try {
+                java.nio.file.Files.writeString(java.nio.file.Path.of(DEFECTS), line,
+                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        }
+    }
+
     static void raised(com.legend.executionplan.ExecutionPlan.Site site, PureMessages.Worded worded) {
         if (FILE == null) {
             return;

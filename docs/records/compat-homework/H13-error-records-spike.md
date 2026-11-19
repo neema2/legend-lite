@@ -584,3 +584,197 @@ bound message is lite's own under lite's words). Section 13 has the core suites'
   ports to H10 as written. **One difference, for the judges session:** H6 §7.6 names the method
   `errorMatches(expected, raised)` (the match inside the hearing), H10 builds `caughtMessage(RuntimeException)` (the
   words, the match in the product). This spike needs only the second. Sent to the judges session.
+
+## 13. Lite's own suites and the guards over the spike (measured, session 2)
+
+Run: 65 test targets of `//core` (every `core_tests_*` shard, both judges' shards, every `core_edge_tests*`,
+`:guardrails`, `:guardrails_edge`, `:lean_sql_baseline_test`, `:raise_envelope_conformance_test`,
+`:product_raise_probe`), the spike's head plus sections 11 and 12. **56 pass, 9 fail.**
+
+**Every one of lite's own suites passes**: all 51 `core_tests_*` targets, under the host judge, `judge_both` and
+`judge_database`. So the three lowering changes and the database judge's binding change no lite answer, verdict or
+message that a core test pins. `raise_envelope_conformance_test` (the hosts' shared fixture, read by Java) passes.
+
+**The 9 failing targets, every cause named:**
+
+| Target | Failing | Cause |
+|---|---|---|
+| `core_edge_tests` (1,011) | 12 | section 5's `toOne` size tests (`MultiplicityStrictnessTest` 2, `RelationToOneGuardTest` 1, `OptionalCollectionNullDropTest` 2, `ToOneLaneTest` 7): `SIZE_NOT_MULTIPLICITY`'s size is built in the dialect (section 11). **Section 5's other 8 now pass**: `AssertErrorNativeTest`'s 6 (`at`'s size) and the 2 the first session fixed |
+| `core_edge_tests_judge_both`, `_judge_database` (878 each) | 12 each | the same 12 |
+| `core_edge_tests_integration_h2`, `_sqlite` (371 each) | 1 each | `RelationToOneGuardTest.onTheLane`, the same cause |
+| `guardrails` (76) | 3 | `PlatformNamesGuardrailTest.bareNameSwitchArmsOutsideTheParserOnlyShrink` (195 > 188: `PlanJson`'s operand reader switches on the 8 JSON keys); `CodeShapeGuardrailTest.mutableInstanceStateIsExplicit` (`Operand.COMPUTED`, `Operand.LOOSE`: the spike's interface constants, `LOOSE` its measuring switch); `CompatSpellingGuardTest` (**this session's scratch log** in `testexec/HostJudgments`, section 14: not the slice) |
+| `guardrails_edge` (218) | 6 | `ArchitectureTest.thePlannerWritesNoFile` (the spike's site census in `PlanMaker`: scratch); `EdgeOnlyDataTest` (below); `EdgeOnlyMembersTest` (below); `PlanStyleSurfaceTest` 3 (`errorWords` deleted from `PlanStyle`) |
+| `lean_sql_baseline_test` | 1 | lite's plan JSON grows by the operands (section 10; re-measured in section 15) |
+| `product_raise_probe` | 1 | environmental: it needs `LEGENDLITE_PROBE_DATABASE` (a cloud database); not run here, not the slice |
+
+**`EdgeOnlyDataTest` (the plans' data, each piece with a product use):** 8 new pieces "by the edge":
+`ExecutionPlan.Site#operands` and the 7 operand values (`Operand.Text#value`, `Int#value`, `Flt#value`, `Dec#value`,
+`Bool#value`, `Day#iso`, `Instant#iso`). Lite's own sentence reads only the kind and the where, so the operands are
+read by the edge's formatter alone. This is CP-7's one ruled `EdgeOnlyDataTest` row (the user, 2026-11-19 ~12:10:
+"error words leave the plan, with one EdgeOnlyDataTest row"); the real slice writes it as one row if the guard can rule
+a type whole, or 8 rows citing the one ruling.
+
+**`EdgeOnlyMembersTest` (a public product member only the edge uses):**
+- new: `PlanJson#write(ExecutionPlan, ExtensionCodec)` and `PlanJson#sitesOf(ExecutionPlan, String, ExtensionCodec)`
+  (S1's explicit-codec overloads, which section 4 found unneeded: the real slice DELETES them) and
+  `Failures$Planned#compile()` (the planning-failure record, read by the edge's formatter: pinned with its reason, or
+  the product's `assertError` judge reads it too);
+- gone from the edge-only set: `RaisedErrors$Raised#statement()` and `PlanJson#sitesOf(ExecutionPlan, String)` (their
+  pins are deleted: "one pinned that the product uses again, or that went, is deleted").
+
+## 14. The whole net and the corpus again, every log on (session 2)
+
+Run: the whole net as in section 11, then `//spec:corpus_duckdb` and `//spec:corpus_h2`, with this session's scratch
+logs (a defect cell the edge writes; a JSON assert that reads a defect; a planned size refusal raised at run; the
+latter two in product files, reverted after the run, never committed).
+
+- **The net:** the same 8 differing lines as section 11 (the 2 Relation lines on DuckDB and SQLite), nothing else.
+- **The raises worded after the run, the whole net: 62. All 62 exact: 0 withheld, 0 printed by Java where the
+  database printed before.** Section 9's same run had 38 exact and 24 withheld. By kind: `DATE_PART_ABSENT` 16,
+  `VALUE_NOT_HELD` 10, `SHIFT_OUT_OF_RANGE` 8, `DATE_COMPONENT_INVALID` 8, `SQRT_OF_NEGATIVE` 4,
+  `SLICE_BOUNDS_INVERTED` 4, `RANGE_STEP_ZERO` 4, `INDEX_OUT_OF_BOUNDS` 4, `DIVIDE_BY_ZERO` 4.
+- **The corpus:** both lanes' rosters unchanged (`//spec:corpus_duckdb`, `//spec:corpus_h2`: 10 of 10 targets pass,
+  the verdicts and the four roster shards each).
+- **Planned size refusals raised at run (task 4): 0** in the whole net and both corpus lanes.
+
+## 15. The checked graph's defect cell (task 3; counted and sized, not built)
+
+**What it is.** A `graphFetchChecked` envelope holds one defect per class constraint that does not hold. Where a
+constraint's predicate is NULL (a property absent on the wire), the defect's message is a cell the planner writes:
+lite's words in the product (`ErrorKind.CONSTRAINT_UNEVALUABLE`'s sentence and the constraint's id,
+`lowering/CheckedEnvelope.java:79-89`), legend-engine's sentence under the edge's dialects
+(`Unable to evaluate constraint [<id>]: data not available - check your mappings`, `PureText`'s `asData` arm ->
+`PureMessages.sentence`). It is an ANSWER cell, not a raise: no site, no error.
+
+**Upstream's sentence, read at the pin** (legend-engine `230c1591`):
+`legend-engine-xt-javaPlatformBinding-pure/.../legendJavaPlatformBinding/shared/constraints.pure:171` and `:177`, the
+generated Java checker's catch branch: `'Unable to evaluate constraint ['+$info.id+']: data not available - check your
+mappings'`. So the words are legend-engine's (its Java platform binding), not legend-pure's.
+
+**Who reaches it (measured, section 14's run; the expected texts read at the pin):**
+
+| Where | Cells the edge plans | Answers that hold one | Tests whose EXPECTED answer holds the sentence |
+|---|---|---|---|
+| PCT (DuckDB, SQLite, H2, channels A and B) | 0 (no PCT function serializes a checked graph) | 0 | 0 |
+| the corpus, DuckDB | 12 (constraint ids `firstNameTest` 4, `titleNotEmpty` 2, `0` 2, `1` 2, `duplicateEmployee` 1, `typeNotEmpty` 1), in the 7 checked-graph tests of the host ledger | **0** | **1**: `graphFetch::tests::simple::testCheckedWithCircularConstraints` (`testSimpleRelationalGraphFetch.pure:1319`), which FAILS on both lanes today for another reason: legend-engine's expected answer is itself its own defect (its `//toFix: after fixing isDistinct related bug` comment; DuckDB's accepted roster `engine-golden-defect:isDistinct-in-checked-constraint`, H2's fail roster) |
+| the corpus, H2 | 0 | 0 | the same 1 test |
+| pure/v1's golden | 0 (no checked-graph request) | 0 | 0 |
+| core's tests | `GraphFetchCheckedIntegrationTest` (5 tests, lite's words), `RaiseTextTest` (the edge's SQL sentence), `CompatSpellingGuardTest` (the phrase, allowed at the edge) | | |
+
+- The other `Unable to evaluate constraint` texts at the pin are legend-engine's M2M tests (`core/store/m2m/tests/
+  legend/dataQuality.pure`, `constraints.pure`: `... No mapping for property 'i'`, another sentence), which lite does
+  not run.
+- **So 0 passing tests depend on the cell's words today**, and 0 answers in the whole net, the corpus and pure/v1
+  carry it.
+
+**Which presenter words it:** legend-engine's, the ENGINE audience's result presenter (B2's, the one that writes a
+graph fetch's JSON in legend-engine's envelope). Not legend-pure's: no PCT test reaches it.
+
+**The typed cell, sized** (the orchestrator's call: a typed defect cell worded by the presenter):
+- the lowering writes the defect's `message` for an unevaluable constraint as data the presenter recognises, not as
+  words: the kind and the constraint's id (`CheckedEnvelope.wrap`, about 10 lines). The cleanest form is the raise
+  site's own shape (kind `CONSTRAINT_UNEVALUABLE`, operand `Text(id)`), declared on the statement like a site, the cell
+  holding its token; the presenter of each audience replaces the token with its sentence;
+- lite's presenter of a graph fetch's JSON words it lite's way, legend-engine's presenter legend-engine's way (about 40
+  lines each with their tests); the edge's `asData` arm in `PureText` (12 dialects, one line each) and
+  `PureMessages.sentence`'s arm go; `RaiseText.asData` goes from the MIR (`SqlExpr.java:1230`, its two rewriters);
+- **one constraint to check first:** a writer decides nothing (`WriterCarriageGuardTest`); replacing a token inside a
+  JSON cell at the writer is wording, which is the presenter's, so it must sit in the presenter, not in a writer;
+- **size: about 120 lines changed, 1 to 1.5 days, as a row of B2.** No test is expected to move (0 answers carry it).
+- **Adjacent, found here, not this slice's:** the checked graph's DEFAULT violation message is legend-engine's
+  sentence too, written by the PRODUCT (`resolver/GraphEmission.java:653`, `"Constraint :[" + id + "] violated in the
+  Class " + simple`), asserted by `GraphFetchCheckedIntegrationTest.falseAndTrueArmsKeepTheirSpellings`. It is the
+  census's "upstream sentence inside the product" family.
+
+## 16. The size words (task 4; no `HostWords` member, recorded for the judges' `Hearing`)
+
+**What the words are.** A test body's side (or its answer) whose shape requires at least one row and reads none is
+refused. The words today: legend-pure's `Cannot cast a collection of size 0 to multiplicity [1]` under the edge
+(`EdgeEngineTestText.sizeWords`, through `PureMessages.worded(SIZE_NOT_MULTIPLICITY, [Text(bound)])`); lite's
+`ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + bound` otherwise (`EngineTextGates.sizeWords:92-95`).
+
+**Where they are decided and raised:**
+
+| Step | Where |
+|---|---|
+| worded, at PLANNING | a VALUES side with `lower >= 1`: `testplan/JudgePlans.java:308` (via `JudgePlans.sizeWords:325` -> `EngineTextGates.sizeWords:92` -> the facet `EngineTestText.sizeWords`); the body's answer: `testplan/TestDoor.java:162-179` (`answerSizeWords`) |
+| carried, in the TEST PLAN | `SideShape.sizeWords` (`testexecutionplan/SideShape.java:37`, JSON `HostJson.java:207/223`); `TestPlan.answerSizeWords` (`TestPlan.java:48`, JSON `TestPlanJson.java:114/277`); `TestPlan.words`, the name of the words planned |
+| raised, at RUN | `testexec/SideShapes.java:262` (a scalar side of no rows), `:291` (a collection side of no rows), `:162` (the answer's sink, `holding(...).end()`, from `TestRunner.java:401`), each as `IllegalStateException(words)` |
+
+**What data the wording needs: the kind and one operand, the bound.** The size is 0 by construction (no rows). The
+bound is already in the plan twice (`SideShape.multiplicity`; the answer column's `ExecutionPlan.Multiplicity`). It is
+exactly the one-operand form of the placed raise site (`RaiseText.placed(SIZE_NOT_MULTIPLICITY, bound)`: kind,
+`where = bound`, operands `[Text(bound)]`).
+
+**For the `Hearing` design (an input, not built):**
+- if the run raises this refusal as a typed error carrying that record (a `DataError` whose cause holds kind
+  `SIZE_NOT_MULTIPLICITY` and `[Text(bound)]`, the shape a raised site has), then the existing word path words it:
+  H10's `Hearing.caughtMessage(RuntimeException)`, this spike's `RaisedWords.wordsOf`. **No new member at all**, and
+  the facet members `EngineTestText.sizeWords`, `EngineTextGates.sizeWords`, `JudgePlans.sizeWords` and the plan's
+  three fields (`SideShape.sizeWords`, `TestPlan.answerSizeWords`, `TestPlan.words`) go;
+- **one behaviour to rule:** today the refusal is an `IllegalStateException`, which `assertError` does not catch (its
+  arm takes `DataError` and `ModelException` only, `AssertErrorRuns.judge`). legend-pure raises a
+  `PureExecutionException` there, which `assertError` catches. As a `DataError` it would be caught: closer to
+  upstream, but a change, to list. **Reach today: 0** (section 14: no planned size refusal is raised in PCT or the
+  corpus; no pinned line holds the sentence).
+
+## 17. pure/v1's golden: the two requests to add, legend-engine's answers, and a defect they find (task 5)
+
+**How legend-engine's answers were got: ASKED of the engine runner** (`docs/result-boundary-homework/README.md` §7's
+recipe): `//tools/engine-runner:testable`'s classpath (legend-engine 4.145.0), a scratch probe
+(`H13/ErrorBodyProbe.java.txt`: parse the model, build the lambda, generate and execute the plan as pure/v1's execute
+does, and on a failure print the 500 entity its `ExceptionTool` writes, `new ExceptionError(-1, exception)`, trace
+left out as lite's net leaves it out), over the golden's own model (`upstream-api/trades-h2.pure`, H2). The envelope
+read at the pin: `shared/core/operational/errorManagement/ExceptionTool.java:35-37` (500, the `ExceptionError` entity)
+and `ExceptionError.java` (the message an `EngineException`'s, else `ExceptionUtils.getRootCauseMessage`, i.e.
+`<simple class name>: <message>`; `errorType` and `sourceInformation` an `EngineException`'s alone).
+
+**Lite's answers were recorded by the net's own recorder** (`PureV1EdgeGoldenTest`'s requests, the shipped edge
+route), the requests added to the test locally and removed after: no golden moved. `main`'s answers were recorded the
+same way in a worktree at `b75d6c73a`.
+
+**The two requests I would add:**
+
+| Name | The lambda (the golden's `TRADES` and `RT`) | What it checks |
+|---|---|---|
+| `raise.datePartAbsent` | `TRADES->limit(1)->extend(~h: r\|%2017->hour())->select(~[h])` | a raise SITE with a LITERAL operand (`DATE_PART_ABSENT`, `Text 2017`), not in legend-engine's unchecked set, worded after the run |
+| `compile.windowFrameInverted` | `TRADES->extend(over(~[region], ~year->ascending(), rows(4, 2)), ~s:{p,w,r\|$r.qty}:y\|$y->plus())->select(~[s])` | a KINDED compile error (`WINDOW_FRAME_INVERTED`, raised at planning), worded from its record (section 8) |
+
+**Their answers:**
+
+| Request | legend-engine 4.145.0 (asked) | lite at `main` | lite, the spike before this section | lite, the spike now |
+|---|---|---|---|---|
+| `raise.datePartAbsent` | 500 `{"code":-1,"message":"PureAssertFailException: Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:26 column:5), \"Ensure the target system understands Year or Year-month semantic.\"","status":"error"}` | 500 `{"code":-1,"message":"Raised: Cannot get hour for 2017","status":"error"}` | 500 `{... "message":"Raised: DATE_PART_ABSENT" ...}` | 500 `{... "message":"Raised: Cannot get hour for 2017" ...}` |
+| `compile.windowFrameInverted` | 500 `{"code":-1,"message":"PureAssertFailException: Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:26 column:5), \"Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!\"","status":"error"}` | 500 `{"code":-1,"errorType":"COMPILATION","message":"Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!","status":"error"}` | the same | the same |
+
+- Neither matches legend-engine's body, and neither need be for the golden, which pins LITE's answers (a regression
+  net). The differences, for the register: legend-engine refuses `%2017->hour()` at planning with its own assert's
+  words where lite raises legend-pure's; for the frame it reports a `PureAssertFailException` with the assert's
+  location and no `errorType`, where lite reports a `COMPILATION` error with legend-pure's sentence alone.
+
+**THE DEFECT THESE REQUESTS FIND (fixed in the spike, edge only).** pure/v1's envelope (`EngineEnvelope.answer`)
+prints a `DataError`'s CAUSE (`typeName(n) + ": " + words(n)`), so the after-run words that `RaisedWords.worded` puts in
+the `DataError`'s message never reach it; `PureMessages.compile`, its `words`, turns a raised site's marked text into
+its kind's bare name. Measured:
+
+| Request | `main` | the spike before the fix | the spike after |
+|---|---|---|---|
+| `%2017->hour()` | `Raised: Cannot get hour for 2017` (its sentence was in the SQL) | `Raised: DATE_PART_ABSENT` | `Raised: Cannot get hour for 2017` |
+| `%2017-01-01T10:30->second()` | `Raised: Cannot get second for 2017-01-01 10:30:00` (the database's text) | `Raised: DATE_PART_ABSENT` | `Raised: Cannot get second for 2017-01-01T10:30+0000` (legend-pure's) |
+| `date(2017, 13, 1)` | **`Raised: DATE_COMPONENT_INVALID`** | the same | `Raised: Invalid month: 13` |
+| `date(2017, 1, 1, 24)` | **`Raised: DATE_COMPONENT_INVALID`** | the same | `Raised: Invalid hour: 24` |
+
+- **So the defect is on `main` already** for every site whose operands were literals (its words sat beside the plan, in
+  the `siteWords` table, which this route never read). Section 4's line "Java's own pure/v1 route is not affected" is
+  wrong: it is, for those sites. The spike widened it to every site, because no site's sentence is in the SQL any more.
+- **The fix** (`edge/PureMessages.compile`, 6 lines): a `RaisedErrors.Raised` with a site is worded by
+  `RaisedWords.wordsOf`, the one function every other route words a site with. No core change, no hook.
+- **Checked:** pure/v1's 28 golden lines byte-identical after the fix.
+- The net did not see it because pure/v1's golden has no site raise (section 9's gap): this is the first request's
+  value.
+
+**Adjacent, found here (for the register or the product):** a relation accessor over a database the model lacks
+(`#>{nope::DB.TRADES_SCHEMA.TRADES}#`) is refused by lite as `Can't find database 'nope::DB'` (`MISSING`, "in
+legend-engine's words (`HelperRelationalBuilder.getDatabase`)", `TableReferenceChecker.java:112-115`), but legend-engine
+4.145.0 answers `The store 'nope::DB' can't be found.` (`COMPILATION`, with a `sourceInformation`): the edge's own
+`MISSING_STORE` sentence. The kind chosen at that site does not match what legend-engine says there.

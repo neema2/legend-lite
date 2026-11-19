@@ -85,8 +85,11 @@ public final class PureMessages {
             // [the native's name]: lite's own sentence, kept for the compatibility road
             case LIST_LENGTHS_DIFFER -> new SqlExpr.StringLit(text(r, 0) + ": the two value lists differ in length");
             // [the constraint's id]: the engine's milestoning/constraint sentence, in a checked graph's defect row
-            case CONSTRAINT_UNEVALUABLE -> new SqlExpr.StringLit("Unable to evaluate constraint [" + text(r, 0)
-                    + "]: data not available - check your mappings");
+            case CONSTRAINT_UNEVALUABLE -> {
+                H13Log.defect(text(r, 0));
+                yield new SqlExpr.StringLit("Unable to evaluate constraint [" + text(r, 0)
+                        + "]: data not available - check your mappings");
+            }
             // DuckDB's own words, which the reference database's other dialects raise (the D0 inventory's K3)
             case MAP_KEYS_MISALIGNED -> new SqlExpr.StringLit("The map key list does not align with the map value list.");
             case MAP_KEY_NULL -> new SqlExpr.StringLit("Map keys can not be NULL.");
@@ -315,6 +318,12 @@ public final class PureMessages {
      * {@code [line:col]} stays in front.
      */
     public static String compile(Throwable e) {
+        if (e instanceof com.legend.exec.RaisedErrors.Raised r && r.site() != null) {
+            // H13 spike (session 2): a raised SITE, worded after the run from its record, as every other route words
+            // it (RaisedWords.wordsOf). Until then pure/v1's envelope printed the site's marked text as its kind's
+            // name ('Raised: DATE_COMPONENT_INVALID' on main, for every site whose words the plan held beside it)
+            return RaisedWords.wordsOf(r);
+        }
         String message = String.valueOf(e.getMessage());
         if (message.length() > 1 && message.charAt(0) == com.legend.sql.RaiseKind.MARK) {
             // a product raise's text (MARK kind [MARK where]): its kind's name, as an upstream reader has read it since
