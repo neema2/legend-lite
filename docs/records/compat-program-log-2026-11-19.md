@@ -997,3 +997,36 @@ who confirms or changes phases 1-3.
   (`session_0195rQEjTP2YHCipAiqZmEma`) on `claude/h2-dialect-gaps`, after `claude/numbers-q1`; it messages B1-R first
   for the cross-check. A route difference (a row not a known failure in lite's own H2 ledger) goes to the product
   orchestrator separately.
+- **~13:09 UTC, H13's interim report** (the error-records spike; `H13-error-records-spike.md` §1-7 on
+  `claude/compat-error-records-spike` at `c8d74436`).
+  - **PCT DuckDB, both channels, all five suites** (the net's recordings against `main`'s goldens): channel A answers
+    2,710 lines, 8 differ; channel A outcomes 1,165, 6 differ; channel B outcomes 1,249, 6 differ. **Exactly 6 tests
+    change, all Essential, the same on both channels** (`testAtError`, `testDayOfMonthError`, `testHourError`,
+    `testMinuteError`, `testSecondError`, `testSquareRootError`): each prints an operand the plan holds as "computed",
+    though the query wrote a literal; the lowering hands the raise a wrapped expression (`Cast(FloatLit -1.0,
+    DOUBLE)`, `Cast(StringLit '2017', TEMPORAL_TEXT)`, `LIST_LENGTH(...)`). H13 is measuring three lowering sites that
+    hand the raise the literal they were given: the true cost would then be 0. The other 2 answer lines differ only in
+    the SQL text an answer quotes (the `concat(...)` sentence became its token). Every other pinned message is
+    byte-identical, including 22 raises worded after the run from literal operands.
+  - **The prototype:** `Site` gains `List<Operand>` (Text, Int, Flt, Dec, Bool, Day, Instant, Computed), built by
+    `PlanMaker.sites` from `RaiseSite.operands()` with no style asked; `PlanJson` writes and reads it natively. One
+    function words a raised site after the run (`PureMessages.worded`); both routes funnel through
+    `RaisedWords.wordsOf`. **Deleted: `PlanStyle.siteWords`, `PlanStyle.errorWords`, S1's `SiteFacts`,
+    `EdgeHearing.raisedWords`, `Edge.siteWords`. No new hook in the core.** Python's `_raised.py` and the tab's readers
+    read 11 of 11 shared fixtures unchanged; a site view without operands beside a plan with them is refused by both.
+  - **Static census:** 51 raise construction sites, 60 operand positions (30 always a String literal, 4 Integer, 1
+    Float/Decimal, 8 always computed, 17 either); 12 of 27 kinds can lose a printed value; no Boolean, Null, Time or
+    Array literal reaches an operand today.
+  - **This session's calls (13:15):** (1) the plan JSON grows by the operands in a LITE plan too; accepted as the
+    design (both sides word from records). **B1's done-when is amended** to "the product plan's JSON changes only by
+    the sites' operands (and the SQL's raise text, which shrinks to its token), and its version"; measured against
+    `lean-sql-baseline`. (2) The checked graph's defect cell (`RaiseText.asData`, CONSTRAINT_UNEVALUABLE, legend-engine's
+    sentence written in SQL as an answer cell) becomes a typed defect cell worded by the presenter; counted and sized
+    as a row for B2, not built. (3) `PureMessages.sentence`'s last caller, `EngineStyleH2.raiseMessage`, goes with A2
+    (sent to B2 for the shape note). (4) `sizeWords`/`answerSizeWords` do not get a new `HostWords` member; they are an
+    input to the judges' `Hearing` design (sent to the judges session, which is to check H13 §5 against `JudgeRun`).
+    The three lowering sites: measured on two conditions (lite's own lowering choosing the typed node, never a run-time
+    value or a hook; the operand printing exactly PCT's expected text); if a site needs type dispatch on a cast
+    (invariant 2) it stops and reports.
+- **~13:09 UTC, the translator:** B1-R's `10b311de6` (H2 essential and standard in the ENGINE lane) is merged into
+  `claude/compat-translator-spike`; the two runs ((1) alone, the combined set) over the three H2 lanes are going.
