@@ -2818,3 +2818,27 @@ who confirms or changes phases 1-3.
   size error; B2's window-in-list prerequisite, default violation message, defects cell and done-when 3; B5's legacy
   null-equality flag and the first switch's removal date; the cross-kind meaning; the engine runner's storeless gap;
   `engine` on more databases), each with context, choices, pros and cons, and a recommendation. Nothing ruled yet.
+- **~21:25-21:29 UTC, four pieces moved:**
+  - **B1's native pushed:** `claude/compat-a3-raw-substring` at `64adcc05e9` (on A2 `6551c2036` plus piece 1 squashed as
+    `ff069d8a8d`; record `A3-B1-substring-as-given.md` on `claude/compat-b1-homework` `f9f0acbbd8`). Made per the ~21:10
+    ruling: `native-claims.tsv` (`EngineSubstitutes;Scalars`, the reviewer's condition), INTERNAL_DESUGAR 40 → 41,
+    SqlFnSortedTest PRODUCT +1, the pin in spec's `ClaimRegistryTest`; COMPILER_OWN refusal tested three ways;
+    MongoDB refuses by the dialect's own `DialectCapability` (accepted here: its other refusal arms' convention);
+    `EngineSubstitutes` one class; the dialect capability matrix regenerated. **For the user's word (up):** Intrinsic
+    738 → 740, NOT_UPSTREAM_MAX 76 → 78 (the native's two overloads), the funnel register's `EngineSubstitutes.java`
+    row. Recorded for later: Postgres's `StringCountsAsInt` must take SUBSTRING_AS_GIVEN when Postgres joins `engine`.
+  - **B1-R's rewrite mechanism built** (local `b4a053a79` on `claude/compat-a3-detector`): D-M1 refined, each
+    store-bound root inlined on its own so a host-side let keeps Pure's meaning (plants R1-R6; R1 reds 4 tests);
+    12 tests. **For the user's word (up):** the funnel register's `PureMeaningRewrite.java` row. Branch ruled here: the
+    wiring lands as one edge-only commit on `claude/compat-a3-engine`, rebased on the batch head after B1's merge;
+    DuckDB enabled in it if its batteries match under `engine`. Sent to the reviewer.
+  - **A2 PR 2 pushed** on the user's word in B2's session: `claude/compat-a2-plan-text` at `059cc71df`, +95/-296,
+    LiteSqlText and the dead plan-text code deleted, every guard move down (the closed-list entry for LiteSqlText from
+    PR 1 cancelled, so it leaves the user's batch-PR list); nothing else moved. `claude/compat-a3-docs` at `dd9ecd481`.
+    Findings: nine AnsiSqlRenderer hooks only the deleted printers overrode (stage B's list); a DialectOwnerExclusivity
+    down move for the judges.
+  - **The judges' A3 fast loop on the batch:** 30 of 31; parser_parity red on PureMeaningCheckTest's text alone (six
+    snippets without section headers, a mechanical fix by B1-R; what remains, expected PURE-DIALECT-function-types
+    20 → 21 and one function-type leniency kind, is for the user's word). Merge order given: A2 PR 2 now; the
+    translator's pieces; B1's native (the translator's side on piece-1 conflicts; the corpus rosters re-run, never by
+    hand); B1-R's wiring; B2's docs.
