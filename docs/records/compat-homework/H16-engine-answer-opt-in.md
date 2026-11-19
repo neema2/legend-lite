@@ -230,7 +230,7 @@ and so it differs under both designs.
 - So whatever the swap writes, the database never receives legend-engine's arguments as given. It computes H2's
   answer. legend-engine sends DuckDB the SQL unclamped.
 - **The 16 DuckDB misses are every request with a start of 0 or below, or a negative length:** `col.s01`, `s06`,
-  `s07`, `s11`, `s14`, `s15`, `s18`, `col.i07` (a `substring` from 0 up to an `indexOf`), and their literal twins
+  `s07`, `s11`, `s14`, `s15`, `s18`, `col.i07` (`substring(indexOf('e'), length())`, whose start is 0 where `'e'` is missing), and their literal twins
   plus `lit.s12` and `lit.s13`. For example, `substring(0, 2)` on `'Credit'`: legend-engine answers `'C'`, the swap
   `'Cr'`.
 - So the swap reproduces legend-engine's answer only where the database's own `SUBSTRING` treats a start below 1 as
