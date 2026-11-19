@@ -2600,3 +2600,16 @@ who confirms or changes phases 1-3.
   run, which merges #124's branch): `corpus_duckdb` green at 20:21, `checks` running. **Reviews dispatched:** A2
   (`6551c2036`) and A4 (`e91005cc6`) as pieces, then the batch merge once measured. The memo design check sent to the
   CI-health worker (share the referee's serialized text, immutable, if every class uses only that form).
+- **~20:32 UTC, the reviewer: A2 and A4 as pieces** (record `db6ee45e`). **A2 at `6551c2036`: APPROVED WITH 1
+  MUST-FIX.** Holds: the printers deleted, `LiteSqlText` package-private and value-free, the rosters exact (+147, +152),
+  the edge-net ledgers moving on the roster's tests plus those already failing, every guard move dated; for the user's
+  word: `LiteSqlText`'s closed-list entry, S380, the 12-dialect widening. MUST-FIX: rung 2a (`7dfbdf601`, 2026-09-21) had
+  taken four batch-144 rows off the accepted rosters; A2 sent them to the FAIL rosters, the accepted rosters untouched.
+  Restore verbatim: DuckDB `testHashFunctions` (joinStrings-literal-collection, witness `aceae941...`),
+  `testToSQLStringForTDSStringJoin` (`Anthony Allen[,]`), `testToSqlGenerationFirstDayOfWeek`
+  (firstDayOfWeek-h2-week-start, `2014-11-30`); H2 `testToSQLStringForTDSStringJoin`. New, the user's word: H2
+  `testHashFunctions` (never accepted on H2) and H2 `testToSqlGenerationFirstDayOfWeek` on the merged batch. Counts
+  then: A2's fail rosters H2 +145 (or +146), DuckDB +149; accepted H2 41 → 42 or 43, DuckDB 46 → 49. **A4 at
+  `e91005cc6`: APPROVED** with S1 (name refused 108 → 115 in the lean-baseline note), S2 (refuse a non-HOST
+  `-Dpct.channelb.judge` by name; date-point the docs that say `=DATABASE`), S3 (a stale comment), sent to the judges
+  for the batch branch; its proof gap closes with the merged run.
