@@ -1883,3 +1883,10 @@ who confirms or changes phases 1-3.
   macOS 2.3/2.1). Not the PR's: Linux product's Maven 404 (teavm-jso); five macOS jobs cancelled after 40-47 min queued
   without a runner (capacity, cause unknown). B1 re-runs the failed and cancelled jobs once when the run completes;
   B1-R has `7b7ee6ea3` for #124's batched merge. #123 then waits for the user's word through this session.
+- **~15:32 UTC, B1: run 44545061580 at `7b7ee6ea3` finished;** every lane #123 touches is green on Linux, Windows and
+  macOS (correction: macOS's longest lane that ran is datacube, 25.8 min; edge_net 17.7 is not the longest on any OS).
+  Six jobs are red and not #123's: Linux product (Maven 404, teavm-jso) and five macOS jobs (core, pct_duckdb,
+  pct_channel_b, sdlc, product) cancelled after 40-47 min queued without a runner. Neither B1 nor this session can
+  re-run them: the GitHub integration answers 403 on `rerun-failed-jobs` (this session tried at 15:35). B1 commented the
+  six on #123 once. **The re-run needs the user's click:** "Re-run failed jobs" at
+  https://github.com/neema2/legend-lite/actions/runs/44545061580. #123 then waits only for the user's word.
