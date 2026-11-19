@@ -85,8 +85,7 @@ public final class SavedCubes {
         }
         return SavedQueries.served(() -> {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
-            String id = parts.length > 0
-                    ? java.net.URLDecoder.decode(parts[0], java.nio.charset.StandardCharsets.UTF_8) : "";
+            String id = parts.length > 0 ? SavedQueries.pathSegment(parts[0]) : "";
             // a page named in the path (get, update, delete): an id a page makes, on every host
             if (parts.length == 1 && !"POST".equals(method)) {
                 pageId(id);

@@ -200,7 +200,7 @@ public final class SavedQueries {
         }
         return served(() -> {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
-            String id = parts.length > 0 ? java.net.URLDecoder.decode(parts[0], StandardCharsets.UTF_8) : "";
+            String id = parts.length > 0 ? pathSegment(parts[0]) : "";
             if (parts.length > 0 && "dataCube".equals(parts[0])) {
                 return notFound(rest, words);
             }
@@ -275,6 +275,24 @@ public final class SavedQueries {
         return o;
     }
 
+    /** A path segment of the request, percent-decoded, or refused where it is not percent-encoded (a malformed request,
+     *  {@link Refusal.Kind#UNREADABLE}: PH-1 of the PR #118 fix batch's audit, 2026-11-18 -- the decoder's exception
+     *  was the store's failure, 500 {@code internal} on lite's route, on every host). legend-engine's words are the
+     *  decoder's exception, as {@link Refusal.Kind#MALFORMED} wrote them until then, so the edge's answer is unchanged. */
+    static String pathSegment(String segment) {
+        return decoded(segment, "its path segment '" + segment + "'");
+    }
+
+    /** {@code text} percent-decoded, or refused as {@code what} not percent-encoded ({@link Refusal.Kind#UNREADABLE}). */
+    private static String decoded(String text, String what) {
+        try {
+            return java.net.URLDecoder.decode(text, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            throw unreadable(e.getClass().getSimpleName(), String.valueOf(e.getMessage()),
+                    what + " is not percent-encoded");
+        }
+    }
+
     /** The {@code version} parameter as a number, or refused where it is none ({@link Refusal.Kind#UNREADABLE}). */
     private static int version(String text) {
         try {
@@ -318,9 +336,10 @@ public final class SavedQueries {
         }
         for (String pair : rawQuery.split("&")) {
             int eq = pair.indexOf('=');
-            String k = java.net.URLDecoder.decode(eq < 0 ? pair : pair.substring(0, eq), StandardCharsets.UTF_8);
+            String what = "its parameter '" + pair + "'";
+            String k = decoded(eq < 0 ? pair : pair.substring(0, eq), what);
             if (k.equals(name) && eq >= 0) {
-                out.add(java.net.URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8));
+                out.add(decoded(pair.substring(eq + 1), what));
             }
         }
         return out;

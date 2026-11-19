@@ -18,6 +18,9 @@ export interface Target {
   readonly fetch: typeof fetch;
   /** Who the store says the caller is. */
   readonly user: string;
+  /** Whether the host's HTTP layer refuses a request URI that is not percent-encoded itself, before the store is asked
+   *  (legend-lite's server: its JDK HttpServer's own 400 page; PH-1, 2026-11-19). */
+  readonly refusesUnencodedUris?: boolean;
 }
 
 /** How many suites this process has run: each suite's ids are its own (every target starts on a fresh store). */
@@ -141,6 +144,18 @@ export function conformance(name: string, target: () => Target): void {
       assert.equal((unknown.json as { kind?: string }).kind, 'request');
       assert.equal((unknown.json as { message?: string }).message,
         `no such legend-lite API: /api/lite/v1/queries/dataCube/${id('a')}/nothing`);
+    });
+
+    // PH-1 of the PR #118 fix batch's audit (2026-11-18): a path segment that is not percent-encoded was the store's
+    // failure, 500 internal, on every host; it is a malformed request, 400 request, in lite's words
+    it("answers a path segment that is not percent-encoded as lite's request refusal, 400", async () => {
+      for (const method of ['GET', 'DELETE']) {
+        const r = await raw(method, '/%zz');
+        assert.equal(r.status, 400, `${method}: ${r.text}`);
+        // the host's HTTP layer answers first where it refuses the URI itself: the store is never asked
+        assert.deepEqual(r.json, target().refusesUnencodedUris === true ? undefined
+          : { kind: 'request', message: "the request could not be read: its path segment '%zz' is not percent-encoded" }, method);
+      }
     });
   });
 }

@@ -919,6 +919,18 @@ class TheProductsStore(unittest.TestCase):
         self.assertEqual((said.status, json.loads(said.body)),
                          (400, {'kind': 'request', 'message': 'no such legend-lite API: /api/lite/v1/queries/dataCube/a/b'}))
 
+    def test_a_path_or_parameter_not_percent_encoded_is_a_malformed_request(self):
+        # PH-1 of the PR #118 fix batch's audit (2026-11-18): the decoder's exception was the store's failure, 500
+        # internal; it is lite's request, 400, in lite's words, as on the server's and the page's stores
+        for path, query, words in (
+                ('/api/lite/v1/queries/%zz', '', "its path segment '%zz'"),
+                ('/api/lite/v1/queries/batch', 'queryIds=%zz', "its parameter 'queryIds=%zz'"),
+                ('/api/lite/v1/queries/dataCube/%zz', '', "its path segment '%zz'")):
+            said = self.engine.answer('GET', path, query, None)
+            self.assertEqual((said.status, json.loads(said.body)),
+                             (400, {'kind': 'request',
+                                    'message': f'the request could not be read: {words} is not percent-encoded'}), path)
+
     def test_a_page_saved_at_lites_route_is_read_there(self):
         made = self.engine.answer('POST', '/api/lite/v1/queries/dataCube', '',
                                   json.dumps({'id': 'p-9', 'name': 'Both', 'content': {'kind': 'datacube.page'}}))
