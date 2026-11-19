@@ -909,6 +909,12 @@ public final class Pure {
                     "expected NativeFunctionDefinition but got " + el.getClass().getSimpleName()
                             + " from: " + pureSignature);
         }
+        // PROBE (H15 §11, scratch branch only): with /tmp/h15-tocsv-program present, toCSV is left out of the catalog, so
+        // legend-engine's own helperFunctions.pure bodies are compiled as a program
+        if (def.qualifiedName().equals("meta::relational::tests::csv::toCSV")
+                && java.nio.file.Files.exists(java.nio.file.Path.of("/tmp/h15-tocsv-program"))) {
+            return def;
+        }
         ALL.add(def);
         return def;
     }

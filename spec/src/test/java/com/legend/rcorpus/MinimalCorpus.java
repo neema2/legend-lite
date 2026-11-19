@@ -406,6 +406,13 @@ public final class MinimalCorpus {
                 "tests/relationalSetUp.pure", "relationalExtension.pure")) {
             out.add(new Compiler.ModelSource("shared-" + i++ + ".pure", Corpus.read(rel)));
         }
+        // PROBE (H15 §11, scratch branch only): with /tmp/h15-tocsv-program present, legend-engine's two date-format
+        // constants (core/pure/corefunctions/dateExtension.pure:384-392), copied, so toCSV's own body can type
+        if (Files.exists(Path.of("/tmp/h15-tocsv-program"))) {
+            out.add(new Compiler.ModelSource("h15-date-formats.pure",
+                    "function meta::pure::functions::date::SimpleDateTimeFormat():String[1]\n{\n   '%t{yyyy-MM-dd HH:mm:ss}';\n}\n"
+                    + "function meta::pure::functions::date::ISO8601DateFormat():String[1]\n{\n   '%t{yyyy-MM-dd}';\n}\n"));
+        }
         return out;
     }
 
@@ -723,6 +730,9 @@ public final class MinimalCorpus {
             // package (meta::pure::functions::tests::model::Person — the PCT
             // fixture model) is a fixture, the thing under test (batch 145)
             if (el.qualifiedName().startsWith(PLATFORM_STDLIB_PACKAGE)
+                    // PROBE (H15 §11): the two copied date-format constants pass
+                    && !el.qualifiedName().endsWith("::SimpleDateTimeFormat")
+                    && !el.qualifiedName().endsWith("::ISO8601DateFormat")
                     && (el instanceof FunctionDefinition
                             || el instanceof com.legend.model.NativeFunctionDefinition)) {
                 throw new IllegalStateException("platform-namespace library element "
