@@ -2906,3 +2906,8 @@ who confirms or changes phases 1-3.
   `java.lang.RuntimeException: Failed in node: root` caused by the JDK's `Range [b, e) out of bounds for length n`, word
   for word as JDK 25.0.4. S383 gains legend-engine's form (to B2). The push waits on the user's word in that session;
   the judges merge it into the batch.
+- **~21:53 UTC, B2's docs at `393cb62ff`** (S383 names legend-engine's form, "Failed in node: root" with the JDK's text
+  as its cause, cited as the storeless probe's, to be checked once that branch is pushed); the judges told. The user
+  asked whether Java can rewrite the error to match compatibility: answered (it is B1's prototyped design, worded
+  from the record, never by editing text; the only limit is a value from row data; options 1, 2, 3 with costs; the
+  choice between 1 and 2 waits on the measurement).
