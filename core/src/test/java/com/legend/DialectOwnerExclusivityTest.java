@@ -60,7 +60,10 @@ class DialectOwnerExclusivityTest {
             // 2026-10-16 (registered as measured, the dialect program's Phase 6, the audit of the branch): two DuckDB
             // session tests whose subject is another database's text on that session: legend-engine's H2 SQL in an
             // executeInDb, translated for DuckDB (D2), and a connection helper whose overloads declare H2 and DuckDB
-            new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", "H2", 6,
+            // 6 -> 2 (2026-11-19, the stage-A batch of the compatibility program: measured 2 on A4's tree and on the merged
+            // batch's, the file unchanged from main, the census's own advisory; a guard moving down only: approved by the
+            // user 2026-11-19 ~20:45 ("Approved to move guards down"))
+            new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", "H2", 2,
                     "legend-engine's H2 text run on a DuckDB session, translated (D2)"),
             // 2026-11-17 (F's census line A5, D's ask): ExecuteInDbDuckDbTest's edge-road cases split into their own
             // test, the edge's: the same H2 text on the same DuckDB session, translated on the edge's road
