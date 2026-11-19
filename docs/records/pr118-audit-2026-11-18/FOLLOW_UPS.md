@@ -184,3 +184,9 @@ session "resume", with the open asks below answered.
 Gates the compatibility program on: the Maven mirror (#123, #124), the window-in-a-list fix (slice 1.3), the LITE-PCT
 lane (2.2a), the cross-kind != (A3; done on `claude/hosts-followups`, not landed). The compatibility owner
 (`session_0195rQEoSpv1FxC3WndEk5ZH`) has the list.
+
+**Taken over by the compatibility program** (the user, ~14:30 UTC, in its session: "Yes take over the paused pieces we
+need and/or fold them into existing sessions"): the Maven mirror (f183b784a, by the CI-health session for that alone),
+C3 and the judge-parity fixes (the A5 session, `claude/parity-a5`, for that alone), and the cross-kind `!=` (63421e0a,
+cherry-picked by its translator session onto a fresh branch from main). The window-in-a-list fix stays paused until its
+stage B, when it takes that too. Every other row above stays paused with this orchestrator.
