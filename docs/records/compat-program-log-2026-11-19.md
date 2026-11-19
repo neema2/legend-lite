@@ -647,3 +647,36 @@ who confirms or changes phases 1-3.
   engine-runner targets to `//pct`); the runner pool's 10 artifacts; JUnitMain's opt-in flag; no census inventory. It
   overlaps #123 in two files (the pure/v1 requests); whichever lands second merges. CI run `44524802258` is in
   progress on linux, macos and windows.
+- **~12:38 UTC, the user asked** whether the real corpus ran on both H2 and DuckDB and all five PCT suites on DuckDB,
+  and whether things look good across all. Answered with the runs' table (yes to both). The honest caveat: each change
+  was measured ALONE. **H12, a combined stage-A dry run, was asked of the translator session:** V2, lite's SQL text,
+  every strand but `raw` switched to the product's meaning, and H2's product settings, all at once, on both corpus
+  lanes, PCT channels A and B on DuckDB's five suites, the ENGINE lane and pure/v1. Every moved test is attributed, or
+  flagged as an interaction.
+- **~12:40 UTC, task 0 COMPLETE** (`claude/compat-translator-spike` at `d5ba073e`; "Task 0" at the top of H5's
+  record; evidence `h5/corpus/V7-V9`, `h5/purev1/`, `h5/pct/`). The PCT half, channel A as the PURE audience, strands
+  on against all off:
+  - PCT DuckDB (5 suites) and H2 (relation): every other strand off moves **0** tests; the core's `substring`/`indexOf`
+    change itself gains **+3** (S134's known failures pass);
+  - PCT SQLite (5 suites): +3 the same, and **-5** when SQLite's Decimal-as-REAL is off (`testRemWithDecimals`,
+    `testDecimalTimes`/`Divide`/`Plus`/`Minus`): CP-11's strand, lite's own ruling (c).
+  - **The whole table** (corpus H2 | corpus DuckDB | pure/v1 | PCT DuckDB/H2/SQLite | departs from Pure? | what it is):
+    - `substring`/`indexOf`: -4 | -4 | 0 | +3/0/+3 | departs | legend-engine's acknowledged legacy;
+    - S20's literal: +2 | 0 | 0 | 0 | departs | a defect (it costs legend-engine's own goldens);
+    - the plain set: n/a | n/a | -1 | n/a | departs | a defect (no check);
+    - `isNumeric`: 0 | 0 | 0 | 0 | Pure is silent | its only meaning;
+    - `parseDecimal(5,2)`: -2 | -2 | 0 | 0 | departs | a defect (it rounds and overflows);
+    - `parseJson` `}{`: +1 | -1 | 0 | 0 | Pure is silent | a defect (lenient); the edge's form is broken on H2;
+    - SQLite Decimal as REAL: -5 on PCT SQLite only | departs | lite's own ruling (c);
+    - `PureText.raw`: the whole DuckDB corpus lane | Pure is silent | input acceptance, kept;
+    - `LEGACY_SQL_NULL_UNSAFE_EQUALS`: -1 | -1 | a plan-text assert (CP-4);
+    - `DatabaseSettingsForm`: -1 on H2 (CP-8);
+    - `CrossKindNumbers`: 0.
+  - **The options for `substring`/`indexOf`** (corpus H2 | DuckDB): today's flag in the core 2,289 | 2,452; a typed
+    use-site translator 2,285 | 2,447; a rename by name 2,281 | 2,442 (no better than nothing); nothing 2,281 | 2,443.
+  - **A cost of any target-aware rewrite:** `HeldModels` keys by text hash only, so a holding host compiles once per
+    (audience, target), 3.4 to 4.1 s per build of the corpus world.
+  - **Reading for CP-12 (D1):** answering Pure's way costs 4 corpus tests per lane for `substring`, 2 for
+    `parseDecimal`, 1 on DuckDB for `parseJson`, and gains 3 PCT tests and up to 3 H2 corpus tests. No model-level
+    translator is worth building. Note: CP-14 (iii)'s four test-body rewrites and CP-11's SQLite rule are small typed
+    rewrites at the door, so a short, fixed list of door rewrites exists either way.
