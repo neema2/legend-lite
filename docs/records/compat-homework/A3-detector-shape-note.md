@@ -399,3 +399,21 @@ legend-engine computes such a store-free let on the host before the query, with 
 The walk now takes a let only when its value IS a lambda. Test `aLetComputedWithALambdaIsHostSide_notStoreBound`,
 against `aLetBoundLambdaTheQueryNamesIsStoreBound`. Plant P9 (a computed let walked again) turns three tests red.
 
+**The reviewer's notes on record a9e827e2e (E-M1 closed, e4496b763 approved):**
+1. **The host-side shape is pinned.** `aCallOnAStoreReadLetInAStatementOfItsOwnIsHostSide_andInTheOneStatementIsFlagged`
+   checks two things: `{|let d = <store>...->toOne().name; $d->substring(1, 3);}` is clean, and the same chain in one
+   statement is flagged. Until now only `StatementEffects.reaches` not following variables held this.
+2. **A serialize tree naming a qualified property the fetch tree lacks: probed.** legend-engine never computes it, on
+   H2 and on DuckDB:
+   - `deskPart()` (a `substring`) serializes as `null`;
+   - `deskAt()` (an `indexOf`) fails mid-stream with a NullPointerException.
+
+   No `substring` or `indexOf` runs, so the detector need not walk the serialize tree. Lite computes the property
+   (`"initials()":"ab"` today). That difference is the serialize tree's, not a meaning's: it holds for any qualified
+   property, so it goes to the compat owner for the product track or a register row. The probes are in
+   `a3-engine-probes/` as `graph.serialize.extra.*`.
+3. **Under `engine`, a qualified property a graph-fetch tree reads is REFUSED by name.** The detector reaches it through
+   `follow`, a body the rewrite cannot reach, since the store resolver inlines a graph tree's properties after the
+   body exists. That is a conservative refusal: legend-engine computes it in SQL, so `engine` could answer it once the
+   rewrite reaches phase H. The test is `aGraphFetchsQualifiedPropertyIsRefusedByNameUnderEngine` on the review branch.
+

@@ -39,6 +39,7 @@ class PureMeaningCheckTest {
             "    name: String[1];",
             "    code: String[1];",
             "    initials() { $this.name->substring(1, 2) }: String[1];",
+            "    firstC() { $this.name->indexOf('c') }: Integer[1];",
             "}",
             "Class t::Out { short: String[1]; }",
             "Class t::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}",
@@ -101,6 +102,17 @@ class PureMeaningCheckTest {
     /** A let whose value is computed with a lambda (not a lambda itself) is a store-free value legend-engine computes on
      *  the host before the query (H16's probe: a store-free let is computed first, Pure's meaning), so its call is
      *  not store-bound code. Its partner below: a let whose value IS a lambda the query evaluates is. */
+    /** A value a store-bound let reads, then a call on it in a statement of its own: legend-engine computes that call on
+     *  the host, Pure's meaning (asked of legend-engine 4.145.0: `{|let d = ...->toOne().desk; $d->substring(1, 3);}`
+     *  answers 're'), so it is not flagged. The same call in the one statement is flagged, as legend-engine sends it to
+     *  the database (`->toOne().desk->substring(1, 3)` answers SQL's 'Cre'). */
+    @Test
+    void aCallOnAStoreReadLetInAStatementOfItsOwnIsHostSide_andInTheOneStatementIsFlagged() {
+        String one = "t::Person.all()->filter(p|$p.name == 'abcdef')->from(t::M, t::RT)->toOne().name";
+        assertTrue(check("{|let d = " + one + "; $d->substring(1, 3);}").clean());
+        assertEquals("substring/3=1", check("|" + one + "->substring(1, 3)").header());
+    }
+
     @Test
     void aLetComputedWithALambdaIsHostSide_notStoreBound() {
         PureMeaningCheck.Result r = check("{|let n = ['ax', 'bx']->map(s|$s->indexOf('x')); " + TABLE
@@ -143,9 +155,9 @@ class PureMeaningCheckTest {
      *  a {@code substring}, answers SQL's 'Cre' on H2 and DuckDB). Its partner: the same fetch without it is clean. */
     @Test
     void aQualifiedPropertyAGraphFetchReadsIsFollowed() {
-        PureMeaningCheck.Result r = check("|t::Person.all()->graphFetch(#{t::Person{name,initials}}#)"
-                + "->serialize(#{t::Person{name,initials}}#)->from(t::M, t::RT)");
-        assertEquals("substring/3=1", r.header());
+        PureMeaningCheck.Result r = check("|t::Person.all()->graphFetch(#{t::Person{name,initials,firstC}}#)"
+                + "->serialize(#{t::Person{name,initials,firstC}}#)->from(t::M, t::RT)");
+        assertEquals("substring/3=1, indexOf/2=1", r.header());
         assertTrue(check("|t::Person.all()->graphFetch(#{t::Person{name}}#)->serialize(#{t::Person{name}}#)"
                 + "->from(t::M, t::RT)").clean());
     }
