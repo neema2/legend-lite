@@ -196,6 +196,11 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:** on DuckDB, 99 of legend-engine's 110 refused PCT tests answered and 109 failures fixed; on H2,
   28 of 36. Evidence: B1-R's lane, H7.
 - **Measured on the corpus:** no runnable verdict moves (census B2's H8 (k)).
+- **A close case, where legend-engine accepts the query but computes no value:** a `graphFetch` whose `serialize`
+  tree names a qualified property the fetch tree lacks.
+  - legend-engine writes that property as `null`, or fails partway through the response.
+  - lite computes the property from its definition, as for any qualified property.
+  - This is on main today; A3 found it. Register: S388 (provisional).
 - **Register:** S385 (provisional).
 
 ### 11. The last digit of some maths on Windows and macOS
