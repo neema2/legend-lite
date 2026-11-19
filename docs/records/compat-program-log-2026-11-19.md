@@ -2576,3 +2576,12 @@ who confirms or changes phases 1-3.
   so even `bazel run //core:server` answers `weekOfYear` and WEEKS durations by its machine's locale. B2 asks the user
   in its session for the push (a new branch, no PR).
 - **~20:05 UTC, the user ruled the batch's open decisions** (§1's row): the `engine` opt-in yes, with the right design and no shortcuts; the raw SUBSTRING only if it is the right design; build in this batch; the judge-SQL ratchet kept and re-based; `toCSV` printed by the database in lite's route; S128 amended for `println`. Asked: the switch rule explained, and which tests move to the accepted rosters.
+- **~20:05 UTC, B1-R: the detector's full gate** (`0896f7d39`): 594 pass, 1 skipped, 16 fail (the 12 root-refusing
+  Postgres targets and four of the detector's). Three need the user's word: **(a)** the literal-0 exemption table
+  names H2 and DuckDB, which `DialectLeakRatchetTest`'s ban refuses outside a database's owners; proposed: the table in
+  `PureText`, the edge's dialect registry (a listed owner), `PureMeaningCheck` asking it by the connection's type, so
+  `DialectBoundaryTest`'s pin for `PureText` goes 1 → 2 with a dated note (rejected: (b) a dialect method only the edge
+  reads, a product member; (c) no exemptions, refusing H2's equal `substring(s, 0, n)`); **the parser-equivalence
+  ratchet** `own_corpus.matched` 3310 → 3312 (the test's two models; A2 moves it 3310 → 3311 too, so regenerated once on
+  the merged tree); **`native-claims.tsv` regenerated** (the generated inventory now lists `PureMeaningCheck` among the
+  two natives' claimants). Taken to the user, recommended yes.
