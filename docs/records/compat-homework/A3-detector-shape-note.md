@@ -347,3 +347,41 @@ The unverified function value is now a lambda read out of a collection (`[{s|...
 legend-engine's grammar writes. Plant P3 still turns it red. After the fix `parser_parity` is green, and only
 own_corpus.matched moves, 3315 → 3321, under the ~20:10 ruling.
 
+## 11. Past the store's result (the reviewer's E-M1, record 285f98e18): asked of legend-engine
+
+The question: a call applied to the store's result after a step legend-engine might run on the host. The detector
+makes the whole statement store-bound, so under `engine` it would be rewritten.
+
+legend-engine 4.145.0 was asked one probe per shape, on H2 2.1.214 and DuckDB v1.3.0, through the engine runner. The
+model was the trades model with a class, a relational mapping and a runtime appended. Evidence:
+`docs/records/compat-homework/a3-engine-probes/`, holding the requests, legend-engine's answers and plans, and lite's
+answers under `engine` and `warn`.
+
+| shape | legend-engine | where |
+|---|---|---|
+| a class query's terminal `->toOne().desk->substring(1, 3)`, `(1)`, `(0, 2)`, `indexOf('e')`, after `toUpper()` | `Cre`, `Credit`, H2 `Cr` / DuckDB `C`, `3`, `CRE` | in the SQL |
+| `map(t\|$t.desk->substring(1, 3))`, inside `from` and after it; `map(...)->toOne()`; `map(...)->distinct()->toOne()` | `Cre` | in the SQL |
+| a class `project` and a class `filter` with `substring` | `Cre`, the row | in the SQL |
+| a graphFetch, then `->toOne().desk->substring(1, 3)` | `Cre` | in the SQL |
+| a graphFetch tree reading a qualified property (`deskPart()`, a `substring`; `deskAt()`, an `indexOf`) | `Cre`, `3` | in the SQL |
+| `{\|let d = ...->toOne().desk; $d->substring(1, 3);}` | `re` | **on the host**, Pure's meaning |
+| `serialize(...)->substring(...)`, a TDS `.rows->at(0).getString(...)` | refused | n/a |
+
+So every shape legend-engine answers past the store's result is computed in the database, which is what the `engine`
+rewrite gives. The one host-side position is a separate statement reading a let. The detector does not make it
+store-bound, so it is neither flagged nor rewritten.
+
+Lite's door today:
+- It refuses every scalar or collection result before planning, on every setting ("a SCALAR/COLLECTION result's
+  serialization is unprobed"), so none of the value shapes can be answered wrong there today.
+- It answers the TDS, filter and relation shapes, and they agree under `engine`.
+
+**One gap the probes found, fixed here.** A graphFetch tree's properties are not the node's children
+(`TypedGraphFetch.children()` is its source alone). So the detector did not follow a qualified property the tree
+reads, though legend-engine computes it in the database with SQL's meaning. After the switch, `refuse` would have
+answered it with Pure's meaning, silently.
+- The walk now follows each tree node: a derived property's body, each node's arguments, and each class the tree
+  reaches (added to the mapping reach).
+- A property it cannot find is `unverified`.
+- Test `aQualifiedPropertyAGraphFetchReadsIsFollowed`, with its partner. Plant P8 (the tree not walked) turns it red.
+

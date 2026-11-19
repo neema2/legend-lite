@@ -329,7 +329,15 @@ public final class PureMeaningCheck {
                 case TypedNativeCall nc -> call(nc, features, where);
                 case TypedUserCall uc -> follow(uc.callee(), features, uc.pos());
                 case TypedGetAll g -> classes.add(g.classFqn());
-                case TypedGraphFetch g -> graphFetch = true;
+                case TypedGraphFetch g -> {
+                    graphFetch = true;
+                    // the tree's properties are not the node's children: a qualified property it reads is computed in
+                    // the database by legend-engine (asked of 4.145.0, E-M1: deskPart() answers SQL's 'Cre'), so its
+                    // body is followed, and each class the tree reaches joins the mapping reach
+                    if (g.source().info().type() instanceof Type.ClassType ct) {
+                        tree(ct.fqn(), g.tree(), features, where);
+                    }
+                }
                 case TypedPropertyAccess p -> {
                     if (p.info().type() instanceof Type.ClassType ct) {
                         classes.add(ct.fqn());
@@ -355,6 +363,38 @@ public final class PureMeaningCheck {
             }
             for (TypedSpec c : n.children()) {
                 node(c, here, where);
+            }
+        }
+
+        /** A graph fetch tree over {@code classFqn}: each derived (qualified) property's body followed, each node's
+         *  arguments walked, and each class reached added to the classes read. */
+        void tree(String classFqn, List<com.legend.compiler.spec.typed.TypedGraphTree> nodes, Set<Feature> features,
+                String where) {
+            classes.add(classFqn);
+            for (com.legend.compiler.spec.typed.TypedGraphTree t : nodes) {
+                for (TypedSpec a : t.args()) {
+                    node(a, features, where);
+                }
+                String owner = t.subTypeFqn() != null ? t.subTypeFqn() : classFqn;
+                com.legend.compiler.element.Property p = ctx.findProperty(owner, t.property()).orElse(null);
+                if (p == null) {
+                    sites.add(new Site(Code.UNVERIFIED, where + " (graph fetch property " + owner + "."
+                            + t.property() + " not found)", null));
+                    continue;
+                }
+                if (p instanceof com.legend.compiler.element.Property.Derived d) {
+                    List<TypedFunction> body = ctx.findFunction(d.bodyFunctionFqn());
+                    if (body.isEmpty()) {
+                        sites.add(new Site(Code.UNVERIFIED, owner + "." + t.property()
+                                + " (its body is not in the model)", null));
+                    }
+                    for (TypedFunction tf : body) {
+                        follow(tf, features, null);
+                    }
+                }
+                if (p.type() instanceof Type.ClassType child) {
+                    tree(child.fqn(), t.children(), features, where);
+                }
             }
         }
 
