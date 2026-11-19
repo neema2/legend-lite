@@ -92,6 +92,60 @@ pure/v1 with every strand off: 8 lines move (4 requests and their plans), of whi
   of programs.
 - The text-only moves (`nullunsafe`'s plan text, S20's SQL text in pure/v1) are CP-4's, not losses.
 
+### Task 0 (c): the four options, measured where the corpus can measure them
+
+For `substring`/`indexOf` (corpus pass counts, H2 | DuckDB):
+
+| option | H2 | DuckDB | against (D) | cost and what it gets wrong |
+|---|---|---|---|---|
+| today (V0): the core in legend-engine's meaning | 2,289 | 2,452 | +8 / +9 | the core carries legend-engine's meaning for every audience, host-side code included (F1.4's vacuous asserts) |
+| **(A)** a model-level translator, use-site and typed (V3; V6's typing) | 2,285 | 2,447 | **+4 / +4** | 584 lines; 2.7 s to 7.1 s per corpus-sized model; one compile per (audience, target); data flow it cannot follow (40 corpus sites), M2M chained over a store, a flag on one of two calls sharing a lambda; error words name the compat function |
+| **(B)** a rename pass by name, H3's library at model level (V4) | 2,281 | 2,442 | **0 / -1** | worse than nothing: it renames host-side code (meaning) and the list `indexOf` (typing: 7 breaks) |
+| **(C)** a flag in the core (legend-engine's own design, and lite's today) | as today | as today | +8 / +9, of which 4 per lane are CP-4 text the printers' deletion loses anyway | a mode in the core (against CP-1); one flag or two-form hook per strand: today's `FeatureRules` flag plus the 16 two-form hooks and 5 facets this program deletes |
+| **(D)** nothing: Pure's meaning, register rows (V2) | 2,281 | 2,443 | 0 | the 4 per lane (A) wins; and the 4 CP-4 tests and DuckDB's vacuous pass, which no option keeps once the engine-text printers go |
+
+For the other strands, (B) is not the same thing: `parseDecimal`, `isNumeric` and `sqrt` have ONE String or Float
+overload, so a rename by name cannot break typing; it still renames host-side code, which legend-pure runs in Pure's
+meaning. Each is a single ordinary-function rewrite (`parseDecimal($s, 5, 2)` on H2, `$s->toLower() == $s->toUpper()`,
+`if($x < 0, |[], |sqrt($x))`), and each wins at most 2 corpus tests or 1 pure/v1 request (the table above).
+
+**The answer to the user's question:** no, lots of other things do not break. With no translator at all, beyond
+`substring`/`indexOf` (-4 per lane), the corpus nets -1 on H2 (-4, +3) and -4 on DuckDB, and pure/v1 loses 1 request
+(`sqrt` of a negative). Every one of those losses is legend-engine departing from Pure's own definition or its database
+settings. The one large dependency, `PureText.raw` (the whole DuckDB lane), is input acceptance for legend-engine's
+H2-written corpus, not a program meaning, and belongs with the corpus harness or 2.3's target-aware DDL.
+
+### Task 0 (d): the independent review's three points (session `session_0195rQEnCA5MRQEk6iGfgDnb`, plan r6)
+
+1. **"A parsed model has no types."** Measured. The spike's `queries` and `everywhere` scopes rename by name over the
+   parsed model (unresolved calls), relying on H3's library overloading every upstream overload; V4 shows that is not
+   enough (an overload set changes inference: 7 breaks). The typed scope (V6) resolves first: it builds the model
+   through `Compiler.buildModule` (`Compiler.java:697`), types each candidate body with `SpecCompiler.compile`
+   (`compiler/spec/SpecCompiler.java:84`), and renames by the typed calls' positions. **Option (B) does not survive for
+   `indexOf`** (two overloads); it survives for single-overload functions.
+2. **"Target-aware means one compile per (audience, target)."** Measured: the corpus world's `buildModule` is 3.4-4.1 s
+   per target; the typed scope adds a second build and the typing (7.1 s). `HeldModels` keys a held model by its text's
+   hash alone, the runtime being an overlay view (`HeldModels.java:27-40`): a target-aware rewrite changes the text per
+   target, so a host holding one model and planning it on two targets compiles it twice, and the key must name the
+   audience and the target. The server holds nothing (one compile per request), so it pays only the translator's own
+   time per request.
+3. **CP-12.** The table's CP-12 column: `substring`/`indexOf`, S20, the plain set, `parseDecimal`,
+   `LEGACY_SQL_NULL_UNSAFE_EQUALS` and SQLite's REAL arithmetic **depart from Pure's own definition**; `isNumeric`,
+   `parseJson`'s leniency, `raw` and the H2 settings are where **Pure is silent**. Under the strict reading (lite answers
+   Pure's way wherever legend-engine departs from Pure's definition), the translator keeps nothing of this list but
+   `isNumeric` (and `raw`, which is the corpus harness's), consistent with option (D).
+
+### Task 0 (e): notes the orchestrator asked to be recorded
+
+- **The words leak the rewrite (a presenter finding for 1.2):** a type error at a rewritten call names
+  `meta::legend::compat::engine::substring`; the ENGINE presenter (or whatever wording the door does) must map a
+  compatibility function's name back to upstream's.
+- **The standing-rule question (not pursued):** a typed retarget needs, from the edge, a model's typed function bodies:
+  today `ModelContext.findFunction` and `SpecCompiler.compile(TypedFunction)`, both public. Whether an edge caller of
+  `SpecCompiler` passes `ArchitectureTest.PLANNER_ENTRIES_ONLY` was not checked; if it does not, that is the core entry
+  the translator would need. With +4 per lane at stake for `substring`/`indexOf`, the orchestrator judges a translator
+  unlikely to be built.
+
 ## 0. The findings
 
 ### F1. legend-engine's programs use `substring` and `indexOf` in TWO meanings, by where the code runs

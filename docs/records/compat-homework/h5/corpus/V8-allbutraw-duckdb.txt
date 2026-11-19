@@ -1,0 +1,35 @@
+# V8-allbutraw duckdb: pass=2439 fail=121 skipped=7 of 2613 in 482s
+[H5] meaning strands switched to the product's: [s20, crosskind, settings, sqlitedecimal, plain, parsedjson, parseddecimal, nullunsafe, isnumeric]
+## diff V2-off -> V8-allbutraw: duckdb-fail-roster
+57a58
+> meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithInheritanceMapping
+90a92,93
+> meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalExecutioninH2
+> meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalSQLCompilationinH2
+106a110
+> meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals
+## diff V2-off -> V8-allbutraw: duckdb-skipped-roster
+## diff V2-off -> V8-allbutraw: duckdb-unordered-register
+198d197
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupBy
+202d200
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupBy
+210d207
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupBy
+218d214
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::testGroupBy
+349,350d344
+< unordered-chain meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalExecutioninH2
+< unordered-chain meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalSQLCompilationinH2
+## diff V2-off -> V8-allbutraw: duckdb-engine-order-register
+## the moved tests' reasons
+V8-allbutraw/judge_host_duckdb/host.log:[corpus2] FAIL meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithInheritanceMapping :: DataError: Conversion Error: Malformed JSON at byte 339 of input: unexpected character.  Input: "[{"coordinate":{"latitude":"38.8951","longitude..." | LINE 1: SELECT json_pretty(CAST(concat('[{"coordinate":{"latitude":"38.8951","longitude... | ^
+V8-allbutraw/judge_host_duckdb/host.log:[corpus2] FAIL meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalExecutioninH2 :: AssertFailed: expected: [123.45D, 100.01D] | actual:   [123.450021000000000000D, 100.009000000000000000D]
+V8-allbutraw/judge_host_duckdb/host.log:[corpus2] FAIL meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalSQLCompilationinH2 :: AssertFailed: expected: [123.45D, 100.01D] | actual:   [123.450021000000000000D, 100.009000000000000000D]
+V8-allbutraw/judge_host_duckdb/host.log:[corpus2] FAIL meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals :: AssertFailed: expected plain equals in plan, got: Relational | ( | type = TDS[(name, String, VARCHAR(200), ""), (match, Boolean, BIT, "")] | resultColumns = [("name", VARCHAR(200)), ("match", "")] | sql = select "root".FIRSTNAME as "name", "root
+## failure reasons grouped
+      9 type: walled body 'meta::relational::functions::sqlQueryToString::NullOrderingSupport$prop$processSo
+      5 TypeInferenceException: in function 'meta::relational::functions::sqlQueryToString::useDbNativeImpli
+      5 NotImplementedException: scalar match: the arm collection has a non-literal prefix (extension-contri
+      5 AssertFailed: Assert failed
+      4 type: unknown function 'routeFunction' — no function of this name in the native or user catalog (u

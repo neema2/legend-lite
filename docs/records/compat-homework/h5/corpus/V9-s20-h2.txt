@@ -1,0 +1,6 @@
+# V9 h5.off=s20 h2: pass=2283 fail=282 skipped=7 of 2613 in 148s
+## diff V2-off -> V9-s20: h2-fail-roster
+106d105
+< meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier
+208d206
+< meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping

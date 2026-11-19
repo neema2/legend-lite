@@ -1,0 +1,161 @@
+# V7-alloff duckdb: pass=0 fail=2613 skipped=0 of 2613 in 155s
+[H5] meaning strands switched to the product's: [all]
+## diff V2-off -> V7-alloff: duckdb-fail-roster
+0a1,12
+> meta::external::store::relational::modelJoins::test::testJoinWithConstantDate
+> meta::external::store::relational::modelJoins::test::testJoinWithConstantDouble
+> meta::external::store::relational::modelJoins::test::testJoinWithConstantString
+> meta::external::store::relational::modelJoins::test::testJoinWithInequalities
+> meta::external::store::relational::modelJoins::test::testModelJoinForNonRelationalConcepts
+> meta::external::store::relational::modelJoins::test::testPersonToFirmUsingFromProject
+> meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaTableMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseTableMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDefaultSchemaMapper
+2a15,18
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaTableMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalTableMapper
+> meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty
+4a21,27
+> meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty
+> meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty1
+> meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedDerivedProperty
+> meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedProperty
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone
+5a29
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableNoTimeZone
+8a33
+> meta::pure::executionPlan::tests::execution::testSQLCommentsInPlan
+9a35,46
+> meta::pure::executionPlan::tests::relationalTDSTypeForColumnsAndQuoting
+> meta::pure::executionPlan::tests::simpleExpression
+> meta::pure::executionPlan::tests::simpleExpressionWithMultipleVariables
+> meta::pure::executionPlan::tests::simpleExpressionWithVariable
+> meta::pure::executionPlan::tests::tdsJoinOneDBOneExpression
+> meta::pure::executionPlan::tests::tdsJoinTwoDBExtend
+> meta::pure::executionPlan::tests::tdsJoinTwoDBWithColumnMappedViaJoins
+> meta::pure::executionPlan::tests::tdsReturn
+> meta::pure::executionPlan::tests::tdsTwoJoinThreeDB
+## diff V2-off -> V7-alloff: duckdb-skipped-roster
+1,7d0
+< meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
+< meta::pure::executionPlan::tests::twoDBRenameColumns
+< meta::relational::tests::advanced::failures::BuildCorrelatedSubQuery
+< meta::relational::tests::advanced::failures::failMoveFilterOnTop
+< meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression
+< meta::relational::tests::tds::tdsJoin::alloy::testSimpleJoin
+< meta::relational::tests::tds::tdsJoin::alloy::testSimpleJoinColumns
+## diff V2-off -> V7-alloff: duckdb-unordered-register
+1,918d0
+< unordered-chain meta::pure::executionPlan::tests::tdsTwoJoinThreeDB
+< unordered-chain meta::pure::executionPlan::tests::testMapWithOpenVariable
+< unordered-chain meta::pure::executionPlan::tests::testMapWithOpenVariableOutsideBlock
+< unordered-chain meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
+< unordered-chain meta::pure::executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping
+< unordered-chain meta::relational::tests::advanced::contractmoneyscenario::test1
+< unordered-chain meta::relational::tests::advanced::contractmoneyscenario::test2
+< unordered-chain meta::relational::tests::advanced::failures::moveFilterInOnClause::failMoveFilterInOnClauseJoin
+< unordered-chain meta::relational::tests::advanced::failures::moveFilterInOnClause::failMoveFilterInOnClauseModel
+< unordered-chain meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlappForcedCorrelated
+< unordered-chain meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlappForcedOnClause
+< unordered-chain meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedCorrelated
+< unordered-chain meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedOnClause
+< unordered-chain meta::relational::tests::advanced::forced::milestoning::testNonMilestoningQueryWithMilestoneFilterProjectForcedCorrelated
+< unordered-chain meta::relational::tests::advanced::forced::milestoning::testNonMilestoningQueryWithMilestoneFilterProjectForcedOnClause
+< unordered-chain meta::relational::tests::advanced::forced::qualifier::testDerivedWithFilteringTwoPropertiesForcedCorrelated
+< unordered-chain meta::relational::tests::advanced::forced::qualifier::testDerivedWithFilteringTwoPropertiesForcedOnClause
+< unordered-chain meta::relational::tests::advanced::forced::structure::testQualifierQuery
+< unordered-chain meta::relational::tests::advanced::forced::structure::testQualifierQueryWithOr
+< unordered-chain meta::relational::tests::advanced::forced::structure::testQualifierWithOperation
+< unordered-chain meta::relational::tests::advanced::forced::structure::testTwoQualifiersWithOperation
+< unordered-chain meta::relational::tests::advanced::forcedselfjoin::isolationTest
+< unordered-chain meta::relational::tests::advanced::structure::testIfIncludingQualifiers
+< unordered-chain meta::relational::tests::advanced::structure::testLiteralConditionsForcedIsolation
+< unordered-chain meta::relational::tests::advanced::structure::testMultipleIsolationWithSameProp
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierQuery
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierQueryWithOr
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithForkAndOrWithInline
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithForkAndOrWithInlineWithOffset
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithForkAndOrWithInlineWithOffsetExplosion
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithIsolation
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithIsolationAndExists
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithIsolationAndExistsDeep
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithIsolationAndExistsDeepWithParallelProject
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithIsolationForced
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithIsolationForced2
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithIsolationXX
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithLineAndOrWithInLine
+< unordered-chain meta::relational::tests::advanced::structure::testQualifierWithOperation
+## diff V2-off -> V7-alloff: duckdb-engine-order-register
+1,977d0
+< engine-order meta::pure::alloy::connections::tests::relationalMapper::testRelationalMapperWithJoin
+< engine-order meta::pure::executionPlan::tests::testMapWithOpenVariable
+< engine-order meta::pure::executionPlan::tests::testMapWithOpenVariableOutsideBlock
+< engine-order meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
+< engine-order meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
+< engine-order meta::pure::executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping
+< engine-order meta::pure::lineage::scanColumns::test::testAssociationMapping
+< engine-order meta::pure::lineage::scanColumns::test::testEmbeddedMapping
+< engine-order meta::pure::lineage::scanColumns::test::testQualifier
+< engine-order meta::pure::lineage::scanColumns::test::testSubType
+< engine-order meta::pure::lineage::scanColumns::test::testView
+< engine-order meta::pure::tds::tests::extensions::columnValueDifferenceTest
+< engine-order meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest
+< engine-order meta::pure::tds::tests::extensions::rowValueDifferenceTest
+< engine-order meta::relational::functions::toPostgresModel::tests::testConvertAlias
+< engine-order meta::relational::functions::toPostgresModel::tests::testConvertSelectSQLQueryWithCTE
+< engine-order meta::relational::functions::toPostgresModel::tests::testConvertSubqueryPredicates
+< engine-order meta::relational::functions::toPostgresModel::tests::testConvertTable
+< engine-order meta::relational::functions::toPostgresModel::tests::testConvertTableAliasColumn
+< engine-order meta::relational::functions::toPostgresModel::tests::testConvertUnion
+< engine-order meta::relational::graphFetch::tests::classMappingFilterWithInnerJoin::testFlatGraphFetchWithJoin
+< engine-order meta::relational::graphFetch::tests::classMappingFilterWithInnerJoin::testGraphFetchWithPrimitiveQualifier
+< engine-order meta::relational::graphFetch::tests::classMappingFilterWithInnerJoin::testInnerJoinFilterClassMappingAsTarget
+< engine-order meta::relational::graphFetch::tests::classMappingFilterWithInnerJoin::testNestedGraphFetch
+< engine-order meta::relational::graphFetch::tests::embedded::otherwise::testComplexPropertyOtherwiseGetterDeepTraversal
+< engine-order meta::relational::graphFetch::tests::embedded::otherwise::testOtherwiseGetterDeepTraversal
+< engine-order meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenForNestedViews
+< engine-order meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumnsForViews
+< engine-order meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleLevel_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleTableJoin_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testQualifier_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testSelfJoin_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTableWithNoDataToInsert_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTable_Alloy
+< engine-order meta::relational::testDataGeneration::tests::alloy::testSimpleTableToViewJoin_Alloy
+## the moved tests' reasons
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::external::store::relational::modelJoins::test::testJoinWithConstantDate :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::external::store::relational::modelJoins::test::testJoinWithConstantDouble :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::external::store::relational::modelJoins::test::testJoinWithConstantString :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::external::store::relational::modelJoins::test::testJoinWithInequalities :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::external::store::relational::modelJoins::test::testModelJoinForNonRelationalConcepts :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::external::store::relational::modelJoins::test::testPersonToFirmUsingFromProject :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseMapper :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaMapper :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaTableMapper :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseTableMapper :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::alloy::connections::tests::relationalMapper::testRelationalDefaultSchemaMapper :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaMapper :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaTableMapper :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::alloy::connections::tests::relationalMapper::testRelationalTableMapper :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty1 :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedDerivedProperty :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+V7-alloff/judge_host_duckdb/host.log:[corpus2] FAIL meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedProperty :: setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: cannot rollback - no transaction is active
+## failure reasons grouped
+   2575 setup failed: setup meta::relational::tests::createTablesAndFillDb() => TransactionContext Error: ca
+      9 type: walled body 'meta::relational::functions::sqlQueryToString::NullOrderingSupport$prop$processSo
+      4 type: unknown function 'routeFunction' — no function of this name in the native or user catalog (u
+      3 type: walled body 'meta::relational::functions::sqlQueryToString::DbConfig$prop$selectSQLQueryProces
+      2 type: walled body 'meta::relational::functions::sqlQueryToString::sqlQueryToString': the engine's SQ

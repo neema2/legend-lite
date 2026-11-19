@@ -1,0 +1,4 @@
+# V9 h5.off=settings h2: pass=2280 fail=285 skipped=7 of 2613 in 144s
+## diff V2-off -> V9-settings: h2-fail-roster
+103a104
+> meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter

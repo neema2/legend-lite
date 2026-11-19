@@ -1,0 +1,44 @@
+# V7-alloff h2: pass=2280 fail=285 skipped=7 of 2613 in 153s
+[H5] meaning strands switched to the product's: [all]
+## diff V2-off -> V7-alloff: h2-fail-roster
+103a104
+> meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter
+106d106
+< meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier
+208d207
+< meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping
+212a212,213
+> meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalExecutioninH2
+> meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalSQLCompilationinH2
+258d258
+< meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter
+264a265
+> meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals
+## diff V2-off -> V7-alloff: h2-skipped-roster
+## diff V2-off -> V7-alloff: h2-unordered-register
+196d195
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupBy
+200d198
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupBy
+208d205
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupBy
+216d212
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::testGroupBy
+344,345d339
+< unordered-chain meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalExecutioninH2
+< unordered-chain meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalSQLCompilationinH2
+## diff V2-off -> V7-alloff: h2-engine-order-register
+## the moved tests' reasons
+V7-alloff/judge_host_h2/host.log:[corpus2] FAIL meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter :: DataError: Values of types "BOOLEAN" and "INTEGER" are not comparable; SQL statement: | WITH __let0 AS (SELECT * | FROM personTable AS "t1" | WHERE "t1".active = 1) | SELECT CAST(CASE WHEN COUNT(*) = 1 THEN MIN(JSON_OBJECT('legalName': "t0".name, 'employees': (SELE
+V2-off/judge_host_h2/host.log:[corpus2] FAIL meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier :: AssertFailed: assertJsonStringsEqual: FIRST DIFF at $ (root array as a multiset) expected 4 element(s), got 4; missing [{averageEmployeesAge():68,employees:[{age:34,fn:Roberts, Fabrice,},],legalName:Firm A,},{averageEmployeesAge():64,emplo…, unexpected [{averageEmployeesA
+V2-off/judge_host_h2/host.log:[corpus2] FAIL meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping :: AssertFailed: expected: ['Firm A | TDSNull', 'Firm B | TDSNull', 'Firm C | 35.5', 'Firm D | 52.0', 'Firm X | 1.0'] | actual:   ['Firm A | TDSNull', 'Firm B | TDSNull', 'Firm C | 35.5', 'Firm D | 52', 'Firm X | 1']
+V7-alloff/judge_host_h2/host.log:[corpus2] FAIL meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalExecutioninH2 :: AssertFailed: expected: [123.45D, 100.01D] | actual:   [123.450021000000000000D, 100.009000000000000000D]
+V7-alloff/judge_host_h2/host.log:[corpus2] FAIL meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalSQLCompilationinH2 :: AssertFailed: expected: [123.45D, 100.01D] | actual:   [123.450021000000000000D, 100.009000000000000000D]
+V2-off/judge_host_h2/host.log:[corpus2] FAIL meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter :: DataError: Invalid value "g" for parameter {1}; SQL statement: | SELECT CAST(CASE WHEN ((regexp_replace((SELECT CAST(concat('{"builder": ', CAST(JSON_OBJECT('_type': 'tdsBuilder', 'columns': JSON_ARRAY(JSON_OBJECT('name': 'syntype', 'type': 'ProductSynonymType'), JSON_OBJE
+V7-alloff/judge_host_h2/host.log:[corpus2] FAIL meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals :: AssertFailed: expected plain equals in plan, got: Relational | ( | type = TDS[(name, String, VARCHAR(200), ""), (match, Boolean, BIT, "")] | resultColumns = [("name", VARCHAR(200)), ("match", "")] | sql = select "root".FIRSTNAME as "name", "root".AGE i
+## failure reasons grouped
+     46 DialectCapability: LIST_MIN reached a dialect without a list encoding
+     37 DialectCapability: UNNEST reached a dialect without an unnest placement
+     31 DialectCapability: LIST_GET reached a dialect without a list encoding
+     15 DialectCapability: LIST_FILTER reached a dialect without a list encoding
+      9 type: walled body 'meta::relational::functions::sqlQueryToString::NullOrderingSupport$prop$processSo
