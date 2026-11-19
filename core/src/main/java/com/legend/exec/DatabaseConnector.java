@@ -38,10 +38,10 @@ public interface DatabaseConnector {
     /**
      * Whether {@code session}'s database reads a file this runner wrote ({@code ExecutionPlan.LoadStep.Delivery.Reads},
      * the user's ruling of 2026-11-09: the database reads the runner's verified copy, its path bound): a database in
-     * this process does; one a driver reaches on a server -- the warehouse's DuckDB over HTTP, an H2 server -- may not
-     * share this machine's files, and a load on it is refused by name before it is sent (track Q2, the orchestrator's
-     * ruling of 2026-11-19, option (2); S371). Each connector whose dialect plans that delivery answers by the
-     * session; any other is never asked, and refuses the question by name.
+     * this process does; one a driver reaches on a server -- the warehouse's DuckDB over HTTP -- does not share this
+     * machine's files, and a load on it is refused by name before it is sent (track Q2, the orchestrator's ruling of
+     * 2026-11-19, option (2); S371). Each connector whose dialect plans that delivery answers by the session; any
+     * other is never asked, and refuses the question by name.
      */
     default boolean readsRunnerFiles(Connection session) throws SQLException {
         throw new IllegalStateException(type() + "'s dialect plans no file its database reads: no file load reaches"

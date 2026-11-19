@@ -56,6 +56,12 @@ class WarehouseJdbcParametersTest {
         try (Statement s = local.createStatement()) {
             s.execute("SET SESSION TimeZone = 'UTC'");
         }
+        // the tables the writes under test write into: one setup script (the main catalog's, every session sees them)
+        try (Statement s = remote.createStatement()) {
+            s.execute("CREATE TABLE victims (name VARCHAR); CREATE TABLE written (i BIGINT, d DOUBLE, b BOOLEAN,"
+                    + " t VARCHAR); CREATE TABLE counted (x INTEGER, y VARCHAR); CREATE TABLE loaded (id BIGINT,"
+                    + " name VARCHAR)");
+        }
     }
 
     @AfterAll
@@ -162,7 +168,6 @@ class WarehouseJdbcParametersTest {
     void aValueIsBoundNeverWrittenIntoTheText() throws SQLException {
         String hostile = "x'); DROP TABLE victims; --";
         try (Connection c = connect(); Statement s = c.createStatement()) {
-            s.execute("CREATE TABLE victims (name VARCHAR)");
             try (PreparedStatement p = c.prepareStatement("INSERT INTO victims VALUES (?)")) {
                 p.setString(1, hostile);
                 assertEquals(1, p.executeUpdate());
@@ -178,7 +183,6 @@ class WarehouseJdbcParametersTest {
     @Test
     void writesBindTheirValuesAndReportTheirCounts() throws SQLException {
         try (Connection c = connect(); Statement s = c.createStatement()) {
-            s.execute("CREATE TABLE written (i BIGINT, d DOUBLE, b BOOLEAN, t VARCHAR)");
             try (PreparedStatement p = c.prepareStatement("INSERT INTO written VALUES (?, ?, ?, ?)")) {
                 p.setObject(1, 7L);
                 p.setObject(2, 0.5d);
@@ -222,10 +226,9 @@ class WarehouseJdbcParametersTest {
     }
 
     @Test
-    void aValueTheWarehouseDoesNotBindIsRefusedByNameAndNothingIsSent() throws SQLException {
-        try (Connection c = connect(); Statement s = c.createStatement()) {
-            s.execute("CREATE TABLE refused (v VARCHAR)");
-            try (PreparedStatement p = c.prepareStatement("INSERT INTO refused VALUES (CAST(? AS VARCHAR))")) {
+    void aValueTheWarehouseDoesNotBindIsRefusedByNameAtItsSetter() throws SQLException {
+        try (Connection c = connect()) {
+            try (PreparedStatement p = c.prepareStatement("SELECT CAST(? AS VARCHAR) AS v")) {
                 for (Object v : new Object[] {new java.math.BigDecimal("1.50"), 1, (short) 1, 1.5f,
                         java.time.LocalDate.of(2020, 1, 2), java.time.LocalDateTime.of(2020, 1, 2, 3, 4),
                         java.sql.Date.valueOf("2020-01-02"), new byte[] {1}}) {
@@ -244,27 +247,18 @@ class WarehouseJdbcParametersTest {
                 assertThrows(SQLFeatureNotSupportedException.class, () -> p.setObject(1, "x", Types.VARCHAR));
                 assertThrows(SQLFeatureNotSupportedException.class, () -> p.setArray(1, null));
             }
-            try (ResultSet rs = s.executeQuery("SELECT count(*) FROM refused")) {
-                assertTrue(rs.next());
-                assertEquals(0L, rs.getLong(1));
-            }
         }
     }
 
     @Test
     void anIndexLeftUnsetIsRefusedByNameNeverSentAsANull() throws SQLException {
-        try (Connection c = connect(); Statement s = c.createStatement()) {
-            s.execute("CREATE TABLE gaps (a VARCHAR, b VARCHAR)");
-            try (PreparedStatement p = c.prepareStatement("INSERT INTO gaps VALUES (?, ?)")) {
-                p.setString(2, "b");
-                SQLException e = assertThrows(SQLException.class, p::executeUpdate);
-                assertTrue(e.getMessage().contains("parameter 1 was not set"), e.getMessage());
-                assertThrows(SQLException.class, () -> p.setString(0, "zero"));
-            }
-            try (ResultSet rs = s.executeQuery("SELECT count(*) FROM gaps")) {
-                assertTrue(rs.next());
-                assertEquals(0L, rs.getLong(1));
-            }
+        try (Connection c = connect();
+                PreparedStatement p = c.prepareStatement("SELECT CAST(? AS VARCHAR) AS a, CAST(? AS VARCHAR) AS b")) {
+            p.setString(2, "b");
+            // the driver's own words: refused before anything is sent (the warehouse would name a missing value its way)
+            SQLException e = assertThrows(SQLException.class, p::executeQuery);
+            assertTrue(e.getMessage().contains("parameter 1 was not set"), e.getMessage());
+            assertThrows(SQLException.class, () -> p.setString(0, "zero"));
         }
     }
 
@@ -337,7 +331,6 @@ class WarehouseJdbcParametersTest {
     @Test
     void askingAnInsertsParameterCountRunsNothingOfIt() throws SQLException {
         try (Connection c = connect(); Statement s = c.createStatement()) {
-            s.execute("CREATE TABLE counted (x INTEGER, y VARCHAR)");
             try (PreparedStatement p = c.prepareStatement("INSERT INTO counted VALUES (?, ?)")) {
                 assertEquals(2, p.getParameterMetaData().getParameterCount());
             }
@@ -360,7 +353,6 @@ class WarehouseJdbcParametersTest {
         Path csv = Files.createDirectories(data.resolve("import")).resolve("loaded.csv");
         Files.writeString(csv, "id,name\n1,a\n2,b\n");
         try (Connection c = connect(); Statement s = c.createStatement()) {
-            s.execute("CREATE TABLE loaded (id BIGINT, name VARCHAR)");
             try (PreparedStatement p = c.prepareStatement("INSERT INTO loaded" + READ_CSV)) {
                 assertEquals(1, p.getParameterMetaData().getParameterCount());
                 p.setString(1, csv.toString());
@@ -381,11 +373,10 @@ class WarehouseJdbcParametersTest {
         // (Database.lockDown), so a file the caller staged elsewhere is refused by DuckDB in its own words
         Path csv = Files.createTempFile("warehouse-outside", ".csv");
         Files.writeString(csv, "id,name\n1,a\n");
-        try (Connection c = connect(); Statement s = c.createStatement()) {
-            s.execute("CREATE TABLE outside (id BIGINT, name VARCHAR)");
-            try (PreparedStatement p = c.prepareStatement("INSERT INTO outside" + READ_CSV)) {
+        try (Connection c = connect()) {
+            try (PreparedStatement p = c.prepareStatement(READ_CSV.strip())) {
                 p.setString(1, csv.toString());
-                SQLException e = assertThrows(SQLException.class, p::execute);
+                SQLException e = assertThrows(SQLException.class, p::executeQuery);
                 assertTrue(e.getMessage().contains("file system operations are disabled by configuration"),
                         e.getMessage());
             }

@@ -57,12 +57,16 @@ final class DuckDbConnector implements DatabaseConnector {
     }
 
     /** {@inheritDoc} Yes: DuckDB aborts the whole transaction on a failed statement and refuses every statement after it until a rollback (measured: "Current transaction is aborted (please ROLLBACK)"). */
-    /** {@inheritDoc} DuckDB's own driver opens DuckDB in this process ({@code jdbc:duckdb:}, {@link #opening}); a
-     *  session on another driver that reports DuckDB -- the warehouse's, over HTTP -- reaches a DuckDB on a server, whose
-     *  files are not this runner's (the warehouse's are its import folder's alone). */
+    /** DuckDB's own JDBC driver's name ({@code DatabaseMetaData.getDriverName}; measured on its drivers 1.5.5.1 and
+     *  1.5.6.0, 2026-11-19). */
+    private static final String OWN_DRIVER = "DuckDBJ";
+
+    /** {@inheritDoc} DuckDB's own driver opens DuckDB in this process ({@link #opening}); a session on another driver
+     *  that reports DuckDB -- the warehouse's, over HTTP -- reaches a DuckDB on a server, whose files are not this
+     *  runner's (the warehouse's are its import folder's alone). */
     @Override
     public boolean readsRunnerFiles(Connection session) throws SQLException {
-        return Connectors.url(session).startsWith("jdbc:duckdb:");
+        return Connectors.driver(session).equals(OWN_DRIVER);
     }
 
     @Override

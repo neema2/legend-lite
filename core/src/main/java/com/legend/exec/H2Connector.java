@@ -160,13 +160,13 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     }
 
     /** {@inheritDoc} No: H2 rolls back the failed statement alone; its transaction goes on. */
-    /** {@inheritDoc} An H2 opened in this process (a memory or a file database) reads the runner's file with
-     *  {@code CSVREAD}; an H2 server ({@code jdbc:h2:tcp:}, {@code jdbc:h2:ssl:}, a static datasource's,
-     *  {@link #opening}) reads its own machine's. */
+    /** {@inheritDoc} Every H2 session is sent the load, as before this question was asked: an H2 in this process
+     *  reads the runner's file with {@code CSVREAD}. An H2 SERVER (a static datasource's, {@link #opening}) reads the
+     *  path on its own machine, and is not told apart here: its driver names itself as an embedded H2's does, and its
+     *  URL is a value read the tenet's ratchet refuses (TenetRatchetTest) -- S371's named residual. */
     @Override
-    public boolean readsRunnerFiles(Connection session) throws SQLException {
-        String url = Connectors.url(session);
-        return !(url.startsWith("jdbc:h2:tcp:") || url.startsWith("jdbc:h2:ssl:"));
+    public boolean readsRunnerFiles(Connection session) {
+        return true;
     }
 
     @Override

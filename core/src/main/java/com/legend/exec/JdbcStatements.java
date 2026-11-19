@@ -342,16 +342,15 @@ final class JdbcStatements implements Statements {
             throw new IllegalStateException("a file read on a session no plan target was checked against: whether its"
                     + " database reads this runner's files is its connector's fact");
         }
-        boolean reads;
         try {
-            reads = declared.readsRunnerFiles(c);
+            if (!declared.readsRunnerFiles(c)) {
+                throw new com.legend.error.DataError("its database reads the runner's copy of the file, and this"
+                        + " session's " + declared.type() + " is on a server its driver (" + Connectors.driver(c)
+                        + ") reaches, which does not read this machine's files: a file load on it is refused by name"
+                        + " (S371)");
+            }
         } catch (SQLException e) {
             throw failed(e, statement);
-        }
-        if (!reads) {
-            throw new com.legend.error.DataError("its database reads the runner's copy of the file, and this session's "
-                    + declared.type() + " is on a server its driver reaches, which does not read this machine's files:"
-                    + " a file load on it is refused by name (S371)");
         }
         try {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);

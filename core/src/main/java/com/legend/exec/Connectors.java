@@ -65,10 +65,11 @@ public final class Connectors {
         return session.getMetaData().getDatabaseProductName();
     }
 
-    /** The URL {@code session}'s driver reports ({@code DatabaseMetaData.getURL}): which driver reaches the database,
-     *  and where ({@link DatabaseConnector#readsRunnerFiles}). It may carry a credential: never told. */
-    static String url(Connection session) throws SQLException {
-        return session.getMetaData().getURL();
+    /** The name {@code session}'s JDBC driver reports ({@code DatabaseMetaData.getDriverName}): which driver reaches its
+     *  database ({@link DatabaseConnector#readsRunnerFiles}: two drivers report one product, DuckDB's own and the
+     *  warehouse's). */
+    static String driver(Connection session) throws SQLException {
+        return session.getMetaData().getDriverName();
     }
 
     /** {@code session}'s connector: the built one whose JDBC driver reports its product name, or null when none

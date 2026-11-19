@@ -1472,8 +1472,8 @@ junit_test(
     srcs = [
         "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
         "src/test/java/com/legend/exec/DataLoadsTest.java",
-        # a session as a server's driver reports it, for DataLoadsTest's refusal of a load there (track Q2, 2026-11-19)
-        "src/test/java/com/legend/exec/ServerUrl.java",
+        # a session as another driver of its product reports it, for DataLoadsTest's refusal of a load there (track Q2, 2026-11-19)
+        "src/test/java/com/legend/exec/ReportedDriver.java",
     ],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",

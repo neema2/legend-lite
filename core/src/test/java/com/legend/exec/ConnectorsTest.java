@@ -305,8 +305,9 @@ class ConnectorsTest {
     }
 
     /** Whether a session's database reads a file this runner wrote ({@link DatabaseConnector#readsRunnerFiles}; track Q2,
-     *  2026-11-19, S371): asked of the two connectors whose dialects plan a file's load, by the session -- in this
-     *  process yes, on a server its driver reaches no -- and refused by name by any other. */
+     *  2026-11-19, S371): asked of the two connectors whose dialects plan a file's load, by the session -- DuckDB's own
+     *  driver yes, another driver of DuckDB (the warehouse's, on a server) no; H2 yes, its server S371's residual --
+     *  and refused by name by any other. */
     @Test
     void eachConnectorThatReadsAFileSaysWhetherItsSessionReadsTheRunners() throws Exception {
         DatabaseConnector duckDb = Connectors.of(com.legend.executionplan.DatabaseType.DuckDB);
@@ -317,10 +318,7 @@ class ConnectorsTest {
             org.junit.jupiter.api.Assertions.assertTrue(h2.readsRunnerFiles(h));
             // the warehouse's driver reports DuckDB, and reaches it over HTTP
             org.junit.jupiter.api.Assertions.assertFalse(duckDb.readsRunnerFiles(
-                    ServerUrl.reportedAt(d, "jdbc:warehouse:http://127.0.0.1:8080/main?user=u&password=p")));
-            for (String server : List.of("jdbc:h2:tcp://localhost:9092/db", "jdbc:h2:ssl://db.example:9092/db")) {
-                org.junit.jupiter.api.Assertions.assertFalse(h2.readsRunnerFiles(ServerUrl.reportedAt(h, server)), server);
-            }
+                    ReportedDriver.as(d, "legend-lite warehouse")));
             // a database whose dialect plans no file's load is never asked: the question is refused by name
             IllegalStateException e = assertThrows(IllegalStateException.class,
                     () -> Connectors.of(com.legend.executionplan.DatabaseType.Postgres).readsRunnerFiles(d));
