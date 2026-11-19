@@ -1123,3 +1123,49 @@ who confirms or changes phases 1-3.
   four parts; the rulings it carries; stage A's four steps, each with what, done when, size, the user's words it needs
   and its builder; stage B's five with their prototypes and what is open; what is not in the program; the safeguards).
   The working plan is history. Sent to the independent reviewer to check before stage A goes to the user to ratify.
+- **~13:26 UTC, B1's H9 (phase-1 homework)** (`claude/compat-b1-homework`, `H9-phase1-measures.md`; commits
+  `277ab6792` to `867a20eb8`).
+  - **0.4 (f):** of H2's 98 bare print sites, 95 at the literal root; 3 in a relation column (`testDayOfWeek_Relation`,
+    an enum; the corpus's `testStrictDateProject`, a StrictDate; `testToSQLStringChar`, never executed); 0 in a map, a
+    Pair or `^C`. Of the 22 composed or feeding sites, 0 over a Float, Decimal or DateTime. One Pair composed
+    (`testPairCollectionToString`) is the one print the formatter's rule refuses.
+  - **0.4 (g), G7 over the net:** 6 tests, all PCT essential, DuckDB and SQLite, channels A and B (24 outcome lines,
+    all PASS today): the same six H13 found. Every value they print is a Pure literal; lite's lowering makes them look
+    computed. Corpus, pure/v1, H2 relation, edge cases: 0.
+  - **The operand census, all 5,017 raise renders in the net:** String 4,135, Integer 465, Float 36, Decimal 21 (no
+    other literal kind). A literal under a cast in 100 renders (Cast(IntLit→DOUBLE) 36, Cast(StringLit→TEMPORAL_TEXT)
+    32, Cast(FloatLit→DOUBLE) 32), plus INDEX_OUT_OF_BOUNDS's size. Truly computed: Call 217, Column 67, Cast over
+    computed 32, ScalarSubquery 28. B1's proposal: a Cast over a literal is that literal (5 of 6 exact), and a literal
+    list's size folded at planning (all 6). **Sent to H13 (13:40)** with two cautions: structural only (invariant 2),
+    and the size as a type fact (a literal collection's multiplicity), never the compiler computing a value.
+  - **0.4 (i), Floats in database-written JSON:** 0 databases round on DuckDB, H2 and SQLite (24 hard doubles each);
+    SQLite writes 17 significant digits (5 of 24 not shortest); -0.0 lost by H2's and SQLite's storage, not their
+    JSON. Postgres not measured: by reading, `Postgres.doubleJsonb` casts a whole double to numeric at 15 digits, a
+    candidate to measure (sent to the product orchestrator).
+  - **PR #123:** the lane split committed (`7d9929bf4`): `edge_net` 38 tests with no corpus; the corpus lanes +4 diff
+    tests. Its run is going.
+- **~13:27 UTC, H10's R-S131 counts (the judges session; `claude/compat-judges-spike` at `228a6a18`).** The edge
+  rewrites `assertEquals` over an INCIDENTAL actual into `assertSameElements` at a door, the product judge's typed
+  S131 off (the rendered text's kept).
+  - **DuckDB corpus: 21 of 22 fixed** (values 14, cells 7, all three two-column cases). **H2: 3 of 4.** Left on both:
+    `graphFetch::tests::union::propertyLevel::test6`, the JSON root a rewrite cannot reach (H6 §7.5).
+  - Control (typed S131 off, no rewrite): exactly those 21 + 4 newly fail. With the rewrite: +1 fail per lane
+    (test6), 0 new failures, 0 new passes; skipped rosters and both registers identical. The rewrite touches 448
+    asserts in 374 tests, all verdicts kept (~440 per-assert ledger lines renamed).
+  - **Ordering:** one DuckDB message moved (`sqlFunction::log::testFilter`, the S15 pair, worded as
+    `assertSameElements`): **R-S15 must run before R-S131.**
+  - `OrderView.INCIDENTAL` is reachable through public entries (`TypedQuery.body/context/withBody`,
+    `ModelContext.findFunction`, `OrderView.of`, `TypedNativeCall`).
+  - **STOP AND TELL: the corpus road has no door.** `PureTestRunner` types the body itself
+    (`PureTestRunner.java:~349`, `TestExecution.planBody(Compiler.queryResolved(ctx, resolved), ...)`); the trial used
+    a marked stand-in, `TestObserver.door`. S137's existing slot (`RelationCounting.counted`) cannot host it (no
+    `ModelContext`). Options: (a) a door on the shared runner, one method and one call (the judges' recommendation);
+    (b) widen `RelationCounting`'s signature (keeps a two-form alive); (c) an edge-owned copy of the run loop.
+  - Correction: LITE/HOST's 462 byte-identical failures are 32 judge words and 426 lite typing refusals; the check
+    exercises 9 of 25 record kinds, the other 16 checked statically (0 differences).
+  - Revised sizes: 2.2b about 4.5 days (was 7), +1 to carry records to the listener; 2.2a 3.5; the door +0.25.
+  - **This session (13:40):** the door is a new core hook, so it goes to the user. Asked the judges first: can all
+    four rewrites run through it so S137's two-form is deleted in the same step (a net shrink); its exact place
+    (`TestObserver`, which already carries the caller's options and `EdgeRun`; no default, as K6); other ordering
+    constraints; and the cost of the no-hook alternative (the harness types each body with the public compiler and
+    rewrites the PARSED body before the build, as H5's typed retarget did).
