@@ -2661,3 +2661,6 @@ who confirms or changes phases 1-3.
   four probes. (4) M2M chain transforms and `~func` mappings refused by name (reached only in phase H). (5) No error can
   name the substitute. (6) The batteries pinned under `engine` per database. (7) About 2.5 days: B1 the core native (~1
   day) in parallel with B1-R's edge rewrite (~1.5). Sent to the reviewer; B1 briefed to read and wait.
+- **~20:41 UTC, #124's re-run:** 53 of 54 green, none red; macOS `corpus_duckdb` re-run PASSED (20:33), macOS
+  `checks` (attempt 2) running. The CI-health worker's permission check refuses a relayed push word ("Unsanctioned
+  Communication"); it has asked the user in its own session.
