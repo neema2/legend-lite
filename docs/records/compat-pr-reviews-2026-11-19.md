@@ -1180,3 +1180,61 @@ meaning. Its only producer is the door's `engine` rewrite.
 - **To hold it mechanically to that one producer** (no product class ever constructing a call to it), a new pin is
   needed: for example, the native-claims row asserted to have no product claimer but `Scalars`. That is the user's
   word, and optional.
+
+## parser_parity's referee memo, `origin/claude/compat-parser-parity-memo` at `37ef44ff0` (one commit on `main` `b75d6c73a`; the CI-health worker's)
+
+**Verdict: APPROVED, with 1 should-fix.** Not a CI risk on the heap.
+
+The change is five files, test sources only, in `parser-equivalence`: +206/−26. There is no change to
+`parser-equivalence/BUILD.bazel`, `tools/` or `.bazelrc`.
+
+### What holds
+- **Every assertion is unchanged.** In each of the four classes the diff swaps only where the referee's JSON comes
+  from:
+  - `mapper.writeValueAsString(referee.parseModel(text))` becomes `RefereeParses.withSourceInformation(text).json()`;
+  - the span-free `parseModel(run, "", 0, 0, false)` becomes `withoutSourceInformation(run)`;
+  - `getElements().size()` and each element's `writeValueAsString(e)` become `elements()`.
+
+  At `main`, all four made the same referee (`PureGrammarParser.newInstance()`) and the same mapper
+  (`ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports()`). The memo uses exactly those.
+  The comparisons, the cases and the failure texts are the classes' own, untouched.
+
+  CorpusSweepTest's SPI parser and its own span-free parse (`:244`) are untouched. Lite's parser still parses every
+  source in every class.
+- **The proof is shown, against `main`:**
+  - the same 45 testcases with the same outcomes;
+  - 22 of 23 outputs byte-identical. The 23rd is a diagnostic never asserted: its messages go from "null" to the NPE's
+    text, consistent with the JVM's fast-throw;
+  - the logs equal once masked;
+  - two planted differences fail the same testcases with the same messages on both: `Corpus.all()` without
+    `corefunctions/` fails 3, and `sameBytes` refusing Enumeration JSON fails 5.
+- **No class can hand another a changed answer.** What is held is immutable `String`s: the whole model's JSON and each
+  element's JSON. `json()` is `before + join(",", elements) + after`, where `before` and `after` are cut from the
+  mapper's own whole output around the joined elements. So it gives back exactly that output, whichever occurrence the
+  cut found. If none is found, the whole text is kept. The exactness does not depend on Jackson writing the array the
+  same way.
+
+  The one shared mutable object is a refusal's `Throwable`. No class in `parser-equivalence` calls `addSuppressed`,
+  `initCause` or `setStackTrace` (grep: none).
+- **The soft hold is not a CI risk.** The JVM clears every soft reference before it throws `OutOfMemoryError`, so held
+  answers can never be what runs the heap out. Under pressure they are let go, and a later caller parses again: the old
+  cost, never a wrong answer.
+
+  What stays strongly held is the keys (the texts) and the counters. The live peak, 616-665 → 827 MB, is 29% of the
+  2,816 MB heap. The "peak before a collection" (2,429 MB) is occupancy including garbage, normal for a heap under
+  allocation, and below what the engine-object variant reached (2,548 MB). The target's `memory_mb = 2816` is
+  unchanged, and the same on macOS.
+
+### SHOULD-FIX
+**Do not memoize a `VirtualMachineError`.** `answer` stores any `Error` the referee throws and throws it again to
+every later class that asks for that text. A `StackOverflowError` is deterministic per text, so storing it is harmless.
+An `OutOfMemoryError` is transient: storing it spreads one moment's memory pressure to every class that later asks for
+that text, where before each class parsed again.
+
+Fix: throw a `VirtualMachineError` without storing it (or store only `RuntimeException` and `StackOverflowError`).
+
+### Notes
+- `answer` is `synchronized` around the parse itself, so parses of different texts wait on one another. That is right
+  for a shared `PureGrammarParser`. The measured times show no cost here, since the classes run one at a time.
+- The diagnostic's message change ("null" → the NPE text) shows that the catalog's message column depended on JIT
+  state before. The new text is the better one, and it is still not asserted.
