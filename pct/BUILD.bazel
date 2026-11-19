@@ -909,12 +909,21 @@ _EDGE_RECORDED = {
     for s in suites
 }
 
+# THE PLATFORM OVERLAYS (the compatibility program's slice 0.2, 2026-11-19, the program owner's call on PR #123's first
+# Windows run): the goldens are Linux's, every digit pinned; DuckDB and SQLite take sinh, cosh, tanh, cbrt and pow from
+# the platform's C maths library, whose last place differs on Windows. Each overlay row names one such value (suite,
+# test, case, databases, function, the Linux value, that OS's value); the normalizer applies an OS's rows on that OS
+# only, fails on a row that finds no line (stale) or a line holding another value, and on every other OS checks the
+# row's Linux value against the recording -- so an overlay cannot drift from the golden (tools/edgenet's
+# PlatformOverlay; tools/edgenet/README.md). New pinned files, for the user's word.
+_EDGE_OVERLAYS = ["src/test/resources/edge/overlay_windows.tsv"]
+
 [java_run(
     name = "edge_norm_" + golden.split("/")[-1].removesuffix(".tsv"),
     testonly = True,
-    srcs = [":" + recorded],
+    srcs = [":" + recorded] + _EDGE_OVERLAYS,
     outs = ["edge_norm/" + golden.split("/")[-1]],
-    arguments = ["$(execpath :%s)" % recorded, "{OUT}"],
+    arguments = ["$(execpath :%s)" % recorded, "{OUT}"] + ["$(execpath %s)" % o for o in _EDGE_OVERLAYS],
     main_class = "com.legend.tools.edgenet.EdgeNormalize",
     mnemonic = "EdgeNormalize",
     deps = ["//tools/edgenet"],
