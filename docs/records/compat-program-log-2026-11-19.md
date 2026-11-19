@@ -1526,3 +1526,25 @@ who confirms or changes phases 1-3.
 - **~14:08 UTC, the product orchestrator confirmed the resumes:** the A5 session resumes for C3's lane, the five parity
   bugs and `firstDayOfWeek` only; the CI-health session for the Maven mirror only (`claude/compat-ci-maven-mirror` and
   its PR). Both take direction from and report to this session; everything else on their branches stays paused.
+- **~14:09 UTC, A5's landing plan** (builds nothing until answered). State from `claude/parity-a5` at `f42f74444` (main
+  `b75d6c73a` plus 9 commits; PR #118 and its fix round are on `main`; nothing of the branch is): `testDateFromHour`
+  DONE (`6932aa2c1`, 51 lines, all three judges give legend-pure's verdict); `firstDayOfWeek` on H2 DONE (`d4f6b5249`,
+  `DATE_TRUNC('iso_week')`, 69 lines); the four `AdjustBy*BigNumber` NOT STARTED, designed, three causes: the host's side
+  batch sends the EXPECTED literal (`%33803336-12-17`) to DuckDB as a DATE it cannot hold; **the database judge's fused
+  statement fails with either of two casts by timing (a G10 determinism break)**; a rejected fused statement reports no
+  verdict. The fix: a date literal side as a plan constant (as String, Integer and Boolean folds are), the fused statement
+  read in order, a rejection reported as the group's first verdict's failure. The LITE-PCT lane NOT STARTED.
+  - **Shortest path: ONE PR from `main`** (`claude/compat-judges-parity`): the two cherry-picks plus the ruling-3 cases
+    (~140 lines); the AdjustBy fix (~200-350 lines); the lane (channel B `-Dpct.channelb.rules=LITE` judged by a ledger,
+    ~80 lines; channel A `-Dpct.channela.rules=LITE` with a LITE expected-failure ledger, ~60 lines plus rows; 10
+    targets: 5 channel B ~75 s, 5 channel A ~129 s with 4 GB JVMs). One PR because the lane proves the fixes.
+  - **Moves for the user's word:** about 460 new LITE rows in channel B's ledger (DuckDB's five suites: 426
+    ModelException, 32 AssertFailed, 4 DataError, mostly relation tests asserting legend-pure's text), about 46 in a new
+    channel A LITE ledger, probably the AdjustBy COMPAT rows' texts on other databases, `ratchets.tsv` entries, maybe
+    `TestPlanJson` VERSION 32 → 33; `JavaEvalLedgerTest` pins only if the judges' files grow.
+  - Nothing from the paused track is needed (A6's approved +1, the `SqlFnSortedTest` question and the finished unlanded
+    commits stay paused; whoever lands second re-blesses moved LITE rows).
+  - **This session's calls (14:40):** build it, one PR, branch `claude/compat-judges-parity`; the 5 channel B LITE
+    targets per push in `pct_channel_b`; the 5 channel A LITE targets in `//gates:heavy` unless they fit `pct_duckdb`
+    under ~11 minutes on every OS; FIX the AdjustBy four (cause 2 is a G10 break, not to be ledgered); stop if the fix
+    needs a hook or a mode or grows a pinned judge file; every move named in the PR body with a summary by class.
