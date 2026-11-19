@@ -101,7 +101,7 @@ session that wrote none of it, and merged only on the user's word.
 | Step | What | How we know it worked |
 |---|---|---|
 | B1 | **Errors become plain records** (what kind, where, which literal values). Each side's formatter words them. Upstream wording never enters lite's plans | every pinned error message on every route unchanged, except a short named list |
-| B2 | **Formatters replace SQL-built text** (about 2,000 lines deleted): legend-pure's printed tables and values, legend-engine's result envelopes | PCT's 423 printed-table tests and legend-engine's result goldens byte-identical. **Prototype running now** |
+| B2 | **Formatters replace SQL-built text** (about 2,000 lines deleted): legend-pure's printed tables and values, legend-engine's result envelopes | PCT's 423 printed-table tests and legend-engine's result goldens byte-identical. **Prototyped: 431 of 431 printed tables byte-identical on DuckDB, with no change to lite's core; 4 more H2 tests pass** |
 | B3 | **The fallback and legend-pure-style checking move behind three narrow connections**, with four small rewrites of legend-engine's test code at the door | both corpus result lists byte-identical. **Prototype running now** |
 | B4 | **Remove what is left**: the legacy H2 settings, the float-literal and unchecked-maths switches (per D2), DataCube's legend-engine workarounds moved to its legend-engine side | each removal's moved tests listed before it lands |
 | B5 | **Delete the switch machinery itself and turn on the guards**: the build fails if a mode switch or upstream-specific code returns to the core | the counts of switches (49 parameters, 50 calls today) and of upstream code in the core (142 places today) both read zero |

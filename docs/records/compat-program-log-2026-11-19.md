@@ -602,3 +602,25 @@ who confirms or changes phases 1-3.
   - **Run time, with every SQL-text assert going to the appeal:** H2 187 s → 179 s; DuckDB 628 s → 630 s. It costs no
     corpus time.
   - (j) is running on B1-R's ENGINE lane.
+- **~12:34 UTC, H11's interim report: legend-pure's relation text printed in Java WORKS**
+  (`claude/compat-relation-text-spike`, record `a9df8c39`, code `bce10126`; scratch only). PCT channel B, HOST judge,
+  with the SQL builder switched off for a relation's `toString`:
+  - **DuckDB, all five suites: 1,240 of 1,249 pass, the same as `main`.** The 423 tests that assert a relation's text
+    make 431 comparisons, and **431 of 431 equal PCT's expected text byte for byte**;
+  - **every one of those prints is at an assert side's root** (0 composed, 0 nested);
+  - **H2's relation suite: 432 → 436 passes.** 4 tests go from error to pass (on `main` the relation's SQL TEXT needs
+    `LIST_GET`, which H2 lacks; its rows do not); 342 of 342 texts are byte-equal. Its exact ledger lists those 4, a
+    ledger move for the real slice;
+  - **no new hook in the core:** all six edited files are in `com.legend.edge`. It rides three existing hooks, which
+    are exactly the ones 2.2b reshapes (claim an assert at planning; ask for its sides; be handed the sides' typed rows
+    at the run);
+  - **confirmed by measurement: 1.3 must follow 2.2a.** Under BOTH, the compatibility database judge refuses all 365
+    relation bodies once the SQL builder is off;
+  - **for CP-6:** the printer needed only the column's name, its Pure type and the typed cell. It needed NO DateTime
+    written precision: legend-pure's TDS re-reads every date cell at exactly three subsecond digits
+    (`TestTDS.java:209`). A finding: today's SQL builder prints a finer fraction in full where legend-pure prints `.123`;
+    no PCT golden tests it;
+  - **size so far:** the printer 137 lines, the arm 125, the record 16, against the SQL builder's 791;
+  - a note for the real slice: `ArchitectureTest.PLANNER_ENTRIES` lists `EngineTextPlanning`'s callers by class, so a
+    new edge class needs caller rows (the user's word) or lives inside an existing caller.
+  - Next: the CSV printers, EDGE-1/2/3, more lanes and the 1.3 estimate.
