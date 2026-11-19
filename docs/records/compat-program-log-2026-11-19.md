@@ -2686,3 +2686,13 @@ who confirms or changes phases 1-3.
   removes the engine-style printers, so no labels there). **Its question, to the reviewer:** the native stays
   lite-internal (edge-only vocabulary, one EdgeOnlyDataTest entry for the user's word; this session's leaning, since a
   user-facing per-database SUBSTRING would break G2/G10 for lite's own users) or goes on LITE_SURFACE.
+- **~20:44 UTC, the reviewer: the `engine` rewrite's design APPROVED TO BUILD** (record `f4928599`). The raw
+  SUBSTRING is "the right thing to do" in the ~20:05 sense (legend-engine's `processSubstring` is
+  `processDynaFunction('substring')` over the arguments as given; H2, DuckDB, Postgres and Snowflake write the plain
+  call, all read); the alternatives rightly rejected; the switch rule kept; no shortcut (every unmeasured or unreachable
+  case refused by name). D-M1: rewrite by the detector's walk on the inlined body, by identity, not by position (a
+  helper's inlined copies share its position); D-S1: the native is core vocabulary only the door reaches, to be
+  registered as the door's by the user's word, or one native serves piece 1's islands and `###Relational`
+  dynaFunctions too; D-S2: the substitute's callee from the registry; D-S3: cite H2's real route (the dialect
+  translation); D-S4: no engine-style printers. B1-R and B1 told to build (B1 on the translator's piece 2 branch once
+  pushed); D-S1 to the user.
