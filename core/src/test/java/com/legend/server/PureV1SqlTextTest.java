@@ -30,11 +30,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>{@code ordinary}: the net's own {@code tds} request, a plain relation query, which reaches neither hook. Its
  *   execute answer and its plan are BYTE-IDENTICAL to the net's lines, recorded before A2 (the net's
  *   {@code edge/pure_v1_answers.tsv}, current at main {@code b75d6c73a});</li>
- *   <li>{@code ddl}: a DDL native's text (the upstream plan facet), lite's H2 DDL;</li>
- *   <li>{@code activitySql}: an execute's activity SQL read back (the activity-text two-form), lite's H2 SQL.</li>
+ *   <li>{@code ddl}: a DDL native's text (the upstream plan facet): exactly what the edge's H2 dialect writes for the
+ *   table ({@code PureText.dialect}), lite's own DDL;</li>
+ *   <li>{@code activitySql}: an execute's activity SQL read back (the activity-text two-form): lite's H2 SQL of the
+ *   inner query.</li>
  * </ul>
- * The two SQL-text requests' answers are pinned as golden lines ({@code edge/pure_v1_sql_text.tsv}, ids masked as the
- * net masks them). With {@code LEGEND_A2_RECORD} set in the environment, the test prints the lines it computed
+ * The two SQL-text requests are answered through generatePlan, their plans pinned as golden lines
+ * ({@code edge/pure_v1_sql_text.tsv}, ids masked as the net masks them): pure/v1's execute refuses a scalar result by
+ * name ("a SCALAR result's serialization is unprobed"), before A2 and after. With {@code LEGEND_A2_RECORD} set in the environment, the test prints the lines it computed
  * instead of comparing them, to record them.
  */
 class PureV1SqlTextTest {
@@ -99,10 +102,16 @@ class PureV1SqlTextTest {
         for (Map.Entry<String, String> r : REQUESTS.entrySet()) {
             String model = Json.toCompact(Map.of("_type", "text", "code", model(r.getKey())));
             String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(r.getValue(), false).json();
+            // the SQL-text requests name their runtime as Studio's ExecuteInput does (a runtimePointer); the ordinary one
+            // is the net's body exactly
+            String runtime = r.getKey().equals("ordinary") ? ""
+                    : ",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"trades::h2::RT\"}";
             String body = "{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":" + model
-                    + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-            out.put("execute." + r.getKey(), masked(answer(() -> com.legend.edge.PureV1Routes.execute(body,
-                    PureV1EdgeGoldenTest.RECORDER))));
+                    + runtime + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+            if (r.getKey().equals("ordinary")) {
+                out.put("execute." + r.getKey(), masked(answer(() -> com.legend.edge.PureV1Routes.execute(body,
+                        PureV1EdgeGoldenTest.RECORDER))));
+            }
             out.put("plan." + r.getKey(), masked(answer(() -> com.legend.edge.PureV1Routes.generatePlan(body))));
         }
         return out;
@@ -135,13 +144,22 @@ class PureV1SqlTextTest {
         assertFalse(answers.get("plan.ordinary").contains("THREW"), answers.get("plan.ordinary"));
         // the SQL-text requests: their golden lines
         Map<String, String> golden = golden("edge/pure_v1_sql_text.tsv");
-        for (String k : java.util.List.of("execute.ddl", "plan.ddl", "execute.activitySql", "plan.activitySql")) {
+        for (String k : java.util.List.of("plan.ddl", "plan.activitySql")) {
             assertEquals(golden.get(k), answers.get(k), k);
         }
-        // the SQL text asked for is lite's own: H2's upper-case keywords, never legend-engine's mixed-case DDL
-        String ddl = answers.get("execute.ddl");
-        assertTrue(ddl.contains("CREATE TABLE") && !ddl.contains("Create Table"), ddl);
-        String sql = answers.get("execute.activitySql");
-        assertTrue(sql.contains("SELECT") && !sql.contains("select \\\"root\\\""), sql);
+        // the DDL asked for is exactly the edge's H2 dialect's, the SQL lite runs on this route
+        var ctx = com.legend.Compiler.compileModel(model("ddl"));
+        var table = ctx.findTableDefinition("trades::h2::DB", "TRADES_SCHEMA.TRADES").orElseThrow();
+        String lite = com.legend.edge.PureText.dialect(com.legend.model.ConnectionDefinition.DatabaseType.H2)
+                .render(com.legend.setup.Ddl.createTable(table, "TRADES_SCHEMA"));
+        String plan = answers.get("plan.ddl");
+        String value = Json.parseObject(plan.substring(plan.indexOf('\t') + 1)).getObj("rootExecutionNode")
+                .getObj("values").getString("value");
+        assertEquals(lite, value, "the DDL native's text");
+        // the activity's SQL is lite's H2 text of the inner query, never legend-engine's ("root" aliases, lower case)
+        String sql = answers.get("plan.activitySql");
+        assertTrue(sql.contains("'SELECT \\\"t0\\\".\\\"YEAR\\\" AS \\\"year\\\"\\nFROM TRADES_SCHEMA.TRADES AS \\\"t0\\\"\\nLIMIT 1'"),
+                sql);
+        assertFalse(sql.contains("\\\"root\\\""), sql);
     }
 }
