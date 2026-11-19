@@ -3688,8 +3688,11 @@ final class ArchitectureTest {
     /**
      * THE PURE/V1 STYLE'S CALLERS (B7, the orchestrator's condition (2) on the {@code plainRaises} hook, 2026-11-17):
      * {@code edge.PureText.PURE_V1} -- legend-engine's unchecked raises written plain, the user's ruling "pure/v1
-     * matches engine" -- is selected by the pure/v1 routes alone: the route module, the shipped server's runner and the
-     * embedded hosts' execute halves. PCT and the corpus keep {@code UPSTREAM}; a new caller is a ruling, not an edit.
+     * matches engine" -- is the ENGINE mode's style ({@code edge.Modes.ENGINE}, S1m of the presentation program,
+     * 2026-11-18: the doors choose a mode and read its style from it), and the ENGINE mode is selected by the pure/v1
+     * routes alone: the route module, the shipped server's runner and the embedded hosts' execute halves, and the
+     * edge's grammar door, which reads the mode's grammar. PCT and the corpus keep {@code UPSTREAM}, PURE's; a new
+     * reader is a ruling, not an edit.
      */
     @Test
     void thePureV1StyleIsSelectedByThePureV1RoutesAlone() {
@@ -3704,61 +3707,48 @@ final class ArchitectureTest {
             throw new IllegalStateException("the shipped server's runner (//core:edge_server) is not on this test's"
                     + " classpath", e);
         }
+        java.util.Set<String> styleReaders = new java.util.TreeSet<>();
         for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
             for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
                 if (a.getTargetOwner().getName().equals("com.legend.edge.PureText") && a.getName().equals("PURE_V1")
                         && !a.getOriginOwner().getName().startsWith("com.legend.edge.PureText")) {
+                    styleReaders.add(a.getOriginOwner().getName().replaceAll("\\$.*$", ""));
+                }
+                if (a.getTargetOwner().getName().equals("com.legend.edge.Modes") && a.getName().equals("ENGINE")
+                        && !a.getOriginOwner().getName().equals("com.legend.edge.Modes")) {
                     callers.add(a.getOriginOwner().getName().replaceAll("\\$.*$", ""));
                 }
             }
         }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("com.legend.edge.Modes"), styleReaders,
+                "PureText.PURE_V1 is read by the ENGINE mode alone (S1m, 2026-11-18)");
         org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(java.util.Set.of(
-                "com.legend.edge.EdgeServer", "com.legend.edge.PureV1Routes", "com.legend.edge.wasm.EdgeBoundary")),
-                callers, "PureText.PURE_V1 is selected by the pure/v1 routes alone (B7, 2026-11-17)");
+                "com.legend.edge.EdgeServer", "com.legend.edge.EngineGrammar", "com.legend.edge.PureV1Routes",
+                "com.legend.edge.wasm.EdgeBoundary")),
+                callers, "the ENGINE mode is selected by the pure/v1 routes alone (B7, 2026-11-17; S1m, 2026-11-18)");
     }
 
     /**
      * THE PRODUCT HAS ONE GRAMMAR (J21 of the edge audit, 2026-11-17, the user's ruling "yes to the rule"): legend-lite's
-     * (the platform's own sources have theirs). Legend-engine's level -- its
-     * refusals and its shapes -- is the parser's to define and the edge's to ask for, where the edge parses legend-engine's
-     * protocol: no product parse is made at it. (1) Outside the parser and the edge nothing names
-     * legend-engine's level. (2) The parsers' level-less text-to-JSON entries, which are legend-engine's
-     * ({@code PmcdParser.parseDocument}/{@code parseModel}/{@code parseSections}, {@code SpecParser.parseLambda}/
-     * {@code lambdaJson}), are reached outside the parser through the parse door's engine entries alone, and (3) those
-     * ({@code door.Parse.engineDocumentJson}/{@code engineLambdaJson}) by the edge alone. A new caller is a ruling.
+     * (the platform's own sources have theirs). Legend-engine's level -- its refusals and its shapes -- is the parser's to
+     * define and the ENGINE mode's to ask for, where the edge parses legend-engine's protocol: no product parse is made
+     * at it. Outside the parser, the one class naming legend-engine's level is the mode that carries it,
+     * {@code edge.Modes} (20:10-R7, the user's ruling of 2026-11-18, S1m of the presentation program: the parsers'
+     * level-less entries are lite's and a door passes its mode's grammar; until then the edge as a whole could name it,
+     * and the parsers' level-less entries, legend-engine's then, were reached through the parse door's engine entries
+     * by the edge alone). A new reader is a ruling.
      */
     @Test
     void legendEnginesGrammarIsTheEdgesAlone() {
-        java.util.Set<String> engineEntries = java.util.Set.of(
-                "com.legend.parser.PmcdParser.parseDocument(java.lang.String)",
-                "com.legend.parser.PmcdParser.parseDocument(java.lang.String, boolean)",
-                "com.legend.parser.PmcdParser.parseModel(java.lang.String)",
-                "com.legend.parser.PmcdParser.parseSections(java.lang.String)",
-                "com.legend.parser.SpecParser.parseLambda(java.lang.String)",
-                "com.legend.parser.SpecParser.lambdaJson(java.lang.String, boolean)");
-        java.util.Set<String> edgeDoor = java.util.Set.of(
-                "com.legend.door.Parse.engineRecords(java.lang.String)",
-                "com.legend.door.Parse.engineDocumentJson(java.lang.String)",
-                "com.legend.door.Parse.engineLambdaJson(java.lang.String)");
         java.util.List<String> bad = new java.util.ArrayList<>();
         for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
             String origin = c.getName().replaceAll("\\$.*$", "");
             boolean parser = origin.startsWith("com.legend.parser.");
-            boolean edge = origin.startsWith("com.legend.edge.");
+            boolean mode = origin.equals("com.legend.edge.Modes");
             for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
-                if (!parser && !edge && a.getTargetOwner().getName().equals("com.legend.parser." + "GrammarLevel")
+                if (!parser && !mode && a.getTargetOwner().getName().equals("com.legend.parser." + "GrammarLevel")
                         && a.getName().equals("LEGEND" + "_ENGINE")) {
                     bad.add(origin + " names legend-engine's grammar level");
-                }
-            }
-            for (com.tngtech.archunit.core.domain.JavaMethodCall call : c.getMethodCallsFromSelf()) {
-                String target = call.getTarget().getFullName().replace(",", ", ");
-                if (!parser && engineEntries.contains(target)
-                        && !(origin.equals("com.legend.door.Parse") && call.getOrigin().getName().startsWith("engine"))) {
-                    bad.add(origin + "." + call.getOrigin().getName() + " calls " + target);
-                }
-                if (!edge && edgeDoor.contains(target)) {
-                    bad.add(origin + "." + call.getOrigin().getName() + " calls " + target);
                 }
             }
         }

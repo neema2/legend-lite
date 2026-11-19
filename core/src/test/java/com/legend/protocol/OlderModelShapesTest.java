@@ -520,7 +520,7 @@ class OlderModelShapesTest {
     }
 
     private static Json.Obj parse(String text) {
-        return (Json.Obj) Json.parse(PmcdParser.parseDocument(text), DEEP);
+        return (Json.Obj) Json.parse(PmcdParser.parseDocument(text, true, com.legend.parser.GrammarLevel.LEGEND_ENGINE), DEEP);
     }
 
     /** {@code n} with every object rewritten by {@code f}, children first. */

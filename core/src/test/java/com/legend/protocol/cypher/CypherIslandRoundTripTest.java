@@ -55,7 +55,7 @@ class CypherIslandRoundTripTest {
     @Test
     void theEngineSurfaceKeepsRefusingAnUnknownIsland() {
         // the engine drop-in surface's lambda door (upstream's grammarToJson/lambda)
-        RuntimeException e = assertThrows(RuntimeException.class, () -> SpecParser.parseLambda("|#Cypher{RETURN 1}#"));
+        RuntimeException e = assertThrows(RuntimeException.class, () -> SpecParser.parseLambda("|#Cypher{RETURN 1}#", com.legend.parser.GrammarLevel.LEGEND_ENGINE));
         assertTrue(e.getMessage().contains("unknown DSL island type: '#Cypher{'"), e.getMessage());
     }
 }

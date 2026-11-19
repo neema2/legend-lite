@@ -398,7 +398,7 @@ public final class ChannelB {
             .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
                     System.getProperty("pct.channelb.judge", "BOTH")))
             // legend-pure's texts, spelled by the edge (phase D's D1.0)
-            .withStyle(com.legend.edge.PureText.UPSTREAM);
+            .withStyle(com.legend.edge.Modes.PURE.computation());
 
     /**
      * G10'S GUARD FOR A TEST BODY (O5's term, the user's ruling of 2026-11-13: "a body planned and run twice answers the

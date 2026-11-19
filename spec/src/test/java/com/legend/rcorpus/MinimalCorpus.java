@@ -343,8 +343,10 @@ public final class MinimalCorpus {
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(),
                 com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode)
-                        // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                        .withStyle(com.legend.edge.PureText.UPSTREAM));
+                        // legend-engine's texts, spelled by the edge (phase D's D1.0). The corpus is ENGINE by
+                        // ruling; it runs PURE's style, today's, until its forms move to ENGINE in S5b, measured
+                        // against its rosters (S1m of the presentation program, 2026-11-18, the shape note's (iii))
+                        .withStyle(com.legend.edge.Modes.PURE.computation()));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -521,7 +523,7 @@ public final class MinimalCorpus {
     private static com.legend.exec.Sessions.Session openWorkspace() {
         try {
             // the corpus runs on the edge's database (the audit's J22, 2026-11-17)
-            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace(com.legend.edge.PureText.UPSTREAM));
+            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace(com.legend.edge.Modes.PURE.computation()));
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
@@ -604,7 +606,7 @@ public final class MinimalCorpus {
                     // backwards-compatibility mode, the judges' leniencies that meet legend-engine's goldens: the
                     // rules the CompatEdge names (census C1, 2026-11-17: Edge.rules(), the edge's CompatRules)
                     // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                    .withStyle(com.legend.edge.PureText.UPSTREAM);
+                    .withStyle(com.legend.edge.Modes.PURE.computation());
         }
 
         @Override

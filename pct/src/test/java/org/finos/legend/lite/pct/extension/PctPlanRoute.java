@@ -81,7 +81,7 @@ final class PctPlanRoute {
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        ExecutionPlan plan = com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, style ->
+        ExecutionPlan plan = com.legend.edge.RaisedWords.run(com.legend.edge.Modes.PURE.computation(), style ->
                 com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)
@@ -122,7 +122,7 @@ final class PctPlanRoute {
         java.util.List<String> edge;
         try {
             edge = statements(query.executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME, features,
-                    com.legend.edge.PureText.UPSTREAM));
+                    com.legend.edge.Modes.PURE.computation()));
         } catch (RuntimeException e) {
             // the measurement never fails the case it measures: a plan it cannot remake is reported by its class
             return "EDGE_REPLAN_REFUSES\t" + e.getClass().getSimpleName();
@@ -130,7 +130,7 @@ final class PctPlanRoute {
         java.util.List<String> product;
         try {
             product = statements(query.executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME, features,
-                    com.legend.database.PlanStyle.PRODUCT));
+                    com.legend.mode.Mode.LITE.computation()));
         } catch (RuntimeException e) {
             return "PRODUCT_REFUSES\t" + e.getClass().getSimpleName();
         }

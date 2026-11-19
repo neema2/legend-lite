@@ -57,7 +57,7 @@ class TsIslandRoundTripTest {
 
     @Test
     void theEngineSurfaceKeepsRefusingAnUnknownIsland() {
-        RuntimeException e = assertThrows(RuntimeException.class, () -> SpecParser.parseLambda("|#TS{SELECT 1}#"));
+        RuntimeException e = assertThrows(RuntimeException.class, () -> SpecParser.parseLambda("|#TS{SELECT 1}#", com.legend.parser.GrammarLevel.LEGEND_ENGINE));
         assertTrue(e.getMessage().contains("unknown DSL island type: '#TS{'"), e.getMessage());
     }
 

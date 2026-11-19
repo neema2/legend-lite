@@ -279,7 +279,9 @@ _PLANNER_DOORS = [
     "src/main/java/com/legend/HeldModels.java",
     "src/main/java/com/legend/TypedQuery.java",
 ]
-_PLANNER_SRCS = _PLANNER_DOORS + glob(["src/main/java/com/legend/planner/*.java"])
+# the modes as data (S1m of the presentation program, 2026-11-18): com.legend.mode.Mode, the product's record and its
+# LITE instance, in the planner's library, which reaches both the parser (a mode's grammar) and the database (its style)
+_PLANNER_SRCS = _PLANNER_DOORS + glob(["src/main/java/com/legend/planner/*.java"]) + glob(["src/main/java/com/legend/mode/*.java"])
 
 legend_java_library(
     name = "planner",

@@ -312,11 +312,12 @@ public final class SpecParser implements TokenStreamCursor {
         return new SpecParser(tokens, "", dialect).wholeLine();
     }
 
-    /** A lambda's text as upstream {@code grammarToJson/lambda} reads it, at the caller's level (the product's
-     *  grammar, or legend-engine's where the edge parses its protocol: J21, 2026-11-17): text that is not a lambda
-     *  becomes a parameterless one spanning all its tokens, as legend-engine wraps it. */
+    /** A lambda's text as upstream {@code grammarToJson/lambda} reads it, at legend-lite's one grammar (20:10-R7, the
+     *  user's ruling of 2026-11-18: a level-less entry is LITE's; legend-engine's level where the edge parses its
+     *  protocol is {@link #parseLambda(String, GrammarLevel)}'s, J21): text that is not a lambda becomes a parameterless
+     *  one spanning all its tokens, as legend-engine wraps it. */
     public static LambdaFunction parseLambda(String source) {
-        return parseLambda(source, GrammarLevel.LEGEND_ENGINE);
+        return parseLambda(source, GrammarLevel.LEGEND_LITE);
     }
 
     /** {@link #parseLambda(String)} at {@code dialect}. */
@@ -335,11 +336,11 @@ public final class SpecParser implements TokenStreamCursor {
      * kept spans are the edge's, {@code edge.EngineSpans}, J35's residue, 2026-11-18).
      */
     public static String lambdaJson(String source, boolean sourceInformation) {
-        return lambdaJson(source, sourceInformation, GrammarLevel.LEGEND_ENGINE);
+        return lambdaJson(source, sourceInformation, GrammarLevel.LEGEND_LITE);
     }
 
-    /** {@link #lambdaJson(String, boolean)} at {@code dialect}: the product's door parses at legend-lite's one grammar
-     *  (J21 of the edge audit, 2026-11-17); the level-less entry is legend-engine's, the edge's door's alone. */
+    /** {@link #lambdaJson(String, boolean)} at {@code dialect}: the door's mode's grammar (J21 of the edge audit,
+     *  2026-11-17); the level-less entry is legend-lite's (20:10-R7, 2026-11-18). */
     public static String lambdaJson(String source, boolean sourceInformation, GrammarLevel dialect) {
         String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source, dialect));
         return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);

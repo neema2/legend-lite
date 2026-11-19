@@ -70,7 +70,7 @@ public final class PctBackend {
     /** A session on this lane's database. */
     public static Connection connect() throws SQLException {
         // PCT runs on the edge's database (the audit's J22, 2026-11-17: H2's settings are the plan style's)
-        return backend().open(com.legend.edge.PureText.UPSTREAM);
+        return backend().open(com.legend.edge.Modes.PURE.computation());
     }
 
     /** Whether the lane's database's sessions are its connector's own, not JDBC's (MongoDB's,
@@ -126,7 +126,7 @@ public final class PctBackend {
         }
         if (backend.inProcess()) {
             // PCT's plans are the edge's, so each fresh session is the edge's database (the audit's J22)
-            return new com.legend.exec.SessionSource.Fresh(() -> backend.open(com.legend.edge.PureText.UPSTREAM));
+            return new com.legend.exec.SessionSource.Fresh(() -> backend.open(com.legend.edge.Modes.PURE.computation()));
         }
         // the lane's rule as exec's data (as planSessions's): the held session where the backend holds one, else a new
         // system session per query

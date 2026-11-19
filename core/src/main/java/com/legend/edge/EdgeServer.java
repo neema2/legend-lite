@@ -37,7 +37,7 @@ public final class EdgeServer {
      *  to {@code sources} as the server's own runner fences them. */
     public static Shipped runner(@com.legend.base.Nullable String sources) {
         // planned in a fresh recorder of the style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        return (query, runtime, output) -> RaisedWords.run(PureText.PURE_V1,
+        return (query, runtime, output) -> RaisedWords.run(Modes.ENGINE.computation(),
                 style -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources, style, output));
     }
 

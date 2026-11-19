@@ -178,7 +178,7 @@ public final class TypedQuery {
      * value the program wrote) is refused by name: its text would not be what runs.
      */
     public com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime) {
-        return plan(runtime, com.legend.database.PlanStyle.PRODUCT);
+        return plan(runtime, com.legend.mode.Mode.LITE.computation());
     }
 
     /** {@link #plan(String)} with its statement written in {@code dialects}' dialects (the spelling hook, D1.0:
@@ -221,7 +221,7 @@ public final class TypedQuery {
      *  it does not survive its JSON (G11) -- a product query pays nothing for the check. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
             java.util.Set<com.legend.platform.Feature> features) {
-        return planned(runtime, features, false, com.legend.database.PlanStyle.PRODUCT);
+        return planned(runtime, features, false, com.legend.mode.Mode.LITE.computation());
     }
 
     /** {@link #executionPlan(String, Set)} with its statements written in {@code dialects}' dialects: THE SPELLING
@@ -237,7 +237,7 @@ public final class TypedQuery {
      *  ({@code ExecutionPlan.Project}). Every other road plans {@link #executionPlan}: the database itself (the full
      *  audit, 2026-11-09). */
     public com.legend.executionplan.ExecutionPlan projectPlan(@com.legend.base.Nullable String runtime) {
-        return planned(runtime, java.util.Set.of(), true, com.legend.database.PlanStyle.PRODUCT);
+        return planned(runtime, java.util.Set.of(), true, com.legend.mode.Mode.LITE.computation());
     }
 
     /** {@link #projectPlan(String)} with its statements written in {@code dialects}' dialects (the spelling hook,

@@ -110,15 +110,18 @@ class PhaseEntriesRefusedInsideARunTest {
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
         out.put("parse a model's import (phase B)", () -> com.legend.ide.DocumentParse.importOf(imported,
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
-        out.put("parse a model (phases A and B) <- Parse.engineRecords", () -> com.legend.door.Parse.engineRecords(MODEL));
-        out.put("parse a model (phases A and B) <- Parse.engineDocumentJson",
-                () -> com.legend.door.Parse.engineDocumentJson(MODEL));
+        // the level-taking entries (20:10-R7, S1m, 2026-11-18: until then engineRecords and engineDocumentJson)
+        out.put("parse a model (phases A and B) <- Parse.records", () -> com.legend.door.Parse.records(MODEL,
+                com.legend.parser.GrammarLevel.LEGEND_LITE));
+        out.put("parse a model (phases A and B) <- Parse.documentJson at a level",
+                () -> com.legend.door.Parse.documentJson(MODEL, true, com.legend.parser.GrammarLevel.LEGEND_LITE));
         out.put("parse a model (phases A and B) <- Parse.documentJson, its source information named",
                 () -> com.legend.door.Parse.documentJson(MODEL, true));
         out.put("parse a query (phase C) <- Parse.query", () -> com.legend.door.Parse.query(QUERY,
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
         out.put("parse a lambda (phase C)", () -> com.legend.door.Parse.lambdaJson(QUERY, false));
-        out.put("parse a lambda (phase C) <- Parse.engineLambdaJson", () -> com.legend.door.Parse.engineLambdaJson(QUERY));
+        out.put("parse a lambda (phase C) <- Parse.lambdaJson at a level", () -> com.legend.door.Parse.lambdaJson(QUERY,
+                true, com.legend.parser.GrammarLevel.LEGEND_LITE));
         // lite's API v1 (2026-11-17): query/parse reads lite's own grammar, its islands included, through the
         // compiler's product entry (the level the compiler's, ParserBoundaryArchTest)
         out.put("parse a lambda (phase C) <- Compiler.parseQueryJson", () -> Compiler.parseQueryJson(QUERY));

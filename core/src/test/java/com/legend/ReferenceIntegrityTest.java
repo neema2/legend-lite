@@ -64,7 +64,7 @@ class ReferenceIntegrityTest {
         String text = BASE + model;
         assertTrue(engineReads(text), "legend-engine's grammar reads it (else refusedAsText): " + model);
         assertOneError(Compiler.compileErrors(text, UPSTREAM), expected, "the text");
-        assertOneError(Compiler.compileErrors(ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(PmcdParser.parseModel(text)), new com.legend.json.Json.Config(4096))),
+        assertOneError(Compiler.compileErrors(ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(PmcdParser.parse(text, com.legend.parser.GrammarLevel.LEGEND_ENGINE).model()), new com.legend.json.Json.Config(4096))),
                 UPSTREAM), expected, "the JSON");
     }
 
@@ -81,7 +81,7 @@ class ReferenceIntegrityTest {
         assertTrue(engineReads(text), "legend-engine's grammar reads it (else acceptedAsText): " + model);
         assertEquals(List.of(), Compiler.compileErrors(text), "the text");
         assertEquals(List.of(),
-                Compiler.compileErrors(ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(PmcdParser.parseModel(text)), new com.legend.json.Json.Config(4096)))),
+                Compiler.compileErrors(ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(PmcdParser.parse(text, com.legend.parser.GrammarLevel.LEGEND_ENGINE).model()), new com.legend.json.Json.Config(4096)))),
                 "the JSON");
     }
 
@@ -91,7 +91,7 @@ class ReferenceIntegrityTest {
 
     private static boolean engineReads(String text) {
         try {
-            PmcdParser.parseModel(text);
+            PmcdParser.parse(text, com.legend.parser.GrammarLevel.LEGEND_ENGINE);   // legend-engine's grammar, named (20:10-R7, 2026-11-18: the parsers' level-less entries are lite's now)
             return true;
         } catch (com.legend.parser.ParseException notTheEnginesGrammar) {
             return false;

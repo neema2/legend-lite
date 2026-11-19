@@ -345,16 +345,13 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that J21 ruled the product's (one parser, its legend-engine level the edge's
      *  alone), each with its dated reason. Not counted. */
     static final Map<String, String> RULED_J21 = Map.ofEntries(
-            Map.entry("com.legend.door.Parse#engineDocumentJson(java.lang.String)",
-                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""),
-            Map.entry("com.legend.door.Parse#engineLambdaJson(java.lang.String)",
-                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""),
-            Map.entry("com.legend.door.Parse#engineRecords(java.lang.String)",
-                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""),
-            Map.entry("com.legend.parser.PmcdParser#parseDocument(java.lang.String, boolean)",
-                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""),
-            Map.entry("com.legend.parser.SpecParser#lambdaJson(java.lang.String, boolean)",
-                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\""));
+            // 20:10-R7 (the user's ruling of 2026-11-18, S1m of the presentation program): the level-less entries are
+            // lite's and the door passes its mode's grammar, so the parse door's engine entries became level-taking ones
+            // -- documentJson and lambdaJson at a level, read by the door's own product entries, leave this list, and
+            // the parsers' level-less JSON entries, read by no door now, leave it too; records at a level stays the
+            // edge's alone (its pure/v1 model input at ENGINE's grammar)
+            Map.entry("com.legend.door.Parse#records(java.lang.String, com.legend.parser.GrammarLevel)",
+                    "J21 (2026-11-18): one parser (G1), its legend-engine level reached by the edge alone (ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone); the user's \"parse legend-pure and legend-engine projects as-is\"; renamed from engineRecords by 20:10-R7 (2026-11-18)"));
 
     /** The census lines: one per class holding a member of {@link #OPEN}. */
     static Set<String> lines() {

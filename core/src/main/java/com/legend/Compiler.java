@@ -30,20 +30,20 @@ public final class Compiler {
 
     private Compiler() {}
 
-    /** Parse a model at the PRODUCT level (LEGEND_LITE) — the front door
+    /** Parse a model at the PRODUCT level (the LITE mode's grammar, LEGEND_LITE: Mode.LITE, S1m) — the front door
      *  for product endpoints (the HTTP server), so they never touch the
      *  parser package directly. The Compiler is the product's provenance
      *  router: which level users get is decided HERE. */
     public static ParsedModel parseModel(String source) {
         return ModelFromText.parse(source,
-                com.legend.parser.GrammarLevel.LEGEND_LITE);
+                com.legend.mode.Mode.LITE.grammar());
     }
 
     /** Parse one query/expression at the PRODUCT level. */
     public static com.legend.protocol.spec.ValueSpecification
             parseQuery(String query) {
         // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15)
-        return com.legend.door.Parse.query(query, com.legend.parser.GrammarLevel.LEGEND_LITE);
+        return com.legend.door.Parse.query(query, com.legend.mode.Mode.LITE.grammar());
     }
 
     /** A query's text as its lambda's protocol JSON at the PRODUCT level, without source information: text with no
@@ -84,7 +84,7 @@ public final class Compiler {
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
         ModelContext ctx = buildPositioned(ModelFromText.parse(model,
-                com.legend.parser.GrammarLevel.LEGEND_LITE));
+                com.legend.mode.Mode.LITE.grammar()));
         com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
         if (seen != null) {
             seen.modelCompiled(ctx, model);   // a test harness's observer (E-1): none in the product
@@ -108,7 +108,7 @@ public final class Compiler {
     public static ModelContext compileModel(String model, String library) {
         Objects.requireNonNull(model, "model");
         Library lib = library(Objects.requireNonNull(library, "library"));
-        ParsedModel parsed = ModelFromText.parse(model, com.legend.parser.GrammarLevel.LEGEND_LITE);
+        ParsedModel parsed = ModelFromText.parse(model, com.legend.mode.Mode.LITE.grammar());
         try {
             java.util.Set<String> known = new java.util.HashSet<>(bootFqns());
             known.addAll(lib.names());
@@ -173,7 +173,7 @@ public final class Compiler {
 
     private static Library library(String text) {
         return LIBRARIES.getOrCompute(com.legend.cache.Hash.ofUtf8(text), () -> {
-            ParsedModel parsed = ModelFromText.parse(text, com.legend.parser.GrammarLevel.LEGEND_LITE);
+            ParsedModel parsed = ModelFromText.parse(text, com.legend.mode.Mode.LITE.grammar());
             // the library alone over the boot layer, checked strictly (a library that does not compile is refused
             // whole, as compileModel refuses a model): the layer's own elements, then the boot layer's
             Layer layer;
@@ -299,7 +299,7 @@ public final class Compiler {
     public static ParsedModule parseSources(List<ModelSource> sources,
             java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink) {
         return parseSources(sources, parseWallSink,
-                com.legend.parser.GrammarLevel.LEGEND_LITE);
+                com.legend.mode.Mode.LITE.grammar());
     }
 
     /** As above, DIALECT-EXPLICIT: the caller declares its sources'
@@ -972,7 +972,7 @@ public final class Compiler {
                 // the product's text facets and raises, chosen explicitly (the audit's K6, 2026-11-17)
                 .withStyled(com.legend.lowering.Styled.PRODUCT)
                 // a Float literal as the runtime's database computes it in the product (register S20, Phase 5b)
-                .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
+                .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.mode.Mode.LITE.computation()
                         .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());
         if (!temporalRoot) {
             // the style's forms decide its shape (J19, S367): the product's keeps the EXISTS

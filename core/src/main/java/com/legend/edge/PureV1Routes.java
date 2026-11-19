@@ -272,12 +272,12 @@ public final class PureV1Routes {
                 // a value the program wrote and folds (a String or Boolean literal, a model's DDL text): upstream's own
                 // constant node (M5, the user's ruling); a diagnostic's (print) stays refused below, as upstream refuses
                 // it (S128); a value the database computes (|1+1) is a statement, below
-                if (query.executionPlan(runtime, java.util.Set.of(), PureText.PURE_V1).root() instanceof com.legend.executionplan.ExecutionPlan.Constant constant
+                if (query.executionPlan(runtime, java.util.Set.of(), Modes.ENGINE.computation()).root() instanceof com.legend.executionplan.ExecutionPlan.Constant constant
                         && !answersADiagnostic(query)) {
                     return Json.toCompact(constantPlan(constant));
                 }
                 com.legend.Compiler.Target target = query.target();
-                QueryPlan plan = query.plan(runtime, PureText.PURE_V1);
+                QueryPlan plan = query.plan(runtime, Modes.ENGINE.computation());
                 // upstream's plan and nothing beside it (M5, the user's ruling of 2026-11-11: "yes, take out of
                 // compatibility plan"): legend-engine's SingleExecutionPlan reader fails on an unknown field, and
                 // lite's own plan -- what runs a data: payload, a file: path, a pivot's keys -- reaches a lite host by

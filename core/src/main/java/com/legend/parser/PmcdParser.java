@@ -41,10 +41,11 @@ public final class PmcdParser {
     private PmcdParser() {
     }
 
-    /** THE level this whole class exists for — PmcdParser is the
-     *  drop-in surface — named ONCE, used by {@link #at} and the
-     *  sub-parser entries. */
-    private static final GrammarLevel LEVEL = GrammarLevel.LEGEND_ENGINE;
+    /** The level of this class's level-less entries, named ONCE: legend-lite's one grammar (the user's ruling of
+     *  2026-11-18 ~20:10, 20:10-R7: "the parser's level-less public entries default to LITE"; S1m of the presentation
+     *  program). A door of another mode passes its mode's grammar to the level-taking entries -- legend-engine's
+     *  ({@code edge.Modes.ENGINE}) where the edge parses its protocol; until S1m this was legend-engine's level. */
+    private static final GrammarLevel LEVEL = GrammarLevel.LEGEND_LITE;
 
     /** A parser at {@code site}, at {@link #LEVEL}. */
     private static ElementParser at(TokenStream ts, int site, GrammarLevel dialect) {
@@ -147,9 +148,9 @@ public final class PmcdParser {
         return parseDocument(source, sourceInformation, LEVEL);
     }
 
-    /** {@link #parseDocument(String, boolean)} at {@code dialect}: the product's door parses at legend-lite's one
-     *  grammar (J21 of the edge audit, 2026-11-17, the user's "yes to the rule"); this class's level-less entries are
-     *  legend-engine's, which the edge's door alone reaches ({@code ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone}). */
+    /** {@link #parseDocument(String, boolean)} at {@code dialect}: the door's mode's grammar (J21 of the edge audit,
+     *  2026-11-17, the user's "yes to the rule": the product has one grammar; legend-engine's is the edge's to ask for,
+     *  {@code ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone}). */
     public static String parseDocument(String source, boolean sourceInformation, GrammarLevel dialect) {
         String json = ProtocolEmitter.emit(parse(source, dialect).model());
         return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);
@@ -200,7 +201,7 @@ public final class PmcdParser {
     }
 
     /** The ordered section list with parsed elements — the assembly
-     *  {@link #parseDocument} serializes (the engine's dialect). */
+     *  {@link #parseDocument} serializes (at {@link #LEVEL}). */
     public static List<DocSection> parseSections(String source) {
         return parseSections(source, LEVEL, new ArrayList<>());
     }
