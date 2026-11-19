@@ -1300,6 +1300,11 @@ CI risk, for the reason above.
   - the batteries under `warn` give identical answers, with the agreement pins unchanged.
 - **The guard move:** `own_corpus.matched` 3312 → 3315, under ~20:10, for the tests' new one-line models. 3316 is
   expected on the merged tree with A2's +1, which answers the batch-combination note above.
+  - **Corrected 2026-11-19 ~21:15 (the compat owner's note, checked):** the merged tree is 3314, not 3316. A2's move is
+    3310 → 3309 (DOWN, census B2's correction `c2269b7b4`), not +1, so 3310 − 1 + 2 + 3 = 3314. Read on
+    `claude/compat-a4-host-only` at `5ab730cd`: `ratchets.tsv` line 44 carries the dated note, the value line reads
+    3314, and lines 42-43 are the detector's two moves. My 3316 used A2's uncorrected line. The value is checked again
+    in the combination review, against the gate on the batch head.
 - **Two gaps found, both with the product track:**
   - pure/v1 types through `Compiler.query`, which does not run `ValidateDesugar`, so a validate request is refused at
     typing there. That is loud, never a wrong answer;
