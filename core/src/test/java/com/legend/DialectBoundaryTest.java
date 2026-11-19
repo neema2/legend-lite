@@ -135,7 +135,9 @@ class DialectBoundaryTest {
             // 0 -> 13 (2026-11-12, phase D's D1.0): the edge's dialect registry, one arm per type as Databases has
             // 13 -> 20 (2026-11-13, phase D's O3): legend-engine's text printers, which EngineText chose per type until
             // they moved to the edge (engineText's and enginePlanText's arms)
-            "PureText.java", 20);
+            // 20 -> 13 (2026-11-19, A2 of the compatibility program, stage A ratified by the user 2026-11-19): those two
+            // switches left with the printers (legend-engine's SQL text deleted, CP-4); the registry's arms stay
+            "PureText.java", 13);
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */

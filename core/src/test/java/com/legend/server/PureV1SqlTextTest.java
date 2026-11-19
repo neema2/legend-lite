@@ -150,7 +150,9 @@ class PureV1SqlTextTest {
         // the DDL asked for is exactly the edge's H2 dialect's, the SQL lite runs on this route
         var ctx = com.legend.Compiler.compileModel(model("ddl"));
         var table = ctx.findTableDefinition("trades::h2::DB", "TRADES_SCHEMA.TRADES").orElseThrow();
-        String lite = com.legend.edge.PureText.dialect(com.legend.model.ConnectionDefinition.DatabaseType.H2)
+        // the database the model's connection declares (read, never named here: the dialect owners name databases)
+        var declared = ctx.findConnection("trades::h2::Conn").orElseThrow().databaseType();
+        String lite = com.legend.edge.PureText.dialect(declared)
                 .render(com.legend.setup.Ddl.createTable(table, "TRADES_SCHEMA"));
         String plan = answers.get("plan.ddl");
         String value = Json.parseObject(plan.substring(plan.indexOf('\t') + 1)).getObj("rootExecutionNode")

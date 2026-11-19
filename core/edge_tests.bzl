@@ -182,7 +182,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/sql/dialect/DialectVocabularyTest.java",
     "src/test/java/com/legend/sql/dialect/EngineSeedRowTest.java",
     "src/test/java/com/legend/sql/dialect/IdentifierEscapingTest.java",
-    "src/test/java/com/legend/sql/dialect/LegacyTextTest.java",
+    # LegacyTextTest.java (legend-engine's legacy text of windows and aggregates) went 2026-11-19 with the printers (A2)
     "src/test/java/com/legend/sql/dialect/PreQuotedNamesTest.java",
     "src/test/java/com/legend/sql/dialect/RaiseTextTest.java",
     "src/test/java/com/legend/sql/dialect/SchemaDdlTextTest.java",

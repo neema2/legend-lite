@@ -129,7 +129,8 @@ class ProductStatementsTest {
         try (Connection conn = TestBackends.platform().open()) {
             assertEquals(String.valueOf(com.legend.testing.EdgeProgram.last(model, query, StorelessRuntime.RUNTIME, conn, com.legend.testing.EdgeProgram.upstream()).one()), c.cells().get(0).get(0));
         }
-        assertTrue(c.cells().get(0).get(0).startsWith("select "), c.cells().toString());
+        // lite's own text since A2 (2026-11-19, CP-4)
+        assertTrue(c.cells().get(0).get(0).startsWith("SELECT "), c.cells().toString());
     }
 
     /** The test-data seed's one entry (the user's ruling of 2026-11-13, option (b): it replaces TypedQuery.lower for the

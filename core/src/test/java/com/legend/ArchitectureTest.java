@@ -1332,7 +1332,8 @@ final class ArchitectureTest {
             "com.legend.edge.EdgePureOnlyTexts",
             // EdgeLoweringForms builds the edge's Styled from the plan style's own date-time texts (2026-11-18, J40, the
             // orchestrator's ruling (7), E-SQL's c0093e9749: one forms source; LoweringShape's entries went with it)
-            "lowering.Styled#dateTimes()", "com.legend.edge.EdgeLoweringForms com.legend.edge.EdgePureOnlyTexts",
+            // EdgeLoweringForms left the callers 2026-11-19 (A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
+            "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
             // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
             // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
             // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
@@ -1391,11 +1392,8 @@ final class ArchitectureTest {
             // EnginePlans asks the Lowerer's own in place of LoweringShape#withExistsJoinable, gone (2026-11-18, J40, the
             // orchestrator's ruling (7), E-SQL's c0093e9749)
             "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler com.legend.edge.EnginePlans",
-            // legend-engine's statement shape as the edge's Styled (2026-11-18, J40, the orchestrator's ruling (7): one
-            // forms source; until then Lowerer#withShape and LoweringShape's two entries): the plan style's Styled with
-            // the edge's forms in place of its own
-            "lowering.Styled#<init>(java.util.function.Function, com.legend.lowering.LoweringForms, "
-                    + "com.legend.lowering.DateTimeTexts, com.legend.lowering.ListTexts)", "com.legend.edge.EdgeLoweringForms",
+            // (lowering.Styled#<init>, legend-engine's statement shape as the edge's Styled since 2026-11-18, J40, left
+            // 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
             // the product's building blocks the edge's forms compose with (2026-11-18, the lens audit's item 1 and the
             // orchestrator's ruling on L6: a two-form kind holds types only, the product hands its statement and sites,
             // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the subselect
@@ -1405,13 +1403,9 @@ final class ArchitectureTest {
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
             "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
             "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean)", "com.legend.edge.EdgeLoweringForms",
-            // L10 (2026-11-18, the orchestrator's GO on the shape): the engine shape's pruning keeps its union frame -- the
-            // lowering's building block, called from the edge
-            "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean, java.lang.String)",
-            "com.legend.edge.EdgeLoweringForms",
-            "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
-            "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
-            "lowering.Styled#pureOnly()", "com.legend.edge.EdgeLoweringForms",
+            // (SubselectPrune#prune(SqlQuery, boolean, String), the engine shape's union-frame pruning since L10,
+            // 2026-11-18, and Styled#forms(), #lists() and #pureOnly(), the shape's reads of the plan style's Styled, left
+            // 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
             // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
             // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
             // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
