@@ -2251,3 +2251,7 @@ who confirms or changes phases 1-3.
   `JavaEvalLedgerTest`, `BodyRouterParityTest`); no A2 pin moves under A4 (read diff by diff: the dialect-boundary pins
   stay 12 constructions and 13 arms; the ledgers re-pin different rows). The merged tree is built once by the judges'
   session at the batch. A2's `//gates:local` re-running after its last fixes.
+- **~18:27 UTC, the reviewer: #127 re-checked at `6f21bed29`, APPROVED** (record at `13daaad8`): the must-fix (one
+  three-way selector, combinations refused and planted) and the five should-fixes met; the merge of #124's branch is
+  clean (153 files = #127's 49 plus the combined 105 plus 2 new tests; every combined file outside #127's byte-identical
+  to `f832a6671`'s). Only CI on `6f21bed29` remains.
