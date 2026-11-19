@@ -178,7 +178,7 @@ junit_test(
 
 # H5 SPIKE (scratch, never merges): the ENGINE translator's scope for both corpus lanes (off, identity, everywhere,
 # queries); com.legend.compatspike.EngineTranslator
-H5_TRANSLATOR = "-Dcompat.translator=queries"
+H5_TRANSLATOR = "-Dcompat.translator=typed"
 
 # H5 SPIKE: measurement (c), source positions after the rewrite (prints its findings)
 junit_test(

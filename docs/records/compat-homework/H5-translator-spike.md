@@ -123,7 +123,22 @@ model), against V3's use-site rename:
   `TypedQuery.body()`. So it looks reachable without a new hook, at the cost of typing every body that holds a candidate
   call twice (once with upstream's names, once rewritten). Two things to check before 3.2 relies on it: whether
   `ArchitectureTest`'s listed-entries rule admits an edge caller of `SpecCompiler`, and the eager typing's time on the
-  corpus world (`EagerCorpusCompileProbe` measures it). Not built (time box).
+  corpus world (`EagerCorpusCompileProbe` measures it).
+- **Built and probed (`EngineTranslator.stringCallPositions`, `translateAt`):** build the model once with upstream's
+  names, type every function whose body names `substring` or `indexOf` (`SpecCompiler.compile`), collect the
+  positions of the `TypedNativeCall`s whose callee is `meta::pure::functions::string::substring` or `::indexOf`, and
+  rename exactly the calls at those positions. In the probe (`h5/probe-c.out`, lines `F5`) it renamed `s::firstE`'s
+  String `indexOf` (the answer is legend-engine's, `[[0], [3]]`), kept `s::byPos`'s list `indexOf`, and left the
+  untypeable `s::bad` unrenamed: 4 bodies typed in 4 ms. **No new hook: public classes only.**
+- **The corpus through it (V6: the typed retarget, at every definition):** H2 2,285 pass / 280 fail, identical to V3;
+  DuckDB 2,448 / 112, V3 plus the vacuous pass back. **All 7 of V4's typing breaks are gone**; what remains of V4's
+  damage is meaning alone (host-side code renamed). It renamed 48 calls (16 `indexOf`, 32 `substring`) and kept 174
+  list `indexOf` and 55 `substring` that did not type as the String overload. The cost: 7.1 s (a first
+  `buildModule` with upstream's names, then 65 bodies typed in 2.6-2.8 s); 83 candidate functions do not type in lite
+  (mostly legend-engine's own implementation files the corpus loads) and keep their names.
+- **So the translator 3.2 needs is BOTH:** typed (rename only what resolved to the String overloads: V6) and use-site
+  (only the code sent to the store: V3). Together they are `typedqueries` (in the spike, not run on the corpus: on this
+  corpus it equals V3, since no list `indexOf` sits in store-bound code).
 
 ## 1. The spike's shape
 
@@ -166,6 +181,7 @@ new hook" is checked by javac.
 | V2 | Pure + dyna split | off |
 | V4 | Pure + dyna split | `everywhere` (F5) |
 | V5 | Pure + dyna split | `identity` (the pass-through check, (d)) |
+| V6 | Pure + dyna split | `typed`: every definition, typed retarget (F5) |
 
 ## 2. The measurements
 

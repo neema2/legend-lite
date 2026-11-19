@@ -65,7 +65,7 @@ public final class EngineTranslator {
     private static final String FLAG = "CORRECT_SQL_SUBSTRING_INDEXING";
     public static final String LIBRARY_SOURCE_PREFIX = "compat/";
 
-    public enum Scope { OFF, IDENTITY, EVERYWHERE, QUERIES }
+    public enum Scope { OFF, IDENTITY, EVERYWHERE, QUERIES, TYPED, TYPEDQUERIES }
 
     public static Scope scope() {
         return Scope.valueOf(System.getProperty("compat.translator", "off").trim().toUpperCase(Locale.ROOT));
@@ -137,6 +137,91 @@ public final class EngineTranslator {
         report.nanos += System.nanoTime() - t0;
         return new Compiler.ParsedModule(model, parsed.duplicateElements(), parsed.sourceTexts());
     }
+
+    /** TYPED RETARGETING (F5): the source positions of the calls in {@code functions}' bodies that the typer resolved
+     *  to the String overloads of {@code substring} / {@code indexOf} -- typed with upstream's own names, before any
+     *  rename, through public classes only ({@code ModelContext.findFunction}, {@code SpecCompiler.compile}). A
+     *  function whose body does not type is skipped and reported. */
+    public static Set<com.legend.protocol.SourceInfo> stringCallPositions(com.legend.compiler.element.ModelContext ctx,
+            Iterable<String> functions, Report report) {
+        long t0 = System.nanoTime();
+        Set<com.legend.protocol.SourceInfo> out = new LinkedHashSet<>();
+        com.legend.compiler.spec.SpecCompiler specs = new com.legend.compiler.spec.SpecCompiler(ctx);
+        int typed = 0;
+        for (String fqn : functions) {
+            for (com.legend.compiler.element.TypedFunction tf : ctx.findFunction(fqn)) {
+                try {
+                    for (com.legend.compiler.spec.typed.TypedSpec t : specs.compile(tf).body()) {
+                        collectStringCalls(t, out);
+                    }
+                    typed++;
+                } catch (RuntimeException e) {
+                    report.notes.add("untyped " + fqn + ": " + e.getClass().getSimpleName());
+                }
+            }
+        }
+        report.notes.add("typed " + typed + " bodies in ms=" + (System.nanoTime() - t0) / 1_000_000 + ", " + out.size()
+                + " String-overload calls");
+        return out;
+    }
+
+    /** The same over a typed query's body ({@code TypedQuery.body()}). */
+    public static void collectStringCalls(com.legend.compiler.spec.typed.TypedSpec t,
+            Set<com.legend.protocol.SourceInfo> out) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedNativeCall nc && nc.pos() != null
+                && (nc.callee().qualifiedName().equals("meta::pure::functions::string::substring")
+                    || nc.callee().qualifiedName().equals("meta::pure::functions::string::indexOf"))) {
+            out.add(nc.pos());
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : t.children()) {
+            collectStringCalls(c, out);
+        }
+    }
+
+    /** The FQNs of the model's functions whose bodies hold a call named {@code substring} or {@code indexOf}. */
+    public static Set<String> candidateFunctions(Compiler.ParsedModule parsed) {
+        Set<String> out = new LinkedHashSet<>();
+        for (PackageableElement el : parsed.model().elements()) {
+            if (el instanceof com.legend.model.FunctionDefinition f && !f.qualifiedName().startsWith(COMPAT)
+                    && namesACandidate(f.body())) {
+                out.add(f.qualifiedName());
+            }
+        }
+        return out;
+    }
+
+    private static boolean namesACandidate(Object v) {
+        if (v instanceof AppliedFunction af) {
+            String n = simpleName(af.function());
+            if (n.equals("substring") || n.equals("indexOf")) {
+                return true;
+            }
+        }
+        for (Object c : children(v)) {
+            if (namesACandidate(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The model with ONLY the calls at {@code onlyAt} renamed (the typed retarget): every other call keeps its name. */
+    public static Compiler.ParsedModule translateAt(Compiler.ParsedModule parsed, Set<com.legend.protocol.SourceInfo> onlyAt,
+            Report report) {
+        return translateAt(parsed, Scope.EVERYWHERE, onlyAt, report);
+    }
+
+    public static Compiler.ParsedModule translateAt(Compiler.ParsedModule parsed, Scope scope,
+            Set<com.legend.protocol.SourceInfo> onlyAt, Report report) {
+        ONLY_AT.set(onlyAt);
+        try {
+            return translate(parsed, scope, report);
+        } finally {
+            ONLY_AT.remove();
+        }
+    }
+
+    private static final ThreadLocal<Set<com.legend.protocol.SourceInfo>> ONLY_AT = new ThreadLocal<>();
 
     /** A request's query (pure/v1's lambda, a probe's text): all of it is code legend-engine sends to the store. */
     public static ValueSpecification translateQuery(ValueSpecification query, Report report) {
@@ -358,6 +443,11 @@ public final class EngineTranslator {
             }
             if (scope == Scope.IDENTITY || !inQuery) {
                 report.count(report.keptPure, key);
+                return af;
+            }
+            Set<com.legend.protocol.SourceInfo> only = ONLY_AT.get();
+            if (only != null && (af.pos() == null || !only.contains(af.pos()))) {
+                report.count(report.keptPure, key + " (not the String overload)");
                 return af;
             }
             report.count(report.rewritten, key);

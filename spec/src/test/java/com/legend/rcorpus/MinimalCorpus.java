@@ -306,7 +306,23 @@ public final class MinimalCorpus {
         parsed = withShapes(parsed);
         if (translatorScope != com.legend.compatspike.EngineTranslator.Scope.OFF) {
             com.legend.compatspike.EngineTranslator.Report report = new com.legend.compatspike.EngineTranslator.Report();
-            parsed = com.legend.compatspike.EngineTranslator.translate(parsed, translatorScope, report);
+            if (translatorScope == com.legend.compatspike.EngineTranslator.Scope.TYPED
+                    || translatorScope == com.legend.compatspike.EngineTranslator.Scope.TYPEDQUERIES) {
+                // F5's typed retarget: build once with upstream's names, type the candidate bodies, then rename only
+                // the calls that resolved to the String overloads
+                long typedStart = System.nanoTime();
+                ModelContext first = Compiler.buildModule(parsed.model()).context();
+                java.util.Set<com.legend.protocol.SourceInfo> at = com.legend.compatspike.EngineTranslator
+                        .stringCallPositions(first, com.legend.compatspike.EngineTranslator.candidateFunctions(parsed),
+                                report);
+                report.notes.add("first build + typing ms=" + (System.nanoTime() - typedStart) / 1_000_000);
+                parsed = com.legend.compatspike.EngineTranslator.translateAt(parsed,
+                        translatorScope == com.legend.compatspike.EngineTranslator.Scope.TYPED
+                                ? com.legend.compatspike.EngineTranslator.Scope.EVERYWHERE
+                                : com.legend.compatspike.EngineTranslator.Scope.QUERIES, at, report);
+            } else {
+                parsed = com.legend.compatspike.EngineTranslator.translate(parsed, translatorScope, report);
+            }
             translatorReport = translatorScope + " " + report.summary();
             System.err.println("[H5] " + translatorReport);
             for (String u : report.unresolvedRoutedArguments) {

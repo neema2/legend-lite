@@ -48,6 +48,15 @@ class TranslatorProbeTest {
             "{",                                                                                     // 23
             "    $x->substring(1, $x->parseInteger())",                                              // 24
             "}",                                                                                     // 25
+            "Class s::Col { name: String[1]; }",                                                     // 26
+            "function s::byPos(cols: s::Col[*], names: String[*]): s::Col[*]",                       // 27
+            "{",                                                                                     // 28
+            "    $cols->sortBy(c|$names->indexOf($c.name))",                                         // 29
+            "}",                                                                                     // 30
+            "function s::firstE(x: String[1]): Integer[1]",                                          // 31
+            "{",                                                                                     // 32
+            "    $x->indexOf('e')",                                                                  // 33
+            "}",                                                                                     // 34
             "");
 
     static final String[][] QUERIES = {
@@ -149,6 +158,41 @@ class TranslatorProbeTest {
             var b = Compiler.parseQuery("|$x->meta::legend::compat::engine::substring(1, 3)");
             lines.add("debug\trenamed\t" + EngineTranslator.translateQuery(a, new EngineTranslator.Report()));
             lines.add("debug\twritten\t" + b);
+        }
+        // F5: the definition-site rename of a LIST indexOf, untyped vs typed retargeting
+        for (String mode : List.of("untyped", "typed")) {
+            String out;
+            try {
+                ConnectionDefinition h2c = new ConnectionDefinition("s::Conn", "s::DB",
+                        com.legend.model.ConnectionDefinition.DatabaseType.H2,
+                        new com.legend.model.ConnectionSpecification.InMemory(),
+                        new com.legend.model.AuthenticationSpec.NoAuth());
+                List<Compiler.ModelSource> srcs = List.of(new Compiler.ModelSource("probe.pure", MODEL),
+                        EngineTranslator.library(h2c));
+                Compiler.ParsedModule parsed = Compiler.parseSources(srcs);
+                EngineTranslator.Report rep = new EngineTranslator.Report();
+                if (mode.equals("untyped")) {
+                    parsed = EngineTranslator.translate(parsed, EngineTranslator.Scope.EVERYWHERE, rep);
+                } else {
+                    // type with upstream's names first, then rename only the String-overload calls
+                    var first = Compiler.buildModule(parsed.model()).context();
+                    var at = EngineTranslator.stringCallPositions(first,
+                            EngineTranslator.candidateFunctions(parsed), rep);
+                    parsed = EngineTranslator.translateAt(parsed, at, rep);
+                }
+                var ctx = Compiler.buildModule(parsed.model()).context();
+                var specs = new com.legend.compiler.spec.SpecCompiler(ctx);
+                for (var tf : ctx.findFunction("s::byPos")) {
+                    specs.compile(tf);
+                }
+                TypedQuery typed = Compiler.query(ctx, "|#>{s::DB.T}#->extend(~r: r|s::firstE($r.NAME))->select(~r)->sort(~r->ascending())->from(s::RT)");
+                Collector rows = new Collector();
+                Execution.runOnProjectDatabases(typed, null, new Output.Rows(rows));
+                out = "byPos types; firstE rows " + rows.collected().rows() + " :: " + rep.summary();
+            } catch (Throwable e) {
+                out = "ERR " + e.getClass().getSimpleName() + " :: " + oneLine(e.getMessage());
+            }
+            lines.add("F5\t" + mode + "\t" + out);
         }
         System.out.println("=== H5 probe (c) ===");
         lines.forEach(System.out::println);
