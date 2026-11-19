@@ -2812,3 +2812,9 @@ who confirms or changes phases 1-3.
   `RuntimeException("Error executing <signature>. " + e.getMessage())` (`FunctionExecutionCompiled.java:247-264`).
   Accepted: lite pins the JDK's part (as for every raise kind, e.g. DIVIDE_BY_ZERO's info alone); the envelopes are the
   presenter's (B1's error records). The row text goes to B2.
+- **~21:30 UTC, the user: "Yes put the questions together but put them in context and with pros/cons and implications
+  and alternatives"** (to this session's offer of stage B's open questions while A finishes). Written:
+  `compat-stage-b-questions-2026-11-19.md`, 13 questions (how B runs and lands; B1's typed raise slots; B3's catchable
+  size error; B2's window-in-list prerequisite, default violation message, defects cell and done-when 3; B5's legacy
+  null-equality flag and the first switch's removal date; the cross-kind meaning; the engine runner's storeless gap;
+  `engine` on more databases), each with context, choices, pros and cons, and a recommendation. Nothing ruled yet.
