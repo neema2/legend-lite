@@ -436,24 +436,25 @@ class AssertBarTest {
     /** Two asserts whose sides the database cannot hold (PCT's testAdjustBy*BigNumber, the compatibility program's A4
      *  gate, 2026-11-19): one outcome under every judge, and the same on every run. Every value is the database's (the
      *  user, 2026-11-19: "everything must be pushed to database"): the expected literal {@code %33803336-12-17} is past
-     *  DuckDB's DATE (to year 5881580), so the database refuses it under both judges, where legend-pure evaluates the
+     *  DuckDB's DATE (to year 5881580), so the database refuses it under every judge, where legend-pure evaluates the
      *  literal in its own process (a register row, for the user's word). Until then the database judge's fused
-     *  statement raised either assert's error, or either side's, by how DuckDB scheduled its threads (G10), and its
-     *  rejection failed the run with no assert reported, where the host reported its first assert's failure: under
+     *  statement raised either assert's error, or either side's, by how DuckDB scheduled its threads (G10), so under
      *  lite's rules the judges disagreed. Now a test plan's DuckDB session runs single-threaded (its target's test
-     *  session statement, {@code SqlDialect.testSessionSetup}), each verdict row reads its expected side before its
-     *  actual (the side DuckDB builds first is a cross join's right), as the host's side batch reads them, and a
-     *  rejected fused statement is its first assert's failure, the run ending with the database's own text. On the
-     *  platform's database, the PCT lanes' (H2 writes its whole statement into its error's text, so two judges' texts of
-     *  a rejected statement never match there: a separate finding, 2026-11-19). */
+     *  session statement, {@code SqlDialect.testSessionSetup}) and each verdict row reads its expected side before its
+     *  actual (the side DuckDB builds first is a cross join's right), as the host's side batch reads them: each judge
+     *  ends with the database's refusal of the first assert's expected literal, every run (the database judge's run
+     *  names the verdicts its rejected statement held after the database's text, round 25). On the platform's
+     *  database, the PCT lanes' (H2 writes its whole statement into its error's text, so two judges' texts of a
+     *  rejected statement never match there: a separate finding, 2026-11-19). */
     @Test
     void sidesTheDatabaseCannotHoldAreOneOutcomeUnderEveryJudge() throws Exception {
         String body = "{|assertEquals(%33803336-12-17, %2016-02-29->adjust(12345678912, DurationUnit.DAYS));"
                 + " assertEquals(%-33799305-05-13, %2016-02-29->adjust(-12345678912, DurationUnit.DAYS));}";
         var backend = TestBackends.platform();
-        java.util.Set<String> outcomes = new java.util.LinkedHashSet<>();
-        for (int run = 0; run < 10; run++) {
-            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+        List<String> wrong = new ArrayList<>();
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+            java.util.Set<String> outcomes = new java.util.LinkedHashSet<>();
+            for (int run = 0; run < 10; run++) {
                 String got;
                 try (Connection c = backend.open()) {
                     Program.run(StorelessRuntime.with(MODEL, backend.type()), body, StorelessRuntime.RUNTIME, c,
@@ -464,11 +465,13 @@ class AssertBarTest {
                 }
                 outcomes.add(got);
             }
+            // one outcome every run, the database's own refusal of the first assert's expected literal
+            String one = outcomes.iterator().next();
+            if (outcomes.size() != 1 || !one.startsWith("DataError: ") || !one.contains("\"33803336-12-17\"")) {
+                wrong.add(mode + " -> " + outcomes.stream().map(AssertBarTest::oneLine).toList());
+            }
         }
-        // one outcome, every judge, every run: the database's own refusal of the expected literal
-        assertTrue(outcomes.size() == 1 && outcomes.iterator().next().startsWith("DataError: ")
-                        && outcomes.iterator().next().contains("33803336-12-17"),
-                "one outcome under every judge, on every run: " + outcomes.stream().map(AssertBarTest::oneLine).toList());
+        assertTrue(wrong.isEmpty(), "one outcome under every judge, on every run:\n  " + String.join("\n  ", wrong));
     }
 
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever

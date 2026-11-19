@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -264,23 +263,20 @@ final class TestRunTest {
     }
 
     @Test
-    @DisplayName("the database rejects the fused statement: the judges told, each verdict handed no row (its root loop"
-            + " raises the rejection at its first verdict, as the host's batch does), the program fails with the"
-            + " database's own error, no wrapper run in its place (P1.2: exec runs only the plan's statements)")
+    @DisplayName("the database rejects the fused statement: the judges told, the program fails by the verdicts' names,"
+            + " no wrapper run in its place (P1.2: exec runs only the plan's statements)")
     void aRejectedFusedStatementFailsTheProgram() {
         Recording sink = new Recording();
         com.legend.error.DataError e = assertThrows(com.legend.error.DataError.class,
                 () -> run(plan(TestPlan.Judge.DATABASE, group(fused("SELECT * FROM no_such_table_s1b"))), sessions(),
                         sink));
-        assertEquals(3, sink.events.size(), sink.events.toString());
+        assertEquals(1, sink.events.size(), sink.events.toString());
         assertTrue(sink.events.get(0).startsWith("fused rejected: "), sink.events.get(0));
-        assertEquals(List.of("verdict assertEquals@2", "verdict assertEquals@3"), sink.events.subList(1, 3));
-        // the database's own error, as the host judge's batch raises it (the compatibility program's A4 gate,
-        // 2026-11-19: until then the verdicts' names followed it, and the two judges' runs ended differently)
-        assertTrue(e.getMessage().contains("no_such_table_s1b"), e.getMessage());
-        assertFalse(e.getMessage().contains("rejected the verdict statement"), e.getMessage());
-        assertTrue(sink.verdictRows.stream().allMatch(java.util.Objects::isNull),
-                "no wrapper ran in the fused statement's place: " + sink.verdictRows);
+        // the database's own error first, the verdicts named after it (round 25, 2026-11-09)
+        assertTrue(e.getMessage().startsWith(e.getCause().getMessage()), e.getMessage());
+        assertTrue(e.getMessage().endsWith(" (the database rejected the verdict statement of [assertEquals@2,"
+                + " assertEquals@3])"), e.getMessage());
+        assertTrue(sink.verdictRows.isEmpty(), "no wrapper ran in the fused statement's place");
     }
 
     @Test
