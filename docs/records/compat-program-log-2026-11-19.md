@@ -2271,3 +2271,8 @@ who confirms or changes phases 1-3.
   on the edge's routes. **Confirmed by this session:** text used further is the product's own (`Styled.PRODUCT`), per
   the ~18:12 ruling. **For the user:** a printed table's empty cell, legend-pure's `null` (the spike's layout) or
   nothing (S316(a)'s cell text).
+- **~18:34 UTC, A5: the threads register row and its reach** (A5 had pushed `6f21bed29` at 18:24, so the row rides in
+  the batch's merge). Drafted as "S371", which is taken: **renumbered S381 (provisional)** and kept in
+  `compat-batch-register-rows-2026-11-19.md`. Reach: zero test plans run on a DuckDB the test declares as a file (seven
+  core files declare one; one only parses it, six run product plans); none has two failing parts in different
+  pipelines. #127's CI (run 44587411059): 6 of 55 checks done, all green.
