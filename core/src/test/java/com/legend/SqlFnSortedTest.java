@@ -370,9 +370,9 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.StringCountsAsInt",
                     "com.legend.sql.dialect.SubstringClamp", "com.legend.testdatagen.TestDataPlanner")),
             // (DIVIDE, FLOOR, GREATEST, LN, POW and TIMES: both sides' no more -- compiled legend-pure's 2-ULP Float
-            // tolerance, the edge's CompiledPureVerdictNumbers, left the database judge with its kind, VerdictNumbers, in
-            // A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge is the only judge
-            // in compatibility, so the edge writes none of them; the product's writers keep their own)
+            // tolerance, the edge's CompiledPureVerdictNumbers, left the database judge with its kind, VerdictNumbers,
+            // in A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge is the only
+            // judge in compatibility, so the edge writes none of them; the product's writers keep their own)
             // (J20, as LOWER's note)
             Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")));
 

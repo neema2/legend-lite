@@ -179,7 +179,8 @@ final class SqlTextVerdicts {
     }
 
     // (BatchTexts, the DATABASE judge's collector while an engine-text assert was planned into its verdict batch --
-    // 2026-11-04, the core program -- deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+    // 2026-11-04, the core program -- deleted with the database judge's appeal path, A4 of the compatibility program,
+    // stage A ratified by the user 2026-11-19)
 
     /** Whether {@code fqn} is one of the two ROOT arms' ({@code assertSameSQL}, {@code assertEqualsH2Compatible}; the
      *  generator's {@code assertSqlEquals} root went with the TDG appeal, B2d.2, 2026-11-11: its fetch texts are planning
@@ -297,9 +298,11 @@ final class SqlTextVerdicts {
      *  text byte-equal to the golden IS the assert's verdict, the engine's own), {@code appeal} what decides a failed
      *  text (the rows leg -- block-compiler rung 2a; a decline's own failure), {@code decline} the reason decided
      *  before the texts were compared (a foreign dialect, unbindable plan parameters), reported first. Two roads (a
-     *  third, the database judge's verdict batch, deleted with A4 of the compatibility program, stage A ratified by the user 2026-11-19):
+     *  third, the database judge's verdict batch, deleted with A4 of the compatibility program, stage A ratified by the
+     *  user 2026-11-19):
      *  under a COLLECTOR (an assert planned for the program road, {@link #plan}) the comparison is handed over and
-     *  judged at its verdict step ({@link #judge}, from the plan's data); else decided now -- a failed text under the compatibility rules refused by name (no body's
+     *  judged at its verdict step ({@link #judge}, from the plan's data); else decided now -- a failed text under the
+     *  compatibility rules refused by name (no body's
      *  run hears an appeal at planning). An appeal heard is decided after the body's run (Appeals, step 8b). */
     private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
             boolean textEqual, @com.legend.base.Nullable String decline, Appeal appeal) {
@@ -313,8 +316,8 @@ final class SqlTextVerdicts {
         }
         // (under the DATABASE judge's verdict batch the text equality was a row of the body's fused statement, its
         // appeal numbered for the plan and heard at the batch's root loop, its decline the row's data: deleted with the
-        // database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19 -- the host
-        // judge is the only judge in compatibility, so no batch plans an engine-text row)
+        // database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19 -- the
+        // host judge is the only judge in compatibility, so no batch plans an engine-text row)
         boolean appeals = appeals(env);
         if (decline != null) {
             // no collector and no verdict row: nothing of a plan carries the decline to its turn -- refused by name,

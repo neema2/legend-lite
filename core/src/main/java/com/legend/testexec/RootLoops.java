@@ -43,8 +43,8 @@ public final class RootLoops {
     }
 
     // (RowAppeal, a verdict row's APPEAL -- block-compiler rung 2a, consulted when the row failed: deleted with the
-    // database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge is the only judge in
-    // compatibility, so no database row is appealed)
+    // database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host
+    // judge is the only judge in compatibility, so no database row is appealed)
 
 
     private RootLoops() {
@@ -161,7 +161,8 @@ public final class RootLoops {
                     switch (s) {
                         case RootLoop.Row p -> {
                             // (the decline the engine-text arm decided before its texts were compared, reported here at
-                            // the row's turn since hole 5 of 2026-11-08: deleted with the row's field, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+                            // the row's turn since hole 5 of 2026-11-08: deleted with the row's field, A4 of the
+                            // compatibility program, stage A ratified by the user 2026-11-19)
                             spoke = true;
                             row(p, judge);
                         }
@@ -215,7 +216,8 @@ public final class RootLoops {
         }
 
         /** {@code p} judged: its row (a member the dialect refused at planning raises its refusal, nothing sent).
-         *  (A row's ruled comparison decided at planning raised here where the generic row failed until A4 of the compatibility program, stage A ratified by the user 2026-11-19.) */
+         *  (A row's ruled comparison decided at planning raised here where the generic row failed until A4 of the
+         *  compatibility program, stage A ratified by the user 2026-11-19.) */
         private void row(RootLoop.Row p, Judge judge) {
             List<Object> row = p.verdict() == RootLoop.NO_VERDICT ? null : rows.get(p.verdict());
             if (row == null) {

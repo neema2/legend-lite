@@ -81,8 +81,9 @@ public final class AssertVerdicts {
             return DatabasePlan.UNPLANNED;
         }
         // (the style's text collector, BatchTexts, under which the edge's engine-text arm planned a side of the verdict
-        // row: deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19 --
-        // the host judge is the only judge in compatibility, so the database judge plans no engine text)
+        // row: deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the
+        // user 2026-11-19 -- the host judge is the only judge in compatibility, so the database judge plans no engine
+        // text)
         batch.open(listenerName(bare));
         TypedSide v;
         try {
@@ -147,7 +148,9 @@ public final class AssertVerdicts {
                 if (g == DatabaseGate.UNPLANNED || g == DatabaseGate.RAISES && first) {
                     return g;
                 }
-                // (an element the edge's arm judged was appealed as the quantified whole's until A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge hears no appeal now)
+                // (an element the edge's arm judged was appealed as the quantified whole's until A4 of the
+                // compatibility program, stage A ratified by the user 2026-11-19: the database judge hears no appeal
+                // now)
                 first = false;
             }
             return DatabaseGate.PLANS;
@@ -168,9 +171,9 @@ public final class AssertVerdicts {
             return DatabaseGate.RAISES;
         }
         if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EdgeJudged) {
-            // the edge's arm answered its own gate here (J41, 2026-11-18) until A4 of the compatibility program, stage A ratified by the user 2026-11-19: the
-            // host judge is the only judge in compatibility, and the product's style plans no edge-judged comparison,
-            // so one met here is a planning defect, refused by name
+            // the edge's arm answered its own gate here (J41, 2026-11-18) until A4 of the compatibility program, stage
+            // A ratified by the user 2026-11-19: the host judge is the only judge in compatibility, and the product's
+            // style plans no edge-judged comparison, so one met here is a planning defect, refused by name
             throw new IllegalStateException("an edge-judged comparison gated for the database judge: the host judge is"
                     + " the only judge in compatibility (rule 4 of the compatibility program's rules of record): "
                     + shapeOf(bare));
@@ -379,7 +382,8 @@ public final class AssertVerdicts {
         // family below classifies, then hands the sides to it
         VerdictArm arm = arm(env);
         // (the engine-text ROOT arms -- assertSameSQL's and the dual golden's, SQLTEXT charter §8.3b/d -- asked of the
-        // style's facet: deleted from the database judge with its appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19; the host judge plans them, SqlTextVerdicts.plan)
+        // style's facet: deleted from the database judge with its appeal path, A4 of the compatibility program, stage A
+        // ratified by the user 2026-11-19; the host judge plans them, SqlTextVerdicts.plan)
         if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
                 && bare instanceof TypedUserCall hroot) {
             // the arm is TOTAL: where no text arm applies, the function's own
@@ -1757,8 +1761,8 @@ public final class AssertVerdicts {
     /** GENERIC FIRST (2026-11-04, the core program: every assert on its own merit generically): a rendered text's
      *  equality is its two strings' ({@code textRow}, the database computing the render). The ruled line and row
      *  comparison where they differ (S131, S132) was the edge's style's here until A4 of the compatibility program
-     *  (stage A ratified by the user 2026-11-19): the database judge plans for the product alone (rule 4 of the rules of
-     *  record), and that comparison is the host judge's at the edge ({@code edge.UpstreamRenderedTexts}). */
+     *  (stage A ratified by the user 2026-11-19): the database judge plans for the product alone (rule 4 of the rules
+     *  of record), and that comparison is the host judge's at the edge ({@code edge.UpstreamRenderedTexts}). */
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
             BodyDriver.ExecEnv env) {
         // the two strings are the verdict (the user, 2026-11-05: after a verdict the harness may only explain)

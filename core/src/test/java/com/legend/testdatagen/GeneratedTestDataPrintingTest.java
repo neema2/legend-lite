@@ -84,7 +84,8 @@ class GeneratedTestDataPrintingTest {
                 + "1,2020-01-02T03:04:05.123000Z\n2,---null---\n-----\n"),
                 ExecuteOptions.NONE.withJudgeMode(judge)), what);
         // the compatibility rules: upstream's text, the fraction cut -- under the host judge alone (rule 4 of the
-        // compatibility program's rules of record; A4, stage A ratified by the user 2026-11-19: until A4 under every judge)
+        // compatibility program's rules of record; A4, stage A ratified by the user 2026-11-19: until A4 under every
+        // judge)
         if (judge != PlanningOptions.JudgeMode.HOST) {
             return;
         }

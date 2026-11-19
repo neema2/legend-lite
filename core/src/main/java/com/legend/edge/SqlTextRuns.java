@@ -104,7 +104,8 @@ final class SqlTextRuns {
     }
 
     // (rowAppealed, the database judge's failed row's appeal heard (step 8b), and actualText, its row's actual cell:
-    // deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+    // deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user
+    // 2026-11-19)
 
     /** The rows leg itself, from the plan's data: OUR rows as planned, the golden replayed via the referee, judged. */
     private static TypedSide rowsLegNow(Appeal a, String golden, String ours, boolean textEqual,

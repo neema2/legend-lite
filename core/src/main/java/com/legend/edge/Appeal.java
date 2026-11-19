@@ -29,10 +29,10 @@ import java.util.Objects;
  * @param contract a {@link Kind#CONTRACT} appeal's failure words, before the two texts
  * @param rows     a {@link Kind#ROWS} appeal's planned rows leg; null where the rows were not planned with the assert
  *
- * <p>(Two fields went with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19: {@code batched},
- * the database judge's verdict row's texts, and {@code joins}, the agreement judge's database half's second hearing of
- * an appeal its host half held (A1, 2026-11-08). The host judge is the only judge in compatibility, so only the host
- * hears an appeal.)
+ * <p>(Two fields went with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the
+ * user 2026-11-19: {@code batched}, the database judge's verdict row's texts, and {@code joins}, the agreement judge's
+ * database half's second hearing of an appeal its host half held (A1, 2026-11-08). The host judge is the only judge in
+ * compatibility, so only the host hears an appeal.)
  */
 public record Appeal(int number, String name, Kind kind, @Nullable String contract, @Nullable Rows rows)
         implements Extension {

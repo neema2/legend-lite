@@ -100,11 +100,11 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      *                the row's statement, planned with none
      * @param refusal the dialect's refusal of the row's statement, raised at its place (nothing sent); null where spelled
      *
-     * <p>(Three fields went with A4 of the compatibility program, stage A ratified by the user 2026-11-19, the test plan's version 33: {@code orElse},
-     * the row's ruled comparison -- the rendered-text rule's rows fallback, compatibility mode's S131/S132 --;
-     * {@code appeal}, the appeal a failed row was heard by; and {@code decline}, the engine-text arm's reason decided
-     * before its texts were compared. The host judge is the only judge in compatibility, so no database row carries
-     * any of them.)
+     * <p>(Three fields went with A4 of the compatibility program, stage A ratified by the user 2026-11-19, the test
+     * plan's version 33: {@code orElse}, the row's ruled comparison -- the rendered-text rule's rows fallback,
+     * compatibility mode's S131/S132 --; {@code appeal}, the appeal a failed row was heard by; and {@code decline}, the
+     * engine-text arm's reason decided before its texts were compared. The host judge is the only judge in
+     * compatibility, so no database row carries any of them.)
      */
     public record Row(String name, int verdict, @Nullable Failure refusal) implements Step {
         public Row {

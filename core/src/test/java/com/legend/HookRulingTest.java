@@ -81,7 +81,8 @@ class HookRulingTest {
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class))),
             // census C4, 2026-11-17: the engine-text assert's arm, and the hook only its answers hand out (the
             // collector): each reached through the facet the product refuses. (The database judge's batch, BatchTexts,
-            // the second such hook: deleted, NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+            // the second such hook: deleted, NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A
+            // ratified by the user 2026-11-19)
             Map.entry(com.legend.testplan.EngineTestText.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
             Map.entry(com.legend.testplan.TextCollector.class, List.of(
@@ -361,9 +362,10 @@ class HookRulingTest {
         // RelationCounting (census C1, 2026-11-17, register S137: the product refuses a relation counted as one, the
         // edge counts it as upstream does)
         assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class,
-                // A4 of the compatibility program (stage A ratified by the user 2026-11-19; rule 4 of the rules of record):
-                // JsonGrammar, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts and GoldenNullWord left
-                // with the database judge's compatibility arms (each was asked by the database judge alone)
+                // A4 of the compatibility program (stage A ratified by the user 2026-11-19; rule 4 of the rules of
+                // record): JsonGrammar, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts and
+                // GoldenNullWord left with the database judge's compatibility arms (each was asked by the database
+                // judge alone)
                 com.legend.compiler.spec.RelationCounting.class,
                 // TestDataPlanner.Printing (census C1, 2026-11-17, L9: a test-data timestamp's text)
                 com.legend.testdatagen.TestDataPlanner.Printing.class,
@@ -470,8 +472,9 @@ class HookRulingTest {
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
         // (EdgeRun.wordsAlike, whose two answers -- lite's judges alike, the edge's words the host's alone -- were
-        // asserted here: deleted, NARROWS A HOOK THE USER RULED, A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge
-        // is the only judge in compatibility, so no compatibility body runs both judges isolated)
+        // asserted here: deleted, NARROWS A HOOK THE USER RULED, A4 of the compatibility program, stage A ratified by
+        // the user 2026-11-19: the host judge is the only judge in compatibility, so no compatibility body runs both
+        // judges isolated)
         assertTrue(productHearing().renderedTexts() == com.legend.testexec.LiteRenderedTexts.STRINGS,
                 "lite's runs hold two differing strings as differing");
         assertTrue(productHearing().hostForms() == com.legend.testexec.LiteHostForms.STRICT,
@@ -576,8 +579,9 @@ class HookRulingTest {
                 "EngineTestText <- com.legend.edge.EdgeEngineTestText",
                 "TextCollector <- com.legend.edge.SqlTextVerdicts$Deferring",
                 "TextCollector <- com.legend.edge.SqlTextVerdicts$Collecting",
-                "TextCollector <- com.legend.edge.SqlTextVerdicts$BatchTexts",
-                "BatchTexts <- com.legend.edge.SqlTextVerdicts$BatchTexts",
+                // (SqlTextVerdicts' database-judge collector, a TextCollector and a BatchTexts: deleted with the hook,
+                // NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A ratified by the user
+                // 2026-11-19)
                 // K2's server half, 2026-11-18: legend-engine's opt-in module of the shipped server
                 "MountProvider <- com.legend.edge.EngineMount")), implementers);
         assertFalse(implementers.isEmpty());

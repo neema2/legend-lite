@@ -57,8 +57,8 @@ public final class VerdictBatch {
     }
 
     // (Either, the lowering's one row over a generic verdict row and its ruled row -- 2026-11-06, VerdictSql.either --
-    // deleted with the ruled comparison, A4 of the compatibility program, stage A ratified by the user 2026-11-19: its one caller, the rendered-text rule's rows
-    // fallback, left the database judge with legend-pure's comparison rules)
+    // deleted with the ruled comparison, A4 of the compatibility program, stage A ratified by the user 2026-11-19: its
+    // one caller, the rendered-text rule's rows fallback, left the database judge with legend-pure's comparison rules)
 
     /** The lowering's self-contained form of a verdict row (M8b): the assert's polarity and its failure message
      *  composed in the statement, so the judge reads holds and message and the plan carries nothing about the
@@ -549,13 +549,6 @@ public final class VerdictBatch {
     /** A statement planned at planning: its plan, or the dialect's refusal of it. */
     private record Ahead(ExecutionPlan.@com.legend.base.Nullable Node plan,
             com.legend.sql.@com.legend.base.Nullable DialectCapability refused) {
-    }
-
-    /** An assert the database judge cannot judge, named {@code why} at planning: the assert's own failure, which the
-     *  root loop reports to the listener, and counts UNJUDGED, at its place (planning counts nothing: the slice 3
-     *  invariant audit, 2026-11-08). */
-    private static com.legend.error.AssertFailed unjudged(String name, String why) {
-        return com.legend.error.AssertFailed.unjudged(why, name + ": UNJUDGED in database mode -- " + why);
     }
 
     private Ahead planAhead(String name, SqlQuery query, ExecutionPlan.Target on) {

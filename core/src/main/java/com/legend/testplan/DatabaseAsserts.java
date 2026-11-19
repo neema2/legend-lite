@@ -561,7 +561,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                             "the gate: " + AssertVerdicts.shapeOf(bare));
                     return false;
                 }
-                // (an assert appealed at its step in a system-routed body was refused here until A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge hears no appeal now)
+                // (an assert appealed at its step in a system-routed body was refused here until A4 of the
+                // compatibility program, stage A ratified by the user 2026-11-19: the database judge hears no appeal
+                // now)
                 // an arm that raises at planning with no row before it in its segment: the segment's batch holds the
                 // wall alone, decided at planning, and close carries it as a step with no statement whose root loop
                 // raises it at its turn (2026-11-03; until then close gave such a segment back to the walk, so this

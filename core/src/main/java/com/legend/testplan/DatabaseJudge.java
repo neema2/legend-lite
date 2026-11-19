@@ -257,10 +257,10 @@ public final class DatabaseJudge {
                         ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma,
                         com.legend.lowering.VerdictSql.decimalByValue(ra.kinds().get(ia))));
         // (legend-pure's readings of the canons -- two raw Strings quoted as %r, two class sides as their instances, a
-        // Decimal's D -- left with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database
-        // judge plans for the product alone, its words lite's)
-        // two single numbers of different kinds (register S127, the user's ruling of 2026-11-04): never equal -- decided
-        // false at planning, the rows read for the message
+        // Decimal's D -- left with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the
+        // database judge plans for the product alone, its words lite's) two single numbers of different kinds (register
+        // S127, the user's ruling of 2026-11-04): never equal -- decided false at planning, the rows read for the
+        // message
         if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia))) {
             vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
         }
@@ -328,7 +328,8 @@ public final class DatabaseJudge {
 
     /** Whether {@code e} and {@code a} are two numbers of different known kinds, never equal (S127's lite side). An
      *  unrefined Number is no known kind. (Compiled legend-pure's Integer-and-Decimal-by-text, the two-form kind
-     *  CrossKindNumbers, left the database judge with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge plans for the product alone, rule 4 of the rules of record.) */
+     *  CrossKindNumbers, left the database judge with A4 of the compatibility program, stage A ratified by the user
+     *  2026-11-19: the database judge plans for the product alone, rule 4 of the rules of record.) */
     private static boolean crossNumberKinds(com.legend.compiler.element.type.Type e,
             com.legend.compiler.element.type.Type a) {
         com.legend.compiler.element.type.Type fe = fineNumber(e);
@@ -1016,7 +1017,8 @@ public final class DatabaseJudge {
             return unjudged(name, "json golden is not a literal");
         }
         // the golden read as strict JSON, the product's (json-simple, register S144, is the host judge's at the edge:
-        // the two-form kind's planning read left with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge plans for the product alone, rule 4 of the rules of record)
+        // the two-form kind's planning read left with A4 of the compatibility program, stage A ratified by the user
+        // 2026-11-19: the database judge plans for the product alone, rule 4 of the rules of record)
         Object goldenRead;
         try {
             goldenRead = JudgeJson.STRICT.read(goldenText);

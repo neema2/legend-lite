@@ -88,8 +88,9 @@ import java.util.List;
         EngineTextGates.restoreMarking(env, prior);
     }
 
-    // (the verdict batch's reads -- active, defer -- and the text equalities below: the edge's engine-text rows'
-    // under the database judge, deleted with its appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+    // (the verdict batch's reads -- active, defer -- and the text equalities below: the edge's engine-text rows' under
+    // the database judge, deleted with its appeal path, A4 of the compatibility program, stage A ratified by the user
+    // 2026-11-19)
 
     // ---- an assert's ask and check --------------------------------------------------------------------------------
 
@@ -161,20 +162,6 @@ import java.util.List;
 
     public static com.legend.testexecutionplan.SideShape shapeOf(JudgePlans.PlannedSide p, com.legend.database.PlanStyle style) {
         return JudgePlans.shapeOf(p, style);
-    }
-
-    /** {@code side} planned as the database judge's rows (C4, 2026-11-17: forwarding alone; the edge reads them). */
-    public static DatabaseJudge.SideRows planSide(TypedSpec side, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv at, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        return DatabaseJudge.planSide(side, false, letPrefix, specs, at, hook);
-    }
-
-    public static @com.legend.base.Nullable String why(DatabaseJudge.SideRows rows) {
-        return rows.why();
-    }
-
-    public static com.legend.sql.@com.legend.base.Nullable SqlQuery scalarRow(DatabaseJudge.SideRows rows) {
-        return rows.scalarRow(false);
     }
 
     // ---- the replay facts ------------------------------------------------------------------------------------------

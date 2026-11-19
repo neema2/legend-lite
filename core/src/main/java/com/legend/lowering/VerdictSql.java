@@ -360,8 +360,8 @@ public final class VerdictSql {
         List<SqlExpr.Case.When> more = List.of(new SqlExpr.Case.When(divisible,
                 new SqlExpr.StringLit("tds-peer: cells not divisible by width "
                         + grid.width())));
-        // a Float compares exactly, as the host's grid compare does (census C1's J11, 2026-11-17; the tolerance's positional
-        // cells left with A4)
+        // a Float compares exactly, as the host's grid compare does (census C1's J11, 2026-11-17; the tolerance's
+        // positional cells left with A4)
         return gridIsExpected ? writtenStatement(g, p, multiset, more, extra, multiset)
                 : writtenStatement(p, g, multiset, more, extra, multiset);
     }

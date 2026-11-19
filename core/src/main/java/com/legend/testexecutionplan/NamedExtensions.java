@@ -53,7 +53,8 @@ public final class NamedExtensions {
                             }
                         }
                     }
-                    // (a database root's row named an appeal here until A4 of the compatibility program, stage A ratified by the user 2026-11-19: no row carries one now)
+                    // (a database root's row named an appeal here until A4 of the compatibility program, stage A
+                    // ratified by the user 2026-11-19: no row carries one now)
                 }
                 case TestPlan.Branch b -> {
                     walk(b.then(), out);

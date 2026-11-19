@@ -93,8 +93,9 @@ final class IsolatedRun {
     }
 
     /** {@code pair} run on {@code sessions} by {@code runner}: each plan alone, then compared, their messages too
-     *  (both judges write lite's sentences: the run hook's {@code wordsAlike} decided it until A4 of the compatibility program, stage A ratified by the user 2026-11-19,
-     *  when the host judge became the only judge in compatibility). */
+     *  (both judges write lite's sentences: the run hook's {@code wordsAlike} decided it until A4 of the compatibility
+     *  program, stage A ratified by the user 2026-11-19, when the host judge became the only judge in compatibility).
+     */
     static void run(TestPlan.Isolated pair, SessionSource sessions, Runner runner, @Nullable AssertListener callers,
             @Nullable Output answer) {
         if (sessions instanceof SessionSource.Given && (pair.host().writes() || pair.database().writes())) {
@@ -142,7 +143,8 @@ final class IsolatedRun {
 
     /** The first difference between the two runs, both texts quoted, or null where they agree: on every verdict, its
      *  message, and the run's ending's text; both judge every assert. (The compatibility rules' comparison -- the
-     *  verdicts alone, an assert one judge declined not compared -- went with A4 of the compatibility program, stage A ratified by the user 2026-11-19.) */
+     *  verdicts alone, an assert one judge declined not compared -- went with A4 of the compatibility program, stage A
+     *  ratified by the user 2026-11-19.) */
     static @Nullable String difference(Recording host, Recording database) {
         List<Heard> hs = host.compared();
         List<Heard> ds = database.compared();

@@ -24,8 +24,9 @@ import java.util.List;
     @com.legend.base.Nullable TextPlanned plan(TextAsk ask);
 
     // (tryArm, tryArmSameSql, tryArmDualGolden and batchTexts -- the arms and the text collector the DATABASE judge
-    // asked of this facet -- deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host
-    // judge is the only judge in compatibility, and it reaches the arms through plan(TextAsk) alone)
+    // asked of this facet -- deleted with the database judge's appeal path, A4 of the compatibility program, stage A
+    // ratified by the user 2026-11-19: the host judge is the only judge in compatibility, and it reaches the arms
+    // through plan(TextAsk) alone)
 
     /** Whether {@code fqn} is a ROOT arm's helper: {@code assertSameSQL} or the dual golden. */
     boolean isRoot(String fqn);
@@ -41,7 +42,8 @@ import java.util.List;
     /** The side a {@link #notAConstant} check names: its kind and planned root. */
     String why(HostSides.@com.legend.base.Nullable Check check);
 
-    // (gate, the database judge's gate for the edge's comparison, J41 of 2026-11-18: deleted with the same path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+    // (gate, the database judge's gate for the edge's comparison, J41 of 2026-11-18: deleted with the same path, A4 of
+    // the compatibility program, stage A ratified by the user 2026-11-19)
 
     /** A FRESH RECORDER of one test body's planning call over {@code template} (K10b of the edge audit, the
      *  orchestrator's ruling (A) of 2026-11-17): the style that body is planned in, recording legend-pure's words of

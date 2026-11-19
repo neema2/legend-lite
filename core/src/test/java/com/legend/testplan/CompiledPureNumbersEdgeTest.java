@@ -30,7 +30,8 @@ class CompiledPureNumbersEdgeTest {
             """;
 
     /** The edge's judges: the host's alone (rule 4 of the compatibility program's rules of record; A4 of the
-     *  compatibility program, stage A ratified by the user 2026-11-19: until A4 the host's, the database's and both). */
+     *  compatibility program, stage A ratified by the user 2026-11-19: until A4 the host's, the database's and both).
+     */
     private static final List<com.legend.testplan.PlanningOptions.JudgeMode> JUDGES = List.of(
             com.legend.testplan.PlanningOptions.JudgeMode.HOST);
 

@@ -95,7 +95,7 @@ class IsolatedRunTest {
     }
 
     // (underTheCompatibilityRulesTheVerdictsAloneAreCompared and underTheCompatibilityRulesAnAssertTheDatabaseDeclined-
-    // IsNotCompared: deleted with the comparison they pinned, A4 of the compatibility program, stage A ratified by the user 2026-11-19 -- the host judge is
-    // the only judge in compatibility, so no compatibility body runs both judges isolated, and an isolated run always
-    // compares the two judges' messages, both writing lite's sentences)
+    // IsNotCompared: deleted with the comparison they pinned, A4 of the compatibility program, stage A ratified by the
+    // user 2026-11-19 -- the host judge is the only judge in compatibility, so no compatibility body runs both judges
+    // isolated, and an isolated run always compares the two judges' messages, both writing lite's sentences)
 }

@@ -29,8 +29,8 @@ final class EdgeEngineTestText implements EngineTestText {
     }
 
     // (tryArm, tryArmSameSql, tryArmDualGolden and batchTexts, the DATABASE judge's asks of this facet: deleted with
-    // the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19; plan above reaches the same arms
-    // for the host judge, SqlTextVerdicts.plan)
+    // the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19; plan
+    // above reaches the same arms for the host judge, SqlTextVerdicts.plan)
 
     // ---- the routing gates (census C4, 2026-11-17: moved from EngineTestText's statics -- the hook bare) ----
 
@@ -134,7 +134,8 @@ final class EdgeEngineTestText implements EngineTestText {
         return what.startsWith(NotAConstant.LABEL) ? what.substring(NotAConstant.LABEL.length()) : what;
     }
 
-    // (gate, the database judge's gate for the comparison, J41 of 2026-11-18: deleted with the same path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+    // (gate, the database judge's gate for the comparison, J41 of 2026-11-18: deleted with the same path, A4 of the
+    // compatibility program, stage A ratified by the user 2026-11-19)
 
     /** Whether the arm claims {@code bare}: a root arm's helper ({@code assertSameSQL}, the dual golden) or an
      *  equality whose sides a producer of upstream's text feeds -- the shape's own facts, read from the typed tree;

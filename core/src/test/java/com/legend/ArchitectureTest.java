@@ -1225,7 +1225,9 @@ final class ArchitectureTest {
             // Its members LISTED, no "#*" (2026-11-17, the GUARD stream's C.4; the edge audit's C.4 and the
             // orchestrator's step-A ruling, "one named facade, members listed, no #*"): a member the edge newly reaches
             // is a row here, by its full signature and callers; OpenClassMembersTest pins the facade's whole member set
-            "testplan.EngineTextPlanning#active(com.legend.testplan.VerdictBatch)", "com.legend.edge.SqlTextVerdicts",
+            // (active, defer, planSide, scalarRow, both textEquals, verdictBatch and why: the edge's engine-text rows
+            // under the database judge, deleted with its appeal path -- A4 of the compatibility program, stage A
+            // ratified by the user 2026-11-19)
             "testplan.EngineTextPlanning#appeal(com.legend.testplan.BodyDriver$ExecEnv, "
                     + "java.util.function.IntFunction)",
             "com.legend.edge.SqlTextVerdicts",
@@ -1250,10 +1252,6 @@ final class ArchitectureTest {
             "testplan.EngineTextPlanning#collector(com.legend.testplan.BodyDriver$ExecEnv)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#ctx(com.legend.testplan.BodyDriver$ExecEnv)",
-            "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, "
-                    + "com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target, int, "
-                    + "java.lang.String)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#enumsOf(com.legend.compiler.element.ModelContext, java.lang.String, "
                     + "java.lang.String, com.legend.testexecutionplan.SideShape)",
@@ -1283,10 +1281,6 @@ final class ArchitectureTest {
             "com.legend.edge.SqlTextVerdicts",
             // (EngineTextPlanning#notAConstantError: deleted 2026-11-18 by E-Java's train-17 item 5, 645c3e4464 -- the
             // refusal of a text side that is no constant is the edge collector's, edge.NotAConstant)
-            "testplan.EngineTextPlanning#planSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
-                    + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, "
-                    + "com.legend.testplan.AssertVerdicts$SpliceHook)",
-            "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#planned(com.legend.testplan.HostSides$Check)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#plannedSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
@@ -1294,8 +1288,6 @@ final class ArchitectureTest {
                     + "boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#restoreMarking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String)",
-            "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#scalarRow(com.legend.testplan.DatabaseJudge$SideRows)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#shapeOf(com.legend.testplan.JudgePlans$PlannedSide, "
                     + "com.legend.database.PlanStyle)",
@@ -1311,17 +1303,9 @@ final class ArchitectureTest {
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#target(com.legend.testplan.BodyDriver$ExecEnv)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#textEquals(java.lang.String, com.legend.sql.SqlQuery)",
-            "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#textEquals(java.lang.String, java.lang.String)",
-            "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#unpagedRead(com.legend.compiler.spec.typed.TypedSpec)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#values(com.legend.testplan.JudgePlans$PlannedSide)",
-            "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#verdictBatch(com.legend.testplan.BodyDriver$ExecEnv)",
-            "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#why(com.legend.testplan.DatabaseJudge$SideRows)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#withCollector(com.legend.testplan.BodyDriver$ExecEnv, "
                     + "com.legend.testplan.TextCollector)",
@@ -1333,11 +1317,9 @@ final class ArchitectureTest {
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#withTableReplace(com.legend.testplan.BodyDriver$ExecEnv, java.util.Map)",
             "com.legend.edge.SqlTextVerdicts",
-            // J41 (2026-11-18, the orchestrator's): the database judge's gate, the engine-text hook's answer
-            // (EngineTestText.gate) -- census C3's TextsHeld and the product's two engine-text gate constants gone; data
-            "testplan.DatabaseGate#PLANS", "com.legend.edge.EdgeEngineTestText",
-            "testplan.DatabaseGate#UNPLANNED", "com.legend.edge.EdgeEngineTestText",
-            "testplan.DatabaseGate#appealed(boolean)", "com.legend.edge.EdgeEngineTestText",
+            // (J41, 2026-11-18: the database judge's gate, DatabaseGate#PLANS, #UNPLANNED and #appealed(boolean), the
+            // engine-text hook's answer -- deleted with EngineTestText.gate, A4 of the compatibility program, stage A
+            // ratified by the user 2026-11-19)
             // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
             // 2026-11-16): data, a list of classes
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
@@ -1385,10 +1367,10 @@ final class ArchitectureTest {
             "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
                     + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
-            // (VerdictWords$Reads#CANONS until 2026-11-18, then VerdictReads#CANONS -- the enum left the two-form kind for
-            // its own type, the GUARD stream's re-cut on train 15 1931d419b1 -- deleted with legend-pure's canon reading
-            // in A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge reads no
-            // compatibility audience's canons, the host judge being the only judge in compatibility)
+            // (VerdictWords$Reads#CANONS until 2026-11-18, then VerdictReads#CANONS -- the enum left the two-form kind
+            // for its own type, the GUARD stream's re-cut on train 15 1931d419b1 -- deleted with legend-pure's canon
+            // reading in A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge
+            // reads no compatibility audience's canons, the host judge being the only judge in compatibility)
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words (its
             // PlanStyle parameter 2026-11-15, phase D's D1.0, merged with main's #101 in ca5c4338f9; dated 2026-11-17 by
             // the GUARD stream's C.13-CI, which found the row changed with no note)

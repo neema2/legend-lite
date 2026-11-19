@@ -30,8 +30,9 @@ import java.util.List;
      *  family and its dated reason: a DateTime's text in a message (census B9, 2026-11-17: {@code lowering.DateTimeTexts},
      *  lite's DATETIME_TO_TEXT in the product, legend-pure's print form at the edge). */
     // A4 of the compatibility program (stage A ratified by the user 2026-11-19; rule 4 of the rules of record: the host
-    // judge is the only judge in compatibility): six kinds left the list with the database judge's compatibility arms --
-    // JsonGrammar's planning read, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts, GoldenNullWord
+    // judge is the only judge in compatibility): six kinds left the list with the database judge's compatibility arms
+    // -- JsonGrammar's planning read, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts,
+    // GoldenNullWord
     public static final List<Class<?>> TWO_FORMS = List.of(com.legend.lowering.DateTimeTexts.class,
             // a list's text (F's B8, 2026-11-17: TEXT_FORMS left the MIR): the product's JSON array, the edge's [a, b]
             com.legend.lowering.ListTexts.class,
