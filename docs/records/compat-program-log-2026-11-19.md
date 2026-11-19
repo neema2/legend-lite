@@ -2557,3 +2557,14 @@ who confirms or changes phases 1-3.
   judges' number before landing; the user's word on the PROPOSED rows at the PR. It will check A2's placing of the
   user-accepted divergences in the batch review (a must-fix there if it holds, by the user's 2026-09-08 ruling of a
   fourth status). B2 asks the user for the push of `claude/compat-a3-docs`.
+- **~20:02 UTC, B1: the error-record backlog started** (`compat-homework/B1-error-records-backlog.md` at
+  `49c51bfaf5` on `claude/compat-b1-homework`): divide's and rem's sites read at the pin (divide prints the divisor,
+  `CompiledSupport.java:1485`; rem the dividend, `CoreHelper.java:544`); the typed record should name the operation.
+- **~20:02 UTC, the translator: A3 piece 1 measured** (local `2a05b904` on `claude/compat-a3-frontends`; record
+  `a3/piece1/` at `48801791` on the spike branch). The corpus on both lanes green with 0 moves; IQ and SQL parity green;
+  Cypher parity 3 of 4 (the showcase pin `hard/pure.txt` moves, its SQL does not); the rest of `//gates:local` green
+  but the guards. **Guard moves for the user's word, none made, more than predicted (9 goldens and 4 guards):**
+  `NativeCatalogGovernanceTest` INTERNAL_DESUGAR 38 → 40; `PlatformNamesGuardrailTest` FUNCTION_FQN_LITERALS_MAX 346 →
+  347; spec `ratchets.tsv` Intrinsic 735 → 738; `CatalogUpstreamDiffTest` NOT_UPSTREAM_MAX → 76; 9 text goldens
+  (CypherToPureTest ×4, IqFunctionsTest, IqToPureTest, PostgresToPureTest ×2, the Cypher showcase). The translator asks
+  the user in its session for these and its push.
