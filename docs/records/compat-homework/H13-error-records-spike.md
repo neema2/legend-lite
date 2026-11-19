@@ -1023,3 +1023,58 @@ Is section 12's +15 / -4 change still needed for the product? No.**
 - **So the real slice drops section 12's change** (-0.25 day from section 20's estimate), unless the product wants a
   planned failure and a run-time raise to reach its database judge the same way. That is uniformity, not a need.
   A4 removes the compatibility database judge before B1 (stage A), so the 4 channel B tests go with it.
+
+## 24. B1 option: typed raise slots (for stage B's ratification; not built)
+
+**The orchestrator's calls (14:51 UTC):** `at`'s size from the multiplicity is a type fact (in the fold list put to
+the user for rule 1; no change until the user answers); section 12's +15 / -4 database-judge change is DROPPED (moot in
+compatibility, not needed in the product); and this design is recorded as a B1 option, to go to the user with stage
+B's ratification.
+
+**The option.** Where a raise's operand is computed, the planner declares a SLOT for it instead of withholding it,
+and the database returns the value with the raise:
+1. **Planning** declares each computed operand's slot on the site: its position and its Pure type, no value
+   (`Operand.Computed` becomes `Computed(pureType)`; JSON `{"computed":"Integer"}`). The plan still holds no run-time
+   value (A3's letter for the plan holds).
+2. **The SQL** prints each slot's value into the raise's envelope, after the position field and before the message
+   (`chr(31) || position || chr(30) || slot1 || chr(30) || ... || <message> || chr(31)`, the fields' order fixed by
+   the site), in a lossless spelling per type that the DIALECT owns (rule 1: the database formats):
+   - Integer: its digits (`CAST(x AS VARCHAR)`);
+   - Decimal: its plain digits (`DECIMAL_TO_TEXT`, which exists);
+   - Float: its shortest round-trip text (`FLOAT_SHORTEST_TEXT`, which exists per dialect);
+   - a date at the precision the planner declared: its canonical text (the dialects' date text functions);
+   - String: escaped so it cannot hold the envelope's separators (`chr(29)`, `chr(30)`, `chr(31)`).
+3. **Exec** (`RaisedErrors`) splits the envelope, decodes each slot by its declared type into a typed value (an
+   `Operand` with a value) and hands the values to the run's words with the site. No value is computed in Java.
+4. **Compatibility** words upstream's sentence in Java from those typed values (rule 3). Lite's own message is
+   unchanged (kind and where); printing a value there too would be a product choice, made in the SQL (rule 1).
+
+**What it removes:** the `<computed>` placeholder and its register row; `statedSize` (section 11) and the unbuilt
+`CheckedOne.statedSize` (section 22); the withheld cases of every kind in section 23's table, including the 9 `toOne`
+tests of section 22, which keep legend-pure's words.
+
+**The measurements it needs first (0.5 to 1 day):**
+
+| Measurement | Why |
+|---|---|
+| each dialect's error-text limits: the length a raise carries through DuckDB `error`, SQLite's `json_extract` path text, ClickHouse's `toInt64(concat(...))` text, Snowflake's failing cast, MariaDB and MySQL's `@legend_raise` read-back, H2's `errorArm`, BigQuery `ERROR`, Databricks `raise_error`, Postgres's and Trino's raises | a slot must not be truncated; a long String operand (a parse's text) is the worst case |
+| how Snowflake's and ClickHouse's error texts quote the raised text | both quote it inside their own sentence (ClickHouse escapes `'`, which lite already carries as `chr(29)`); the slots' separators must survive the quoting |
+| the Float round trip on SQLite (its text of a double: 15 significant digits unless the dialect writes it otherwise) and on each dialect's `FLOAT_SHORTEST_TEXT` | a slot's Float must decode to the double the database held, or legend-pure's sentence prints another number |
+| MongoDB's raise (four raises not built as a `RaiseText`, section 7) | whether its command can carry slots, or it keeps withholding |
+| lite's SQL growth (the lean SQL gauge, shrink-only, G3) | every plan carries the slots, under every audience: the product's SQL grows at each computed-operand raise. Estimated from B1's H9 census (344 computed-operand renders in the net) at one print expression each; to be measured, and re-recorded with its dated reason |
+
+**Its size (this session's estimate, on top of section 20's B1 less section 12's change):**
+
+| Piece | Lines | Days |
+|---|---|---|
+| the slot on the site (`Operand.Computed(pureType)`, `PlanMaker.sites`, `PlanJson`) | about +40 | 0.25 |
+| the slots' print expressions, chosen by each operand's Pure type (which the lowering holds), and each dialect's raise writer appending them (12 writers, about 5 lines each) | about +120 | 1 |
+| exec's decode (`RaisedErrors`: split, decode by type, carry the values on `Raised`) | about +80 | 0.5 |
+| the formatter words from the decoded values (no `<computed>`); `statedSize` deleted | about +20 / -30 | 0.25 |
+| the hosts' readers (Python, the tab) decode the slots where they word upstream's sentences (their ENGINE routes) | about +60 | 0.5 |
+| tests: each slot type round-tripped on each dialect (the cloud dialects on their lanes), the 9 `toOne` tests restored to legend-pure's words, the hosts' fixture | about +250 | 1 to 1.5 |
+| **Total** | **about +570 / -30** | **about 3.5 to 4 days, plus the 0.5 to 1 day of measurements** |
+
+- **So B1 with this option is about 10 to 11 days for one session** (section 20's 6.5 to 7, less 0.25 for section 12,
+  plus this), or B1 as section 20 sizes it and this as its own slice after it (the plan's record format already holds
+  a `Computed` operand, so the slot is an additive change: one more plan version).
