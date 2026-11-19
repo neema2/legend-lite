@@ -2619,3 +2619,10 @@ who confirms or changes phases 1-3.
   cancelled macOS jobs; #124 merges once they are green. Fast dev loops for the rest of stage A: per change the fast
   loop (TOTAL_WALL_START_HERE §8.1, about 10 minutes, plus the touched packages); one `//gates:local` per piece before
   it joins the batch; one measurement on the batch; no uncached re-runs of unaffected suites.
+- **~20:37 UTC, B1-R: the detector DONE and green** (`claude/compat-a3-detector` at `64ead02b7`, pushed).
+  `//gates:local`, `//gates:edge_net`, `//pct:batteries_test` and `//core:guardrails_edge`: 598 pass, 1 skipped; the 12
+  root-refusing targets pass as `ubuntu`. The three ruled moves in with dated notes (`PureText.ZERO_START_AS_PURE`, its
+  pin 2; `own_corpus.matched` 3312; `native-claims.tsv`). `PureMeaningCheck` on the five routes; refuse the default,
+  right after typing, so a refused request reaches no runner (a test proves it); `warn` an operator's choice;
+  `engine` not yet accepted; the setting read once, at `EdgeServer.UPSTREAM`. 22 tests, each against a plant (the three
+  needing piece 1 pass on its patch, 25 of 25, and join at the rebase). Next: the `engine` design note, fast loop.
