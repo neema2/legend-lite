@@ -275,8 +275,15 @@ public final class TestRunner {
             // the program's run: a row the loop planned ahead is read through the program's reader, THE WALL)
             com.legend.testexec.RootLoops.Run run = runs.of(verdict);
             run.received(verdict, row);
-            if (runs.closes(verdict)) {
+            // judged at the segment's last verdict -- or at once where one of its fused statements was rejected: its
+            // later groups are never sent, the roots with rows are judged and the first without one raises the
+            // rejection (the compatibility owner's (b1), 2026-11-19)
+            if (runs.closes(verdict) || run.rejected()) {
                 run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing().hostForms().words()), rowAppeals, this.run);
+                if (run.rejected()) {
+                    throw new IllegalStateException("a segment whose fused statement was rejected judged no root"
+                            + " without a row: " + verdict.name());
+                }
             }
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }

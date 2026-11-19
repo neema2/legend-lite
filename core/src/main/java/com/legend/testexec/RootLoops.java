@@ -115,6 +115,13 @@ public final class RootLoops {
          *  raises it at its turn. */
         private com.legend.error.@com.legend.base.Nullable DataError rejected;
 
+        /** Whether one of the segment's fused statements was rejected: the segment is judged at once, its later groups
+         *  never sent (a fused group starts at each verdict that may raise, VerdictBatch: the compatibility owner's
+         *  (b1), 2026-11-19), so the roots with rows are judged and the first that reads none raises the rejection. */
+        public boolean rejected() {
+            return rejected != null;
+        }
+
         /** The row the runner read for {@code verdict} (null where none: a verdict with no statement); the root loop
          *  reaches an absent row at its place. A verdict of no row of the loop answers none: the segment's carrier where
          *  every root was decided at planning. */
