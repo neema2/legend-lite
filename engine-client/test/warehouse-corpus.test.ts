@@ -36,14 +36,30 @@ interface Scenario {
   readonly action: Record<string, string | number> & {
     readonly kind: string;
     /** A run's values for its `?`s, in order (since 2026-11-17: the API's parameters). */
-    readonly parameters?: readonly (string | number | boolean | null)[];
+    readonly parameters?: readonly (string | number | bigint | boolean | null)[];
   };
   readonly outcome: Record<string, unknown>;
   readonly exchanges: readonly Exchange[];
 }
 
 const BASE = 'https://wh.example';
-const corpus = JSON.parse(readFileSync(runfileFromEnv('SQLAPI_CORPUS'), 'utf8')) as { scenarios: readonly Scenario[] };
+// a recorded parameter's whole number is an Integer's, handed to the driver as a bigint (plan-runner.ts checkParameters:
+// a number is a Float's alone), read exactly from its source text -- which JSON.parse alone loses (3 and 3.0 parse alike):
+// an array's whole-number elements are seen first (their source kept by index), its key after them
+const wholeElements = new WeakMap<object, Map<string, string>>();
+const corpus = JSON.parse(readFileSync(runfileFromEnv('SQLAPI_CORPUS'), 'utf8'),
+  function (this: unknown, key: string, v: unknown, context?: { readonly source?: string }): unknown {
+    if (typeof v === 'number' && Array.isArray(this) && context?.source !== undefined && /^-?\d+$/.test(context.source)) {
+      const at = wholeElements.get(this) ?? new Map<string, string>();
+      at.set(key, context.source);
+      wholeElements.set(this, at);
+    }
+    if (key === 'parameters' && Array.isArray(v)) {
+      const at = wholeElements.get(v);
+      return at === undefined ? v : v.map((p: unknown, i) => (at.has(String(i)) ? BigInt(at.get(String(i))!) : p));
+    }
+    return v;
+  }) as { scenarios: readonly Scenario[] };
 // Node loads the runtime by file URL and the module by path
 const binding = await (async (): Promise<WarehouseBinding> => {
   const dir = runfileDirUrl('SQLAPI_PAGE');

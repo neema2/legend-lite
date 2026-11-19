@@ -987,6 +987,80 @@
      "read": {}
     }
    ]
+  },
+  {
+   "name": "a whole Float's value is bound as a double, an Integer's as a whole number: 2.0 and -0.0 keep their point (track Q2, 2026-11-19)",
+   "action": {
+    "kind": "run",
+    "token": "tok1",
+    "sql": "SELECT typeof(?) AS f, typeof(?) AS z, typeof(?) AS n",
+    "catalog": "main",
+    "parameters": [
+     2.0,
+     -0.0,
+     7
+    ]
+   },
+   "outcome": {
+    "chunks": [],
+    "statementId": "s10",
+    "rowCount": 0
+   },
+   "exchanges": [
+    {
+     "op": "submit",
+     "args": {
+      "sql": "SELECT typeof(?) AS f, typeof(?) AS z, typeof(?) AS n",
+      "catalog": "main",
+      "parameters": [
+       2.0,
+       -0.0,
+       7
+      ],
+      "token": "tok1"
+     },
+     "call": {
+      "method": "POST",
+      "path": "/sql/v1/statements",
+      "headers": {
+       "Authorization": "Bearer tok1",
+       "Content-Type": "application/json"
+      },
+      "body": "{\"sql\":\"SELECT typeof(?) AS f, typeof(?) AS z, typeof(?) AS n\",\"catalog\":\"main\",\"timeoutMs\":300000,\"waitMs\":10000,\"rowsPerChunk\":100000,\"resultFormat\":\"arrow\",\"parameters\":[2.0,-0.0,7]}"
+     },
+     "answer": {
+      "status": 200,
+      "body": "{\"statementId\":\"s10\",\"state\":\"succeeded\",\"result\":{\"columns\":[],\"rowCount\":0,\"chunkCount\":0}}"
+     },
+     "read": {
+      "step": "done",
+      "statementId": "s10",
+      "rowCount": 0,
+      "chunkCount": 0
+     }
+    },
+    {
+     "op": "closeStatement",
+     "args": {
+      "statementId": "s10",
+      "token": "tok1"
+     },
+     "call": {
+      "method": "DELETE",
+      "path": "/sql/v1/statements/s10",
+      "headers": {
+       "Authorization": "Bearer tok1",
+       "Content-Type": "application/json"
+      },
+      "body": null
+     },
+     "answer": {
+      "status": 200,
+      "body": "{\"statementId\":\"s10\",\"closed\":true}"
+     },
+     "read": {}
+    }
+   ]
   }
  ]
 }

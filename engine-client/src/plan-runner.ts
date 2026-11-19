@@ -155,8 +155,11 @@ function parameterValue(p: DeclaredParameter, v: string | number | bigint | bool
     return typeof v === 'string' && p.enumValues.includes(v) ? v : { refused: `${shown} is not a value of ${p.type} [${p.enumValues.join(', ')}]` };
   }
   // an Integer in the 64-bit range: a safe number, or a bigint (spec §4); a whole number past 2^53 given as a number has
-  // already lost its digits, so it is refused by name, never bound as the nearest double
-  const integer = (): PlanValue | { readonly refused: string } => (typeof v === 'number' && Number.isSafeInteger(v) ? v
+  // already lost its digits, so it is refused by name, never bound as the nearest double. Bound as a bigint, as Java's
+  // PlanParameters binds an Integer as a Long: a number is a Float's alone, so a host's driver binds each as its type --
+  // the warehouse's a whole Float as a DOUBLE, never a BIGINT (track Q2, 2026-11-19); DuckDB in the tab binds a safe
+  // bigint as the number it was (duckdb.ts jsonBound)
+  const integer = (): PlanValue | { readonly refused: string } => (typeof v === 'number' && Number.isSafeInteger(v) ? BigInt(v)
     : typeof v === 'bigint' ? (v >= -(2n ** 63n) && v < 2n ** 63n ? v : { refused: `${shown} is beyond the 64-bit range an Integer holds` })
       : typeof v === 'number' && Number.isInteger(v) ? { refused: `${shown} is a whole number past 2^53, which a number cannot hold exactly: give it as a bigint` }
         : notA('an Integer is a whole number: a safe integer, or a bigint'));
@@ -183,7 +186,8 @@ function parameterValue(p: DeclaredParameter, v: string | number | bigint | bool
     case 'integer': return integer();
     case 'float': return float();
     case 'decimal': return decimal();
-    case 'number': return typeof v === 'bigint' ? integer() : typeof v === 'number' ? (Number.isSafeInteger(v) ? v : float()) : decimal();
+    // a Number given a whole number is an Integer (a Pure literal 2 is one), any other number a Float
+    case 'number': return typeof v === 'bigint' ? integer() : typeof v === 'number' ? (Number.isSafeInteger(v) ? integer() : float()) : decimal();
     case 'boolean': return typeof v === 'boolean' ? v : notA('a Boolean is a boolean');
     case 'string': return typeof v === 'string' ? v : notA('a String is a string');
     case 'day': return strictDate() ?? notA('a StrictDate is its text YYYY-MM-DD');

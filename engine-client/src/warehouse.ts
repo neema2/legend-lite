@@ -211,10 +211,17 @@ type Bound = readonly (string | number | bigint | boolean | null)[];
 
 /**
  * A call's arguments as JSON, exactly: a bigint as its digits (a 64-bit parameter; JSON.stringify writes none), a number
- * that is not finite refused by name (JSON would write it as null, a different value).
+ * that is not finite refused by name (JSON would write it as null, a different value). A statement's number parameter is
+ * a Float (an Integer is a bigint: plan-runner.ts checkParameters), written as a double's token -- `2.0`, never `2`, which
+ * the binding reads as a whole number and the warehouse binds as a BIGINT (track Q2, 2026-11-19, as Java's ApiJson writes
+ * a Double).
  */
 function argsJson(args: Readonly<Record<string, unknown>>): string {
   const raw = (JSON as { readonly rawJSON?: (text: string) => unknown }).rawJSON;
+  const parameters = args['parameters'];
+  if (Array.isArray(parameters)) {
+    args = { ...args, parameters: parameters.map((v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? doubleJson(v, raw) : v)) };
+  }
   return JSON.stringify(args, (_key, v: unknown) => {
     if (typeof v === 'number' && !Number.isFinite(v)) {
       throw new QueryError(`the value ${String(v)} has no JSON form: the warehouse binds no such number`, '');
@@ -225,6 +232,15 @@ function argsJson(args: Readonly<Record<string, unknown>>): string {
     }
     return raw(String(v));
   });
+}
+
+/** `v` as a double's JSON token: a point or an exponent always (`2.0`, `-0.0`, `1e+21`), so it is read back as a double. */
+function doubleJson(v: number, raw: ((text: string) => unknown) | undefined): unknown {
+  if (raw === undefined) {
+    throw new Error('this browser cannot write a double exactly (JSON.rawJSON): a current Chrome, Edge, Firefox or Safari can');
+  }
+  const text = Object.is(v, -0) ? '-0.0' : String(v);
+  return raw(/[.eE]/.test(text) ? text : `${text}.0`);
 }
 
 export class WarehouseEngine implements LiveWarehouse {

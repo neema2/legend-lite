@@ -396,14 +396,23 @@ describe("a run's parameter values checked against the plan's declarations, as J
     ({ name, type, multiplicity: upper === undefined ? { lower } : { lower, upper }, enumValues });
 
   it('converts each value for binding: a date-time to its text at the nanosecond, a list, an optional absence', () => {
+    // an Integer bound as a bigint, as Java's PlanParameters binds a Long; a Float a number (track Q2, 2026-11-19)
     const checked = checkParameters([
       declared('at', 'DateTime', 1, 1), declared('day', 'StrictDate', 1, 1), declared('d', 'Decimal', 1, 1),
       declared('ids', 'Integer', 0), declared('maybe', 'String', 0, 1), declared('c', 'p::Colour', 1, 1, ['RED', 'GREEN']),
     ], { at: '2024-06-01T09:30:00', day: '2024-06-01', d: '1.25', ids: [1, 2], c: 'RED' });
     assert.deepEqual(Object.fromEntries(checked), {
       at: { _type: 'one', value: '2024-06-01 09:30:00.000000000' }, day: { _type: 'one', value: '2024-06-01' },
-      d: { _type: 'one', value: '1.25' }, ids: { _type: 'many', values: [1, 2] }, maybe: { _type: 'none' },
+      d: { _type: 'one', value: '1.25' }, ids: { _type: 'many', values: [1n, 2n] }, maybe: { _type: 'none' },
       c: { _type: 'one', value: 'RED' },
+    });
+  });
+
+  it('binds an Integer as a bigint and a Float as a number, a whole Float too: a host driver binds each as its type', () => {
+    const checked = checkParameters([declared('i', 'Integer', 1, 1), declared('f', 'Float', 1, 1),
+      declared('w', 'Number', 1, 1), declared('x', 'Number', 1, 1)], { i: 2, f: 2, w: 3, x: 2.5 });
+    assert.deepEqual(Object.fromEntries(checked), {
+      i: { _type: 'one', value: 2n }, f: { _type: 'one', value: 2 }, w: { _type: 'one', value: 3n }, x: { _type: 'one', value: 2.5 },
     });
   });
 
