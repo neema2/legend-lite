@@ -104,6 +104,10 @@ legend_java_library(
         "//core:edge",
         "//core:test_backends",
         "//testing",
+        # the oracle's batteries' answer form (H7: LiteBatteries writes lite's answers as the oracle writes
+        # legend-engine's), through pure/v1's route as the edge ships it (EdgeServer.runner)
+        "//tools/engine-runner:enginelane",
+        "//core:edge_server",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_upstream//:junit_junit",
         "@maven_upstream//:org_eclipse_collections_eclipse_collections",
@@ -972,4 +976,104 @@ write_source_files(
 test_suite(
     name = "engine_lane_test",
     tests = [":update_engine_lane_tests"],
+)
+
+# THE BATTERIES' PER-PUSH HALF (H7; CP-9 of docs/records/compat-program-plan-2026-11-19.md): each battery answered by
+# lite as legend-engine's audience (pure/v1's execute route as the edge ships it), compared with legend-engine's pinned
+# answers (//tools/engine-runner:update_batteries, the heavy half); no legend-engine JVM runs. DuckDB answers from a
+# file lite seeds with its own driver from the statements legend-engine's file is seeded from, refused if its rows
+# differ from that file's (trades_duckdb_digest.txt).
+_BATTERY_REQUESTS = "//tools/engine-runner:src/test/resources/batteries/substring_indexof.tsv"
+
+_TRADES_H2 = "//core:src/test/resources/upstream-api/trades-h2.pure"
+
+java_run(
+    name = "battery_seed",
+    testonly = True,
+    srcs = [_TRADES_H2],
+    outs = [
+        "battery_run/trades.duckdb",
+        "battery_run/trades_duckdb_digest.txt",
+    ],
+    arguments = [
+        "seed",
+        "--model=$(execpath %s)" % _TRADES_H2,
+        "--duckdb={OUT_DIR}/trades.duckdb",
+        "--digest={OUT_DIR}/trades_duckdb_digest.txt",
+    ],
+    main_class = "org.finos.legend.lite.pct.oracle.LiteBatteries",
+    mnemonic = "LiteBatteries",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+)
+
+[java_run(
+    name = "battery_lite_" + db,
+    testonly = True,
+    srcs = [
+        _BATTERY_REQUESTS,
+        _TRADES_H2,
+    ] + ([
+        "//tools/engine-runner:src/test/resources/pure_v1/duckdb-connection.pure",
+        ":battery_run/trades.duckdb",
+    ] if db == "duckdb" else []),
+    outs = ["battery_run/%s/lite.tsv" % db],
+    arguments = [
+        "run",
+        "--model=$(execpath %s)" % _TRADES_H2,
+        "--requests=$(execpath %s)" % _BATTERY_REQUESTS,
+        "--out={OUT}",
+    ] + ([
+        "--duckdb-connection=$(execpath //tools/engine-runner:src/test/resources/pure_v1/duckdb-connection.pure)",
+        "--duckdb=$(execpath :battery_run/trades.duckdb)",
+    ] if db == "duckdb" else []),
+    main_class = "org.finos.legend.lite.pct.oracle.LiteBatteries",
+    memory_mb = 2048,
+    mnemonic = "LiteBatteries",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ] + (["@h2//jar"] if db == "h2" else []),
+) for db in ["h2", "duckdb"]]
+
+[java_run(
+    name = "battery_compare_" + db,
+    testonly = True,
+    srcs = [
+        ":battery_run/%s/lite.tsv" % db,
+        "//tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv" % db,
+    ] + ([
+        ":battery_run/trades_duckdb_digest.txt",
+        "//tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt",
+    ] if db == "duckdb" else []),
+    outs = ["battery_run/%s/agreement.tsv" % db],
+    arguments = [
+        "compare",
+        "--db=" + db,
+        "--engine=$(execpath //tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv)" % db,
+        "--lite=$(execpath :battery_run/%s/lite.tsv)" % db,
+        "--out={OUT}",
+    ] + ([
+        "--engine-digest=$(execpath //tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt)",
+        "--lite-digest=$(execpath :battery_run/trades_duckdb_digest.txt)",
+    ] if db == "duckdb" else []),
+    main_class = "planoracle.enginelane.Batteries",
+    mnemonic = "LiteBatteries",
+    deps = ["//tools/engine-runner:enginelane"],
+) for db in ["h2", "duckdb"]]
+
+# THE PIN (report-only: it moves when a request's agreement moves, and the commit says which way): bazel run
+# //pct:update_batteries
+write_source_files(
+    name = "update_batteries",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA battery request's agreement with legend-engine moved (H7): in the diff, < is this tree (generated) and > the pin; bazel run //pct:update_batteries, and say in the commit which way each row moved",
+    files = {"batteries/agreement_%s.tsv" % db: ":battery_run/%s/agreement.tsv" % db for db in ["h2", "duckdb"]},
+)
+
+test_suite(
+    name = "batteries_test",
+    tests = [":update_batteries_tests"],
 )

@@ -236,10 +236,18 @@ test_suite(
     tests = ["//spec:corpus_h2"],
 )
 
-# PCT on DuckDB (gate 6): the five suites, one target each (P3-09)
+# PCT on DuckDB (gate 6): the five suites, one target each (P3-09). With them, per push (CP-9 of
+# docs/records/compat-program-plan-2026-11-19.md, RULED by the user 2026-11-19 ~10:45 UTC; H7): the ENGINE lane, PCT
+# channel A as legend-engine's audience on DuckDB's five suites and H2's relation suite, classified against
+# legend-engine's manifests and pinned; and the oracle's batteries' per-push half, lite's answers against
+# legend-engine's pinned ones (no legend-engine JVM)
 test_suite(
     name = "pct_duckdb",
-    tests = ["//pct:pct_duckdb"],
+    tests = [
+        "//pct:batteries_test",
+        "//pct:engine_lane_test",
+        "//pct:pct_duckdb",
+    ],
 )
 
 # PCT on H2 (gate 7)
@@ -507,6 +515,9 @@ test_suite(
         # from them pinned; about 16 s of actions once the runner's jars are fetched (980 MB, fetched already for the
         # runner's smoke test). Here beside the net it reads (the orchestrator, 2026-11-18)
         "//tools/engine-runner:pure_v1_oracle_test",
+        # the oracle's batteries' heavy half (H7, 2026-11-19; CP-9): each battery re-asked of legend-engine, one JVM per
+        # database, failing on drift from the answers //pct:batteries_test compares lite with per push
+        "//tools/engine-runner:batteries_oracle_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an
         # account's credentials (its §4, never in the repository; a CI workflow for them is not built), and the SQLite

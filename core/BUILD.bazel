@@ -3643,9 +3643,18 @@ exports_files(
     [
         "src/test/resources/edge/pure_v1_answers.tsv",
         "src/test/resources/edge/pure_v1_requests.tsv",
-        "src/test/resources/upstream-api/trades-h2.pure",
     ],
     visibility = ["//tools/engine-runner:__pkg__"],
+)
+
+# the net's model, the oracle's seed: read by the oracle and by its batteries' per-push half (//pct:batteries_test,
+# H7, 2026-11-19), which answers the same requests on the same rows
+exports_files(
+    ["src/test/resources/upstream-api/trades-h2.pure"],
+    visibility = [
+        "//pct:__pkg__",
+        "//tools/engine-runner:__pkg__",
+    ],
 )
 
 write_source_files(

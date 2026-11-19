@@ -306,6 +306,122 @@ java_run(
     deps = [":planoracle_compare"],
 )
 
+# THE BATTERIES' HEAVY HALF (H7; CP-9 of docs/records/compat-program-plan-2026-11-19.md): each battery re-asked of
+# legend-engine, one oracle JVM per database, its answers pinned (bazel run //tools/engine-runner:update_batteries).
+# The per-push half (//pct:batteries_test) compares lite's answers with these pins and runs no legend-engine JVM.
+_BATTERIES = "src/test/resources/batteries/substring_indexof.tsv"
+
+exports_files(
+    [
+        _BATTERIES,
+        "src/test/resources/batteries/engine_h2_answers.tsv",
+        "src/test/resources/batteries/engine_duckdb_answers.tsv",
+        "src/test/resources/batteries/trades_duckdb_digest.txt",
+        "src/test/resources/pure_v1/duckdb-connection.pure",
+    ],
+    visibility = ["//pct:__pkg__"],
+)
+
+java_run(
+    name = "engine_batteries_h2",
+    testonly = True,
+    srcs = [
+        _BATTERIES,
+        "//core:src/test/resources/upstream-api/trades-h2.pure",
+    ],
+    outs = ["batteries/h2/engine.jsonl"],
+    arguments = [
+        "--requests=$(execpath %s)" % _BATTERIES,
+        "--model=$(execpath //core:src/test/resources/upstream-api/trades-h2.pure)",
+        "--out={OUT}",
+    ],
+    jvm_flags = _ORACLE_JVM,
+    main_class = "planoracle.GoldenRunMain",
+    memory_mb = 4096,
+    mnemonic = "EngineOracle",
+    tags = ["manual"],
+    deps = [":planoracle"],
+)
+
+java_run(
+    name = "engine_batteries_duckdb",
+    testonly = True,
+    srcs = [
+        _BATTERIES,
+        ":pure_v1/trades-duckdb.pure",
+        ":pure_v1/trades.duckdb",
+    ],
+    outs = ["batteries/duckdb/engine.jsonl"],
+    arguments = [
+        "--requests=$(execpath %s)" % _BATTERIES,
+        "--model=$(execpath :pure_v1/trades-duckdb.pure)",
+        "--duckdb=$(execpath :pure_v1/trades.duckdb)",
+        "--out={OUT}",
+    ],
+    jvm_flags = _ORACLE_JVM,
+    main_class = "planoracle.GoldenRunMain",
+    memory_mb = 4096,
+    mnemonic = "EngineOracle",
+    tags = ["manual"],
+    deps = [":planoracle"],
+)
+
+[java_run(
+    name = "engine_batteries_answers_" + db,
+    testonly = True,
+    srcs = [":batteries/%s/engine.jsonl" % db],
+    outs = ["batteries/%s/answers.tsv" % db],
+    arguments = [
+        "engine-answers",
+        "--in=$(execpath :batteries/%s/engine.jsonl)" % db,
+        "--out={OUT}",
+    ],
+    main_class = "planoracle.enginelane.Batteries",
+    mnemonic = "EngineBatteries",
+    tags = ["manual"],
+    deps = [":enginelane"],
+) for db in ["h2", "duckdb"]]
+
+# the rows legend-engine's DuckDB file holds, read by lite's own DuckDB driver (the user's ruling of 2026-11-19 ~10:45
+# UTC, CP-9: tools/engine-runner is a duckdb_jdbc user for this): the per-push half seeds its own file with lite's
+# driver from the same statements and refuses to compare if its rows differ
+java_run(
+    name = "trades_duckdb_digest",
+    testonly = True,
+    srcs = [":pure_v1/trades.duckdb"],
+    outs = ["batteries/trades_duckdb_digest.txt"],
+    arguments = [
+        "digest",
+        "--duckdb=$(execpath :pure_v1/trades.duckdb)",
+        "--out={OUT}",
+    ],
+    main_class = "planoracle.enginelane.Batteries",
+    mnemonic = "EngineBatteries",
+    tags = ["manual"],
+    deps = [
+        ":enginelane",
+        "@duckdb_jdbc//jar",
+    ],
+)
+
+write_source_files(
+    name = "update_batteries",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-engine's answer to a battery request moved (the oracle re-asked; H7): in the diff, < is this tree (generated) and > the pin; a legend-engine bump or a changed seed moves it -- bazel run //tools/engine-runner:update_batteries, then bazel run //pct:update_batteries, and say in the commit which way each row moved",
+    files = {
+        "src/test/resources/batteries/engine_h2_answers.tsv": ":batteries/h2/answers.tsv",
+        "src/test/resources/batteries/engine_duckdb_answers.tsv": ":batteries/duckdb/answers.tsv",
+        "src/test/resources/batteries/trades_duckdb_digest.txt": ":batteries/trades_duckdb_digest.txt",
+    },
+    tags = ["manual"],
+)
+
+test_suite(
+    name = "batteries_oracle_test",
+    tags = ["manual"],
+    tests = [":update_batteries_tests"],
+)
+
 # THE CHECK: legend-engine's answers and the per-line listing of how lite's pure/v1 goldens differ from them, pinned.
 # A golden that moves (bazel run //core:update_edge_pure_v1) moves its line here: bazel run
 # //tools/engine-runner:update_pure_v1_oracle in the same commit says whether it moved toward legend-engine or away.
