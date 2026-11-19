@@ -2936,3 +2936,9 @@ who confirms or changes phases 1-3.
   from A2 on, passing by rows; the 3 text tests on no list. The earlier "+3" counted only the 3 hidden text tests and
   left out item 1's own 4 (B2's error, corrected). Expected with A3: H2 276 → 428 (+152), DuckDB 108 → 264 (+156); the
   judges' measurement on the final head is the figure of record.
+- **~22:05 UTC, the user: "should we be running rcorpus in engine mode? Should PCT relation also be run in engine
+  mode?"** Answered by the rule "each suite in the mode its authors run it in": the corpus yes in principle
+  (legend-engine runs it uncorrected), in stage B with B3 (the corpus door's prepare/run halves give the rewrite a place
+  without a hook), measured first, switching the lanes' mode rather than adding lanes; PCT no (Pure's expected answers;
+  legend-engine runs PCT corrected; the relation suite's failures are table printing, B2's). Added as Q14 to
+  `compat-stage-b-questions-2026-11-19.md`.

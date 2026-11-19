@@ -314,6 +314,29 @@ Nobody has measured legend-engine's answers on Snowflake, Postgres, Databricks a
 
 ---
 
+### Q14. Run legend-engine's corpus in `engine` mode? (added ~22:05, from the user's question)
+
+**Context.** The rule of thumb: run each suite in the mode its authors run it in.
+- **legend-engine runs its relational corpus with its `substring` correction off.** One of its tests is named
+  `testToSQLStringSubstringIsUncorrectedByDefault`. So `engine` mode is the corpus's own setting.
+- **legend-engine runs PCT with the correction on:** its testable runner turns it on, as lite's PCT adapter did until
+  A3 piece 2 (`platform/Feature.java`'s record). So PCT stays in Pure's meaning, and is not part of this question.
+
+Today the corpus lanes run lite's own meaning against legend-engine's expected answers, so A3 piece 2 adds 7 recorded
+failures per database.
+
+| Choice | Pros | Cons |
+|---|---|---|
+| **A. The corpus lanes switch to `engine` mode, as part of B3** | the 7 per database pass again; the `engine` opt-in is tested on the whole corpus, not only the batteries' rows and the route tests; no extra lane, so no extra CI time | the corpus stops showing lite's default meaning against legend-engine's on those queries (still named in the register and on the differences page; PCT tests lite's default against Pure's spec); a `substring` in a model-to-model chain or a `~func` mapping is refused under `engine`, so a few tests may move to named refusals (measured first) |
+| B. Both modes, two sets of lanes | both measurements | doubles the corpus's CI time |
+| C. Keep today's mode | nothing to build | the opt-in is tested only narrowly; the 7 per database stay recorded failures |
+
+**Why not in stage A:** the corpus runs whole test programs through lite's test runner. That runner has no seam
+between typing a test and running it, so the rewrite has nowhere to sit. Adding one now would be a hook. B3 gives the
+corpus's own door its prepare and run halves, and this rewrite sits there beside the four corpus rewrites.
+
+**Recommendation: A, in B3, measured first** (the tests that move, by name, before the lanes switch).
+
 ## The questions at a glance
 
 | # | Question | Recommendation |
@@ -331,6 +354,7 @@ Nobody has measured legend-engine's answers on Snowflake, Postgres, Databricks a
 | 11 | Comparing different kinds | scoped: Pure code follows Pure, mappings keep SQL; loud at the door; in stage B |
 | 12 | legend-engine's runner, no-database tests | a small PR right after stage A |
 | 13 | `engine` on more databases | on demand |
+| 14 | The corpus in `engine` mode | yes, as part of B3, measured first; PCT stays in Pure's meaning |
 
 Q5 and Q12 can start before stage B is ratified. Q5 is a product bug fix, and your 14:30 word covers taking it over.
 Q12 is tooling, right after stage A. The rest take effect when you ratify stage B.
