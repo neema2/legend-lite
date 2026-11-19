@@ -2678,3 +2678,11 @@ who confirms or changes phases 1-3.
   and B and the corpus lanes running. It will not push on a relayed word (its start rule: "push only to
   claude/compat-translator-spike"); its three asks in its session were cut off by worker restarts; it asks again there.
 - **~20:45 UTC, the user approved every guard move that goes down** (§1's row); moves up, new closed-list entries, goldens and rosters still need the word. Relayed to the builders.
+- **~20:43 UTC, B1: the raw-SUBSTRING native's plan** (no build until the design is approved): two lite-internal
+  signatures `meta::legend::lite::substringAsGiven` (2 and 3 arguments), one Scalars rule to `SqlFn.SUBSTRING_AS_GIVEN`
+  (arguments as given), a label on each dialect's existing SUBSTRING case (SubstringClamp untouched), tests per dialect
+  and on H2 and DuckDB against the database's own SUBSTRING; guard moves INTERNAL_DESUGAR 40 → 41, native-claims,
+  SqlFnSortedTest's PRODUCT set +1, EdgeOnlyDataTest checked. **Corrected:** base on the translator's piece 2 branch (A2
+  removes the engine-style printers, so no labels there). **Its question, to the reviewer:** the native stays
+  lite-internal (edge-only vocabulary, one EdgeOnlyDataTest entry for the user's word; this session's leaning, since a
+  user-facing per-database SUBSTRING would break G2/G10 for lite's own users) or goes on LITE_SURFACE.
