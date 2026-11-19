@@ -281,6 +281,35 @@ class WarehouseServerTest {
     }
 
     @Test
+    void aDescribeSaysHowManyValuesTheStatementBindsAndARunSaysNothing() throws Exception {
+        String t = login("alice", "alice-pw");
+        // DuckDB's own count, from the prepare that reports the columns (track Q2, 2026-11-19): a script's last statement
+        for (Object[] c : new Object[][] {{"SELECT 1", 0}, {"SELECT ? AS a, ? AS b", 2}, {"SELECT $1, $1, $2", 2},
+                {"SELECT '?' AS q, ? AS one", 1}, {"SELECT 1; SELECT ?, ?, ?", 3}}) {
+            SqlApiBinding.Done done = (SqlApiBinding.Done) run(t, StatementRequest.of((String) c[0]).describe());
+            assertEquals(c[1], done.status().result().parameterCount(), (String) c[0]);
+        }
+        // a grant statement binds nothing (its parameters are refused): its describe's count is 0, the change unmade
+        for (String admin : new String[] {"SHOW GRANTS", "CREATE ROLE described_not_made"}) {
+            SqlApiBinding.Done grant = (SqlApiBinding.Done) run(t, StatementRequest.of(admin).describe());
+            assertEquals(0, grant.status().result().parameterCount(), admin);
+        }
+        // a run reports none, and its result is written as it always was: no parameterCount on the wire
+        SqlApiBinding.Done ran = (SqlApiBinding.Done) run(t, StatementRequest.of("SELECT ?")
+                .withParameters(java.util.List.of(1L)));
+        assertEquals(null, ran.status().result().parameterCount());
+        assertTrue(!Json.toCompact(com.legend.warehouse.sqlapi.ApiJson.resultMeta(ran.status().result()))
+                .contains("parameterCount"));
+        // the codec carries a describe's count both ways, and refuses one that is no count
+        SqlApi.ResultMeta described = new SqlApi.ResultMeta(java.util.List.of(), 0, 0, 3);
+        assertEquals(described, com.legend.warehouse.sqlapi.ApiJson.parseResultMeta(
+                com.legend.warehouse.sqlapi.ApiJson.resultMeta(described)));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> com.legend.warehouse.sqlapi.ApiJson.parseResultMeta(Json.parseObject(
+                        "{\"columns\":[],\"rowCount\":0,\"chunkCount\":0,\"parameterCount\":-1}")));
+    }
+
+    @Test
     void errorsCarryTheirKind() throws Exception {
         String t = login("alice", "alice-pw");
         ApiError parse = ((SqlApiBinding.Failed) run(t, StatementRequest.of("SELEC 1"))).error();

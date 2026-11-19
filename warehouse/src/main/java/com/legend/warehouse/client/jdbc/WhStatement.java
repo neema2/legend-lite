@@ -522,9 +522,16 @@ final class WhStatement implements java.sql.PreparedStatement {
         throw Unsupported.of("PreparedStatement.setSQLXML");
     }
 
+    /** {@inheritDoc} The statement described by the warehouse (prepared there, nothing run or bound), its parameter
+     *  count DuckDB's own; a warehouse that reports none is refused by name, never answered 0. */
     @Override
     public java.sql.ParameterMetaData getParameterMetaData() throws java.sql.SQLException {
-        throw Unsupported.of("PreparedStatement.getParameterMetaData");
+        Integer count = call(text(), true, List.of()).meta().parameterCount();
+        if (count == null) {
+            throw new SQLException("the warehouse's describe of the statement reported no parameter count (its"
+                    + " parameterCount): how many values it binds is unknown");
+        }
+        return new WhParameterMetaData(count);
     }
 
     @Override

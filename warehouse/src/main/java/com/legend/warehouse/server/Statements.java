@@ -329,7 +329,9 @@ public final class Statements implements AutoCloseable {
             }
             if (admin != null && !(admin instanceof AdminStatements.ShowGrants)) {
                 if (!run.request.describeOnly()) administer(admin);   // describing a change makes none
-                run.result = new ResultMeta(List.of(), run.request.describeOnly() ? 0 : -1, 0);
+                // a grant statement binds no value (refused above): a describe's count of them is 0
+                run.result = run.request.describeOnly() ? new ResultMeta(List.of(), 0, 0, 0)
+                        : new ResultMeta(List.of(), -1, 0);
                 finish(run, State.SUCCEEDED, null);
                 return;
             }
@@ -344,8 +346,9 @@ public final class Statements implements AutoCloseable {
             }
             String sql = admin != null ? showGrants() : run.request.sql();
             if (run.request.describeOnly()) {
-                // What the statement will return, from DuckDB's prepare; nothing runs.
-                run.result = new ResultMeta(ResultEncoder.api(c.describe(sql)), 0, 0);
+                // What the statement will return and how many values it binds, from DuckDB's prepare; nothing runs.
+                com.legend.warehouse.server.duck.Conn.Described described = c.describe(sql);
+                run.result = new ResultMeta(ResultEncoder.api(described.columns()), 0, 0, described.parameterCount());
                 finish(run, State.SUCCEEDED, null);
                 return;
             }
@@ -405,8 +408,10 @@ public final class Statements implements AutoCloseable {
         }
         String sql = attachment.passthrough(run.request.sql(), run.id);
         if (run.request.describeOnly()) {
-            // DuckDB binds the passthrough by asking the attached database to prepare it: its columns, nothing run
-            run.result = new ResultMeta(ResultEncoder.api(c.describe(sql)), 0, 0);
+            // DuckDB binds the passthrough by asking the attached database to prepare it: its columns, nothing run; the
+            // values it binds are the passthrough's own, as DuckDB counts them (none of ours: they are refused above)
+            com.legend.warehouse.server.duck.Conn.Described described = c.describe(sql);
+            run.result = new ResultMeta(ResultEncoder.api(described.columns()), 0, 0, described.parameterCount());
             finish(run, State.SUCCEEDED, null);
             return;
         }

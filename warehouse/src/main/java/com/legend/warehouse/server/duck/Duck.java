@@ -122,6 +122,8 @@ final class Duck {
         signatures.put("duckdb_prepare_error", FunctionDescriptor.of(ADDRESS, ADDRESS));
         signatures.put("duckdb_destroy_prepare", FunctionDescriptor.ofVoid(ADDRESS));
         signatures.put("duckdb_prepared_statement_column_count", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
+        // a prepared statement's parameter count, a describe's (track Q2, 2026-11-19: getParameterMetaData)
+        signatures.put("duckdb_nparams", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
         signatures.put("duckdb_prepared_statement_column_name", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG));
         signatures.put("duckdb_prepared_statement_column_logical_type", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG));
         signatures.put("duckdb_execute_prepared", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
@@ -224,7 +226,7 @@ final class Duck {
     final MethodHandle fetchChunk, destroyChunk, arrowOptions, destroyArrowOptions, chunkToArrow, errorHas,
             errorMessage, destroyError, release;
     // -- prepared statements and scripts ---------------------------------------------------
-    final MethodHandle prepare, prepareError, destroyPrepare, psColumnCount, psColumnName, psColumnLogicalType,
+    final MethodHandle prepare, prepareError, destroyPrepare, psColumnCount, psColumnName, psColumnLogicalType, nparams,
             executePrepared, extract, extractError, prepareExtracted, destroyExtracted, bindVarchar, bindInt64,
             bindNull, bindDouble, bindBoolean;
     // -- client context --------------------------------------------------------------------
@@ -281,6 +283,7 @@ final class Duck {
         prepareError = fn("duckdb_prepare_error");
         destroyPrepare = fn("duckdb_destroy_prepare");
         psColumnCount = fn("duckdb_prepared_statement_column_count");
+        nparams = fn("duckdb_nparams");
         psColumnName = fn("duckdb_prepared_statement_column_name");
         psColumnLogicalType = fn("duckdb_prepared_statement_column_logical_type");
         executePrepared = fn("duckdb_execute_prepared");

@@ -253,6 +253,9 @@ public final class ApiJson {
         f.put("columns", new Json.Arr(cols));
         f.put("rowCount", Json.num(r.rowCount()));
         f.put("chunkCount", Json.num(r.chunkCount()));
+        // a describe's alone (ResultMeta.parameterCount): a run's result is written as it always was
+        Integer parameters = r.parameterCount();
+        if (parameters != null) f.put("parameterCount", Json.num(parameters));
         return new Json.Obj(f);
     }
 
@@ -263,7 +266,13 @@ public final class ApiJson {
             Json.Node nullable = c.getOr("nullable", null);
             cols.add(new Column(str(c, "name"), str(c, "type"), !(nullable instanceof Json.Bool b) || b.value()));
         }
-        return new ResultMeta(cols, num(o, "rowCount").longValue(), (int) num(o, "chunkCount").longValue());
+        Integer parameters = null;
+        if (o.getOr("parameterCount", null) != null) {
+            long n = num(o, "parameterCount").longValue();
+            if (n < 0 || n > Integer.MAX_VALUE) throw notTheApis("a statement's parameterCount is " + n);
+            parameters = (int) n;
+        }
+        return new ResultMeta(cols, num(o, "rowCount").longValue(), (int) num(o, "chunkCount").longValue(), parameters);
     }
 
     public static Json.Obj chunk(Chunk c) {

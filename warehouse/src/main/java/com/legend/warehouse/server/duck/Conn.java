@@ -48,15 +48,24 @@ public final class Conn implements AutoCloseable {
         return runPrepared(statements.get(statements.size() - 1));
     }
 
+    /** What a describe reports: the columns a statement will return, and how many values it binds. */
+    public record Described(List<Result.Column> columns, int parameterCount) {
+        public Described {
+            columns = List.copyOf(columns);
+        }
+    }
+
     /**
-     * The columns {@code sql} will return, without running it. In a script the leading statements do run
-     * (the last one may depend on them), as DuckDB's JDBC driver's prepare did.
+     * The columns {@code sql} will return, and the number of values it binds ({@code duckdb_nparams}), without running
+     * it. In a script the leading statements do run (the last one may depend on them), as DuckDB's JDBC driver's
+     * prepare did; the columns and the count are the last statement's.
      */
-    public List<Result.Column> describe(String sql) throws DuckException {
+    public Described describe(String sql) throws DuckException {
         List<MemorySegment> statements = prepareAll(sql, true);
-        if (statements.isEmpty()) return List.of();
+        if (statements.isEmpty()) return new Described(List.of(), 0);
         MemorySegment ps = statements.get(statements.size() - 1);
         try {
+            long parameters = (long) d.nparams.invokeExact(ps);
             long n = (long) d.psColumnCount.invokeExact(ps);
             List<Result.Column> out = new ArrayList<>((int) n);
             for (long i = 0; i < n; i++) {
@@ -68,7 +77,7 @@ public final class Conn implements AutoCloseable {
                     destroyType(type);
                 }
             }
-            return out;
+            return new Described(out, Math.toIntExact(parameters));
         } catch (Throwable t) {
             throw Duck.fail(t);
         } finally {

@@ -171,10 +171,23 @@ public final class SqlApi {
     public record Column(String name, String type, boolean nullable) {
     }
 
-    /** A finished statement's result, without its rows. */
-    public record ResultMeta(List<Column> columns, long rowCount, int chunkCount) {
+    /**
+     * A finished statement's result, without its rows. {@code parameterCount}: on a describe
+     * ({@link StatementRequest#describeOnly}) the number of values the statement binds -- its {@code ?}s, as DuckDB's own
+     * prepare counts them -- and null on a run, which reports none (track Q2, 2026-11-19, the orchestrator's word on
+     * part B: a JDBC driver's {@code getParameterMetaData}, never a count guessed from the text).
+     */
+    public record ResultMeta(List<Column> columns, long rowCount, int chunkCount, @Nullable Integer parameterCount) {
         public ResultMeta {
             columns = List.copyOf(columns);
+            if (parameterCount != null && parameterCount < 0) {
+                throw new IllegalArgumentException("a statement binds no negative number of values: " + parameterCount);
+            }
+        }
+
+        /** A run's result: no parameter count. */
+        public ResultMeta(List<Column> columns, long rowCount, int chunkCount) {
+            this(columns, rowCount, chunkCount, null);
         }
     }
 

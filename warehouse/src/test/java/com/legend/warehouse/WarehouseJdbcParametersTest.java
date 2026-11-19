@@ -283,6 +283,68 @@ class WarehouseJdbcParametersTest {
     }
 
     @Test
+    void theParameterCountIsDuckDBsOwnAsItsOwnDriverReportsIt() throws SQLException {
+        for (String sql : new String[] {
+                "SELECT 1",
+                "SELECT ?",
+                "SELECT ? AS a, ? AS b, ? AS c",
+                "SELECT '?' AS not_a_parameter, ? AS one -- ? in a comment",
+                "SELECT $1 AS a, $1 AS again, $2 AS b",
+                "SELECT x FROM (VALUES (1), (2)) t(x) WHERE x IN (?, ?)",
+                // the exec seam's load of a file (JdbcStatements.readsFile): one value, the admitted path
+                "SELECT * FROM read_csv(?, header = true, delim = ',', quote = '"', escape = '"', auto_detect = false,"
+                        + " strict_mode = true, nullstr = '', columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR'})"}) {
+            try (PreparedStatement r = remote.prepareStatement(sql); PreparedStatement l = local.prepareStatement(sql)) {
+                assertEquals(l.getParameterMetaData().getParameterCount(), r.getParameterMetaData().getParameterCount(),
+                        sql);
+            }
+        }
+        // what the warehouse does not report is refused by name, never guessed
+        try (PreparedStatement r = remote.prepareStatement("SELECT ?")) {
+            java.sql.ParameterMetaData md = r.getParameterMetaData();
+            assertThrows(SQLFeatureNotSupportedException.class, () -> md.getParameterType(1));
+            assertThrows(SQLFeatureNotSupportedException.class, () -> md.getParameterTypeName(1));
+        }
+    }
+
+    @Test
+    void aScriptsParameterCountIsItsLastStatementsAndDescribingRunsNothingOfIt() throws SQLException {
+        try (Connection c = connect(); Statement s = c.createStatement()) {
+            s.execute("CREATE TABLE counted (x INTEGER)");
+            try (PreparedStatement p = c.prepareStatement("INSERT INTO counted VALUES (?, ?)")) {
+                assertEquals(2, p.getParameterMetaData().getParameterCount());
+            }
+            try (ResultSet rs = s.executeQuery("SELECT count(*) FROM counted")) {
+                assertTrue(rs.next());
+                assertEquals(0L, rs.getLong(1));
+            }
+        }
+    }
+
+    @Test
+    void aFileIsReadThroughItsBoundPathAsTheExecSeamLoadsOne() throws Exception {
+        // JdbcStatements.readsFile: the count asked first, the path then bound as the statement's one value
+        Path csv = Files.createTempFile("warehouse-read", ".csv");
+        Files.writeString(csv, "id,name\n1,a\n2,b\n");
+        try (Connection c = connect(); Statement s = c.createStatement()) {
+            s.execute("CREATE TABLE loaded (id BIGINT, name VARCHAR)");
+            try (PreparedStatement p = c.prepareStatement("INSERT INTO loaded SELECT * FROM read_csv(?, header = true,"
+                    + " delim = ',', quote = '"', escape = '"', auto_detect = false, strict_mode = true, nullstr = '',"
+                    + " columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR'})")) {
+                assertEquals(1, p.getParameterMetaData().getParameterCount());
+                p.setString(1, csv.toString());
+                assertFalse(p.execute());
+            }
+            try (ResultSet rs = s.executeQuery("SELECT string_agg(id || name, ',' ORDER BY id) FROM loaded")) {
+                assertTrue(rs.next());
+                assertEquals("1a,2b", rs.getString(1));
+            }
+        } finally {
+            Files.deleteIfExists(csv);
+        }
+    }
+
+    @Test
     void aClosedStatementTakesNoValue() throws SQLException {
         PreparedStatement p = remote.prepareStatement("SELECT ?");
         p.close();
