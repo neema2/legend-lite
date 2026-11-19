@@ -278,15 +278,38 @@ not a Pure call; `IqFunctions.java:1774` infers a width. None moves.)
   before the frontends' split**: it would break about 1,240 parity cases.
 - **The split, written for the spike:** two shared helpers in `protocol/sql/SqlToPure.java` (+33), `sqlSubstring(s,
   start[, length])` and `sqlIndexOf(s, t)`, the same rule as the dynaFunctions', and each of the 47 call heads
-  retargeted to them (`CypherToPure` 18 lines, `PostgresFunctions` 10, `IqFunctions` 13, `IqAggregates` 1). The parity
-  lanes with it: below (Run B).
+  retargeted to them (`CypherToPure` 18 lines, `PostgresFunctions` 10, `IqFunctions` 13, `IqAggregates` 1).
+- **Measured with the split** (Run B: the three parity lanes and all of `//core:core_tests`, Pure's core meaning, the
+  dynaFunction split and the frontend split together; `h5/parity/`):
+
+  | lane, DuckDB cases | no split (Run A) | with the split (Run B) |
+  |---|---|---|
+  | Cypher (5,081) | 3,540 pass, 321 fail, 406 error | 4,267 pass, 0 fail, 0 error: the ledger test passes |
+  | IQ (8,991) | 5,782 pass, 212 fail, 18 error | 5,984 pass, 19 fail, 15 error: the ledger test passes |
+  | Postgres SQL (2,362) | 1,624 pass, 27 fail | 1,651 pass, 0 fail: the lane passes |
+
+  **No answer regresses.** What still fails is text and pins, every one listed (`h5/parity/runB-*`):
+  - **9 tests pin the old meaning** (H3's list less the two the splits fixed): `TypeInferenceIntegrationTest`'s
+    `testSubstringStart`, `testStringIndexOf`, `testStringIndexOfSimple`, `testStringIndexOfFromIndex`,
+    `testIndexOfOneElement`, `testSortWithKeyFunction` (in `//core:core_edge_tests`); `ExtendCheckerTest$StringExtend.
+    testIndexOf`; `ValueSortComparatorTest.keyFunctionSort`; `SubstrIndexingTest.substrAlwaysCorrected` (it pins
+    "substring passes its indexes straight to SQL by default"). They move with R4 (3.3), each listed;
+  - **8 goldens of the frontends' generated text move**: `CypherToPureTest` 4, `PostgresToPureTest` 1,
+    `IqFunctionsTest.substringReadsAnsiVirtualPositions` 1 (each compares the Pure the frontend writes:
+    `substring(x, 2)` is now `substring(x, 1)`), and the Cypher and IQ showcases' pinned SQL (the same shift in the
+    generated SQL). Re-blessed with the split, each a reviewed diff;
+  - the Cypher island test (`aMarkedListOfTemporalsReadsItsElementsBackOrIsReadWhole`) and the DynaFunction
+    property-mapping test pass again.
 - **Size:** 1 to 1.5 days with the parity lanes (cypher, sql, iq, each against snapped answers), plus the same caveat
   as (i) once 3.3's raise lands (a frontend whose start can be 0 or below must keep SQL's rule there).
 
 ### 3.1, the total
 
-The plan's 1.5 days covered Cypher and the dynaFunction. Measured: about 2 to 2.5 days for the dynaFunctions, three
-frontends and their parity lanes; +0.5 day and one guard move once 3.3's negative-start raise lands.
+The plan's 1.5 days covered Cypher and the dynaFunction. Measured: the split itself is mechanical and done in the spike
+(dynaFunctions +49/-5; frontends +75/-42 in 5 files) with no answer moving on any parity lane; the work left for the
+real slice is the 17 listed test moves (9 old-meaning pins with R4, 8 goldens with the split), its review and CI. About
+2 days, and +0.5 day with one guard move once 3.3's negative-start raise lands. **It must land before R4 (3.3), or about
+1,240 parity cases break** (Run A).
 
 ## 4. 0.6, the ledger's first draft
 

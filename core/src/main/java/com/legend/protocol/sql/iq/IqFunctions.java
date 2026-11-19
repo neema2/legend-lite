@@ -664,7 +664,7 @@ final class IqFunctions {
                 }
                 case 's' -> {
                     if (fraction && n <= 6) {
-                        yield x -> SqlToPure.call("substring", lpad(microseconds(x), 6), integer(1), integer(n));
+                        yield x -> SqlToPure.sqlSubstring(lpad(microseconds(x), 6), integer(1), integer(n));
                     }
                     if (n != 2) {
                         throw dateFormatToken(t, f);
@@ -907,7 +907,7 @@ final class IqFunctions {
                 return SqlToPure.call("toString", SqlToPure.call("floor", magnitude(x)));
             }
             ValueSpecification text = SqlToPure.call("toString", x);
-            return ifThen(lt(x, integer(0)), SqlToPure.call("substring", text, integer(2), integer(25)), text);
+            return ifThen(lt(x, integer(0)), SqlToPure.sqlSubstring(text, integer(2), integer(25)), text);
         }
 
         /** The first {@code k} places' digits, cut toward zero. */
@@ -1509,10 +1509,10 @@ final class IqFunctions {
             ValueSpecification n = v.get(2);
             // a start of 1 or more: substring's own; below 1: the positions from 1 to start + length - 1
             ValueSpecification below = ifThen(lt(AppliedFunction.infixRun("plus", List.of(p, n)), integer(2)),
-                    new CString(""), SqlToPure.call("substring", v.get(0), integer(1),
+                    new CString(""), SqlToPure.sqlSubstring(v.get(0), integer(1),
                             AppliedFunction.infixRun("minus", List.of(AppliedFunction.infixRun("plus", List.of(p, n)),
                                     integer(1)))));
-            ValueSpecification value = ifThen(lt(p, integer(1)), below, SqlToPure.call("substring", v.get(0), p, n));
+            ValueSpecification value = ifThen(lt(p, integer(1)), below, SqlToPure.sqlSubstring(v.get(0), p, n));
             return negative ? ifThen(lt(n, integer(0)), raise("String"), value) : value;
         });
     }
@@ -1538,7 +1538,7 @@ final class IqFunctions {
                     List.of(AppliedFunction.infixRun("plus", List.of(p, n)), integer(1)));
             ValueSpecification first = ifThen(lt(p, integer(1)), integer(1), p);
             ValueSpecification last = ifThen(gt(hi, length), length, hi);
-            ValueSpecification text = ifThen(lt(last, first), new CString(""), SqlToPure.call("substring", str, first,
+            ValueSpecification text = ifThen(lt(last, first), new CString(""), SqlToPure.sqlSubstring(str, first,
                     AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("minus", List.of(last, first)),
                             integer(1)))));
             ValueSpecification far = SqlToPure.call("or", gt(p0, integer(32767)), lt(p0, integer(-32767)));
@@ -1577,7 +1577,7 @@ final class IqFunctions {
                             integer(1))));
             ValueSpecification first = ifThen(lt(lo, integer(1)), integer(1), lo);
             ValueSpecification last = ifThen(gt(hi, length), length, hi);
-            return ifThen(lt(last, first), new CString(""), SqlToPure.call("substring", str, first,
+            return ifThen(lt(last, first), new CString(""), SqlToPure.sqlSubstring(str, first,
                     AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("minus", List.of(last, first)),
                             integer(1)))));
         });
@@ -1990,12 +1990,12 @@ final class IqFunctions {
             ValueSpecification find = fold ? asciiFold(v.get(1), false) : v.get(1);
             ValueSpecification value;
             if (from == null) {
-                value = SqlToPure.call("indexOf", str, find);
+                value = SqlToPure.sqlIndexOf(str, find);
             } else {
                 ValueSpecification p = v.get(2);
                 // from start on: where it occurs in the rest, as a position of s
                 ValueSpecification at = atLeastOne(p);
-                ValueSpecification rest = SqlToPure.call("indexOf", SqlToPure.call("substring", str, at), find);
+                ValueSpecification rest = SqlToPure.sqlIndexOf(SqlToPure.sqlSubstring(str, at), find);
                 ValueSpecification forward = ifThen(SqlToPure.call("equal", rest, integer(0)), integer(0),
                         AppliedFunction.infixRun("minus", List.of(AppliedFunction.infixRun("plus", List.of(rest, at)),
                                 integer(1))));
@@ -2005,7 +2005,7 @@ final class IqFunctions {
                         integer(1)));
                 ValueSpecification prefix = SqlToPure.call("left", str, ifThen(lt(keep, integer(0)), integer(0),
                         keep));
-                ValueSpecification j = SqlToPure.call("indexOf", SqlToPure.call("reverseString", prefix),
+                ValueSpecification j = SqlToPure.sqlIndexOf(SqlToPure.call("reverseString", prefix),
                         SqlToPure.call("reverseString", find));
                 ValueSpecification backward = ifThen(SqlToPure.call("equal", j, integer(0)), integer(0),
                         AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("minus", List.of(
@@ -2148,7 +2148,7 @@ final class IqFunctions {
         }
         ValueSpecification found;
         if (!anchoredStart && !anchoredEnd) {
-            found = SqlToPure.call("indexOf", x, literal);
+            found = SqlToPure.sqlIndexOf(x, literal);
         } else if (anchoredStart && !anchoredEnd) {
             found = ifThen(SqlToPure.call("startsWith", x, literal), integer(1), integer(0));
         } else if (!anchoredStart) {
@@ -2191,7 +2191,7 @@ final class IqFunctions {
             }
             ValueSpecification value = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("left", str,
                     AppliedFunction.infixRun("minus", List.of(p, integer(1)))), replacement,
-                    SqlToPure.call("substring", str, AppliedFunction.infixRun("plus", List.of(p, n)))));
+                    SqlToPure.sqlSubstring(str, AppliedFunction.infixRun("plus", List.of(p, n)))));
             return ifThen(valid, value, SqlToPure.empty());
         });
         return Tx.value(r.vs(), Kind.STRING, true, r.detail());
@@ -3238,7 +3238,7 @@ final class IqFunctions {
                             SqlToPure.call("equal", p, integer(0)), integer(1), AppliedFunction.infixRun("plus",
                                     List.of(length, p, integer(1)))));
                     ValueSpecification match = SqlToPure.call("first", SqlToPure.call("regexpExtract",
-                            SqlToPure.call("substring", str, from), new CString("(?s)" + pattern),
+                            SqlToPure.sqlSubstring(str, from), new CString("(?s)" + pattern),
                             new com.legend.protocol.spec.CBoolean(false)));
                     return ifThen(SqlToPure.call("or", lt(from, integer(1)), SqlToPure.call("greaterThan", from,
                             length)), SqlToPure.empty(), match);
@@ -4590,7 +4590,7 @@ final class IqFunctions {
                     }
                     Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
                         ValueSpecification s = v.get(0);
-                        ValueSpecification rest = SqlToPure.call("substring", s, integer(n + 1));
+                        ValueSpecification rest = SqlToPure.sqlSubstring(s, integer(n + 1));
                         return ifThen(SqlToPure.call("lessThanEqual", SqlToPure.call("length", s), integer(n)), s,
                                 ifThen(SqlToPure.call("equal", SqlToPure.call("replace", rest, new CString(" "),
                                         new CString("")), new CString("")), SqlToPure.call("left", s, integer(n)),

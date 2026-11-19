@@ -5942,6 +5942,39 @@ public final class SqlToPure {
         return call(fn, List.of(args));
     }
 
+    /** H5 SPIKE (3.1, the frontends' split): SQL's 1-based {@code SUBSTRING(s, start[, length])} -- what lite's
+     *  frontends (#SQL, #IQ, #Cypher) mean -- written over Pure's {@code substring} (0-based, end-exclusive) as
+     *  {@code substring(s, start - 1[, start - 1 + length])}, a literal operand folded; Pure's rule writes SQL's
+     *  SUBSTRING back with the same operands, so the database answers as before. */
+    public static AppliedFunction sqlSubstring(ValueSpecification... a) {
+        ValueSpecification start0 = shiftedBy(a[1], -1);
+        if (a.length == 2) {
+            return call("substring", a[0], start0);
+        }
+        Long s = integerLiteral(a[1]);
+        Long n = integerLiteral(a[2]);
+        ValueSpecification end0 = s != null && n != null ? new com.legend.protocol.spec.CInteger(s - 1 + n)
+                : AppliedFunction.infixRun("plus", List.of(start0, a[2]));
+        return call("substring", a[0], start0, end0);
+    }
+
+    /** H5 SPIKE (3.1): SQL's 1-based {@code STRPOS}/{@code LOCATE} (0 on a miss) over Pure's 0-based {@code indexOf}
+     *  (-1 on a miss): one more, exact for both. */
+    public static AppliedFunction sqlIndexOf(ValueSpecification s, ValueSpecification t) {
+        return AppliedFunction.infixRun("plus", List.of(call("indexOf", s, t), new com.legend.protocol.spec.CInteger(1L)));
+    }
+
+    private static ValueSpecification shiftedBy(ValueSpecification v, long by) {
+        Long lit = integerLiteral(v);
+        return lit != null ? new com.legend.protocol.spec.CInteger(lit + by)
+                : AppliedFunction.infixRun(by < 0 ? "minus" : "plus",
+                        List.of(v, new com.legend.protocol.spec.CInteger(Math.abs(by))));
+    }
+
+    private static @com.legend.base.Nullable Long integerLiteral(ValueSpecification v) {
+        return v instanceof com.legend.protocol.spec.CInteger i ? Long.valueOf(i.value().longValue()) : null;
+    }
+
     static AppliedFunction call(String fn, List<ValueSpecification> args) {
         return new AppliedFunction(fn, args);
     }

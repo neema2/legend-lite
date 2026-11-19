@@ -209,7 +209,7 @@ final class PostgresFunctions {
                 // lowering (locate()), the acceptance surface; platform Pure's is 0-based, a divergence PCT ledgers
                 // (Test_LegendLite_EssentialFunctions_PCT), and the parity corpus pins the relational one here
                 kinds(f, a, Kind.STRING, Kind.STRING);
-                return strict(Kind.INTEGER, a, v -> call("indexOf", v.get(0), v.get(1)));
+                return strict(Kind.INTEGER, a, v -> sqlIndexOf(v.get(0), v.get(1)));
             });
         }
         for (String sub : List.of("substring", "substr")) {
@@ -455,7 +455,7 @@ final class PostgresFunctions {
         }
         if (a.size() == 2) {
             kinds(f, a, Kind.STRING, Kind.INTEGER);
-            return strict(Kind.STRING, a, v -> call("substring", v.get(0), v.get(1)));
+            return strict(Kind.STRING, a, v -> sqlSubstring(v.get(0), v.get(1)));
         }
         kinds(f, a, Kind.STRING, Kind.INTEGER, Kind.INTEGER);
         for (Tx x : a) {
@@ -474,7 +474,7 @@ final class PostgresFunctions {
         }
         long from = Math.max(start, 1);
         long count = Math.max(start + length - from, 0);
-        return strict(Kind.STRING, List.of(a.get(0)), v -> call("substring", v.get(0),
+        return strict(Kind.STRING, List.of(a.get(0)), v -> sqlSubstring(v.get(0),
                 integer(java.math.BigInteger.valueOf(from)), integer(java.math.BigInteger.valueOf(count))));
     }
 
@@ -689,7 +689,7 @@ final class PostgresFunctions {
                 return new CString("");
             }
             ValueSpecification all = parts.size() == 1 ? parts.get(0) : AppliedFunction.infixRun("plus", parts);
-            return leading ? all : call("substring", all, AppliedFunction.infixRun("plus", List.of(call("length", sep),
+            return leading ? all : sqlSubstring(all, AppliedFunction.infixRun("plus", List.of(call("length", sep),
                     new CInteger(1L))));
         });
     }
@@ -784,9 +784,9 @@ final class PostgresFunctions {
             throw SqlTranslationException.invalid("negative substring length not allowed", f.args().get(2).pos());
         }
         return strict(Kind.STRING, args.subList(0, 2), v -> {
-            ValueSpecification head = call("substring", v.get(0), new CInteger(1L), new CInteger(n - 1));
-            ValueSpecification tail = m == null ? call("substring", v.get(0), AppliedFunction.infixRun("plus",
-                    List.of(new CInteger(n), call("length", v.get(1))))) : call("substring", v.get(0),
+            ValueSpecification head = sqlSubstring(v.get(0), new CInteger(1L), new CInteger(n - 1));
+            ValueSpecification tail = m == null ? sqlSubstring(v.get(0), AppliedFunction.infixRun("plus",
+                    List.of(new CInteger(n), call("length", v.get(1))))) : sqlSubstring(v.get(0),
                     new CInteger(Math.max(n + m, 1)));
             return AppliedFunction.infixRun("plus", List.of(head, v.get(1), tail));
         });
@@ -905,14 +905,14 @@ final class PostgresFunctions {
     }
 
     private static ValueSpecification field(ValueSpecification rest, CString delimiter, long n) {
-        ValueSpecification at = call("indexOf", rest, delimiter);
+        ValueSpecification at = sqlIndexOf(rest, delimiter);
         ValueSpecification none = call("equal", at, new CInteger(0L));
         if (n == 1) {
-            return call("if", none, thunk(rest), thunk(call("substring", rest, new CInteger(1L),
+            return call("if", none, thunk(rest), thunk(sqlSubstring(rest, new CInteger(1L),
                     AppliedFunction.infixRun("minus", List.of(at, new CInteger(1L))))));
         }
         // the delimiter's length in characters, as SQL's substring counts them (not UTF-16's units)
-        ValueSpecification after = call("substring", rest, AppliedFunction.infixRun("plus", List.of(at,
+        ValueSpecification after = sqlSubstring(rest, AppliedFunction.infixRun("plus", List.of(at,
                 new CInteger(delimiter.value().codePointCount(0, delimiter.value().length())))));
         return call("if", none, thunk(new CString("")), thunk(field(after, delimiter, n - 1)));
     }

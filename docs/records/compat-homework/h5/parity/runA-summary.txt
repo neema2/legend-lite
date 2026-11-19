@@ -1,0 +1,8 @@
+upstream's Postgres parity corpus, duckdb lane: 2362 cases, PASS 1624, FAIL 27, REFUSED 462, BOTH_ERROR 181, SKIP 68
+the #IQ{...}# island's parity cases, duckdb lane: 8991 cases, PASS 5782, FAIL 212, REFUSED 1384, ERROR 18, BOTH_ERROR 1509, BUG 8, SKIP 78
+the Cypher parity corpus (the openCypher TCK and lite's cases), duckdb lane: 5081 cases, PASS 3540, FAIL 321, REFUSED 48, ERROR 406, BOTH_ERROR 766
+//core:core_tests_protocol                                               PASSED in 13.7s
+//core:core_tests_integration                                            FAILED in 130.9s
+//core:cypher_parity_test                                                FAILED in 181.1s
+//core:iq_parity_test                                                    FAILED in 167.6s
+//core:sql_parity_test                                                   FAILED in 46.9s

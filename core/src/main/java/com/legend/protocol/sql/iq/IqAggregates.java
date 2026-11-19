@@ -1486,7 +1486,7 @@ final class IqAggregates {
 
     /** The value {@link #packedByKey} packed: what follows its first separator. */
     static ValueSpecification unpacked(ValueSpecification packed) {
-        return SqlToPure.call("substring", packed, AppliedFunction.infixRun("plus", List.of(SqlToPure.call("indexOf",
+        return SqlToPure.sqlSubstring(packed, AppliedFunction.infixRun("plus", List.of(SqlToPure.sqlIndexOf(
                 packed, new CString(SEPARATOR)), new CInteger(1L))));
     }
 
