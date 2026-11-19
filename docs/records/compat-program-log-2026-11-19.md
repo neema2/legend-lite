@@ -714,3 +714,32 @@ who confirms or changes phases 1-3.
     check: PCT's and pure/v1's pinned messages byte-identical or listed.
   - With H10 (the appeal's move), H11 (relation text, passed its interim) and H12 (the combined stage-A dry run),
     every unproven joint of the design now has a prototype or a measurement running.
+- **~12:47 UTC, H11's FINAL report: legend-pure's relation text in Java works** (`claude/compat-relation-text-spike`
+  at `5c62ee85`; §0 is the one page). PCT channel B, HOST judge, with the SQL builder off, each lane run twice:
+  - **DuckDB, five suites:** 431 of 431 relation texts equal PCT's expected text byte for byte; 1,240 of 1,249 pass, as
+    `main`;
+  - **H2 relation:** 342 of 342 texts equal; 436 pass against `main`'s 432;
+  - **SQLite** (relation and standard): 419 of 420 equal. **Postgres 16:** 427 of 430 equal;
+  - **differences caused by the printer, on all four databases: 0.**
+  - **A PRODUCT DEFECT it exposed** (sent to the product orchestrator): a window column read through a list operation
+    lowers the window call inside the list encoding's subquery. SQLite and Postgres answer silently wrong rows
+    (`testExtendJoinStringOnNull`: 'A' and 'E' where the answer is 'AE' and 'AE'), and Postgres refuses another. On
+    `main` it is hidden because the SQL text builder wraps the relation as a subselect. It needs a product fix before
+    1.3 lands.
+  - **A counter-example to 0.4 (f) on the JUDGE side:** 41 corpus tests (`calendarAggregation/tests/testCalendarFunctions.pure`)
+    are `toCSV($result.values)->replace('\n', ',')` over Float cells. **This session's call:** "CSV with rows joined
+    by a separator" becomes a presenter form (the product's host judge already names the shape, `CSVJOIN:<sep>`), not
+    a refusal. H11 now counts every judge-side composed print in the corpus and PCT, by shape.
+  - **No new hook in the core.** Query roots use public doors only (24 of 24 edge-case answers equal upstream's text).
+  - **For CP-6:** the column's name, its Pure type and the typed cell are enough. No written precision is needed, and
+    no SQL slot.
+  - **The edge cases:**
+    - EDGE-1's Floats are the same in Java as in legend-pure;
+    - EDGE-2 (`toCSV`'s DateTime) moves to upstream's `2024-01-02 10:30:00`;
+    - EDGE-3 (`%r` of a newline) moves to upstream's `'a\nb'`.
+    The last two are listed golden moves, toward upstream.
+  - **Sizes:** the printer is 213 lines; with the arm, about 400, against the SQL builder's 791. The judge's SQL for
+    the 365 relation tests shrinks 73%.
+  - **Its estimate:** the relation-text half of 1.3 is 4 to 5 days; with the value prints (not prototyped), all of 1.3
+    is 6 to 8 days, against the plan's 4 to 6.
+  - Not done: the corpus run (asked for now), seven other lanes, any guard run.
