@@ -2405,3 +2405,13 @@ who confirms or changes phases 1-3.
   `substring` inside the routed lambda goes to SQL and is flagged. M2M transforms reach SQL only for a TDS query over a
   chain; constraints are checked in Java except in the validation helpers; a Relation class mapping's expressions go
   to SQL. The detector's guard moves named exactly: the getenv allowlist +1 and funnel-register rows.
+- **~19:26 UTC, B1-R: the detector's shape note** (`compat-homework/A3-detector-shape-note.md` at `663f0e130` on
+  `claude/compat-a3-detector`): two new edge classes, three changed (`PureV1Routes`, `TestDataRoutes`, `EdgeServer`),
+  five routes (execute, Arrow, generatePlan, the three test-data routes); the setting read once at `EdgeServer.UPSTREAM`
+  and passed down, an unknown value stopping the server's start; guard moves exactly 2 (`ENV_FLAGS` +1, funnel-register
+  rows), pins 0, core hooks 0; the reach refined (host-side not flagged; user functions, qualified properties, a
+  Relation `~func` mapping flagged; M2M only under a relation or TDS query; constraints only through validate or a
+  DataQuality validation; dynaFunctions not; function values unverified); the literal-0 exemptions read from the
+  request's runtime connection. **It still carried the load-time report** (crossed with the ~19:20 ruling): **GO given
+  with the report dropped and refuse as the default** (`engine` not accepted until the user rules the opt-in);
+  constraints and M2M confirmed; a new size asked for.
