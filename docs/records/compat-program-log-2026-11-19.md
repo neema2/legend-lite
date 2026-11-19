@@ -1915,3 +1915,13 @@ who confirms or changes phases 1-3.
   weakened; G2), stop if a lane's judge statements grow more than ~25% or its time more than ~10%; **and the guard**
   (`ChannelBLedger.judge` refuses any JudgesDisagree outcome by name, with a plant). After A4, compatibility runs the
   host judge alone, so the COMPAT two-judge case goes; beta stays for the product's LITE lane.
+- **~16:00 UTC, A5 stopped: beta crosses the 25% line** (`6c7b0dbf6`: beta backed out, the guard kept). Measured on the
+  reference DuckDB lanes' pinned judge statements: beta as ruled (the full raising family, casts included) essential
+  358 → 530 (+48%), grammar 135 → 187 (+39%), standard 207 → 335 (+62%), mostly the judge's own casts to DOUBLE; beta
+  narrowed to raising functions, checked nodes and raise texts (no casts) +30%, +33%, +8%. A second defect beta needs
+  fixed whatever the scope (a rejection in a group of its own did not complete its segment; the new guard caught it):
+  the fix is in `RootLoops`, small, not pinned. Options: (b1) narrowed beta plus the fix, exact on every database;
+  (b2) part (3) on the LITE lane only (DuckDB, single-threaded: 30/30, no extra statements), COMPAT Postgres red on one
+  row until A4; (b3) hold for A4. **This session's call (16:35): (b1)**, the growth being in test plans' judge statements
+  only, never a product plan; stop if any lane's time grows more than ~10%; the ratchet moves in the PR body for the
+  user's word.
