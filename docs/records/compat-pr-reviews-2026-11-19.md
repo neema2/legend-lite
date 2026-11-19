@@ -171,7 +171,17 @@ below once it completes.
 
 **The rules of record:** not engaged. This is CI configuration only, with no core hook, switch or mode.
 
-**CI: every 404 gone?** Pending run 44573295984. To be filled in when it completes.
+**CI: every 404 gone? Yes, on every lane that has finished** (run 44573295984, read at ~17:47 UTC):
+- **No lane failed at fetch time.** That includes Linux `product`, `core` and `corpus_h2`, the lanes that hit Maven's 404
+  for `teavm-jso`, `rhino` and `h2-2.1.214` on #123 and #124.
+- **Linux:** all 21 lanes green.
+- **Windows:** all green except `warehouse`. Its log says "1 test FAILED": `//python:markets_test`, the timeout #126
+  fixes, not a download.
+- **linux-arm:** `warehouse` green.
+- **macOS:** `ui`, `pct_postgres`, `warehouse` and `corpus_h2` green; the rest still queued or running.
+- **One limit:** the job tails do not show whether a fetch fell through to the mirror on this run. The proof that the
+  mirror works is the PR's forced-404 run; this run shows the config parses and fetches everywhere with
+  `--config=ci`.
 
 ## PR #126: `markets_test`'s time, the headless host reads a model text's own answers once, head `699331ffd`
 
@@ -218,3 +228,29 @@ test change. It adds three bounded memos, plus new tests in `python/tests/test_h
   close, not that a third model releases the oldest. Add a plant.
 - **Memory:** up to 2 compiled copies of a large model stay alive per host beyond DataCube's own holds. That is
   bounded, and should be stated in the body.
+
+## The combination: #124's branch merging #123, #125 and #126, head `f832a6671`
+
+**Verdict: the combination is clean.** Its diff against `main` is exactly the union of the four PRs' diffs, and nothing
+interacts. Its own CI, run 44580527071, started at 17:45 UTC.
+
+**Checked myself, by script, file by file:**
+
+| | |
+|---|---|
+| The pieces | #123 plus #124 at `a7a2a5aa9`; #125 at `ca523848d`; #126 at `684f923b`. #126's line gained `684f923b` after my review: the eviction plant I asked for, `test_a_third_model_held_lets_the_oldest_go`, test-only. All are based on `main` `b75d6c73a` |
+| Files | each piece's changed files are disjoint from every other piece's (0 overlap in each of the 3 pairs). The combination changes 105 files, exactly the union: none extra, none missing |
+| Content | every one of the 105 files' blob at `f832a6671` is byte-identical to its piece's. The two merges, `aa002b6a` (#125) and `f832a667` (#126), changed no line of any piece |
+
+**No interaction:**
+- **The mirror and #124's lanes.** #124's new fetches (the `@maven_runner` pool for `tools/engine-runner`'s oracle and
+  batteries, and the referee's `h2_engine` jar) all name `repo1.maven.org`, so they now get the mirror too. That is the
+  intended effect. Every runner-pool file at the combined head carries a sha256 (619 files, 0 without), and
+  `--lockfile_mode=error` (`common:ci`) is unchanged.
+- **#126 and the nets.** #126 touches only `python/`. Neither the edge net (#123) nor the ENGINE lane (#124) runs the
+  Python host. `markets_test` runs in the `warehouse` lane alone.
+- **No shared guard list.** No guard file is edited by two pieces: #125 adds `tools/ci` files, and #123 adds
+  `tools/guards` and `tools/edgenet` files.
+
+**What remains before the user's merge word:** the combined run's result on every OS. Windows `warehouse` is the lane
+that shows #126's fix, and every Linux lane shows #125's.
