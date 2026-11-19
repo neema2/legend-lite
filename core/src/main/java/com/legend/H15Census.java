@@ -53,8 +53,12 @@ final class H15Census {
             inlined = "raw:" + t.getClass().getSimpleName();
         }
         List<String> rows = new ArrayList<>();
+        Helpers helpers = inlined.equals("inlined") ? null : new Helpers(q.specs());
         for (int i = 0; i < program.size(); i++) {
-            walk(program, i, program.get(i), new ArrayList<>(), rows, label, inlined);
+            walk(program, i, program.get(i), new ArrayList<>(), rows, label, inlined, helpers);
+        }
+        if (helpers != null) {
+            inlined += ":helpers=" + helpers.walked.size() + ":untyped=" + helpers.untyped;
         }
         StringBuilder out = new StringBuilder();
         out.append("#PROGRAM\t").append(label).append('\t').append(program.size()).append('\t').append(rows.size())
@@ -73,7 +77,7 @@ final class H15Census {
 
     /** {@code node} and its subtree, {@code path} its ancestors (nearest last), each paired with its child index. */
     private static void walk(List<TypedSpec> program, int stmt, TypedSpec node, List<Step> path, List<String> rows,
-            String label, String inlined) {
+            String label, String inlined, @com.legend.base.Nullable Helpers helpers) {
         String kind = kind(node);
         if (kind != null) {
             rows.add(String.join("\t", "NODE", label, kind, classify(program, stmt, path, 0), chain(path),
@@ -82,8 +86,64 @@ final class H15Census {
         List<TypedSpec> kids = node.children();
         for (int k = 0; k < kids.size(); k++) {
             path.add(new Step(node, k));
-            walk(program, stmt, kids.get(k), path, rows, label, inlined);
+            walk(program, stmt, kids.get(k), path, rows, label, inlined, helpers);
             path.remove(path.size() - 1);
+        }
+        if (helpers != null && node instanceof TypedUserCall u) {
+            helpers.walk(u, program, stmt, path, rows, label);
+        }
+    }
+
+    /** THE RAW FALLBACK: a body the inliner refused is walked as it is, and each user call's own typed body is walked
+     *  in turn (once per function per program): a node at its last statement's root is the call's value, classed at
+     *  the call site; any other is classed inside the helper. */
+    private static final class Helpers {
+        private final com.legend.compiler.spec.SpecCompiler specs;
+        private final java.util.Set<String> walked = new java.util.HashSet<>();
+        private int untyped;
+
+        Helpers(com.legend.compiler.spec.SpecCompiler specs) {
+            this.specs = specs;
+        }
+
+        void walk(TypedUserCall call, List<TypedSpec> program, int stmt, List<Step> callPath, List<String> rows,
+                String label) {
+            String fqn = call.callee().qualifiedName();
+            if (!walked.add(fqn)) {
+                return;
+            }
+            List<TypedSpec> body;
+            try {
+                body = specs.compile(call.callee()).body();
+            } catch (Throwable t) {
+                untyped++;
+                return;
+            }
+            for (int i = 0; i < body.size(); i++) {
+                List<Step> path = new ArrayList<>();
+                walkHelper(fqn, body, i, body.get(i), path, program, stmt, callPath, rows, label);
+            }
+        }
+
+        private void walkHelper(String fqn, List<TypedSpec> body, int i, TypedSpec node, List<Step> path,
+                List<TypedSpec> program, int stmt, List<Step> callPath, List<String> rows, String label) {
+            String kind = kind(node);
+            if (kind != null) {
+                String cls = path.isEmpty() && i == body.size() - 1
+                        ? classify(program, stmt, callPath, 0) + " (returned by " + simple(fqn) + ")"
+                        : classify(body, i, path, 0) + " (in " + simple(fqn) + ")";
+                rows.add(String.join("\t", "NODE", label, kind, cls, chain(path) + " | " + chain(callPath),
+                        "helper", pos(node), argType(node), "helper:" + fqn));
+            }
+            List<TypedSpec> kids = node.children();
+            for (int k = 0; k < kids.size(); k++) {
+                path.add(new Step(node, k));
+                walkHelper(fqn, body, i, kids.get(k), path, program, stmt, callPath, rows, label);
+                path.remove(path.size() - 1);
+            }
+            if (node instanceof TypedUserCall u) {
+                walk(u, program, stmt, callPath, rows, label);
+            }
         }
     }
 
