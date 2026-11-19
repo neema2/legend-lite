@@ -2482,3 +2482,13 @@ who confirms or changes phases 1-3.
   151, the H2 fail roster carrying the test; the batch's H2 corpus lane settles it, and the page and the roster must
   agree. O1's two remaining phrases in the final plan (the A3 row's default; §4a's "What it does") corrected here. Nit:
   S386 cites `joinStrings.pure:18-21`, not `:23`.
+- **~19:47 UTC, the CI-health worker: parser_parity measured** (read-only). Its lane on `main`: macOS 561-582 s,
+  Linux 265-288 s, Windows 447-476 s; on #124: macOS 361-420 s. #127's macOS runner was about 2x slow on everything
+  (critical path 1220 s against 530-768 s). macOS runs it alone (`--local_test_jobs=1`), so normal runs use 40-65% of
+  the 900 s limit (junit_test's default size "large"; no guard reads a size). **The cause:** 71.6% of CPU is inside
+  legend-engine's grammar parser (the referee); four classes (ModelComposerParityTest, CorpusSweepTest,
+  ModelReaderParityTest, ComposerParityTest, 93% of the time) each parse every corpus source themselves, where
+  CorpusSweepTest's own design is one referee parse per source. **GO given for the cause fix:** one per-JVM memo of the
+  referee parse per source (keyed by source and options, held softly), no size, timeout or shard change; estimated 284
+  s → about 130 s locally; branch `claude/compat-parser-parity-memo`, assertions proven unchanged, reviewed, riding in
+  the batch.
