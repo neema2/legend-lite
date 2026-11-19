@@ -67,3 +67,17 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 who confirms or changes phases 1-3.
 
 ## 5. Learnings (as they arrive)
+
+- **~10:55 UTC, the user's question:** "It would also be good to know what would happen/what would be lost if we don't
+  do the model translation at all .. do we just lose substring/indexof or lots of other things break too? Maybe we have
+  a flag/option that can do index/substr as 0 or 1 based instead of trying to build a whole translator for example. I
+  wouldn't build a whole translation machine for substr/index but if turns out that we lose a lot more then might be
+  worth it".
+  - **Done:** the translator session's first task is now TASK 0. It lists every behaviour where today's edge makes lite
+    compute legend-engine's MEANING (about 9 strands, first cut), runs the corpus, pure/v1 and PCT ENGINE with all of
+    them switched off, and attributes each lost test to a strand. It then compares four ways forward: a full translator
+    (A), a rename pass over a fixed short list (B), a flag in the core (C), or nothing (D).
+  - **The orchestrator's first reading, before the number:** without a translator, only what today's edge does to
+    imitate legend-engine's meaning is at stake, against today. Most of H1's other rewrite rows are differences lite
+    already has. The full model-level translator is worth it only if task 0 shows much more than `substring`/`indexOf`
+    and a few H2/DuckDB quirks.
