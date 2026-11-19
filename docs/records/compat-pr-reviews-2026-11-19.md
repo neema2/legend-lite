@@ -1249,3 +1249,22 @@ all) propagates out of `parse()` before `HELD.put`, so it is never stored, and a
 The worker reports `//parser-equivalence:parser_parity` passing in 167.3 s with the same counts (9,731 parsed, 28,176
 reused, 0 kept whole). I did not rerun it here. The live peak moves 827-875 MB between runs, of 2,816 MB: still not a
 CI risk, for the reason above.
+
+### Re-check: `6c4509e0c` (one commit on `7f36f2730`: the planted test)
+**Verdict: APPROVED.**
+- **The refactor is behaviour-neutral for the four classes.** `RefereeParses` becomes an instance over a referee
+  function. The run's one memo, `RUN`, calls `REFEREE.parseModel(text)` or `(text, "", 0, 0, false)` exactly as
+  before. The static `withSourceInformation`, `withoutSourceInformation` and `counts` delegate to it, so the four
+  classes are untouched. `Key` and `answer` widen to package-private, for the test alone.
+- **`RefereeParsesTest` bites both ways:**
+  - `anOutOfMemoryErrorIsThrownOnAndNeverKept`: with the old `RuntimeException | Error` catch, the OOM is kept and the
+    second ask throws it again, so the test goes red;
+  - `aRefusalAndAStackOverflowAreKeptAndThrownAgain`, with `assertSame`: a catch that dropped `StackOverflowError`
+    parses that text twice, `asked` reaches 3, and the test goes red. A catch that kept every `Error` is caught by the
+    first test.
+
+  Both run in `parser_parity` through its package selection, so 47 = main's 45 + 2.
+- **Nit, theoretical:** test 1's third ask relies on the soft reference surviving between two adjacent asks. Clearing
+  it would need memory pressure in that instant, so the risk is negligible.
+- The worker's run, taken as reported and not rerun here: `parser_parity` passes in 164.0 s with the same counts, and
+  both plants fail as on `main`.
