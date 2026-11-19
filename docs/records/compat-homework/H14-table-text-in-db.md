@@ -242,3 +242,38 @@ V2 changes the product's scalar `toString()` of a whole Float from `2` to `2.0`:
   (a raw grid's text, refused by the spike), and `FloatTextTest.anEdgeRelationsTextPrintsAFloatCellAsLegendPure` (the
   edge style's table text now goes through the product's lowering, whose `FLOAT_TO_TEXT` the edge style spells as
   legend-engine's cast: `1e-05`, `1e+20`).
+
+## 8. The abstract `Date` holding a time, given ONE product text (D1, D2), each on top of V2
+
+The 33 tests of §3 hold `time:Date[1]` columns, which the database keeps as timestamps; the product had no text of its
+own for such a value and spelled it with each database's VARCHAR cast. Each variant gives it one text, in
+`Scalars.pureToString` (so a scalar `toString()` gets it too, not only a table cell): an ABSTRACT `Date` whose SQL slot
+is `TIMESTAMP` or `TIMESTAMPTZ` (a value with a time: legend-pure's `hasHour` is a precision fact, H11 §13.4); a `DATE`
+slot keeps its day.
+
+- **D1, lite's own DateTime text:** the style's `dateTimes` (the product's `DATETIME_TO_TEXT`: ISO 8601 in UTC, six
+  fraction digits, `Z`). Commit `9bcbd165`.
+- **D2, legend-pure's TDS text:** `STRFTIME(x, yyyy-MM-ddTHH:mm:ss)` + `.` + the first three of the nine subsecond
+  digits + `+0000`, composed in SQL (legend-pure's TDS re-reads a date at exactly three subsecond digits, §2 of H11).
+  The next commit.
+
+**PCT's 423 (channel B, LITE rules, the host judge; DuckDB's five suites, then the other three):**
+
+| Variant | DuckDB | SQLite | Postgres 16 | H2 (relation) | The 33 Date tests |
+|---|---|---|---|---|---|
+| V1 (§0) | 363 | 352 | 361 | 297 of 365 | fail: the database's cast |
+| V2 (§6) | 390 | 379 | 388 | 300 | fail: the database's cast |
+| **V2 + D1** | 390 | 379 | 388 | 300 | **fail on all four, on spelling alone**: PCT `2000-10-25T06:30:00.000+0000`, lite `2000-10-25T06:30:00.000000Z` |
+| **V2 + D2** | **423 of 423** | 412 | 421 | 330 | **pass on all four** |
+
+- **One text on every database, both variants:** under D1 every failing Date test's whole text is identical to
+  DuckDB's on H2 (30 of 30), SQLite (33 of 33) and Postgres (33 of 33); under D2 they all equal PCT's, byte for byte.
+  The database's own spellings (SQLite's `.000000`, the others' space) are gone either way.
+- **What is left under V2 + D2 is not the print:** SQLite's 11 refusals in the tests' own queries, Postgres's 2
+  `jsonb` key orders (fail on `main` too), H2's 35 capability refusals (§3).
+- **Nothing else moved on DuckDB** under D1 or D2: essential 315, grammar 136, unclassified 93 under both; relation
+  435 and standard 200 under D1, 465 and 203 under D2.
+- **Not run for D1 or D2** (the owner's loop change, 17:34): lite's own suites. They run once, on the variant the
+  user picks, for the count of lite's tests and pins that would move. D1 is lite's text and only spelling separates it
+  from PCT (compatibility's re-spelling, rule 3); D2 makes the product print legend-pure's form, which the rules of
+  record leave to compatibility (rule 3, tenet 4), so D2 is a measurement of the ceiling, not a recommendation.

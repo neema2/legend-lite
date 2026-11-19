@@ -2944,12 +2944,18 @@ final class Scalars {
             throw new com.legend.error.NotImplementedException(
                     "toString over " + t + " is not modeled");
         }
-        // SPIKE (H14 D1): an ABSTRACT Date the database holds as a timestamp has a time: one product text on every
-        // database, a DateTime's (the style's; the product's DATETIME_TO_TEXT), never the database's own VARCHAR cast
+        // SPIKE (H14 D2): an ABSTRACT Date the database holds as a timestamp has a time: one product text on every
+        // database, legend-pure's TDS print of it -- yyyy-MM-ddTHH:mm:ss, a point, exactly three subsecond digits,
+        // +0000 -- never the database's own VARCHAR cast
         if (t == Type.Primitive.DATE && x.type() instanceof com.legend.sql.TypeFact.Typed dt
                 && (dt.type() == com.legend.sql.SqlType.Scalar.TIMESTAMP
                         || dt.type() == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ)) {
-            return styled.dateTimes().dateTimeText(x, null);
+            SqlExpr nine = SqlExpr.Call.of(SqlFn.STRFTIME, x,
+                    new SqlExpr.FormatLit(java.util.List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO)));
+            return cat(SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
+                    new SqlExpr.StringLit("."),
+                    SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(1), new SqlExpr.IntLit(3)),
+                    new SqlExpr.StringLit("+0000"));
         }
         // boolean text is a SEMANTIC node (P7): the reference prints
         // 'true'/'false', H2's VARCHAR cast prints 'TRUE' — the arg
