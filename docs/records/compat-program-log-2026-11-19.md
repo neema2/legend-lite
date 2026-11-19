@@ -2424,3 +2424,12 @@ who confirms or changes phases 1-3.
   lane passed on Linux and Windows and on macOS in #126's run. No re-run (#127 never merges alone; the batch's run is the
   evidence). The CI-health worker asked to measure parser_parity's times per OS on `main` and the smallest fix, read-only,
   so the batch does not trip on it.
+- **~19:30 UTC, B1: H15's follow-up** (§8 at `bfa88b0189`; the Float check `H15-data/calendar-floats.tsv`). Of the 46
+  tests with nested table texts, passing: **`main` today** DuckDB 39 (calendar 34 of 41, extensions 5 of 5), H2 32
+  (calendar 32, extensions 0); **B2 as ruled, lite as it is** DuckDB 5, H2 0 (every calendar body refused by name:
+  the product refuses `toCSV`, and the ~18:05 rulings gave only `toString` a database text); **B2 if lite had a CSV
+  text** (legend-pure's layout, lite's V2 Floats) DuckDB 37, H2 30 (the two lost against today, testAnnualizedValue
+  and testCmeValue, expect 15 and 16 decimals). 9 of the 41 expect more than six decimals, so no lite text passes them
+  (2 pass today, 4 fail earlier at assertSameSQL, 3 fail at this text today). **println:** lite never evaluates it
+  (no statement on either door), so the 13 nodes make no text and the takeover has nothing to do; but no register row
+  names println (S128 names print's inertness, R18), an unledgered divergence; a one-line amendment to S128 closes it.
