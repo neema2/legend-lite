@@ -993,3 +993,7 @@ who confirms or changes phases 1-3.
     ledger (a row not ledgered there is a route difference, sent at once). The 33 go to the product orchestrator as
     H2 dialect work. The translator re-runs H12's change (1) and the combined set on the two new lanes; B2 runs its
     S20/plain-set probe on them.
+- **~13:09 UTC, the product orchestrator:** the 33 H2 gaps are scheduled for the numbers worker
+  (`session_0195rQEjTP2YHCipAiqZmEma`) on `claude/h2-dialect-gaps`, after `claude/numbers-q1`; it messages B1-R first
+  for the cross-check. A route difference (a row not a known failure in lite's own H2 ledger) goes to the product
+  orchestrator separately.
