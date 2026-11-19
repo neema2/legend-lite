@@ -569,6 +569,53 @@ class AssertBarTest {
                 "AssertFailed: expected 2015-04-16T14:00:00.000000Z, got 2015-04-16T15:00:00.000000Z");
         want.put("{|assertEquals(%2015-04-16T14:30, date(2015, 4, 16, 14, 31))}",
                 "AssertFailed: expected 2015-04-16T14:30:00.000000Z, got 2015-04-16T14:31:00.000000Z");
+        // Pure keeps a DateTime's precision (the orchestrator's ruling 3, 2026-11-19): an hour is not its minute --
+        // legend-pure's DateWithHour.getMinute() is -1 where a minute's is 0 (m4 PureDate.equals, the pinned jar), so
+        // %2015-04-16T14 == %2015-04-16T14:00 is false, under every judge (the text read to its minute is the message's
+        // alone, never the comparison's)
+        want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "AssertFailed: expected"
+                + " 2015-04-16T14:00:00.000000Z (DateTime, hour), got 2015-04-16T14:00:00.000000Z (DateTime, minute)");
+        want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
+        want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}", "pass");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try (Connection c = backend.open()) {
+                        Program.run(StorelessRuntime.with(MODEL, backend.type()), e.getKey(), StorelessRuntime.RUNTIME,
+                                c, ExecuteOptions.NONE.withJudgeMode(mode));
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!e.getValue().equals(got)) {
+                        wrong.add(backend.type() + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** A Date-declared value is the kind the database computed it as (the orchestrator's ruling 2, track A5,
+     *  2026-11-19, G2): legend-engine's {@code firstDayOfWeek} is {@code $date->datePart()->adjust(...)}, a StrictDate
+     *  -- the host read it as the DateTime 2014-12-01T00:00:00 (the abstract Date's TIMESTAMP label) and failed an
+     *  equality with its StrictDate literal that the database judge held; an {@code adjust} of a DateTime stays a
+     *  DateTime, never equal to a StrictDate (legend-pure's precision), and both judges write it as a DateTime. One
+     *  outcome and one message under every judge, on each in-process database. */
+    @Test
+    void aDateDeclaredValueIsTheKindTheDatabaseComputedUnderEveryJudge() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals(%2014-12-01, %2014-12-04->meta::pure::functions::date::firstDayOfWeek())}", "pass");
+        want.put("{|assertEquals(%2014-12-01, %2014-12-04T10:30:00->meta::pure::functions::date::firstDayOfWeek())}",
+                "pass");
+        want.put("{|assertEquals(%2014-12-02, %2014-12-01->adjust(1, DurationUnit.DAYS))}", "pass");
+        want.put("{|assertEquals(%2014-12-01, %2014-12-01T00:00:00->adjust(0, DurationUnit.DAYS))}",
+                "AssertFailed: expected 2014-12-01, got 2014-12-01T00:00:00.000000Z");
+        want.put("{|assertNotEquals(%2014-12-01, %2014-12-01T00:00:00->adjust(0, DurationUnit.DAYS))}", "pass");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             for (var e : want.entrySet()) {

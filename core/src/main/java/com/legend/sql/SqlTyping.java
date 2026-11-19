@@ -479,9 +479,17 @@ public final class SqlTyping {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }
-                yield a.stream().anyMatch(
-                        x -> x.type() instanceof TypeFact.Bottom)
-                        ? BOTTOM : T_TIMESTAMP;
+                if (a.stream().anyMatch(x -> x.type() instanceof TypeFact.Bottom)) {
+                    yield BOTTOM;
+                }
+                // a year's, a quarter's, a month's or a week's start is a DATE on every dialect, as Pure's firstDayOf*
+                // answers a StrictDate (track A5, 2026-11-19, G2): each dialect delivers one -- a cast of date_trunc
+                // (AnsiSqlRenderer.dateTruncDateGrained, Postgres', Trino's, Snowflake's), BigQuery's DATE_TRUNC of a
+                // DATE, MariaDB's and SQLite's date functions, ClickHouse's toDate32; typed TIMESTAMP here, the value
+                // root's label read the day back as a midnight DateTime
+                yield a.get(0) instanceof SqlExpr.DatePartLit p && (p.part() == DatePart.YEAR
+                        || p.part() == DatePart.QUARTER || p.part() == DatePart.MONTH || p.part() == DatePart.WEEK)
+                        ? T_DATE : T_TIMESTAMP;
             }
             // the day's date (datePart; the day comparisons): a DATE, as DuckDb renders it (CAST(x AS DATE)) and
             // the legacy route reads it; a value root's TDS text prints it date-only (the MongoDB line's burn-down,

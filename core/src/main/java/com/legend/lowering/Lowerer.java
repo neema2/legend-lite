@@ -968,6 +968,14 @@ public final class Lowerer {
             // route, step 9, 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
             label = nt.type();
         }
+        if (spec.info().type() == Type.Primitive.DATE && e.type() instanceof com.legend.sql.TypeFact.Typed dt
+                && dt.type() == SqlType.Scalar.DATE) {
+            // an abstract Date root whose value the database computes as its DATE is a StrictDate (track A5,
+            // 2026-11-19, G2): labelled by the subtype's own wire (SqlTyping.subsumes), never the abstract Date's
+            // TIMESTAMP, which read %2014-12-04->firstDayOfWeek() -- legend-engine's datePart()->adjust(...), a
+            // StrictDate -- back as the DateTime 2014-12-01T00:00:00 to the host judge while the database judge held
+            label = SqlType.Scalar.DATE;
+        }
         // COLLECTION roots explode to N rows (the result-shape contract:
         // Executor reads a collection as N rows x 1 column); the carrier
         // COMPACTS first (audit §5 value lane — a pure collection holds

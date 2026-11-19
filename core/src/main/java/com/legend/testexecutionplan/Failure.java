@@ -38,7 +38,7 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
     }
 
     /** The exception classes a planning failure is raised as, each by its class's name: a closed list (a class not
-     *  listed fails the planning that recorded it, by name -- never a stand-in class). */
+     *  listed fails the planning that recorded it, raised as itself -- never a stand-in class, never recorded). */
     /** An exception that names its own kind (a planning library's class this records layer cannot name). */
     public interface Kinded {
         /** The kind this exception is recorded as. */
@@ -70,11 +70,10 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         UNSUPPORTED_OPERATION("java.lang.UnsupportedOperationException"),
         ARITHMETIC("java.lang.ArithmeticException"),
         NUMBER_FORMAT("java.lang.NumberFormatException"),
-        NULL_POINTER("java.lang.NullPointerException"),
-        CLASS_CAST("java.lang.ClassCastException"),
-        INDEX_OUT_OF_BOUNDS("java.lang.IndexOutOfBoundsException"),
+        // (NULL_POINTER, CLASS_CAST, INDEX_OUT_OF_BOUNDS and NO_SUCH_ELEMENT left the list 2026-11-19, the PR #118
+        // audit's JUDGES-4, track A5: a defect of lite's planner is no assert's raise -- planning fails with it, its
+        // stack kept (Failures.of rethrows a class off the list); measured that day, no suite recorded one)
         // the slice 1 audit (2026-11-08): raisable by planning's folds and reads, raised as they were
-        NO_SUCH_ELEMENT("java.util.NoSuchElementException"),
         DATE_TIME("java.time.DateTimeException"),
         UNCHECKED_IO("java.io.UncheckedIOException");
 

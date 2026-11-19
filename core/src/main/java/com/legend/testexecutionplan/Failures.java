@@ -20,18 +20,35 @@ public final class Failures {
     }
 
     /** {@code e}, raised while {@code where} planned, as data: its class one of the closed list (any other fails the
-     *  planning here, by name -- never recorded as a stand-in class). */
+     *  planning here, raised as itself -- never recorded as a stand-in class). */
     public static Failure of(RuntimeException e, String where) {
         return of(e, where, e.getMessage());
+    }
+
+    /** {@code e} where its class is one of the closed list, a planning failure a catch may plan as the assert's raise,
+     *  its decline or its message's; any other rethrown as itself, its stack kept (the PR #118 audit's JUDGES-4, track
+     *  A5, 2026-11-19, invariant 4): a defect of lite's planner -- a NullPointerException, a ClassCastException -- fails
+     *  the planning, never read as the test's failure or as "the let raises". */
+    public static RuntimeException planned(RuntimeException e) {
+        if (kindOf(e) == null) {
+            throw e;
+        }
+        return e;
+    }
+
+    /** The kind {@code e} is recorded as: the kind it names itself, else its class's; null where the list names none. */
+    private static Failure.@Nullable Kind kindOf(RuntimeException e) {
+        return e instanceof Failure.Kinded k ? k.failureKind() : Failure.Kind.named(e.getClass().getName());
     }
 
     /** {@link #of(RuntimeException, String)}, its message as {@code message} words it (a plan style's words of the
      *  error, {@code PlanStyle.errorWords}: 2026-11-16). */
     public static Failure of(RuntimeException e, String where, @Nullable String message) {
-        Failure.Kind kind = e instanceof Failure.Kinded k ? k.failureKind() : Failure.Kind.named(e.getClass().getName());
+        Failure.Kind kind = kindOf(e);
         if (kind == null) {
-            throw new IllegalStateException("a planning failure of a class the test plan does not name ("
-                    + e.getClass().getName() + ", planned at " + where + "): " + e.getMessage(), e);
+            // a class off the list, raised as itself (JUDGES-4, 2026-11-19): until then wrapped in an
+            // IllegalStateException, which the catch around this one's planning recorded as a planned raise
+            throw e;
         }
         if (message == null && needsMessage(kind)) {
             // these classes are built with a message (their constructors take one): a null is a defect of the site
@@ -73,10 +90,6 @@ public final class Failures {
             case UNSUPPORTED_OPERATION -> new UnsupportedOperationException(m);
             case ARITHMETIC -> new ArithmeticException(m);
             case NUMBER_FORMAT -> new NumberFormatException(m);
-            case NULL_POINTER -> new NullPointerException(m);
-            case CLASS_CAST -> new ClassCastException(m);
-            case INDEX_OUT_OF_BOUNDS -> new IndexOutOfBoundsException(m);
-            case NO_SUCH_ELEMENT -> new java.util.NoSuchElementException(m);
             case DATE_TIME -> new java.time.DateTimeException(text(f));
             // the message as planned; the I/O cause it wrapped is lost with the planning's stack (2.4)
             case UNCHECKED_IO -> new java.io.UncheckedIOException(m, new java.io.IOException(m));
@@ -89,7 +102,7 @@ public final class Failures {
             case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, RESOLUTION, ISLAND_SYNTAX, TYPE_INFERENCE, SCHEMA_INVARIANT, DATA,
                     ASSERT_FAILED, DIALECT_CAPABILITY, NOT_A_CONSTANT, DATE_TIME -> true;
             case MODEL, MAPPING_RESOLUTION, ILLEGAL_STATE, ILLEGAL_ARGUMENT, UNSUPPORTED_OPERATION, ARITHMETIC,
-                    NUMBER_FORMAT, NULL_POINTER, CLASS_CAST, INDEX_OUT_OF_BOUNDS, NO_SUCH_ELEMENT, UNCHECKED_IO -> false;
+                    NUMBER_FORMAT, UNCHECKED_IO -> false;
         };
     }
 

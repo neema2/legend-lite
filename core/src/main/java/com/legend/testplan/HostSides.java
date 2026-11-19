@@ -66,7 +66,7 @@ public final class HostSides {
         try {
             return new PlannedCheck(check, plan(name, check.asks(), letPrefix, specs, env));
         } catch (RuntimeException e) {
-            Check c = withoutTheMessage(check, e);
+            Check c = withoutTheMessage(check, com.legend.testexecutionplan.Failures.planned(e));
             if (c == null) {
                 throw e;
             }

@@ -519,7 +519,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     throw e;
                 } catch (RuntimeException e) {
                     // the let raises: the walk raises it at the let's turn, after the earlier segments ran and
-                    // reported (the M7 audit's F4) -- the walk's body
+                    // reported (the M7 audit's F4) -- the walk's body; a planner's defect is no let's raise (JUDGES-4)
+                    com.legend.testexecutionplan.Failures.planned(e);
                     com.legend.diagnostics.Diagnostics.judgeDecline("static", "let " + let.name(),
                             "the let raises: " + e);
                     return false;
@@ -549,7 +550,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 hook = BodyDriver.spliceHook(frames, letPrefix, specs, pre)::apply;
             } catch (RuntimeException e) {
                 // the frame environment raises before the arm: the walk raises it there, before anything is flushed
-                // (the M7 audit's F3) -- the walk's body
+                // (the M7 audit's F3) -- the walk's body; a planner's defect is no frame's raise (JUDGES-4)
+                com.legend.testexecutionplan.Failures.planned(e);
                 com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
                         "the frame environment raises: " + e);
                 return false;
@@ -575,7 +577,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // the dialect cannot write: H2's 33 list operations, SQLite's and MariaDB's regular expressions)
             } catch (RuntimeException e) {
                 // the gate's classification raised: not a route -- the arm raises the same at the assert's turn and
-                // the planning pass plans that raise at the root's place
+                // the planning pass plans that raise at the root's place; a planner's defect fails it here (JUDGES-4)
+                com.legend.testexecutionplan.Failures.planned(e);
             }
             // (a frame's activity read in a later segment than its own was refused here until 2026-11-12: its comment
             // was its segment's fused statement's stamp, unbound where that segment held no assert; it is its own

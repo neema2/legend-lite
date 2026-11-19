@@ -173,7 +173,7 @@ final class HostAsserts implements TestDoor.Asserts {
                             letPrefix.add(let);
                         }
                     } catch (RuntimeException e) {
-                        pendingLet = e;
+                        pendingLet = com.legend.testexecutionplan.Failures.planned(e);
                     }
                 }
                 continue;

@@ -56,6 +56,26 @@ final class LiteText {
             return SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, timestamp ? x
                     : new SqlExpr.Cast(toTheMinute(x), SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE));
         }
+        if (t == Type.Primitive.DATE && !(x.type() instanceof com.legend.sql.TypeFact.Typed day
+                && day.type() == SqlType.Scalar.DATE)) {
+            // an abstract Date is a DateTime where it has a time of day, as the host writes it (LiteWords.dateText; track
+            // A5, 2026-11-19, G2: the database judge wrote a TIMESTAMP value's cast, "2014-12-01 00:00:00", where the
+            // host wrote "2014-12-01T00:00:00.000000Z"): a timestamp's value is one, a text carrier one where it holds a
+            // time (a "T" or a ":"); a day its day
+            boolean timestamp = x.type() instanceof com.legend.sql.TypeFact.Typed ty
+                    && (ty.type() == SqlType.Scalar.TIMESTAMP || ty.type() == SqlType.Scalar.TIMESTAMPTZ);
+            if (timestamp) {
+                return of(Type.Primitive.DATE_TIME, x);
+            }
+            SqlExpr text = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
+            SqlExpr timed = SqlExpr.Call.of(SqlFn.OR,
+                    SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.STRPOS, text, new SqlExpr.StringLit("T")),
+                            new SqlExpr.IntLit(0)),
+                    SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.STRPOS, text, new SqlExpr.StringLit(":")),
+                            new SqlExpr.IntLit(0)));
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed, of(Type.Primitive.DATE_TIME, x))), text,
+                    SqlExpr.Reason.JUDGE);
+        }
         if (t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE) {
             return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
         }

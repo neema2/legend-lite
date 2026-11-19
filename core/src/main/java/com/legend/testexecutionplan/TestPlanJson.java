@@ -58,7 +58,9 @@ public final class TestPlanJson {
      *  orchestrator's ruling): no judging rules -- a Float's tolerance and a Decimal's scale are the two-form kinds'
      *  (the style's VerdictNumbers, the run hook's HostForms), and census C1's "the rules are data" is superseded; 33
      *  (2026-11-18, the PR #118 follow-ups' J3, track A5): a forAll-contains subset's judgment carries its two sides'
-     *  facts ({@code need}, {@code have}), each compared under its declared kind. */
+     *  facts ({@code need}, {@code have}), each compared under its declared kind; and (2026-11-19, the same version,
+     *  the follow-ups' A6, JUDGES-4) a planned failure names no NULL_POINTER, CLASS_CAST, INDEX_OUT_OF_BOUNDS or
+     *  NO_SUCH_ELEMENT kind (a planner's defect fails the planning, never recorded). */
     public static final int VERSION = 33;
 
     private TestPlanJson() {

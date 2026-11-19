@@ -451,7 +451,8 @@ public final class AssertVerdicts {
                 // a message the planner cannot plan: the assert fails naming it, as the host judge's does
                 // (HostJudgment.Messaged#unplanned) -- upstream evaluates the message only where the assert fails
                 message = new DatabaseJudge.PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(
-                        com.legend.compiler.spec.AssertMessages.unevaluated(e.getMessage()), null), env.target());
+                        com.legend.compiler.spec.AssertMessages.unevaluated(
+                                com.legend.testexecutionplan.Failures.planned(e).getMessage()), null), env.target());
             }
             com.legend.testplan.VerdictBatch batch = env.verdictBatch();
             com.legend.sql.SqlQuery read = message.message().row();
