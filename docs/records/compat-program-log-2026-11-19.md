@@ -1030,3 +1030,11 @@ who confirms or changes phases 1-3.
     (invariant 2) it stops and reports.
 - **~13:09 UTC, the translator:** B1-R's `10b311de6` (H2 essential and standard in the ENGINE lane) is merged into
   `claude/compat-translator-spike`; the two runs ((1) alone, the combined set) over the three H2 lanes are going.
+- **~13:10 UTC, B1-R: a repo-wide CI blocker, not this program's.** Maven Central answers 404 to GitHub's runners for
+  `h2-2.1.214.jar` (`h2_engine`, `tools/deps/jars_table.bzl`) on #124 (12:38, 13:06: parser_equivalence, core, stress)
+  and #123 (12:28: checks), and for `httpcore-4.4.13.jar` on #121 (11:30). Every lane analysing a target that needs
+  the jar fails before building; `main`'s last green run (03:26) would hit it now. The cause in the build:
+  `tools/deps/jars.bzl`'s `_url` gives each `http_jar` one URL. **Sent to the product orchestrator and the CI-health
+  session (13:20)** with a recommendation: a second Maven Central mirror in `_url`'s list
+  (`maven-central.storage-download.googleapis.com/maven2/`), the sha256 unchanged and checked; vendoring the referee's
+  jar can wait. Theirs to make and land; #123 and #124 re-run on it.
