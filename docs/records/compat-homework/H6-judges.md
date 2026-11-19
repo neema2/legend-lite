@@ -1,8 +1,35 @@
 # H6: the judges' homework for slices 2.1 and 2.2, and the I5 measurement (2026-11-19)
 
-**Status:** in progress, written as each finding lands (the user, 2026-11-19 ~10:45 UTC: "write down all the
-learning/outcomes/details immediately"). Homework only: no product change for merge, no pin, ceiling, ledger, roster or
-allowlist moved. The prototypes named below live on this branch alone and are marked MEASUREMENT ONLY in the code.
+**Status:** complete for the four tasks, written as each finding landed (the user, 2026-11-19 ~10:45 UTC: "write
+down all the learning/outcomes/details immediately"). Homework only: no product change for merge, no pin, ceiling,
+ledger, roster or allowlist moved. The prototypes named below live on this branch alone and are marked MEASUREMENT
+ONLY in the code.
+
+## 0. The answers on one page
+
+- **The 36 combinations (task 1, §1).** Defined at the 2026-11-17 02:30 row of the 2026-11-16 plan of record and listed
+  in the shape-port record (`1bb0f3151`). Re-measured at `main`: **none is covered by core** (core's 13 BOTH targets
+  plan 922 asserts in 46 combinations of their own). 7 have PCT asserts; 6 of those are judged in PCT tests that pass
+  under LITE BOTH. All 36 are small `testing.Program` bodies; no new mechanism. **2.1: 2.5 days** (the plan's 2, plus
+  half a day for the defects they will surface).
+- **The map (task 2, §2).** Every two-form kind, gate, seam and hook of compatibility judging, with file:line, lines,
+  callers and class. Three findings change 2.2:
+  - **the appeal's planning half is not only at `TestDoor`:** the engine-text arm claims asserts inside the product's
+    assert planner (15 gate calls in `AssertVerdicts`) through the planner's own environment, so the planning
+    interface needs one call site in the per-assert entry as well: done-when 1's "exactly two call sites" is three as
+    worded (a reshape of today's facet, not a new hook);
+  - **more is deleted than moved:** the database judge's appeal paths go with the compatibility database judge;
+  - **the user's call:** a "whole" compatibility host judge is either the edge's own copy of the 2,765-line host
+    judge (done-when 1 literally; +3 days) or the product's host judge with its rules a typed parameter (no copy;
+    done-when 1 reworded). **2.2: 8.5 days under the parameter, 11.5 under the copy** (the plan: 7.5).
+- **PCT as LITE's own suite (task 3, §3; §12 I5).** Channel B, DuckDB, 1,249 tests: COMPAT BOTH 1,240 pass; **LITE
+  BOTH 786 pass, 463 fail, 5 judges-disagree**; LITE with R4's substring half 790. Of the 463: 450 assert legend-pure's
+  text or words (423 of them a relation's `toString`), 7 are R4, **0 are compatibility-only judging rules**, 2 are
+  pre-existing, and **5 are real judge-parity defects** COMPAT's comparison hides (sent to A5's owner). Channel A under
+  LITE: 1,203 of 1,249 pass, and the relation suite does not move, so lite's relation answers are right by value.
+  **Recommendation: yes, add a LITE PCT lane to 2.1**: about 75 s per push, its own exact ledger, 786 tests of parity
+  evidence with messages compared.
+- **Coordination (task 4, §4).** Told the previous orchestrator at the start; sent it the 5 parity findings.
 
 - **Branch:** `claude/compat-judges-homework`, from `main` `b75d6c73a`.
 - **Session:** the judges session of the compatibility program; reports to the program's owner
@@ -420,9 +447,30 @@ DuckDB: no other disagreement among the 786 LITE passes, messages compared.
   of one minute of CI, and found real defects at once. It does not replace the 36 combinations' port: only 7 of the 36
   have PCT asserts at all (§1).
 
-### 3.6 Channel A under LITE's planning style
+### 3.6 Channel A under LITE's planning style (legend-pure's interpreter judging lite's answers)
 
-Pending (the switch `-Dpct.channela.rules=LITE|LITE_R4` in `PctPlanRoute`, §5.1).
+`-Dpct.channela.rules=LITE` (§5.1) plans every `execute` in the product's style (`PlanStyle.PRODUCT`) with the
+product's default features; a raise is lite's own words (no `RaisedWords` recorder). The relation answer still crosses
+to the interpreter as legend-engine's JSON (`EngineAnswers.engine`, the harness's crossing after the run), so the
+interpreter's asserts judge lite's relation VALUES.
+
+| Run | essential | grammar | relation | standard | unclassified | All (1,249) | Wall (5 suites, 3 at a time) |
+|---|---|---|---|---|---|---|---|
+| COMPAT (today's lanes, reproduced: all five PASSED their ledgers) | 324/21 | 132/5 | 468/1 | 205/0 | 93/0 | **1,222 / 27** | 129 s |
+| LITE | 308/37 | 131/6 | **468/1** | 203/2 | 93/0 | **1,203 / 46** | 129 s |
+
+(pass/fail; the COMPAT failures are the ledgers' expected ones, `one("..._Function...")` in
+`Test_LegendLite_<Suite>Functions_PCT.java`.) Under LITE, 26 tests deviate from the ledgers: 7 are ledgered failures
+failing with another message (`testComplexClassToString`, `testAtError`, the 5 date-part and `newDate` errors), 19 are
+new failures, and every one of the 19 is a class of §3.3: R4's substring (4: `testStart`, `testStartEnd`, the 2 sort
+keys), legend-pure's error words (6: `rem`, `slice`, `sqrt`, `range`, both bit shifts), legend-pure's print of a value
+(7: 3 Float, 3 DateTime `toString`, 1 `format` date), `format`'s `%05d` and `%r` refused (2).
+
+**The relation and standard suites do not move** (relation 468/1 and standard 203/2 under LITE, the standard pair the
+bit shifts' words). So the 423 channel B relation-text failures are about the asserted TEXT alone: lite's relation
+answers under its own rules are the ones legend-pure expects. Channel A under LITE is therefore the value check for
+exactly the tests channel B's LITE run cannot judge, and costs 129 s on this container (four 4 GB JVMs fit 15 GB three
+at a time).
 
 ---
 
@@ -449,3 +497,29 @@ scale) are not touched: DuckDB only. Any judge-parity bug found goes to it befor
 - `core/.../testplan/HostSides.java`: `-Dlegend.measure.shapes=stdout` prints one `[shape]` line per planned assert:
   LITE or COMPAT (the planning style), the running test, the assert's name and each side's kind and shape (the port
   of `claude/total-wall-e-measure`'s `d252748b`/`d8438c80` to today's `JudgePlans.shapeOf(PlannedSide, PlanStyle)`).
+- `pct/.../extension/PctPlanRoute.java`: `-Dpct.channela.rules=COMPAT|LITE|LITE_R4`. COMPAT is today's route,
+  unchanged (all five channel A lanes PASSED with the switch in place); LITE plans in `PlanStyle.PRODUCT` with the
+  product's default features and no `RaisedWords` recorder; LITE_R4 keeps the corrected substring indexing.
+
+### 5.2 The commands (cloud container, Bazel 9.2.0 via bazelisk, 4 cores, 15 GB)
+
+- Setup: `tools/cloud-distdir.sh <targets>` twice (the second for the upstream source archives the channel B targets
+  read: `legend-engine-4.145.0.tar.gz`, `legend-pure-5.99.0.tar.gz`, packed from git clones, pins matched).
+- Channel B, a variant: `bazel test //pct:pct_channel_b_{essential,grammar,relation,standard,unclassified}
+  --jvmopt=-Dpct.channelb.rules=LITE [--jvmopt=-Dpct.channelb.judge=HOST|DATABASE] --nocache_test_results`; each
+  outcome is a `[chB-h6]` line of the suite's `test.log`.
+- The shape census: the same, plus `--jvmopt=-Dlegend.measure.shapes=stdout`; core's:
+  `bazel test //core:core_tests_<package>_judge_both` for the 12 judged packages and `root`, with the same flag; each
+  planned assert a `[shape]` line.
+- Channel A: `bazel test //pct:pct_duckdb_{essential,...} --jvmopt=-Dpct.channela.rules=LITE --local_test_jobs=3`; each
+  deviation from the ledger is a JUnit failure in the suite's `test.xml`.
+- The collectors and classifier (`collect.py`, `classify.py`, `combos.py`) were scratch scripts; their logic is what
+  §3.3 and §1.3 state (classes by the failure's own text and the test's name; combinations keyed by the assert's short
+  name and each side's `SideShape.Kind` and one-or-many).
+
+### 5.3 What was not measured
+
+- The corpus: the 29 corpus-only rows of the 36 were not re-measured (no corpus lane run here); their counts are the
+  shape-port record's.
+- Any database but DuckDB (Q3, Q3b untouched).
+- LITE's run of the 36 themselves: porting them is 2.1's work, not homework.
