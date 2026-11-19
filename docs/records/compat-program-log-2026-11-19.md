@@ -2759,3 +2759,11 @@ who confirms or changes phases 1-3.
   with its JDK recorded in S383, never a JDK's wording by recall. Still the user's word there: the push of both branches,
   +7 corpus fail-roster rows per database (up), 9 re-pinned tests, 9 edge-net re-records.
 - **~21:10 UTC, the user ruled the three `substring` points yes** (§1's row). B1 (session_0195rQEnAa5CYXHygAxEFh3Y) told: the four recording moves approved, anything else (its "COMPILER_OWN") comes back first. The translator had already been given the push and piece 2 word by the user in its own session. The `sqlSubstring` item added to the final plan's product-track list.
+- **~21:07 UTC, the reviewer approved the parser memo at `6c4509e0c`** (recorded at its `d9695125`): the refactor
+  neutral; `RefereeParsesTest` red with the old catch either way. Ready for the batch (the judges merge it).
+- **~21:08 UTC, the translator's piece 2 breakdown:** the 63 PCT rows are 3 `indexOf` tests × (11 channel-A classes +
+  10 channel-B lanes), measured on DuckDB A and B, the rest predicted from identical ledgered texts. Refined the
+  instruction: measure every lane runnable here; for the others, remove on prediction (dated "measured by the batch's CI
+  run") only if a stale known failure turns its lane red, else keep and trim after CI. The unordered register's fourth
+  line is `testToSQLStringSubstringIsUncorrectedByDefault` (in A2's real register). S383's legend-pure text: JDK 21
+  says "Range [b, e) out of bounds for length n", JDK 17 "begin b, end e, length n"; the engine runner decides.
