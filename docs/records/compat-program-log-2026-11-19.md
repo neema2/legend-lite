@@ -2343,3 +2343,13 @@ who confirms or changes phases 1-3.
   reads the query's own compile; the load-time report types every body once per model in the background (about 4 s on
   legend-engine's corpus). Offered (b): produce the report only when the work is already done (Studio's compile) or on
   demand through its endpoint, never started on its own. Awaiting the user's answer.
+- **~19:16 UTC, A2 PUSHED** (on the user's word in B2's session): `origin/claude/compat-a2-printers` at `6551c2036`, 7
+  commits on `main`, no PR. `//gates:local` 558 pass, 1 skipped by design; the 12 root-refusing targets 12 of 12 as
+  `ubuntu`; the corpus host passes, `//pct:edge_contract_test` and the lean-SQL lanes green. Fixes since the last
+  counts: `toDDL`'s drop and the printed setup name a quoted table as its store declared it (lite's text had printed
+  `Drop table if exists Items` beside `Create Table "Items"`); a seed's date cell is an escaped string (it had printed
+  `DATE '2014'12'`); `EngineSeedText` leaves the temporal-literal makers list; `LegacyTextTest` deleted; the router
+  parity programs respell lite's text; `EngineShape`'s six planner entries go; EnginePlans 760 → 757;
+  parser-equivalence's corpus 3310 → 3311. Its batch section came garbled; asked to commit it as a file. **The batch
+  merge started:** the judges' session merges A2 (`6551c2036`) then A5 (`6f21bed29`, which already carries #124's
+  branch) into A4's branch, measures once on the merged tree, pushes; A3 merges last, then the batch PR.
