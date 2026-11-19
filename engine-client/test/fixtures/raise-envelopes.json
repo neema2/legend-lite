@@ -90,6 +90,17 @@
       "kind": "INDEX_OUT_OF_BOUNDS"
     },
     {
+      "name": "a text holding the separator again keeps all after the FIRST, as Java's runner reads it (HOSTS-11, H4's P7, 2026-11-19: the tab took the last)",
+      "message": "x \u001f3:7\u001ea\u001eb\u001f",
+      "words": "a\u001eb"
+    },
+    {
+      "name": "a site's number written with a leading zero is that site, as Java's RaiseKind.siteNumber reads it (HOSTS-11, H4's P7, 2026-11-19: the tab read it as text)",
+      "message": "\u001f\u001cLG#01\u001f",
+      "words": "division by zero",
+      "kind": "DIVIDE_BY_ZERO"
+    },
+    {
       "name": "a token the statement does not declare is refused by name",
       "message": "\u001f\u001cLG#9\u001f",
       "refused": true

@@ -39,14 +39,18 @@ export class DatabaseError extends QueryError {
 }
 
 /** What a database's `message` holds of a raise, as Java's runner reads it (exec.RaisedErrors.unwrapped): the text
- *  between the first two sentinels, a source position before its separator dropped, a held quote restored; and the
- *  site's number where the text is a token. Undefined where it holds no raise. */
+ *  between the first two sentinels, a held quote restored, a source position before its FIRST separator dropped; and
+ *  the site's number where the text is a token (sql.RaiseKind.siteNumber: one to nine ASCII digits, at least 1, a
+ *  leading zero allowed). Undefined where it holds no raise. HOSTS-11 (H4's P7, 2026-11-19): until then the text after
+ *  the last separator, and a leading zero read as text. */
 export function raiseIn(message: string): { readonly site?: number; readonly text: string } | undefined {
   const [, inner] = message.split(RAISE.SENTINEL, 3);
   if (inner === undefined || !message.includes(RAISE.SENTINEL, message.indexOf(RAISE.SENTINEL) + 1)) return undefined;
-  const text = inner.split(RAISE.QUOTE_MARK).join("'").split(RAISE.POSITION_SEP).pop()!;
+  const held = inner.split(RAISE.QUOTE_MARK).join("'");
+  const sep = held.indexOf(RAISE.POSITION_SEP);
+  const text = sep >= 0 ? held.slice(sep + RAISE.POSITION_SEP.length) : held;
   const digits = text.startsWith(RAISE.TOKEN) ? text.slice(RAISE.TOKEN.length) : '';
-  return /^[1-9]\d{0,8}$/.test(digits) ? { site: +digits, text } : { text };
+  return /^[0-9]{1,9}$/.test(digits) && +digits >= 1 ? { site: +digits, text } : { text };
 }
 
 /**
