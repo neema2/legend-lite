@@ -3060,3 +3060,10 @@ who confirms or changes phases 1-3.
   the batch PR, marked pre-existing. The reviewer's second round (7b70932b3: the relation-valued let probe, R2-S1,
   R2-S2, a javadoc nit) re-sent to B1-R, the probe first (messages crossed). The translator is making piece 2's moves
   on the user's word given in its session.
+- **~23:16 UTC, B1-R: the reviewer's probe answered, NOT a silent miss** (legend-engine 4.145.0, H2 and DuckDB the
+  same): a relation let read by a later statement is refused by legend-engine in every form (`letFunction` has no SQL
+  translation; "RelationStoreAccessor should be used with a from(Runtime) expression"); a class collection let read by
+  a later `map(...substring)` answers Pure's meaning on the host. So the detector's not following a variable is right
+  (following to a relation let only flags what legend-engine refuses; to a class let would be wrong). Next: the
+  class-let shape pinned clean, R2-S1 (unverified, a plant), R2-S2 narrowed to lambda lets (probing that shape too),
+  the javadoc. Sent to the reviewer.
