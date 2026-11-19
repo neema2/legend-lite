@@ -53,6 +53,12 @@ test:ci --nocache_test_results
 # pool's maven_*_install.json must match its artifacts: fail_if_repin_required in MODULE.bazel).
 # A dependency edit without its lock fails here instead of resolving silently.
 common:ci --lockfile_mode=error
+# CI's downloads from Maven Central fall through to Google's mirror of it (tools/ci/downloader.cfg, 2026-11-19: Central
+# answered GitHub's runners 404 for jars it serves, h2-2.1.214.jar, httpcore-4.4.13.jar); the same files, each checked
+# against its pinned sha256
+common:ci --downloader_config=tools/ci/downloader.cfg
+# and a download cut off mid-way is tried again, up to three times (Bazel's own retry of a transient failure)
+common:ci --experimental_repository_downloader_retries=3
 
 # THE REMOTE CACHE (the build rebuild's L1e, 2026-10-07; OD-5): BuildBuddy, written by CI, read by any desk that asks,
 # so a lane downloads what an earlier job built (the native image, the WebAssembly planner, the bundles) instead of
