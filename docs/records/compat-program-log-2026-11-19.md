@@ -2634,3 +2634,9 @@ who confirms or changes phases 1-3.
   judges told). **The 2026-11-15 rule ("no PR edits a shared document"):** the AGENTS.md and G8 edits are ruled
   specifically (stage A's plan); the register rows enter the register once, in the batch PR, as D's rows were to "move
   into the register when D lands".
+- **~20:40 UTC, the user: "Don't need approval to push to branch do you? / What guards are changing exactly in
+  English / Yes on CI parser".** Relayed to the CI-health worker (push the memo), B2 (push the A3 docs) and the
+  translator (push piece 1; its guard moves still need the user's word with dated notes): each pushes if its own
+  session's rules accept a relayed word, else keeps its ask there. The user's 10:45 ruling already lets program sessions
+  push their own `claude/compat-*` branches; three sessions' own start instructions or permission checks require the
+  word in their session.
