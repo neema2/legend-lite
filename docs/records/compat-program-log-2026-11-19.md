@@ -17,6 +17,8 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 | ~04:30 | "We definitively should not delete the fallback that checks answers when SQL doesn't match right? That's one of the crown jewels of this project" | the SQL-text appeal and the referee are KEPT; under CP-4 they decide every SQL-text assert by answer |
 | ~10:45 | "yes to 1-5 and the independent review, do as much homework, research, measurements right now up front as possible and write down all the learning/outcomes/details immediately" | 1, CP-1 (translator in, formatters out, no modes); 2, sessions may push their own `claude/compat-*` branches; 3, two new sessions now (judges, translator), hosts in week 2, xhigh; 4, CP-9 (per-push checks, the oracle's `jars_table` entry); 5, CP-10 (housekeeping); and an independent review |
 
+| ~11:27 | "1 yes, 2 a1" (on the hosts worker's `currentUser` case) | `/api/server/v1/currentUser` on both hosts: GET answers 200 `"anonymous"`, any other method 405 with lite's upstream-405 body, plus one register row (the 405 body stands in for Dropwizard's, unread; HEAD and OPTIONS unread). Python's user is `"anonymous"` everywhere, with a one-time re-owning of records saved as 'this user' (a data migration, never a run-time fallback) |
+
 **Still open:**
 - at the phase-0 checkpoint: CP-6 (typed facts), CP-7 (error words out of the plan, one guard row), the 6
   plan-structure tests (not promised), PCT under the LITE judges (§12 I5);
