@@ -1465,3 +1465,10 @@ who confirms or changes phases 1-3.
   goes in B1, after A2 deletes `raiseMessage` with its file. Corrected in the final plan (A2 and B1 rows). **0 of the
   golden net's 15 requests take either printer path**, so an ordinary Studio generate plan never reaches the printers;
   A2 unchanged; PR 1's planted requests are in the note. B2's next task (the differences page draft) was already sent.
+- **~13:49 UTC, B1: the Windows overlay is pushed** (#123 head `e7764c9db`, on the split `7d9929bf4`; one CI run
+  carries both). `pct/src/test/resources/edge/overlay_windows.tsv`, 17 rows (sinh/cosh/tanh 13 on DuckDB and SQLite,
+  cbrt 3, pow 1); `tools/edgenet/PlatformOverlay` rewrites a row's line from its OS's value to Linux's before the diff,
+  fails on a stale row or another value, and on every other OS checks each row's Linux value against the recording;
+  any unnamed difference still fails. Plants in `//tools/guards:edge_normalize_test` (now 13 tests). `//gates:edge_net`,
+  the plants and `//tools/guards:all` green on Linux. The finding is in the PR body and a new `tools/edgenet/README.md`;
+  the overlay file and its BUILD wiring are named as a new pinned file for the user's word. macOS decides on this run.
