@@ -496,3 +496,12 @@ who confirms or changes phases 1-3.
   405 row S378. Awaiting its answer.
 - The hosts worker's re-owning plan for `currentUser` (a store-level `reown`, one native entry, run once under the
   folder's lock with a marker file) matches the user's ruling.
+- **~12:21 UTC, the register ids settled:** PR #121 keeps S371 (it is mid-way through a full CI run), so **PR #122's
+  new rows are S372-S377** (`81be6fa3`), and the `currentUser` 405 row is S378. The mapping from this log's earlier
+  entries:
+  - S371 → S372, H2 `parseJson`;
+  - S372 → S373, `joinStrings`;
+  - S373 → S374, the pivot's list aggregate (pending; the product track has it by its new number);
+  - S374 → S375, the database versions' blanket row;
+  - S375 → S376, E-R2's blanket row;
+  - S376 → S377, the prelude and the parser.
