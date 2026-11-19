@@ -422,23 +422,16 @@ class HookLambdasTest {
         return out;
     }
 
-    private static JavaClasses importJars(List<java.nio.file.Path> jars) {
-        List<java.util.jar.JarFile> files = new ArrayList<>();
-        try {
-            for (java.nio.file.Path jar : jars) {
-                files.add(new java.util.jar.JarFile(jar.toFile()));
-            }
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        return new ClassFileImporter().importJars(files);
+    /** The product's and the hosts' doors' classes, once per set of jars for every guard of this JVM (ImportedJars, 2026-11-19: each guard had re-imported them) */
+    private static JavaClasses productAndDoors() {
+        return ImportedJars.of("legend.product.jars", "legend.authored.jars");
     }
 
     @Test
     void theProductsHookLambdasArePinned() {
         List<java.nio.file.Path> jars = ConstantPools.jars("legend.product.jars", "legend.authored.jars");
         Map<String, Map<String, Integer>> found = lambdaHooks(ConstantPools.poolsOfJars(jars), hookTypes(),
-                importJars(jars));
+                productAndDoors());
         assertEquals(new TreeMap<>(LAMBDA_HOOKS), found, "a product class implements a hook type by a lambda or a method"
                 + " reference beyond its pin: a ruled hook, a facet kind or a style is the edge's to implement; a"
                 + " two-form kind's product form is pinned here with its reason");
@@ -446,8 +439,7 @@ class HookLambdasTest {
 
     @Test
     void theProductsHookClassesArePinned() {
-        Map<String, Set<String>> found = classHooks(importJars(ConstantPools.jars("legend.product.jars",
-                "legend.authored.jars")), hookTypes());
+        Map<String, Set<String>> found = classHooks(productAndDoors(), hookTypes());
         assertEquals(new TreeMap<>(CLASS_HOOKS), found, "a product or host class implements a hook type beyond its pin:"
                 + " a ruled hook, a facet kind or a style is the edge's to implement; a two-form kind's product form is"
                 + " pinned here with its reason");
@@ -456,7 +448,7 @@ class HookLambdasTest {
     @Test
     void noProductClassMakesAnInterfaceByAFactory() {
         List<java.nio.file.Path> jars = ConstantPools.jars("legend.product.jars", "legend.authored.jars");
-        assertEquals(DIRECT_FACTORIES, directFactories(importJars(jars)), "a product method calls LambdaMetafactory or"
+        assertEquals(DIRECT_FACTORIES, directFactories(productAndDoors()), "a product method calls LambdaMetafactory or"
                 + " MethodHandleProxies directly: a hook implemented with no class and no lambda the pool shows; pin it"
                 + " with its reason");
         assertEquals(Set.of(), proxiesNamed(ConstantPools.poolsOfJars(jars)), "a product class names"
@@ -465,7 +457,7 @@ class HookLambdasTest {
 
     @Test
     void theFacetCallersAndForwardersArePinned() {
-        JavaClasses classes = importJars(ConstantPools.jars("legend.product.jars", "legend.authored.jars"));
+        JavaClasses classes = productAndDoors();
         assertEquals(new TreeMap<>(FACET_CALLERS), facetCallers(classes), "a product method asks a style for a facet"
                 + " beyond its pin: a new way to reach a facet hook (J16), pinned here with its reason");
         assertEquals(new TreeMap<>(FACET_FORWARDERS), facetForwarders(classes, facetHooks(), hookTypes()), "a product"
@@ -474,8 +466,7 @@ class HookLambdasTest {
 
     @Test
     void theTwoFormCallersArePinned() {
-        Map<String, Set<String>> found = twoFormCallers(importJars(ConstantPools.jars("legend.product.jars",
-                "legend.authored.jars")));
+        Map<String, Set<String>> found = twoFormCallers(productAndDoors());
         assertEquals(new TreeMap<>(TWO_FORM_CALLERS), found, "a product method asks a style for a two-form kind beyond"
                 + " its pin");
     }

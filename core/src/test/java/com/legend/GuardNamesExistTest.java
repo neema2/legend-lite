@@ -616,17 +616,8 @@ class GuardNamesExistTest {
     }
 
     private static Map<String, JavaClass> classes(String... properties) {
-        List<java.util.jar.JarFile> jars = new ArrayList<>();
-        try {
-            for (String property : properties) {
-                for (Path jar : com.legend.testing.Runfile.listed(property)) {
-                    jars.add(new java.util.jar.JarFile(jar.toFile()));
-                }
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        JavaClasses imported = new ClassFileImporter().importJars(jars);
+        // once per set of jars for every guard of this JVM (ImportedJars, 2026-11-19: each guard had re-imported them)
+        JavaClasses imported = ImportedJars.of(properties);
         Map<String, JavaClass> out = new TreeMap<>();
         imported.forEach(c -> out.put(c.getName(), c));
         return out;

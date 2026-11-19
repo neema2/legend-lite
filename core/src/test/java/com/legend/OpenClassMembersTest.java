@@ -330,15 +330,8 @@ class OpenClassMembersTest {
     }
 
     private static com.tngtech.archunit.core.domain.JavaClasses importJars(String property) {
-        List<java.util.jar.JarFile> jars = new ArrayList<>();
-        try {
-            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
-                jars.add(new java.util.jar.JarFile(jar.toFile()));
-            }
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        return new com.tngtech.archunit.core.importer.ClassFileImporter().importJars(jars);
+        // once per set of jars for every guard of this JVM (ImportedJars, 2026-11-19: each guard had re-imported them)
+        return ImportedJars.of(property);
     }
 
     /** A member added to a pinned class, a member gone, an open class with no set, and a set with no open class are each

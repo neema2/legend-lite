@@ -43,26 +43,22 @@ final class ArchitectureTest {
      * without piercing the production import boundary. {@link #theImportIsEveryProductLibrary} pins that every
      * product library is in it.
      */
-    private static final JavaClasses CORE_PROD_CLASSES = importJars("legend.product.jars");
+    private static JavaClasses coreProdClasses() {
+        return importJars("legend.product.jars");
+    }
 
     /** The product's classes and the compatibility edge's ({@code com.legend.edge}, its own jar since phase D's D1.0b):
      *  the JDBC funnel rules hold the edge as they hold the product (the D part 1 audit's S6, 2026-11-15: until then
      *  PureV1Routes, TestDataRoutes and EdgeServer escaped them). */
-    private static final JavaClasses CORE_AND_EDGE_CLASSES = importJars("legend.product.jars", "legend.edge.jars");
+    private static JavaClasses coreAndEdgeClasses() {
+        return importJars("legend.product.jars", "legend.edge.jars");
+    }
 
-    /** The classes of the jars the declared lists name (java_jars): a jar is imported as a jar, not as a file path. */
+    /** The classes of the jars the declared lists name (java_jars): a jar is imported as a jar, not as a file path --
+     *  once per set of jars for every guard of this JVM ({@link ImportedJars}, 2026-11-19: each rule had re-imported
+     *  them). */
     private static JavaClasses importJars(String... properties) {
-        java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
-        try {
-            for (String property : properties) {
-                for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
-                    jars.add(new java.util.jar.JarFile(jar.toFile()));
-                }
-            }
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        return new ClassFileImporter().importJars(jars);
+        return ImportedJars.of(properties);
     }
 
     /** One class of every product library (`tools/deps/core-layers.txt`, plus `:duckdb_load`), by library. */
@@ -119,18 +115,18 @@ final class ArchitectureTest {
             java.util.Map.entry("postgres_cells", "com.legend.exec.PostgresCells"));
 
     /**
-     * Every rule here judges {@link #CORE_PROD_CLASSES}; a product library missing from it is a library
+     * Every rule here judges {@link #coreProdClasses()}; a product library missing from it is a library
      * no rule sees (2026-10-03: {@code :duckdb_load} was). So the import must hold a class of every
      * product library, and nothing of the test support.
      */
     @Test
     void theImportIsEveryProductLibrary() {
         java.util.List<String> missing = PRODUCT_LIBRARIES.entrySet().stream()
-                .filter(e -> !CORE_PROD_CLASSES.contain(e.getValue()))
+                .filter(e -> !coreProdClasses().contain(e.getValue()))
                 .map(e -> e.getKey() + " (" + e.getValue() + ")").sorted().toList();
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), missing,
                 "product libraries no ArchitectureTest rule sees — put them on //core:guardrails's classpath");
-        java.util.List<String> support = CORE_PROD_CLASSES.stream().map(com.tngtech.archunit.core.domain.JavaClass::getName)
+        java.util.List<String> support = coreProdClasses().stream().map(com.tngtech.archunit.core.domain.JavaClass::getName)
                 .filter(n -> n.startsWith("com.legend.testing.") || n.startsWith("com.legend.tools.")).sorted().toList();
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), support, "test support judged as product");
     }
@@ -148,7 +144,7 @@ final class ArchitectureTest {
             .should().dependOnClassesThat().resideInAPackage("com.gs.legend..")
             .as("THE WALL: no class in com.legend.* may import com.gs.legend.* — "
               + "reimplement what you need inside core/. See core/README.md.")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -162,7 +158,7 @@ final class ArchitectureTest {
         noClasses()
             .should().resideInAnyPackage("..util..", "..utils..")
             .as("Invariant 2: no util/ package — helpers live with the code that needs them.")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -179,7 +175,7 @@ final class ArchitectureTest {
                     "com.legend.compiler..", "com.legend.parser..",
                     "com.legend.normalizer..", "com.legend.builtin..")
             .as("legend-sql stands alone: no Pure-compiler imports in com.legend.sql..")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -211,7 +207,7 @@ final class ArchitectureTest {
             .matching("com.legend.(*)..")
             .should().beFreeOfCycles()
             .as("Invariant 4: no cycles across com.legend top-level packages — AUDIT_2026_07.md")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -241,7 +237,7 @@ final class ArchitectureTest {
                     com.legend.testplan.BodyDriver.class)
             .as("Invariant 4c: the root's doors, the planner and the test's planner are the top"
                     + " layer — audit 19; step C, D73; slice 5 (the driver deleted, 2026-11-09)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -267,7 +263,7 @@ final class ArchitectureTest {
                     com.legend.edge.EngineStyleComposite.class)
             .as("Invariant 4d: engine-style golden-text renderers are the edge's, handed to the planner by its"
                     + " spelling alone — audit 19; phase D, 2026-11-12")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -295,7 +291,7 @@ final class ArchitectureTest {
             .and().resideOutsideOfPackage("com.legend.edge..")
             .should().dependOnClassesThat().belongToAnyOf(com.legend.edge.EngineTextDialect.class)
             .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -309,7 +305,7 @@ final class ArchitectureTest {
             .that().resideInAPackage("com.legend.compiler.spec.typed")
             .should().dependOnClassesThat().resideInAPackage("com.legend.compiler.spec")
             .as("Invariant 4b: compiler.spec.typed is below compiler.spec — AUDIT_2026_07.md")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -325,7 +321,7 @@ final class ArchitectureTest {
             .that().resideInAPackage("com.legend.lowering")
             .should().dependOnClassesThat().resideInAnyPackage("com.legend.parser..")
             .as("Invariant 5: lowering is parser-free — AUDIT_2026_07 §1c")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -356,7 +352,7 @@ final class ArchitectureTest {
                             .or(com.tngtech.archunit.core.domain.JavaClass.Predicates.type(
                                     com.legend.base.RunScope.class)))
             .as("Invariant 6a: com.legend.sql depends only on itself and the JDK")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     @Test
@@ -367,7 +363,7 @@ final class ArchitectureTest {
                     "com.legend.parser..", "com.legend.lexer..",
                     "com.legend.normalizer..")
             .as("Invariant 6b: the typed HIR never references the frontend")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -389,7 +385,7 @@ final class ArchitectureTest {
                     "com.legend.normalizer..", "com.legend.ide..")
             .as("Invariant 6c: post-normalization phases never see the parser"
               + " — the model lives in com.legend.model")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     @Test
@@ -402,7 +398,7 @@ final class ArchitectureTest {
             .should().dependOnClassesThat().resideInAPackage("com.legend.protocol..")
             .as("Invariant 6c': the resolver consumes model RECORDS and the"
               + " typed HIR — never any parse product (com.legend.protocol)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -426,7 +422,7 @@ final class ArchitectureTest {
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6j: com.legend.model depends only on protocol/values/error"
               + " and the JDK — producers and consumers both sit above it")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     // ================================================================
@@ -453,7 +449,7 @@ final class ArchitectureTest {
                             .resideInAnyPackage("com.legend.lexer..", "java..")
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 7a: com.legend.lexer depends on the JDK and nothing else")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -480,7 +476,7 @@ final class ArchitectureTest {
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 7b: com.legend.protocol depends only on values, the JSON"
               + " module and the JDK — it is the bottom layer of the standalone drop-in")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -509,7 +505,7 @@ final class ArchitectureTest {
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 7c: the parser consumes tokens and produces protocol"
               + " records — nothing above it, ever")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -546,7 +542,7 @@ final class ArchitectureTest {
             .as("Invariant 12: only the OVERLAY seam mints opaque elements —"
               + " a built-in section we cannot model is a LOUD failure, never"
               + " a blob (PARSER_COMPLETENESS_PLAN.md §2)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -563,7 +559,7 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
                     .haveSimpleName("POpaqueElement")
             .as("Invariant 12: only the OVERLAY seam mints opaque records")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -582,19 +578,19 @@ final class ArchitectureTest {
             .that().resideOutsideOfPackage("com.legend.testplan")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testplan\\.BodyDriver(\\$.*)?")
             .as("step C, M5: the body driver's planning environment is the test planner's alone")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
         noClasses()
             .that().resideOutsideOfPackage("com.legend.testplan")
             .and().doNotHaveFullyQualifiedName("com.legend.TestExecution")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testplan\\.TestPlanner(\\$.*)?")
             .as("M5: the test planner is the test door's alone (TestExecution.planBody, planProgram)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
         noClasses()
             .that().resideOutsideOfPackage("com.legend.testexec")
             .and().doNotHaveFullyQualifiedName("com.legend.TestExecution")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.testexec\\.TestRunner(\\$.*)?")
             .as("slice 5: the test's run is the test door's alone (TestExecution.runBody)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -606,7 +602,7 @@ final class ArchitectureTest {
      */
     @Test
     void plannerIsExecutionFree() {
-        PLANNER_IS_EXECUTION_FREE.check(CORE_PROD_CLASSES);
+        PLANNER_IS_EXECUTION_FREE.check(coreProdClasses());
     }
 
     /** STEP C (the rule of {@link #plannerIsExecutionFree}). */
@@ -637,7 +633,7 @@ final class ArchitectureTest {
      */
     @Test
     void thePlannerWritesNoFile() {
-        PLANNER_WRITES_NO_FILE.check(CORE_PROD_CLASSES);
+        PLANNER_WRITES_NO_FILE.check(coreProdClasses());
     }
 
     /** {@link #thePlannerWritesNoFile} fails on a planner class that writes a file, by EACH of its clauses alone
@@ -708,7 +704,7 @@ final class ArchitectureTest {
             .that().resideOutsideOfPackages("com.legend.testplan", "com.legend")
             .should().dependOnClassesThat().resideInAPackage("com.legend.testplan")
             .as("B4, R17 C7: the test-planning library is the door's alone (the driver's until slice 5)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -719,7 +715,7 @@ final class ArchitectureTest {
      */
     @Test
     void theProgramRoadsTestEntryIsTheTestDoors() {
-        PROGRAM_ROAD_TEST_ENTRY.check(CORE_PROD_CLASSES);
+        PROGRAM_ROAD_TEST_ENTRY.check(coreProdClasses());
     }
 
     /** {@link #theProgramRoadsTestEntryIsTheTestDoors} over the hosts' doors as well (the final audit of 9af16fbe58's J2,
@@ -738,7 +734,7 @@ final class ArchitectureTest {
      *  (a body's failure is the refusal itself, under both judges; the C4 final fix round's nit, 2026-11-14). */
     @Test
     void thePlanHandlesScansLetTheRawSqlRefusalThrough() {
-        com.tngtech.archunit.core.domain.JavaClass allocations = CORE_PROD_CLASSES.get(
+        com.tngtech.archunit.core.domain.JavaClass allocations = coreProdClasses().get(
                 com.legend.planner.PlanAllocations.class);
         for (String scan : java.util.List.of("registerPlanRows", "registerColumnLineageRows")) {
             org.junit.jupiter.api.Assertions.assertTrue(allocations.getMethods().stream()
@@ -778,7 +774,7 @@ final class ArchitectureTest {
      */
     @Test
     void aProductStatementIsPreparedByThePlannersAlone() {
-        PREPARE_IS_THE_PLANNERS.check(CORE_PROD_CLASSES);
+        PREPARE_IS_THE_PLANNERS.check(coreProdClasses());
     }
 
     /** {@link #aProductStatementIsPreparedByThePlannersAlone} over the hosts' doors as well (the follow-up audit's G1,
@@ -903,15 +899,7 @@ final class ArchitectureTest {
     /** The build-time code's classes ({@code //core:build_time_jars}): the generators, the render census, the engine
      *  runner. */
     private static JavaClasses buildTimeCode() {
-        java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
-        try {
-            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed("legend.build_time.jars")) {
-                jars.add(new java.util.jar.JarFile(jar.toFile()));
-            }
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        return new ClassFileImporter().importJars(jars);
+        return importJars("legend.build_time.jars");
     }
 
     /** {@link #everyParseIsReachedThroughADoorThatAsks} fails on a class that parses past the doors -- by a call, by a
@@ -1110,7 +1098,7 @@ final class ArchitectureTest {
      */
     @Test
     void theTestRoadsPlanRowsCatchNamedConditionsAlone() {
-        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), broadCatches(CORE_PROD_CLASSES,
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), broadCatches(coreProdClasses(),
                 java.util.Set.of("com.legend.planner.PlanAllocations", "com.legend.planner.FramePlanner")));
     }
 
@@ -1176,7 +1164,7 @@ final class ArchitectureTest {
      */
     @Test
     void thePlannersAreReachedByTheirListedEntriesAlone() {
-        PLANNER_ENTRIES_ONLY.check(CORE_PROD_CLASSES);
+        PLANNER_ENTRIES_ONLY.check(coreProdClasses());
     }
 
     /** {@link #thePlannersAreReachedByTheirListedEntriesAlone} over the hosts' doors as well (//wasm:boundary,
@@ -1723,7 +1711,7 @@ final class ArchitectureTest {
                     "com.legend.lowering..", "com.legend.builtin..")
             .as("Invariant 6d: exec consumes SQL + result shapes, never the"
               + " frontend or middle-end")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /** Only the root driver may drive the back half of the pipeline. */
@@ -1739,7 +1727,7 @@ final class ArchitectureTest {
                     "com.legend.exec..")
             .as("Invariant 6e: resolver/lowering/exec are driven only by the"
               + " root driver — no phase reaches forward into them")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     @Test
@@ -1750,7 +1738,7 @@ final class ArchitectureTest {
                     "com.legend.ide..")
             .should().dependOnClassesThat().resideInAPackage("com.legend.lexer..")
             .as("Invariant 6f: only parser + ide read the token stream")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     @Test
@@ -1765,7 +1753,7 @@ final class ArchitectureTest {
                                     "java..")
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6g: values/error/cache import nothing from the pipeline")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /** THE UPSTREAM BOUNDARY (batch 7c, 2026-09-11): no class in core — main
@@ -1784,7 +1772,7 @@ final class ArchitectureTest {
                     "org.finos.legend..")
             .as("the upstream boundary: core imports no org.finos.legend class"
                     + " (docs/UPSTREAM_BOUNDARY_PROGRAM.md workstream B)");
-        rule.check(CORE_PROD_CLASSES);
+        rule.check(coreProdClasses());
         rule.check(thisTestTree);
     }
 
@@ -1840,7 +1828,7 @@ final class ArchitectureTest {
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
               + "nothing else, ever (plus the SourceInfo span component and the declaration identity)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -1901,7 +1889,7 @@ final class ArchitectureTest {
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("F1.3: java.sql AND the driver-native APIs are funnelled to the chartered JDBC classes, the census"
                     + " register's rows (JdbcSurfaceCensusTest.REGISTER) — Charter clauses C1/C2")
-            .check(CORE_AND_EDGE_CLASSES);
+            .check(coreAndEdgeClasses());
     }
 
     /**
@@ -1957,7 +1945,7 @@ final class ArchitectureTest {
                     }
                 }
             })
-            .check(CORE_AND_EDGE_CLASSES);
+            .check(coreAndEdgeClasses());
     }
 
     /**
@@ -1976,7 +1964,7 @@ final class ArchitectureTest {
             .should().beAssignableTo(com.legend.exec.Sessions.Session.class)
             .as("D70: a session is made by com.legend.exec (Sessions.owned, borrowed, view, the openers) and nowhere"
                     + " else")
-            .check(CORE_AND_EDGE_CLASSES);
+            .check(coreAndEdgeClasses());
     }
 
     /**
@@ -1988,7 +1976,7 @@ final class ArchitectureTest {
      */
     @Test
     void theProductBorrowsNoConnection() {
-        PRODUCT_BORROWS_NO_CONNECTION.check(CORE_PROD_CLASSES);
+        PRODUCT_BORROWS_NO_CONNECTION.check(coreProdClasses());
     }
 
     /** D70 (the rule of {@link #theProductBorrowsNoConnection}): a call or a reference ({@link #invokes}). */
@@ -2053,7 +2041,7 @@ final class ArchitectureTest {
             .as("E4: the metamodel channel evaluates model constants"
                     + " only — grid chains compile to SQL at the"
                     + " GridReads.tryLower exec seam")
-            .check(CORE_AND_EDGE_CLASSES);
+            .check(coreAndEdgeClasses());
     }
 
     /**
@@ -2082,7 +2070,7 @@ final class ArchitectureTest {
             .as("the writers are carriage only (R3): com.legend.result reads the plan's column facts and the typed"
                     + " batch -- executionplan, values, json, base, error, the Arrow framer -- and no compiler,"
                     + " lowering, sql, exec, resolver, setup, plan or server class")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
         // the edge's writers are carriage too (the P2 checkpoint audit's S4, 2026-11-16): legend-engine's tokens and
         // envelope over the same typed batch, reading what com.legend.result's writers read, and each other
         noClasses()
@@ -2098,7 +2086,7 @@ final class ArchitectureTest {
                                     com.legend.edge.TdsObjectsWriter.class, com.legend.edge.Presenter.class))))
             .as("the edge's writers are carriage only (R3, S4): the plan's column facts and the typed batch, no planning"
                     + " or server class")
-            .check(CORE_AND_EDGE_CLASSES);
+            .check(coreAndEdgeClasses());
     }
 
     /**
@@ -2130,8 +2118,8 @@ final class ArchitectureTest {
                             .Predicates.equivalentTo(com.legend.sql.SqlTyping.class))))
             .as("the plan runner reaches no compiler, lowering, SQL tree, dialect or plan side: it runs the plan's"
                     + " statement as the plan says")
-            .check(CORE_PROD_CLASSES);
-        runnerTypesNothing(runner).check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
+        runnerTypesNothing(runner).check(coreProdClasses());
     }
 
     /** The plan runner's one use of the SQL typing owner is a Float's binding, over the classes {@code runner} names:
@@ -2267,7 +2255,7 @@ final class ArchitectureTest {
                     "com.legend.json..", "com.legend.result..", "com.legend.sql", "com.legend.testexecutionplan",
                     "com.legend.testexec", "com.legend.values..")
             .as("R1, slice 5: the test's run reaches no planning library")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /** R2 (slice 5, 2026-11-09): planning -- the test's planner, the product's planner, the generator's planning, the
@@ -2281,7 +2269,7 @@ final class ArchitectureTest {
             .orShould().dependOnClassesThat().belongToAnyOf(com.legend.Execution.class, com.legend.TestExecution.class,
                     com.legend.ExecuteOptions.class)
             .as("R2, slice 5: planning reaches no runtime class and not the door")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /** R3 (slice 5, 2026-11-09): only the test door ({@code com.legend.TestExecution}, its own library since the doors'
@@ -2289,7 +2277,7 @@ final class ArchitectureTest {
     @Test
     void onlyTheDoorSeesBothHalves() {
         java.util.Set<String> both = new java.util.TreeSet<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreProdClasses()) {
             boolean plans = false;
             boolean runs = false;
             for (com.tngtech.archunit.core.domain.Dependency d : c.getDirectDependenciesFromSelf()) {
@@ -2483,7 +2471,7 @@ final class ArchitectureTest {
     @Test
     void onlyTheDoorsCompose() {
         java.util.Set<String> composers = new java.util.TreeSet<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreProdClasses()) {
             String top = topLevel(c);
             if (inAnyPackage(c.getPackageName(), PLANNING_PACKAGES) || inAnyPackage(c.getPackageName(), RUNNING_PACKAGES)
                     || DOORS.contains(top) || PLAN_SIDE_DOORS.contains(top)) {
@@ -2556,7 +2544,7 @@ final class ArchitectureTest {
     @Test
     void theDoorsOnlyCompose() {
         java.util.List<String> found = new java.util.ArrayList<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreProdClasses()) {
             String top = topLevel(c);
             if (!DOORS.contains(top)) {
                 continue;
@@ -2610,7 +2598,7 @@ final class ArchitectureTest {
      *  build's twin is {@code tools/deps/core-layers.txt} (no product library lists {@code edge}). */
     @Test
     void noProductClassReachesTheEdge() {
-        PRODUCT_REACHES_NO_EDGE.check(CORE_PROD_CLASSES);
+        PRODUCT_REACHES_NO_EDGE.check(coreProdClasses());
     }
 
     /** G5 (rule E2 of docs/GOALS_OF_RECORD_2026_11_07.md §2): the edge depends on the product, never the reverse. */
@@ -2719,7 +2707,7 @@ final class ArchitectureTest {
             .should().haveRawType(com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo(ThreadLocal.class))
             .orShould().haveRawType("java.lang.ScopedValue")
             .as("no thread-local state but the run-time wall's (RunScope)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -2798,7 +2786,7 @@ final class ArchitectureTest {
         java.util.Set<com.tngtech.archunit.core.domain.JavaCodeUnit> seen = new java.util.LinkedHashSet<>();
         java.util.ArrayDeque<com.tngtech.archunit.core.domain.JavaCodeUnit> todo = new java.util.ArrayDeque<>();
         java.util.Set<String> found = new java.util.TreeSet<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreProdClasses()) {
             for (com.tngtech.archunit.core.domain.JavaMethod m : c.getMethods()) {
                 bySignature.computeIfAbsent(signature(m.getName(), m.getRawParameterTypes()),
                         k -> new java.util.ArrayList<>()).add(m);
@@ -2927,7 +2915,7 @@ final class ArchitectureTest {
                 "com.legend.testexec.EdgeRun", "com.legend.testexec.EdgeHearing");
         java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.testplan.BodyDriver$ExecEnv",
                 "com.legend.planner.PlanEnv");
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreProdClasses()) {
             if (c.getName().equals("com.legend.testexecutionplan.AssertListener")) {
                 java.util.Set<String> methods = new java.util.TreeSet<>();
                 for (com.tngtech.archunit.core.domain.JavaMethod m : c.getMethods()) {
@@ -2998,7 +2986,7 @@ final class ArchitectureTest {
 
     @Test
     void execReachesNoPlanning() {
-        java.util.Map<String, java.util.Set<String>> reached = planningReachedFromExec(CORE_PROD_CLASSES);
+        java.util.Map<String, java.util.Set<String>> reached = planningReachedFromExec(coreProdClasses());
         org.junit.jupiter.api.Assertions.assertTrue(reached.isEmpty(), "the runtime reaches planning (the wall, D72):"
                 + " move the work to the plan side or the driver, or carry the fact in the plan records -- " + reached);
     }
@@ -3047,7 +3035,7 @@ final class ArchitectureTest {
      */
     @Test
     void execParsesNoData() {
-        EXEC_PARSES_NO_DATA.check(CORE_PROD_CLASSES);
+        EXEC_PARSES_NO_DATA.check(coreProdClasses());
     }
 
     /** No exec class parses data (the rule of {@link #execParsesNoData}). */
@@ -3081,7 +3069,7 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("the pure/v1 API is plan side: its host runs its queries")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -3113,7 +3101,7 @@ final class ArchitectureTest {
      */
     @Test
     void compileSideLayersAreDialectBlind() {
-        COMPILE_SIDE_DIALECT_BLIND.check(CORE_PROD_CLASSES);
+        COMPILE_SIDE_DIALECT_BLIND.check(coreProdClasses());
     }
 
     // the Scalars exemption removed 2026-11-12 (phase D, the orchestrator's guard addition, the user's "everyone was
@@ -3152,7 +3140,7 @@ final class ArchitectureTest {
      */
     @Test
     void rawSqlSourceIsConstructedOnlyAtTheCharteredSeam() {
-        RAW_SQL_AT_THE_SEAM.check(CORE_PROD_CLASSES);
+        RAW_SQL_AT_THE_SEAM.check(coreProdClasses());
     }
 
     /** The RawSql quarantine (the rule of {@link #rawSqlSourceIsConstructedOnlyAtTheCharteredSeam}): a construction by
@@ -3204,7 +3192,7 @@ final class ArchitectureTest {
      */
     @Test
     void textTheTabWritesDifferentlyIsWrittenPortably() {
-        TEXT_WRITTEN_PORTABLY.check(CORE_PROD_CLASSES);
+        TEXT_WRITTEN_PORTABLY.check(coreProdClasses());
     }
 
     /** The rule of {@link #textTheTabWritesDifferentlyIsWrittenPortably}: a call or a reference ({@link #invokes}). */
@@ -3251,7 +3239,7 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("B1b: the body driver, the judges, the probes, the generator and its natives hold a session and no JDBC")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -3269,7 +3257,7 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsTheOneCallerOfTheSessionsStatements() {
-        RUNNER_IS_THE_ONE_CALLER.check(CORE_AND_EDGE_CLASSES);
+        RUNNER_IS_THE_ONE_CALLER.check(coreAndEdgeClasses());
     }
 
     /** The seam: the runners, the session owners and the implementations (ProgramRunner since 2026-11-08, the
@@ -3333,7 +3321,7 @@ final class ArchitectureTest {
      */
     @Test
     void execMakesNoValueOfItsOwn() {
-        EXEC_MAKES_NO_VALUE.check(CORE_PROD_CLASSES);
+        EXEC_MAKES_NO_VALUE.check(coreProdClasses());
     }
 
     /** {@code rule} BITES {@code planted}: it fails on it BY A VIOLATION, never because no class of the import matched
@@ -3417,7 +3405,7 @@ final class ArchitectureTest {
      */
     @Test
     void planningMakesNoValueOfItsOwn() {
-        PLANNING_MAKES_NO_VALUE.check(CORE_PROD_CLASSES);
+        PLANNING_MAKES_NO_VALUE.check(coreProdClasses());
     }
 
     /** {@link #planningMakesNoValueOfItsOwn} fails on a planning class that mints an id, and on one that reads the
@@ -3439,7 +3427,7 @@ final class ArchitectureTest {
     @Test
     void theRootsPlanSideClassesExist() {
         for (String root : PLAN_SIDE_ROOT) {
-            org.junit.jupiter.api.Assertions.assertTrue(CORE_PROD_CLASSES.contain(root), root);
+            org.junit.jupiter.api.Assertions.assertTrue(coreProdClasses().contain(root), root);
         }
     }
 
@@ -3486,10 +3474,10 @@ final class ArchitectureTest {
      */
     @Test
     void theServersMintsAreItsHostDoorsAlone() {
-        SERVER_MINTS_AT_ITS_HOST_DOORS.check(CORE_AND_EDGE_CLASSES);
+        SERVER_MINTS_AT_ITS_HOST_DOORS.check(coreAndEdgeClasses());
         // and each door mints once
         org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("arrowPlan", 1, "jsonPlan", 1),
-                doorMints(CORE_AND_EDGE_CLASSES.get("com.legend.edge.HostAnswers")),
+                doorMints(coreAndEdgeClasses().get("com.legend.edge.HostAnswers")),
                 "the server's two host doors, one mint each");
     }
 
@@ -3539,7 +3527,7 @@ final class ArchitectureTest {
      */
     @Test
     void onlyThePlansReadersMintPlannedSql() {
-        ONLY_THE_PLANS_READERS_MINT.check(CORE_PROD_CLASSES);
+        ONLY_THE_PLANS_READERS_MINT.check(coreProdClasses());
     }
 
     /** THE BRAND'S MINT (the rule of {@link #onlyThePlansReadersMintPlannedSql}). */
@@ -3612,9 +3600,9 @@ final class ArchitectureTest {
      */
     @Test
     void jdbcSendsAtOneChokePoint() {
-        JDBC_SENDS_AT_ONE_POINT.check(CORE_PROD_CLASSES);
+        JDBC_SENDS_AT_ONE_POINT.check(coreProdClasses());
         java.util.List<String> sends = new java.util.ArrayList<>();
-        for (com.tngtech.archunit.core.domain.JavaMethod m : CORE_PROD_CLASSES.get("com.legend.exec.JdbcStatements")
+        for (com.tngtech.archunit.core.domain.JavaMethod m : coreProdClasses().get("com.legend.exec.JdbcStatements")
                 .getMethods()) {
             if (m.getName().equals("send")) {
                 sends.add(m.getRawParameterTypes().get(1).getName());
@@ -3771,18 +3759,8 @@ final class ArchitectureTest {
      *  probe's mains, the SDLC's grammar, the edge's boundary and tab -- and {@code //core:edge_jars}), the import
      *  checked to hold each door. */
     private static JavaClasses coreAndTheHostsDoors() {
-        java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
-        try {
-            // the edge's jar too (phase D's D1.0b, merged with C4's rule 2026-11-15): a caller outside the planners
-            for (String property : java.util.List.of("legend.product.jars", "legend.authored.jars", "legend.edge.jars")) {
-                for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
-                    jars.add(new java.util.jar.JarFile(jar.toFile()));
-                }
-            }
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        JavaClasses classes = new ClassFileImporter().importJars(jars);
+        // the edge's jar too (phase D's D1.0b, merged with C4's rule 2026-11-15): a caller outside the planners
+        JavaClasses classes = importJars("legend.product.jars", "legend.authored.jars", "legend.edge.jars");
         // each door of //core:authored_door_jars (the JVM's and the zone probe's mains and the SDLC's grammar since the C.5
         // review, 2026-11-17: a jar dropped from the list turned nothing red); the tab's adapter planner.TabExports again,
         // the engine module's entry beside it (the user's K2 ruling, 2026-11-18: "Product root, edge opt-in")
@@ -3845,10 +3823,10 @@ final class ArchitectureTest {
      */
     @Test
     void theMongoDbDriverSendsAtOneChokePoint() {
-        MONGODB_SENDS_AT_ONE_POINT.check(CORE_PROD_CLASSES);
+        MONGODB_SENDS_AT_ONE_POINT.check(coreProdClasses());
         // the one method takes the plan's statement
         java.util.List<String> sends = new java.util.ArrayList<>();
-        for (com.tngtech.archunit.core.domain.JavaMethod m : CORE_PROD_CLASSES.get("com.legend.exec.MongoDbStatements")
+        for (com.tngtech.archunit.core.domain.JavaMethod m : coreProdClasses().get("com.legend.exec.MongoDbStatements")
                 .getMethods()) {
             if (m.getName().equals("send")) {
                 sends.add(m.getRawParameterTypes().get(0).getName());
@@ -3896,7 +3874,7 @@ final class ArchitectureTest {
     @Test
     void theMongoDbDriverIsUsedAsTheRegisterSays() {
         java.util.Map<String, java.util.Set<String>> found = new java.util.TreeMap<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreProdClasses()) {
             for (com.tngtech.archunit.core.domain.JavaAccess<?> a : c.getAccessesFromSelf()) {
                 String owner = a.getTargetOwner().getName();
                 if (owner.startsWith("com.mongodb.")) {
@@ -3969,7 +3947,7 @@ final class ArchitectureTest {
                     + "|TokenStreamCursor)(\\$.*)?")
             .as("Invariant 6i: grammar parsers/cursors live and die at parse"
               + " time (the parse doors and the IDE are the sanctioned users)")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     @Test
@@ -3980,7 +3958,7 @@ final class ArchitectureTest {
             .orShould().haveSimpleNameEndingWith("Store")
             .as("Invariant 3: caches must be content-addressed — put them in "
               + "com.legend.cache on ContentStore (Hash-keyed). See core/README.md.")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /**
@@ -4025,7 +4003,7 @@ final class ArchitectureTest {
      *  read the lenient grammar (PureText, Appeals today) is not scoped here. */
     @Test
     void theCompatibilityJsonReaderIsTheJudgesAlone() {
-        compatibilityJsonRule().check(CORE_PROD_CLASSES);
+        compatibilityJsonRule().check(coreProdClasses());
     }
 
     static com.tngtech.archunit.lang.ArchRule compatibilityJsonRule() {
@@ -4051,7 +4029,7 @@ final class ArchitectureTest {
 
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
-        hostVerdictRule().check(CORE_PROD_CLASSES);
+        hostVerdictRule().check(coreProdClasses());
     }
 
     static com.tngtech.archunit.lang.ArchRule hostVerdictRule() {
@@ -4133,7 +4111,7 @@ final class ArchitectureTest {
                 .and().areDeclaredInClassesThat().resideOutsideOfPackage("com.legend.testing..")
                 .should().beFinal()
                 .as("Invariant 3: no assignable static state in the product")
-                .check(CORE_PROD_CLASSES);
+                .check(coreProdClasses());
     }
 
     /** The kinds of static state the product may hold (the user's ruling of 2026-11-09: "do we want mutable state? fix
@@ -4244,7 +4222,7 @@ final class ArchitectureTest {
         java.util.List<String> violations = new java.util.ArrayList<>();
         java.util.Set<String> seen = new java.util.TreeSet<>();
         // the edge's classes too (W6, 2026-11-16: StableScanOrder's census moved to com.legend.edge, its own jar)
-        for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_AND_EDGE_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass jc : coreAndEdgeClasses()) {
             Class<?> cls = loadedOrFound(jc.getName(), ArchitectureTest.class.getClassLoader(), violations);
             if (cls == null) {
                 continue;
@@ -4427,12 +4405,12 @@ final class ArchitectureTest {
      */
     @Test
     void normalizerNeverWritesIntoTheModelIndex() {
-        NORMALIZER_WRITES_NO_INDEX.check(CORE_PROD_CLASSES);
+        NORMALIZER_WRITES_NO_INDEX.check(coreProdClasses());
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields()
             .that().areDeclaredIn(com.legend.compiler.ModelBuilder.class)
             .should().bePublic()
             .as("T4.1 invariant 5: the model index exposes no field a phase could write")
-            .check(CORE_PROD_CLASSES);
+            .check(coreProdClasses());
     }
 
     /** T4.1 invariant 5 (the rule of {@link #normalizerNeverWritesIntoTheModelIndex}'s first half): a call or a
@@ -4446,7 +4424,7 @@ final class ArchitectureTest {
 
     @Test
     void typedNodesAreMintedOnlyByCompilerLayers() {
-        TYPED_NODES_MINTED_BY_THE_COMPILER.check(CORE_PROD_CLASSES);
+        TYPED_NODES_MINTED_BY_THE_COMPILER.check(coreProdClasses());
     }
 
     /** Invariant 7 (the rule of {@link #typedNodesAreMintedOnlyByCompilerLayers}): a typed node's constructor by a
@@ -4563,7 +4541,7 @@ final class ArchitectureTest {
      */
     @Test
     void onlyTheLoadPlannerMakesALoad() {
-        ONLY_THE_LOAD_PLANNER_MAKES_A_LOAD.check(CORE_PROD_CLASSES);
+        ONLY_THE_LOAD_PLANNER_MAKES_A_LOAD.check(coreProdClasses());
     }
 
     /** The classes that make a plan's {@code Load}: the load planner, and the JSON reader that rebuilds one. Each makes
@@ -4659,7 +4637,7 @@ final class ArchitectureTest {
         lists.forEach((names, made) -> {
             for (String name : names) {
                 boolean makes = false;
-                for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+                for (com.tngtech.archunit.core.domain.JavaClass c : coreProdClasses()) {
                     if (c.getName().equals(name) || c.getName().startsWith(name + "$")) {
                         makes |= constructsAny(c, made);
                     }
@@ -4683,7 +4661,7 @@ final class ArchitectureTest {
     void onlyCheckedSitesMakeATemporalLiteral() {
         // the edge's jars too (F's catch on J32, 2026-11-18: the engine-text seed moved to the edge, out of a rule that
         // read the product's alone; a literal the edge writes reaches a statement the same way)
-        ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL.check(CORE_AND_EDGE_CLASSES);
+        ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL.check(coreAndEdgeClasses());
     }
 
     /** The classes that construct a typed temporal literal, each from text it may write as it is. */
@@ -4745,7 +4723,7 @@ final class ArchitectureTest {
     private static void assertMakes(String name, String made, String list) {
         boolean makes = false;
         // the product's and the edge's (the temporal-literal rule reads both since F's catch on J32, 2026-11-18)
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_AND_EDGE_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndEdgeClasses()) {
             if (c.getName().equals(name) || c.getName().startsWith(name + "$")) {
                 makes |= constructsAny(c, made);
             }
@@ -4853,7 +4831,7 @@ final class ArchitectureTest {
      */
     @Test
     void onlyThePlannersMakersMakeALoadStep() {
-        ONLY_THE_PLANNERS_MAKERS_MAKE_A_LOAD_STEP.check(CORE_PROD_CLASSES);
+        ONLY_THE_PLANNERS_MAKERS_MAKE_A_LOAD_STEP.check(coreProdClasses());
     }
 
     /** P2, a load's steps (the rule of {@link #onlyThePlannersMakersMakeALoadStep}). */
@@ -4866,7 +4844,7 @@ final class ArchitectureTest {
     /** Exec makes no load and no load step: it runs the plan's (the wall's data half; P2, 2026-11-09). */
     @Test
     void execMakesNoLoad() {
-        EXEC_MAKES_NO_LOAD.check(CORE_PROD_CLASSES);
+        EXEC_MAKES_NO_LOAD.check(coreProdClasses());
     }
 
     /** P2 (the rule of {@link #execMakesNoLoad}). */
@@ -4995,7 +4973,7 @@ final class ArchitectureTest {
      */
     @Test
     void theRunSideMakesNoPlanRecordThatCarriesText() {
-        RUN_SIDE_MAKES_NO_PLAN_TEXT.check(CORE_PROD_CLASSES);
+        RUN_SIDE_MAKES_NO_PLAN_TEXT.check(coreProdClasses());
     }
 
     /** {@link #theRunSideMakesNoPlanRecordThatCarriesText} fails on a class of exec's package that builds a statement
@@ -5026,7 +5004,7 @@ final class ArchitectureTest {
      */
     @Test
     void callsAreBuiltOnlyByTheBuilder() {
-        CALLS_BUILT_BY_THE_BUILDER.check(CORE_PROD_CLASSES);
+        CALLS_BUILT_BY_THE_BUILDER.check(coreProdClasses());
     }
 
     /** L7 step 3 (the rule of {@link #callsAreBuiltOnlyByTheBuilder}): a call's construction by a call or a reference
@@ -5049,7 +5027,7 @@ final class ArchitectureTest {
     @Test
     void protocolNodesAreConstructedOnlyByTheParserAndTheNormalizer() {
         java.util.Map<String, Integer> actual = new java.util.TreeMap<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreProdClasses()) {
             String pkg = c.getPackageName();
             if (pkg.equals("com.legend.parser") || pkg.startsWith("com.legend.parser.")
                     || pkg.equals("com.legend.normalizer") || pkg.startsWith("com.legend.normalizer.")
@@ -5115,7 +5093,7 @@ final class ArchitectureTest {
     @Test
     void theFacetTestsHoldEveryStyle() {
         java.util.Set<String> implementers = new java.util.TreeSet<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_AND_EDGE_CLASSES) {
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndEdgeClasses()) {
             if (!c.isInterface() && c.isAssignableTo(com.legend.database.PlanStyle.class)) {
                 implementers.add(c.getName());
             }

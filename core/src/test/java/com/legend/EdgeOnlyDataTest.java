@@ -370,18 +370,10 @@ class EdgeOnlyDataTest {
         }
     }
 
-    private static List<java.util.jar.JarFile> jarFiles(List<Path> jars) throws IOException {
-        List<java.util.jar.JarFile> out = new ArrayList<>();
-        for (Path jar : jars) {
-            out.add(new java.util.jar.JarFile(jar.toFile()));
-        }
-        return out;
-    }
-
     @Test
     void everyPieceOfThePlansDataHasAProductUse() throws IOException {
-        JavaClasses classes = new ClassFileImporter().importJars(jarFiles(ConstantPools.jars("legend.product.jars",
-                "legend.authored.jars", "legend.edge.jars")));
+        JavaClasses classes = ImportedJars.of("legend.product.jars", "legend.authored.jars",
+                "legend.edge.jars");
         Set<String> found = found(classes, PACKAGES);
         Map<String, String> byKind = new TreeMap<>();
         found.forEach(f -> byKind.merge(f.substring(f.lastIndexOf(": ") + 2), "1", (a, b) -> String.valueOf(

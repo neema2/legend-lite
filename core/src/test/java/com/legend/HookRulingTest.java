@@ -7,7 +7,6 @@ import com.legend.database.PlanStyle;
 import com.legend.error.NotImplementedException;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
-import com.tngtech.archunit.core.importer.ClassFileImporter;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
@@ -880,17 +879,8 @@ class HookRulingTest {
     }
 
     private static JavaClasses classes(String... properties) {
-        List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
-        try {
-            for (String property : properties) {
-                for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
-                    jars.add(new java.util.jar.JarFile(jar.toFile()));
-                }
-            }
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        return new ClassFileImporter().importJars(jars.toArray(new java.util.jar.JarFile[0]));
+        // once per set of jars for every guard of this JVM (ImportedJars, 2026-11-19: each guard had re-imported them)
+        return ImportedJars.of(properties);
     }
 
     /** The raises {@code style}'s lowering forms write plain ({@code LoweringForms#raise}), asked kind by kind. */

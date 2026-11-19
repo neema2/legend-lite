@@ -190,17 +190,8 @@ class EdgeSeparationTest {
     // ---- the guards ---------------------------------------------------------------------------------------------
 
     private static JavaClasses classes(String... properties) {
-        List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
-        try {
-            for (String property : properties) {
-                for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
-                    jars.add(new java.util.jar.JarFile(jar.toFile()));
-                }
-            }
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        return new ClassFileImporter().importJars(jars);
+        // once per set of jars for every guard of this JVM (ImportedJars, 2026-11-19: each guard had re-imported them)
+        return ImportedJars.of(properties);
     }
 
     private static String top(JavaClass c) {

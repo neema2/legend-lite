@@ -367,8 +367,8 @@ class EdgeOnlyMembersTest {
 
     @Test
     void theEdgeOnlyMembersAreCountedOrRuled() throws IOException {
-        JavaClasses classes = new ClassFileImporter().importJars(jarFiles(ConstantPools.jars("legend.product.jars",
-                "legend.authored.jars", "legend.edge.jars")));
+        JavaClasses classes = ImportedJars.of("legend.product.jars", "legend.authored.jars",
+                "legend.edge.jars");
         // a member of a class already on a census line (EdgeSeparationTest.COMPAT_CLASSES: a marked compatibility class
         // and its product dependents) is counted by that line, never twice (the triage of 2026-11-18: EngineTextPlanning,
         // PlanStyleFacets, C4's)
@@ -523,6 +523,7 @@ class EdgeOnlyMembersTest {
             }
         }
         Set<String> out = new TreeSet<>();
+        Map<String, List<String>> withWord = byWord(sources);
         for (JavaClass c : classes) {
             if (!c.getName().startsWith("com.legend.") || c.getName().startsWith(EDGE) || !reachable(c)
                     || hooks.stream().anyMatch(h -> c.isAssignableTo(h))) {
@@ -546,7 +547,7 @@ class EdgeOnlyMembersTest {
                 String key = c.getName() + "#" + f.getName();
                 if (!uses.containsKey(key) && constant(f)) {
                     // a compile-time constant is inlined where it is read: read from the sources (not transitive)
-                    if (edgeAloneInSource(c, f.getName(), sources)) {
+                    if (edgeAloneInSource(c, f.getName(), sources, withWord)) {
                         out.add(key);
                     }
                 } else if (reached.contains(key)) {
@@ -629,9 +630,30 @@ class EdgeOnlyMembersTest {
                 && (f.getRawType().isPrimitive() || f.getRawType().getName().equals("java.lang.String"));
     }
 
+    /** A regular expression's word (what {@code \\b} bounds): letters, digits and the underscore. */
+    private static final Pattern WORD = Pattern.compile("[A-Za-z0-9_]+");
+
+    /** Each word of the sources, to the paths of the sources holding it (2026-11-19, the checks lane's time: each
+     *  constant's three patterns were run over every source, 41 s of this guard's 43). Every read
+     *  {@link #edgeAloneInSource} counts holds the constant's name as a whole word, so only those sources are read. */
+    private static Map<String, List<String>> byWord(Map<String, String> sources) {
+        Map<String, List<String>> out = new java.util.HashMap<>();
+        for (Map.Entry<String, String> e : sources.entrySet()) {
+            Set<String> words = new java.util.HashSet<>();
+            WORD.matcher(e.getValue()).results().forEach(m -> words.add(m.group()));
+            for (String w : words) {
+                out.computeIfAbsent(w, k -> new ArrayList<>()).add(e.getKey());
+            }
+        }
+        return out;
+    }
+
     /** Whether the sources read {@code owner}'s constant {@code name} in the edge alone: {@code Owner.NAME} or a static
-     *  import of it outside the owner's file, the bare name inside it beyond its declaration. */
-    private static boolean edgeAloneInSource(JavaClass owner, String name, Map<String, String> sources) {
+     *  import of it outside the owner's file, the bare name inside it beyond its declaration. {@code withWord}: the
+     *  sources by the words they hold ({@link #byWord}); a name that is not one word is looked for in every source. */
+    private static boolean edgeAloneInSource(JavaClass owner, String name, Map<String, String> sources,
+            Map<String, List<String>> withWord) {
+        Iterable<String> paths = WORD.matcher(name).matches() ? withWord.getOrDefault(name, List.of()) : sources.keySet();
         String ownPath = "/" + top(owner.getName()).replace('.', '/') + ".java";
         Pattern qualified = Pattern.compile("\\b" + Pattern.quote(owner.getSimpleName()) + "\\s*\\.\\s*"
                 + Pattern.quote(name) + "\\b");
@@ -639,10 +661,10 @@ class EdgeOnlyMembersTest {
                 + "\\s*\\.\\s*" + Pattern.quote(name) + "\\s*;");
         Pattern bare = Pattern.compile("\\b" + Pattern.quote(name) + "\\b");
         boolean edge = false;
-        for (Map.Entry<String, String> e : sources.entrySet()) {
-            String text = e.getValue();
+        for (String path : paths) {
+            String text = sources.get(path);
             boolean read;
-            if (e.getKey().endsWith(ownPath)) {
+            if (path.endsWith(ownPath)) {
                 read = bare.matcher(text).results().count() > 1;
             } else {
                 read = qualified.matcher(text).find() || imported.matcher(text).find();
@@ -650,7 +672,7 @@ class EdgeOnlyMembersTest {
             if (!read) {
                 continue;
             }
-            if (e.getKey().contains("/com/legend/edge/")) {
+            if (path.contains("/com/legend/edge/")) {
                 edge = true;
             } else {
                 return false;
@@ -674,13 +696,5 @@ class EdgeOnlyMembersTest {
     private static String top(String n) {
         int dollar = n.indexOf('$');
         return dollar < 0 ? n : n.substring(0, dollar);
-    }
-
-    private static List<java.util.jar.JarFile> jarFiles(List<Path> jars) throws IOException {
-        List<java.util.jar.JarFile> out = new ArrayList<>();
-        for (Path jar : jars) {
-            out.add(new java.util.jar.JarFile(jar.toFile()));
-        }
-        return out;
     }
 }
