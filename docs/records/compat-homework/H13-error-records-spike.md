@@ -955,3 +955,71 @@ measured.
 - **The host-parity worker:** `lite_wire.Refusal` lands with `raise` as the kind's wire name and `where` its own, no
   `operands` key yet; when the record lands, `operands` joins as a sibling key (order kind, message, where, raise,
   operands), present only on a data refusal whose raise has operands, written by `PlanJson.operandJson` made shared.
+
+## 23. Against the rules of record (the user, 2026-11-19 ~15:20 UTC; `compat-rules-of-record-2026-11-19.md` at `e4aafee0`)
+
+The orchestrator's three questions (14:48 UTC). Nothing built for this section.
+
+**Rule 1 ("Database calculates everything ... including format and tostring"): the product's raise message stays the
+database's, values included.**
+- What the spike leaves in the product: the raise writes the site's token, and lite's own message is the site's
+  planned sentence (`ErrorKind.sentence + (where == null ? "" : ": " + where)`): a constant the planner knows, holding
+  NO run-time value. No Java computes a value for it, and none is folded.
+- If lite's own message is to print a value (the size, the dividend, the date), rule 1 places that printing in the
+  database: the SQL writes the value's text into the raise (`error(... || CAST(<value> AS VARCHAR) || ...)`), as
+  `main`'s edge did for its computed operands. The presenter (rule 2) does not compute or print it.
+- **One question for the orchestrator, raised by rule 1's letter** ("the only computation before the database is the
+  compiler's folding of constant String and Boolean expressions"). Section 11's three operands are not folds of an
+  expression: `sqrt`'s is the literal as written, a date part's is the literal's written text, and `at`'s size is the
+  typed multiplicity (a type fact, the orchestrator's accepted form). But `at`'s size is an Integer the message prints,
+  produced before the database. If that reads as a fold beyond rule 1, the alternative below (the database returns the
+  size with the raise) replaces `statedSize` and `CheckedOne.statedSize` both.
+
+**Rule 3 (compatibility words upstream's sentence in Java "only from output of typed values from lite"): what lite
+would have to return where a computed operand's value is withheld today.**
+
+| Kind | The withheld value | The typed value lite would return | The cases today |
+|---|---|---|---|
+| `INDEX_OUT_OF_BOUNDS` | the offset (when computed), the size | Integer, Integer | `at` over a computed list, a variable offset |
+| `SIZE_NOT_MULTIPLICITY` | the size | Integer | section 22's 9 `toOne` tests (a `filter`, `slice`, `range`, `take`, `limit`, `zip` result, a relation's rows, a run-time empty list) |
+| `SQRT_OF_NEGATIVE` | the value | Float | `sqrt` of a column or an expression |
+| `DIVIDE_BY_ZERO` | the dividend (`rem`, `quotient`) | Integer, Float or Decimal, as declared | `rem` of a column |
+| `DATE_PART_ABSENT` | the date | a date at its precision (the precision is the planner's: the constructor's arity, or `StrictDate` for a column) | `date(2017)->hour()`, a `StrictDate` column's `hour()` |
+| `SLICE_BOUNDS_INVERTED` | the bounds (clamped at 0) | Integer, Integer | `slice` with computed bounds |
+| `DATE_COMPONENT_INVALID` | the component's value, at 1 of 4 sites | Integer or Float | a computed component |
+| `TEXT_NOT_INTEGER`, `TEXT_NOT_FLOAT`, `TEXT_NOT_DATE` | the text | String | a parse of a column |
+
+**Can the database return them with the raise? Yes, as text in the raise's own envelope, which exec reads back as
+typed values.** Every dialect builds its raise from a text EXPRESSION, not a constant (DuckDB `error(...)`, SQLite's
+`json_extract('{}', ...)`, ClickHouse's `toInt64(concat(...))`, Snowflake's and MariaDB's failing casts, MariaDB and
+MySQL's `@legend_raise` read-back, H2's `errorArm`, BigQuery `ERROR`, Databricks `raise_error`, Trino's): `main`'s edge
+already wrote computed values into it on all of them. The envelope already carries a second field, the position
+(`chr(31) || 'line:col' || chr(30) || <message> || chr(31)`). So:
+- the planner declares each withheld operand's slot on the site: its position and its Pure type (planning knows both;
+  no value);
+- the SQL writes each slot's value into the envelope as the DATABASE prints it, in a lossless spelling the dialect owns
+  (Integer and Decimal digits; a Float's shortest round-trip text, the existing `FLOAT_SHORTEST_TEXT` per dialect; a
+  date's text at its precision; a String escaped so it cannot hold the envelope's separators `chr(29)`, `chr(30)`,
+  `chr(31)`);
+- exec reads the slots back by their declared types into typed values, as it decodes a typed cell's text, and hands
+  them to the run's words with the site; compatibility words upstream's sentence from them in Java.
+- **To measure before building:** each dialect's error-text limits (the length a raise carries, how Snowflake's and
+  ClickHouse's error texts quote it) and the Float spelling's round trip on SQLite (its text of a double is 15
+  significant digits unless the dialect writes it otherwise). The product path would not change: lite's own message
+  still says no value unless the product chooses to (rule 1, above).
+- **A3 is the ruling this touches**, for the orchestrator to put to the user: A3 says no run-time value in a message.
+  Under rules 1 and 3 the database computes the value and lite returns it typed with the raise; the PLAN still holds
+  no run-time value (the site holds only the slot's type). If allowed, the `<computed>` placeholder, the register row
+  for it, `statedSize` and `CheckedOne.statedSize` are all unneeded: every operand legend-pure prints would be
+  printed, and the 9 `toOne` tests keep legend-pure's words.
+
+**Rule 4 (the host judge is the only judge in compatibility): the database judge's 4 tests are moot in compatibility.
+Is section 12's +15 / -4 change still needed for the product? No.**
+- In the product, both judges run, and a planned failure's message is lite's own on both sides. The planted literal and
+  the host judge's words agree by construction. Measured: every `core_tests_*` target passes under `judge_both` and
+  `judge_database` on `main` (with the literal planted) and on the spike (with it bound).
+- The planted literal is planner-known text (a constant), and the database still computes the verdict (it compares
+  the expected text with it), so it holds rule 1.
+- **So the real slice drops section 12's change** (-0.25 day from section 20's estimate), unless the product wants a
+  planned failure and a run-time raise to reach its database judge the same way. That is uniformity, not a need.
+  A4 removes the compatibility database judge before B1 (stage A), so the 4 channel B tests go with it.
