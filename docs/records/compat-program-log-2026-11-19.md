@@ -1890,3 +1890,11 @@ who confirms or changes phases 1-3.
   re-run them: the GitHub integration answers 403 on `rerun-failed-jobs` (this session tried at 15:35). B1 commented the
   six on #123 once. **The re-run needs the user's click:** "Re-run failed jobs" at
   https://github.com/neema2/legend-lite/actions/runs/44545061580. #123 then waits only for the user's word.
+- **~15:35 UTC, A5: timing and ratchets for the single-thread step** (`a74435cb8` the fix, `39b7d81af` the pins). The 15
+  DuckDB channel-B lanes, 2 runs each, off vs on: **single-threaded is FASTER on every lane, 3-19%, total 272.5 s →
+  240.0 s (-11.9%)** (PCT's statements are tiny; DuckDB's thread scheduling was overhead). With the setting off,
+  lite_essential also failed 1 of 2 runs: the non-determinism itself. Channel A (product plans) untouched. Ratchets: only
+  the five judge-plan-JSON pins move (+0.016% to +0.043%, one more statement per verdict step); judge statements and
+  characters do not move. Ledger: duckdb-lite 462 rows (the four AdjustBy as "a date past DuckDB's range"); the duckdb
+  COMPAT AdjustBy rows' text unchanged. All 18 channel-B suite targets green. Next: the COMPAT channel-B lanes on SQLite,
+  H2, MariaDB, MySQL, Postgres (Trino, ClickHouse and the cloud lanes named in the PR), the local gate, the PR.
