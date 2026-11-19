@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE PURE-MEANING DETECTOR at legend-engine's door (A3 piece 3; {@link PureMeaningCheck}; the final plan's section
- * 4a; the user's rulings of 2026-11-19, ~14:55 and ~19:20). Each test is the check's answer to a planted request.
+ * 4a; D1, ruled by the user 2026-11-19 ~13:25, and the default, ruled ~19:20). Each test is the check's answer to a
+ * planted request.
  * Where a test proves a reading (store-bound or host-side, quiet or flagged), its partner plants the other side, so a
  * check that flagged everything, or nothing, fails one of the two.
  */
@@ -34,22 +35,27 @@ class PureMeaningCheckTest {
             "Database t::DB ( Table PERSON ( ID INTEGER PRIMARY KEY, NAME VARCHAR(32), CODE VARCHAR(8) ) )",
             "###Pure",
             "Class t::Person",
-            "[ shortName: $this.name->substring(0, 1)->length() == 1 ]",
+            "[ shortName: $this.name->substring(1, 2)->length() == 1 ]",
             "{",
             "    name: String[1];",
             "    code: String[1];",
             "    initials() { $this.name->substring(1, 2) }: String[1];",
             "}",
+            "Class t::Out { short: String[1]; }",
+            "Class t::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}",
             "function t::firstThree(s: String[1]): String[1] { $s->substring(1, 3) }",
             "function t::position(s: String[1]): Integer[1] { $s->indexOf('a') }",
             "###Mapping",
             "Mapping t::M ( t::Person: Relational { ~mainTable [t::DB]PERSON name: [t::DB]PERSON.NAME,"
                     + " code: [t::DB]PERSON.CODE } )",
+            "Mapping t::M2 ( t::Out: Pure { ~src t::Person short: $src.name->substring(1, 2) } )",
             "###Connection",
             "RelationalDatabaseConnection t::Conn { store: t::DB; type: H2; specification: LocalH2 { };"
                     + " auth: DefaultH2; }",
             "###Runtime",
             "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c1: t::Conn ] ]; }",
+            "Runtime t::JsonRT { mappings: [t::M2]; connections: [ ModelStore: [ json: #{ JsonModelConnection {"
+                    + " class: t::Person; url: 'data:application/json,[]'; } }# ] ]; }",
             "");
 
     static final String TABLE = "#>{t::DB.PERSON}#";
@@ -133,6 +139,109 @@ class PureMeaningCheckTest {
         assertTrue(r.clean(), r.header());
     }
 
+    /** validate's constraints become the query's filter before typing (ValidateDesugar, through the query front
+     *  door {@code Compiler.resolveQuery}): store-bound code, as legend-engine's validate pushes them into the SQL. The
+     *  pure/v1 door types a request through {@code Compiler.query}, which does not desugar validate, so there a validate
+     *  request is refused at typing and never answered (the partner below). */
+    @Test
+    void aConstraintValidateTurnsIntoAFilterIsFlagged_andTheDoorRefusesAValidateRequest() {
+        // validate's runtime is a Runtime value (it calls execute), as legend-engine's validation tests pass one
+        String runtime = "^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
+                + "element = t::DB, connection = ^meta::external::store::relational::runtime::RelationalDatabaseConnection("
+                + "type = meta::relational::runtime::DatabaseType.H2, datasourceSpecification ="
+                + " ^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(),"
+                + " authenticationStrategy = ^t::Auth())))";
+        String validate = "|meta::relational::validation::validate({|t::Person.all()}, t::M, " + runtime + ", [])";
+        ModelContext c = ctx(MODEL);
+        com.legend.protocol.spec.LambdaFunction lambda =
+                (com.legend.protocol.spec.LambdaFunction) Compiler.parseQuery(validate);
+        TypedQuery q = Compiler.queryResolved(c, Compiler.resolveQuery(lambda.body(),
+                new com.legend.model.ImportScope(List.of()), c));
+        PureMeaningCheck.Result r = PureMeaningCheck.of(q, c, "t::RT", null);
+        assertEquals("substring/3=1", r.header());
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(validate), NO_RUN,
+                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.WARN);
+        assertEquals(500, a.status(), a.json());
+        assertTrue(a.json().contains("validate"), a.json());
+    }
+
+    /** An M2M binding's transforms, over a chain whose source is a store, in a TDS query: legend-engine pushes them
+     *  into the source query ({@code chain.pure:111-116}), so they are store-bound code. */
+    @Test
+    void anM2MTransformInATdsQueryOverAChainIsFlagged() {
+        PureMeaningCheck.Result r = check("|t::Out.all()->project(~[s: o|$o.short])"
+                + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
+        assertEquals("substring/3=1", r.header());
+        assertTrue(r.sites().stream().anyMatch(s -> s.where().contains("t::M2")
+                || s.where().contains("t::Out")), r.sites().toString());
+    }
+
+    /** The same transforms fetched as a graph: legend-engine runs a graphFetch's M2M transforms in Java
+     *  ({@code storeContract.pure:89-91}), Pure's meaning. */
+    @Test
+    void anM2MTransformUnderAGraphFetchIsNotFlagged() {
+        PureMeaningCheck.Result r = check("|t::Out.all()->graphFetch(#{t::Out{short}}#)->serialize(#{t::Out{short}}#)"
+                + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
+        assertTrue(r.clean(), r.header());
+    }
+
+    /** An M2M mapping over a model connection, with no chain to a store: legend-engine runs it in Java. */
+    @Test
+    void anUnchainedM2MTransformIsNotFlagged() {
+        ModelContext c = ctx(MODEL);
+        TypedQuery q = Compiler.query(c, "|t::Out.all()->project(~[s: o|$o.short])->from(t::M2, t::JsonRT)");
+        PureMeaningCheck.Result r = PureMeaningCheck.of(q, c, "t::JsonRT", null);
+        assertTrue(r.clean(), r.header());
+    }
+
+    // ---- unverified ----------------------------------------------------------------------------------------------
+
+    /** The model with what the check cannot follow: a class holding a function value, and a function whose body does
+     *  not type. Kept out of {@link #MODEL}: lite plans no class with a function-typed property. */
+    static final String UNFOLLOWABLE = MODEL + String.join("\n",
+            "###Pure",
+            "Class t::Holder { f: Function<{String[1]->Integer[1]}>[1]; }",
+            "function t::untyped(s: String[1]): Integer[1] { $s->substring(1, 2) }",
+            "");
+
+    /** A lambda read from an instance's property is a function value the check does not hold: reported unverified,
+     *  never clean, and refused under refuse. */
+    @Test
+    void aLambdaReadFromAnInstancesPropertyIsUnverified_andRefused() {
+        String query = "{|let h = ^t::Holder(f = {s: String[1]|$s->length()}); " + TABLE
+                + "->extend(~i: r|$h.f->eval($r.NAME->toOne()))->from(t::RT);}";
+        PureMeaningCheck.Result r = check(UNFOLLOWABLE, query);
+        assertEquals("unverified=1", r.header());
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(UNFOLLOWABLE, query),
+                NO_RUN);
+        assertEquals(500, a.status(), a.json());
+        assertTrue(a.json().contains("unverified"), a.json());
+        assertEquals("unverified=1", a.headers().get(PureMeaningCheck.HEADER));
+        // the partner: the same lambda let-bound and named is followed, so its body is read, and it is clean
+        assertTrue(check("{|let f = {s: String[1]|$s->length()}; " + TABLE
+                + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}").clean());
+    }
+
+    /** A function whose body does not type cannot be read: unverified, never clean. */
+    @Test
+    void aFunctionWhoseBodyDoesNotTypeIsUnverified() {
+        PureMeaningCheck.Result r = check(UNFOLLOWABLE, "|" + TABLE
+                + "->extend(~i: r|t::untyped($r.NAME->toOne()))->from(t::RT)");
+        assertEquals("unverified=1", r.header());
+        assertTrue(r.sites().get(0).where().startsWith("t::untyped"), r.sites().toString());
+    }
+
+    /** A mapping the check cannot find (here, a test-data request's mapping the model does not declare) is
+     *  unverified, never clean (the reviewer's S2). */
+    @Test
+    void aMappingTheModelDoesNotDeclareIsUnverified() {
+        ModelContext c = ctx(MODEL);
+        TypedQuery q = Compiler.query(c, "|t::Person.all()->project(~[n: p|$p.name])->from(t::M, t::RT)");
+        PureMeaningCheck.Result r = PureMeaningCheck.of(q, c, "t::RT", "t::NotInTheModel");
+        assertEquals("unverified=1", r.header());
+        assertTrue(PureMeaningCheck.of(q, c, "t::RT", "t::M").clean());
+    }
+
     // ---- quiet --------------------------------------------------------------------------------------------------
 
     @Test
@@ -214,10 +323,14 @@ class PureMeaningCheckTest {
     };
 
     private static String body(String lambdaText) {
+        return body(MODEL, lambdaText);
+    }
+
+    private static String body(String modelText, String lambdaText) {
         String function = PureV1Routes.grammarToJsonLambda(lambdaText, true).json();
         Map<String, Object> model = new java.util.LinkedHashMap<>();
         model.put("_type", "text");
-        model.put("code", MODEL);
+        model.put("code", modelText);
         return "{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":" + Json.toCompact(model)
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
     }

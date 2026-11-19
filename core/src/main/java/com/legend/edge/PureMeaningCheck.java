@@ -42,8 +42,8 @@ import java.util.Set;
 
 /**
  * THE PURE-MEANING DETECTOR at legend-engine's door (A3 piece 3; the final plan's section 4a,
- * docs/records/compat-final-plan-2026-11-19.md on claude/compat-program; the user's rulings of 2026-11-19, ~13:25
- * "Pure's way, LOUD, no translator" and ~19:20 "I think it has to be refuse then for now").
+ * docs/records/compat-final-plan-2026-11-19.md on claude/compat-program; D1, ruled by the user 2026-11-19 ~13:25
+ * ("Okay agree with all"), and the default, ruled ~19:20 ("I think it has to be refuse then for now")).
  *
  * <p>Since A3, lite's {@code substring} and {@code indexOf} mean legend-pure's: 0-based, end-exclusive, -1 on a miss.
  * legend-engine gives them SQL's meaning (1-based, 0 on a miss) in the code it sends to the database, and legend-pure's
@@ -421,6 +421,10 @@ public final class PureMeaningCheck {
                 for (String m : List.copyOf(mappings)) {
                     MappingDefinition md = ctx.findMapping(m).orElse(null);
                     if (md == null) {
+                        // a mapping the model does not declare: what it binds cannot be read, so never clean
+                        if (done.add("mapping " + m)) {
+                            sites.add(new Site(Code.UNVERIFIED, "mapping " + m + " (not in the model)", null));
+                        }
                         continue;
                     }
                     for (MappingDefinition.ClassBinding b : md.classBindingsWithIncludes(ctx::findMapping)) {
@@ -431,7 +435,13 @@ public final class PureMeaningCheck {
                             continue;
                         }
                         int before = classes.size() + mappings.size();
-                        for (TypedFunction tf : ctx.findFunction(b.functionFqn())) {
+                        List<TypedFunction> bound = ctx.findFunction(b.functionFqn());
+                        if (bound.isEmpty()) {
+                            // a binding whose lifted body the model does not hold: never clean
+                            sites.add(new Site(Code.UNVERIFIED, "mapping " + m + "'s " + b.classFqn()
+                                    + " (its binding's body is not in the model)", null));
+                        }
+                        for (TypedFunction tf : bound) {
                             follow(tf, features, null);
                         }
                         more |= classes.size() + mappings.size() != before;

@@ -128,9 +128,16 @@ public final class PeRatchets {
             "own_corpus.matched 3309 -> 3310 (2026-11-18, PR #118 fix round: one more own-corpus model, added by the"
                     + " batch's tests, matches the reference grammar; UP)",
             "own_corpus.matched 3310 -> 3312 (2026-11-19, A3 piece 3 (the detector), ruled by the user 2026-11-19 ~20:10"
-                    + " ('Yes', to the owner's question on these three moves): PureMeaningCheckTest's two models, its"
-                    + " relational model over H2 and the same model over DuckDB, match the reference grammar; regenerated"
-                    + " again on the merged tree with A2's move; UP)");
+                    + " ('Yes', to the owner's question on these three moves): two more own-corpus elements, from"
+                    + " PureMeaningCheckTest's model text, match the reference grammar (a verdict is per element); UP)",
+            "own_corpus.matched 3312 -> 3315 (2026-11-19, A3 piece 3's review fixes (the independent reviewer's record"
+                    + " 88e3def8, M1), under the user's ruling of 2026-11-19 ~20:10 ('Yes' to the parser-equivalence"
+                    + " ratchet regenerated for the detector's test models, the final value regenerated on the merged"
+                    + " tree; applied to this move by the compat owner, ~20:57): PureMeaningCheckTest's new one-line"
+                    + " declarations (an M2M target class, an auth class, a class holding a function value, a function"
+                    + " whose body does not type) are new own-corpus candidates, and the measured count of elements"
+                    + " matching the reference grammar rises by three, 3312 + 3 = 3315; on the merged batch with A2's"
+                    + " move (3310 -> 3311), 3310 + 2 + 3 + 1 = 3316 expected, regenerated on the merged tree; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

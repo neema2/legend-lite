@@ -259,9 +259,77 @@ engine-answer opt-in (H16, sized separately) would sit on top of it, only on the
 ## 9. Points for the compat owner
 
 1. **Constraints:** §4a says "the constraints that reach SQL". In legend-engine they reach SQL only through
-   `validate` and DataQuality's negated query, and lite serves both. So the detector flags a constraint reached
+   `validate` and DataQuality's negated query. (Corrected in section 10: lite's pure/v1 door does not serve
+   `validate`, which it refuses at typing; the desugared form is flagged.) So the detector flags a constraint reached
    through either, and no other; the report lists every constraint either way, since A3 changed their answers too.
    Confirm, or name another case.
 2. **M2M:** flagged only for a relation or TDS query over a chain, as legend-engine plans it, and never under a
    graphFetch. This follows the read above rather than "flag every transform".
 3. **Studio:** its fetch layer is read in its source at the slice (test 13); no Studio runs in this container.
+
+## 10. The reviewer's findings, fixed (record 88e3def8, `docs/records/compat-pr-reviews-2026-11-19.md` on `claude/compat-review`)
+
+**M1, the untested reaches.** Five tests were added, plus two for S2 and the second UNVERIFIED site. Each one fails on
+its plant. Each plant is a sabotage of `PureMeaningCheck.java`, run against `PureMeaningCheckTest` (29 tests); the
+source was restored after each run.
+
+| plant | the tests it turns red |
+|---|---|
+| P1 `w.mappingReach(features)` deleted | `anM2MTransformInATdsQueryOverAChainIsFlagged`, `aMappingTheModelDoesNotDeclareIsUnverified` |
+| P2 the `chained`/`graphFetch` gate inverted | the chained, the graphFetch and the unchained M2M tests |
+| P3 the function-value UNVERIFIED site dropped | `aLambdaReadFromAnInstancesPropertyIsUnverified_andRefused` |
+| P4 the untyped-body UNVERIFIED site dropped | `aFunctionWhoseBodyDoesNotTypeIsUnverified` |
+| P5 a filter's predicate not walked (validate's inlined filter skipped) | `aConstraintValidateTurnsIntoAFilterIsFlagged_andTheDoorRefusesAValidateRequest`, `aHostSideLetIsNotFlagged_butTheSameCallInTheQueryIs` |
+| P6 each read class's constraints walked | `aConstraintIsNotFollowed_legendEngineChecksItInJava`, `aQualifiedPropertyTheQueryReadsIsFollowed`, the validate test, the S2 test |
+| P7 an unresolved mapping skipped as clean (S2) | `aMappingTheModelDoesNotDeclareIsUnverified` |
+
+The first P5 and P6 plants did not turn anything red, because they did not plant what their names say:
+- A filter types as `TypedFilter`, not as a `TypedNativeCall` named filter, so the first P5 plant never fired.
+- No typed query calls a constraint's lifted body. A constraint reaches SQL in lite only in phase H, for a graphFetch
+  `checked` (`GraphEmission`), which legend-engine checks in Java. So skipping the CONSTRAINT hats in `follow` changes
+  nothing, and the honest plant for "a check that wrongly follows constraints" walks each read class's constraints.
+
+Both were re-planted as the table shows.
+
+**M2.** The constraint is now `substring(1, 2)`. The same P6 plant run on the old `substring(0, 1)` leaves
+`aConstraintIsNotFollowed` and `aQualifiedPropertyTheQueryReadsIsFollowed` green, because H2 exempts a literal 0 start.
+On the new constraint both turn red. That is the reviewer's point, measured.
+
+**S1.** `PureMeaningCheck`'s javadoc, and the test's, now cite "D1, ruled by the user 2026-11-19 ~13:25 ("Okay agree
+with all")" and the default ruled ~19:20. They no longer quote program wording as the user's.
+
+**S2.** In `mappingReach`:
+- a mapping the model does not declare is a site `unverified` ("mapping X (not in the model)");
+- a binding whose lifted body the model does not hold is one too.
+
+Neither is skipped as clean. `aMappingTheModelDoesNotDeclareIsUnverified` plants a test-data request's mapping that
+is not in the model.
+
+**Two findings the tests turned up:**
+1. **`validate` at the pure/v1 door.** The door types a request through `Compiler.query`, which does not run
+   `ValidateDesugar`; only the query front door `Compiler.resolveQuery` does (the test runners and service tests). So
+   a pure/v1 `validate` request is refused at typing (500, "validate is desugared before typing") and never answered.
+   No answer with Pure's meaning escapes, so the detector has nothing to flag there.
+   - The validate test proves the desugared form (`resolveQuery` then `queryResolved`) is flagged as store-bound
+     code.
+   - It also proves that the door refuses a validate request.
+   - Point 9.1's "lite serves both" was wrong for this door.
+2. **A chain in a packaged runtime.** A `###Runtime`'s `ModelChainConnection` does not reach the typed context:
+   `ExecutionContext.chainMappings` is filled from a runtime value, or from `withChainedMappings` placed right before
+   `from`. That is lite's known gap (StressServiceSuitesTest: "the test runtime losing the ModelChainConnection's
+   mapping"). Such a request fails at lite's planning, so no wrong answer escapes. The chain tests use
+   `withChainedMappings`, the form lite types.
+
+**The model text these tests needed** moved the parser-equivalence ratchet `own_corpus.matched` 3312 → 3315. Four new
+one-line declarations are new own-corpus candidates, and a verdict is per element. The move is under the user's ruling
+of ~20:10 ("Yes" to the ratchet regenerated for the detector's test models, the final value regenerated on the merged
+tree), applied to it by the compat owner at ~20:57. On the merged batch with A2's 3310 → 3311 it is regenerated on the
+merged tree: 3310 + 2 + 3 + 1 = 3316, expected. The compat owner sent both findings above to the product track as
+recorded gaps.
+
+**The proof** (the reviewer's gap) is recorded in the commit that carries these fixes:
+- `//core:core_edge_tests`, with the 29 detector tests;
+- `//gates:edge_net`, which runs `PureV1EdgeGoldenTest` and its golden diff. No golden file changed since #124's head
+  `f832a6671` (`git diff --name-only f832a6671` lists none);
+- `//pct:batteries_test`, the batteries, which call the route under `warn`.
+
