@@ -1969,3 +1969,12 @@ who confirms or changes phases 1-3.
   database judge: `VerdictNumbers`' 2-ULP SQL, `RenderedTextRule`, `DateLiteralTexts`, `GoldenNullWord`,
   `CrossKindNumbers`, the JSON grammar's database read, `VerdictWords`' CANONS reads); step 3 (the database judge's
   SQL-text appeal path) sized before building.
+- **~16:40 UTC, the user on a table's `toString()`:** "I think your original point was actually right, either we need to
+  refuse or we need to print in database like every other function / Can we test with doing in db with lean sql of lite
+  how many we can pass in the database? I guess it will break where 6 decimal float print or timestamp does not match
+  what java does?" **Sent (17:10) to H11 continued (`session_0195rQEnceykGKzTfRUo7XWp`) as spike H14:** the product
+  lowers a relation's `toString()` in the core to SQL in legend-pure's `#TDS` layout with the product's OWN lean value
+  texts (`FLOAT_TO_TEXT` six decimals, `DATETIME_TO_TEXT`, the rest), no `FLOAT_SHORTEST_TEXT`, no edge builder, no
+  facet, no hook; run PCT under LITE's rules (A5's channel-B LITE switch merged in), DuckDB's five suites first. Report:
+  how many of the 423 pass byte for byte; failures by cause with examples; SQL size against `main`'s edge builder and
+  the lean baseline; database limits; any hook (stop). Record `H14-table-text-in-db.md`. Half a day.
