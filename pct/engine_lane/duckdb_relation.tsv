@@ -227,7 +227,7 @@ meta::pure::functions::relation::tests::in::testIn_NullInRelation	PASS		PASS		SA
 meta::pure::functions::relation::tests::in::testIn_NullValue	PASS		PASS		SAME
 meta::pure::functions::relation::tests::in::testIn_String	PASS		PASS		SAME
 meta::pure::functions::relation::tests::in::testSimpleIn	PASS		PASS		SAME
-meta::pure::functions::relation::tests::in::testSimpleIn_Negated	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::in::testSimpleIn_Negated	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::join::testFullJoin	PASS		PASS		SAME
 meta::pure::functions::relation::tests::join::testJoin_forFailedJoinWhenNoRowsMatchJoinCondition	PASS		PASS		SAME
 meta::pure::functions::relation::tests::join::testRightJoin	PASS		PASS		SAME

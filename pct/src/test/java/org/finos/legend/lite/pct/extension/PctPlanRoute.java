@@ -52,11 +52,14 @@ final class PctPlanRoute {
         boolean engineAudience = ENGINE_AUDIENCE.equals(System.getProperty("pct.audience"));
         java.util.Set<com.legend.platform.Feature> features = engineAudience ? java.util.Set.of()
                 : java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
+        com.legend.database.PlanStyle text = engineAudience ? com.legend.edge.PureText.PURE_V1
+                : com.legend.edge.PureText.UPSTREAM;
+        // counted as chosen here, the text and the flags the run is handed, for the ENGINE lane's check (RouteAudience)
+        RouteAudience.planned(text == com.legend.edge.PureText.PURE_V1 && features.isEmpty());
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        ExecutionPlan plan = com.legend.edge.RaisedWords.run(
-                engineAudience ? com.legend.edge.PureText.PURE_V1 : com.legend.edge.PureText.UPSTREAM, style ->
+        ExecutionPlan plan = com.legend.edge.RaisedWords.run(text, style ->
                 com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)

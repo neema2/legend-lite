@@ -25,9 +25,19 @@ import java.util.regex.Pattern;
  * classified. The PCT module holds no comparison machinery ({@code PctDisciplineTest}), so the join is here.
  *
  * <ul>
- *   <li><b>legend-engine:</b> {@code PASS} (not in the manifest), {@code REFUSES} (the manifest's error is "No SQL
- *       translation exists for the PURE function '&lt;signature&gt;'": keyed by that signature and the database), or
- *       {@code DEFECT} (any other expected error), its class read from the message ({@link #defect}).</li>
+ *   <li><b>legend-engine:</b> {@code PASS}, {@code REFUSES} or {@code DEFECT}, from its manifest alone: legend-engine is
+ *       not run here.
+ *       <ul>
+ *         <li>{@code PASS} is the manifest's EXPECTATION: a test it does not list is one legend-engine's own PCT run
+ *             passes. The oracle's sample asked legend-engine itself (21 of 21 rows agreed with the manifests;
+ *             docs/records/compat-homework/H7-engine-lane.md section 2).</li>
+ *         <li>{@code REFUSES}: legend-engine's planning refuses the case before any SQL runs. Either its words are "No
+ *             SQL translation exists for the PURE function '&lt;signature&gt;'" (keyed by that signature and the
+ *             database), or they match one of {@link #REFUSAL_WORDS} ({@code REFUSES_OTHER: <the words matched>}, e.g.
+ *             "-&gt;at(...) function is supported only after direct access of 1-&gt;MANY properties", "Any is not
+ *             managed yet!", "H2 SQL Dialect does not support AsOfJoin!").</li>
+ *         <li>{@code DEFECT}: any other expected error, its class from the message ({@link #defect}).</li>
+ *       </ul></li>
  *   <li><b>lite:</b> {@code PASS} (PCT's assert held: lite answered PCT's expected value) or {@code FAIL}, its class read
  *       from the message ({@link #liteFailure}).</li>
  *   <li><b>verdict:</b> {@code SAME} (both pass), {@code LITE_BEHIND} (legend-engine passes, lite fails),
@@ -36,8 +46,13 @@ import java.util.regex.Pattern;
  *       {@code MANIFEST_ONLY} (a manifest row for a test the lane did not run).</li>
  * </ul>
  *
- * <p>Statuses and classes are compared, never words: words are the presenter's (B1-R's note, 2026-11-19), and a message
- * holds run-time ids. So the table holds no message text, and moves only when a class moves.
+ * <p>Every class is COMPUTED from words: from the manifest's expected error and lite's run message, by the patterns
+ * listed in this class. The table holds the class and never the message text (a message holds run-time ids, and words
+ * are the presenter's: B1-R's note, 2026-11-19), so it moves only when a class moves. A message no pattern matches is
+ * {@code OTHER}, which the counts show.
+ *
+ * <p>The lane's plant: its outcomes must hold the audience check's line ({@link #AUDIENCE_CHECK}), passed, or the
+ * table refuses the lane. That line is kept out of the rows.
  *
  * <p>Usage: {@code table --db=<db> --suite=<Suite> --manifest=<json> --outcomes=<tsv> --out=<tsv>} for one lane;
  * {@code summary --out=<tsv> --refusals-out=<tsv> <table> ...} for the counts per lane and the refusals by signature.
@@ -54,6 +69,24 @@ public final class EngineLaneTable {
     private static final Pattern ASSERT_FRAME = Pattern.compile("^Assert failure at \\(resource:[^)]*\\), ");
 
     static final String HEADER = "test\tengine\tengine_class\tlite\tlite_class\tverdict";
+
+    /** The lane's audience check, run after its last case: {@code Test_LegendLite_Engine_PCT.AudienceCheck.NAME} (the
+     *  PCT module is not this package's dependency, so the name is written twice). */
+    static final String AUDIENCE_CHECK = "everyCaseWasPlannedAsLegendEnginesAudience";
+
+    /** legend-engine's planning refusals in other words than {@link #NO_SQL}'s, lower-cased, matched in this order
+     *  (measured on DuckDB's and H2's manifests, 2026-11-19: 51 rows on DuckDB, 36 on H2's relation suite, each a
+     *  refusal by legend-engine's planner or its dialect before any SQL runs). The last two added 2026-11-19 with H2's
+     *  essential and standard lanes (the compatibility program's owner's ruling): H2's dialect's "Ensure the target
+     *  system understands Year or Year-month semantic." (DuckDB's says "doesn't support YEAR and YEAR-MONTH") and the
+     *  SQL function registry's "No matched function in function registry for - max(...)", 24 rows, all read. */
+    static final List<String> REFUSAL_WORDS = List.of("not supported", "does not support", "doesn't support",
+            "unsupported", "not managed yet", "couldn't find dynafunction", "is supported only", "are only supported",
+            "only supports", "isn't supported", "not implemented", "isn't a literal", "no relational processor matched",
+            "ensure the target system understands", "no matched function in function registry");
+
+    /** The class of a refusal in other words: the words it matched. */
+    static final String REFUSES_OTHER = "REFUSES_OTHER: ";
 
     private EngineLaneTable() {
     }
@@ -112,12 +145,17 @@ public final class EngineLaneTable {
             expected.putIfAbsent(m.group(1), String.valueOf(e.getStringOr("expectedError", "")));
         }
         Map<String, String[]> rows = new TreeMap<>();
+        String audience = null;
         for (String line : outcomeLines) {
             if (line.isBlank()) {
                 continue;
             }
             String[] f = line.split("\t", 3);
             String test = f[0];
+            if (test.equals(AUDIENCE_CHECK) || test.endsWith("::" + AUDIENCE_CHECK)) {
+                audience = line;
+                continue;
+            }
             boolean litePass = "SUCCESSFUL".equals(f[1]);
             String liteClass = litePass ? "" : liteFailure(f.length > 2 ? f[2] : "");
             // a test the manifest does not list is one legend-engine passes
@@ -125,6 +163,14 @@ public final class EngineLaneTable {
             String[] engine = listed == null ? new String[] {"PASS", ""} : engine(listed);
             rows.put(test, new String[] {engine[0], engine[1], litePass ? "PASS" : "FAIL", liteClass,
                     verdict(engine[0], litePass)});
+        }
+        if (audience == null) {
+            throw new IllegalStateException("the " + db + " " + suite + " lane's outcomes hold no audience check ("
+                    + AUDIENCE_CHECK + "): it cannot be shown to have run as legend-engine's audience");
+        }
+        if (!audience.split("\t", 3)[1].equals("SUCCESSFUL")) {
+            throw new IllegalStateException("the " + db + " " + suite + " lane did not run as legend-engine's audience: "
+                    + audience);
         }
         for (Map.Entry<String, String> e : expected.entrySet()) {
             if (!rows.containsKey(e.getKey())) {
@@ -144,7 +190,8 @@ public final class EngineLaneTable {
         if (m.find()) {
             return new String[] {"REFUSES", m.group(1)};
         }
-        return new String[] {"DEFECT", defect(expectedError)};
+        String defect = defect(expectedError);
+        return new String[] {defect.startsWith(REFUSES_OTHER) ? "REFUSES" : "DEFECT", defect};
     }
 
     private static String verdict(String engine, boolean litePass) {
@@ -156,8 +203,9 @@ public final class EngineLaneTable {
         };
     }
 
-    /** The class of legend-engine's defect, read from its expected error (measured on DuckDB's and H2's manifests,
-     *  2026-11-19: every row of the six falls in one, OTHER the rest). */
+    /** The class of legend-engine's expected error other than {@link #NO_SQL}'s, by the patterns listed here, in this
+     *  order: a defect's class, or a refusal in other words ({@link #REFUSES_OTHER}). Measured on DuckDB's and H2's
+     *  manifests, 2026-11-19: every row of the six falls in a listed class, none in OTHER. */
     static String defect(String message) {
         String m = message.strip();
         if (answer(m)) {
@@ -170,11 +218,13 @@ public final class EngineLaneTable {
                 "Out of Range Error", "Parser Error", "Data conversion error", "JdbcSQL", "SQL statement")) {
             return "DATABASE_ERROR";
         }
+        // a refusal in other words, after the classes above: two of DuckDB's ERROR_MISMATCH rows hold such words in the
+        // PCT's own expected message (testBitShiftLeft/Right_MoreThan62Bits), and stay defects
         String lower = m.toLowerCase(Locale.ROOT);
-        if (any(lower, "not supported", "does not support", "doesn't support", "unsupported", "not managed yet",
-                "couldn't find dynafunction", "is supported only", "are only supported", "only supports",
-                "isn't supported", "not implemented", "isn't a literal", "no relational processor matched")) {
-            return "UNSUPPORTED";
+        for (String words : REFUSAL_WORDS) {
+            if (lower.contains(words)) {
+                return REFUSES_OTHER + words;
+            }
         }
         if (any(m, "Match failure", "Cast exception", "cannot be cast", "Error dynamically evaluating", "Unexpected error",
                 "Function does not exist", "no viable alternative", "Failed to infer", "trying to get an element",
@@ -242,6 +292,10 @@ public final class EngineLaneTable {
                 if (!r[2].isEmpty() && "DEFECT".equals(r[1])) {
                     counts.merge("engine.DEFECT." + r[2], 1, Integer::sum);
                 }
+                if ("REFUSES".equals(r[1])) {
+                    counts.merge(r[2].startsWith(REFUSES_OTHER) ? "engine.REFUSES.OTHER_WORDS"
+                            : "engine.REFUSES.NO_SQL", 1, Integer::sum);
+                }
                 counts.merge("lite." + r[3], 1, Integer::sum);
                 if (!r[4].isEmpty()) {
                     counts.merge("lite.FAIL." + r[4], 1, Integer::sum);
@@ -253,8 +307,9 @@ public final class EngineLaneTable {
         return out.toString();
     }
 
-    /** legend-engine's refusals by database and signature (the E-R1 table, now a classification under E-R2): how many
-     *  tests each refusal fails, and how many of them lite answers with PCT's expected value. */
+    /** legend-engine's refusals by database and signature, or for a refusal in other words by the words it matched (the
+     *  E-R1 table, now a classification under E-R2): how many tests each refusal fails, and how many of them lite
+     *  answers with PCT's expected value. */
     static String refusals(Map<String, List<String>> tables) {
         Map<String, int[]> bySignature = new TreeMap<>();
         tables.forEach((lane, lines) -> {
@@ -271,10 +326,11 @@ public final class EngineLaneTable {
                 }
             }
         });
-        StringBuilder out = new StringBuilder("# legend-engine's refusals (\"No SQL translation exists for the PURE"
-                + " function\") by database and signature, from its manifests; lite's outcome on those tests as"
-                + " legend-engine's audience (bazel run //pct:update_engine_lane)\n"
-                + "database\tsignature\ttests\tlite_pass\tlite_fail\n");
+        StringBuilder out = new StringBuilder("# legend-engine's planning refusals by database, from its manifests: by"
+                + " signature (\"No SQL translation exists for the PURE function\"), or by the words matched"
+                + " (REFUSES_OTHER); lite's outcome on those tests as legend-engine's audience (bazel run"
+                + " //pct:update_engine_lane)\n"
+                + "database\trefusal\ttests\tlite_pass\tlite_fail\n");
         bySignature.forEach((k, c) -> out.append(k).append('\t').append(c[0]).append('\t').append(c[1]).append('\t')
                 .append(c[2]).append('\n'));
         return out.toString();

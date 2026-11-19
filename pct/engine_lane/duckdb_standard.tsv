@@ -22,7 +22,7 @@ meta::pure::functions::collection::tests::greatest::testGreatest_StrictDate	PASS
 meta::pure::functions::collection::tests::greatest::testGreatest_String	PASS		PASS		SAME
 meta::pure::functions::collection::tests::in::testInForDecimal	PASS		PASS		SAME
 meta::pure::functions::collection::tests::in::testInIsEmpty	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
-meta::pure::functions::collection::tests::in::testInNonPrimitive	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::in::testInNonPrimitive	REFUSES	REFUSES_OTHER: isn't a literal	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::in::testInPrimitive	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::in::testIn_relation_extend	PASS		PASS		SAME
 meta::pure::functions::collection::tests::in::testIn_relation_filter	PASS		PASS		SAME
@@ -70,7 +70,7 @@ meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketSecond
 meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketWeeks	PASS		PASS		SAME
 meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketYears	PASS		PASS		SAME
 meta::pure::functions::hashCode::tests::testHashCode	PASS		PASS		SAME
-meta::pure::functions::math::hashCode::tests::testHashCodeAggregate	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::math::hashCode::tests::testHashCodeAggregate	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
 meta::pure::functions::math::tests::average::testAverage_Floats	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::math::tests::average::testAverage_Floats_Relation_Aggregate	PASS		PASS		SAME
 meta::pure::functions::math::tests::average::testAverage_Floats_Relation_Window	PASS		PASS		SAME

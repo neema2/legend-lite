@@ -3,11 +3,11 @@ test	engine	engine_class	lite	lite_class	verdict
 meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_AggColSpec	PASS		PASS		SAME
 meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_AggColSpecArray	PASS		PASS		SAME
 meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_WithFilter	PASS		PASS		SAME
-meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch_MultipleExpressions	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin_MultipleExpressions	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch_MultipleExpressions	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin_MultipleExpressions	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::composition::testCoalesceInPreFilter	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::testConcatenateFilterInSubQuery	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::testConcatenateWithJoinOnOneSide	PASS		PASS		SAME
@@ -43,25 +43,25 @@ meta::pure::functions::relation::tests::composition::testProjectJoinWithProjectP
 meta::pure::functions::relation::tests::composition::testProjectNotEqualityOnNullableColumns	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::testProjectNumbersPlusTimesMinus	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::testProjectOfComputedColumn_withCast	PASS		PASS		SAME
-meta::pure::functions::relation::tests::composition::testStaticPivot_AfterConcatenate	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::composition::testStaticPivot_AfterExtendConcatenate	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::composition::testStaticPivot_AfterConcatenate	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::testStaticPivot_AfterExtendConcatenate	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::composition::testTDSPlusTimesMinus	PASS		PASS		SAME
-meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::relation::tests::composition::testVariantArrayColumn_reverse	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::relation::tests::composition::testVariantArrayColumn_sort	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::relation::tests::composition::testVariantColumn_contains	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::relation::tests::composition::testVariantColumn_distinct_removeDuplicates	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantArrayColumn_reverse	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantArrayColumn_sort	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_contains	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_distinct_removeDuplicates	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::relation::tests::composition::testVariantColumn_extend_indexExtraction_filter	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsEmptyOfModelConversion	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsNotEmptyOfModelConversion	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::relation::tests::composition::testVariantColumn_indexOf	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::relation::tests::composition::testVariantColumn_isEmpty	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::composition::testVariantColumn_isNotEmpty	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::composition::testVariantColumn_indexOf	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_isEmpty	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::testVariantColumn_isNotEmpty	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::composition::testVariantColumn_modelOutputNotSupported	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::testVariantColumn_projectModelProperty	PASS		PASS		SAME
-meta::pure::functions::relation::tests::composition::testVariantColumn_slice	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_slice	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::relation::tests::composition::testVariantMapColumn_values_LateralFlatten	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::relation::tests::composition::testVariant_if	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::testWindowFunctionsAfterProject	PASS		PASS		SAME
@@ -69,9 +69,9 @@ meta::pure::functions::relation::tests::composition::test_Distinct_Filter	PASS		
 meta::pure::functions::relation::tests::composition::test_Distinct_GroupBy	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::test_Distinct_GroupBy_Filter	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::test_Distinct_Size	PASS		PASS		SAME
-meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::composition::test_Extend_GroupBy_Extend_Select	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::test_Extend_GroupBy_Project	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::test_Extend_Sort_Extend_Select	PASS		PASS		SAME
@@ -81,10 +81,10 @@ meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct_Filte
 meta::pure::functions::relation::tests::composition::test_GroupBy_Filter	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::test_GroupBy_GroupBy	PASS		PASS		SAME
 meta::pure::functions::relation::tests::composition::test_Limit_Size	PASS		PASS		SAME
-meta::pure::functions::relation::tests::composition::test_Pivot_Filter	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::composition::test_Project_Filter_Before_Static_Pivot	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::composition::test_Pivot_Filter	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::test_Project_Filter_Before_Static_Pivot	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::composition::test_Slice_Size	PASS		PASS		SAME
-meta::pure::functions::relation::tests::composition::test_Static_Pivot_Filter	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::composition::test_Static_Pivot_Filter	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::concatenate::testSimpleConcatenateShared	PASS		PASS		SAME
 meta::pure::functions::relation::tests::concatenate::testSimpleConcatenate_MultipleExpressions	PASS		PASS		SAME
 meta::pure::functions::relation::tests::cumulativeDistribution::testOLAPWithPartitionAndOrderCummulativeDistribution	PASS		PASS		SAME
@@ -227,7 +227,7 @@ meta::pure::functions::relation::tests::in::testIn_NullInRelation	PASS		PASS		SA
 meta::pure::functions::relation::tests::in::testIn_NullValue	PASS		PASS		SAME
 meta::pure::functions::relation::tests::in::testIn_String	PASS		PASS		SAME
 meta::pure::functions::relation::tests::in::testSimpleIn	PASS		PASS		SAME
-meta::pure::functions::relation::tests::in::testSimpleIn_Negated	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::in::testSimpleIn_Negated	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::join::testFullJoin	PASS		PASS		SAME
 meta::pure::functions::relation::tests::join::testJoin_forFailedJoinWhenNoRowsMatchJoinCondition	PASS		PASS		SAME
 meta::pure::functions::relation::tests::join::testRightJoin	PASS		PASS		SAME
@@ -344,18 +344,18 @@ meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_Unboun
 meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing_WithMultiplePartitions_WithoutOrderBy	PASS		PASS		SAME
 meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing_WithSinglePartition_WithoutOrderBy	PASS		PASS		SAME
 meta::pure::functions::relation::tests::percentRank::testOLAPWithPartitionAndOrderPercentRank	PASS		PASS		SAME
-meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle_StringPivotValue	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle_StringPivotValue	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
 meta::pure::functions::relation::tests::project::testSimpleProject	PASS		PASS		SAME
 meta::pure::functions::relation::tests::project::testSimpleProjectList	PASS		PASS		SAME
 meta::pure::functions::relation::tests::project::testSimpleProjectWithEmpty	PASS		PASS		SAME

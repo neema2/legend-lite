@@ -9,7 +9,7 @@ meta::pure::functions::boolean::tests::conjunctions::and::testTernaryTruthTable	
 meta::pure::functions::boolean::tests::conjunctions::not::testBasicNot	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::conjunctions::not::testNotFalse	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::conjunctions::not::testNotFalseExpression	PASS		PASS		SAME
-meta::pure::functions::boolean::tests::conjunctions::not::testNotInCollection	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::boolean::tests::conjunctions::not::testNotInCollection	REFUSES	REFUSES_OTHER: is supported only	PASS		LITE_ANSWERS
 meta::pure::functions::boolean::tests::conjunctions::not::testNotTrue	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::conjunctions::not::testNotTrueExpression	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::conjunctions::not::testOperatorScope	PASS		PASS		SAME
@@ -20,25 +20,25 @@ meta::pure::functions::boolean::tests::conjunctions::or::testShortCircuitSimple	
 meta::pure::functions::boolean::tests::conjunctions::or::testTernaryExpressions	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::conjunctions::or::testTernaryTruthTable	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::equality::eq::testEqBoolean	PASS		PASS		SAME
-meta::pure::functions::boolean::tests::equality::eq::testEqDate	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::boolean::tests::equality::eq::testEqDate	REFUSES	REFUSES_OTHER: doesn't support	PASS		LITE_ANSWERS
 meta::pure::functions::boolean::tests::equality::eq::testEqEnum	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::boolean::tests::equality::eq::testEqFloat	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::equality::eq::testEqInteger	PASS		PASS		SAME
-meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive	REFUSES	REFUSES_OTHER: are only supported	PASS		LITE_ANSWERS
+meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension	REFUSES	REFUSES_OTHER: are only supported	PASS		LITE_ANSWERS
 meta::pure::functions::boolean::tests::equality::eq::testEqString	PASS		PASS		SAME
-meta::pure::functions::boolean::tests::equality::eq::testEqVarIdentity	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::boolean::tests::equality::eq::testEqVarIdentity	REFUSES	REFUSES_OTHER: are only supported	PASS		LITE_ANSWERS
 meta::pure::functions::boolean::tests::equality::equal::testEqualBoolean	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::equality::equal::testEqualDate	PASS		PASS		SAME
-meta::pure::functions::boolean::tests::equality::equal::testEqualDateStrictYear	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::boolean::tests::equality::equal::testEqualDateStrictYear	REFUSES	REFUSES_OTHER: doesn't support	PASS		LITE_ANSWERS
 meta::pure::functions::boolean::tests::equality::equal::testEqualEmpty	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::equality::equal::testEqualEnum	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::boolean::tests::equality::equal::testEqualFloat	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::equality::equal::testEqualInteger	PASS		PASS		SAME
-meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive	REFUSES	REFUSES_OTHER: are only supported	PASS		LITE_ANSWERS
+meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension	REFUSES	REFUSES_OTHER: are only supported	PASS		LITE_ANSWERS
 meta::pure::functions::boolean::tests::equality::equal::testEqualString	PASS		PASS		SAME
-meta::pure::functions::boolean::tests::equality::equal::testEqualVarIdentity	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::boolean::tests::equality::equal::testEqualVarIdentity	REFUSES	REFUSES_OTHER: are only supported	PASS		LITE_ANSWERS
 meta::pure::functions::boolean::tests::inequalities::greaterThan::testGreaterThan_Boolean	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::inequalities::greaterThan::testGreaterThan_Date	PASS		PASS		SAME
 meta::pure::functions::boolean::tests::inequalities::greaterThan::testGreaterThan_Number	PASS		PASS		SAME
@@ -70,7 +70,7 @@ meta::pure::functions::collection::tests::isEmpty::testIsEmptyFalseSingle	PASS		
 meta::pure::functions::collection::tests::isEmpty::testIsNotEmptyFalse	PASS		PASS		SAME
 meta::pure::functions::collection::tests::isEmpty::testIsNotEmptyMultiple	PASS		PASS		SAME
 meta::pure::functions::collection::tests::isEmpty::testIsNotEmptySingle	PASS		PASS		SAME
-meta::pure::functions::collection::tests::map::testMapInstance	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::map::testMapInstance	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany	DEFECT	PLANNER_FAULT	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne	DEFECT	PLANNER_FAULT	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne	DEFECT	PLANNER_FAULT	FAIL	WRONG_ANSWER	BOTH_FAIL
@@ -94,7 +94,7 @@ meta::pure::functions::lang::tests::compare::testIntegerCompare	REFUSES	compare_
 meta::pure::functions::lang::tests::compare::testNumberCompare	REFUSES	compare_T_1__T_1__Integer_1_	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::compare::testStringCompare	REFUSES	compare_T_1__T_1__Integer_1_	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::letFn::testAssignLiteralToVariable	PASS		PASS		SAME
-meta::pure::functions::lang::tests::letFn::testAssignNewInstance	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::letFn::testAssignNewInstance	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::letFn::testLetAsLastStatement	REFUSES	letFunction_String_1__T_m__T_m_	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::letFn::testLetChainedWithAnotherFunction	REFUSES	letFunction_String_1__T_m__T_m_	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::letFn::testLetInsideIf	REFUSES	letFunction_String_1__T_m__T_m_	PASS		LITE_ANSWERS
@@ -133,7 +133,7 @@ meta::pure::functions::math::tests::times::testNegativeTimes	PASS		PASS		SAME
 meta::pure::functions::math::tests::times::testSimpleTimes	PASS		PASS		SAME
 meta::pure::functions::string::tests::plus::testMultiPlus	PASS		PASS		SAME
 meta::pure::functions::string::tests::plus::testMultiPlusWithFunctionExpressions	PASS		PASS		SAME
-meta::pure::functions::string::tests::plus::testMultiPlusWithPropertyExpressions	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::string::tests::plus::testMultiPlusWithPropertyExpressions	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::plus::testPlus	PASS		PASS		SAME
 meta::pure::functions::string::tests::plus::testPlusInCollect	REFUSES	at_T_MANY__Integer_1__T_1_	PASS		LITE_ANSWERS
-meta::pure::functions::string::tests::plus::testPlusInIterate	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::string::tests::plus::testPlusInIterate	REFUSES	REFUSES_OTHER: no relational processor matched	PASS		LITE_ANSWERS

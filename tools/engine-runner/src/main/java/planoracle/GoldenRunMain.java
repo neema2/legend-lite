@@ -84,7 +84,8 @@ public final class GoldenRunMain
             Path copy = Files.createTempDirectory("engine-oracle-duckdb").resolve(duckdb.getFileName().toString());
             Files.copy(duckdb, copy, StandardCopyOption.REPLACE_EXISTING);
             copy.toFile().setWritable(true);
-            copyPath = copy.toAbsolutePath().toString();
+            // into a Pure string, which legend-engine's parser unescapes: written with '/', which every platform takes
+            copyPath = copy.toAbsolutePath().toString().replace('\\', '/');
             modelText = modelText.replace("${DUCKDB_PATH}", copyPath);
         }
         else if (modelText.contains("${DUCKDB_PATH}"))

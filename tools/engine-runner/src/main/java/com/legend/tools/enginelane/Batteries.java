@@ -25,8 +25,10 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>{@code ROWS}, the TDS answer's rows as compact JSON (the values of each row, in the answer's order: every
  *       battery request sorts);</li>
- *   <li>{@code REFUSES}, legend-engine's "No SQL translation exists" refusal, its payload the signature;</li>
- *   <li>{@code ERROR}, any other failure, its payload a class ({@link EngineLaneTable#defect}), never words.</li>
+ *   <li>{@code REFUSES}, a planning refusal: legend-engine's "No SQL translation exists", its payload the signature,
+ *       or a refusal in other words, its payload the words matched ({@link EngineLaneTable#REFUSAL_WORDS});</li>
+ *   <li>{@code ERROR}, any other failure, its payload a class ({@link EngineLaneTable#defect}), computed from the
+ *       message by the patterns listed there; the message itself is never written.</li>
  * </ul>
  * The comparison is by kind and rows: {@code AGREE} (the same rows), {@code BOTH_FAIL} (neither answers; the classes
  * are listed, not compared: the words differ by design), or {@code DIFFER}.
@@ -107,7 +109,8 @@ public final class Batteries {
         try {
             o = Json.parseObject(body);
         } catch (RuntimeException notJson) {
-            return name + "\tERROR\t" + EngineLaneTable.defect(body);
+            String c = EngineLaneTable.defect(body);
+            return name + "\t" + (c.startsWith(EngineLaneTable.REFUSES_OTHER) ? "REFUSES" : "ERROR") + "\t" + c;
         }
         if (status == 200 && o.getOr("result", null) instanceof Json.Obj result) {
             StringBuilder rows = new StringBuilder("[");
@@ -126,8 +129,8 @@ public final class Batteries {
                 kind = "REFUSES";
                 payload = m.group(1);
             } else {
-                kind = "ERROR";
                 payload = EngineLaneTable.defect(message);
+                kind = payload.startsWith(EngineLaneTable.REFUSES_OTHER) ? "REFUSES" : "ERROR";
             }
         }
         return name + "\t" + kind + "\t" + payload;
