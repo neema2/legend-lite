@@ -197,3 +197,71 @@ Each difference that remains is a register row: the 3-argument `indexOf` answere
   'abcdef'->substring(1, 3); ...filter(r|$r.region == $x)...}` plans as SQL `where region = 'bc'`, Pure's answer
   computed before the query, and `|let x = ...; $x` plans as a `platform` node. A literal `substring` inside the
   routed lambda goes to SQL as written (`select substring('abcdef', 1, 3)`).
+
+## Addendum (~19:50): the opt-in as a swap to piece 1's natives
+
+**The owner's question, for the user** (who finds the door rewrite complex next to a core flag): could `engine` simply
+swap each call the detector flags for A3 piece 1's two natives? Those are `meta::legend::lite::sqlSubstring` and
+`sqlPosition`, which Cypher, SQL and IQ use, each "the database's function verbatim". The swap would replace H5's
+85-line Pure library.
+
+**Measured, and the measurement already exists.** Piece 1's natives lower to exactly the calls today's core rules
+emit (the A3 note's PR1 table):
+- `sqlSubstring` is `SqlFn.SUBSTRING` with the arguments as given;
+- `sqlPosition` is `SqlFn.STRPOS`.
+
+Today's lite, at #124's head, lowers String `substring` and 2-argument `indexOf` to those same two calls:
+`Scalars.java` before A3, `RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.SUBSTRING, args))` and
+`new SqlExpr.Call(SqlFn.STRPOS, args)`. So the swap sends the battery the SQL today's lite sends, and today's pinned
+agreement, which CI checks per push, is its measurement (`pct/batteries/agreement_{h2,duckdb}.tsv`):
+
+| | H2 | DuckDB |
+|---|---|---|
+| the swap (equal to today's lite on these calls) | 46 agree, 2 differ, 1 both fail: **every one of legend-engine's 46 answers** | **31 agree, 18 differ**: 16 of legend-engine's 47 answers missed |
+| H5's library with H16's two rules (above) | 46 | 47 |
+
+The one call the swap does not touch is the 3-argument `indexOf`. legend-engine refuses it (`col.i04`, `lit.i04`),
+and so it differs under both designs.
+
+**What the swap misses, and why: lite's own dialects clamp `SUBSTRING`.**
+- `sql/dialect/SubstringClamp` raises every `SUBSTRING` start below 1 to 1. Its javadoc: "H2 clamps a sub-1 start at
+  its own runtime; DuckDB counts empties -- so the DuckDB EXECUTION dialect clamps".
+- It runs in the DuckDB, Postgres, Snowflake, Trino, MariaDB, SQLite, BigQuery, Databricks and ClickHouse dialects.
+- So whatever the swap writes, the database never receives legend-engine's arguments as given. It computes H2's
+  answer. legend-engine sends DuckDB the SQL unclamped.
+- **The 16 DuckDB misses are every request with a start of 0 or below, or a negative length:** `col.s01`, `s06`,
+  `s07`, `s11`, `s14`, `s15`, `s18`, `col.i07` (a `substring` from 0 up to an `indexOf`), and their literal twins
+  plus `lit.s12` and `lit.s13`. For example, `substring(0, 2)` on `'Credit'`: legend-engine answers `'C'`, the swap
+  `'Cr'`.
+- So the swap reproduces legend-engine's answer only where the database's own `SUBSTRING` treats a start below 1 as
+  H2 does: **H2 alone** among the databases measured. Elsewhere it is unmeasured, and on DuckDB it is wrong in 16
+  of 47.
+- `indexOf` is fine everywhere: `STRPOS(s, t)` means what legend-engine's `locate(t, s)` means (1-based, 0 on a miss).
+
+**Making the swap exact on every database needs the clamp skipped for these calls.** That means a `SUBSTRING` the
+dialects send exactly as given: a new MIR variant (or a flag on the call) that only the edge's rewrite would produce.
+- That is a product addition serving the edge alone. `EdgeOnlyDataTest` and the edge-only `SqlFn` census would count
+  it, so it is a core-hook question: **stopped here, for the user**.
+- Piece 1's natives cannot themselves lose the clamp. Cypher, SQL and IQ rely on today's clamped answers, and piece
+  1's gate is byte-identical SQL.
+
+**What the swap removes, and what stays:**
+
+| | H5's library | the swap |
+|---|---|---|
+| the Pure library (about 85 lines) | needed | **gone**: the natives are platform natives in every model |
+| the extended model, its 3.4-4.1 s build on the corpus world and its held copy | needed, once per (model, target) | **gone for the query itself**: the rewritten lambda types against the request's own held model |
+| user-function clones | needed | **still needed** for a reached function whose body holds a flagged call, so that a host-side caller keeps Pure's meaning. A clone is a new element, so its model is built and held again, once per (model, clone set). **Or** `engine` refuses such a request by name in its first form, and no rebuild exists at all |
+| DuckDB's two library rules (negative length; a literal's constant-folder window) | written and measured | not needed where the database computes verbatim, but the clamp prevents that (above) |
+| error words naming the substitute | map back | map back (the natives' names instead of `meta::legend::compat::engine::`) |
+
+**The new size, if the user takes the swap:**
+- **about 1 to 1.5 days on top of the detector**: the rename of flagged sites to the two natives, by position and
+  arity (about 100 lines), the setting's `engine` value, error words mapped back, and about 150 lines of tests;
+- **with `engine` offered on H2 alone**, where it is measured exact, and refused by name on every other target;
+- **with reached user functions refused** under `engine`.
+- Clones would add about half a day and bring back one held rebuild per (model, clone set).
+- Offering it on DuckDB and the others needs the clamp question ruled first: a core change.
+
+**The rules of record:** the same as section 5. It is still a rewrite of the program at the door, so it needs the
+user's amendment of D1 and the final plan's §2 part 2. It adds no hook to the core unless the clamp is to be skipped.
