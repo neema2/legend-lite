@@ -36,9 +36,9 @@ ONLY in the code.
   change nothing anywhere. So CP-14's (iii) holds for PCT and fails for the corpus unless the translator takes four
   input rewrites (S137, S144, S131's typed half, S15), leaving only the rendered-text comparison (26 DuckDB tests, 3 H2)
   as the edge judge's own. S131's multiset is live in LITE today (its narrowing, ruled 2026-11-05, is unbuilt), and
-  turning it off moves no PCT verdict. 2.2a: 3.5 days; 2.2b: 5.5 under (ii), 7 under (iii). The referee replays on the
-  body's own session (H2's, with the edge's LEGACY settings): it needs a session of its own before CP-8. The
-  decoded-plan guard keeps seeing the `Edge` records.
+  turning it off moves no PCT verdict. 2.2a: 3.5 days; 2.2b: 5.5 under (ii), 7 under (iii). The referee replays every golden
+  on legend-engine's own isolated H2 2.1.214 (`EngineH2Referee`, MODE=LEGACY), never on the body's session (§6.3,
+  corrected 2026-11-19): it needs no new target before CP-8. The decoded-plan guard keeps seeing the `Edge` records.
 
 **Context.**
 - **Branch:** `claude/compat-judges-homework`, from `main` `b75d6c73a`.
@@ -640,22 +640,36 @@ that JSON, so the guard reads them whichever interface writes them. Nothing in r
 The per-assert claim (§2.9 item 1) is the other planning seam; r6 keeps it as the reshaped `EngineTestText` (one
 claim). It writes `extensionsByVerdict` records the same way (`TestPlanner.java:186-193`, `PlannedAppeals`).
 
-### 6.3 Where the referee gets its session today
+### 6.3 Where the referee gets its session today (CORRECTED 2026-11-19: the first version was wrong)
 
-The referee has no session of its own. It replays a golden on the session of the target its appeal names
-(`edge/SqlTextRuns.java:188-190`: `referee.verify(sessions.apply(r.on()), ...)`), and that target is the body's own,
-planned with the assert (`edge/SqlTextVerdicts.java:1467-1472`: `EngineTextPlanning.target(appealOn(env) ?? env)`).
-The run hands the appeals its sessions after the body (`testexec/TestRunner.java:132`, `EdgeHearing.decide`), mapped
-by `sessionsByTarget` (`:143-151`): the graph's system database for a system target, else the body's session. Only a
-golden whose database is H2 is replayed (`database/Databases.java:31`, `REPLAY_REFEREE = H2`;
-`edge/SqlTextVerdicts.java:588-595`: any other is "foreign-dialect", text the contract).
+**Correction.** The first version of this section said the referee replays on the body's own H2 session. That is
+wrong. It followed the call path into the referee and stopped at the SPI, whose one implementation chooses another
+database. The independent reviewer and B2's H8 (h) had it right; re-read in the code:
 
-So on the H2 lanes the replay runs on the body's H2 session, which the plan's target opens with the edge's settings,
-legend-engine's `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` (`exec/H2Connector.java:15-19`; the two-form
-`DatabaseSettingsForm`, J22, S368). Removing the edge's H2 settings (CP-8) would change the session the referee replays
-legend-engine's goldens on. The independent review's point holds: the referee needs a session of its own, a
-legend-engine H2 LEGACY session declared as the referee's target, before the edge's H2 settings go. That is a new
-target the appeal plans (data), not a new hook.
+- **The call path.** The appeal hands the referee the session of the target it names
+  (`edge/SqlTextRuns.java:188-190`: `referee.verify(sessions.apply(r.on()), ...)`). That target is the body's own,
+  planned with the assert (`edge/SqlTextVerdicts.java:1467-1472`), and mapped by `TestRunner.sessionsByTarget`
+  (`:143-151`).
+- **The one SPI implementation decides by backend identity.** `spec/.../harness/ReplayReferee.verifyAuto`
+  (`ReplayReferee.java:353-367`) replays on that session only where `TestBackends.of(session) ==
+  TestBackends.referee()` (`:362`). That never holds:
+  - `TestBackends.of(Connection)` (`core/src/test/.../testbackend/TestBackends.java:95-104`) answers the lane's
+    backend, e.g. `H2Backend.INSTANCE` on an H2 lane (`:60-64`);
+  - `TestBackends.referee()` (`:88-90`) answers `EngineH2Referee.INSTANCE`.
+
+  So `verifyOnSession` (`:374`) is a dead branch: `verifyAuto` is its only caller.
+- **Where every golden actually replays.** `verify` replays the recorded seeds into a fresh in-memory database of
+  legend-engine's own H2 2.1.214, isolated from lite's 2.5.252 (`ReplayReferee.java:200-201`:
+  `TestBackends.referee().openReferee(...)`). It is opened with `NON_KEYWORDS`, `MODE=LEGACY` and
+  `DEFAULT_NULL_ORDERING=HIGH` (`EngineH2Referee.openReferee`, `:63-72`): the mirror beside the lane's session that
+  the user's ruling of 2026-11-05 describes. The body's session serves only to name its backend.
+- **Only a golden whose database is H2 is replayed** (`database/Databases.java:31`, `REPLAY_REFEREE = H2`;
+  `edge/SqlTextVerdicts.java:588-595`).
+
+**So the referee already has a database of its own**, and removing the edge's H2 settings on the lane's session
+(CP-8) does not touch it. This agrees with B2's measurement that removing them moves 1 corpus test and leaves the
+referee untouched. The step "the referee first gets its own declared target" is not needed. A build may delete
+`verifyOnSession`, the dead branch, with the SPI's choice.
 
 ### 6.4 Option (iii): how far the host judge's words are already separable
 
