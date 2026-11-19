@@ -1,0 +1,14 @@
+import java.sql.*;
+public class Q {
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection(a[0]); Statement s = c.createStatement()) {
+            for (int i = 1; i < a.length; i++) {
+                try (ResultSet r = s.executeQuery(a[i])) {
+                    StringBuilder b = new StringBuilder(a[i]).append("  =>");
+                    while (r.next()) b.append(" [").append(r.getString(1)).append("]");
+                    System.out.println(b);
+                } catch (SQLException e) { System.out.println(a[i] + "  => ERR " + e.getMessage().split("\n")[0]); }
+            }
+        }
+    }
+}

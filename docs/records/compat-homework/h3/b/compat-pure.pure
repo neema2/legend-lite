@@ -1,0 +1,15 @@
+###Pure
+// H3 (b), SCRATCH (the compatibility homework, 2026-11-19): legend-pure's toString, written as a LITE program, for the
+// PURE input adapter to call in place of upstream's name. A Float prints as legend-pure prints it -- the one named
+// core capability meta::legend::lite::pureFloatText (CompiledSupport.primitiveToString: DecimalFormat "0.0", up to 340
+// fraction digits, zero as 0.0); any other value prints as lite's own toString, which is legend-pure's already.
+
+function meta::legend::compat::pure::toString(f: Float[1]): String[1]
+{
+    meta::legend::lite::pureFloatText($f)
+}
+
+function meta::legend::compat::pure::toString(a: Any[1]): String[1]
+{
+    meta::pure::functions::string::toString($a)
+}

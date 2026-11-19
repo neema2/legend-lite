@@ -1,0 +1,30 @@
+import json,sys
+def engine(path):
+    out={}
+    for l in open(path):
+        if l.startswith('#'): continue
+        name,status,body=json.loads(l)
+        if name.startswith('plan.'): continue
+        try:
+            b=json.loads(body)
+        except Exception:
+            out[name]=('ERR',body[:120]); continue
+        if 'result' in b: out[name]=('200',[r['values'] for r in b['result']['rows']])
+        else: out[name]=('ERR',b.get('message','')[:120])
+    return out
+def lite(path):
+    out={}
+    for l in open(path):
+        p=l.rstrip('\n').split('\t',2)
+        if len(p)<3: continue
+        out[p[0]]=('200',json.loads(p[2])) if p[1]=='200' else ('ERR',p[2][:120])
+    return out
+e=engine(sys.argv[1]); m=lite(sys.argv[2])
+same=differ=both_refuse=0; diffs=[]
+for k in e:
+    a,b=e[k],m.get(k,('MISSING',None))
+    if a[0]=='ERR' and b[0]=='ERR': both_refuse+=1
+    elif a==b: same+=1
+    else: differ+=1; diffs.append((k,a,b))
+print(f"{sys.argv[2]}: same {same}, differ {differ}, both refuse {both_refuse}")
+for k,a,b in diffs: print("  ",k,"engine",a,"| lite",b)

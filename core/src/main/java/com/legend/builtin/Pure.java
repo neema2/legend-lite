@@ -1121,6 +1121,10 @@ public final class Pure {
     public static final NativeFunctionDefinition DISTINCT__RELATION_1 = signature("native function meta::pure::functions::relation::distinct<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition DISTINCT__RELATION_1__COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::distinct<X,T>(rel:meta::pure::metamodel::relation::Relation<T>[1], columns:meta::pure::metamodel::relation::ColSpecArray<X⊆T>[1]):meta::pure::metamodel::relation::Relation<X>[1];");
     public static final NativeFunctionDefinition IS_NUMERIC__STRING_0_1 = signature("native function meta::legend::lite::isNumeric(str:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::Boolean[0..1];");
+    /** H3 (b), SCRATCH (the compatibility homework, 2026-11-19): ONE NAMED CAPABILITY -- a Float's text as legend-pure
+     *  prints it (CompiledSupport.primitiveToString: shortest digits, plain, at least one fraction digit, zero 0.0), for
+     *  the PURE input adapter's rewrite of toString; no mode, no hook. */
+    public static final NativeFunctionDefinition PURE_FLOAT_TEXT__FLOAT_1 = signature("native function meta::legend::lite::pureFloatText(f:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::String[1];");
     /** A time of day (StrictTime) in SQL — lite's own: legend-pure declares the type and only prints it, legend-engine's
      *  relational lowering refuses it. {@code timeOf} reads a date-time's time of day (a CAST to TIME; its parameter
      *  the abstract Date, as every date native's: an {@code adjust} answers a Date); {@code atTime} is the date-time
@@ -2605,6 +2609,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_DISTINCT_FROM = com.legend.model.FunctionId.ofAll(IS_DISTINCT_FROM__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_KIND = com.legend.model.FunctionId.ofAll(IS_KIND__VARIANT_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_NUMERIC = com.legend.model.FunctionId.ofAll(IS_NUMERIC__STRING_0_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_PURE_FLOAT_TEXT = com.legend.model.FunctionId.ofAll(PURE_FLOAT_TEXT__FLOAT_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_SLOT = com.legend.model.FunctionId.ofAll(JOIN_SLOT__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(JOIN_WITH_PREFIX__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LEGACY_ASSOC_PREDICATE = com.legend.model.FunctionId.ofAll(LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1, LEGACY_ASSOC_PREDICATE__A_1__B_1__STRING_1__STRING_1__FUNCTION_1);

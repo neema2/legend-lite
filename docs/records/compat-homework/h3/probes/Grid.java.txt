@@ -1,0 +1,22 @@
+import java.sql.*;
+public class Grid {
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection(a[0]); Statement s = c.createStatement()) {
+            StringBuilder out = new StringBuilder();
+            for (String str : new String[]{"Credit", "FX"})
+                for (int st = -8; st <= 3; st++) {
+                    for (int len = -1; len <= 10; len++) {
+                        String v;
+                        try (ResultSet r = s.executeQuery("SELECT SUBSTRING('" + str + "', " + st + ", " + len + ")")) { r.next(); v = r.getString(1); }
+                        catch (SQLException e) { v = "ERR"; }
+                        out.append(str).append(' ').append(st).append(' ').append(len).append(' ').append(v).append('\n');
+                    }
+                    String v;
+                    try (ResultSet r = s.executeQuery("SELECT SUBSTRING('" + str + "', " + st + ")")) { r.next(); v = r.getString(1); }
+                    catch (SQLException e) { v = "ERR"; }
+                    out.append(str).append(' ').append(st).append(" - ").append(v).append('\n');
+                }
+            System.out.print(out);
+        }
+    }
+}

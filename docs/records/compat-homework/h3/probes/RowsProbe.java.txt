@@ -1,0 +1,90 @@
+package h3;
+
+import com.legend.Compiler;
+import com.legend.Execution;
+import com.legend.TypedQuery;
+import com.legend.json.Json;
+import com.legend.protocol.ProtocolReader;
+import com.legend.result.Collector;
+import com.legend.result.Output;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * H3 (a) and (b), SCRATCH (the compatibility homework, 2026-11-19): each request's lambda as upstream's client sends it
+ * (pure/v1's protocol JSON, lite's own grammar-to-JSON), optionally through an INPUT ADAPTER (a rewrite of that JSON plus
+ * a compatibility Pure source appended to the model), then compiled, planned and run on lite's PRODUCT door (no style,
+ * no flag), its rows printed. Args: model.pure requests.tsv adapter(none|engine|pure) [compat.pure] [duckdbFile]
+ */
+public final class RowsProbe {
+
+    /** The ENGINE adapter's renames: a call of upstream's name to the compatibility function of the same arity. */
+    static final Set<String> ENGINE = Set.of("substring", "indexOf");
+    /** The PURE adapter's renames (H3 (b)). */
+    static final Set<String> PURE = Set.of("toString");
+
+    public static void main(String[] a) throws Exception {
+        String model = Files.readString(Path.of(a[0]));
+        String adapter = a[2];
+        if (a.length > 3 && !a[3].equals("-")) {
+            model = model + "\n" + Files.readString(Path.of(a[3]));
+        }
+        if (a.length > 4) {
+            Path copy = Files.createTempDirectory("h3-duckdb").resolve("trades.duckdb");
+            Files.copy(Path.of(a[4]), copy);
+            model = model.replace("${DUCKDB_PATH}", copy.toString());
+        }
+        var ctx = Compiler.compileModel(model);
+        for (String l : Files.readAllLines(Path.of(a[1]))) {
+            if (l.isBlank() || l.startsWith("#")) continue;
+            int t = l.indexOf('\t');
+            String name = l.substring(0, t), lambda = l.substring(t + 1);
+            String out;
+            try {
+                String json = com.legend.edge.PureV1Routes.grammarToJsonLambda(lambda, false).json();
+                String rewritten = switch (adapter) {
+                    case "none" -> json;
+                    case "engine" -> rename(json, ENGINE, "meta::legend::compat::engine::");
+                    case "pure" -> rename(json, PURE, "meta::legend::compat::pure::");
+                    default -> throw new IllegalArgumentException(adapter);
+                };
+                TypedQuery typed = Compiler.query(ctx, ProtocolReader.lambda(rewritten));
+                Collector collected = new Collector();
+                com.legend.executionplan.ExecutionPlan plan =
+                        Execution.runOnProjectDatabases(typed, null, new Output.Rows(collected));
+                if (Boolean.getBoolean("h3.sqlSize")) {
+                    System.out.println(name + "\tSQL_CHARS\t" + plan.answerSql().statement().length());
+                }
+                List<List<Object>> rows = new ArrayList<>();
+                for (List<Object> r : collected.collected().rows()) rows.add(r);
+                out = "200\t" + Json.toCompact(rows);
+            } catch (Throwable e) {
+                out = "ERR\t" + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()).replace("\n", " ");
+            }
+            System.out.println(name + "\t" + out);
+        }
+        System.exit(0);
+    }
+
+    /** The input adapter's rewrite of the protocol JSON: each applied function named one of {@code names} (bare, as
+     *  upstream's client sends it, or its platform FQN) called by its compatibility twin's FQN. A real adapter walks
+     *  the tree; the probe's pattern matches the protocol's {@code "function":"<name>"} pair, whose value is a string
+     *  only on an applied function. */
+    static String rename(String json, Set<String> names, String pkg) {
+        Matcher m = Pattern.compile("\"function\"\\s*:\\s*\"(?:meta::pure::functions::[a-z]+::)?([A-Za-z]+)\"").matcher(json);
+        StringBuilder b = new StringBuilder();
+        while (m.find()) {
+            String fn = m.group(1);
+            m.appendReplacement(b, Matcher.quoteReplacement(names.contains(fn)
+                    ? "\"function\":\"" + pkg + fn + "\"" : m.group()));
+        }
+        m.appendTail(b);
+        return b.toString();
+    }
+}

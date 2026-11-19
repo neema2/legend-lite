@@ -1,0 +1,7 @@
+s12	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(-7, 2))->from(trades::h2::RT)
+s13	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(-8, 2))->from(trades::h2::RT)
+s14	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(0, 1))->from(trades::h2::RT)
+s15	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(-3))->from(trades::h2::RT)
+s16	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(-8))->from(trades::h2::RT)
+s17	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(2, -1))->from(trades::h2::RT)
+s18	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring($r.desk->toOne()->length() - 7, 3))->from(trades::h2::RT)

@@ -1,0 +1,26 @@
+###Pure
+// H3 (a), SCRATCH (the compatibility homework, 2026-11-19): legend-engine's meaning of substring and indexOf, written
+// as LITE programs over lite's (Pure's) meaning. The ENGINE input adapter calls these in place of upstream's names;
+// the core has no flag and no mode. legend-engine without CORRECT_SQL_SUBSTRING_INDEXING passes Pure's arguments to
+// SQL's SUBSTRING(s, start, length) unshifted (pureToSQLQuery.pure processSubstring); its indexOf is H2's
+// LOCATE(t, s) / DuckDB's instr(s, t): 1-based, 0 on a miss; its 3-argument indexOf has no SQL translation.
+
+function meta::legend::compat::engine::substring(s: String[1], start: Integer[1], length: Integer[1]): String[1]
+{
+    meta::pure::functions::string::substring($s, $start - 1, ($start - 1) + $length)
+}
+
+function meta::legend::compat::engine::substring(s: String[1], start: Integer[1]): String[1]
+{
+    meta::pure::functions::string::substring($s, $start - 1)
+}
+
+function meta::legend::compat::engine::indexOf(s: String[1], t: String[1]): Integer[1]
+{
+    meta::pure::functions::string::indexOf($s, $t) + 1
+}
+
+function meta::legend::compat::engine::indexOf<T>(set: T[*], value: T[1]): Integer[1]
+{
+    meta::pure::functions::collection::indexOf($set, $value)
+}

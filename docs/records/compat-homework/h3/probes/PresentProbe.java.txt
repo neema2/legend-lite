@@ -1,0 +1,125 @@
+package h3;
+
+import com.legend.Compiler;
+import com.legend.Execution;
+import com.legend.TypedQuery;
+import com.legend.edge.EngineAnswers;
+import com.legend.edge.HostAnswers;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.json.Json;
+import com.legend.result.Batch;
+import com.legend.result.Collector;
+import com.legend.result.Output;
+import com.legend.result.ResultSink;
+
+import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+/**
+ * H3 (c), SCRATCH (the compatibility homework, 2026-11-19): a pure/v1 golden request planned and run on lite's
+ * PRODUCT door (no ENGINE planning, no style), its typed result collected, and only THEN presented as legend-engine's
+ * TDS envelope by a presenter over that typed result (the edge's own writer: EngineAnswers.engine over
+ * HostAnswers.facts). Each answer written as the net writes it (PureV1EdgeGoldenTest.answer/line) and compared, byte
+ * for byte, with the golden. Args: model.pure requests.tsv golden.tsv
+ */
+public final class PresentProbe {
+    private static final Pattern IDS = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+    public static void main(String[] a) throws Exception {
+        String model = Files.readString(Path.of(a[0]));
+        Map<String, String> golden = table(a[2]);
+        Map<String, String> engine = a.length > 3 ? table(a[3]) : Map.of();
+        var ctx = Compiler.compileModel(model);
+        int same = 0, differ = 0, refused = 0, sameNoSql = 0, engineNoSql = 0;
+        for (String l : Files.readAllLines(Path.of(a[1]))) {
+            if (l.isBlank() || l.startsWith("#")) continue;
+            int t = l.indexOf('\t');
+            String name = l.substring(0, t), lambda = l.substring(t + 1);
+            String g = golden.get(name);
+            // the edge's error envelope around the whole call, as PureV1Routes.answer wraps execute (legend-engine's words
+            // for a refusal); the call is the PRODUCT run, then the presenter
+            com.legend.server.LiteV1Api.Answer answer = com.legend.edge.EngineEnvelope.answer(500, "COMPILATION", () -> {
+                try {
+                    TypedQuery typed = Compiler.query(ctx, lambda);
+                    // 1. the PRODUCT run: lite's one meaning, its own plan, a typed result collected
+                    Collector collected = new Collector();
+                    ExecutionPlan plan = Execution.runOnProjectDatabases(typed, null, new Output.Rows(collected));
+                    Collector.Collected result = collected.collected();
+                    // 2. the PRESENTER, after the run: the typed result and the plan's statement to legend-engine's bytes
+                    StringWriter out = new StringWriter();
+                    ResultSink present = EngineAnswers.engine(out, HostAnswers.facts(typed));
+                    present.execution(collected.execution());
+                    present.planned(plan);
+                    present.columns(result.columns());
+                    if (!result.rows().isEmpty()) {
+                        Batch.Builder b = Batch.builder(result.columns(), result.rows().size());
+                        result.rows().forEach(b::add);
+                        present.batch(b.build());
+                    }
+                    present.end();
+                    return out.toString();
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }, com.legend.edge.PureMessages::compile, com.legend.edge.PureMessages::typeName,
+                    com.legend.edge.PureMessages::uncaught);
+            String mine = netLine(String.valueOf(answer.status()), answer.json());
+            if (mine.equals(g)) {
+            } else if (g == null) {
+                refused++;
+            }
+            if (noSql(mine).equals(noSql(g))) sameNoSql++;
+            String e = engine.get(name);
+            boolean engineEq = e != null && noTrace(noSql(mine)).equals(noTrace(noSql(e)));
+            if (engineEq) engineNoSql++;
+            System.out.println("   vs legend-engine (sql masked): " + (engineEq ? "SAME" : "DIFFERS"));
+            if (!engineEq && e != null) {
+                System.out.println("      engine " + noSql(e));
+                System.out.println("      mine   " + noSql(mine));
+            }
+            boolean eq = mine.equals(g);
+            if (eq) same++; else differ++;
+            System.out.println((eq ? "SAME     " : "DIFFERS  ") + name);
+            if (!eq) {
+                System.out.println("   golden " + g);
+                System.out.println("   mine   " + mine);
+            }
+        }
+        System.out.println("vs golden: same " + same + ", differ " + differ + "; sql masked: same " + sameNoSql
+                + "; vs legend-engine, sql masked: same " + engineNoSql);
+        System.exit(0);
+    }
+
+    static Map<String, String> table(String file) throws java.io.IOException {
+        Map<String, String> m = new LinkedHashMap<>();
+        for (String l : Files.readAllLines(Path.of(file))) {
+            int t = l.indexOf('\t');
+            if (t > 0 && !l.startsWith("#")) m.put(l.substring(0, t), l.substring(t + 1));
+        }
+        return m;
+    }
+
+    static String noSql(String line) {
+        return line == null ? "" : line.replaceAll("\"sql\":\"(?:[^\"\\\\]|\\\\.)*\"", "\"sql\":\"<sql>\"");
+    }
+
+    static String noTrace(String line) {
+        return line.replaceAll(",\"trace\":\"(?:[^\"\\\\]|\\\\.)*\"", "");
+    }
+
+    /** PureV1EdgeGoldenTest.answer + line: compact JSON, ids masked, newlines escaped. */
+    static String netLine(String status, String body) {
+        String json = body;
+        try {
+            json = Json.toCompact(Json.parseObject(body));
+        } catch (RuntimeException notJson) {
+        }
+        return IDS.matcher(status + "\t" + json).replaceAll("<id>").replace("\n", "\\n").replace("\r", "");
+    }
+}

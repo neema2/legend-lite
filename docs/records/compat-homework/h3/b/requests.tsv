@@ -1,0 +1,5 @@
+b1	|#>{w::DB.S.W}#->filter(r|$r.f->toOne()->toString() == $r.expected->toOne())->select(~[id])->sort(~id->ascending())->from(w::RT)
+b2	|#>{w::DB.S.W}#->extend(~t: r|$r.f->toOne()->toString())->select(~[id, t])->sort(~id->ascending())->from(w::RT)
+b3	|#>{w::DB.S.W}#->filter(r|2.5E7->toString() == '25000000.0')->select(~[id])->sort(~id->ascending())->limit(1)->from(w::RT)
+b4	|#>{w::DB.S.W}#->filter(r|1.3421e-8->toString() == '0.000000013421')->select(~[id])->sort(~id->ascending())->limit(1)->from(w::RT)
+b5	|#>{w::DB.S.W}#->filter(r|$r.id->toOne()->toString() == '3')->select(~[id])->from(w::RT)

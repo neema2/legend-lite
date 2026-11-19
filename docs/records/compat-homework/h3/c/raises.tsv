@@ -1,0 +1,5 @@
+raise.divideByZero	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~d: r|$r.year->toOne() / 0)->select(~[d])->from(trades::h2::RT)
+raise.atOutOfBounds	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~a: r|[1, 2]->at(5))->select(~[a])->from(trades::h2::RT)
+raise.toOneOverMany	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~o: r|[1, 2]->toOne())->select(~[o])->from(trades::h2::RT)
+raise.sqrtOfNegative	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~s: r|sqrt(-2.0))->select(~[s])->from(trades::h2::RT)
+raise.parseInteger	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~p: r|'abc'->parseInteger())->select(~[p])->from(trades::h2::RT)

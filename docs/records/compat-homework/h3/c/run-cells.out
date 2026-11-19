@@ -1,0 +1,33 @@
+   vs legend-engine (sql masked): DIFFERS
+      engine 200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"year","type":"meta::pure::precisePrimitives::Int","relationalType":"INTEGER"},{"name":"region","type":"meta::pure::precisePrimitives::Varchar","relationalType":"VARCHAR(1024)"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"<sql>"}],"result":{"columns":["year","region"],"rows":[{"values":[2023,"AMER"]},{"values":[2023,"AMER"]}]}}
+      mine   200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"year","type":"Integer","relationalType":"INTEGER"},{"name":"region","type":"String","relationalType":"VARCHAR(1024)"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"<sql>"}],"result":{"columns":["year","region"],"rows":[{"values":[2023,"AMER"]},{"values":[2023,"AMER"]}]}}
+SAME     tds
+   vs legend-engine (sql masked): DIFFERS
+      engine 200	{"builder":{"_type":"dataTypeBuilder","type":"Integer"},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"<sql>"}],"result":{"columns":["COUNT(*)"],"rows":[{"values":[128]}]}}
+      mine   500	{"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+SAME     value
+   vs legend-engine (sql masked): SAME
+SAME     cell.dateTimeCoarse
+   vs legend-engine (sql masked): SAME
+SAME     cell.dateTimeSubMicro
+   vs legend-engine (sql masked): DIFFERS
+      engine 200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"<sql>"}],"result":{"columns":["f"],"rows":[{"values":[0.33333333]}]}}
+      mine   200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"<sql>"}],"result":{"columns":["f"],"rows":[{"values":[0.3333333333333333]}]}}
+DIFFERS  cell.float
+   golden 200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"SELECT (CAST(1.0 AS DOUBLE) / CAST(3.0 AS DOUBLE)) AS \"f\"\nFROM (\n  SELECT *\n  FROM TRADES_SCHEMA.TRADES AS \"t0\"\n  LIMIT 1\n) AS \"t1\""}],"result":{"columns":["f"],"rows":[{"values":[0.3333333333333333]}]}}
+   mine   200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"SELECT (CAST(1.0 AS DOUBLE PRECISION) / CAST(3.0 AS DOUBLE PRECISION)) AS \"f\"\nFROM (\n  SELECT *\n  FROM TRADES_SCHEMA.TRADES AS \"t0\"\n  LIMIT 1\n) AS \"t1\""}],"result":{"columns":["f"],"rows":[{"values":[0.3333333333333333]}]}}
+   vs legend-engine (sql masked): SAME
+DIFFERS  cell.floatWhole
+   golden 200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"SELECT CAST(2.0 * 3.0 AS DOUBLE PRECISION) AS \"f\"\nFROM (\n  SELECT *\n  FROM TRADES_SCHEMA.TRADES AS \"t0\"\n  LIMIT 1\n) AS \"t1\""}],"result":{"columns":["f"],"rows":[{"values":[6.0]}]}}
+   mine   200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"SELECT CAST(2.0 AS DOUBLE PRECISION) * CAST(3.0 AS DOUBLE PRECISION) AS \"f\"\nFROM (\n  SELECT *\n  FROM TRADES_SCHEMA.TRADES AS \"t0\"\n  LIMIT 1\n) AS \"t1\""}],"result":{"columns":["f"],"rows":[{"values":[6.0]}]}}
+   vs legend-engine (sql masked): DIFFERS
+      engine 500	{"code":-1,"message":"PureExecutionException: Execution error at (resource:/core_relational/relational/sqlDialectTranslation/toPostgresModel.pure line:277 column:54), \"Couldn't find DynaFunction to Postgres model translation for toVariantList().\"","status":"error","trace":"Execution error at (resource:/core_relational/relational/sqlDialectTranslation/toPostgresModel.pure line:277 column:54), \"Couldn't find DynaFunction to Postgres model translation for toVariantList().\"\n<frames>"}
+      mine   500	{"code":-1,"errorType":"COMPILATION","message":"LIST_GET reached a dialect without a list encoding","status":"error"}
+SAME     cell.empty
+   vs legend-engine (sql masked): DIFFERS
+      engine 200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"e","type":"String","relationalType":"VARCHAR(8192)"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"<sql>"}],"result":{"columns":["e"],"rows":[{"values":[null]}]}}
+      mine   200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"e","type":"String","relationalType":"VARCHAR(1024)"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"<sql>"}],"result":{"columns":["e"],"rows":[{"values":[null]}]}}
+SAME     cell.emptyIf
+   vs legend-engine (sql masked): SAME
+SAME     cell.strictDate
+vs golden: same 7, differ 2; sql masked: same 9; vs legend-engine, sql masked: same 4

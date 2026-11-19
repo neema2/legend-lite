@@ -1,0 +1,27 @@
+   vs legend-engine (sql masked): DIFFERS
+      engine 500	{"code":-1,"message":"JdbcSQLDataException: Division by zero: \"2023.0\"; SQL statement:\n-- \"executionTraceID\" : \"<id>\"\nselect (1.0 * \"subselect\".\"year\") / 0 as \"d\" from (select top 1 \"trades_1\".region as \"region\", \"trades_1\".desk as \"desk\", \"trades_1\".book as \"book\", \"trades_1\".year as \"year\", \"trades_1\".qtr as \"qtr\", \"trades_1\".notional as \"notional\", \"trades_1\".pnl as \"pnl\", \"trades_1\".qty a [22012-214]","status":"error","trace":"java.lang.RuntimeException: org.h2.jdbc.JdbcSQLDataException: Division by zero: \"2023.0\"; SQL statemen
+      mine   500	{"code":-1,"message":"Raised: DIVIDE_BY_ZERO","status":"error"}
+DIFFERS  raise.divideByZero
+   golden 500	{"code":-1,"message":"JdbcSQLDataException: Division by zero: \"CAST(2023.0 AS DOUBLE PRECISION)\"; SQL statement:\nSELECT (CAST(\"t1\".\"YEAR\" AS DOUBLE) / CAST(0 AS DOUBLE)) AS \"d\"\nFROM (\n  SELECT *\n  FROM TRADES_SCHEMA.TRADES AS \"t0\"\n  LIMIT 1\n) AS \"t1\" [22012-252]","status":"error"}
+   mine   500	{"code":-1,"message":"Raised: DIVIDE_BY_ZERO","status":"error"}
+   vs legend-engine (sql masked): DIFFERS
+      engine 500	{"code":-1,"message":"PureAssertFailException: Assert failure at (resource:/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure line:3307 column:4), \"->at(...) function is supported only after direct access of 1->MANY properties. Current expression: [1, 2] -> at(5)\"","status":"error","trace":"Assert failure at (resource:/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure line:3307 column:4), \"->at(...) function is supported only after direct access of 1->MANY properties. Current expression: [1, 2] -> at(5)\"\n<frames>"}
+      mine   500	{"code":-1,"errorType":"COMPILATION","message":"LIST_FILTER reached a dialect without a list encoding","status":"error"}
+SAME     raise.atOutOfBounds
+   vs legend-engine (sql masked): DIFFERS
+      engine 500	{"code":-1,"message":"PureExecutionException: Execution error at (resource:/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure line:3136 column:188), \"Cannot cast a collection of size 2 to multiplicity [1]\"","status":"error","trace":"Execution error at (resource:/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure line:3136 column:188), \"Cannot cast a collection of size 2 to multiplicity [1]\"\n<frames>"}
+      mine   500	{"code":-1,"errorType":"COMPILATION","message":"LIST_FILTER reached a dialect without a list encoding","status":"error"}
+SAME     raise.toOneOverMany
+   vs legend-engine (sql masked): DIFFERS
+      engine 200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"s","type":"Float","relationalType":"FLOAT"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"<sql>"}],"result":{"columns":["s"],"rows":[{"values":[null]}]}}
+      mine   500	{"code":-1,"message":"Raised: SQRT_OF_NEGATIVE","status":"error"}
+DIFFERS  raise.sqrtOfNegative
+   golden 200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"s","type":"Float","relationalType":"FLOAT"}]},"activities":[{"_type":"relational","comment":"-- \"executionTraceID\" : \"<id>\"","sql":"SELECT sqrt(-2.0) AS \"s\"\nFROM (\n  SELECT *\n  FROM TRADES_SCHEMA.TRADES AS \"t0\"\n  LIMIT 1\n) AS \"t1\""}],"result":{"columns":["s"],"rows":[{"values":[null]}]}}
+   mine   500	{"code":-1,"message":"Raised: SQRT_OF_NEGATIVE","status":"error"}
+   vs legend-engine (sql masked): DIFFERS
+      engine 500	{"code":-1,"message":"JdbcSQLDataException: Data conversion error converting \"abc\"; SQL statement:\nselect cast('abc' as integer) as \"p\" from (select top 1 \"trades_1\".region as \"region\", \"trades_1\".desk as \"desk\", \"trades_1\".book as \"book\", \"trades_1\".year as \"year\", \"trades_1\".qtr as \"qtr\", \"trades_1\".notional as \"notional\", \"trades_1\".pnl as \"pnl\", \"trades_1\".qty as \"qty\" from TRADES_SCHEMA.TRADES as \"trades_1\") as \"subselect\" [22018-214]","status":"error","trace":"java.lang.RuntimeException: org.h2.jdbc.JdbcSQLDataException: Data conv
+      mine   500	{"code":-1,"message":"Raised: TEXT_NOT_INTEGER","status":"error"}
+DIFFERS  raise.parseInteger
+   golden 500	{"code":-1,"message":"JdbcSQLDataException: Data conversion error converting \"abc\"; SQL statement:\nSELECT CAST('abc' AS BIGINT) AS \"p\"\nFROM (\n  SELECT *\n  FROM TRADES_SCHEMA.TRADES AS \"t0\"\n  LIMIT 1\n) AS \"t1\" [22018-252]","status":"error"}
+   mine   500	{"code":-1,"message":"Raised: TEXT_NOT_INTEGER","status":"error"}
+vs golden: same 2, differ 3; sql masked: same 2; vs legend-engine, sql masked: same 0

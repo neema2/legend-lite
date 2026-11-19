@@ -1,0 +1,11 @@
+// Each double as legend-pure 5.x prints it: CompiledSupport.primitiveToString(double), called from legend-pure's own jar.
+public class PurePrint {
+    public static void main(String[] a) throws Exception {
+        var m = Class.forName("org.finos.legend.pure.runtime.java.compiled.generation.processors.support.CompiledSupport")
+                .getMethod("primitiveToString", double.class);
+        for (String s : a) {
+            double d = Double.parseDouble(s);
+            System.out.println(s + "\t" + Double.doubleToRawLongBits(d) + "\t" + m.invoke(null, d));
+        }
+    }
+}

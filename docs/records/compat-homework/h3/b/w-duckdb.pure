@@ -1,0 +1,35 @@
+###Relational
+Database w::DB
+(
+    Schema S
+    (
+        Table W
+        (
+            id INTEGER,
+            f DOUBLE,
+            expected VARCHAR(400)
+        )
+    )
+)
+
+###Connection
+RelationalDatabaseConnection w::Conn
+{
+    store: w::DB;
+    type: DuckDB;
+    specification: DuckDB
+    {
+        path: '${DUCKDB_PATH}';
+    };
+    auth: Test;
+}
+
+###Runtime
+Runtime w::RT
+{
+    mappings: [];
+    connections:
+    [
+        w::DB: [ c1: w::Conn ]
+    ];
+}
