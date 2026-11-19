@@ -444,3 +444,77 @@ The hook rows each door reaches: corpus H2 47, corpus DuckDB 48, PCT B 28, PCT A
 - **The `Feature` flags (a.3) are not a `PlanStyle` strand.** The product's doors reach them through the query's own
   context. PCT A and PCT B set `CORRECT_SQL_SUBSTRING_INDEXING` always, and 7 corpus tests set a flag.
 
+## (k) E-R2 against the corpus: the tests that expect legend-engine to refuse
+
+The independent review's item (plan r6): count the corpus tests that expect legend-engine's refusal (an asserted
+error, or an expected failure) and that lite would now answer, then class each one. Does lite's answer agree with an
+expected value, or is it a lite answer with nothing to check it against?
+
+### (k.1) Asserted errors: none
+
+**No runnable corpus test asserts an error.** The corpus's own body-shape census at `main` reports `assertError=0`
+over its 2,613 runnable tests, on both lanes. Its line in the passes of item (d)'s run:
+`[corpus2] body-shapes pure=2471 effectful=142 interleaved(effect-after-assert)=34 assertError=0`.
+
+In legend-engine's relational tree, `assertError` occurs 4 times, all in `mft/relationalmft.pure`:
+- 3 live calls, all inside MFT wrapper functions (`relationalExecuteWrapperExecuteSimple`), none of them a
+  `<<test.Test>>`;
+- 1 commented out.
+
+`H8k_assert_error_tests.py.txt` finds 0 test functions calling it.
+
+Pure has no catch, so a test that does not assert an error fails when legend-engine refuses. **So E-R2 moves no
+runnable corpus test's verdict**, and no corpus test passes today because lite copies a refusal.
+
+### (k.2) Expected failures: legend-engine's own marks
+
+148 of the corpus's 2,761 declared tests carry `ToFix` or `ExcludeAlloy`. The corpus excludes them as legend-engine
+does (`PureTests.discover`; MinimalCorpusTest's census pins `excluded=148`). What the marks mean, from the pinned
+sources:
+- **`ExcludeAlloy`** (96 tests): legend-engine's runner skips them (`PureTestHelperFramework.satisfiesConditions`,
+  `:171-177`), and legend-pure runs them. Their expected values are Pure's, held by legend-pure's runner.
+- **`ToFix`** (52, 11 of them also `AlloyOnly`): legend-pure keeps them apart (`TestCollection`'s `toFixFunctions`,
+  `:93`), and legend-engine skips them too. Neither upstream runs them, so their expected values are their authors'
+  intent alone.
+
+**The probe** (`H8k_probe.patch.txt`, off `b75d6c73a`, never for main):
+- `PureTests.Discovery.runnable` returns the excluded tests and nothing else.
+- The census pin prints instead of failing.
+
+Both lanes' host passes ran in 47 s of wall time on 2026-11-19 (H2 21 s, DuckDB 32 s of test time). Each test is
+classed by `H8k_classify.py.txt`, one row per test in `H8k-expected-failures.tsv`.
+
+| Class | H2 `ExcludeAlloy` | H2 `ToFix` | DuckDB `ExcludeAlloy` | DuckDB `ToFix` |
+|---|---:|---:|---:|---:|
+| Pass, with a value assert | 44 | 13 | 50 | 13 |
+| Pass, on SQL text alone (`assertSameSQL`, `assertEqualsH2Compatible`) | 4 | 0 | 4 | 0 |
+| Fail: lite answers, and the test's value or the golden's rows contradict it | 9 | 16 | 5 | 16 |
+| Fail: the SQL text failed and the rows appeal declined | 0 | 3 | 0 | 3 |
+| Fail: lite refuses | 39 | 17 | 37 | 17 |
+| Skipped by lite | 0 | 3 | 0 | 3 |
+| **Total** | 96 | 52 | 96 | 52 |
+
+**The classes asked for:**
+- **Lite answers, and agrees with Pure's expected value: 44 on H2, 50 on DuckDB.** These are `ExcludeAlloy` tests
+  that pass on a value assert. Their expected values are the ones legend-pure's runner holds. Whether legend-pure
+  passes each one today was not run here.
+- **Lite answers, and agrees with its authors' value only: 13 on each lane.** These are `ToFix` tests that pass.
+  Neither upstream runs them, so the value is checked against nothing else.
+- **Lite's answer is not checked: 4 on each lane.** They pass on legend-engine's SQL text alone, which CP-4 does not
+  promise:
+  - `groupBy::datePeriods::testGroupByWithRelativeDateFunctions`;
+  - its `WithPathFilter` and `_noDatePath` variants;
+  - `tds::groupBy::testTDSGroupByWithEnumArgumentFunctionCall`.
+- **Lite answers, and the test contradicts it: 25 on H2, 21 on DuckDB.**
+  - 4 are H2 only, all `groupBy::datePeriods` (`testGroupBy`, `...WithFilterFunction`, `testInFlowGroupBy_noDatePath`,
+    `testPlanGroupBy_noDatePath`). H2 writes `100000` where the test expects `100000.0`: a Float's print, the class
+    S20 is about. DuckDB passes them.
+  - The rest disagree on both lanes: wrong row counts, `TDSNull` rows, and appeal divergences from the golden's rows.
+- **Lite refuses: 56 on H2, 54 on DuckDB.** The refusals are `NotImplementedException` 17, `IllegalStateException`
+  10, the typer's `type:` 9, `TypeInferenceException` 8, `DialectCapability` 6, `MappingResolutionException` 4,
+  `IsolationWall` 1 and `DataError` 1. Two `DialectCapability` refusals (UNNEST) are H2 only; DuckDB passes both.
+
+**What this does not settle:** whether legend-engine REFUSES these tests or answers them wrongly. A mark records that
+it is excluded, not why. That answer is the engine runner's to give (AGENTS.md's upstream-fidelity tenet). B1-R's
+ENGINE lane can ask it test by test, if 3.5 needs the split.
+

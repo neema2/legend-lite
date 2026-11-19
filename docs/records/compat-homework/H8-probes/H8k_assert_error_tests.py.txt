@@ -1,0 +1,82 @@
+"""H8 (k), census B2, 2026-11-19: the relational corpus's tests that EXPECT an error.
+
+Scans legend-engine's core_relational sources (the corpus's own root, Corpus.RELATIONAL) for <<test.Test>> functions
+whose body calls assertError (any spelling: assertError, meta::pure::functions::asserts::assertError) or
+fail-shaped error asserts, and prints one row per test: the test, its stereotypes, the number of assertError calls,
+the first expected message (the first top-level string literal after the lambda argument), the file.
+
+  python3 -I H8k_assert_error_tests.py <engine root>
+"""
+import pathlib, re, sys
+
+REL = ("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/"
+       "legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/"
+       "src/main/resources/core_relational/relational")
+root = pathlib.Path(sys.argv[1]) / REL
+head = re.compile(r"function\s+(<<[^>]*>>\s*)?(\{[^}]*\}\s*)?([\w:]+)\s*(<[^>(]*>)?\s*\(")
+
+def strip_comments(t):
+    t = re.sub(r"/\*.*?\*/", lambda m: " " * len(m.group(0)), t, flags=re.S)
+    return re.sub(r"//[^\n]*", lambda m: " " * len(m.group(0)), t)
+
+def args_after(text, i):
+    """The balanced argument text of the call whose '(' is at i."""
+    depth, j, in_s = 0, i, False
+    while j < len(text):
+        c = text[j]
+        if in_s:
+            if c == "\\":
+                j += 2
+                continue
+            if c == "'":
+                in_s = False
+        elif c == "'":
+            in_s = True
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                return text[i + 1:j]
+        j += 1
+    return text[i + 1:]
+
+def top_level_strings(a):
+    out, depth, j, in_s, start = [], 0, 0, False, 0
+    while j < len(a):
+        c = a[j]
+        if in_s:
+            if c == "\\":
+                j += 2
+                continue
+            if c == "'":
+                in_s = False
+                if depth == 0:
+                    out.append(a[start:j])
+        elif c == "'":
+            in_s, start = True, j + 1
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+        j += 1
+    return out
+
+for p in sorted(root.rglob("*.pure")):
+    raw = p.read_text(errors="replace")
+    text = strip_comments(raw)
+    heads = [(m.start(), m.group(1) or "", m.group(3)) for m in head.finditer(text)]
+    for k, (pos, stereo, name) in enumerate(heads):
+        if "Test" not in stereo:
+            continue
+        end = heads[k + 1][0] if k + 1 < len(heads) else len(text)
+        body = text[pos:end]
+        calls = [m for m in re.finditer(r"\bassertError\s*\(", body)]
+        if not calls:
+            continue
+        a = args_after(body, calls[0].end() - 1)
+        strs = top_level_strings(a)
+        msg = strs[0] if strs else ""
+        st = re.sub(r"\s+", "", stereo.strip("<>"))
+        print("\t".join([name, st, str(len(calls)), msg.replace("\t", " ").replace("\n", "\\n")[:400],
+                         str(p.relative_to(root))]))

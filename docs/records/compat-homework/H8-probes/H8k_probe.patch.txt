@@ -1,0 +1,29 @@
+diff --git a/core/src/main/java/com/legend/test/PureTests.java b/core/src/main/java/com/legend/test/PureTests.java
+index 0f8c407ac..5c7e2ee64 100644
+--- a/core/src/main/java/com/legend/test/PureTests.java
++++ b/core/src/main/java/com/legend/test/PureTests.java
+@@ -52,7 +52,9 @@ public final class PureTests {
+ 
+         /** The tests the engine's own marks do not exclude. */
+         public List<TestCase> runnable() {
+-            return tests.stream().filter(t -> !t.excludedByEngine()).toList();
++            // PROBE (census B2's H8 (k), 2026-11-19; never for main): ONLY the tests the engine's own marks exclude
++            // (ToFix, ExcludeAlloy), so the corpus runs legend-engine's expected failures and nothing else
++            return tests.stream().filter(t -> t.excludedByEngine()).toList();
+         }
+     }
+ 
+diff --git a/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java b/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
+index 88eef6f9c..2ee098595 100644
+--- a/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
++++ b/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
+@@ -178,7 +178,8 @@ public class MinimalCorpusTest {
+         org.junit.jupiter.api.Assertions.assertEquals(List.of(), corpus.missingInputs(),
+                 "upstream inputs the corpus could not find (a moved upstream file, or a"
+                 + " stale exclusion key) — fix the path; never let the model shrink silently");
+-        pinCensus(corpus.census());
++        // PROBE (census B2's H8 (k), 2026-11-19; never for main): the denominator is the engine-excluded tests alone
++        System.out.println("[corpus2] H8k census " + corpus.census());
+         List<String> pass = new ArrayList<>();
+         List<String> fail = new ArrayList<>();
+         List<String> skipped = new ArrayList<>();
