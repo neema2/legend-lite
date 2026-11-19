@@ -518,3 +518,29 @@ classed by `H8k_classify.py.txt`, one row per test in `H8k-expected-failures.tsv
 it is excluded, not why. That answer is the engine runner's to give (AGENTS.md's upstream-fidelity tenet). B1-R's
 ENGINE lane can ask it test by test, if 3.5 needs the split.
 
+## (h) H2 without `MODE=LEGACY`: the corpus's H2 lane under H2's regular mode
+
+CP-8's measure. **The probe** (`H8h_probe.patch.txt`, off `b75d6c73a`, never for main): `PureText.H2`'s constructor
+takes the product's settings form (`ProductDatabaseSettings`: `MODE=REGULAR`, `DEFAULT_NULL_ORDERING=LOW`, H2 2.5.252's
+own defaults) in place of the style's `DatabaseSettingsForm` two-form (`EngineDatabaseSettings`: `MODE=LEGACY`,
+`DEFAULT_NULL_ORDERING=HIGH`). An H2 database opens with the settings the plan's target declares
+(`H2Connector.url`), so every database the lane opens ran in regular mode. `//spec:judge_host_h2` ran alone on
+2026-11-19, 12:17-12:20 UTC; output in `H8h-out.txt`.
+
+**What moves: 1 test, from pass to fail.** The fail roster goes from 276 to 277. The skipped roster (7), the unordered
+register (899) and the engine-order register (0) are unchanged, line for line. The strength census moves by the same
+one test (LITERAL 1276 → 1275).
+- **The test:** `meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter`.
+- **Why it fails:** the test's own database declares `active BIT`, and its mapping's own filter is
+  `Filter activePersonFilter(personTable.active = 1)`. In regular mode H2 reads `BIT` as `BOOLEAN` and refuses
+  `BOOLEAN = INTEGER` ("Values of types "BOOLEAN" and "INTEGER" are not comparable"). Legacy mode compares them. This is
+  the test's own model text, not lite's lowering: a database's semantics that the program relies on.
+- **Null ordering moves nothing.** Lite's H2 writes its null placement on every sort key (`ASC NULLS LAST`, as in the
+  failing statement), so the database's default placement never decides an order lite executes. Legend-engine's
+  printer leaves the placement bare (`EngineDatabaseSettings`'s javadoc), but that text is judged, never executed.
+
+**The referee keeps legend-engine's settings.** It replays goldens on legend-engine's own H2, 2.1.214, opened
+`MODE=LEGACY;DEFAULT_NULL_ORDERING=HIGH` with H2's `NON_KEYWORDS` (`testbackend/EngineH2Referee.openReferee`,
+`core/src/test/java/com/legend/testbackend/EngineH2Referee.java:67-70`). The probe does not touch it: the golden is
+replayed as legend-engine runs it, and lite's rows come from the regular-mode database.
+

@@ -1,0 +1,16 @@
+diff --git a/core/src/main/java/com/legend/edge/PureText.java b/core/src/main/java/com/legend/edge/PureText.java
+index 165b978f1..cba29223d 100644
+--- a/core/src/main/java/com/legend/edge/PureText.java
++++ b/core/src/main/java/com/legend/edge/PureText.java
+@@ -396,8 +396,9 @@ public final class PureText {
+     public static final class H2 extends com.legend.sql.dialect.H2 {
+         /** On legend-engine's H2 database: the style's two-form {@code DatabaseSettingsForm} (the audit's J22, 2026-11-17). */
+         public H2() {
+-            super(UPSTREAM.twoForm(com.legend.sql.dialect.DatabaseSettingsForm.class,
+-                    com.legend.sql.dialect.ProductDatabaseSettings.INSTANCE));
++            // PROBE (census B2's H8 (h), 2026-11-19; never for main): H2's REGULAR mode and its default null ordering
++            // (the product's settings) in place of legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
++            super(com.legend.sql.dialect.ProductDatabaseSettings.INSTANCE);
+         }
+ 
+         /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the

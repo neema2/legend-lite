@@ -1,0 +1,10 @@
+# H8 (h): the H2 corpus lane under H2's REGULAR mode and LOW null ordering, against the committed rosters (main b75d6c73a)
+[corpus2] statement-origins body=3886 let=1932 value=0 seed=141 seed_generated=0 session=6718 system=9273 referee_ours=1136 referee_golden=1073 raw=0 side=0 statement=23 mirror_seed=68220 probe=0 other=5879
+[corpus2] pass=2288 fail=277 skipped=7 of 2613 in 177s
+[corpus2] strength LITERAL=1275
+[corpus2] strength DIFFERENTIAL+literal=795
+[corpus2] strength DIFFERENTIAL-only=169
+[corpus2] strength CARDINALITY=27
+[corpus2] strength SPELLING=22
+# moved to fail:
+[corpus2] FAIL meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter :: DataError: Values of types "BOOLEAN" and "INTEGER" are not comparable; SQL statement: | WITH __let0 AS (SELECT * | FROM personTable AS "t1" | WHERE "t1".active = 1) | SELECT CAST(CASE WHEN COUNT(*) = 1 THEN MIN(JSON_OBJECT('legalName': "t0".name, 'employees': (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('firstName': "t2".firstName, 'lastName': "t2".lastName) ORDER BY "t2".id ASC NULLS LAST), JSON '[]') AS "result" FROM __let0 AS "t2" LEFT OUTER JOIN personFirmBridgeTable AS "t3" ON "t2".id = "t3".personId WHERE "t0".id = "t3".firmId), 'ceo': (SELECT JSON_OBJECT('firstName': "t4".firstName, 'la
