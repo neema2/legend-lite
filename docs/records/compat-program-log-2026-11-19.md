@@ -330,3 +330,6 @@ who confirms or changes phases 1-3.
   - S374 and S375 read plan text and CP-12 into their rulings;
   - S138 was inconsistent with H8 §(c).
   All corrected in `1faa54da`. S376's ruling is now in §1, citing the census record as the source of its words.
+- **~11:42 UTC, the re-check of PR #122: GOOD TO GO.** Its two nits (S63's stray bracket; S138's wording elsewhere,
+  the database's value or its own error) were fixed in `f2025fae`, and the PR body was updated with the review. PR #122
+  waits for the user's merge word.
