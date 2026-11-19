@@ -2047,3 +2047,10 @@ who confirms or changes phases 1-3.
   edited-text tests; Python host only, `_headless.py`, `projects.py`, `tests/test_headless.py`, +168 / -1). Checked
   against the rules of record: the caches hold the compiler's own answers keyed by the whole request text; no value
   computed or changed; no mode. `//python:all` running; it is asking the user in its session for the word to push.
+- **~17:24 UTC, the judges session: A4 step 2's lane counts** (`61653394d`; all 23 targets pass, 328 s; each channel B
+  lane against its pinned roster). DuckDB (and its twice lanes, agreeing exactly): essential PASS 336 / ERROR 9 of 345,
+  grammar 137/137, relation 469/469, standard 205/205, unclassified 93/93. H2 relation 432 of 469 (21 agree-fail, 16
+  wire-bug). SQLite essential 333/345, grammar 134/137, relation 458/469, standard 205/205, unclassified 92/93. The edge
+  integration on H2 and SQLite passes; lean SQL DuckDB and H2 pass against the re-pinned baseline (`cfa6a634`). Step 3
+  building: `RootLoop.Row` loses `decline` as well as `appeal`; the test plan JSON 32 → 33 with a note; both corpus
+  rosters at A4's final head.
