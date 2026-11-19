@@ -65,6 +65,13 @@ class FloatJsonRoundTripProbeTest {
                             s.execute("INSERT INTO T VALUES (" + (i + 1) + ", " + literal(VALUES[i]) + ")");
                         }
                     }
+                    try (Statement s = c.createStatement();
+                            java.sql.ResultSet rs = s.executeQuery("SELECT V FROM T WHERE ID = 15")) {
+                        rs.next();
+                        double stored = rs.getDouble(1);
+                        out.add(b.name() + "\t" + q[0] + "\tstored-15\t-0.0\t" + stored + "\t"
+                                + (Double.doubleToLongBits(stored) == Double.doubleToLongBits(-0.0)) + "\t-");
+                    }
                     String json;
                     try {
                         json = Lean.run(model, q[1], "p::RT", c).json();
@@ -107,7 +114,7 @@ class FloatJsonRoundTripProbeTest {
     /** A double as a SQL literal every in-process database reads exactly: its shortest round-trip digits. */
     private static String literal(double d) {
         if (d == 0.0 && 1 / d < 0) {
-            return "-0.0";
+            return "CAST('-0.0' AS DOUBLE PRECISION)";   // a literal -0.0 is the negation of a DECIMAL 0: 0
         }
         return Double.toString(d);
     }
