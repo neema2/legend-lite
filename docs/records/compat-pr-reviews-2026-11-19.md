@@ -383,3 +383,221 @@ still see the engine audience after the merge.
   - `RootLoopsRejectionTest` covers the reachable path and `raiseRejection` itself.
   - One cost, noted: if a runner defect ever reached it, it would read as an ordinary database failure rather than as
     a defect.
+
+## A3 piece 4: the differences page, the A3 register rows, the rulebook amendment (docs only), reading copy `0eacaecdc`
+
+**Verdict: APPROVED WITH 2 MUST-FIX, 6 SHOULD-FIX, 5 NITS.** The rulings as they stand now are stated right: the
+detector refuses by default, `warn` is an operator's setting, and no load-time report is promised (~19:20). D1 and D2
+match ~13:25. Every number I checked matches its record. The two must-fixes are each a few words or a few lines: one
+attribution, and one classification that hides three answer differences.
+
+**What was read.** `origin/claude/census-b2` at `0eacaecdc`, folder `docs/records/compat-homework/A3-piece4/`:
+- the patch (`git diff 6551c2036 a0505ebe6`);
+- the page whole;
+- the README.
+
+The patch applies cleanly to A2's head (`origin/claude/compat-a2-printers` = `6551c2036`). The page in the folder is
+byte-identical to the patched file. The rules-of-record copy is byte-identical to `claude/compat-program`'s (blob
+`1888321e9`).
+
+**Checked against:**
+- the owner's log §1, rows ~12:30 to ~19:20, `claude/compat-program`;
+- the final plan §4, §4a and §5;
+- `compat-batch-register-rows-2026-11-19.md`, the ids;
+- H8 (a.3), (h), (j) to (j.5) and (k);
+- `A2-roster.tsv` and `A2-shape-note.md`;
+- `A3-shape-note.md` rev 3, `a3/corpus-a3-after-a2.txt` and `a3/{h2,duckdb}-literal-zero.tsv`, on
+  `claude/compat-translator-spike`;
+- H7, and B1-R's oracle (`engine_{h2,duckdb}_answers.tsv`), on `claude/compat-engine-lane`;
+- #123's overlays;
+- legend-pure 5.99.0 at the pin: `substring.pure:53`, `indexOf.pure:39`, `divide.pure`.
+
+### What holds
+
+**AGENTS.md:**
+- There is one hunk (`@@ -91,18 +91,56 @@`), inside the tenet preamble, before the world-map tenet.
+- Invariants 1 to 8 and 3a are unchanged, as are their numbers, the core/README note, the standing documents and the
+  common mistakes.
+- The amended tenet is the ~13:15 draft that the ~13:25 row names, plus the case-by-case clause, the engine runner's
+  README and the page's pointer.
+- The six tenets and the two readings are the rules of record's text.
+- "Adopt tenets yes" is the user's words (~16:40).
+
+**G8:** the first bullet is the ~13:15 draft's sentence, and it keeps the old wording as history. The other bullets
+are unchanged.
+
+**Register rows:**
+- The S382 to S385 ids are the owner's allocation of ~19:21, each with its drafter's subject.
+- S130 and S134 are rewritten in place, with their ids kept.
+- All six are marked PROPOSED for the user's word.
+- S134 quotes ~19:20 exactly: "I think it has to be refuse then for now".
+- S130's literal-0 exemption matches the TSVs:
+  - H2 2.1.214 reads `substring('abcdef', 0, 3)` as `'abc'`, in both modes;
+  - DuckDB 1.5.6 reads it as `'ab'`, and its 2-argument form as `'abcdef'`.
+
+**The detector on the page (item 1):**
+- it refuses by default, in legend-engine's envelope, naming the call;
+- `LEGEND_LITE_PURE_MEANING=warn` is an operator's choice, with the log line and the header;
+- the corrected option passes `substring` only;
+- no report is promised.
+
+This matches ~19:20, and the final plan §4a's struck line.
+
+**Numbers, all matching their records:**
+- **Item 1:**
+  - 7 corpus tests per database: 4 answers and 3 hidden text tests (`a3/corpus-a3-after-a2.txt`);
+  - 63 PCT rows, 3 tests on 21 lanes;
+  - 62 projects (the log, the ~11:00 measurement).
+- **Item 2:**
+  - 147 and 152 tests move: H2 64+20+52+3+2+6, DuckDB 64+22+53+4+3+6 (`A2-roster.tsv`);
+  - 150 and 155 with R4's 3;
+  - 2,761 declared tests (H8 (k.2));
+  - the 15 requests (`A2-shape-note.md:128`).
+- **Item 3:** every row matches H8 (j.1) and (j.3), and B1-R's oracle:
+  - DuckDB divides to 200 `null`;
+  - H2 divides to 500;
+  - H2's `sqrt` is 200 `null`;
+  - DuckDB's `sqrt` is 500.
+- **Item 4:** 2 PCT answers per database, and the 2 H2 corpus gains (52 and 1 against `52.0` and `1.0`).
+- **Item 5:** legend-engine answers 200 `null` on both databases (the oracle's `raise.toOneOfEmpty`).
+- **Item 6:** the counts match the final plan's B4.
+- **Item 7:** the 1 test, `testIsolationOfPropertyTargetFilter` (H8 (h)).
+- **Item 8:** 7 tests set a flag. The one that needs the legacy flag, `testLegacyFlagProjectionEmitsPlainEquals`, is
+  class a2 in A2's roster (SQL text only).
+- **Item 10:** 99 of 110, 109, and 28 of 36 (H7:37-61).
+- **Item 11:** Windows has 17 rows and 30 lines, macOS 16 rows and 31 lines. The functions are as listed.
+- **The PCT table:**
+  - DuckDB 1,212 and 1,005 (H7);
+  - H2 Relation 411+28+9;
+  - H2 Essential 125+26+101 and 125+6;
+  - H2 Standard 107+6 and 107+27 (H8 (j.4)).
+
+**Stages:**
+- 3, 4, 6 and 7 are B4;
+- 8's flags are B5 ("every legend-engine flag but the two it reads");
+- 9's words are B1.
+
+Each matches the final plan §5.
+
+### MUST-FIX
+
+**M1. Words quoted as the user's that the user did not say.**
+- **The D1 label.** S130 and S134 read `the user's D1: "Pure's way, LOUD, no translator"`. That label is this
+  program's (the log's ~13:25 row; the phrase "Pure's way, LOUD where it differs" first appears in the program's own
+  analysis, log :794). The user's words at ~13:25 were "Okay agree with all", to the owner's message.
+  - **Fix:** `D1, ruled by the user 2026-11-19 ~13:25 ("Okay agree with all"): Pure's way, loud, no translator`.
+- **The goal's sentence.** It is the program's wording (log ~12:30, the ~13:15 draft), ruled by the same "Okay agree
+  with all". AGENTS.md, G8 and the page each introduce it as `the user's ruling ...: "Lite follows Pure. ..."`. That
+  reads as the user's own words in the rulebook.
+  - **Fix:** the same pattern: `the goal the user ruled on 2026-11-19 ~13:25 ("Okay agree with all"): Lite follows
+    Pure. ...`.
+  - The sentence itself is right, and it is ruled.
+
+**M2. Item 2 presents three answer differences as text-only.** The page says 147 tests on H2 and 152 on DuckDB "stop
+counting, because they check only the text". `A2-roster.tsv` classes them differently:
+- **class b, 2 on H2 and 3 on DuckDB:** "a DIVERGED appeal: the rows differ, an answer the text hid". The tests are:
+  - `sqlstring::testHashFunctions`;
+  - `sqlstring::testToSQLStringForTDSStringJoin`;
+  - `sqlstring::testToSqlGenerationFirstDayOfWeek`, on DuckDB only.
+
+  A2's shape note calls them "the answer differences F1 reported".
+- **class c, 6 per database:** legend-engine's plan structure (`supportsStream`), not text.
+
+The page exists to tell a migrating team where answers change, so these three cannot be hidden under "text".
+- **Fix:**
+  - split the count (H2: 139 text, 2 answers, 6 plan structure; DuckDB: 143, 3, 6);
+  - list the class-b answers, as an entry, or under "Gaps" if they are lite's defects. `firstDayOfWeek` is lite's own
+    lowering against legend-engine's;
+  - cite `A2-roster.tsv`.
+- S380, A2's row and not in this patch, says "text alone, or a plan structure" and has the same gap. Fix it with this.
+
+### SHOULD-FIX
+
+**S1. "What is the same" mixes stage B into today, and leaves out a ruled difference.**
+- **(a) It is stage B, not today.** "Only the output's formatting happens in Java: legend-engine's printed tables,
+  envelopes and error sentences" describes the state after B1 and B2. Today the tables are built in SQL (the 791-line
+  `RelationTextLowering`), and an error reads lite's code (item 5's `Raised: SIZE_NOT_MULTIPLICITY`). Mark it "after
+  stage B".
+- **(b) Two separate claims are joined.** The 431 of 431 and 342 of 342 are H11's printed-table prototype for B2
+  (legend-pure's relation text, where `toString` is the program's last step). They are not about "the legend-engine
+  server routes Studio uses", whose envelopes the pure/v1 net measures. Make them two sentences.
+- **(c) A ruled difference is missing.** By the ~18:12 ruling ("Yes record it, and count the nested cases"), a
+  relation's text used further inside a query (`->toString()->length()`) answers lite's own text. The ~18:05 and
+  ~18:36 rulings say what that text is: whole Floats as `2.0`, a date with a time as `...000000Z` (legend-pure prints
+  `+0000`), an empty cell as `null`. It is a recorded difference that lands with B2, like items 3, 4, 6 and 7.
+  - **Fix:** add it as a stage-B entry, "count pending (the nested cases are counted before B2)".
+  - Qualify "byte for byte" to the case where the text is the program's last step.
+
+**S2. The register's own header still states the old tenet.** `docs/SEMANTICS_REGISTER.md:6-9` at A2's head reads, in
+bold: "Since 2026-10-29 (the user's upstream-fidelity tenet, AGENTS.md): lite does exactly what legend-pure and
+legend-engine do wherever possible...". The patch edits this file and amends that tenet, but leaves the header. The
+ledger the tenet cites would then contradict it.
+- **Fix:** amend the sentence in the same patch, with a dated note pointing to the amended tenet.
+- `docs/TOTAL_WALL_START_HERE_2026_11_11.md:187` ("Ask 'can we do exactly as pure/engine does?' first") sits in
+  AGENTS.md's live table. Add a dated pointer there, or rule it history (the owner's call).
+- `docs/RESULT_BOUNDARY_START_HERE.md:756` is history.
+
+**S3. Date and complete the PCT table, and the gaps count.**
+- **(a) Date the table.** Its numbers are B1-R's ENGINE lane before stage A (H7, H8 (j.4) and (j.5) at `10b311dee`).
+  A3 itself moves 12 more to PCT's answer (7 on DuckDB, 5 on H2: the final plan's A3 row). Say "measured before
+  stage A".
+- **(b) Two H2 suites are left out.** H8 (j.4) measured Grammar and Unclassified once (on a widened, unpinned lane):
+  - Grammar: lite 119, legend-engine 77;
+  - Unclassified: lite 73, legend-engine 82.
+
+  So lite is behind on Unclassified too, and "fewer on H2 standard" alone is incomplete. Add the two rows marked
+  "measured once, not pinned", or say the table covers the pinned suites only.
+- **(c) The same goes for the gaps section's "33 PCT tests on H2".** That is the pinned suites' LITE_BEHIND (Essential
+  6, Standard 27); Unclassified adds 10.
+
+**S4. Item 3's "PCT ... expects the error in every case" does not hold for `x / 0`.** legend-pure's `divide.pure` has
+six PCT tests and none divides by zero. I did not read here whether legend-pure raises on it. Its interpreted
+`Divide.java:53` hands the work to `NumericAccumulator.divide`, which I did not follow down.
+- **Fix:** say that PCT expects the error for the first five rows, and cite the source of Pure's raise for divide
+  (or ask the engine runner).
+
+**S5. Item 1's recipe for legend-engine's answer holds in range only.** `substring($a - 1, $a - 1 + $b)` reproduces
+legend-engine's `substring($a, $b)` only when `$a >= 1` and `$a - 1 + $b <= length`:
+- at `$a = 0`, H2 reads 0 as position 1 (`h2-literal-zero.tsv`), while the rewrite starts at -1 and raises Pure's
+  error;
+- past the end, H2 clamps and Pure raises.
+
+Say so in one clause, and give the 2-argument form, `substring($a - 1)`.
+
+**S6. AGENTS.md's honesty marks.**
+- **(a) "Each has a test, so it cannot quietly erode."** AGENTS.md marks enforcement honestly (`[ENFORCED]` and
+  `[CONVENTION]`). The tenets' "tests" are questions a reviewer asks: nothing turns red until B5's guards. The words
+  are the adopted text, so keep them, and add `[CONVENTION until B5's guards]` after the heading.
+- **(b) The numbering.** The tenets add a third numbered list beside invariants 1 to 8 and core/README's 12, and the
+  new rows cite "(tenet 1)". AGENTS.md already keeps the other two lists apart with a note. Add one line here too:
+  cite them as "tenet N of the six", never as "invariant N".
+
+### NITS
+
+- **N1.** "Floats are doubles, as in legend-engine" sits beside item 4, where legend-engine computes a Float literal as
+  a decimal. Qualify it: "a Float value read from the database".
+- **N2.** Item 9's "Neither carries a source position" is not quite right. legend-engine's `raise.toOneOverMany` answer
+  carries `Execution error at (resource:/core_relational/.../pureToSQLQuery.pure line:3136 column:188)` (the oracle).
+  That is a position in legend-engine's own Pure, not in the user's code. Say "neither points into your code".
+- **N3.** Item 10's "109 wrong answers fixed": H7's LITE_FIXES is "legend-engine fails by a defect", which counts
+  planner and runtime faults too. "109 failures fixed" is accurate.
+- **N4.** Item 1 says the door "refuses a query ... that calls either one". The detector flags the 2-argument String
+  `indexOf` only. The 3-argument one is refused by legend-engine (the `testFromIndex` manifest row, so item 10's
+  class). Add one clause.
+- **N5.** Item 1's example, `'abcdef'->substring(1, 3)`, is a bare expression, but the difference is in code sent to
+  the database: §4a's and S134's "store-routed". Write it as a column, for example `$p.name->substring(1, 3)` inside a
+  `project`. I did not read how legend-engine answers a bare constant expression, so this is a wording point only.
+
+### Outside this piece, for the owner
+
+**O1. The ~19:20 ruling is struck in only one place.** The final plan's §4a still reads:
+- "`indexOf` always warns";
+- "What it does: a server log line ... under `=refuse`, a refusal";
+- "Its tests: a planted request warned".
+
+The A3 row in §4 still lists "the detector's default (ruled: warn, with the report)" and "6 to 6.5 days with the
+detector's report". `compat-design-and-plan-plain-2026-11-19.md:77` still says "Warned at the legend-engine door ...
+with a report of every such call when a project loads".
+
+I will review the detector PR against refuse-by-default, with no report: a planted request refused, `warn` marked,
+the option quiet for `substring` alone.
