@@ -1,0 +1,6 @@
+# 21.0.13.0.3
+substring(-1)	java.lang.StringIndexOutOfBoundsException: Range [-1, 6) out of bounds for length 6
+substring(7)	java.lang.StringIndexOutOfBoundsException: Range [7, 6) out of bounds for length 6
+substring(0, 9)	java.lang.StringIndexOutOfBoundsException: Range [0, 9) out of bounds for length 6
+substring(4, 2)	java.lang.StringIndexOutOfBoundsException: Range [4, 2) out of bounds for length 6
+substring(-1, 3)	java.lang.StringIndexOutOfBoundsException: Range [-1, 3) out of bounds for length 6

@@ -1,0 +1,48 @@
+//docs:update_generated_0_test                                  (cached) PASSED in 0.0s
+//docs:update_generated_1_test                                  (cached) PASSED in 0.0s
+//spec:update_rcorpus_duckdb_1_test                             (cached) PASSED in 0.0s
+//spec:update_rcorpus_h2_1_test                                 (cached) PASSED in 0.1s
+//spec:update_rcorpus_h2_3_test                                 (cached) PASSED in 0.1s
+//core:census                                                            PASSED in 37.0s
+//core:core_tests_normalizer                                             PASSED in 7.7s
+//core:core_tests_planner                                                PASSED in 46.2s
+//core:core_tests_sql                                                    PASSED in 28.3s
+//core:iq_parity_test                                                    PASSED in 172.0s
+//core:sql_parity_test                                                   PASSED in 36.5s
+//docs:update_dialect_capability_test                                    PASSED in 0.0s
+//pct:pct_channel_b_grammar                                              PASSED in 21.1s
+//pct:pct_channel_b_host_grammar                                         PASSED in 11.0s
+//pct:pct_channel_b_host_h2_relation                                     PASSED in 24.0s
+//pct:pct_channel_b_host_relation                                        PASSED in 27.8s
+//pct:pct_channel_b_host_standard                                        PASSED in 17.0s
+//pct:pct_channel_b_host_unclassified                                    PASSED in 6.2s
+//pct:pct_channel_b_ledger_test                                          PASSED in 1.6s
+//pct:pct_channel_b_relation                                             PASSED in 48.1s
+//pct:pct_channel_b_standard                                             PASSED in 25.5s
+//pct:pct_channel_b_twice_guard_test                                     PASSED in 1.4s
+//pct:pct_channel_b_unclassified                                         PASSED in 11.6s
+//pct:pct_discipline                                                     PASSED in 1.1s
+//pct:pct_duckdb_grammar                                                 PASSED in 39.6s
+//pct:pct_duckdb_relation                                                PASSED in 96.1s
+//pct:pct_duckdb_standard                                                PASSED in 63.3s
+//pct:pct_duckdb_unclassified                                            PASSED in 43.4s
+//spec:corpus_duckdb_verdict                                             PASSED in 1.6s
+//spec:corpus_h2_verdict                                                 PASSED in 1.8s
+//spec:update_rcorpus_duckdb_3_test                                      PASSED in 0.1s
+//core:core_edge_tests                                                   FAILED in 153.0s
+//core:core_tests_builtin                                                FAILED in 3.7s
+//core:core_tests_integration                                            FAILED in 145.0s
+//core:core_tests_integration_h2                                         FAILED in 82.1s
+//core:core_tests_integration_sqlite                                     FAILED in 75.9s
+//core:core_tests_lowering                                               FAILED in 17.7s
+//core:core_tests_protocol                                               FAILED in 10.8s
+//core:core_tests_root                                                   FAILED in 59.9s
+//core:cypher_parity_test                                                FAILED in 141.2s
+//core:guardrails                                                        FAILED in 42.4s
+//pct:pct_channel_b_essential                                            FAILED in 32.4s
+//pct:pct_channel_b_host_essential                                       FAILED in 16.6s
+//pct:pct_duckdb_essential                                               FAILED in 39.7s
+//spec:update_rcorpus_duckdb_0_test                                      FAILED in 0.2s
+//spec:update_rcorpus_duckdb_2_test                                      FAILED in 0.2s
+//spec:update_rcorpus_h2_0_test                                          FAILED in 0.2s
+//spec:update_rcorpus_h2_2_test                                          FAILED in 0.2s

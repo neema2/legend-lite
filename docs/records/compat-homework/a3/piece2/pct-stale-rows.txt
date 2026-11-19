@@ -1,0 +1,39 @@
+pct_sqlite_essential: Or remove the expected failure for: meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_
+pct_sqlite_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_
+pct_sqlite_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_
+pct_mariadb_essential: Or remove the expected failure for: meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_
+pct_mariadb_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_
+pct_mariadb_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_
+pct_mysql_essential: Or remove the expected failure for: meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_
+pct_mysql_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_
+pct_mysql_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_
+pct_clickhouse_essential: Or remove the expected failure for: meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_
+pct_clickhouse_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_
+pct_clickhouse_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_
+pct_trino_essential: Or remove the expected failure for: meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_
+pct_trino_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_
+pct_trino_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_
+pct_mongodb_essential: Or remove the expected failure for: meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_
+pct_mongodb_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_
+pct_mongodb_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_
+pct_postgres_essential: Or remove the expected failure for: meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_
+pct_postgres_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_
+pct_postgres_essential: Or remove the expected failure for: meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_
+pct_channel_b_sqlite_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::collection::tests::indexof::testIndexOfOneElement
+pct_channel_b_sqlite_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testSimple
+pct_channel_b_sqlite_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testFromIndex
+pct_channel_b_mariadb_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::collection::tests::indexof::testIndexOfOneElement
+pct_channel_b_mariadb_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testSimple
+pct_channel_b_mariadb_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testFromIndex
+pct_channel_b_mysql_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::collection::tests::indexof::testIndexOfOneElement
+pct_channel_b_mysql_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testSimple
+pct_channel_b_mysql_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testFromIndex
+pct_channel_b_clickhouse_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::collection::tests::indexof::testIndexOfOneElement
+pct_channel_b_clickhouse_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testSimple
+pct_channel_b_clickhouse_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testFromIndex
+pct_channel_b_trino_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::collection::tests::indexof::testIndexOfOneElement
+pct_channel_b_trino_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testSimple
+pct_channel_b_trino_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testFromIndex
+pct_channel_b_postgres_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::collection::tests::indexof::testIndexOfOneElement
+pct_channel_b_postgres_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testSimple
+pct_channel_b_postgres_essential:   PASSES, ledgered as failing (remove it from the ledger): meta::pure::functions::string::tests::indexOf::testFromIndex

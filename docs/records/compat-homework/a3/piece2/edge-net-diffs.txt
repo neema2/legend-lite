@@ -1,0 +1,72 @@
+## pct/update_edge_contract_1_test
+< testFromIndex	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:1;
+< testFromIndex	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:5;
+> testFromIndex	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:2;
+< testIndexOfOneElement	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:0;
+< testIndexOfOneElement	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:-1;
+> testIndexOfOneElement	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:1;
+< testSimple	007	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:4;
+< testSimple	008	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:16;
+< testSimple	009	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:-1;
+> testSimple	007	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:5;
+FAIL: files "pct/edge_norm/duckdb_essential_answers.tsv" and "pct/src/test/resources/edge/duckdb_essential_answers.tsv" differ. 
+## pct/update_edge_contract_13_test
+< testFromIndex	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:1;
+< testFromIndex	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:5;
+> testFromIndex	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:2;
+< testIndexOfOneElement	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:0;
+< testIndexOfOneElement	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:-1;
+> testIndexOfOneElement	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:1;
+< testSimple	007	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:4;
+< testSimple	008	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:16;
+< testSimple	009	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:-1;
+> testSimple	007	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:5;
+FAIL: files "pct/edge_norm/sqlite_essential_answers.tsv" and "pct/src/test/resources/edge/sqlite_essential_answers.tsv" differ. 
+## pct/update_edge_contract_22_test
+< meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	PASS	
+> meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	ERROR	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+< meta::pure::functions::string::tests::indexOf::testFromIndex	PASS	
+< meta::pure::functions::string::tests::indexOf::testSimple	PASS	
+> meta::pure::functions::string::tests::indexOf::testFromIndex	ERROR	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+> meta::pure::functions::string::tests::indexOf::testSimple	ERROR	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+FAIL: files "pct/edge_norm/channel_b_duckdb_essential_outcomes.tsv" and "pct/src/test/resources/edge/channel_b_duckdb_essential_outcomes.tsv" differ. 
+## spec/update_edge_corpus_1_test
+< meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	1	meta::pure::functions::asserts::assert	FAIL
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	1	meta::pure::functions::asserts::assert	PASS
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+< meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	1	meta::pure::functions::asserts::assert	FAIL
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	1	meta::pure::functions::asserts::assert	PASS
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+< meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	1	meta::pure::functions::asserts::assert	FAIL
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	1	meta::pure::functions::asserts::assert	PASS
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+< meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault	0	meta::pure::functions::asserts::assertEquals	FAIL
+> meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault	0	meta::pure::functions::asserts::assertEquals	PASS
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction	0	meta::pure::functions::asserts::assertSameElements	PASS
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction	1	meta::pure::functions::asserts::assertEquals	PASS
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction	0	meta::pure::functions::asserts::assertSameElements	PASS
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction	1	meta::pure::functions::asserts::assertEquals	PASS
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction	0	meta::pure::functions::asserts::assertSize	PASS
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction	1	meta::pure::functions::asserts::assertSameElements	PASS
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction	2	meta::pure::functions::asserts::assertEquals	PASS
+FAIL: files "spec/judge_host_duckdb/judge-host.tsv" and "spec/src/test/resources/edge/corpus_duckdb_host_judge-host.tsv" differ. 
+## spec/update_edge_corpus_3_test
+< meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	1	meta::pure::functions::asserts::assert	FAIL
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	1	meta::pure::functions::asserts::assert	PASS
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+< meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	1	meta::pure::functions::asserts::assert	FAIL
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	1	meta::pure::functions::asserts::assert	PASS
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+< meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	1	meta::pure::functions::asserts::assert	FAIL
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	1	meta::pure::functions::asserts::assert	PASS
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+< meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault	0	meta::pure::functions::asserts::assertEquals	FAIL
+> meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault	0	meta::pure::functions::asserts::assertEquals	PASS
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction	0	meta::pure::functions::asserts::assertSameElements	PASS
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction	1	meta::pure::functions::asserts::assertEquals	PASS
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction	0	meta::pure::functions::asserts::assertSameElements	PASS
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction	1	meta::pure::functions::asserts::assertEquals	PASS
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction	0	meta::pure::functions::asserts::assertSize	PASS
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction	1	meta::pure::functions::asserts::assertSameElements	PASS
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction	2	meta::pure::functions::asserts::assertEquals	PASS
+FAIL: files "spec/judge_host_h2/judge-host.tsv" and "spec/src/test/resources/edge/corpus_h2_host_judge-host.tsv" differ. 

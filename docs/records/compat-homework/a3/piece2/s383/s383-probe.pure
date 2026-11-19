@@ -1,0 +1,40 @@
+###Pure
+function probe::s383::inRange(): String[1]
+{
+  'abcdef'->substring(1, 3)
+}
+{
+  t | inRange() => 'bc';
+}
+
+function probe::s383::startBelowZero(): String[1]
+{
+  'abcdef'->substring(-1)
+}
+{
+  t | startBelowZero() => 'x';
+}
+
+function probe::s383::endPastLength(): String[1]
+{
+  'abcdef'->substring(0, 9)
+}
+{
+  t | endPastLength() => 'x';
+}
+
+function probe::s383::endBeforeStart(): String[1]
+{
+  'abcdef'->substring(4, 2)
+}
+{
+  t | endBeforeStart() => 'x';
+}
+
+function probe::s383::startPastLength(): String[1]
+{
+  'abcdef'->substring(7)
+}
+{
+  t | startPastLength() => 'x';
+}
