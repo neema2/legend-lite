@@ -724,7 +724,7 @@ prefers it. After §6.1 it also needs the translator (phase 3) to take four inpu
 ### 6.7 How §6 was measured
 
 - The probe: `core/.../diagnostics/LeniencyProbe.java` and the hooks named in §6.1's table (commit `5fa0464e`, MEASUREMENT
-  ONLY). Channel B: `tools`' `len.sh` runs, `--jvmopt=-Dpct.channelb.judge=HOST --jvmopt=-Dlegend.measure.leniency.log=1
+  ONLY). Channel B: a scratch script (`len.sh`, not committed) runs `--jvmopt=-Dpct.channelb.judge=HOST --jvmopt=-Dlegend.measure.leniency.log=1
   [--jvmopt=-Dlegend.measure.leniency.off=ALL]`, outcomes from the `[chB-h6]` lines, decisions from the `[lenient]`
   lines. LITE's S131: the same with `-Dpct.channelb.rules=LITE` and `off=S131`.
 - The corpus: its host pass is a build action with a fixed environment, so the two flags were added to
