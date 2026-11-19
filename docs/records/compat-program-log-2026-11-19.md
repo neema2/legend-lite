@@ -2444,3 +2444,12 @@ who confirms or changes phases 1-3.
   the world-map tenet says lite compiles its body (the database computing it with lite's natives) rather than
   intercepting it: is the body loaded as corpus input, why lite refuses it, and what the 46 tests and the corpus give
   with the interception removed (a scratch probe).
+- **~19:37 UTC, the reviewer: A3 piece 4 APPROVED WITH 2 MUST-FIX, 6 SHOULD-FIX, 5 NITS** (record at `4d99d429`).
+  Holds: the ~19:20 ruling stated right everywhere; AGENTS.md's invariants and numbering untouched; the six tenets and
+  readings verbatim; ids as allocated; every number checked matches. M1: program wording quoted as the user's
+  ("Pure's way, LOUD, no translator"; the goal's sentence introduced as "the user's ruling: ...") must be named as ruled
+  by the user ~13:25 ("Okay agree with all"), not as their speech. M2: item 2's 147/152 split (H2 139/2/6, DuckDB
+  143/3/6), naming the 2+3 answers the text hid. S1-S6 (what stage B adds; SEMANTICS_REGISTER's header and
+  TOTAL_WALL_START_HERE's pointer; date the PCT table; divide-by-zero's source; the recipe's range; AGENTS.md's
+  [CONVENTION] mark and tenet-vs-invariant numbering) and 5 nits. Sent to B2. **O1, this program's own plan:** §4a,
+  the A3 row and the plain plan's row 1 still said "warn" and "with the report": corrected here to the ~19:20 ruling.
