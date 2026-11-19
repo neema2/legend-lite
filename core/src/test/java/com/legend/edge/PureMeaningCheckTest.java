@@ -297,13 +297,14 @@ class PureMeaningCheckTest {
     // ---- the setting ----------------------------------------------------------------------------------------------
 
     @Test
-    void theSettingIsRefuseByDefault_warnByChoice_andNothingElse() {
+    void theSettingIsRefuseByDefault_warnOrEngineByChoice_andNothingElse() {
         assertEquals(PureMeaningCheck.Mode.REFUSE, PureMeaningCheck.mode(null));
         assertEquals(PureMeaningCheck.Mode.REFUSE, PureMeaningCheck.mode(""));
         assertEquals(PureMeaningCheck.Mode.REFUSE, PureMeaningCheck.mode("refuse"));
         assertEquals(PureMeaningCheck.Mode.WARN, PureMeaningCheck.mode("warn"));
-        IllegalStateException e = assertThrows(IllegalStateException.class, () -> PureMeaningCheck.mode("engine"));
-        assertTrue(e.getMessage().contains("LEGEND_LITE_PURE_MEANING=engine"), e.getMessage());
+        assertEquals(PureMeaningCheck.Mode.ENGINE, PureMeaningCheck.mode("engine"));
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> PureMeaningCheck.mode("Engine"));
+        assertTrue(e.getMessage().contains("LEGEND_LITE_PURE_MEANING=Engine"), e.getMessage());
     }
 
     // ---- the routes ------------------------------------------------------------------------------------------------

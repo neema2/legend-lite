@@ -39,7 +39,7 @@ class PureMeaningRewriteTest {
         final List<PureMeaningCheck.Code> codes = new ArrayList<>();
 
         @Override
-        public TypedNativeCall of(PureMeaningCheck.Code code, TypedNativeCall flagged) {
+        public TypedNativeCall of(ModelContext ctx, PureMeaningCheck.Code code, TypedNativeCall flagged) {
             TypedNativeCall copy = new TypedNativeCall(flagged.callee(), flagged.args(), flagged.info(), flagged.pos());
             built.add(copy);
             codes.add(code);
