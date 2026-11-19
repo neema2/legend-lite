@@ -1543,6 +1543,11 @@ final class Fold {
             // is the graph leaf's declared-kind wrapper.)
             return LiteralSpelling.declaredDouble(e);
         }
+        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                && e.type() instanceof com.legend.sql.TypeFact.Typed typed
+                && typed.type() instanceof com.legend.sql.SqlType.Decimal) {
+            return wholeInteger(e);
+        }
         if (t != com.legend.compiler.element.type.Type.Primitive.DATE_TIME
                 && t != com.legend.compiler.element.type.Type.Primitive.DATE) {
             return e;
@@ -1574,6 +1579,27 @@ final class Fold {
     /** The serialize leaf's DECLARED result type (the lambda's
      * FunctionType result — the resolver stamps the MODEL property type
      * there; the body's own info is column-typed). */
+    /**
+     * An INTEGER-declared graph leaf over a DECIMAL value (an Integer property mapped to a DECIMAL column): S371's one
+     * rule, on the object road too (F10 of PR #121's review, 2026-11-19, the orchestrator's (a)) -- a whole value at any
+     * scale is its Integer, a fraction a planned raise ({@code CAST_IMPOSSIBLE}: the value cannot be cast to the
+     * requested type). The database converts, as a TDS cell's decode does on the relation road: until then the object's
+     * JSON spelled the database's decimal (DuckDB's and SQLite's 5.0, H2's 5.00, a fraction 5.5 unrefused). Whole is
+     * {@code value = CAST(value AS BIGINT)}: a fraction never equals an integer, whether a database rounds or truncates
+     * the cast; an absent value stays absent.
+     */
+    private static SqlExpr wholeInteger(SqlExpr e) {
+        com.legend.sql.SqlType integer = PureSql.type(com.legend.compiler.element.type.Type.Primitive.INTEGER);
+        SqlExpr cast = new SqlExpr.Cast(e, integer, SqlExpr.Reason.CARRIER);
+        SqlExpr raise = SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
+                List.of(new SqlExpr.StringLit("Decimal"), new SqlExpr.StringLit("Integer")), null,
+                "Decimal to Integer"));
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e), new SqlExpr.NullLit()),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, e, cast), cast)),
+                raise, SqlExpr.Reason.CARRIER);
+    }
+
     static com.legend.compiler.element.type.Type leafResultType(
             com.legend.compiler.spec.typed.TypedFuncCol leaf) {
         return leaf.fn().functionType().result().type();

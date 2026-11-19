@@ -66,6 +66,37 @@ class IntegerOverDecimalTest {
         }
     }
 
+    /** The graph fetch's route over the same columns, S371's one rule on the object road: each object's Integer the value
+     *  it holds, whole at any scale, and a fraction a planned raise, CAST_IMPOSSIBLE (F10 of the review of PR #121,
+     *  2026-11-19, the orchestrator's (a): until then the object spelled the database's decimal, 5.0 or 5.00, and the
+     *  fraction 5.5 unrefused). */
+    @Test
+    void theGraphFetchAnswersTheIntegerAndRefusesTheFraction() throws Exception {
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            try (Connection c = backend.open()) {
+                Lean.Result objects = Lean.established(model,
+                        "|p::R.all()->graphFetch(#{p::R{id, n}}#)->serialize(#{p::R{id, n}}#)", "p::RT", c);
+                assertEquals("[{\"id\":1,\"n\":5}]", objects.json().replace(" ", "").replace("\n", ""),
+                        backend.type().toString());
+            }
+            try (Connection c = backend.open()) {
+                Lean.Result objects = Lean.established(model, "|p::S.all()->filter(x | $x.id == 2)"
+                        + "->graphFetch(#{p::S{id, f}}#)->serialize(#{p::S{id, f}}#)", "p::RT", c);
+                assertEquals("[{\"id\":2,\"f\":5}]", objects.json().replace(" ", "").replace("\n", ""),
+                        backend.type().toString());
+            }
+            try (Connection c = backend.open()) {
+                com.legend.error.DataError refused = assertThrows(com.legend.error.DataError.class,
+                        () -> Lean.established(model,
+                                "|p::S.all()->graphFetch(#{p::S{id, f}}#)->serialize(#{p::S{id, f}}#)", "p::RT", c),
+                        backend.type().toString());
+                assertEquals(com.legend.error.ErrorKind.CAST_IMPOSSIBLE, refused.kind(), backend.type() + ": " + refused);
+                assertEquals("Decimal to Integer", refused.where(), backend.type() + ": " + refused);
+            }
+        }
+    }
+
     /** The product's door: a relation of the column, and the property read alone, each the Integer 5, on each database
      *  the platform runs in-process; the fraction refused by name. */
     @Test
