@@ -1652,3 +1652,10 @@ who confirms or changes phases 1-3.
   - **Folded into the final plan (14:50):** B1's row (the prototype complete, the two defects it lands); B2's row (the
     defect cell and the default violation message); stage B's size, honestly, about 4 to 5 weeks with B1 and B3 side by
     side (6 weeks of one builder's work).
+- **~14:23 UTC, B1: Windows edge_net GREEN at `e7764c9db`** (run 44537117741): 38 of 38 tests; every overlay row
+  applied and nothing else moved. The job took 11.0 min (was 19.4 before the split, about 26 on the second run). Times
+  (`main`'s run in brackets): Windows corpus_duckdb 2.3 [2.5], corpus_h2 2.4 [2.3], datacube 16.9, core [23.4] still
+  running; Linux core 23.3 [33.5], checks 22.4, datacube 20.2 [18.5], corpus_duckdb 3.5 [5.6], corpus_h2 4.8 [4.0];
+  Linux arm warehouse 10.0. Linux edge_net stopped at analysis on Maven Central's 404s (h2 2.5.252 and 2.1.214) after a
+  repository-cache miss; Linux product on the teavm 404. macOS lanes still queued. edge_net is not the longest lane on
+  Windows. Next: macOS's verdict, Linux's re-run, Windows core, ~14:55.
