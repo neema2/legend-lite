@@ -78,11 +78,24 @@ class PureV1SqlTextTest {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
     private static String answer(java.util.function.Supplier<LiteV1Api.Answer> call) {
+        return answer(call, null);
+    }
+
+    /** An answer's status and compact JSON; with {@code sql}, its activities are taken out into {@code sql} and the
+     *  answer is kept without them, as the edge net records an execute answer since S0 (PureV1EdgeGoldenTest.answer;
+     *  #123, merged here with A5's #124 on 2026-11-19: the activities are pure_v1_plan_text.tsv's line). */
+    private static String answer(java.util.function.Supplier<LiteV1Api.Answer> call,
+            java.util.function.@com.legend.base.Nullable Consumer<String> sql) {
         try {
             LiteV1Api.Answer a = call.get();
             String json = a.json();
             try {
-                json = Json.toCompact(Json.parseObject(json));
+                Json.Obj o = Json.parseObject(json);
+                if (sql != null && o.has("activities")) {
+                    sql.accept(Json.toCompact(o.get("activities")));
+                    o.fields().remove("activities");
+                }
+                json = Json.toCompact(o);
             } catch (RuntimeException notJson) {
                 // an answer that is no JSON object is recorded as it is
             }
@@ -94,6 +107,12 @@ class PureV1SqlTextTest {
 
     private static String masked(String line) {
         return IDS.matcher(line).replaceAll("<id>").replace("\n", "\\n").replace("\r", "");
+    }
+
+    /** An answer as the edge net writes its line since S0 (PureV1EdgeGoldenTest.line): ids masked, each backslash
+     *  doubled before a newline is escaped -- the ordinary request is compared with the net's own lines. */
+    private static String netLine(String line) {
+        return IDS.matcher(line).replaceAll("<id>").replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "");
     }
 
     /** Each request's execute and generatePlan answers, by line name ({@code execute.<name>}, {@code plan.<name>}). */
@@ -109,8 +128,14 @@ class PureV1SqlTextTest {
             String body = "{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":" + model
                     + runtime + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
             if (r.getKey().equals("ordinary")) {
-                out.put("execute." + r.getKey(), masked(answer(() -> com.legend.edge.PureV1Routes.execute(body,
-                        PureV1EdgeGoldenTest.RECORDER))));
+                // the net's three lines for the same request (S0's format): the answer without its activities, the
+                // activities, and the plan (pure_v1_plan_text.tsv holds the last two since #123)
+                String[] activities = new String[1];
+                out.put("execute." + r.getKey(), netLine(answer(() -> com.legend.edge.PureV1Routes.execute(body,
+                        PureV1EdgeGoldenTest.RECORDER), a -> activities[0] = a)));
+                out.put("activities." + r.getKey(), activities[0] == null ? "(none)" : netLine(activities[0]));
+                out.put("plan." + r.getKey(), netLine(answer(() -> com.legend.edge.PureV1Routes.generatePlan(body))));
+                continue;
             }
             out.put("plan." + r.getKey(), masked(answer(() -> com.legend.edge.PureV1Routes.generatePlan(body))));
         }
@@ -139,8 +164,13 @@ class PureV1SqlTextTest {
         }
         // the ordinary request: byte-identical to the net's lines for the same request, recorded before A2
         Map<String, String> net = golden("edge/pure_v1_answers.tsv");
+        // (the activities and the plan: the net's plan-text file since S0, #123 -- merged here with A5's #124,
+        // 2026-11-19, in the batch's order A2, A5, A4)
+        Map<String, String> netPlanText = golden("edge/pure_v1_plan_text.tsv");
         assertEquals(net.get("tds"), answers.get("execute.ordinary"), "the ordinary request's execute answer");
-        assertEquals(net.get("plan.tds"), answers.get("plan.ordinary"), "the ordinary request's plan");
+        assertEquals(netPlanText.get("activities.tds"), answers.get("activities.ordinary"),
+                "the ordinary request's activities");
+        assertEquals(netPlanText.get("plan.tds"), answers.get("plan.ordinary"), "the ordinary request's plan");
         assertFalse(answers.get("plan.ordinary").contains("THREW"), answers.get("plan.ordinary"));
         // the SQL-text requests: their golden lines
         Map<String, String> golden = golden("edge/pure_v1_sql_text.tsv");

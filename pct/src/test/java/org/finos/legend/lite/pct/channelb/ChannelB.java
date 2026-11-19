@@ -422,9 +422,24 @@ public final class ChannelB {
             // in compatibility"; A4 of the compatibility program, stage A ratified by the user 2026-11-19): until A4
             // these runs took -Dpct.channelb.judge, BOTH by default; the test planner now refuses a database-judge
             // verdict for a compatibility audience by name (TestPlanner.refuseTheDatabaseJudgeInCompatibility)
-            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.HOST)
+            .withJudgeMode(compatJudge())
             // legend-pure's texts, spelled by the edge (phase D's D1.0)
             .withStyle(com.legend.edge.PureText.UPSTREAM);
+
+    /** The judge a run under the compatibility rules is planned for: the host's alone (rule 4; A4 of the compatibility program, stage A ratified by the user 2026-11-19).
+     *  {@code -Dpct.channelb.judge} was this runner's judge switch until A4. Set to anything but HOST under these
+     *  rules, it is refused by name rather than ignored, so a run asked for the database judge never reports a host
+     *  run in its place (invariant 4; the reviewer's S2, 2026-11-19; the corpus's MinimalCorpus refuses its 'both' the
+     *  same way). Lite's own rules ({@code -Dpct.channelb.rules=LITE}) still read it ({@link #LITE_OPTIONS}). */
+    private static com.legend.testplan.PlanningOptions.JudgeMode compatJudge() {
+        String asked = System.getProperty("pct.channelb.judge");
+        if (!lite() && asked != null && !asked.equals("HOST")) {
+            throw new IllegalArgumentException("-Dpct.channelb.judge=" + asked + ": under the compatibility rules the"
+                    + " host judge is the only judge (rule 4 of the compatibility program's rules of record); the"
+                    + " database judge runs under lite's own rules, -Dpct.channelb.rules=LITE");
+        }
+        return com.legend.testplan.PlanningOptions.JudgeMode.HOST;
+    }
 
     /** Channel B's options under lite's own rules (the compatibility judges homework's prototype, H6-judges.md 5.1):
      *  the product's (no edge, the product's style and default features), as-of joins the same row on every database,

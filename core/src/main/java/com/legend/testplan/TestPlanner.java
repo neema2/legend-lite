@@ -35,9 +35,9 @@ public final class TestPlanner {
     public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
         refuseTheDatabaseJudgeInCompatibility(options);
         if (options.judgeMode() == PlanningOptions.JudgeMode.BOTH) {
-            // both judges ISOLATED (the user's judge model, 2026-11-17): each plans the body alone; under lite's own
-            // rules their verdicts and messages agree, under the compatibility rules their verdicts (the words are the
-            // host's alone; the orchestrator's (a), 2026-11-17)
+            // both judges ISOLATED (the user's judge model, 2026-11-17): each plans the body alone, and their verdicts and
+            // messages agree. Lite's own rules alone: BOTH under a compatibility style is refused above (A4 of the
+            // compatibility program, stage A ratified by the user 2026-11-19; the reviewer's S3)
             return planIsolated(typed, given, options);
         }
         // the style of this planning call (K10b, 2026-11-17): under the compatibility edge's, a fresh recorder of its

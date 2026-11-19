@@ -595,6 +595,9 @@ lane session each: that is how every round has been run and it is fine. The user
   expected; read the test's own line).
 - PCT channel B judge: `--jvmopt=-Dpct.channelb.judge=HOST|DATABASE|BOTH` (default BOTH). `-Dlegend.judge.mode` is the
   CORPUS's flag and does nothing in PCT (a lost hour, 2026-11-05).
+  (2026-11-19) Since A4 of the compatibility program (stage A, ratified by the user 2026-11-19), the compatibility lanes
+  run the host judge alone, and `-Dpct.channelb.judge` set to anything but HOST is refused by name. The database judge
+  runs on the LITE-PCT lane (`-Dpct.channelb.rules=LITE`, `//pct:pct_channel_b_lite_*`).
 - The switches (`Diagnostics.java`): dump-sql, pct-cases, pct-shapes, corpus-trace, detach-trace, progress, timing,
   corpus-containing, chb-only, primitives, plan-sizes, forbid-walk, sql-sizes, judge-declines.
 
@@ -629,6 +632,8 @@ bazel test //core:core_tests_sql --test_filter=com.legend.sql.dialect.ClickHouse
 # PCT on the in-process lanes (DuckDB is //pct:pct_channel_b and //pct:pct_<suite>; H2 and SQLite have their own)
 bazel test //pct:pct_channel_b //pct:pct_channel_b_h2 //pct:pct_channel_b_sqlite --keep_going --test_output=errors
 bazel test //pct:pct_channel_b_sqlite --jvmopt=-Dpct.channelb.judge=DATABASE --keep_going --test_output=errors
+# (2026-11-19) refused by name since A4: the compatibility lanes run HOST alone; the database judge
+# is the LITE-PCT lane, -Dpct.channelb.rules=LITE
 # the corpus (both passes, every register; ~3-10 min each locally)
 bazel test //gates:corpus_duckdb --test_output=errors
 bazel test //gates:corpus_h2 --test_output=errors
@@ -691,6 +696,10 @@ The message that works (round 22's):
 > as round N-1 for your lanes: channel A all five suites; channel B all five under BOTH (default) and under the DATABASE
 > judge alone (-Dpct.channelb.judge=DATABASE). Report per run PASS/FAIL and the census line, verbatim any "does not
 > match its ledger" block, and whether any line contains "the runtime wall".
+>
+> (2026-11-19) Since A4 of the compatibility program (stage A, ratified by the user 2026-11-19), the compatibility lanes
+> run the host judge alone, and `-Dpct.channelb.judge` set to anything but HOST is refused by name. The database judge
+> runs on the LITE-PCT lane (`-Dpct.channelb.rules=LITE`, `//pct:pct_channel_b_lite_*`).
 
 For a diagnosis add: `-Dlegend.diagnostics=chb-only=<test>,dump-sql,sql-sizes` on one suite, `dmesg | grep -i
 kill` for a server that died, and the server's own error by sending the dumped statement by hand (ClickHouse:
@@ -705,6 +714,10 @@ trust store in `JAVA_TOOL_OPTIONS`, so they append rather than use `--jvmopt`; t
 suite's `bazel-testlogs/pct/<target>/test.log` into `scratchpad/rNN/` per round. Lane names in targets: `postgres`,
 `sqlite`, `mongodb` (A only), `mariadb`, `mysql`, `clickhouse`, `trino`, `databricks`, `snowflake`, `bigquery`, `h2`
 (channel B relation only).
+
+(2026-11-19) Since A4 of the compatibility program (stage A, ratified by the user 2026-11-19), the compatibility lanes
+run the host judge alone, and `-Dpct.channelb.judge` set to anything but HOST is refused by name. The database judge
+runs on the LITE-PCT lane (`-Dpct.channelb.rules=LITE`, `//pct:pct_channel_b_lite_*`).
 
 ### 9.4 Recreating a lane
 

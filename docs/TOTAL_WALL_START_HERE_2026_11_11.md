@@ -1359,6 +1359,9 @@ Each lane session runs one database group. A typical split:
 
 - **PCT runs:** each PCT lane runs channel A, channel B under BOTH (the default), and channel B under DATABASE
   (`--jvmopt=-Dpct.channelb.judge=DATABASE`; cloud lanes pass it through `JAVA_TOOL_OPTIONS` via `--test_env`).
+  (2026-11-19) Since A4 of the compatibility program (stage A, ratified by the user 2026-11-19), the compatibility lanes
+  run the host judge alone, and `-Dpct.channelb.judge` set to anything but HOST is refused by name. The database judge
+  runs on the LITE-PCT lane (`-Dpct.channelb.rules=LITE`, `//pct:pct_channel_b_lite_*`).
 - **Fit:** two or three embedded servers fit in one container. Run the PCT group with `--local_test_jobs=1 --jobs=2`.
 - **Setup:** `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` §9 says how to set lane sessions up and message them.
 
