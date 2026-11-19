@@ -172,3 +172,49 @@ below once it completes.
 **The rules of record:** not engaged. This is CI configuration only, with no core hook, switch or mode.
 
 **CI: every 404 gone?** Pending run 44573295984. To be filled in when it completes.
+
+## PR #126: `markets_test`'s time, the headless host reads a model text's own answers once, head `699331ffd`
+
+**Verdict: APPROVED. CI is pending,** and the Windows `warehouse` lane is the live check.
+
+**What it is.** A product change in lite's own Python host (`python/legend_lite/_headless.py`, `projects.py`), not a
+test change. It adds three bounded memos, plus new tests in `python/tests/test_headless.py`:
+- the `modelElements` answers, by the whole request text, for the latest 4 texts;
+- an extra engine-side hold of each model DataCube's code holds, by its model and library texts, for the latest 2,
+  released when pushed out and at close;
+- `ProjectDatabases`' text-to-database-name map, for the latest 8 texts.
+
+**What I checked myself:**
+
+1. **Every assertion the test made is kept.** `markets_test`'s test file and its BUILD target (timeout and size) are
+   untouched. No case is dropped, skipped or weakened. The only test file in the diff is `test_headless.py`, which
+   gains `ModelTexts`:
+   - an edited text gets its own elements, and the old text keeps its own;
+   - each text's hold is its own, and the holds are let go at close;
+   - an edited project's rows are its own database;
+   - the project memo's bound is kept, and a text pushed out is answered again from the same database.
+2. **No pin, golden, ledger or allowlist moves.** The diff is 3 files, +168/−1.
+3. **The memos are sound, because each answer is a function of its key alone:**
+   - `model/elements` is a parse only (`LiteV1Planning.modelElements`: `Parse.documentJson(model, false)`). The held
+     models play no part, so the same request text gets the same answer;
+   - `compiler.project_data(model, type)` is a function of the text and the database type, and one
+     `ProjectDatabases` has one type;
+   - the hold memo is keyed by the model text and the library text (`datacube/src/lite-planner.ts:466-467`: `library`
+     is a model text, not a handle);
+   - a failed answer is never kept, the request's `id` is rewritten on a memo hit, and the holds are released at
+     close;
+   - the cached project path skips `self._guard()` (the Frames' connection lock) only for a lookup. The guard protects
+     making a database, which the cached path never does, and the cursor was used outside the guard before as well.
+4. **The rules of record hold.**
+   - Rule 1: no value is computed in Python; the memos replay the compiler's own answers.
+   - Rule 2: this is host orchestration, not presentation, and decides nothing.
+   - No mode or switch. It relies on G10 (a text's answer is deterministic), which is ruled.
+
+**Notes (none blocks):**
+- **This is a product change, for the user's word as one.** Its title says "the Python host only", which is true, but
+  that host is lite's own `legend_lite` package. The tab and the server get no such memos. That is a performance
+  difference, not an answer drift, and it should be named.
+- **The hold memo's eviction at `_HELD_KEPT = 2` is not tested.** The tests check the two holds and their release at
+  close, not that a third model releases the oldest. Add a plant.
+- **Memory:** up to 2 compiled copies of a large model stay alive per host beyond DataCube's own holds. That is
+  bounded, and should be stated in the body.
