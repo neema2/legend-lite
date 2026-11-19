@@ -22484,3 +22484,34 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   (two DuckDB threads pulling at once would raise "cannot enter context"; measured on one); `_reads.end_read`'s
   `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
   static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.
+
+## 2026-11-19 — Q2: the warehouse JDBC driver binds what exec sends; the warehouse lane 40 of 41, one case refused by name (S371)
+
+Track Q2 of PR #118's follow-up (branch `claude/warehouse-binds-q2`, the orchestrator's words of 2026-11-19 on parts
+A, B, B' and option (2)). The defect, on main and #118 alike: the warehouse's JDBC client refused every bound parameter,
+so `//spec:corpus_warehouse_verdict` (manual) lost 41 relational-corpus cases.
+
+- **A, the client:** `WhStatement` carries a prepared statement's values (`setString`, `setObject`, `setNull`,
+  `clearParameters`) as the SQL API's `parameters`, bound by the server, never written into the text. The five values
+  the warehouse binds, each as DuckDB's own driver binds the same Java value; any other class, a non-finite double and an
+  unset index refused by name. `ApiJson` wrote a whole double as its digits (2.0 as 2), which bound as BIGINT: it writes
+  a double's own token now.
+- **B, B', the describe:** a describe reports the statement's parameter count (`duckdb_nparams`; written only when
+  set, so no recorded exchange changes) for `getParameterMetaData`; DuckDB's placeholder column (C-API type 0, a result
+  typed only once its values are bound) is named `UNKNOWN` and admitted by the describe's encoder alone, reported as
+  DuckDB's own driver does (`Carriers.signed` named the unsigned types: UNKNOWN is signed). The native image's metadata
+  is unchanged (no new call shape).
+- **Option (2), the load:** exec's file load binds the runner's copy's path, which the warehouse's DuckDB (locked to its
+  own import folder) cannot read: `JdbcStatements.readsFile` refuses it by name on a session another driver of DuckDB
+  reaches (`DatabaseConnector.readsRunnerFiles`, by the driver's name). Row S371 (upstream loads over the connection);
+  an H2 server is its named residual.
+- **Measured:** `//warehouse:tests` green (17 driver-level parameter cases, differential against DuckDB's own driver);
+  the warehouse lane 40 of 41 recovered, `meta::relational::tests::loadCsv::testLoadCsv` LOST by the S371 refusal --
+  the lane stays red on it until the user rules its expected failure (the lane has no roster of its own, spec/corpus.bzl
+  `golden = False`). The lane's wall clock on a 4-core container: 589 s, 555 s and 524 s (the native image built once,
+  about 2 minutes); its heap peaks at about 1 GB before a collection with 233 to 446 MB live, at `memory_mb` 1024 and at
+  2048 alike, so 1024 holds.
+- **`//gates:local` on the merged tree (b75d6c73a merged in):** 557 pass; `//core:census` red on one line, the fixture
+  write census's pin for `WarehouseJdbcParametersTest.java` (6) and its ceiling 951 -> 957, waiting for the user's word;
+  the twelve Postgres targets refuse root in this container (`initdb refuses root`) and pass under
+  `tools/postgres/as_unprivileged.sh` on the same tree; `//spec:corpus_warehouse_verdict` LOST 1 as above.
