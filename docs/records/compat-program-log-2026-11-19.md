@@ -3081,3 +3081,9 @@ who confirms or changes phases 1-3.
 - **~23:25 UTC, the user on S388's corrected basis: "Keep it"** (A stands: recorded, the property's own Pure body). The
   user asked what work is left for A and what #127 is: answered (#127 is A5's PR, kept open as review and CI evidence,
   folding into the batch PR and closed then with a pointer).
+- **~23:31 UTC, B1-R: the reviewer's round 7b70932b3 done** (detector `e9b130d69`, engine `e86b92689`, review
+  `18d5c7181`): R2-S1 (an eval of a variable whose let wasn't taken is unverified, plant P10); R2-S2 (refuseSharedLetRoots
+  refuses a lambda let alone; legend-engine plans a value let read later in its SQL, "CRE", so it is rewritten, plant
+  R8); the let shapes pinned (class-collection let read later clean; a value let holding the call flagged; relation lets
+  refused by legend-engine); the javadoc fixed; probes pushed. Its S388 question answered again (ruled). The judges
+  merge the detector's head; the reviewer checks.
