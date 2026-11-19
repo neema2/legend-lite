@@ -163,6 +163,62 @@ class PureMeaningRewriteTest {
         assertEquals(1, r.in(w.query().body().get(1)));
     }
 
+    /** A let-bound lambda store-bound code uses, read again by a statement computed on the host: the planner's inliner
+     *  reduces the store-bound use into its statement, so the rewrite replaces the call there, and both lets stay as
+     *  written. The host-side read keeps Pure's meaning, as legend-engine computes it (the reviewer's E-S1). */
+    private static final String SHARED_LET = "{|let f = {s: String[1]|$s->indexOf('x')}; let n = $f->eval('abcx'); "
+            + TABLE + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}";
+
+    @Test
+    void aLetReadByTheStoreAndByTheHostIsRewrittenInTheStoresUseAlone() {
+        Recording r = new Recording();
+        ModelContext c = Compiler.compileModel(PureMeaningCheckTest.MODEL);
+        TypedQuery q = Compiler.query(c, SHARED_LET);
+        PureMeaningRewrite.Rewritten w = PureMeaningRewrite.rewrite(q, c, "t::RT", null, r);
+        assertEquals(List.of(PureMeaningCheck.Code.INDEX_OF_2), r.codes);
+        assertEquals(0, r.in(w.query().body().get(0)), "the let is not rewritten in place");
+        assertSame(q.body().get(1), w.query().body().get(1), "the host-side read is kept as written");
+        assertEquals(1, r.in(w.query().body().get(2)));
+    }
+
+    /** Where a let that holds a flagged call is a root and a statement the rewrite does not touch reads it, the
+     *  rewrite refuses by name rather than give the host-side read the database's meaning (the reviewer's E-S1). The
+     *  typer substitutes a let-bound lambda into each use, and the detector walks a let only when its value is a lambda
+     *  store-bound code names, so no query is known to reach this today: the walk's answer is built here as it would
+     *  be, the let a root holding its call, and the host-side read beside it. */
+    @Test
+    void aRewrittenLetAlsoReadOnTheHostIsRefused() {
+        ModelContext c = Compiler.compileModel(PureMeaningCheckTest.MODEL);
+        TypedQuery q = Compiler.query(c, SHARED_LET);
+        TypedSpec let = q.body().get(0);
+        TypedNativeCall call = firstNative(let);
+        assertTrue(call != null, let.toString());
+        PureMeaningCheck.Result walked = new PureMeaningCheck.Result(List.of(new PureMeaningCheck.Site(
+                PureMeaningCheck.Code.INDEX_OF_2, "the query", null, call)), List.of(let, q.body().get(2)));
+        // a host-side statement that reads f by name (the typer substitutes a lambda let into its uses, so the reader
+        // is taken from a query whose f stays a variable)
+        TypedSpec reader = Compiler.query(c, "{|let f = 'abcx'; let n = $f->length(); " + TABLE
+                + "->filter(r|$r.ID == $n)->from(t::RT);}").body().get(1);
+        NotImplementedException e = assertThrows(NotImplementedException.class,
+                () -> PureMeaningRewrite.refuseSharedLetRoots(List.of(let, reader, q.body().get(2)), walked));
+        assertTrue(e.getMessage().contains("the let 'f'"), e.getMessage());
+        // its partner: the same let, read by no statement left on the host, is not refused
+        PureMeaningRewrite.refuseSharedLetRoots(q.body(), walked);
+    }
+
+    private static TypedNativeCall firstNative(TypedSpec n) {
+        if (n instanceof TypedNativeCall nc) {
+            return nc;
+        }
+        for (TypedSpec c : n.children()) {
+            TypedNativeCall found = firstNative(c);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     @Test
     void theCorrectedOptionKeepsSubstringPures_andIndexOfIsRewritten() {
         Recording r = new Recording();

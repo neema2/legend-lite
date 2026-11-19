@@ -123,6 +123,7 @@ final class PureMeaningRewrite {
                     + " cannot be rewritten at this door (a call the check could not follow, or one reached in a"
                     + " mapping or a function the inliner keeps as a call), so this query is refused");
         }
+        refuseSharedLetRoots(inlinedQuery.body(), flagged);
         // 4: exactly those nodes, within the roots the walk walked
         Set<TypedSpec> replaced = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
         java.util.function.UnaryOperator<TypedSpec> rewrite = new java.util.function.UnaryOperator<>() {
@@ -152,6 +153,56 @@ final class PureMeaningRewrite {
                     + nodes.size() + " flagged calls were rewritten, so this query is refused");
         }
         return new Rewritten(inlinedQuery.withBody(out), flagged);
+    }
+
+    /** A let the rewrite would rewrite in place (a root holding a flagged call) that a statement it does not rewrite
+     *  also reads: that statement would get the database's meaning, where legend-engine computes it on the host with
+     *  Pure's. Refused by name (the reviewer's E-S1). The planner's inliner reduces each let-bound lambda a store-bound
+     *  statement uses into that statement, so after inlining no such let is known to stay a root; this holds the
+     *  rewrite to that, whatever a future inliner keeps. */
+    static void refuseSharedLetRoots(List<TypedSpec> body, PureMeaningCheck.Result flagged) {
+        Set<TypedSpec> nodes = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        for (PureMeaningCheck.Site s : flagged.sites()) {
+            if (s.node() != null) {
+                nodes.add(s.node());
+            }
+        }
+        for (TypedSpec root : flagged.roots()) {
+            if (!(root instanceof TypedLet let) || !holds(let.value(), nodes)) {
+                continue;
+            }
+            for (TypedSpec stmt : body) {
+                if (!isRoot(flagged, stmt) && reads(stmt, let.name())) {
+                    throw new NotImplementedException(PureMeaningCheck.SETTING + "=engine: the let '" + let.name()
+                            + "' is sent to the database and also read by a statement computed on the host, so its"
+                            + " calls cannot be given the database's meaning for one and not the other; refused");
+                }
+            }
+        }
+    }
+
+    private static boolean holds(TypedSpec n, Set<TypedSpec> nodes) {
+        if (nodes.contains(n)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (holds(c, nodes)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean reads(TypedSpec n, String name) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v && v.name().equals(name)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (reads(c, name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isRoot(PureMeaningCheck.Result r, TypedSpec stmt) {

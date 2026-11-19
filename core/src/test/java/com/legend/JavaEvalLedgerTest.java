@@ -1898,10 +1898,11 @@ class JavaEvalLedgerTest {
                             // value and changes no query, and the route refuses or warns on what it finds
                             "PureMeaningCheck.java",
                             // 2026-11-19, A3's engine rewrite (the user's ruling of ~20:05, LEGEND_LITE_PURE_MEANING=
-                            // engine; the design approved to build by the independent reviewer; this row PENDING the
-                            // user's word through the compat owner): each call the detector flags replaced by the
-                            // core's native for the database's own function, through the planner's own inliner; it
-                            // computes no value (the database computes the answer) and builds no call of its own
+                            // engine; the design approved to build by the independent reviewer; this row ruled by the
+                            // user 2026-11-19 ~22:20, "Yes to all three", relayed by the compat owner): each call the
+                            // detector flags replaced by the core's native for the database's own function, through
+                            // the planner's own inliner; it computes no value (the database computes the answer) and
+                            // builds no call of its own
                             "PureMeaningRewrite.java",
                             // a pure/v1 request's model, text or PureModelContextData (2026-10-21, leg 8 step 3) -- read
                             // and compiled only; no connection, no JDBC, no value. Moved here from com.legend.server

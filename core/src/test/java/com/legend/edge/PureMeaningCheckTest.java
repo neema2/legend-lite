@@ -98,6 +98,16 @@ class PureMeaningCheckTest {
         assertEquals("substring/3=1", routed.header());
     }
 
+    /** A let whose value is computed with a lambda (not a lambda itself) is a store-free value legend-engine computes on
+     *  the host before the query (H16's probe: a store-free let is computed first, Pure's meaning), so its call is
+     *  not store-bound code. Its partner below: a let whose value IS a lambda the query evaluates is. */
+    @Test
+    void aLetComputedWithALambdaIsHostSide_notStoreBound() {
+        PureMeaningCheck.Result r = check("{|let n = ['ax', 'bx']->map(s|$s->indexOf('x')); " + TABLE
+                + "->filter(r|$r.ID->in($n))->from(t::RT);}");
+        assertTrue(r.clean(), r.header());
+    }
+
     @Test
     void aLetBoundLambdaTheQueryNamesIsStoreBound() {
         PureMeaningCheck.Result r = check("{|let f = {s: String[1]|$s->indexOf('x')}; " + TABLE
@@ -126,6 +136,18 @@ class PureMeaningCheckTest {
     void aQualifiedPropertyTheQueryReadsIsFollowed() {
         PureMeaningCheck.Result r = check("|t::Person.all()->project(~[i: p|$p.initials()])->from(t::M, t::RT)");
         assertEquals("substring/3=1", r.header());
+    }
+
+    /** A graph fetch's tree reads properties that are not the node's children: a qualified property in it is followed,
+     *  as legend-engine computes it in the database (asked of legend-engine 4.145.0: a graphFetch's {@code deskPart()},
+     *  a {@code substring}, answers SQL's 'Cre' on H2 and DuckDB). Its partner: the same fetch without it is clean. */
+    @Test
+    void aQualifiedPropertyAGraphFetchReadsIsFollowed() {
+        PureMeaningCheck.Result r = check("|t::Person.all()->graphFetch(#{t::Person{name,initials}}#)"
+                + "->serialize(#{t::Person{name,initials}}#)->from(t::M, t::RT)");
+        assertEquals("substring/3=1", r.header());
+        assertTrue(check("|t::Person.all()->graphFetch(#{t::Person{name}}#)->serialize(#{t::Person{name}}#)"
+                + "->from(t::M, t::RT)").clean());
     }
 
     @Test

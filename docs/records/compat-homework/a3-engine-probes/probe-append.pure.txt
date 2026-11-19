@@ -1,0 +1,34 @@
+
+###Pure
+Class probe::Trade
+{
+  region: String[1];
+  desk: String[1];
+  book: String[1];
+  year: Integer[1];
+  qtr: String[1];
+  deskPart() { $this.desk->substring(1, 3) }: String[1];
+  deskAt() { $this.desk->indexOf('e') }: Integer[1];
+}
+
+###Mapping
+Mapping probe::M
+(
+  probe::Trade: Relational
+  {
+    ~primaryKey ([trades::h2::DB]TRADES_SCHEMA.TRADES.region, [trades::h2::DB]TRADES_SCHEMA.TRADES.desk, [trades::h2::DB]TRADES_SCHEMA.TRADES.book, [trades::h2::DB]TRADES_SCHEMA.TRADES.year, [trades::h2::DB]TRADES_SCHEMA.TRADES.qtr)
+    ~mainTable [trades::h2::DB]TRADES_SCHEMA.TRADES
+    region: [trades::h2::DB]TRADES_SCHEMA.TRADES.region,
+    desk: [trades::h2::DB]TRADES_SCHEMA.TRADES.desk,
+    book: [trades::h2::DB]TRADES_SCHEMA.TRADES.book,
+    year: [trades::h2::DB]TRADES_SCHEMA.TRADES.year,
+    qtr: [trades::h2::DB]TRADES_SCHEMA.TRADES.qtr
+  }
+)
+
+###Runtime
+Runtime probe::RT
+{
+  mappings: [probe::M];
+  connections: [ trades::h2::DB: [ c2: trades::h2::Conn ] ];
+}
