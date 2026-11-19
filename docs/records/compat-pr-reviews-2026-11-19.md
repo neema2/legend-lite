@@ -347,3 +347,39 @@ still see the engine audience after the merge.
   `start + 1` and `end - start` for `substr` today, and for every `substring` once A3 lands (my rules check, §7 above).
 
 **CI:** pending. The PR was opened at 17:56 UTC.
+
+### PR #127 re-check, head `6f21bed29` (~18:35 UTC)
+
+**Verdict: APPROVED.** The must-fix and all five should-fixes are met. CI on `6f21bed29` is pending.
+
+- **The MUST-FIX is met** (`b08ec103e`, an ordinary merge of #124's combined branch at `f832a6671`).
+  - `PctPlanRoute.audience` is one selector of three: `LEGEND_PURE` (the default), `LEGEND_ENGINE`
+    (`-Dpct.audience=engine`) and `LITE` (`-Dpct.channela.rules=LITE`).
+  - Any other value, and `engine` together with `LITE`, is refused by name, and `PctPlanRouteAudienceTest` plants it.
+  - `RouteAudience.planned(audience == LEGEND_ENGINE && features.isEmpty())` is kept, so `AudienceCheck` still sees
+    every engine case.
+  - Checked by script: the branch now changes 153 files against `main`. That is the union of #127's 49 and the combined
+    branch's 105, plus 2 new test files. Every combined-branch file outside #127's own is byte-identical to
+    `f832a6671`'s. Three files were touched by both sides:
+    - `PctPlanRoute.java`, resolved as above;
+    - `gates/BUILD.bazel`, which adds only `//pct:pct_duckdb_lite` to `heavy`;
+    - `pct/BUILD.bazel`, auto-merged.
+- **Item 1 / S1, LocalFile: met** (`032b8f3ef`). `Targets.forTest` writes `testSessionSetup` only where
+  `Targets.madeInProcess(database)`. That is the predicate the same class already uses for a database's settings: a
+  platform, the system catalog or a connection's in-memory database. A declared file keeps its own `threads`. It is
+  planted in `PlanMakerDuckDbTest`.
+- **S2: met.** `VerdictBatch.raisingRuns`' gap now names casts as well as literals.
+- **S3: met.** `ChannelBLedgerTest` checks that `ChannelBLedger.DISAGREEMENT` equals
+  `Class.forName("com.legend.testexec.IsolatedRun$JudgesDisagree").getSimpleName() + ": "`, so a rename fails the test.
+- **S4: met by construction.** `AssertBarTest` plants it: a zoned minute is normalised to GMT at parse, and a zoned
+  hour is refused at parse. legend-pure's `DateFormat` refuses `14+0100` too. So no zone ever reaches `toTheMinute`.
+- **S5:** in the body, as words.
+- **Item 3: the owner's ruling, accepted.**
+  - `RootLoops.Run.raiseRejection` replaces the `IllegalStateException`. Where the judged segment raised nothing, the
+    held rejection fails the body with the database's own error. That is a loud failure with the true cause, not a
+    fallback.
+  - The argument that it is unreachable holds: `judge` walks every root, `received` refuses a non-member, and a member
+    read with no row raises first.
+  - `RootLoopsRejectionTest` covers the reachable path and `raiseRejection` itself.
+  - One cost, noted: if a runner defect ever reached it, it would read as an ordinary database failure rather than as
+    a defect.
