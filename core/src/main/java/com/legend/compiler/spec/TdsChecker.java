@@ -169,7 +169,12 @@ final class TdsChecker {
         return switch (typeName) {
             case "Integer" -> Type.Primitive.INTEGER;
             case "Float", "Number" -> Type.Primitive.FLOAT;
-            case "Decimal" -> new Type.PrecisionDecimal(Type.PrecisionDecimal.MAX_PRECISION, 0);
+            // plain Decimal, as legend-pure types a TDS column `a:Decimal` (TDSExtension.processType: the raw type,
+            // type-variable values only where written). Until 2026-11-19 a Decimal(38, 0), a scale of 0 nobody wrote
+            // (F51, invariant 4): a database that casts its root to the column's type (RootNumericTypes) cut 0.1 + 0.2
+            // to 0 (Q1 of docs/records/pr118-audit-2026-11-18/FOLLOW_UPS.md: Trino, Databricks, Snowflake, ClickHouse,
+            // Postgres). Each cell is the exact decimal of its digits (Scalars.tdsCell)
+            case "Decimal" -> Type.Primitive.DECIMAL;
             case "Boolean" -> Type.Primitive.BOOLEAN;
             case "String" -> Type.Primitive.STRING;
             case "StrictDate" -> Type.Primitive.STRICT_DATE;

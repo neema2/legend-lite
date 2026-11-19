@@ -762,15 +762,27 @@ public class BigQuery extends AnsiSqlRenderer {
         }
     }
 
-    /** NUMERIC CHARTER Rule 1: a Float literal is typed exact-decimal by the database -- {@code 1.5} alone is a
-     *  FLOAT64 here, so it is spelled {@code BIGNUMERIC '1.5'} ({@code 0.1 + 0.2} is 0.3, measured); a magnitude
-     *  BIGNUMERIC cannot hold, and NaN and the infinities, are FLOAT64. */
+    /** A Float literal is the double (register S20, "IEEE everywhere"; built here 2026-11-19, F39 and Q1 of the PR #118
+     *  follow-ups: until then {@code BIGNUMERIC '0.1' + BIGNUMERIC '0.2'}, which answered 0.3). */
     @Override
     public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
-        // of its digits, written below
-        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE;
     }
+
+    /** The double's shortest digits in exponent form: "numeric literals that contain either a decimal point or an
+     *  exponent marker are presumed to be type double" (BigQuery's lexical reference), a FLOAT64; NaN, the infinities
+     *  and a negative zero as {@link #decimalFloatLiteral} writes them, FLOAT64s cast from their text. */
+    @Override
+    protected String floatLiteral(double v) {
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L || !Double.isFinite(v)) {
+            return decimalFloatLiteral(v);
+        }
+        return doubleLiteral(v);
+    }
+
+    /** NUMERIC CHARTER Rule 1, for a literal the lowering writes itself (a user's Float literal is the double,
+     *  {@link #floatLiteral}): exact-decimal -- {@code 1.5} alone is a FLOAT64 here, so it is spelled
+     *  {@code BIGNUMERIC '1.5'}; a magnitude BIGNUMERIC cannot hold, and NaN and the infinities, are FLOAT64. */
 
     @Override
     protected String decimalFloatLiteral(double v) {
@@ -811,9 +823,10 @@ public class BigQuery extends AnsiSqlRenderer {
             case SqlExpr.IntLit i -> true;
             case SqlExpr.NullLit n -> true;
             case SqlExpr.DecimalLit d -> fitsBigNumeric(d.value());
+            // a user's Float literal is the double (S20), held as FLOAT64; one the lowering writes itself is exact
             case SqlExpr.FloatLit f -> {
-                java.math.BigDecimal p = Double.isFinite(f.value()) ? com.legend.sql.SqlTyping.floatDecimal(f.value())
-                        : null;
+                java.math.BigDecimal p = !f.isDouble() && Double.isFinite(f.value())
+                        ? com.legend.sql.SqlTyping.floatDecimal(f.value()) : null;
                 yield p != null && fitsBigNumeric(p);
             }
             default -> false;

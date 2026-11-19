@@ -540,13 +540,16 @@ public class ClickHouse extends AnsiSqlRenderer {
 
     /** A VALUES column's type, declared here (DuckDB's VALUES types a column by its rows): a Decimal widened to its
      *  literals' largest scale (a Number column is labeled DECIMAL(38,0) and holds 101.101, which the declared type
-     *  would truncate, measured). */
+     *  would truncate, measured). A Decimal no scale is declared for (a relation literal's {@code a:Decimal} column,
+     *  plain Decimal since 2026-11-19, F51) is its literals' own: DECIMAL(38, the largest scale), as before -- the
+     *  unbounded carrier's scale 18 would print 0.1 as 0.100000000000000000 and make a product of two such columns a
+     *  scale of 36, which ClickHouse's 38 digits overflow. */
     private static SqlType valuesType(com.legend.sql.SqlSource.Values v, int column) {
         SqlType t = v.outputs().get(column).type();
         if (!(t instanceof SqlType.Decimal d)) {
             return t;
         }
-        int scale = d.scale();
+        int scale = t.equals(RootNumericTypes.UNBOUNDED_DECIMAL) ? 0 : d.scale();
         for (List<SqlExpr> row : v.rows()) {
             if (typeOf(row.get(column)) instanceof SqlType.Decimal cell) {
                 scale = Math.max(scale, cell.scale());
@@ -864,14 +867,26 @@ public class ClickHouse extends AnsiSqlRenderer {
         return "toDateTime64('" + spelled + "', " + (nanos ? 9 : 6) + ", 'UTC')";
     }
 
-    /** NUMERIC CHARTER Rule 1: a Float literal is an exact Decimal of its own digits ({@code 1.5} alone is a Float64
-     *  here); NaN and the infinities are Float64. */
+    /** A Float literal is the double (register S20, "IEEE everywhere"; built here 2026-11-19, F39 and Q1 of the PR #118
+     *  follow-ups: until then a Decimal of its digits, {@code CAST('0.1' AS Decimal(2, 1))}, so 0.1 + 0.2 answered
+     *  0.3). */
     @Override
     public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
-        // of its digits, written below
-        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE;
     }
+
+    /** The double's shortest digits in exponent form, a Float64 here ({@code 1.5} alone is one too); NaN, the
+     *  infinities and a negative zero as {@link #decimalFloatLiteral} writes them. */
+    @Override
+    protected String floatLiteral(double v) {
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L || !Double.isFinite(v)) {
+            return decimalFloatLiteral(v);
+        }
+        return doubleLiteral(v);
+    }
+
+    /** NUMERIC CHARTER Rule 1, for a literal the lowering writes itself (a user's Float literal is the double,
+     *  {@link #floatLiteral}): an exact Decimal of its own digits; NaN and the infinities are Float64. */
 
     @Override
     protected String decimalFloatLiteral(double v) {
@@ -1743,8 +1758,9 @@ public class ClickHouse extends AnsiSqlRenderer {
             return writer.append("CAST(").expr(c.value(), 0).append(" AS Nullable(Decimal(" + d.precision() + ", "
                     + d.scale() + ")))");
         }
-        // (a Float literal is a Decimal by its digits, so before the Decimal's text below)
-        if (c.target() == SqlType.Scalar.VARCHAR && c.value() instanceof SqlExpr.FloatLit f
+        // (a Float literal of the DECIMAL kind is a Decimal by its digits, so before the Decimal's text below; a user's
+        // is the double, S20, whose text is the double's arm below)
+        if (c.target() == SqlType.Scalar.VARCHAR && c.value() instanceof SqlExpr.FloatLit f && !f.isDouble()
                 && com.legend.sql.SqlTyping.floatDecimal(f.value()) instanceof java.math.BigDecimal b) {
             // a Float literal's text: its shortest digits, one fraction digit at least (Pure's 3.0, 0.00000001)
             return writer.append("toDecimalString(").expr(c.value(), 0)
@@ -2300,9 +2316,10 @@ public class ClickHouse extends AnsiSqlRenderer {
         return w -> w.append("toDecimal128(").expr(a.get(i), 0).append(", " + scale + ")");
     }
 
-    /** {@code e}'s scale where it is a Decimal (a Float literal is one by its digits), else null. */
+    /** {@code e}'s scale where it is a Decimal (a DECIMAL-kind Float literal is one by its digits), else null. */
     private static @com.legend.base.Nullable Integer decimalScale(SqlExpr e) {
-        if (e instanceof SqlExpr.FloatLit f && com.legend.sql.SqlTyping.floatDecimal(f.value()) instanceof java.math.BigDecimal b) {
+        if (e instanceof SqlExpr.FloatLit f && !f.isDouble()
+                && com.legend.sql.SqlTyping.floatDecimal(f.value()) instanceof java.math.BigDecimal b) {
             return Math.max(b.stripTrailingZeros().scale(), 0);
         }
         return typeOf(e) instanceof SqlType.Decimal d ? d.scale() : null;
@@ -2311,7 +2328,12 @@ public class ClickHouse extends AnsiSqlRenderer {
     /** The modulo for these operands: moduloOrZero (no constant-folded raise), plain modulo over a Decimal. */
     private static String modulo(List<SqlExpr> a) {
         return typeOf(a.get(0)) instanceof SqlType.Decimal || typeOf(a.get(1)) instanceof SqlType.Decimal
-                || a.get(0) instanceof SqlExpr.FloatLit || a.get(1) instanceof SqlExpr.FloatLit ? "modulo" : "moduloOrZero";
+                || decimalFloatLit(a.get(0)) || decimalFloatLit(a.get(1)) ? "modulo" : "moduloOrZero";
+    }
+
+    /** A Float literal of the DECIMAL kind (one the lowering writes itself): a Decimal here; a user's is the double. */
+    private static boolean decimalFloatLit(SqlExpr e) {
+        return e instanceof SqlExpr.FloatLit f && !f.isDouble();
     }
 
     /** The temporal arms of {@link #call} (held to its 250 lines). */

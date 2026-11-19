@@ -62,6 +62,9 @@ test_suite(
         # isNumeric's one rule on DuckDB, H2, SQLite and the embedded Postgres 16 (census J20); found in no lane by CI's
         # lane guard on PR #118 (PR #118 fix round, 2026-11-18)
         "//core:is_numeric_probe_test",
+        # a Float the double and a Decimal exact on DuckDB, H2, SQLite and the embedded Postgres 16, every dialect's
+        # statement planned (Q1 of the PR #118 follow-ups, 2026-11-19)
+        "//core:numbers_probe_test",
         # the #SQL{}# island's cases on the embedded Postgres 16: Postgres's own answers, and the islands through the
         # Postgres dialect
         "//core:sql_island_postgres_test",

@@ -624,6 +624,9 @@ legend_java_library(
             "src/test/java/com/legend/server/PostgresArmTest.java",
             # isNumeric's one rule run on four databases, Postgres among them: :is_numeric_probe_test's alone (J20)
             "src/test/java/com/legend/planner/IsNumericProbeTest.java",
+            # a Float the double and a Decimal exact, run on four databases, Postgres among them: :numbers_probe_test's
+            # alone (Q1 of the PR #118 follow-ups, 2026-11-19)
+            "src/test/java/com/legend/planner/NumbersProbeTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             # MongoDbPlanTest and MongoDbDifferentialTest are :mongodb_plan_test's alone: the embedded MongoDB and
@@ -1180,6 +1183,31 @@ junit_test(
     deps = [
         ":core",
         ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# A FLOAT IS THE DOUBLE AND A DECIMAL IS EXACT, ON EVERY DATABASE (Q1 of the PR #118 follow-ups, 2026-11-19): the product
+# probe's four ways run on DuckDB, H2, SQLite and the embedded Postgres (the Decimal scale Postgres lost reached no lane:
+# the probe is manual), and every product dialect's statement for them planned, the clouds' among them.
+junit_test(
+    name = "numbers_probe_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/planner/NumbersProbeTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.planner.NumbersProbeTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )

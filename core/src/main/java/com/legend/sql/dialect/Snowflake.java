@@ -330,12 +330,23 @@ public class Snowflake extends AnsiSqlRenderer {
     // orchestrator's note, 2026-11-09, upstream fidelity: until then the finer digits were cut to a microsecond, and a
     // literal and its parameter answered apart).
 
-    /** A Float literal's plain spelling; NaN and the infinities as FLOAT text (a bare {@code NaN} is no literal). */
+    /** A Float literal is the double (register S20, "IEEE everywhere"; built here 2026-11-19, F39 and Q1 of the PR #118
+     *  follow-ups: until then the DECIMAL of its digits, so {@code 0.1 + 0.2} answered 0.3). */
     @Override
     public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
-        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
-        // of its digits, written below
-        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE;
+    }
+
+    /** The double, cast from its shortest text, which Snowflake reads as the nearest double: a numeric constant is a
+     *  NUMBER here with or without an exponent ({@code SYSTEM$TYPEOF(1E10)} is {@code NUMBER(11,0)}, Snowflake's
+     *  SYSTEM$TYPEOF reference), so no bare spelling is a double; NaN and the infinities as FLOAT text, a negative zero
+     *  from its text, as {@link #decimalFloatLiteral} writes them. */
+    @Override
+    protected String floatLiteral(double v) {
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L || !Double.isFinite(v)) {
+            return decimalFloatLiteral(v);
+        }
+        return "CAST('" + Double.toString(v) + "' AS DOUBLE)";
     }
 
     @Override
@@ -352,9 +363,8 @@ public class Snowflake extends AnsiSqlRenderer {
             return v > 0 ? "CAST('inf' AS DOUBLE)" : "CAST('-inf' AS DOUBLE)";
         }
         // the literal is the DECIMAL of its digits (SqlTyping.decimalLitType, DuckDB's reading): Snowflake drops a
-        // trailing zero's scale (17.0 is a NUMBER(2,0), its text '17', measured), so such a literal spells its type
-        // S20's DOUBLE literal is not built here yet (Phase 5b, 2026-11-17: the Snowflake lane measures its form
-        // first); the literal stays the DECIMAL of its digits
+        // trailing zero's scale (17.0 is a NUMBER(2,0), its text '17', measured), so such a literal spells its type.
+        // A user's Float literal is the double (floatLiteral, S20); this kind is a literal the lowering writes itself
         String plain = plainFloat(v);
         java.math.BigDecimal digits = com.legend.sql.SqlTyping.floatDecimal(v);
         if (digits != null && digits.scale() > 0 && digits.stripTrailingZeros().scale() < digits.scale()) {

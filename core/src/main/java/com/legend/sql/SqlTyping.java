@@ -164,6 +164,11 @@ public final class SqlTyping {
     static final TypeFact T_TIME = typed(SqlType.Scalar.TIME);
     static final TypeFact T_JSON = typed(SqlType.Scalar.JSON);
 
+    /** The SQL type of a Decimal no precision is declared for: the lowering's carrier for a plain Decimal
+     *  ({@code PureSql.type(DECIMAL)}, legend-engine's carrier precision), which states no scale of its own
+     *  ({@code dialect.RootNumericTypes} casts no root column to it). */
+    public static final SqlType UNBOUNDED_DECIMAL = new SqlType.Decimal(38, 18);
+
     // ------------------------------------------------------------------
     // THE LABEL FLIP (TYPED_SQL_IR.md §3/§6, executed 2026-08-24): an
     // OutputCol label is the PURE-CONTRACT erasure; the projection's
@@ -1374,11 +1379,17 @@ public final class SqlTyping {
      * falls to {@link #numericPromotion}): any DOUBLE operand wins;
      * the NULL value propagates (strict); integers enter the fold as
      * DECIMAL(10,0)/BIGINT (19,0)/HUGEINT (38,0). Pairwise LEFT fold:
-     * PLUS/MINUS s=max(s1,s2), w=max(p1-s1,p2-s2)+s+1; TIMES s=s1+s2,
-     * w=p1+p2 — each step capped at the operands' storage-class
-     * boundary: 18 when BOTH operand widths &le;18 (the int64 class —
-     * the carry digit never promotes across it: probed
-     * (18,0)+(18,0)&rarr;(18,0)), else 38. */
+     * PLUS/MINUS s=max(s1,s2), w=max(p1-s1,p2-s2)+s+1 — each step
+     * capped at the operands' storage-class boundary: 18 when BOTH
+     * operand widths &le;18 (the int64 class — the carry digit never
+     * promotes across it: probed (18,0)+(18,0)&rarr;(18,0)), else 38;
+     * TIMES s=s1+s2, w=p1+p2, capped at 38 alone: the exact product's
+     * own digits (2026-11-19, Q1 of the PR #118 follow-ups: DuckDB's
+     * int64-class cap typed {@code 123456789.123456789D * 3.0D} a
+     * DECIMAL(18,10), which no database holds the value in -- DuckDB's
+     * own product overflowed until its dialect widened it (D1,
+     * {@code DuckDb.decimalProductWidened}), and a root cast to the type
+     * overflowed on Trino, Postgres, Databricks and Snowflake). */
     private static @com.legend.base.Nullable TypeFact decimalArith(
             boolean multiply, List<SqlExpr> a) {
         if (a.isEmpty()) {
@@ -1387,6 +1398,7 @@ public final class SqlTyping {
         boolean sawDecimal = false;
         boolean bottom = false;
         boolean dbl = false;
+        boolean unbounded = false;
         java.util.List<int[]> ds = new java.util.ArrayList<>(a.size());
         for (SqlExpr e : a) {
             TypeFact f = e.type();
@@ -1402,6 +1414,7 @@ public final class SqlTyping {
                 dbl = true;
             } else if (ty instanceof SqlType.Decimal d) {
                 sawDecimal = true;
+                unbounded |= d.equals(UNBOUNDED_DECIMAL);
                 ds.add(new int[] {d.precision(), d.scale()});
             } else if (ty == SqlType.Scalar.INTEGER) {
                 ds.add(new int[] {10, 0});
@@ -1422,12 +1435,18 @@ public final class SqlTyping {
         if (dbl) {
             return T_DOUBLE;
         }
+        if (multiply && unbounded) {
+            // a Decimal no scale is declared for (the carrier's DECIMAL(38,18), PureSql.type(DECIMAL)) states none:
+            // its product's scale is the database's own exact one, not 18 + s2 (a #TDS Decimal column's 0.1 times
+            // 0.2 claimed DECIMAL(38,36), and a root cast to it overflowed, 2026-11-19, Q1) -- unbounded too
+            return typed(UNBOUNDED_DECIMAL);
+        }
         int p = ds.get(0)[0];
         int s = ds.get(0)[1];
         for (int i = 1; i < ds.size(); i++) {
             int p2 = ds.get(i)[0];
             int s2 = ds.get(i)[1];
-            int cap = p <= 18 && p2 <= 18 ? 18 : 38;
+            int cap = !multiply && p <= 18 && p2 <= 18 ? 18 : 38;
             int ns;
             int nw;
             if (multiply) {

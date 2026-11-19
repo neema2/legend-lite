@@ -32,8 +32,9 @@ import java.util.Map;
  */
 final class RootNumericTypes extends SqlRewriter {
 
-    /** The SQL type of a Decimal no precision is declared for (the lowering's {@code PureSql.type(DECIMAL)}). */
-    private static final SqlType UNBOUNDED_DECIMAL = new SqlType.Decimal(38, 18);
+    /** The SQL type of a Decimal no precision is declared for (the lowering's {@code PureSql.type(DECIMAL)}): it states
+     *  no scale of its own (ClickHouse's typed VALUES reads it so too). */
+    static final SqlType UNBOUNDED_DECIMAL = com.legend.sql.SqlTyping.UNBOUNDED_DECIMAL;
 
     @Override
     public SqlQuery rewriteRoot(SqlQuery q) {
