@@ -4,9 +4,11 @@
 package com.legend.tools.guards;
 
 import com.legend.tools.edgenet.EdgeNormalize;
+import com.legend.tools.edgenet.PlatformOverlay;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -122,5 +124,87 @@ class EdgeNormalizeTest {
                 "top-level elements, not split inside a string, an array or an object");
         assertEquals("O\"Brien\\né", EdgeNormalize.text("\"O\\\"Brien\\\\n\\u00e9\""),
                 "a string's escapes read");
+    }
+
+    // THE PLATFORM OVERLAY (2026-11-19, the program owner's call on PR #123's first Windows run): an OS's rows rewrite
+    // that OS's last-place maths to Linux's on that OS only; a stale row or another value fails; on every other OS the
+    // row's Linux value is checked against the recording, so the overlay cannot drift from the golden
+
+    private static final String SINH = "testSinH_Eval\t003\tVALUE\ttype=FLOAT values=Double:%s;";
+
+    private static List<PlatformOverlay.Row> windowsRow() {
+        return PlatformOverlay.parse("windows", List.of("suite\ttest\tcase\tdatabases\tfunction\tlinux\twindows",
+                "standard\ttestSinH_Eval\t003\tduckdb,sqlite\tsinh\t-0.8423951260776953\t-0.8423951260776952"));
+    }
+
+    @Test
+    void anOverlayRewritesItsOsValueToLinuxsOnItsOs() {
+        List<String> windows = List.of(SINH.formatted("-0.8423951260776952"), "testOther\t001\tVALUE\tx");
+        assertEquals(List.of(SINH.formatted("-0.8423951260776953"), "testOther\t001\tVALUE\tx"),
+                PlatformOverlay.applied(windows, "sqlite_standard_answers.tsv", windowsRow(), "windows"),
+                "on Windows the row's line takes Linux's value, and no other line moves");
+    }
+
+    @Test
+    void onAnotherOsTheRowsLinuxValueIsChecked() {
+        List<String> linux = List.of(SINH.formatted("-0.8423951260776953"));
+        assertEquals(linux, PlatformOverlay.applied(linux, "duckdb_standard_answers.tsv", windowsRow(), "linux"),
+                "on Linux a row whose Linux value is the recording's changes nothing");
+        assertThrows(IllegalStateException.class, () -> PlatformOverlay.applied(
+                List.of(SINH.formatted("-0.8423951260776954")), "duckdb_standard_answers.tsv", windowsRow(), "linux"),
+                "a row whose Linux value is not the recording's (the golden's, on Linux) fails: the overlay drifted");
+    }
+
+    @Test
+    void aStaleRowFails() {
+        assertThrows(IllegalStateException.class, () -> PlatformOverlay.applied(
+                List.of("testOther\t001\tVALUE\tx"), "duckdb_standard_answers.tsv", windowsRow(), "windows"),
+                "a row that finds no line fails on its OS");
+        assertThrows(IllegalStateException.class, () -> PlatformOverlay.applied(
+                List.of("testOther\t001\tVALUE\tx"), "duckdb_standard_answers.tsv", windowsRow(), "linux"),
+                "and on every other OS");
+    }
+
+    @Test
+    void anotherValueOnItsOsFails() {
+        assertThrows(IllegalStateException.class, () -> PlatformOverlay.applied(
+                List.of(SINH.formatted("-0.8423951260776999")), "duckdb_standard_answers.tsv", windowsRow(), "windows"),
+                "a line holding neither value is a new difference, and fails");
+    }
+
+    private static List<PlatformOverlay.Row> macosRow() {
+        return PlatformOverlay.parse("macos", List.of("suite\ttest\tcase\tdatabases\tfunction\tlinux\tmacos",
+                "standard\ttestSinH_Eval\t003\tduckdb,sqlite\tsinh\t-0.8423951260776953\t-0.8423951260776952"));
+    }
+
+    // a fact two OSes both move (2026-11-19: macOS and Windows both move testSinH_Eval 003): each OS's own row rewrites
+    // its line before the other OS's row checks Linux's value, whichever overlay is listed first
+    @Test
+    void aFactTwoOsesMoveIsAppliedOnEachWhicheverOverlayComesFirst() {
+        List<PlatformOverlay.Row> windowsFirst = new java.util.ArrayList<>(windowsRow());
+        windowsFirst.addAll(macosRow());
+        List<PlatformOverlay.Row> macosFirst = new java.util.ArrayList<>(macosRow());
+        macosFirst.addAll(windowsRow());
+        List<String> moved = List.of(SINH.formatted("-0.8423951260776952"));
+        List<String> linux = List.of(SINH.formatted("-0.8423951260776953"));
+        for (List<PlatformOverlay.Row> rows : List.of(windowsFirst, macosFirst)) {
+            assertEquals(linux, PlatformOverlay.applied(moved, "duckdb_standard_answers.tsv", rows, "macos"),
+                    "on macOS its row rewrites the line, then Windows' row finds Linux's value");
+            assertEquals(linux, PlatformOverlay.applied(moved, "duckdb_standard_answers.tsv", rows, "windows"),
+                    "on Windows likewise");
+            assertEquals(linux, PlatformOverlay.applied(linux, "duckdb_standard_answers.tsv", rows, "linux"),
+                    "on Linux both rows' Linux value is the recording's");
+        }
+    }
+
+    @Test
+    void anOverlayTouchesOnlyItsGoldens() {
+        List<String> lines = List.of(SINH.formatted("-0.8423951260776952"));
+        assertEquals(lines, PlatformOverlay.applied(lines, "duckdb_essential_answers.tsv", windowsRow(), "windows"),
+                "another suite: the row is not this golden's");
+        assertEquals(lines, PlatformOverlay.applied(lines, "h2_standard_answers.tsv", windowsRow(), "windows"),
+                "another database: the row is not this golden's");
+        assertEquals(lines, PlatformOverlay.applied(lines, "channel_b_duckdb_standard_outcomes.tsv", windowsRow(),
+                "windows"), "an outcomes file: overlays are for answers");
     }
 }

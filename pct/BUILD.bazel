@@ -913,12 +913,24 @@ _EDGE_RECORDED = {
     for s in suites
 }
 
+# THE PLATFORM OVERLAYS (the compatibility program's slice 0.2, 2026-11-19, the program owner's call on PR #123's first
+# Windows and macOS runs): the goldens are Linux's, every digit pinned; DuckDB and SQLite take acos, asin, cot, sinh,
+# cosh, tanh, cbrt and pow from the platform's C maths library, whose last place differs on Windows and on macOS. Each
+# overlay row names one such value (suite, test, case, databases, function, the Linux value, that OS's value); the
+# normalizer applies an OS's rows on that OS only, fails on a row that finds no line (stale) or a line holding another
+# value, and on every other OS checks the row's Linux value against the recording -- so an overlay cannot drift from
+# the golden (tools/edgenet's PlatformOverlay; tools/edgenet/README.md). New pinned files, for the user's word.
+_EDGE_OVERLAYS = [
+    "src/test/resources/edge/overlay_macos.tsv",
+    "src/test/resources/edge/overlay_windows.tsv",
+]
+
 [java_run(
     name = "edge_norm_" + golden.split("/")[-1].removesuffix(".tsv"),
     testonly = True,
-    srcs = [":" + recorded],
+    srcs = [":" + recorded] + _EDGE_OVERLAYS,
     outs = ["edge_norm/" + golden.split("/")[-1]],
-    arguments = ["$(execpath :%s)" % recorded, "{OUT}"],
+    arguments = ["$(execpath :%s)" % recorded, "{OUT}"] + ["$(execpath %s)" % o for o in _EDGE_OVERLAYS],
     main_class = "com.legend.tools.edgenet.EdgeNormalize",
     mnemonic = "EdgeNormalize",
     deps = ["//tools/edgenet"],
@@ -935,7 +947,8 @@ test_suite(
     name = "edge_contract_test",
     tests = [
         ":update_edge_contract_tests",
-        "//spec:update_edge_corpus_tests",
+        "//spec:update_edge_corpus_duckdb_tests",
+        "//spec:update_edge_corpus_h2_tests",
         "//core:update_edge_pure_v1_tests",
         # the missing cases and the net's own proof (S0 of the presentation program, 2026-11-18): the recorder's half
         # here, the normalizer's in //tools/guards (the review of PR #123, 2026-11-19)
@@ -1167,10 +1180,19 @@ test_suite(
     tests = [":update_batteries_tests"],
 )
 
-# THE EDGE NET (S0 of the presentation program, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
-# §4 (d)): every recording above, in-process on DuckDB, H2 and SQLite, and the net's proof. It runs on every push, a
-# lane of its own (//gates:edge_net; the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19).
+# THE EDGE NET PER PUSH (S0 of the presentation program, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
+# §4 (d); a lane of its own, //gates:edge_net, the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19):
+# every recording above, in-process on DuckDB, H2 and SQLite, and the net's proof -- all of edge_contract_test but the
+# corpus ledgers' four diff tests, which run in the corpus lanes beside the host passes they read (the owner's call on
+# the per-push cost, 2026-11-19: the DuckDB pass was the net's whole critical path). edge_contract_test stays the
+# whole net, for a hand run.
 test_suite(
     name = "edge_net",
-    tests = [":edge_contract_test"],
+    tests = [
+        ":update_edge_contract_tests",
+        "//core:update_edge_pure_v1_tests",
+        "//core:update_edge_cases_tests",
+        ":pct_edge_net_planted_test",
+        "//tools/guards:edge_normalize_test",
+    ],
 )

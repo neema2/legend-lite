@@ -39,14 +39,22 @@ public final class EdgeNormalize {
     private EdgeNormalize() {
     }
 
+    /** Arguments: {@code <in> <out> [overlay_<os>.tsv ...]}: the recording, the normalized output, and the platform
+     *  overlays ({@link PlatformOverlay}), applied to the golden {@code <out>}'s file name names. */
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("EdgeNormalize <in> <out>");
+        if (args.length < 2) {
+            throw new IllegalArgumentException("EdgeNormalize <in> <out> [overlay_<os>.tsv ...]");
         }
         List<String> out = new ArrayList<>();
         for (String line : Files.readAllLines(Path.of(args[0]), StandardCharsets.UTF_8)) {
             out.add(normalized(line));
         }
+        List<PlatformOverlay.Row> rows = new ArrayList<>();
+        for (int i = 2; i < args.length; i++) {
+            rows.addAll(PlatformOverlay.read(Path.of(args[i])));
+        }
+        out = PlatformOverlay.applied(out, Path.of(args[1]).getFileName().toString(), rows,
+                PlatformOverlay.currentOs());
         Collections.sort(out);
         StringBuilder text = new StringBuilder();
         for (String line : out) {
