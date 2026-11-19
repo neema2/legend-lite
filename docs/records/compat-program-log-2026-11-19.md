@@ -1501,3 +1501,25 @@ who confirms or changes phases 1-3.
   - **the window-in-a-list lowering** stays paused until stage B;
   - the product orchestrator told, and asked not to resume those sessions in parallel.
   The user also asked what the detector's default is and what ratifying stage A means concretely (answered in chat).
+- **~14:06 UTC, B1-R: PR #124 at `fa8294cca`.** Local gate green (623 pass, 1 skipped; 12 fail only because initdb
+  refuses root here, and pass as a non-root user). CI run 44531926654: **Linux** green on pct_duckdb, pct_h2, edge_net,
+  pct_channel_b, checks, stress, parser_equivalence, corpus_duckdb, datacube, sdlc, warehouse, pct_postgres; red only on
+  Maven 404s (ui `duckdb_jdbc-1.5.5.1.jar`, product `rhino-1.7.15.jar`, corpus_h2 `h2-2.1.214.jar`); core running.
+  **Windows** green on 14 lanes (the batteries' path fix proven), red on edge_net (#123's float digits; the overlay at
+  `e7764c9db` not yet proven); no 404s. **macOS** 8 green so far. Linux arm warehouse green. **Times:** Linux pct_duckdb
+  8.3 min (the five DuckDB ENGINE lanes about 2.5 min beside PCT; batteries about 7 s); pct_h2 7.1 min (was 5.6; the
+  three H2 lanes about 1.7 min); Windows pct_duckdb 9.9 min, pct_h2 5.2 min; macOS pct_h2 6.0 min. Next: one merge of
+  B1's head (and the Maven mirror once on `main`), then the final per-OS results.
+- **~14:07 UTC, the product orchestrator on the taken-over pieces:** (1) Maven: `f183b784a` is a single commit on `main`
+  `b75d6c73a`, so land it from its own branch (as briefed). (3) `claude/parity-a5` at `f42f74444` holds much more than
+  C3 (Q3b; J3 with `DatabaseJudge` 852→854; `testDateFromHour`; `firstDayOfWeek` on H2; F4's pairings; JUDGES-8 with
+  `HostJudgments` 679→680; in the WIP head A6 and the Date rulings 2 and 3). **Of the five parity bugs only
+  `testDateFromHour` is fixed; the four `AdjustBy*BigNumber` are designed, not started. C3 itself is not started** (its
+  `JudgeMatrixTest` is in the WIP, not yet shown to fail on a plant). The WIP's two reds: `AssertVerdicts` 1466 > 1465
+  (a +1 the product orchestrator approved at ~13:12 under the user's delegation) and `SqlFnSortedTest`. So A4's gate is
+  further out than the plan assumed; the A5 session's landing plan will size it. (4) `63421e0a`: cherry-pick as is; it
+  shrinks a lean-SQL key (13366 → 13258, no answer change), left unpinned. The paused state of every track:
+  `docs/records/pr118-audit-2026-11-18/FOLLOW_UPS.md` §10 on `claude/refactor-code-quality-review-9fqhug` (`e16cdefec`).
+- **~14:07 UTC, the translator:** it does the cross-kind fix's local work, but holds the push and PR until the user
+  gives the word in its own session (its brief said "No PR"); it will ask the user directly. Its A3 measurement run X
+  (A2 + A3) confirms the prediction: fail rosters 430 (H2) and 267 (DuckDB), exactly `main` + A2 + A3 by H12.
