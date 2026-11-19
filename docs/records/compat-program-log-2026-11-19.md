@@ -2750,3 +2750,10 @@ who confirms or changes phases 1-3.
   the merged numbers.
 - **~21:02 UTC, the parser memo at `6c4509e0c`** (the planted OOM test; parser_parity 164.0 s, 47 testcases): sent to
   the reviewer for a quick re-check; the judges merge the new head into the batch before the full measurement.
+- **~21:08 UTC, A3 piece 2 (the translator, `claude/compat-a3-switch`, local):** built (the core switch to Pure's
+  meaning for `substring`/`indexOf`, the S383 raise, the PCT adapter, a raise test). Piece 1's moves made locally
+  (`3a75adc4` counters, `a4c1f2b1` nine goldens) on the user's word in that session. Told the translator: the down moves
+  (63 PCT rows, 4 unordered lines per database) are standing-approved with a dated note; rows on the 10 unmeasured
+  databases stay until the batch's CI run measures them; the raise's legend-pure text is read from the engine runner,
+  with its JDK recorded in S383, never a JDK's wording by recall. Still the user's word there: the push of both branches,
+  +7 corpus fail-roster rows per database (up), 9 re-pinned tests, 9 edge-net re-records.
