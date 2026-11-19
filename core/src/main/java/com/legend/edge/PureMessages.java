@@ -20,6 +20,12 @@ public final class PureMessages {
 
     /** legend-pure's message of {@code r}, as SQL the edge's dialect writes. */
     public static SqlExpr sentence(SqlExpr.RaiseText r) {
+        SqlExpr words = sentenceUnmarked(r);
+        return r.asData() != null || r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? words
+                : cat(new SqlExpr.StringLit("<<G7>>"), words);
+    }
+
+    private static SqlExpr sentenceUnmarked(SqlExpr.RaiseText r) {
         return switch (r.kind()) {
             // the user's own message, as the product writes it
             case USER_FAIL -> r.operands().get(0);

@@ -1054,7 +1054,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
             // a raise's message where a raise is not (a checked graph's defect row: CONSTRAINT_UNEVALUABLE), written as a
             // raise's is (raiseMessage)
-            case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
+            case SqlExpr.RaiseText r -> { RaiseCensus.note(getClass().getName(), r); yield writer.expr(raiseMessage(r), parentPrec); }
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
@@ -1205,6 +1205,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             return c;
         }
         List<SqlExpr> args = new java.util.ArrayList<>(c.args());
+        RaiseCensus.note(getClass().getName(), r);
         args.set(0, raiseMessage(r));
         return new SqlExpr.Call(c.fn(), args);
     }
@@ -1212,6 +1213,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A raise's arguments as a dialect's own raise helper takes them: {@code r}'s text as this dialect writes it
      *  ({@link #raiseMessage}). For a raise a dialect writes itself, outside a planned {@code ERROR} call. */
     protected final List<SqlExpr> raiseArgs(SqlExpr.RaiseText r) {
+        RaiseCensus.note(getClass().getName(), r);
         return List.of(raiseMessage(r));
     }
 
