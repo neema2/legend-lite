@@ -98,6 +98,16 @@ class PureMeaningCheckTest {
         assertEquals("substring/3=1", routed.header());
     }
 
+    /** A let whose value is computed with a lambda (not a lambda itself) is a store-free value legend-engine computes on
+     *  the host before the query (H16's probe: a store-free let is computed first, Pure's meaning), so its call is
+     *  not store-bound code. Its partner below: a let whose value IS a lambda the query evaluates is. */
+    @Test
+    void aLetComputedWithALambdaIsHostSide_notStoreBound() {
+        PureMeaningCheck.Result r = check("{|let n = ['ax', 'bx']->map(s|$s->indexOf('x')); " + TABLE
+                + "->filter(r|$r.ID->in($n))->from(t::RT);}");
+        assertTrue(r.clean(), r.header());
+    }
+
     @Test
     void aLetBoundLambdaTheQueryNamesIsStoreBound() {
         PureMeaningCheck.Result r = check("{|let f = {s: String[1]|$s->indexOf('x')}; " + TABLE
