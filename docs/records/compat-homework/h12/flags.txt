@@ -1,0 +1,3 @@
+spec/BUILD.bazel:184:H5_OFF = "-Dh5.off=sqltext,s20,plain,isnumeric,parseddecimal,parsedjson,nullunsafe,settings"
+pct/BUILD.bazel:886:H5_OFF_PCT = "-Dh5.off=sqltext,s20,plain,isnumeric,parseddecimal,parsedjson,nullunsafe,settings"
+core/BUILD.bazel:3627:    jvm_flags = ["-Dlegend.edge.purev1={OUT_DIR}/answers.tsv", "-Dh5.off=sqltext,s20,plain,isnumeric,parseddecimal,parsedjson,nullunsafe,settings"],

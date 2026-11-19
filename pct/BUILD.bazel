@@ -882,6 +882,9 @@ test_suite(
 # manifests into the lane's classification table, pinned below.
 _ENGINE_LANES = [("duckdb", "", s) for s in _SUITES] + [("h2", "h2", "Relation")]
 
+# H5 SPIKE (H12, scratch): the strands the ENGINE lane runs with switched to the product's
+H5_OFF_PCT = "-Dh5.off=none"
+
 [java_run(
     name = "engine_lane_%s_%s" % (lane, s.lower()),
     testonly = True,
@@ -899,6 +902,8 @@ _ENGINE_LANES = [("duckdb", "", s) for s in _SUITES] + [("h2", "h2", "Relation")
     ],
     env = {"LEGENDLITE_PCT_BACKEND": backend} if backend else {},
     jvm_flags = [
+        # H5 SPIKE (H12): the meaning strands switched to the product's (base/.../H5Off.java)
+        H5_OFF_PCT,
         "-Dpct.audience=engine",
         "-Dpct.engine.suite=" + s,
         "-Dlegend.junit.outcomes.full={OUT_DIR}/outcomes.tsv",

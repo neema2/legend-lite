@@ -163,8 +163,13 @@ H2-written corpus, not a program meaning, and belongs with the corpus harness or
   compatibility function's name back to upstream's.
 - **The standing-rule question (not pursued):** a typed retarget needs, from the edge, a model's typed function bodies:
   today `ModelContext.findFunction` and `SpecCompiler.compile(TypedFunction)`, both public. Whether an edge caller of
-  `SpecCompiler` passes `ArchitectureTest.PLANNER_ENTRIES_ONLY` was not checked; if it does not, that is the core entry
-  the translator would need. With +4 per lane at stake for `substring`/`indexOf`, the orchestrator judges a translator
+  `SpecCompiler` passes `ArchitectureTest.PLANNER_ENTRIES_ONLY`: **read (2026-11-19, not changed): it does.** The rule
+  covers only the packages `com.legend.(planner|testplan|lowering)` (`ArchitectureTest.java:1638-1640`, `plannersPackage`);
+  `SpecCompiler` and `ModelContext` live in `com.legend.compiler.spec` and `com.legend.compiler.element`, outside it. No
+  other rule found bars the edge from them: the edge rules are the product reaching no edge (G5, `:2617-2619`),
+  dialects and facets being the product's or the edge's (`:2625-2651`), and the spelling doors (`:2672`). The
+  reflection ban (`REFLECTION_BANNED`, `:3181`) holds OUTSIDE the edge only, so even the spike's reflective walker could
+  live in the edge. So a typed retarget needs no new core entry; the core change it would need is none. With +4 per lane at stake for `substring`/`indexOf`, the orchestrator judges a translator
   unlikely to be built.
 
 ## 0. The findings

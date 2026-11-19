@@ -1,0 +1,816 @@
+# H12 combined h2: pass=2135 fail=430 skipped=7 of 2613 in 156s
+## diff V0-main -> combined: h2-fail-roster
+0a1,10
+> meta::external::store::relational::modelJoins::test::testJoinWithConstantDate
+> meta::external::store::relational::modelJoins::test::testJoinWithConstantDouble
+> meta::external::store::relational::modelJoins::test::testJoinWithConstantString
+> meta::external::store::relational::modelJoins::test::testJoinWithInequalities
+> meta::external::store::relational::modelJoins::test::testModelJoinForNonRelationalConcepts
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaTableMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseTableMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalDefaultSchemaMapper
+2a13,15
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaTableMapper
+> meta::pure::alloy::connections::tests::relationalMapper::testRelationalTableMapper
+4a18,20
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone
+5a22
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableNoTimeZone
+9a27,30
+> meta::pure::executionPlan::tests::simpleExpressionWithMultipleVariables
+> meta::pure::executionPlan::tests::simpleExpressionWithVariable
+> meta::pure::executionPlan::tests::tdsWithEnumReturn
+> meta::pure::executionPlan::tests::testClassPropertyOpenVariable
+11a33,59
+> meta::pure::executionPlan::tests::testExecutionPLanGenerationForFrom
+> meta::pure::executionPlan::tests::testExecutionPLanGenerationForFromInAllocation
+> meta::pure::executionPlan::tests::testExecutionPLanGenerationForFromWithMultiClusters
+> meta::pure::executionPlan::tests::testExecutionPlanGenerationForInWithIntegerCollection
+> meta::pure::executionPlan::tests::testExecutionPlanGenerationForInWithVarAndConstantInputs
+> meta::pure::executionPlan::tests::testExecutionPlanGenerationForLambdaFromWithEnumMapping
+> meta::pure::executionPlan::tests::testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs
+> meta::pure::executionPlan::tests::testFilterEqualAndInWithEnumParameter
+> meta::pure::executionPlan::tests::testFilterEqualAndInWithMultipleEnumParameters
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameterDate
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameterDateTimeWithNoTimeZone
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameterDateTimeWithTimeZone
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameterFloat
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameterInteger
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameterString
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameter_Composite
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameter_DB2
+> meta::pure::executionPlan::tests::testFilterEqualsWithOptionalParameter_H2
+> meta::pure::executionPlan::tests::testFilterEqualsWithTwoOptionalParameterDateTimeWithTimeZone
+> meta::pure::executionPlan::tests::testFilterEqualsWithTwoOptionalParametersDate
+> meta::pure::executionPlan::tests::testFilterEqualsWithTwoOptionalParametersDateTimeWithNoTimeZone
+> meta::pure::executionPlan::tests::testFilterEqualsWithTwoOptionalParametersFloat
+> meta::pure::executionPlan::tests::testFilterEqualsWithTwoOptionalParametersInteger
+> meta::pure::executionPlan::tests::testFilterEqualsWithTwoOptionalParametersString
+> meta::pure::executionPlan::tests::testFilterInWithResultSorcedFromAnExpression
+> meta::pure::executionPlan::tests::testFilterNotEqualAndNotInWithEnumParameter
+> meta::pure::executionPlan::tests::testFilterWithOpenVariable
+13a62,70
+> meta::pure::executionPlan::tests::testGreaterThanLessThanEqualsWithOptionalParameter_H2
+> meta::pure::executionPlan::tests::testGroupByWithOpenVariableInAgg
+> meta::pure::executionPlan::tests::testGroupByWithTwoOpenVariablesInAggAndFilter
+> meta::pure::executionPlan::tests::testIfEnumParameterInProject
+> meta::pure::executionPlan::tests::testIfEnumParameterWithClassPropInProject
+> meta::pure::executionPlan::tests::testIfOpFilterEnumValueWithClassPropInProject
+> meta::pure::executionPlan::tests::testLessThanGreaterThanEqualsWithOptionalParameter_H2
+> meta::pure::executionPlan::tests::testMapWithOpenVariable
+> meta::pure::executionPlan::tests::testModelConnectionAgg
+15a73,76
+> meta::pure::executionPlan::tests::testModelConnectionMultipleAgg
+> meta::pure::executionPlan::tests::testModelConnectionSimple
+> meta::pure::executionPlan::tests::testMultiExpressionWithPlatformAndFromFunction
+> meta::pure::executionPlan::tests::testOptionalEnumParameterEqualsClassProp
+16a78,79
+> meta::pure::executionPlan::tests::testPlanGenerationForInWithCollectionParameterHavingTimeZoneForH2
+> meta::pure::executionPlan::tests::testPlanGenerationForMultipleExpressionsWithPropertyPath
+17a81,83
+> meta::pure::executionPlan::tests::testQuoteIdentifiersFlag
+> meta::pure::executionPlan::tests::testQuoteIdentifiersFlagInGroupBy
+> meta::pure::executionPlan::tests::testQuoteIdentifiersFlagInOrderByClause
+20a87,90
+> meta::pure::executionPlan::tests::testSubstringIndexingCorrectedByFeatureFlag
+> meta::pure::executionPlan::tests::testSupportStreamFlagFromSimple
+> meta::pure::executionPlan::tests::testSupportStreamFlagGraphFetchSimple
+> meta::pure::executionPlan::tests::testSupportStreamFlagSimple
+21a92,96
+> meta::pure::executionPlan::tests::testSupportStreamFlagWithSupportedAndUnSupportedUsages
+> meta::pure::executionPlan::tests::testSupportStreamFlagWithTdsJoinForOneDB
+> meta::pure::executionPlan::tests::testSupportStreamFlagithTdsJoinForTwoDB
+> meta::pure::executionPlan::tests::testTemporalDateVariableAtRoot
+> meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpression
+22a98,100
+> meta::pure::executionPlan::tests::testTemporalDateVariableInPropertySequence
+> meta::pure::executionPlan::tests::testTypedTDSWithEnum
+> meta::pure::executionPlan::tests::testTypedTDSWithEnumFilter
+23a102,103
+> meta::pure::executionPlan::tests::twoExpressionWithConstant
+> meta::pure::executionPlan::tests::twoRoutedExpressions
+100a181
+> meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter
+103d183
+< meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier
+119a200,204
+> meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy
+> meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy
+> meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy
+> meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy
+> meta::relational::testDataGeneration::tests::alloy::testErrorDueToNoSeedForRoot
+125a211,212
+> meta::relational::tests::ddl::createCreateTableStatement
+> meta::relational::tests::ddl::createCreateTableStatementWithReservedWorks
+126a214,216
+> meta::relational::tests::ddl::testSetupDataSqlGeneration
+> meta::relational::tests::ddl::testSetupDataSqlGenerationWithColumnValueHasDelimiterAndQuotes
+> meta::relational::tests::ddl::testSetupDataSqlGenerationWithDataAsString
+183a274,275
+> meta::relational::tests::functions::sqlstring::testCbrt
+> meta::relational::tests::functions::sqlstring::testDayOfYear
+184a277,286
+> meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInDays
+> meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInHours
+> meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInMilliseconds
+> meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInMinutes
+> meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInMonths
+> meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInSeconds
+> meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInWeeks
+> meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInYears
+> meta::relational::tests::functions::sqlstring::testGreatestLeast
+> meta::relational::tests::functions::sqlstring::testHashFunctions
+185a288
+> meta::relational::tests::functions::sqlstring::testLeftRight
+186a290
+> meta::relational::tests::functions::sqlstring::testPad
+187a292,297
+> meta::relational::tests::functions::sqlstring::testToSQLStringComposite
+> meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin
+> meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat
+> meta::relational::tests::functions::sqlstring::testToSQLStringNonPrestoSchemaNameShouldNotConvertDollarSign
+> meta::relational::tests::functions::sqlstring::testToSQLStringReverse
+> meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
+189a300,313
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregationDB2
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithLength
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithPosition
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithRelativeDateDB2
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithRepeatString
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithReplace
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithStdDevPopulation
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithStdDevSample
+> meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfMonth
+> meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_DB2
+> meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_H2
+> meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfThisYear
+> meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfYear
+> meta::relational::tests::functions::sqlstring::testTrim
+195a320,322
+> meta::relational::tests::m2m2r::testPreeavalOnSort
+> meta::relational::tests::m2m2r::testProp1
+> meta::relational::tests::m2m2r::testProp2
+196a324
+> meta::relational::tests::m2m2r::testProp4
+203d330
+< meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping
+204a332
+> meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
+207a336,341
+> meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalExecutioninH2
+> meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalSQLCompilationinH2
+> meta::relational::tests::mapping::sqlFunction::parseInteger::testToSQLStringParseIntegerinComposite
+> meta::relational::tests::mapping::sqlFunction::parseInteger::testToSQLStringParseIntegerinDB2
+> meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateTimeinDb2
+> meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateinDb2
+209a344,346
+> meta::relational::tests::mapping::sqlFunction::toString::testToSQLStringConcatInDB2
+> meta::relational::tests::mapping::sqlFunction::toString::testToSQLStringToStringInDB2
+> meta::relational::tests::mapping::sqlFunction::trim::testTriminNotSybaseASE
+218a356,360
+> meta::relational::tests::milestoning::businessdate::testBusinessDatePropagationInColFunction_asQueryParam
+> meta::relational::tests::milestoning::businessdate::testDerivedDateArgFromPlanParamInProjectLambda
+> meta::relational::tests::milestoning::businessdate::testDerivedDateArgLiteralRootWithPlanParamOffset
+> meta::relational::tests::milestoning::businessdate::testDerivedDateArgMixedConcreteRootWithPlanParamOffset
+> meta::relational::tests::milestoning::businessdate::testExecutionPlanForQueryWithVariableRundateWithinLambda
+245a388
+> meta::relational::tests::projection::filter::testFilterAfterJoinInRelation
+253d395
+< meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter
+255a398
+> meta::relational::tests::query::filter::isempty::testIsEmptyOnCollection
+256a400,406
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction
+> meta::relational::tests::query::function::testJoinStringFunction
+> meta::relational::tests::query::legacyNullUnsafeEquals::testDefaultOptionalParamIsNullSafe
+> meta::relational::tests::query::legacyNullUnsafeEquals::testDefaultProjectionIsNullSafe
+> meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals
+266a417
+> meta::relational::tests::query::sort::testSortByLambda_QueryWithParameters_Plan
+271a423,425
+> meta::relational::tests::tds::tdsExtend::testFunctionOnVariable
+> meta::relational::tests::tds::tdsExtend::testParseDate
+> meta::relational::tests::tds::tdsExtend::testStringConcatSQLGeneration
+## diff V0-main -> combined: h2-skipped-roster
+## diff V0-main -> combined: h2-unordered-register
+0a1,9
+> unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty
+> unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty1
+> unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedDerivedProperty
+> unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedProperty
+> unordered-chain meta::pure::executionPlan::tests::relationalTDSTypeForColumnsAndQuoting
+> unordered-chain meta::pure::executionPlan::tests::tdsJoinOneDBOneExpression
+> unordered-chain meta::pure::executionPlan::tests::tdsJoinTwoDBExtend
+> unordered-chain meta::pure::executionPlan::tests::tdsJoinTwoDBWithColumnMappedViaJoins
+> unordered-chain meta::pure::executionPlan::tests::tdsReturn
+2c11
+< unordered-chain meta::pure::executionPlan::tests::testMapWithOpenVariable
+---
+> unordered-chain meta::pure::executionPlan::tests::testCrossDbPlanGenerationWithFromWithoutExternalMapping
+54a64,69
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteProjectCol
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteProjectColMulti
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteProjectFunction
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteProjectFunctionMulti
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteTDSGroupBy
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteTDSOperation
+55a71,75
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy::testRewriteProjectCol
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy::testRewriteProjectColMulti
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy::testRewriteProjectFunction
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy::testRewriteProjectFunctionMulti
+> unordered-chain meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy::testRewriteTDSOperation
+57a78,79
+> unordered-chain meta::relational::tests::fromMapping::testFromWithMapping
+> unordered-chain meta::relational::tests::fromMapping::testFromWithMappingAndIntermediateFuncCall
+97a120,121
+> unordered-chain meta::relational::tests::functions::sqlstring::testDayOfYear
+> unordered-chain meta::relational::tests::functions::sqlstring::testEnumPropertyEqualityIsNotNullSafe
+98a123
+> unordered-chain meta::relational::tests::functions::sqlstring::testHashFunctions
+103a129,135
+> unordered-chain meta::relational::tests::functions::sqlstring::testSqlGenerationForAdjustStrictDateUsageInFiltersForH2
+> unordered-chain meta::relational::tests::functions::sqlstring::testSqlGenerationForAdjustStrictDateUsageInProjectionForH2
+> unordered-chain meta::relational::tests::functions::sqlstring::testSqlGenerationForDatePartForH2
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLString
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringAscii
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringChar
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin
+104a137,143
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSplitPart
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringToNumericCasts
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
+105a145,151
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithLength
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithRepeatString
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfMonth
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfThisYear
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfYear
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationMonth
+108a155,158
+> unordered-chain meta::relational::tests::groupBy::testAggToManyWithMaxDate
+> unordered-chain meta::relational::tests::groupBy::testAggToManyWithMaxInteger
+> unordered-chain meta::relational::tests::groupBy::testAggToManyWithMinDate
+> unordered-chain meta::relational::tests::groupBy::testAggToManyWithMinInteger
+110a161,162
+> unordered-chain meta::relational::tests::groupBy::testGroupByEmptyColsTerminalOperation
+> unordered-chain meta::relational::tests::groupBy::testGroupByOnRootLevelPrimitiveAttributeWithNoJoinAndFilter
+114a167
+> unordered-chain meta::relational::tests::groupBy::testSimpleJoinStrings
+124a178
+> unordered-chain meta::relational::tests::map::testBoolean
+135a190,191
+> unordered-chain meta::relational::tests::map::testIntegerMultiply
+> unordered-chain meta::relational::tests::map::testOperation
+138a195
+> unordered-chain meta::relational::tests::map::testSimpleExplicitMap
+192a250
+> unordered-chain meta::relational::tests::mapping::dynajoin::testFilterOnMultiLevelJoinWithNonAggregateFunction
+194a253
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testFilter
+196a256,257
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testInlineInEmbedded
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testProjection
+198a260
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testFilter
+200a263
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testProjection
+201a265
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testSubType
+204a269,270
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestEmbeddedToEmbedded
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestFilter
+211a278
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestProjection
+212a280,281
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyExpressionWithEmbeddedProperty
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyExpressionWithEmbeddedPropertyandJoinProperty
+214a284
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::testFilter
+216a287,289
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::testInlineEmbeddedMappingWithAssociationFromRootMapping
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::testProjection
+> unordered-chain meta::relational::tests::mapping::embedded::advanced::testProjectionOtherwise
+219a293
+> unordered-chain meta::relational::tests::mapping::embedded::optionalNumeric::testProjectWithMapAndMultiplyOnEmbeddedOptionalProperty
+220a295,298
+> unordered-chain meta::relational::tests::mapping::embedded::optionalNumeric::testProjectWithMapOverEmbeddedClassItself
+> unordered-chain meta::relational::tests::mapping::embedded::testDenormMappingOneToManyProject
+> unordered-chain meta::relational::tests::mapping::embedded::testDenormMappingOneToManyProjectEmbeddedQualifier
+> unordered-chain meta::relational::tests::mapping::embedded::testDenormMappingOneToManyProjectUsingPaths
+221a300,305
+> unordered-chain meta::relational::tests::mapping::embedded::testDenormMappingOneToManyProjectWithEnum
+> unordered-chain meta::relational::tests::mapping::embedded::testDenormMappingOneToManyProjectWithFilter
+> unordered-chain meta::relational::tests::mapping::embedded::testDenormMappingOneToManyProjectWithFilterOnEnumLeft
+> unordered-chain meta::relational::tests::mapping::embedded::testDenormMappingOneToManyProjectWithFilterOnEnumRight
+> unordered-chain meta::relational::tests::mapping::embedded::testDenormMappingWithQualifierWithIfAndEquals
+> unordered-chain meta::relational::tests::mapping::embedded::testExists
+224a309
+> unordered-chain meta::relational::tests::mapping::embedded::testIsEmpty
+231a317,318
+> unordered-chain meta::relational::tests::mapping::extend::embeddedPropertyMapping::testEmbeddedPropertyMappingForB
+> unordered-chain meta::relational::tests::mapping::extend::embeddedPropertyMapping::testEmbeddedPropertyMappingForC
+235a323,325
+> unordered-chain meta::relational::tests::mapping::extend::inlineEmbeddedPropertyMapping::testInlineEmbeddedPropertyMappingForB
+> unordered-chain meta::relational::tests::mapping::extend::inlineEmbeddedPropertyMapping::testInlineEmbeddedPropertyMappingForC
+> unordered-chain meta::relational::tests::mapping::extend::propertyMapping::testPropertyMappingsForA
+247a338,339
+> unordered-chain meta::relational::tests::mapping::filter::filterMappingWithJoinInFilterAndPropertyGetAll
+> unordered-chain meta::relational::tests::mapping::filter::testFilterMapping
+249a342,343
+> unordered-chain meta::relational::tests::mapping::filter::testFilterMappingWithJoinNotEmpty
+> unordered-chain meta::relational::tests::mapping::filter::testFilterMappingWithProjection
+260a355,358
+> unordered-chain meta::relational::tests::mapping::in::testFilterMappingWithPrefixInClause
+> unordered-chain meta::relational::tests::mapping::in::testJoinWithInClause0
+> unordered-chain meta::relational::tests::mapping::in::testJoinWithPrefixInClauseContainingNumberLiterals
+> unordered-chain meta::relational::tests::mapping::in::testJoinWithPrefixInClauseContainingStringLiterals
+265a364
+> unordered-chain meta::relational::tests::mapping::join::testChainedOuterJoinsMerge
+273a373
+> unordered-chain meta::relational::tests::mapping::join::testJoinInPropertyMapping
+276a377,379
+> unordered-chain meta::relational::tests::mapping::join::testJoinInPropertyMappingQuery
+> unordered-chain meta::relational::tests::mapping::join::testJoinInPropertyMappingUsingIncludes
+> unordered-chain meta::relational::tests::mapping::join::testJoinInPropertyMappingUsingNestedIncludes
+278a382,383
+> unordered-chain meta::relational::tests::mapping::join::testProjectOfTypeMadeOfMultipleJoinsOnlyIncludesJoinsRequiredForProjectedColumns
+> unordered-chain meta::relational::tests::mapping::join::testProjectOfTypeMadeOfMultipleJoinsWithFilterOnlyIncludesJoinsRequiredForProjectedColumns
+280a386
+> unordered-chain meta::relational::tests::mapping::merge::testDynafunctionMerge
+296a403
+> unordered-chain meta::relational::tests::mapping::modelJoin::advanced::testRelationalNestedInFilter
+317a425
+> unordered-chain meta::relational::tests::mapping::modelJoin::simple::testRelationalSimpleEquality
+322a431
+> unordered-chain meta::relational::tests::mapping::multigrain::testProjectFirm
+323a433
+> unordered-chain meta::relational::tests::mapping::multigrain::testProjectPersonWithJoinToAddress
+325a436,439
+> unordered-chain meta::relational::tests::mapping::propertyfunc::simple::testSimplePropertyFuncGetAll
+> unordered-chain meta::relational::tests::mapping::propertyfunc::simple::testSimplePropertyFuncProject
+> unordered-chain meta::relational::tests::mapping::propertyfunc::withjoin::testSimplePropertyFuncProjectWithJoin
+> unordered-chain meta::relational::tests::mapping::propertyfunc::withjoin::testSimplePropertyFuncQueryWithJoin
+331a446,451
+> unordered-chain meta::relational::tests::mapping::sqlFunction::atan2::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::atan2::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::atan::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::atan::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::castInteger::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::castInteger::testProject
+333a454,458
+> unordered-chain meta::relational::tests::mapping::sqlFunction::cos::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::cos::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::date::testToSQLConvertDateH2
+> unordered-chain meta::relational::tests::mapping::sqlFunction::exp::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::exp::testProject
+335a461,469
+> unordered-chain meta::relational::tests::mapping::sqlFunction::indexOf::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::left::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::left::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::log::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::log::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::lower::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::lower::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::ltrim::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::ltrim::testProject
+338,339c472,474
+< unordered-chain meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalExecutioninH2
+< unordered-chain meta::relational::tests::mapping::sqlFunction::parseDecimal::testToSQLStringParseDecimalSQLCompilationinH2
+---
+> unordered-chain meta::relational::tests::mapping::sqlFunction::parseInteger::testToSQLStringParseIntegerinH2
+> unordered-chain meta::relational::tests::mapping::sqlFunction::pow::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::pow::testProject
+341a477,486
+> unordered-chain meta::relational::tests::mapping::sqlFunction::replace::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::replace::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::right::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::right::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::round::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::round::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::rtrim::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::rtrim::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::sin::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::sin::testProject
+343a489,499
+> unordered-chain meta::relational::tests::mapping::sqlFunction::stddev::population::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::stddev::sample::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateinH2
+> unordered-chain meta::relational::tests::mapping::sqlFunction::stringToFloat::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::tan::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::tan::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::toString::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::toString::testProject
+> unordered-chain meta::relational::tests::mapping::sqlFunction::trim::testTriminNotSybaseASE
+> unordered-chain meta::relational::tests::mapping::sqlFunction::upper::testFilter
+> unordered-chain meta::relational::tests::mapping::sqlFunction::upper::testProject
+363a520
+> unordered-chain meta::relational::tests::mapping::union::extend::testProjectMappingWithSameColumnsNames
+417a575
+> unordered-chain meta::relational::tests::mapping::union::testProjectMappingWithSameColumnsNames
+424a583,585
+> unordered-chain meta::relational::tests::mergerules::testToOneJoinTreeNodesForFilterAndProjectMerge
+> unordered-chain meta::relational::tests::mergerules::testZeroToOneJoinTreeNodesForFilterAndProjectMerge
+> unordered-chain meta::relational::tests::milestoning::bitemporal::propagation::testBiTemporalQueryMappedToSingleTemporalStore
+425a587
+> unordered-chain meta::relational::tests::milestoning::bitemporal::propagation::testBiTemporalToBiTemporalDatePropagationForAll
+426a589,591
+> unordered-chain meta::relational::tests::milestoning::bitemporal::propagation::testBiTemporalToSingleSingleTemporalDatePropagation
+> unordered-chain meta::relational::tests::milestoning::bitemporal::propagation::testBusinessToBiTemporalDatePropagation
+> unordered-chain meta::relational::tests::milestoning::bitemporal::propagation::testProcessingToBiTemporalDatePropagation
+428a594,595
+> unordered-chain meta::relational::tests::milestoning::bitemporal::testBiTemporalPropertyUsageInProject
+> unordered-chain meta::relational::tests::milestoning::bitemporal::testBiTemporalPropertyUsageInProjectPath
+430a598
+> unordered-chain meta::relational::tests::milestoning::bitemporal::testGroupByAndMilestoning
+435a604,605
+> unordered-chain meta::relational::tests::milestoning::bitemporal::testPopulationOfMilestonedThisBiTemporalDatesInProject
+> unordered-chain meta::relational::tests::milestoning::bitemporal::testPopulationOfMilestonedThisBiTemporalDatesInProjectAgainstNonMilestonedStore
+440a611,612
+> unordered-chain meta::relational::tests::milestoning::businessdate::testBusinessDatePropagationInColFunction
+> unordered-chain meta::relational::tests::milestoning::businessdate::testBusinessDatePropagationInColFunctionWithDoc
+442a615
+> unordered-chain meta::relational::tests::milestoning::businessdate::testBusinessTemporalPredicateOnLeftOuterFilterJoinTopLevel
+459,461d631
+< unordered-chain meta::relational::tests::milestoning::businessdate::testDerivedDateArgLiteralRootWithPlanParamOffset
+< unordered-chain meta::relational::tests::milestoning::businessdate::testDerivedDateArgMixedConcreteRootWithPlanParamOffset
+< unordered-chain meta::relational::tests::milestoning::businessdate::testExecutionPlanForQueryWithVariableRundateWithinLambda
+465a636,637
+> unordered-chain meta::relational::tests::milestoning::businessdate::testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt
+> unordered-chain meta::relational::tests::milestoning::businessdate::testIsolationWhereLeftSideOfFilterIsEmbedded
+467a640,641
+> unordered-chain meta::relational::tests::milestoning::businessdate::testMilestonedQualifiedPropertyUsedOnSuperTypeInEmbedded
+> unordered-chain meta::relational::tests::milestoning::businessdate::testMilestonedQualifiedPropertyWithDateProvidedByFunction
+473a648
+> unordered-chain meta::relational::tests::milestoning::businessdate::testMilestonedThisBusinessDateWithNonThisAccessParameter
+487a663
+> unordered-chain meta::relational::tests::milestoning::businessdate::testMilestoningQueryWithGroupByFilterWithMilestoning
+491a668
+> unordered-chain meta::relational::tests::milestoning::businessdate::testNonMilestoningQueryWithMilestoneFilterOnAssociation
+493a671,672
+> unordered-chain meta::relational::tests::milestoning::businessdate::testNonMilestoningQueryWithMilestoneFilterSimple
+> unordered-chain meta::relational::tests::milestoning::businessdate::testNonMilestoningQueryWithMilestoneFilterVariableRundateWithinLambda
+499a679
+> unordered-chain meta::relational::tests::milestoning::businessdate::testQueryOfMilestonedTypeWithFilterInMapping
+500a681
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testCurrentMappingPropagationThroughMilestonedQualifiedPropertyWithEmbeddedLeftSideToSubsequentPropertyInProjectPath
+503a685
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject
+506a689
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoneDatePropogationFromTypeQueryThroughFilterToNoArgMilestonedQpInProject
+515a699
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedThroughFilterToNoArgMilestonedQualifiedPropertyInProjectPath
+516a701,703
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedUsingConstantInProjectMoveLetInBlock
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedUsingVariableInProject
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningContextPropagatedUsingVariableInProjectPath
+517a705,707
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereSourceIsEmbeddedTargetTypeIsNonTemporalAndTargetMainTableIsNotMilestoned
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningFiltersAppliedToIntermediateMilestonedJoinTablesWhereTargetTypeIsTemporalAndTargetMainTableIsNotMilestoned
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningFiltersNotPropogatedFromAllToNonTemporalClassMappedToTemporalTable
+518a709
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningFiltersPropogatedFromAllThroughFilterToDataTypePropertiesInProject
+519a711,712
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject
+> unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningFiltersUsedOnIntermediateJoinOnlyFromAllToNonTemporalClassMappedToTemporalTable
+529a723,725
+> unordered-chain meta::relational::tests::milestoning::latestDate::testLatestIgnoredForNonMilestonedMappedBiTemporalClasses
+> unordered-chain meta::relational::tests::milestoning::latestDate::testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery
+> unordered-chain meta::relational::tests::milestoning::latestDate::testLatestIgnoredForNonMilestonedMappedBiTemporalClassesWithProject
+530a727
+> unordered-chain meta::relational::tests::milestoning::latestDate::testLatestIgnoredForNonMilestonedMappedClassesAllQuery
+531a729
+> unordered-chain meta::relational::tests::milestoning::latestDate::testNonMilestoningQueryWithLatestMilestoneFilterSimple
+534a733,736
+> unordered-chain meta::relational::tests::milestoning::processingDate::testProcessingTemporalAllQuery
+> unordered-chain meta::relational::tests::milestoning::processingDate::testProcessingTemporalPropertyPropagationInQuery
+> unordered-chain meta::relational::tests::milestoning::processingDate::testProcessingTemporalPropertyQuery
+> unordered-chain meta::relational::tests::milestoning::processingSnapshot::testAllVersionInRangeForProcessingSnapshotMilestoning
+540a743,745
+> unordered-chain meta::relational::tests::milestoning::processingSnapshot::testProcessingSnapshotRangeQueryOnProperty
+> unordered-chain meta::relational::tests::milestoning::processingSnapshot::testQueryOnNonTemporalRootWithTemporalProperty
+> unordered-chain meta::relational::tests::milestoning::processingSnapshot::testQueryOnTemporalRoot
+541a747
+> unordered-chain meta::relational::tests::milestoning::processingSnapshot::testQueryWithPropagationOnTemporalRoot
+545a752,754
+> unordered-chain meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionForEmbedded
+> unordered-chain meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionForInlineEmbedded
+> unordered-chain meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionForRoot
+547a757,759
+> unordered-chain meta::relational::tests::milestoning::qualifier::testProjectWithMilestoning
+> unordered-chain meta::relational::tests::milestoning::rangeQuery::testBuisnessSnapshotRangeQueryOnRootAndProperty
+> unordered-chain meta::relational::tests::milestoning::rangeQuery::testBusinessTemporalRangeQueryOnProperty
+548a761,762
+> unordered-chain meta::relational::tests::milestoning::rangeQuery::testBusinessTemporalRangeQueryOnRoot
+> unordered-chain meta::relational::tests::milestoning::rangeQuery::testBusinessTemporalRangeQueryOnRootAndProperty
+551a766,768
+> unordered-chain meta::relational::tests::milestoning::rangeQuery::testProcessingSnapshotRangeQueryOnRootAndProperty
+> unordered-chain meta::relational::tests::milestoning::rangeQuery::testProcessingTemporalRangeQueryOnProperty
+> unordered-chain meta::relational::tests::milestoning::rangeQuery::testProcessingTemporalRangeQueryOnRoot
+552a770,771
+> unordered-chain meta::relational::tests::milestoning::snapshot::testAllVersionInRangeForBuisnessSnapshotMilestoning
+> unordered-chain meta::relational::tests::milestoning::snapshot::testBuisnessSnapshotRangeQueryOnProperty
+558a778,779
+> unordered-chain meta::relational::tests::milestoning::snapshot::testQueryOnNonTemporalRootWithTemporalProperty
+> unordered-chain meta::relational::tests::milestoning::snapshot::testQueryOnTemporalRoot
+559a781
+> unordered-chain meta::relational::tests::milestoning::snapshot::testQueryWithPropagationOnTemporalRoot
+563a786,790
+> unordered-chain meta::relational::tests::milestoning::temporalDate::testBusinessDateForAllVersions
+> unordered-chain meta::relational::tests::milestoning::temporalDate::testBusinessDateForAllVersionsInRange
+> unordered-chain meta::relational::tests::milestoning::temporalDate::testBusinessSnapshotDateForAllVersions
+> unordered-chain meta::relational::tests::milestoning::temporalDate::testProcessingDateForAllVersions
+> unordered-chain meta::relational::tests::milestoning::temporalDate::testProcessingDateForAllVersionsInRange
+573a801
+> unordered-chain meta::relational::tests::postProcessor::cteExtraction::testNoSubQueries
+591a820
+> unordered-chain meta::relational::tests::postProcessor::testReplaceTableMultiplePostProcessor
+612a842,846
+> unordered-chain meta::relational::tests::projection::association::mixed::testAssociationMixedAdvanced
+> unordered-chain meta::relational::tests::projection::association::toMany::testAssociationToMany
+> unordered-chain meta::relational::tests::projection::association::toMany::testAssociationToManyColumnProtocol
+> unordered-chain meta::relational::tests::projection::association::toMany::testAssociationToManyColumnProtocolOneColumn
+> unordered-chain meta::relational::tests::projection::association::toMany::testAssociationToManyColumnProtocolWithDoc
+615a850,852
+> unordered-chain meta::relational::tests::projection::association::toOne::testAssociationToOne
+> unordered-chain meta::relational::tests::projection::association::toOne::testAssociationToOneWithQuery
+> unordered-chain meta::relational::tests::projection::association::toOne::testTwoAssociationsToOneBranchWithQuery
+619a857
+> unordered-chain meta::relational::tests::projection::enumeration::testProjectWithIfWhereEnumEqualsClassProp
+620a859
+> unordered-chain meta::relational::tests::projection::enumeration::testTdsProjectWithEnumToStringEqualityComparison
+622a862
+> unordered-chain meta::relational::tests::projection::enumeration::testTdsProjectWithSingleStringEnumEqualityComparison
+626a867
+> unordered-chain meta::relational::tests::projection::exists::testExistsEmbeddedOnSameTable
+628a870,878
+> unordered-chain meta::relational::tests::projection::filter::dates::adjust::testAdjustWithMicroseconds
+> unordered-chain meta::relational::tests::projection::filter::dates::firstDay::testFirstDayOfMonth
+> unordered-chain meta::relational::tests::projection::filter::dates::firstDay::testFirstDayOfQuarter
+> unordered-chain meta::relational::tests::projection::filter::dates::firstDay::testFirstDayOfThisMonth
+> unordered-chain meta::relational::tests::projection::filter::dates::firstDay::testFirstDayOfThisQuarter
+> unordered-chain meta::relational::tests::projection::filter::dates::firstDay::testFirstDayOfThisYear
+> unordered-chain meta::relational::tests::projection::filter::dates::firstDay::testFirstDayOfWeek
+> unordered-chain meta::relational::tests::projection::filter::dates::firstDay::testFirstDayOfYear
+> unordered-chain meta::relational::tests::projection::filter::dates::now::testNow
+632a883,884
+> unordered-chain meta::relational::tests::projection::filter::dates::today::testToday
+> unordered-chain meta::relational::tests::projection::filter::greaterThan::testGreaterThan
+633a886
+> unordered-chain meta::relational::tests::projection::filter::greaterThanEqual::testGreaterThanEqual
+640a894,898
+> unordered-chain meta::relational::tests::projection::filter::in::testIn
+> unordered-chain meta::relational::tests::projection::filter::in::testInWithDynaFunction
+> unordered-chain meta::relational::tests::projection::filter::in::testInWithListVariable
+> unordered-chain meta::relational::tests::projection::filter::in::testInWithOneValue
+> unordered-chain meta::relational::tests::projection::filter::in::testInWithVariables
+642a901,902
+> unordered-chain meta::relational::tests::projection::filter::in::testQualifierWithInThroughJoin
+> unordered-chain meta::relational::tests::projection::filter::isEmpty::testGreaterThanWithOptionalPropertyIsEmpty
+645a906,907
+> unordered-chain meta::relational::tests::projection::filter::lessThan::testLessThan
+> unordered-chain meta::relational::tests::projection::filter::lessThan::testLessThanFilterAsVariable
+646a909
+> unordered-chain meta::relational::tests::projection::filter::lessThanEqual::testLessThanEqual
+650a914,915
+> unordered-chain meta::relational::tests::projection::filter::testIsNotNullColumn
+> unordered-chain meta::relational::tests::projection::filter::testIsNullColumn
+651a917
+> unordered-chain meta::relational::tests::projection::function::abs::testAbs
+661a928
+> unordered-chain meta::relational::tests::projection::function::date::testDateDiffZeroToOne
+665a933,936
+> unordered-chain meta::relational::tests::projection::function::testFunctionAndPathOneSide
+> unordered-chain meta::relational::tests::projection::function::testFunctionAndPathOtherSide
+> unordered-chain meta::relational::tests::projection::function::testFunctionWithMapAndMultiply
+> unordered-chain meta::relational::tests::projection::function::testFunctionWithMapAndMultiplyLegacyTds
+667a939
+> unordered-chain meta::relational::tests::projection::function::testFunctionWithMapMultiplyingTwoColumns
+670a943,948
+> unordered-chain meta::relational::tests::projection::function::testSimpleFunction
+> unordered-chain meta::relational::tests::projection::function::testSimpleFunctionWithToManyMap
+> unordered-chain meta::relational::tests::projection::function::testSimpleFunctionWithToOne
+> unordered-chain meta::relational::tests::projection::function::testSimpleFunctionWithTwoToManyMap
+> unordered-chain meta::relational::tests::projection::function::testSimpleRealFunction
+> unordered-chain meta::relational::tests::projection::functionvariables::testProjectOnQualifiedPropertyReturningAConstant
+675a954
+> unordered-chain meta::relational::tests::projection::functionvariables::testVariableReferenceInMapWithSameNameAsThatInParentProject
+683a963
+> unordered-chain meta::relational::tests::projection::qualifier::testQualifierFunctionConsistencyWithDataTypeProperty
+684a965
+> unordered-chain meta::relational::tests::projection::qualifier::testQualifierWithFilterWithDataTypeResult
+687a969,970
+> unordered-chain meta::relational::tests::projection::qualifier::testQualifierWithVariableArg
+> unordered-chain meta::relational::tests::projection::qualifier::testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria
+689a973,974
+> unordered-chain meta::relational::tests::projection::qualifier::testSimpleDerived
+> unordered-chain meta::relational::tests::projection::qualifier::testSimpleDerivedThroughAssociation
+690a976,981
+> unordered-chain meta::relational::tests::projection::simple::testAllOneSimpleProperty
+> unordered-chain meta::relational::tests::projection::simple::testAllOneSimplePropertyUsingOpenVariables
+> unordered-chain meta::relational::tests::projection::simple::testAllOneSimplePropertyUsingVariable
+> unordered-chain meta::relational::tests::projection::simple::testAllOneSimplePropertyUsingVariables
+> unordered-chain meta::relational::tests::projection::simple::testAllOneSimplePropertyWithColsFromFunction
+> unordered-chain meta::relational::tests::projection::simple::testAllTwoSimpleProperties
+692a984
+> unordered-chain meta::relational::tests::projection::union::testSimpleRelationalUnion
+694a987
+> unordered-chain meta::relational::tests::projection::view::testProjectionOfPropertyJoinedToViewWithGroupByAndFilter
+697a991
+> unordered-chain meta::relational::tests::query::association::toMany::testAssociationToMany
+698a993
+> unordered-chain meta::relational::tests::query::association::toMany::testAssociationToManyWithBoolean
+702a998,1001
+> unordered-chain meta::relational::tests::query::association::toOne::testAssociationToOne
+> unordered-chain meta::relational::tests::query::association::toOne::testAssociationToOneWithBoolean
+> unordered-chain meta::relational::tests::query::association::toOne::testTwoAssociationsToOneBranch
+> unordered-chain meta::relational::tests::query::association::toOne::testTwoAssociationsToOneBranchWithOr
+703a1003,1004
+> unordered-chain meta::relational::tests::query::eval::testAssociationToOneThroughEval
+> unordered-chain meta::relational::tests::query::eval::testPredicateThroughEval
+705a1007,1008
+> unordered-chain meta::relational::tests::query::filter::combinations::testGrouping
+> unordered-chain meta::relational::tests::query::filter::combinations::testSelectEqualAnd
+708a1012,1013
+> unordered-chain meta::relational::tests::query::filter::equal::testConsistencyWithNullsInColumnToColumnComparison
+> unordered-chain meta::relational::tests::query::filter::equal::testOtherType
+709a1015,1020
+> unordered-chain meta::relational::tests::query::filter::equal::testSelectEqual
+> unordered-chain meta::relational::tests::query::filter::exists::testAssociationHandlingDups
+> unordered-chain meta::relational::tests::query::filter::exists::testAssociationOneLevelDeep
+> unordered-chain meta::relational::tests::query::filter::exists::testAssociationThreeLevelDeep
+> unordered-chain meta::relational::tests::query::filter::exists::testAssociationWithProjectionHandlingDups
+> unordered-chain meta::relational::tests::query::filter::exists::testComplexExistsToManyProperty
+713a1025,1026
+> unordered-chain meta::relational::tests::query::filter::exists::testExistsToManyProperty
+> unordered-chain meta::relational::tests::query::filter::exists::testExistsToManyPropertySwapped
+718a1032,1033
+> unordered-chain meta::relational::tests::query::filter::exists::testExistsWithOrCondition
+> unordered-chain meta::relational::tests::query::filter::exists::testFilterAfterFilterWithExistsExpression
+720a1036
+> unordered-chain meta::relational::tests::query::filter::exists::testIn
+725a1042,1045
+> unordered-chain meta::relational::tests::query::filter::greaterThan::testGreaterThan
+> unordered-chain meta::relational::tests::query::filter::greaterThan::testGreaterThanDate
+> unordered-chain meta::relational::tests::query::filter::greaterThanEqual::testGreaterThanEqual
+> unordered-chain meta::relational::tests::query::filter::greaterThanEqual::testGreaterThanEqualString
+739a1060,1066
+> unordered-chain meta::relational::tests::query::filter::in::testIn
+> unordered-chain meta::relational::tests::query::filter::in::testInWithFunction
+> unordered-chain meta::relational::tests::query::filter::in::testInWithJoinStrings
+> unordered-chain meta::relational::tests::query::filter::in::testInWithListVariable
+> unordered-chain meta::relational::tests::query::filter::in::testInWithOneValue
+> unordered-chain meta::relational::tests::query::filter::in::testInWithVariables
+> unordered-chain meta::relational::tests::query::filter::in::testInWithinQualifiedPropertyCollectionAsLiteralList
+748a1076
+> unordered-chain meta::relational::tests::query::filter::lessThan::testLessThan
+749a1078,1079
+> unordered-chain meta::relational::tests::query::filter::lessThanEqual::testLessThanEqual
+> unordered-chain meta::relational::tests::query::filter::lessThanEqual::testLessThanEqualString
+752a1083
+> unordered-chain meta::relational::tests::query::filter::notEqual::testSelectNotEqual
+756a1088
+> unordered-chain meta::relational::tests::query::function::atan2::testFilterUsingArcTan2Function
+771a1104
+> unordered-chain meta::relational::tests::query::function::isempty::testDerivedWithIsEmpty
+784a1118,1119
+> unordered-chain meta::relational::tests::query::function::testFilterEnumOnClassProp
+> unordered-chain meta::relational::tests::query::function::testFilterThroughAssociationUsingPlusFunction
+785a1121
+> unordered-chain meta::relational::tests::query::function::testFilterUsingContainsFunction
+789a1126
+> unordered-chain meta::relational::tests::query::function::testFilterUsingLengthFunction
+791c1128
+< unordered-chain meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+---
+> unordered-chain meta::relational::tests::query::function::testFilterUsingPlusFunction
+793a1131,1132
+> unordered-chain meta::relational::tests::query::function::testFilterUsingToLowerFunction
+> unordered-chain meta::relational::tests::query::function::testFilterUsingToUpperFunction
+794a1134,1136
+> unordered-chain meta::relational::tests::query::openvariables::testExistsAndBooleanOpenVariables
+> unordered-chain meta::relational::tests::query::openvariables::testExistsOpenVariable
+> unordered-chain meta::relational::tests::query::openvariables::testGroupOpenVariable
+795a1138
+> unordered-chain meta::relational::tests::query::qualifier::advanced::filterAbstractPropertyWithConditionOnRightTableExistsExpression
+811a1155
+> unordered-chain meta::relational::tests::query::qualifier::advanced::projectFunctionExpressionWithConditionOnLeftAndRightTable
+817a1162,1163
+> unordered-chain meta::relational::tests::query::qualifier::testNoParameters
+> unordered-chain meta::relational::tests::query::qualifier::testNoParametersThroughAssociation
+818a1165
+> unordered-chain meta::relational::tests::query::qualifier::testWithParameter
+819a1167,1176
+> unordered-chain meta::relational::tests::query::qualifier::testWithParameterUsedWithinExists
+> unordered-chain meta::relational::tests::query::routing::testCompositionInExtend
+> unordered-chain meta::relational::tests::query::routing::testCompositionInFilterCondition
+> unordered-chain meta::relational::tests::query::routing::testCompositionInGetAll
+> unordered-chain meta::relational::tests::query::routing::testCompositionInGetAllAndColSpecs
+> unordered-chain meta::relational::tests::query::routing::testCompositionInGroupBy
+> unordered-chain meta::relational::tests::query::routing::testCompositionInInClause
+> unordered-chain meta::relational::tests::query::routing::testCompositionInJoin
+> unordered-chain meta::relational::tests::query::routing::testCompositionInMultiStatementRelationalQuery
+> unordered-chain meta::relational::tests::query::routing::testCompositionInProject
+821a1179
+> unordered-chain meta::relational::tests::query::routing::testEvalFunctionAsVariable
+824a1183,1185
+> unordered-chain meta::relational::tests::query::routing::testNoRoutingWhenTraversingFunction
+> unordered-chain meta::relational::tests::query::routing::testSimpleEval
+> unordered-chain meta::relational::tests::query::simple::testAll
+836a1198,1199
+> unordered-chain meta::relational::tests::tds::groupBy::simpleGroupByWithAssociationWithJoinStrings
+> unordered-chain meta::relational::tests::tds::groupBy::simpleGroupByWithJoinStrings
+837a1201
+> unordered-chain meta::relational::tests::tds::groupBy::testTDSGroupByEmptyColsTerminalOperation
+838a1203,1205
+> unordered-chain meta::relational::tests::tds::sort::testSimpleSortAscWithPreval
+> unordered-chain meta::relational::tests::tds::tabletds::testExtendStringLiteral
+> unordered-chain meta::relational::tests::tds::tabletds::testProjectStringColumn
+839a1207
+> unordered-chain meta::relational::tests::tds::tabletds::testSimpleFilter
+856a1225,1229
+> unordered-chain meta::relational::tests::tds::tdsExtend::testDecimal
+> unordered-chain meta::relational::tests::tds::tdsExtend::testExtendAndExtendAgain
+> unordered-chain meta::relational::tests::tds::tdsExtend::testExtendOnDynaFunctionColumn
+> unordered-chain meta::relational::tests::tds::tdsExtend::testExtendOnMultiple
+> unordered-chain meta::relational::tests::tds::tdsExtend::testExtendWithQuotedColumnWithTableToTDS
+857a1231,1233
+> unordered-chain meta::relational::tests::tds::tdsExtend::testFirstNotNullFunction
+> unordered-chain meta::relational::tests::tds::tdsExtend::testFunctionOnStringColumn
+> unordered-chain meta::relational::tests::tds::tdsExtend::testFunctionOnStringLiteral
+858a1235
+> unordered-chain meta::relational::tests::tds::tdsExtend::testMultipleFunctions
+859a1237,1243
+> unordered-chain meta::relational::tests::tds::tdsExtend::testNull
+> unordered-chain meta::relational::tests::tds::tdsExtend::testStringColumn
+> unordered-chain meta::relational::tests::tds::tdsExtend::testStringLiteral
+> unordered-chain meta::relational::tests::tds::tdsFilter::testEvalInFilter
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterBeforeAndFilterAfter
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterBeforeWithOrAndFilterAfter
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterFollowedByGroupByWithFilterOnRootClass
+860a1245
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterMultipleExpressions1_chain
+861a1247,1248
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnAssociatedClassAggValueAfterGroupBy
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnDecimal
+862a1250,1255
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnEnum
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnQuotedColumnFromTableToTds
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnRootClassAggValueAfterGroupBy
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnRootClassAggValueAfterGroupByWithHavingMultipleFilters
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterTwoExpressions
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterTwoExpressions_chain
+863a1257,1258
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFilterWithStringConcat
+> unordered-chain meta::relational::tests::tds::tdsFilter::testFirstNotNullFunction
+864a1260
+> unordered-chain meta::relational::tests::tds::tdsFilter::testSimpleFilter
+871a1268
+> unordered-chain meta::relational::tests::tds::tdsJoin::testLeftOuterJoinWithFilterOnClassAndFunction
+874a1272,1284
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectAndProjectAgain
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectEnumFromOpenVariable
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectFunctionOnStringColumn
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectFunctionOnStringLiteral
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectMultipleFunctions
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectOnDynaFunctionColumn
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectOnMultiple
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectReduceColumns
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectStringColumn
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectStringLiteral
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectWithAdjustFunction
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectWithColumnSubSet
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectWithColumnSubSetFunctions
+875a1286,1287
+> unordered-chain meta::relational::tests::tds::tdsProject::testProjectWithQuotedColumnFromTableToTDS
+> unordered-chain meta::relational::tests::tds::tdsRename::testRenameColumns
+876a1289,1292
+> unordered-chain meta::relational::tests::tds::tdsRename::testRenameColumnsWithQuotes
+> unordered-chain meta::relational::tests::tds::tdsRestrict::testLowerProjectColsEliminated
+> unordered-chain meta::relational::tests::tds::tdsRestrict::testProjectAllColumns_Mulitple
+> unordered-chain meta::relational::tests::tds::tdsRestrict::testProjectAllColumns_Single
+880a1297
+> unordered-chain meta::relational::tests::tds::tdsRestrictDistinct::testRestrictDistinct_NoJoinCutDown
+881a1299,1305
+> unordered-chain meta::relational::tests::tds::tdsUnion::testMultiUnion
+> unordered-chain meta::relational::tests::tds::tdsUnion::testSimpleUnion
+> unordered-chain meta::relational::tests::tds::tdsUnion::testUnionWithGroupBy
+> unordered-chain meta::relational::tests::tds::tdsUnion::testUnionWithJoin
+> unordered-chain meta::relational::tests::tds::tdsUnion::testUnionWithPostOperation
+> unordered-chain meta::relational::tests::tds::tdsUnion::testUnionWithPreOperation
+> unordered-chain meta::relational::tests::tds::tdsUnion::testUnionWithPrePostOperation
+883a1308
+> unordered-chain meta::relational::tests::tds::tdsWindow::testPercentileWindowFunction
+## diff V0-main -> combined: h2-engine-order-register

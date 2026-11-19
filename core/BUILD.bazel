@@ -3624,7 +3624,7 @@ java_run(
         "--",
         "--select-class=com.legend.server.PureV1EdgeGoldenTest",
     ],
-    jvm_flags = ["-Dlegend.edge.purev1={OUT_DIR}/answers.tsv", "-Dh5.off=all"],
+    jvm_flags = ["-Dlegend.edge.purev1={OUT_DIR}/answers.tsv", "-Dh5.off=none"],
     main_class = "com.legend.tools.junit.JUnitAction",
     memory_mb = 2048,
     mnemonic = "EdgeContractPureV1",

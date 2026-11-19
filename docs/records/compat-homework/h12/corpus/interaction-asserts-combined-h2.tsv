@@ -1,0 +1,6 @@
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	1	meta::pure::functions::asserts::assert	FAIL
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	1	meta::pure::functions::asserts::assert	FAIL
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	1	meta::pure::functions::asserts::assert	FAIL
