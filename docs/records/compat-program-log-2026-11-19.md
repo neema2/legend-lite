@@ -1091,8 +1091,9 @@ who confirms or changes phases 1-3.
   - Standard, 2: both 62-bit shift error tests (the plain set). Relation 0.
   - Every moved row is one legend-engine's manifest marks DEFECT or REFUSES. The two substring-keyed sorts that moved
     on DuckDB do not move on H2: lite refuses them there before and after (a pre-existing H2 refusal).
-  - **So stage A's whole ENGINE-route effect, all six DuckDB and H2 lanes: 22 rows, every one toward PCT's expected
-    value** (DuckDB 13, H2 9).
+  - **So the whole dry run's ENGINE-route effect, all six DuckDB and H2 lanes: 22 rows, every one toward PCT's
+    expected value** (DuckDB 13, H2 9). (Corrected ~13:55 by the reviewer's N1: stage A's own share is 12, 7 DuckDB
+    and 5 H2; D2's removal, which lands in B4, is the other 10.)
 - **~13:14 UTC, the product orchestrator:** H2 essential and standard join lite's own PCT lanes in both channels as
   step 0 of the H2 track (`claude/h2-dialect-gaps`), the known-failure list and the lane's minutes to the user first.
 - **~13:16 UTC, the user: "Kill both now and restart on opus"** (the two spike sessions, H11 and H13). Done:
@@ -1242,3 +1243,39 @@ who confirms or changes phases 1-3.
 - **~13:35 UTC, the product orchestrator on S379:** the user had not ruled the pivot count case; it is now posted to
   the user case by case (the expression; Pure's `applyPivot` null; legend-engine's database 0; lite's), recommending
   (a). S379 reads "proposed, under the goal of ~13:25; the user's ruling of this case pending"; nothing lands before.
+- **~13:36 UTC, the independent reviewer's check of the final plan** (`compat-final-plan-review-2026-11-19.md` on
+  `claude/compat-review` at `fd88b9c8`; it read the final plan at `0a9303e5`, H12 and its TSVs, H6, `main`'s code and
+  legend-engine 4.145.0's pinned source). **12 findings: 5 must change, 4 should change, 3 minor. Verdict: not yet,
+  but close; every must-fix is a text change with no new measurement.**
+  - **M1, the detector's quiet case is unsound for `indexOf`:** legend-engine's corrected option fixes `substring` only
+    (`pureToSQLQuery.pure:4662` reads `state.correctSubstringIndexing`; `indexOf_String_1__String_1__Integer_1_` maps
+    to `processDynaFunction` unconditionally, `:10644`; H2's `LOCATE`). **Verified here** at the pin. Fixed: `indexOf`
+    always warns; a planted request with the option and an `indexOf` in A3's tests.
+  - **M2, A3's "the corpus loses exactly its 4" fails in either order:** by H12's TSVs, A2 then A3 gives A3 7 per
+    database (4 + the 3 hidden text tests), A2 147 H2 and 152 DuckDB; A3 then A2 gives 8 and 9, then 146 and 150.
+    Fixed: the order is A1, A2, A3, A4, each roster by name.
+  - **M3, lite's own PCT sets legend-engine's corrected-substring option on every query** (`PctPlanRoute.java:45-46`,
+    `ChannelB.java:393`, `PctExecuteNative.java:140`; "the user's ruling of 2026-09-12, a written deviation from
+    upstream's PCT adapter, which sets none"). **Verified here.** So lite's PCT never saw A3's `substring` half (why H12
+    moved only the 3 `indexOf` rows). Fixed: A3 drops the option from lite's adapter after the switch; proof channels
+    A and B unchanged without it; the reversal of the 2026-09-12 deviation and the 2026-11-07 "our tests should use the
+    option" are on A3's user's-word list.
+  - **M4, A2 restated the withdrawn claim and was unsized:** already rewritten from B2's shape note at `1ef9a9fc`
+    (after the commit the reviewer read). Added: what a legend-engine request asking for SQL text answers after A2
+    (lite's own SQL, CP-4), as a golden line and a register row.
+  - **M5, A4 lost its gate:** restored (the product's 5 judge-parity fixes and the PCT-under-both-judges lane first);
+    both corpus rosters byte-identical across A4; S131's narrowing does not ride in it.
+  - **S1:** row 6's strands (`isNumeric`, `parseDecimal`, `parseJson`) land in B4 with their moved tests (D1 covers
+    them). **S2, the detector:** its reach follows qualified properties and the runtime's mapping; a literal start of
+    0 on H2 exempt if measured equal; the header a done-when with a bounded value; **warn is right as the default only
+    with a one-time report at project load** (the bodies, the legend-engine query store's saved queries, qualified
+    properties and mapping transforms; lite's own store too), else refuse by default. Folded in as §4a, with that
+    recommendation put to the user. **S3:** the plain plan's row 1 was wrong ("a flag PCT always sets": legend-engine's
+    adapter sets none, `pct_relational.pure:108`, and its own H2 manifest lists `testStart`, `testStartEnd`,
+    `testSimple` as expected failures) and stale ("silent"). Corrected. **S4:** stage A is about 3 weeks (2 at best, 4
+    if the product's gates slip): 11 to 15 working days for one builder plus about a day per PR. Corrected.
+  - **N1:** the "22" is stage A's 12 (7 DuckDB, 5 H2) plus D2's 10 (B4); split in the log and both plans. **N2:** H6
+    §6.3 at `1062df31` still says the referee has no session of its own; asked of the judges session to correct.
+    **N3:** the rulebook amendment rides with A3's PR; B5 keeps refusing every other legend-engine flag by name; query
+    cost on users' warehouses added to "not measured".
+  - All folded into the final plan, the plain plan and this log (~13:55).
