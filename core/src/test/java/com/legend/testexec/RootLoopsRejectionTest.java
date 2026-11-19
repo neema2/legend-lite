@@ -29,10 +29,10 @@ class RootLoopsRejectionTest {
 
     private static RootLoops.Run run() {
         return new RootLoops.Run(new RootLoop(List.of(
-                new RootLoop.Root("assertEquals@1", List.of(new RootLoop.Row("assertEquals@1", 1, null, null,
-                        RootLoop.NO_APPEAL, null)), null),
-                new RootLoop.Root("assertEquals@2", List.of(new RootLoop.Row("assertEquals@2", 2, null, null,
-                        RootLoop.NO_APPEAL, null)), null)), Map.of()));
+                new RootLoop.Root("assertEquals@1", List.of(new RootLoop.Row("assertEquals@1", 1, null)),
+                        null),
+                new RootLoop.Root("assertEquals@2", List.of(new RootLoop.Row("assertEquals@2", 2, null)),
+                        null)), Map.of()));
     }
 
     @Test
@@ -46,7 +46,7 @@ class RootLoopsRejectionTest {
         assertTrue(run.rejected());
         List<Object> judged = new java.util.ArrayList<>();
         DataError raised = assertThrows(DataError.class, () -> run.judge(null, null, false,
-                (name, row) -> judged.add(name), i -> null, null));
+                (name, row) -> judged.add(name)));
         assertSame(refused, raised);
         // the first assert was judged on its row before the second raised the database's error
         assertTrue(judged.contains("assertEquals@1"), judged.toString());
