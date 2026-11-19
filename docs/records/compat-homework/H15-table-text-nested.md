@@ -309,3 +309,51 @@ Their 5 tests' outcomes come from their other asserts:
 **One record gap, for the owner.** legend-pure's `println` writes the text to its console; lite writes nothing.
 Register row S128 records `print`'s inertness (R18), but no row names `println`. A divergence that is not a row is a
 defect by the upstream-fidelity tenet. A one-line amendment to S128 (or a row of its own) would close it.
+
+## 9. `toCSV`'s layout, read from the pinned sources (the owner's second follow-up)
+
+**Whose function it is.** `toCSV` is legend-engine's, not legend-pure's: `meta::relational::tests::csv::toCSV`, over a
+legacy `TabularDataSet`, in legend-engine 4.145.0's
+`legend-engine-xt-relationalStore-core-pure/.../core_relational/relational/helperFunctions/helperFunctions.pure`
+(below "hf"). Its three overloads chain:
+- `toCSV(t)` is `toCSV(t, false)` (hf:198-201);
+- that is `toCSV(t, SimpleDateTimeFormat(), ISO8601DateFormat(), renderTdsNull)` (hf:203-206);
+- whose body is hf:208-212.
+
+The date formats are legend-engine's `core/pure/corefunctions/dateExtension.pure` (below "de"). legend-pure 5.99.0
+supplies `joinStrings` and a Float's text.
+
+| item | the rule | source |
+|---|---|---|
+| **the header line** | each column's name through `toCSVString` (so escaped as a cell is), joined by `,`, then `\n` | hf:210 |
+| **the separator** | `,` between cells, and nothing around it | hf:210-211 |
+| **line ends** | each row's cells joined by `,`; the rows joined by `joinStrings('', '\n', '\n')`, so a `\n` after EVERY row, the last included. With no rows the text is the header line and a lone `\n` (`"id\n\n"`), because `joinStrings` of an empty list is its prefix and suffix | hf:211; legend-pure `platform/pure/essential/string/toString/joinStrings.pure:72` (`'[]'` for an empty list); lite's `RenderCsvIntegrationTest.emptyRelationRendersHeaderAndBlank` pins `"id\n\n"` |
+| **an empty (null) cell** | a `TDSNull` prints as nothing (`''`), or as `TDSNull` under `toCSV(t, true)`. An empty String prints as nothing too, so the two cannot be told apart | hf:232 |
+| **quoting and escaping** | a cell whose text holds `,`, `"`, `\n` or `\r` is wrapped in `"`, each `"` inside doubled. Nothing else is escaped. Applied to every non-date cell, to a date-time and to the header's names; NOT to a date without an hour | hf:245-250 (`escapeCSVString`); applied at hf:234 and hf:241, not at hf:242 |
+| **a Float cell** | `$a->toString()`, the value's own text: its canonical `BigDecimal` (at least one fraction digit, trailing zeros dropped) printed `toPlainString()`, never with an exponent (`1.65`, `3.0`, `9.812850678733032`) | hf:234; legend-pure `m4/.../primitive/FloatCoreInstance.java:29-46` (`canonicalizeBigDecimal`), `simple/SimpleFloatCoreInstance.java:32-39` (`getName`) |
+| **a Date cell (no hour)** | `format('%t{yyyy-MM-dd}', d)` (`ISO8601DateFormat()`), not escaped | hf:233, hf:238-243 (`formatDateTime`, `hasHour()` false); de:389-392 |
+| **a DateTime cell (with an hour)** | `format('%t{yyyy-MM-dd HH:mm:ss}', d)` (`SimpleDateTimeFormat()`), then escaped: a space, not `T`; whole seconds, subseconds dropped; no zone | hf:233, hf:238-243 (`hasHour()` true); de:384-387 |
+
+**Against `toString`'s cells:**
+- **A Float cell:** `toCSV` prints exactly the value's `toString()` (hf:234). That is also the text a relation's
+  `#TDS` `toString` gives a Float cell: H11's table, `TestTDS.java:235-258` with the same `canonicalizeBigDecimal`.
+- **Date and date-time cells differ.** `toCSV` formats them with the two `%t` patterns: `2014-12-01` and
+  `2014-12-01 13:00:00`. A relation's `toString` prints every date with three subsecond digits and `+0000` (H11's
+  table, `TestTDS.java:201-212`), and a DateTime's own `toString` is its ISO text with `T`.
+- **A null differs.** `toCSV` prints nothing (or `TDSNull`).
+- **A Boolean, Integer, String or enum** prints its `toString()` in both, CSV-escaped in `toCSV`.
+
+**A TDS's `csv`** is a different thing: a stored `String` property of legend-pure's `TDS<T>` class (legend-pure
+`platform_dsl_tds/tds.pure:16-19`), with no Pure printer. Its text is whatever built the TDS: a `#TDS` literal's own
+text, or for an execution result the engine's. Its one corpus use, `testEnumInRelation` (`AlloyOnly`), expects a
+header joined by `, ` and no line end after the last row. That is unlike `toCSV`.
+
+## 10. A draft amendment to register row S128, for the user's word (`println`)
+
+S128 records `print`'s inertness (R18). No row names `println`. The draft, one line appended to S128's lite column:
+
+> AMENDED 2026-11-19 (H15 §8.5; for the user's word): `println` likewise. legend-pure's `println`
+> (`platform/pure/essential/io/println.pure:17-26, 43-62`, `<<PCT.platformOnly>>`) writes its value and a newline to
+> standard output, through `print`. Lite plans it as no statement, its argument never evaluated, on both doors
+> (`ProductStatements`, `BodyDriver`'s `println` arm, `StoreResolver`; `NULL` inside an expression, `Scalars`), and so
+> writes nothing.
