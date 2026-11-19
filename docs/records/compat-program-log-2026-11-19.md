@@ -585,3 +585,8 @@ who confirms or changes phases 1-3.
   - **So beyond `substring`/`indexOf`, the real answer losses are at most 3 corpus tests per lane, offset by 3 wins on
     H2, and 1 pure/v1 answer.** This is the user's "do lots of other things break too?": no.
   - The switches are on `claude/compat-translator-spike` (`H5Off.java`) for B2's PCT ENGINE run.
+- **~12:32 UTC, slice 0.3 and the batteries are PR #124** (`claude/compat-engine-lane` at `f922740bb`, 17 commits over
+  `main`). It also carries slice R's oracle tooling, which never had a PR of its own. `//gates:local`: 558 pass, and
+  the 12 Postgres-backed tests pass unprivileged. B1-R watches its CI. The independent reviewer takes it after #123.
+  - **How PRs go to the user from now on:** quietly. A PR is brought to the user once, when CI is green on every OS
+    and its review is in.
