@@ -217,13 +217,17 @@ public final class TestDataRoutes {
     }
 
     /** {@code pure/v1/execution/testDataGeneration/generateSeedData}: the seed's keys as upstream's JSON. */
-    static LiteV1Api.Answer seedData(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
-        return answer(500, "COMPILATION", () -> {
+    static LiteV1Api.Answer seedData(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
+            PureMeaningCheck.Mode meaning) {
+        java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        return PureV1Routes.withMeaning("generateSeedData", meaning, found, answer(500, "COMPILATION", () -> {
             Request r = Request.of(LiteV1Api.request(body));
             // doored first, before the seed scans the query's relations (the final audit of 9af16fbe58's J8)
-            return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(doored(ctx, r),
+            return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(
+                    doored(ctx, r, "generateSeedData", meaning, found),
                     seedJson(TestDataPlanner.seedFacts(ctx, seed(ctx, r, true)), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
-        });
+        }));
     }
 
     /**
@@ -264,25 +268,30 @@ public final class TestDataRoutes {
 
     /** {@code pure/v1/execution/testDataGeneration/generateTestData_WithSeed}: the test data from the given
      *  identifiers. */
-    static LiteV1Api.Answer withSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
-        return testData(body, runner, models, false);
+    static LiteV1Api.Answer withSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
+            PureMeaningCheck.Mode meaning) {
+        return testData(body, runner, models, false, meaning);
     }
 
     /** {@code pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed}: the test data from the default
      *  seed. */
-    static LiteV1Api.Answer withDefaultSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
-        return testData(body, runner, models, true);
+    static LiteV1Api.Answer withDefaultSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
+            PureMeaningCheck.Mode meaning) {
+        return testData(body, runner, models, true, meaning);
     }
 
     private static LiteV1Api.Answer testData(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
-            boolean defaultSeed) {
+            boolean defaultSeed, PureMeaningCheck.Mode meaning) {
+        String route = defaultSeed ? "generateTestData_WithDefaultSeed" : "generateTestData_WithSeed";
+        java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found =
+                new java.util.concurrent.atomic.AtomicReference<>();
         LiteV1Api.Answer a = answer(500, "COMPILATION", () -> {
             Request r = Request.of(LiteV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
                 // every route doored first, before its query's relations are scanned (ScanRelations.relTree: a raw
                 // read's query with no root, or several, was answered by the scan's words until the final audit of
                 // 9af16fbe58's J8, 2026-11-14); the seed's entry refuses raw SQL inside itself too
-                doored(ctx, r);
+                doored(ctx, r, route, meaning, found);
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
                 // a view root's main table admitted, so a view is refused by the route's own rule (ROUTE.checkTree)
                 TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;
@@ -296,7 +305,8 @@ public final class TestDataRoutes {
                 return run(ctx, planned.csv(), r.runtime(), runner);
             });
         });
-        return a.status() == 200 ? new LiteV1Api.Answer(200, a.json(), "text/plain") : a;
+        return PureV1Routes.withMeaning(route, meaning, found,
+                a.status() == 200 ? new LiteV1Api.Answer(200, a.json(), "text/plain") : a);
     }
 
     /** A timestamp key as upstream's seed route writes it ({@code ValueTransformer}, SeedDataGeneration.java:192:
@@ -391,8 +401,13 @@ public final class TestDataRoutes {
      *  text ({@code executeInDb}'s read) is refused by name, as every product door refuses it (2026-11-13, the
      *  orchestrator's completion A of item 5: these routes scan the query's relations and lower its seed, apart from
      *  the door every execute passes, PlanMaker.plan's QueryDoor.refuseTestOnly). */
-    private static ModelContext doored(ModelContext ctx, Request r) {
-        com.legend.planner.QueryDoor.refuseRawSql(com.legend.Compiler.query(ctx, r.query()));
+    private static ModelContext doored(ModelContext ctx, Request r, String route, PureMeaningCheck.Mode meaning,
+            java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found) {
+        com.legend.TypedQuery query = com.legend.Compiler.query(ctx, r.query());
+        com.legend.planner.QueryDoor.refuseRawSql(query);
+        // the pure-meaning detector (A3 piece 3): the route's query runs through its runtime and mapping, so a call
+        // whose answer would differ from legend-engine's is refused here, before the seed or the data is planned
+        PureV1Routes.checkMeaning(route, query, ctx, r.runtime(), r.mapping(), meaning, found);
         return ctx;
     }
 

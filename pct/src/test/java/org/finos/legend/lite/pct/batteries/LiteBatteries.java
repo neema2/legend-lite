@@ -65,8 +65,12 @@ public final class LiteBatteries {
             String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(line.substring(t + 1), false).json();
             String body = "{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":" + modelJson
                     + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+            // under LEGEND_LITE_PURE_MEANING=warn, an operator's choice (A3 piece 3): the batteries measure lite's
+            // ANSWERS against legend-engine's, and by default the edge refuses each request whose answer would differ
+            // (the user, 2026-11-19 ~19:20), which the detector's own tests prove (PureMeaningCheckTest)
             com.legend.server.LiteV1Api.Answer a = com.legend.edge.PureV1Routes.execute(body,
-                    com.legend.edge.EdgeServer.runner(null));
+                    com.legend.edge.EdgeServer.runner(null), com.legend.server.LiteV1Api.Models.COMPILED,
+                    com.legend.edge.PureMeaningCheck.Mode.WARN);
             out.append(com.legend.tools.enginelane.Batteries.answer(name, a.status(), a.json())).append('\n');
         }
         Files.writeString(Path.of(o.get("out")), out, StandardCharsets.UTF_8);
