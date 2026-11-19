@@ -177,7 +177,8 @@ exceptions to the rulebook.
   **A middle option, from the independent reviewer: Pure's way, but LOUD.** The one silent change is `substring` and
   `indexOf` in a query sent to the database. The legend-engine door can detect that case (it does not rewrite it) and
   warn, or refuse by a switch, when the request has not set legend-engine's own "corrected" option. A start position
-  of 0 on H2 is unaffected, which is the commonest use.
+  of 0 on H2 is unaffected, which is the commonest use. *(As ruled since: D1 taken at ~13:25 with "warn" the
+  default at ~14:55; then, at ~19:20, **refuse by default**, `warn` an operator's choice, and no load-time report.)*
 - **D2. Keep the two shortcuts that copy legend-engine's number behaviour?** (Rows 4 and 5.) **The count is in**
   (B2's (j) and the combined dry run agree). Removing both changes **7 answers that match legend-engine today**:
   - 4 on DuckDB where legend-engine returns a value and Pure raises an error: an out-of-range `slice` (empty list),
