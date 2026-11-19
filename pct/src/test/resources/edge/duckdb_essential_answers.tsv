@@ -77,22 +77,22 @@ testAdjustByYears	003	VALUE	type=ExprType[type=DATE, multiplicity=Bounded[lower=
 testAdjustByYears	004	VALUE	type=ExprType[type=DATE, multiplicity=Bounded[lower=1, upper=1]] values=StrictDate:2016-02-28;
 testAdjustByYears	005	VALUE	type=ExprType[type=DATE, multiplicity=Bounded[lower=1, upper=1]] values=StrictDate:2013-02-28;
 testAdjustByYears	006	VALUE	type=ExprType[type=DATE, multiplicity=Bounded[lower=1, upper=1]] values=StrictDate:2016-02-29;
-testArcCosine	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.<id>;
+testArcCosine	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.5707963267948966;
 testArcCosine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:3.141592653589793;
-testArcCosine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.<id>;
+testArcCosine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.0471975511965979;
 testArcCosineError	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:NaN;
 testArcCosineError	002	ERROR	the database answered NaN for a Float, which has no NaN in Pure
 testArcSine	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.0;
-testArcSine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.<id>;
-testArcSine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:-0.<id>;
+testArcSine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.5707963267948966;
+testArcSine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:-0.5235987755982989;
 testArcSineError	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:NaN;
 testArcSineError	002	ERROR	the database answered NaN for a Float, which has no NaN in Pure
 testArcTangent	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.0;
 testArcTangent	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.982793723247329;
-testArcTangent	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.<id>;
+testArcTangent	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.5607966601082315;
 testArcTangent2	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.0;
-testArcTangent2	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.<id>;
-testArcTangent2	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
+testArcTangent2	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.5707963267948966;
+testArcTangent2	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.14189705460416394;
 testAt	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:a;
 testAt	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:b;
 testAt	003	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:c;
@@ -102,8 +102,8 @@ testAtOtherScenario	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lo
 testAtOtherScenario	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:bz;
 testAtOtherScenario	003	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:cz;
 testAtWithVariable	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:b;
-testBigFloatAbs	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.<id>;
-testBigIntAbs	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:<id>;
+testBigFloatAbs	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.2345678912345678E17;
+testBigIntAbs	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:123456789123456789;
 testBinFloorExactBoundary	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:20;
 testBinFloorExactBoundary	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:-10;
 testBinFloorExactBoundary	003	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:0;
@@ -118,8 +118,8 @@ testBinFloorWidthOne	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[
 testBooleanToString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:true;
 testBooleanToString	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:false;
 testClassToString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:STR_Person;
-testCoTangent	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
-testCoTangent	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
+testCoTangent	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.6420926159343306;
+testCoTangent	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.07091484430265245;
 testComplexClassToString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:@_o1;
 testComplexPow	001	VALUE	type=ExprType[type=NUMBER, multiplicity=Bounded[lower=1, upper=1]] values=Double:16.0;
 testComplexPow	002	VALUE	type=ExprType[type=NUMBER, multiplicity=Bounded[lower=1, upper=1]] values=Double:182.88729271224375;
@@ -151,10 +151,10 @@ testContainsWithFunction	003	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Boun
 testContainsWithFunction	004	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testContainsWithFunction	005	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:false;
 testCosine	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.0;
-testCosine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
-testCosine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
+testCosine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.5403023058681398;
+testCosine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.0707372016677029;
 testCubeRoot	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.0;
-testCubeRoot	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:3.<id>;
+testCubeRoot	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:3.0000000000000004;
 testCubeRoot	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.1;
 testDateDiffDays	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:0;
 testDateDiffDays	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:1;
@@ -387,7 +387,7 @@ testFormatIntegerWithZeroPadding	001	VALUE	type=ExprType[type=STRING, multiplici
 testFormatIntegerWithZeroPadding	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy -00003;
 testFormatList	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy [dog, [cat, mouse]];
 testFormatPair	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy <dog, <cat, mouse>>;
-testFormatRepr	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy 'dog \\ \'dog\'';
+testFormatRepr	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy 'dog \\\\ \\'dog\\'';
 testFormatRepr	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy %2014-01-01T00:00:00.000+0000;
 testFormatString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy dog;
 testFormatString	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy box;
@@ -629,7 +629,7 @@ testParseFloat	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1,
 testParseInteger	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:17;
 testParseInteger	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:17;
 testParseInteger	003	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:-17;
-testParseInteger	004	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:<id>;
+testParseInteger	004	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:9999999999999992;
 testParseTrue	001	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testParseTrue	002	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testParseTrue	003	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
@@ -756,8 +756,8 @@ testSimpleSortReversed	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounde
 testSimpleSortWithFunctionVariables	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=3, upper=3]] values=String:Smith;String:Doe;String:Branche;
 testSimpleSortWithKey	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=3, upper=3]] values=String:Smith;String:Doe;String:Branche;
 testSine	001	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.0;
-testSine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
-testSine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.<id>;
+testSine	002	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.8414709848078965;
+testSine	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:0.9974949866040544;
 testSlice	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=0, upper=null]] values=Long:2;Long:3;Long:4;
 testSliceEqualBounds	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=0, upper=null]] values=
 testSliceError	001	ERROR	The low bound (3) can't be higher than the high bound (2) in a slice operation

@@ -702,6 +702,19 @@ junit_test(
     runtime_deps = [":pct_tests_lib"],
 )
 
+# THE EDGE GOLDEN NET's PROOF, the recorder's half (S0 of the presentation program, 2026-11-18,
+# docs/records/presentation-program-design-2026-11-18.md §4 (d)): planted changes through the recorder -- an SQL-only
+# change moves no line; a Float's 17th digit and a message change each move it; the mask hides an id, never a value;
+# the root ORDER BY's keys as the recorder writes them. The normalizer's half is //tools/guards:edge_normalize_test
+# (the review of PR #123, 2026-11-19: this module depends on no tool that sorts, PctDisciplineTest)
+junit_test(
+    name = "pct_edge_net_planted_test",
+    memory_mb = 512,
+    size = "small",
+    select = ["--select-class=org.finos.legend.lite.pct.extension.EdgeNetPlantedTest"],
+    runtime_deps = [":pct_tests_lib"],
+)
+
 # the guard's own planted violators (ChannelBTwiceTest): it names two differing plans and two differing runs
 junit_test(
     name = "pct_channel_b_twice_guard_test",
@@ -778,12 +791,19 @@ _EDGE_CLASS = {
         "edge/%s_%s/run.log" % (lane, s.lower()),
         "edge/%s_%s/outcomes.tsv" % (lane, s.lower()),
         "edge/%s_%s/answers.tsv" % (lane, s.lower()),
+        # a relation's activities, lite's own SQL: informational, read by no diff test (S0 of the presentation program,
+        # 2026-11-18), so an SQL-only change moves no golden
+        "edge/%s_%s/activities.tsv" % (lane, s.lower()),
+        # G3, report-only (S0): each case's statements under the edge's style and the product's compared
+        "edge/%s_%s/one_plan.tsv" % (lane, s.lower()),
     ],
     arguments = [
         "{OUT_DIR}/verdict.txt",
         "{OUT_DIR}/run.log",
         "{OUT_DIR}/outcomes.tsv",
         "{OUT_DIR}/answers.tsv",
+        "{OUT_DIR}/activities.tsv",
+        "{OUT_DIR}/one_plan.tsv",
         "--",
         "--select-class=org.finos.legend.lite.pct." + (_EDGE_CLASS[lane] % s),
     ],
@@ -791,6 +811,8 @@ _EDGE_CLASS = {
     jvm_flags = [
         "-Dlegend.junit.outcomes={OUT_DIR}/outcomes.tsv",
         "-Dlegend.edge.answers={OUT_DIR}/answers.tsv",
+        "-Dlegend.edge.activities={OUT_DIR}/activities.tsv",
+        "-Dlegend.edge.oneplan={OUT_DIR}/one_plan.tsv",
     ],
     main_class = "com.legend.tools.junit.JUnitAction",
     memory_mb = 4096,
@@ -837,6 +859,44 @@ _EDGE_CLASS = {
     ],
 ) for s in _SUITES]
 
+# channel B on H2 and SQLite in the net too (S0 of the presentation program, 2026-11-18,
+# docs/records/presentation-program-design-2026-11-18.md §4 (d): until then DuckDB's alone), every outcome as
+# ChannelBLane writes it, each lane judged by its own ledger class and, where legend-engine publishes one, its manifest
+_EDGE_CHANNEL_B_LANES = ["h2", "sqlite"]
+
+[java_run(
+    name = "edge_channel_b_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    srcs = UPSTREAM_TREES + [_LANE_LEDGER % (cls, s)] + [_LANE_MANIFEST % (d, d, d, s) for d in ([] if db == None else [db])],
+    outs = [
+        "edge/channel_b_%s_%s/verdict.txt" % (lane, s.lower()),
+        "edge/channel_b_%s_%s/run.log" % (lane, s.lower()),
+        "edge/channel_b_%s_%s/outcomes.tsv" % (lane, s.lower()),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s,
+    ],
+    env = {"LEGENDLITE_PCT_BACKEND": lane},
+    jvm_flags = program_jvm_flags("pct") + [
+        "-Dpct.suite.%s=$(execpath %s)" % (s, _LANE_LEDGER % (cls, s)),
+    ] + ["-Dpct.oracle.%s=$(execpath %s)" % (s, _LANE_MANIFEST % (d, d, d, s)) for d in ([] if db == None else [db])] + [
+        "-Dlegend.edge.channelb={OUT_DIR}/outcomes.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 2048,
+    mnemonic = "EdgeContractB",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ] + (["@h2//jar"] if lane == "h2" else []),
+) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items()
+    if lane in _EDGE_CHANNEL_B_LANES for s in suites]
+
 # each recording, normalized outside this module (tools/edgenet: a relation's rows and the file's lines sorted; the PCT
 # module holds no ordering machinery, PctDisciplineTest), is what the net compares with its golden
 _EDGE_RECORDED = {
@@ -846,6 +906,11 @@ _EDGE_RECORDED = {
 } | {
     "src/test/resources/edge/channel_b_duckdb_%s_outcomes.tsv" % s.lower(): "edge/channel_b_%s/outcomes.tsv" % s.lower()
     for s in _SUITES
+} | {
+    "src/test/resources/edge/channel_b_%s_%s_outcomes.tsv" % (lane, s.lower()): "edge/channel_b_%s_%s/outcomes.tsv" % (lane, s.lower())
+    for lane, (_, suites, _, _, _, _, _, _, _) in _CHANNEL_B_LANES.items()
+    if lane in _EDGE_CHANNEL_B_LANES
+    for s in suites
 }
 
 [java_run(
@@ -872,6 +937,11 @@ test_suite(
         ":update_edge_contract_tests",
         "//spec:update_edge_corpus_tests",
         "//core:update_edge_pure_v1_tests",
+        # the missing cases and the net's own proof (S0 of the presentation program, 2026-11-18): the recorder's half
+        # here, the normalizer's in //tools/guards (the review of PR #123, 2026-11-19)
+        "//core:update_edge_cases_tests",
+        ":pct_edge_net_planted_test",
+        "//tools/guards:edge_normalize_test",
     ],
 )
 
@@ -1095,4 +1165,12 @@ write_source_files(
 test_suite(
     name = "batteries_test",
     tests = [":update_batteries_tests"],
+)
+
+# THE EDGE NET (S0 of the presentation program, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
+# §4 (d)): every recording above, in-process on DuckDB, H2 and SQLite, and the net's proof. It runs on every push, a
+# lane of its own (//gates:edge_net; the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19).
+test_suite(
+    name = "edge_net",
+    tests = [":edge_contract_test"],
 )
