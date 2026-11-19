@@ -2953,3 +2953,16 @@ who confirms or changes phases 1-3.
   lite answers, E-R2), untouched by `engine`. Sent to the judges (merge the detector fix now; the engine after B1's
   native) and the reviewer. **With the user now: three moves** (the two funnel rows, the counters +2/+2, the two new
   engine pin files).
+- **~22:11 UTC, H13: the lite-words option measured** (record §25 at `e9fcd2e1` on `claude/compat-error-records-spike`;
+  probe patch 16 lines in 4 files, never pushed). Lite's own error sentence on every route, legend-engine's envelope and
+  status kept: **PCT, the same 16 tests PASS → FAIL on every lane where their suite runs** (essential 9, grammar 1,
+  relation 4, standard 2; DuckDB and SQLite 16 each on both channels, H2 relation 4), plus 12 SQLite known failures whose
+  pinned message re-pins; the ENGINE lanes move only the 4 window-frame tests. **Corpus: 0** (no assertError among 5,786
+  and 5,533 asserts). **pure/v1: 1 of 15**, for the better (`Raised: SIZE_NOT_MULTIPLICITY` becomes lite's sentence).
+  **B1 under it: about +30 / −1,030 lines, 2 to 3 days** (against +1,450 / −880 and 6.5 to 7 days, plus the slots'
+  +570 and 3.5 to 4); deleted outright about 445 of PureMessages' 481 lines, SiteWords and its recorder, RaisedWords,
+  PlanStyle's site and error words, 12 raiseMessage overrides, the size-words plumbing; optional: RaiseText's operands
+  out of the MIR (51 sites, about −150, 0.5 to 1 day, lite's SQL shrinks). Not lite's sentence: a user's `fail` and an
+  assert's own message, a database's own error. Texts a client may read that would become lite's, each needing a word:
+  the parameter-validation texts, the test-data route's assert texts, the compile errors' upstream sentences. Put to
+  the user with the recommendation: option 1 with the cleanup, and the three texts under the same rule.
