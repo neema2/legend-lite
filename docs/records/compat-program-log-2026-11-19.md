@@ -2226,3 +2226,12 @@ who confirms or changes phases 1-3.
   for its one CI run (A5 goes first and changes every DuckDB test plan's session: an early per-OS signal on A5 alone);
   no more pushes; it closes pointing at the batch. The judges' session given A5's head and its files to watch; it waits
   for A2's head, then merges A2 then A5.
+- **~18:01 UTC, the reviewer: #127 APPROVED WITH CHANGES** (record at `d58b7831`). MUST-FIX: a trial merge into
+  #124's combined branch conflicts in `PctPlanRoute.execute` (#124's `-Dpct.audience=engine` and #127's
+  `-Dpct.channela.rules=LITE` rewrite the same lines): one three-way selector, combinations refused, #124's
+  `AudienceCheck` kept. A5's five risk points hold; rules 1 and 4 hold; H2's `firstDayOfWeek` fix matches Pure and
+  legend-engine's H2 (`h2Extension2_1_214.pure:223`), no register row. Should-fix: S1 `threads = 1` is a door-keyed
+  test/product session difference for the user's word (the product's DuckDB keeps the G10 gap; a LocalFile DuckDB shared
+  by a test and a product plan in one JVM would share the global setting); S2 casts named in the (b1) gap; S3 the guard's
+  string tied to the class; S4 `toTheMinute` and a colon-less zone; S5 `CORRECTED_SUBSTRING` among the Integer folds.
+  Sent to A5: merge #124's branch and resolve with a plant, S2-S5 in the same push, and three lines for S1.
