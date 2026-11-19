@@ -2970,3 +2970,12 @@ who confirms or changes phases 1-3.
 - **~22:12 UTC, B2's docs at `07af5d5c2`** (DuckDB under `engine` stands in S130, S134, S383, item 1; evidence cites
   `1e6d9c68c` and `2dec438b0`; the engine batteries marked pending the user's word as new pins). The judges told.
 - **~22:20 UTC, the `engine` opt-in's moves ruled yes** (§1's row); relayed to B1 (its three on `claude/compat-a3-raw-substring`) and B1-R (the funnel row on `claude/compat-a3-engine`, the two pins with the wiring). The user's earlier "Okay" was taken as understood until the confirming question was answered.
+- **~22:17 UTC, the reviewer on the engine heads** (record `285f98e18`): D-M1 MET, the mechanism `1e6d9c68c` APPROVED;
+  the detector's section fix `8a2af5770` APPROVED; the wiring and batteries `2dec438b0` APPROVED with **E-M1, a must
+  before the wiring lands**: the rewrite reaches a flagged call applied to the store's result after a step legend-engine
+  may run on the host (a class query's terminal `->toOne().name->substring(0, 2)`); if legend-engine computes it on the
+  host with Pure's meaning, `engine` answers wrong. To B1-R: probe each shape on DuckDB and H2 with the engine runner;
+  refuse by name (or narrow the roots) where legend-engine answers on the host, add to the batteries where it answers
+  in the database. Shoulds: E-S1 (a let-bound lambda root also named host-side: refuse by name, a plant), E-S2 (pin W2
+  with a DuckDB seed test now), E-S3 (stale lines in design note rev 2 and `1e6d9c68c`'s javadoc). Its switch-rule
+  note added to B5's row in the final plan. own_corpus.matched on the merged tree expected 3320.
