@@ -1,0 +1,16 @@
+"""Failing test cases in a tree of JUnit test.xml files: one line per failing case (target, class, name)."""
+import sys, os, xml.etree.ElementTree as ET
+root = sys.argv[1]
+for d, _, fs in sorted(os.walk(root)):
+    for f in fs:
+        if f != 'test.xml': continue
+        target = os.path.relpath(d, root)
+        try:
+            t = ET.parse(os.path.join(d, f))
+        except ET.ParseError as e:
+            print(f"{target}\tUNPARSEABLE\t{e}"); continue
+        for tc in t.iter('testcase'):
+            bad = [c for c in tc if c.tag in ('failure', 'error')]
+            if bad:
+                msg = (bad[0].get('message') or bad[0].text or '').strip().splitlines()
+                print(f"{target}\t{tc.get('classname')}\t{tc.get('name')}\t{(msg[0] if msg else '')[:220]}")

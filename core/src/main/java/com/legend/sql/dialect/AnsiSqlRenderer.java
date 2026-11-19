@@ -1503,9 +1503,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  every database (the orchestrator's round 56, 2026-11-15: DuckDB, SQLite, ClickHouse, Trino, MySQL, MongoDB and
      *  Databricks printed {@code -0}, MariaDB, Postgres and H2 {@code 0}); the whole six-digit text alone matches. */
     protected static SqlWriter trimmedSix(SqlWriter writer, String trim, java.util.function.Consumer<SqlWriter> text) {
-        writer.append(trim).append("(").append(trim).append("(");
+        // SPIKE (H14 V2): a whole value keeps one fraction digit -- '.000000' marked, the zeros trimmed, the mark a '0'
+        writer.append("REPLACE(").append(trim).append("(REPLACE(");
         unsignedZero(writer, text);
-        return writer.append(", '0'), '.')");
+        return writer.append(", '.000000', '.#'), '0'), '#', '0')");
     }
 
     /** {@code text}, a six-digit fixed-point text, with {@code -0.000000} written {@code 0.000000} ({@link #trimmedSix}):
@@ -1519,9 +1520,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** {@link #trimmedSix} spelled by the SQL standard's trailing trim ({@code TRIM(TRAILING '0' FROM ...)}), for a
      *  database whose {@code RTRIM} takes no character. */
     protected static SqlWriter trimmedSixStandard(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
-        writer.append("TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM ");
+        // SPIKE (H14 V2): as trimmedSix's
+        writer.append("REPLACE(TRIM(TRAILING '0' FROM REPLACE(");
         unsignedZero(writer, text);
-        return writer.append("))");
+        return writer.append(", '.000000', '.#')), '#', '0')");
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----

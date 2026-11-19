@@ -166,3 +166,79 @@ Every such cell PCT holds matched lite's text, and every row order matched (the 
   `session` left out.
 - The probes: `H14-probes/classify.py.txt` (outcomes and causes), `detail.py.txt` (cell pairs), `sizes.py.txt` (SQL).
 - Every log is in the session's scratch folder; none is committed.
+
+## 6. V2: a whole Float keeps one fraction digit (`2.0`), the user's question of ~16:45
+
+"Is there any cheap/lean sql way to get whole floats to be what people expect 2.0? If not that's fine." **Yes: one
+more `REPLACE` around the product's existing six-decimal text, the value read once.**
+
+**The spelling.** A six-decimal text ends in `.000000` exactly when the value is whole (six digits always follow the
+point; `NaN` and the infinities hold no point). So the whole value's fraction is marked before the trailing zeros are
+trimmed, and the mark turned back into a `0` after:
+
+| | The shared helper (`AnsiSqlRenderer`) | DuckDB's cell, `x` a column |
+|---|---|---|
+| V1 (today) | `rtrim(rtrim(REPLACE(t, '-0.000000', '0.000000'), '0'), '.')` | 81 characters |
+| **V2** | `REPLACE(rtrim(REPLACE(REPLACE(t, '-0.000000', '0.000000'), '.000000', '.#'), '0'), '#', '0')` | 114 (**+33**) |
+| V1, standard trim | `TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM REPLACE(t, '-0.000000', '0.000000')))` | Trino 105, MariaDB 127 |
+| **V2, standard trim** | `REPLACE(TRIM(TRAILING '0' FROM REPLACE(REPLACE(t, '-0.000000', '0.000000'), '.000000', '.#')), '#', '0')` | Trino 126, MariaDB 148 (**+21**) |
+
+No concatenation (MySQL's `||` is OR), no second read of the value, a marker (`#`) no number's text holds. The two
+helpers are what every dialect writes but Snowflake's and MongoDB's own forms (Snowflake's CASE uses the helper for
+its ordinary values; MongoDB's aggregation form was not changed). V2 is its own commit on this branch (§7).
+
+**Checked on every database it can run here** (`core:h14_float_probe`, scratch, each value's `toString()` through the
+product's plan; Postgres as `ubuntu`, MySQL, MariaDB, ClickHouse and Trino the build's embedded servers):
+
+| Value | V1 (today) | **V2, on DuckDB, H2, SQLite, Postgres, MySQL, MariaDB, ClickHouse and Trino alike** |
+|---|---|---|
+| `2.0`, `-2.0`, `0.0`, `100.0`, `101.0`, `123456789.0` | `2`, `-2`, `0`, `100`, `101`, `123456789` | `2.0`, `-2.0`, `0.0`, `100.0`, `101.0`, `123456789.0` |
+| `-0.0` | `0` | `0.0` (the sign still dropped: S311's ruled line) |
+| `1e20` | `100000000000000000000` | `100000000000000000000.0` |
+| `1e-7`, `-1e-7` (below six decimals) | `0` | `0.0` |
+| `1.5`, `-1.25`, `0.30000000000000004`, `1/3`, `0.000001`, `1234567.89` | `1.5`, `-1.25`, `0.3`, `0.333333`, `0.000001`, `1234567.89` | the same |
+| `NaN`, `Infinity`, `-Infinity` | by name | by name on DuckDB, H2, Postgres, ClickHouse, Trino; SQLite refuses NaN by name ("cannot hold"), MySQL and MariaDB all three, as today |
+
+**PCT's 423 under V2** (channel B, LITE rules; DuckDB both judges, the others the host judge):
+
+| Database | V1 | **V2** | Float failures left | Left |
+|---|---|---|---|---|
+| **DuckDB** | 363 | **390** (relation 335, standard 55) | **0** | the 33 abstract-`Date` tests, exactly V1's |
+| SQLite | 352 | 379 | 0 | 33 Date, 11 SQLite refusals |
+| Postgres 16 | 361 | 388 | 0 | 33 Date, 2 `jsonb` key order |
+| H2 (relation) | 297 | 300 | 0 | 30 Date, 35 H2 refusals |
+
+DuckDB's whole PCT under V2: relation 435, standard 200, essential **315** (+2: `testFloatToStringWithExcessTrailingZeros`
+`17.0` and `testFloatToStringWithPositiveExponent` `134210000.0` now pass), grammar 136, unclassified 93.
+
+**What V2 moves among lite's own tests and pins** (V2 against V1 at this branch's head: `//core:core_tests`, both
+core integration lanes, `//pct:pct_duckdb_lite`, the five `pct_channel_b_lite_*`; NOTHING moved here, counted only).
+V2 changes the product's scalar `toString()` of a whole Float from `2` to `2.0`: a change to the user's ruling of
+2026-11-10 (S311, "let's go back to 6 ... and use decimal where need").
+- **5 core test cases pin V1's text and fail under V2:**
+  - `integration.FloatTextTest.aFloatsTextIsSixDecimalsTrimmed`: `[1.5, 2, -1.25, 1234567.89, 100000000000000000000]`
+    becomes `[..., 2.0, ..., 100000000000000000000.0]`;
+  - `integration.TypeInferenceIntegrationTest.testFloatToStringWithNegativeExponent`: `0` becomes `0.0`;
+  - `AuditRound3Test.floatReprLargeBand`: `1000000000000000000` becomes `1000000000000000000.0`;
+  - `sql.dialect.BigQueryDialectTest.aFloatsTextIsSixDecimalsTrimmed` and
+    `sql.dialect.SnowflakeDialectTest.aFloatsPrintFormsAreSpelledHere_theValueReadOnce`: the pinned SQL text.
+- **3 rows of channel A's LITE ledger** (`pct_duckdb_lite_essential`): `testFloatToStringWithExcessTrailingZeros`
+  and `testFloatToStringWithPositiveExponent` PASS (ledgered as failing with `17` and `134210000`);
+  `testFloatToStringWithNegativeExponent` still fails, its words `0.0` where the ledger has `0`.
+- **Channel B's LITE ledger (`duckdb-lite`):** the same two essential tests pass, and the relation and standard rows
+  of §2 move by 4 and 23 more.
+- **No other core suite moved** (33 of 35 targets unchanged, with V1's own 4 cases, §2's, unchanged). Not run under V2:
+  the compatibility lanes (the corpus, PCT's COMPAT lanes, the edge net): their Float text is the edge's, not the
+  product's `FLOAT_TO_TEXT` (read, not run).
+
+## 7. Commits
+
+- `46354194`: V1, the table text in the database (§0 to §5).
+- The next commit: V2 in `AnsiSqlRenderer`'s two helpers, the probe `core/src/test/java/com/legend/exec/H14FloatTextProbeTest.java`
+  and its manual target `//core:h14_float_probe` (excluded from `core_tests_exec`).
+- **V1's own moves among lite's tests** (V1 against `main`, found by the same runs): 4 core cases, all the spike's
+  `toString` change, not the Float text: `RenderCsvIntegrationTest.theProductRefusesARelationsTextByName` (the
+  refusal it pins is gone), `DynamicPivotTextRefusalTest` (its refusal's words), `TaggedListTest.anUntypedGridsCellsAreReadOnTheVariantLane`
+  (a raw grid's text, refused by the spike), and `FloatTextTest.anEdgeRelationsTextPrintsAFloatCellAsLegendPure` (the
+  edge style's table text now goes through the product's lowering, whose `FLOAT_TO_TEXT` the edge style spells as
+  legend-engine's cast: `1e-05`, `1e+20`).
