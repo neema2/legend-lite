@@ -1,0 +1,41 @@
+# A2's guard moves, classified (census B2, 2026-11-19), for the judges' session to note on the batch branch.
+# A2 = claude/compat-a2-printers, b75d6c73a..6551c2036. Lines are at 6551c2036.
+# direction:
+#   DOWN     = a ceiling, pin, allowlist or ledger shrinks, or a rule leaves with its deleted subject.
+#              Covered by the user's ruling of 2026-11-19 ~20:45, "Approved to move guards down".
+#   UP       = a list or roster grows, or a floor drops. Needs the user's word.
+#   SIDEWAYS = a planted fixture or pinned signature retargeted at the same strength. Listed for the judges' call.
+# Each DOWN line's proposed note (appended to A2's existing dated comment):
+#   "a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down")"
+file	lines	what moved	direction	remark
+core/src/test/java/com/legend/ArchitectureTest.java	247-254	Invariant 4d's two rules (engineStyleRendererIsQuarantinedToTheRootLayer, engineTextDialectIsQuarantinedToTheRootLayerAndThePlanPrinter) removed with their subjects (EngineStyle*, EngineTextDialect deleted)	DOWN	a rule leaving with its subject; PRODUCT_REACHES_NO_EDGE still holds the product off the edge
+core/src/test/java/com/legend/ArchitectureTest.java	1335-1336	PLANNER_ENTRIES: lowering.Styled#dateTimes() loses the caller com.legend.edge.EdgeLoweringForms	DOWN	allowlist shrinks
+core/src/test/java/com/legend/ArchitectureTest.java	1395-1396	PLANNER_ENTRIES: lowering.Styled#<init>(Function, LoweringForms, DateTimeTexts, ListTexts) entry removed (EngineShape's)	DOWN	allowlist shrinks
+core/src/test/java/com/legend/ArchitectureTest.java	1406-1408	PLANNER_ENTRIES: SubselectPrune#prune(SqlQuery, boolean, String), Styled#forms(), #lists(), #pureOnly() entries removed (EngineShape's)	DOWN	allowlist shrinks
+core/src/test/java/com/legend/ArchitectureTest.java	4647-4650	TEMPORAL_LITERAL_MAKERS: com.legend.edge.EngineSeedText removed	DOWN	allowlist shrinks
+core/src/test/java/com/legend/ArchitectureTest.java	5034, 5043-5045	the plan-style facet rule loses its EngineTextDialect clause (the interface deleted)	DOWN	a clause leaving with its subject
+core/src/test/java/com/legend/CodeShapeGuardrailTest.java	202-204	mutable-field allowlist loses EngineStyleH2.frameDepth and EngineStyleH2.anonDistinctDepth	DOWN	allowlist shrinks
+core/src/test/java/com/legend/CompatSpellingGuardTest.java	482, 488-490	the plant's edge class retargeted EngineStyleH2 -> EnginePlans (GuardNamesExistTest refuses a stale name); forbidden names unchanged	SIDEWAYS	same strength
+core/src/test/java/com/legend/DialectBoundaryTest.java	138-140	PureText.java switch arms on a database type: ceiling 20 -> 13	DOWN	ceiling lowered
+core/src/test/java/com/legend/DialectBoundaryTest.java	190-193	PureText.java dialect constructions: ceiling 17 -> 12	DOWN	ceiling lowered
+core/src/test/java/com/legend/DialectOwnerExclusivityTest.java	49-51	the Crossing for EngineStyleH2.java naming DuckDB (9 lines) removed	DOWN	allowlist shrinks
+core/src/test/java/com/legend/DialectOwnerExclusivityTest.java	193-194	comment only (EngineStyle* went with that text)	-	no guard value moves
+core/src/test/java/com/legend/DialectOwnerExclusivityTest.java	225-227	the extends-chain discovery check retargeted EngineStyleComposite (three deep) -> MariaDb; MySql (two deep) is the deepest chain held now	SIDEWAYS (weaker)	the check now proves discovery to depth two, not three: no three-deep dialect remains
+core/src/test/java/com/legend/sql/dialect/DialectVocabularyTest.java	109-111	the concrete-dialect FLOOR 15 -> 12 (it counted the three deleted printers)	UP (a floor dropped)	numerically down, but a floor: it loosens. Its three subjects were deleted, and the 12 are lite's dialects
+core/src/test/java/com/legend/JavaEvalLedgerTest.java	825	EnginePlans.java pin 760 -> 757	DOWN	shrink-only pin
+core/src/test/java/com/legend/JavaEvalLedgerTest.java	1885-1889	the edge's closed file list: -EngineStyleH2.java, -EngineStyleDB2.java, -EngineStyleComposite.java, +LiteSqlText.java	UP (one entry added)	the three removals are DOWN; the new LiteSqlText.java entry in a closed list is UP and needs the user's word
+core/src/test/java/com/legend/JavaEvalLedgerTest.java	1933-1934	the edge's list loses EngineTextDialect.java	DOWN	list shrinks
+core/src/test/java/com/legend/ParkedWorkLedgerTest.java	143-144	PARK-18 closed (its anchor file EngineStyleH2.java deleted); docs/PARKED_WORK_LEDGER.md says so	DOWN	ledger shrinks
+core/src/test/java/com/legend/PlannerSurfaceTest.java	1066-1071, 1200-1204, 2383-2386	Compiler#lowerResolved's two pinned signatures lose the dead boolean (relationalRootForm)	SIDEWAYS	a pinned public signature narrowed; the planner's surface shrinks by a parameter
+core/src/test/java/com/legend/sql/dialect/PreQuotedNamesTest.java	75 (engineText() removed), 106	the printers leave the golden's dialect list	DOWN	golden subjects deleted
+core/src/test/resources/com/legend/sql/dialect/pre-quoted-names.tsv	(192 rows removed)	the three printers' golden rows	DOWN	golden shrinks with its subjects
+core/src/test/java/planner/PlantedHostEdgeReach.java	18-20	the plant retargeted EngineTextDialect -> PureText (an edge type the host may not name)	SIDEWAYS	same strength
+parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv	41, 43	own_corpus.matched 3310 -> 3309 (an EXACT pin, OwnCorpusParityTest.java:87 assertEquals; measured by update_ratchets)	DOWN (exact pin, -1)	NOTE ERROR: A2's history line says "3310 -> 3311 ... UP", in PeRatchets.java:130-132 and ratchets.tsv:41. It should read "own_corpus.matched 3310 -> 3309 (2026-11-19, A2 of the compatibility program: PureV1SqlTextTest's model joins, LegacyTextTest's models leave with the printers; net -1, measured; DOWN)". Edit PeRatchets.HISTORY, then bazel run //parser-equivalence:update_ratchets
+docs/dialect-capability/matrix.tsv (+ the generated pages)	(687 rows removed)	the printers' columns, regenerated by update_dialect_capability	DOWN	generated; diff-tested
+spec/src/test/resources/rcorpus/h2-fail-roster.txt	-	+147 (A2-roster.tsv); with the accepted divergences ruled ~20:35, +145 on the merged batch	UP	roster grows: CP-4's cost, ruled with stage A; the judges' merged figure replaces it
+spec/src/test/resources/rcorpus/duckdb-fail-roster.txt	-	+152 (A2-roster.tsv); +149 on the merged batch	UP	as above
+spec/src/test/resources/rcorpus/{h2,duckdb}-accepted-roster.txt	-	not moved by A2; the ~20:35 ruling: H2 41 -> 44, DuckDB 46 -> 49 (batch 144's four rows restored, two new H2 rows)	UP	ruled by the user ~20:35
+spec/src/test/resources/rcorpus/{h2,duckdb}-unordered-register.txt	-	H2 +434/-4, DuckDB +440/-5 (tests now judged by rows through the appeal, unsorted chains)	UP	explained in docs/GATES.md (A2's section)
+spec/src/test/resources/rcorpus/{h2,duckdb}-ord-register.txt	-	H2 +4, DuckDB +5 ordered-keys-unmappable	UP	explained in docs/GATES.md
+spec/src/test/resources/rcorpus/duckdb-engine-order-register.txt	-	-2, +1	mixed	explained in docs/GATES.md
+(the corpus edge net) judge-host ledgers	-	re-recorded: the roster's tests, plus 9 (H2) and 8 (DuckDB) already-failing tests whose later asserts' lines left; outcomes unchanged	SIDEWAYS	goldens re-recorded
