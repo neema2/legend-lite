@@ -108,6 +108,7 @@ junit_test(
     data = [
         "src/test/resources/smoke/person.pure",
         "src/test/resources/smoke/service.pure",
+        "src/test/resources/smoke/storeless.pure",
         ":lite_parse",
         ":parse",
         ":testable",
@@ -115,6 +116,7 @@ junit_test(
     jvm_flags = [
         "-Drunner.smoke.fixture=$(rlocationpath src/test/resources/smoke/person.pure)",
         "-Drunner.smoke.service=$(rlocationpath src/test/resources/smoke/service.pure)",
+        "-Drunner.smoke.storeless=$(rlocationpath src/test/resources/smoke/storeless.pure)",
         "-Drunner.parse=$(rlocationpath :parse)",
         "-Drunner.lite_parse=$(rlocationpath :lite_parse)",
         "-Drunner.testable=$(rlocationpath :testable)",

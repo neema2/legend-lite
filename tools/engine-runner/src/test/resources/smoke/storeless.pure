@@ -1,0 +1,19 @@
+// The engine runner's storeless smoke fixture: function tests that read from no store, so legend-engine compiles each
+// plan to Java, with javac over the class path ClassGraph reads (perf.AbsoluteClassPath). One test passes, one fails,
+// and one raises: substring past the end, whose text is the JDK's (the S383 probe, 2026-11-19).
+function smoke::middle(): String[1]
+{
+  'abcdef'->substring(1, 3)
+}
+{
+  right | middle() => 'bc';
+  wrong | middle() => 'x';
+}
+
+function smoke::pastTheEnd(): String[1]
+{
+  'abcdef'->substring(7)
+}
+{
+  raised | pastTheEnd() => 'x';
+}
