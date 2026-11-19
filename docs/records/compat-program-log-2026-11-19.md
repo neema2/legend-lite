@@ -3094,3 +3094,6 @@ who confirms or changes phases 1-3.
   backed by legend-engine's answers (`let.value.sub3.then.upper` "CRE", `let.value.idx.then.plus` 13); every probed let
   shape handled right; the class-shape tests carry the probed answers. Ready for the combination review on the judges'
   merged measurement.
+- **~23:50 UTC, the judges: the detector merged through its final head `afcb77770`** (batch head `104b0206c`; three
+  clean merges, 55 of 55 touched lanes each; no ledger, golden or ratchet moved; own_corpus.matched 3325). Waiting on the
+  translator's two heads.
