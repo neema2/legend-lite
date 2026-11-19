@@ -1,0 +1,17 @@
+# V4-everywhere h2: pass=2281 fail=284 skipped=7 of 2613 in 155s
+[H5] EVERYWHERE compat translator: rewritten={indexOf/2=190, substring/2=4, substring/3=83} keptPure={indexOf/3 (no upstream translation)=6} queryHelpers=[] unresolvedRoutedArguments=0 recordsRebuilt=1755 ms=627 notes=[helpers ms=0 elements=11168]
+[H5] buildModule ms=3805
+## diff V3-queries -> V4-everywhere: h2-fail-roster
+47a48,51
+> meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_DupeJoinKeys_Test
+> meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_ExtraCols_Test
+> meta::pure::tds::tests::extensions::columnValueDifference_DupeJoinKeys_Test
+> meta::pure::tds::tests::extensions::columnValueDifference_ExtraCols_Test
+## diff V3-queries -> V4-everywhere: h2-skipped-roster
+## diff V3-queries -> V4-everywhere: h2-unordered-register
+## diff V3-queries -> V4-everywhere: h2-engine-order-register
+## the new failures' reasons
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_DupeJoinKeys_Test :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_ExtraCols_Test :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifference_DupeJoinKeys_Test :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifference_ExtraCols_Test :: type: cannot access 'name' on String

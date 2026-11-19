@@ -96,6 +96,32 @@ The corpus, Pure's meaning in the core, the dynaFunction split and the use-site 
   Integer) raises in the database instead of answering `true`** (S127's family; for the product owner). The code is
   host-side and correctly NOT rewritten.
 
+### F5. The definition-site rename is wrong twice over: in meaning and in typing
+
+Variant V4 renames every `substring`/`indexOf` call in the model (H3's request-level rename, applied to the whole
+model), against V3's use-site rename:
+
+| lane | V3 (use site) | V4 (every definition) | moved |
+|---|---|---|---|
+| H2 | 2,285 pass, 280 fail | 2,281 pass, 284 fail | +4 fail |
+| DuckDB | 2,447 pass, 113 fail | 2,442 pass, 119 fail | +7 fail, -1 (the vacuous pass comes back) |
+
+- **In typing:** 6 of the new failures are `type: cannot access 'name' on String` (the `columnValueDifference*` and
+  `rowValueDifferenceTest` tests). legend-engine's own TDS helper `tds/tdsExtension.pure:39` sorts by
+  `sortBy(c|$columnsToCheck->indexOf($c.name))`, the LIST `indexOf`. Renamed to the compatibility overload set (a String
+  overload and a generic `T[*]` one), lite's typer infers the lambda's `c` as a String. **An untyped rename to a user
+  overload set changes type inference**, so a real translator must retarget TYPED calls: only a call that resolved to
+  `meta::pure::functions::string::indexOf(String[1], String[1])` (H3's note 2, now measured on a whole model). The
+  use-site scope escaped it only because no list `indexOf` sits in store-bound corpus code.
+- **In meaning:** the rename gives host-side code legend-engine's meaning, which legend-engine never gives it: DuckDB's
+  `testPlanForDateTimeVariableESTTimeZone` passes again, vacuously (F1.4), and one accepted divergence's witness moves
+  (`columnValueDifferenceWithoutPrevalTest`).
+- **The shape a typed retarget needs:** type the program with upstream's names first, collect the calls whose resolved
+  callee is the String overload (by source position: each call keeps its own `SourceInfo`), then rename exactly those.
+  Through the public doors that means a second compile or a door that exposes the typed bodies of a model's functions
+  (today `TypedQuery.body()` exposes a query's, not a model function's). Not built (time box); it is the first thing
+  3.2 must decide, and it may be the first core hook the translator asks for.
+
 ## 1. The spike's shape
 
 **The translator** (`spec/src/test/java/com/legend/compatspike/EngineTranslator.java`, 494 lines, about 400 without
@@ -135,8 +161,8 @@ new hook" is checked by javac.
 | V0 | main | none |
 | V3 | Pure + dyna split | `queries` |
 | V2 | Pure + dyna split | off |
-| V4 | Pure + dyna split | `everywhere` |
-| V5 | Pure + dyna split | `identity` |
+| V4 | Pure + dyna split | `everywhere` (F5) |
+| V5 | Pure + dyna split | `identity` (the pass-through check, (d)) |
 
 ## 2. The measurements
 

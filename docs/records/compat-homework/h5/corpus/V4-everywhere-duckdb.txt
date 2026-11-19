@@ -1,0 +1,29 @@
+# V4-everywhere duckdb: pass=2442 fail=119 skipped=7 of 2613 in 482s
+[H5] EVERYWHERE compat translator: rewritten={indexOf/2=190, substring/2=4, substring/3=83} keptPure={indexOf/3 (no upstream translation)=6} queryHelpers=[] unresolvedRoutedArguments=0 recordsRebuilt=1755 ms=545 notes=[helpers ms=0 elements=11168]
+[H5] buildModule ms=4062
+## diff V3-queries -> V4-everywhere: duckdb-fail-roster
+5d4
+< meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone
+35a35,41
+> meta::pure::tds::tests::extensions::columnValueDifferenceTest
+> meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest
+> meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_DupeJoinKeys_Test
+> meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_ExtraCols_Test
+> meta::pure::tds::tests::extensions::columnValueDifference_DupeJoinKeys_Test
+> meta::pure::tds::tests::extensions::columnValueDifference_ExtraCols_Test
+> meta::pure::tds::tests::extensions::rowValueDifferenceTest
+## diff V3-queries -> V4-everywhere: duckdb-skipped-roster
+## diff V3-queries -> V4-everywhere: duckdb-unordered-register
+## diff V3-queries -> V4-everywhere: duckdb-engine-order-register
+12,14d11
+< engine-order meta::pure::tds::tests::extensions::columnValueDifferenceTest
+< engine-order meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest
+< engine-order meta::pure::tds::tests::extensions::rowValueDifferenceTest
+## the new failures' reasons
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifferenceTest :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest :: accepted-divergence WITNESS MISSING ('2014-12-01T00:00:00.000000000+0000') — the divergence changed, re-decide :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_DupeJoinKeys_Test :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_ExtraCols_Test :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifference_DupeJoinKeys_Test :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::columnValueDifference_ExtraCols_Test :: type: cannot access 'name' on String
+[corpus2] FAIL meta::pure::tds::tests::extensions::rowValueDifferenceTest :: type: cannot access 'name' on String
