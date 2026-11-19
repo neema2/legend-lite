@@ -302,6 +302,11 @@ public final class PureText {
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). A fresh printer per use: a dialect keeps state while
      *  it writes a statement (moved here from the planner's {@code EngineText}, phase D, 2026-11-12). */
     public static EngineTextDialect engineText(DatabaseType type) {
+        // PROBE (census B2, CP-4): lite's own SQL in place of legend-engine's text
+        if (com.legend.base.H5Off.off("sqltext")
+                && (type == DatabaseType.H2 || type == DatabaseType.DB2 || type == DatabaseType.Composite)) {
+            return LiteTextProbe.of("engineText " + type);
+        }
         return switch (type) {
             case H2 -> new EngineStyleH2();
             case DB2 -> new EngineStyleDB2();
@@ -317,6 +322,11 @@ public final class PureText {
      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
     public static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
             @com.legend.base.Nullable String timeZone) {
+        // PROBE (census B2, CP-4): lite's own SQL in place of legend-engine's plan text
+        if (com.legend.base.H5Off.off("sqltext")
+                && (type == DatabaseType.H2 || type == DatabaseType.DB2 || type == DatabaseType.Composite)) {
+            return LiteTextProbe.of("enginePlanText " + type);
+        }
         return switch (type) {
             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
             case DB2, Composite -> new EngineStyleDB2(quoteIdentifiers, timeZone);

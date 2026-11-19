@@ -13,7 +13,8 @@ import java.util.Set;
  * {@code parseddecimal}, {@code parsedjson}, {@code sqlitedecimal} (SQLite's Decimal arithmetic as REAL), {@code raw}
  * (legend-engine's H2 executeInDb text translated for DuckDB and Postgres), {@code nullunsafe} (the Feature flag
  * LEGACY_SQL_NULL_UNSAFE_EQUALS), {@code settings} (H2 MODE=LEGACY, DEFAULT_NULL_ORDERING=HIGH), {@code crosskind}
- * (compiled legend-pure's Integer/Decimal equality by text, the database judge's); {@code all} for every one.
+ * (compiled legend-pure's Integer/Decimal equality by text, the database judge's), {@code sqltext} (B2's CP-4 probe:
+ * legend-engine's SQL and plan text answered by lite's own; H12); {@code all} for every one.
  */
 public final class H5Off {
 
