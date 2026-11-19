@@ -2179,3 +2179,12 @@ who confirms or changes phases 1-3.
   `SqlTextRuns` 214 → 199, `BodyDriver` 545 → 544, `BatchTexts`' row gone); one refusal by name added (unreachable in
   the product). **Landing changed:** stage A's remaining steps (A2, A3, A4, A5) land as ONE batch PR, each piece reviewed
   on its own branch, CI once; A4 asks the user for the push of its branch alone.
+- **~17:56 UTC, the batch's merge order, measured.** The judges trial-merged A5 (`claude/compat-judges-parity` at
+  `220c4453c`) into A4 (aborted): 7 files shared, 5 conflict with one hunk each (`VerdictSql`'s pair-facts join,
+  `RootLoops.row()`, `TestRunner`'s condition, `pct/BUILD.bazel`'s suite list, the lean-SQL baseline, which is to be
+  regenerated on the merged tree, never hand-merged); `VerdictBatch` and `ChannelB` auto-merge (A4 sets COMPAT's judge
+  to HOST, A5 adds `-Dpct.channelb.rules=LITE`: for review). **Order adopted: A5 first, then A4**; A4 merges A5's final
+  head with its five resolutions. Expected A2 and A4 meeting points (unmeasured, A2 not pushed): the edge's `PureText`,
+  `UpstreamVerdictWords`, `SqlTextVerdicts`, `EdgeEngineTestText` and the guard maps; A2 and A3 asked to measure by trial
+  merge once pushed. **Corrected:** the user's ~10:45 ruling 2 lets program sessions push their own `claude/compat-*`
+  branches without an ask; this session had told A2, A3, A4 and A5 to ask. Corrected in each.
