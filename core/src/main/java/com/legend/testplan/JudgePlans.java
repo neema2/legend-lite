@@ -54,7 +54,8 @@ public final class JudgePlans {
             case com.legend.database.Target.Declared d ->
                     new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(d.connections().get(0)), null);
         };
-        return com.legend.planner.Targets.of(database, dialect);
+        // a test plan's target (Targets.forTest: the dialect's test session statements, G10, 2026-11-19)
+        return com.legend.planner.Targets.forTest(database, dialect);
     }
 
     /** {@code statement}'s typed-rows plan: the statement itself, its columns {@code schema}'s with their three

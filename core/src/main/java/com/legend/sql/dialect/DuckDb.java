@@ -228,6 +228,17 @@ public class DuckDb extends AnsiSqlRenderer {
         return java.util.List.of("SET TimeZone='UTC'");
     }
 
+    /** A test plan's session runs single-threaded (G10, the compatibility owner's ruling of 2026-11-19): with its
+     *  threads DuckDB raises whichever of two failing expressions one reaches first, and a join's build side is not an
+     *  order it keeps (measured: testAdjustByDaysBigNumber's fused verdict statement, 30 runs, three different errors;
+     *  single-threaded, the expected side's range error 30 times in 30). {@code threads} is the database's own
+     *  setting: a test plan's target, whose session statements are not a product plan's, never shares an in-memory
+     *  database with one. */
+    @Override
+    public java.util.List<String> testSessionSetup() {
+        return java.util.List.of("SET threads TO 1");
+    }
+
     /** An effect segment runs as one transaction: DuckDB's DDL is transactional, so a
      *  failing statement applies nothing and the referee's ledger records nothing
      *  (homework §19). */

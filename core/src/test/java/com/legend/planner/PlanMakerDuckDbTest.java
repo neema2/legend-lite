@@ -34,6 +34,18 @@ class PlanMakerDuckDbTest {
                 com.legend.executionplan.DataRef.Statements.decode(load.content().get(rows.ref().digest())));
     }
 
+    /** A TEST plan's DuckDB session runs single-threaded, a product plan's does not (G10, the compatibility owner's
+     *  ruling of 2026-11-19): with its threads DuckDB raises whichever of two failing expressions one reaches first.
+     *  The two targets differ, so a test plan never shares a product plan's in-memory database ({@code threads} is the
+     *  database's own setting). */
+    @Test
+    void aTestPlansSessionRunsSingleThreaded_aProductPlansDoesNot() {
+        var dialect = com.legend.database.Databases.dialect(DUCKDB);
+        var database = new ExecutionPlan.Database.Platform(ConnectionPlans.type(DUCKDB), null);
+        assertEquals(List.of("SET TimeZone='UTC'", "SET threads TO 1"), Targets.forTest(database, dialect).session());
+        assertEquals(List.of("SET TimeZone='UTC'"), Targets.of(database, dialect).session());
+    }
+
     /** DuckDB binds a parameter typed by its value bare, as the database types the value (H2 casts it to a type hole:
      *  {@link PlanMakerH2Test}). */
     @Test

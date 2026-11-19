@@ -16,6 +16,9 @@ duckdb	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	ex
 # literal first ('date field value out of range'); the database judge's one statement holds both sides, and DuckDB
 # reports whichever it reaches first, run to run (measured twice: months and hours, then weeks and days, failed the
 # amount's cast first -- 'Type INT64 ... out of range for the destination type INT32', 'Interval value ... out of range')
+# 2026-11-19 (track A5; the compatibility owner's options (a) and 2): a DuckDB test plan's session runs single-threaded
+# (SqlDialect.testSessionSetup) and each verdict row reads its expected side before its actual, so both judges fail on
+# the expected literal's range error ('date field value out of range'), every run; the rows' text is unchanged
 duckdb	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	out of range
 duckdb	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	out of range
 duckdb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	out of range
@@ -888,3 +891,12 @@ duckdb-lite	Essential	meta::pure::functions::string::tests::substring::testStart
 # acos/asin out of domain raise nothing: the database answers NaN (lite's IEEE Float, S119), where legend-pure raises 'Unable to compute acos of 2.0' (2026-11-19; 2 rows)
 duckdb-lite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: expected the error "Unable to compute acos of 2.0", got none
 duckdb-lite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: expected the error "Unable to compute asin of 2.0", got none
+# a date past DuckDB's range (its DATE holds years to 5881580, its TIMESTAMP to 294247): every value is the database's,
+# so it refuses the expected literal, under both judges and on every run (a DuckDB test plan's session runs
+# single-threaded, each verdict row reading its expected side first; the compatibility owner's options (a) and 2,
+# 2026-11-19); legend-pure evaluates the literal in its own process and passes, legend-engine's DuckDB fails on the
+# actual side's cast (its manifest) -- a register row, for the user's word (2026-11-19; 4 rows)
+duckdb-lite	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: Conversion Error: date field value out of range: "800002016-02-29"
+duckdb-lite	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: Conversion Error: date field value out of range: "236611261-10-03"
+duckdb-lite	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: Conversion Error: date field value out of range: "33803336-12-17"
+duckdb-lite	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: Conversion Error: timestamp field value out of range: "1410404-07-12T00:00:00"

@@ -53,6 +53,18 @@ public final class Targets {
         };
     }
 
+    /** {@code database}'s target for a TEST plan, as {@code dialect} writes it: {@link #of}'s, its session statements
+     *  followed by the dialect's test session statements ({@code SqlDialect.testSessionSetup}: DuckDB's one thread,
+     *  G10, the compatibility owner's ruling of 2026-11-19) -- a target of its own, so a test plan's session is never
+     *  a product plan's. */
+    public static ExecutionPlan.Target forTest(ExecutionPlan.Database database,
+            com.legend.sql.dialect.SqlDialect dialect) {
+        List<String> session = new java.util.ArrayList<>(dialect.sessionSetup());
+        session.addAll(dialect.testSessionSetup());
+        return new ExecutionPlan.Target(database, session, List.of(), readBack(dialect), settings(database, dialect),
+                transaction(dialect));
+    }
+
     /** {@code database}'s target as {@code dialect} writes it, with no load. */
     public static ExecutionPlan.Target of(ExecutionPlan.Database database, com.legend.sql.dialect.SqlDialect dialect) {
         return of(database, dialect, List.of());

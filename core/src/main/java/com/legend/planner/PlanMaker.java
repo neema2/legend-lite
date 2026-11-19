@@ -432,7 +432,7 @@ public final class PlanMaker {
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
                 ? systemRouted
                         ? SystemCatalog.target(query.context(), runsOn)
-                        : Targets.of(database(decided.target(), null), dialect)
+                        : Targets.forTest(database(decided.target(), null), dialect)
                 : systemRouted
                         ? SystemCatalog.forQuery(query.context(), runsOn)
                         : target(decided.target(), Objects.requireNonNull(runtime), query.context(), dialect,
@@ -523,7 +523,7 @@ public final class PlanMaker {
     public static ExecutionPlan.Target testSessionTarget(ModelContext ctx, String runtime,
             com.legend.database.PlanStyle style) {
         Decided decided = decide(ctx, runtime, style);
-        return Targets.of(database(decided.target(), null), decided.dialect());
+        return Targets.forTest(database(decided.target(), null), decided.dialect());
     }
 
     private record Decided(Target target, SqlDialect dialect) {
