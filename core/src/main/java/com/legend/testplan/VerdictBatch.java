@@ -779,18 +779,19 @@ public final class VerdictBatch {
     /** Whether any expression of a statement, at any depth, may raise an error itself ({@code SqlExpr.raisesItself}):
      *  a walk that reads, the statement unchanged. */
     private static final class MayRaise extends com.legend.sql.SqlRewriter {
-        private boolean raises;
+        /** The expressions the walk met that may raise (as HostSideBatch's RowBound collects what it meets). */
+        private final List<com.legend.sql.SqlExpr> met = new ArrayList<>();
 
         static boolean of(SqlQuery q) {
             MayRaise walk = new MayRaise();
             walk.rewrite(q);
-            return walk.raises;
+            return !walk.met.isEmpty();
         }
 
         @Override
         protected com.legend.sql.SqlExpr expr(com.legend.sql.SqlExpr e) {
             if (com.legend.sql.SqlExpr.raisesItself(e)) {
-                raises = true;
+                met.add(e);
             }
             return e;
         }
