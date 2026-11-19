@@ -2895,3 +2895,14 @@ who confirms or changes phases 1-3.
   so DuckDB is enabled under `engine` by the design's rule, every other database refused by name; the `warn` pins
   unmoved. **For the user's word:** two new pin files, `pct/batteries/agreement_engine_{h2,duckdb}.tsv` (named by the
   design; new pins need the word), with the funnel row.
+- **~21:51 UTC, Q12 done within the timebox (the CI-health worker, local `b648c377b` on
+  `claude/compat-engine-runner-storeless` from main):** the premise was wrong. The plan-dependencies jar was already
+  in @maven_runner and on the JVM's class path; legend-engine's `EngineJavaCompiler` hands javac ClassGraph's class
+  path, and ClassGraph 4.8.25 silently drops every entry starting with `../`, which is how `bazel run` names every
+  external jar (47 of 666 kept). The corpus lanes already pass `--classpath_limit=0` (F94), so no verdict can move.
+  The fix is runner code only (`perf.AbsoluteClassPath` first in TestableMain; `--dump` writes a test error's whole
+  text; `RunnerSmokeTest.testableRunsFunctionsThatReadNoStore` with a plant; the smoke test 13.8 → 22.7 s); no pool,
+  MODULE.bazel or lock change. **The probe answered:** `substring(1, 3)` 'bc'; each out-of-range case
+  `java.lang.RuntimeException: Failed in node: root` caused by the JDK's `Range [b, e) out of bounds for length n`, word
+  for word as JDK 25.0.4. S383 gains legend-engine's form (to B2). The push waits on the user's word in that session;
+  the judges merge it into the batch.
