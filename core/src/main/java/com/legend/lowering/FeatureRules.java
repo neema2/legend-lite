@@ -21,11 +21,12 @@ import java.util.Set;
  * plain rule for the same signature key — an emission, never a different
  * typed tree. Consumers by flag:
  * <ul>
- *   <li>CORRECT_SQL_SUBSTRING_INDEXING — the {@code substring} overloads
- *       (the engine's processSubstr: Pure's 0-based, end-exclusive indexes
- *       become SQL's 1-based start and length; a literal index folds
- *       ({@code substr(s, 4, 9) -> substring(s, 5, 5)}), a computed one
- *       becomes plus / minus on the tree);</li>
+ *   <li>CORRECT_SQL_SUBSTRING_INDEXING — a DOCUMENTED NO-OP since A3 of the
+ *       compatibility program (2026-11-19; register S130): {@code substring}'s
+ *       plain rule is Pure's corrected one with or without the flag (Scalars),
+ *       so the rule the flag selects here is the same; the registration stands
+ *       only so a request that sets the flag is accepted, until B5 deletes this
+ *       machinery;</li>
  *   <li>LEGACY_SQL_NULL_UNSAFE_EQUALS — the Lowerer's equality form
  *       (NullSemantics.verbatim);</li>
  *   <li>PUSH_DOWN_ENUM_TRANSFORM — a documented no-op: the platform only
@@ -52,10 +53,11 @@ final class FeatureRules {
      *  (the engine's correctSubstrIndices: a literal index folds — substr(s, 4, 9)
      *  → substring(s, 5, 5) — a computed one becomes plus / minus on the tree).
      *  ALWAYS the rule for {@code substr} (Scalars; the engine's processSubstr
-     *  "is always corrected and needs no flag" — PR #5045) and, under
-     *  CORRECT_SQL_SUBSTRING_INDEXING, for {@code substring} (processSubstring:
-     *  "correcting substring unconditionally would change the results of
-     *  existing queries, hence the flag"). */
+     *  "is always corrected and needs no flag" — PR #5045) and, since A3 of the
+     *  compatibility program (2026-11-19), for {@code substring} too, with or
+     *  without CORRECT_SQL_SUBSTRING_INDEXING (legend-engine's processSubstring
+     *  keeps the flag, "correcting substring unconditionally would change the
+     *  results of existing queries"; lite answers Pure's meaning, S130). */
     static final Scalars.Rule CORRECTED_SUBSTRING = (n, args) -> {
         SqlExpr str = args.get(0);
         SqlExpr start = args.get(1);

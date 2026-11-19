@@ -38,6 +38,7 @@ public enum ErrorKind {
     CSV_TOO_WIDE("CSV record wider than its table"),
     WINDOW_FRAME_INVERTED("window frame starts after it ends"),
     WINDOW_FRAME_OFFSET_INVALID("window frame offset is negative or empty"),
+    SUBSTRING_OUT_OF_RANGE("substring range is out of the text's bounds"),
     /** {@code fail(message)}: the user's own message is the error's text; this word only where none was given. */
     USER_FAIL("fail"),
     /** A failure the database raised with no site of lite's (phase D's Phase 2, item 4, 2026-11-16; the user's ruling:
