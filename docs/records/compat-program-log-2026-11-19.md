@@ -1567,7 +1567,7 @@ who confirms or changes phases 1-3.
   midnight rule (`RelationTextLowering.timed`) is not upstream's; nothing measured depends on it. **For the plan:** the
   `Printed` judgment kind must cover `assertSameElements` (already written in); with it strict equals hybrid. Moves for
   the real slice: H2 corpus fail roster -3, unordered register +1, PCT H2 ledger -4 rows; DuckDB none. H11 is done.
-- **~14:12 UTC, the translator's A3 note, revision 2** (`b0ffb80d`; evidence in `a3/`). **PRs 2; about 6 to 6.5 days**
+- **~14:12 UTC, the translator's A3 note, revision 2** (`090dbff8`, first reported as `b0ffb80d`; evidence in `a3/`). **PRs 2; about 6 to 6.5 days**
   (PR1 1.5; PR2 4.5 to 5: the switch and guard moves 0.75, the raise 0.5 to 1, the PCT adapter's option off 0.25,
   the detector on 5 routes with the mapping reach 1.5, the report 1.5); the cross-kind fix gates PR2, unsized. Lite
   tests: 16 of the 17 move (the IQ showcase unchanged under option (a)). **Corpus, A3 after A2, MEASURED:** run Y (A2
@@ -1587,3 +1587,10 @@ who confirms or changes phases 1-3.
   world (8 s when compile triggers it), listing 48 calls (16 `indexOf/2`, 4 `substring/2`, 28 `substring/3`) and 83
   unverified bodies; 7 tests; about 1.5 days. **A tenet to post:** it is eager G, once per model, as compile already is;
   put to the user with the detector default (14:45). New core hooks 0.
+- **~14:12 UTC, H11's last asks done** (§13.7 at `c0e6e55d`): relation-text sides by assert family. PCT:
+  `assertEquals` 431 (423 tests, all toString), every other family 0. Corpus: `assertEquals` 433 (292 tests: toString
+  253, toCSV 138, CSVJOIN 41, csv 1), `assertSameElements` 22 (all toCSV; 11 run in the lanes), every other family 0.
+  So two families: `assertEquals` 864 sides, `assertSameElements` 22; under `assertSameElements` `main` judges the pair
+  as a render form with `orderedForm=false` (lines as a multiset), so `Printed` must carry that order fact. The value
+  half (composed cell values, the product's own text, no `Printed` needed): corpus `assertEquals` 361,
+  `assertSameElements` 158, `assert` 5, `assertEq` 1; PCT 0. H11 stopped.
