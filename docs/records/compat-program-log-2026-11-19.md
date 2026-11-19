@@ -2595,3 +2595,8 @@ who confirms or changes phases 1-3.
   the same 45 testcases and outcomes; 22 of 23 outputs byte-identical (the 23rd a never-asserted diagnostic whose crash
   messages read the JVM's NPE text, the fast-throw optimisation); two planted differences fail the same testcases with
   the same messages on `main` and the branch. For the reviewer once pushed.
+- **~20:24 UTC, #124's run 44580527071 finished:** "gates green" SUCCESS; every Linux, Windows and arm job green;
+  macOS green but two jobs cancelled for want of a runner (`corpus_duckdb`, `checks`). The same code on macOS (#127's
+  run, which merges #124's branch): `corpus_duckdb` green at 20:21, `checks` running. **Reviews dispatched:** A2
+  (`6551c2036`) and A4 (`e91005cc6`) as pieces, then the batch merge once measured. The memo design check sent to the
+  CI-health worker (share the referee's serialized text, immutable, if every class uses only that form).
