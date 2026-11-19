@@ -1,0 +1,7 @@
+# V5-identity h2: pass=2281 fail=284 skipped=7 of 2613 in 156s
+[H5] IDENTITY compat translator: rewritten={} keptPure={indexOf/2=190, indexOf/3 (no upstream translation)=6, substring/2=4, substring/3=83} queryHelpers=[] unresolvedRoutedArguments=0 recordsRebuilt=1029638 ms=1314 notes=[helpers ms=0 elements=11168]
+[H5] buildModule ms=4095
+## diff V2-off -> V5-identity: h2-fail-roster
+## diff V2-off -> V5-identity: h2-skipped-roster
+## diff V2-off -> V5-identity: h2-unordered-register
+## diff V2-off -> V5-identity: h2-engine-order-register

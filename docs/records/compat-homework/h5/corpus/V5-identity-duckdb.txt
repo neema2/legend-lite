@@ -1,0 +1,7 @@
+# V5-identity duckdb: pass=2443 fail=117 skipped=7 of 2613 in 480s
+[H5] IDENTITY compat translator: rewritten={} keptPure={indexOf/2=190, indexOf/3 (no upstream translation)=6, substring/2=4, substring/3=83} queryHelpers=[] unresolvedRoutedArguments=0 recordsRebuilt=1029638 ms=1067 notes=[helpers ms=0 elements=11168]
+[H5] buildModule ms=4026
+## diff V2-off -> V5-identity: duckdb-fail-roster
+## diff V2-off -> V5-identity: duckdb-skipped-roster
+## diff V2-off -> V5-identity: duckdb-unordered-register
+## diff V2-off -> V5-identity: duckdb-engine-order-register

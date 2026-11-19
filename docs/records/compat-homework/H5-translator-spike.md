@@ -182,10 +182,13 @@ the translator off and on:
 
 - **Size:** translator 494 lines (about 400 without comments); library 32 + 33 Pure lines (H3's); the harness door
   +24 / -3; the probe 161; core +69 / -31 (Scalars, RelOpTranslator).
-- **Time, the corpus world:** `buildModule` 3.4-3.6 s; the translator **26.1-26.8 s** on the
-  first build (uncached reflection: each record's components read and made accessible at every node). A cached
-  version (each record class's shape read once) is in V2's build onward; its time is reported below. A real
-  translator would be a typed visitor over the protocol records, not reflection.
+- **Time, the corpus world** (11,168 elements; 1,029,638 records): `buildModule` 3.4-4.1 s. The translator:
+  - **26.1-26.8 s** as first built (V3: each record's components read and made accessible again at every node);
+  - **1.1-1.3 s** with each record class's shape read once (V5, `identity`, which rebuilds EVERY record: the upper
+    bound of the walk). A real translator would be a typed visitor over the protocol records, not reflection, and
+    cheaper still.
+- **The pass-through check (3.2's first check) holds:** with every one of the 1,029,638 records rebuilt and nothing
+  renamed (V5), all four rosters on both lanes are identical to the translator-off run (V2).
 - **The probe's small model:** 4-12 ms to translate, against 548-690 ms to build.
 - **What the translator saw in the corpus:** 5 `substring` calls in store-bound code (all 3-argument), 0 string
   `indexOf`; kept Pure's: 78 + 4 `substring`, 190 `indexOf` (mostly the list `indexOf`, the same meaning in both), 6
