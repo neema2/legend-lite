@@ -1772,3 +1772,7 @@ v1.3.0). NOT a silent miss.**
   legend-engine answers null or fails. The owner's call that it is a recorded difference, not a refusal, is consistent
   with "lite follows Pure". By the upstream-fidelity tenet, though, the row must be posted to the user and ruled before
   it lands: a row the user did not rule is a defect.
+
+**S388 RULED:** the user said "Yes to A" at ~23:20, read in the owner's log on `claude/compat-program`. The row is
+recorded as a difference (lite follows Pure), not a refusal. B2 marks the row ruled on `claude/compat-a3-docs`, and I
+will check it in the combination review.
