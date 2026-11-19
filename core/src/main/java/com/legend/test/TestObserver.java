@@ -50,6 +50,12 @@ public interface TestObserver extends AssertListener {
      *  observer states its run, so no observer is the product's by omission. */
     com.legend.testexec.JudgeRun edgeRun(PureTests.TestCase test);
 
+    /** H10 SPIKE STAND-IN, A NEW CORE HOOK (never for merge): the typed body as the caller's door rewrites it before
+     *  it is planned -- where the phase-3 translator's R-S131 would sit; the corpus has no such door today. */
+    default com.legend.TypedQuery door(com.legend.TypedQuery body) {
+        return body;
+    }
+
     /** The body is about to execute; {@code effectful} says the platform
      *  found statement effects in it (an attempt a referee may mark). */
     default void bodyStarting(com.legend.exec.Sessions.Session conn, boolean effectful) {

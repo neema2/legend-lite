@@ -16,8 +16,11 @@ _SCAN_ORDER = "-Dlegend.exec.engineScanOrder=true"
 # spec/src/test/resources/rcorpus/ copies by the lane's diff tests; never edited by hand
 _HOST_MEASURED = ["fail-roster", "skipped-roster", "unordered-register", "engine-order-register"]
 
+# H10 SPIKE (never for merge): the spike's switches, set per run by its script
+_SPIKE = []
+
 def _pass_flags(golden):
-    return program_jvm_flags("spec") + [
+    return program_jvm_flags("spec") + _SPIKE + [
         # the replay referee's H2, legend-engine's own (2.1.214), by path and never on the classpath (the user,
         # 2026-11-05; testbackend/EngineH2Referee)
         "-Dlegend.referee.h2=$(execpath @h2_engine//jar:file)",

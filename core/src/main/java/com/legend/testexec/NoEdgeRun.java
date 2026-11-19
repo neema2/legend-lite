@@ -61,6 +61,9 @@ public final class NoEdgeRun implements JudgeRun {
 
         @Override
         public String caughtMessage(RuntimeException error) {
+            if (System.getProperty("legend.measure.present") != null) {
+            System.out.println("[caught]\tlite\t" + (error.getCause() instanceof com.legend.exec.RaisedErrors.Raised r && r.site() != null ? "planned-site" : "message") + "\t" + System.getProperty("legend.test.current", "?"));
+            }
             return LiteHostWords.caught(error);
         }
 

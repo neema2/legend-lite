@@ -218,6 +218,9 @@ public final class EdgeHostWords {
     }
 
     private static String presentWith(com.legend.testexec.VerdictRecord failure) {
+        if (System.getProperty("legend.measure.present") != null) {
+            System.out.println("[present]\tlegend-pure\t" + failure.getClass().getSimpleName() + "\t" + System.getProperty("legend.test.current", "?"));
+        }
         return switch (failure) {
             case com.legend.testexec.VerdictRecord.RowValuesDiffer r -> SELF.rowValuesDiffer(r.e(), r.a(), r.te(), r.ta(), r.incidental());
             case com.legend.testexec.VerdictRecord.NotEqual r -> SELF.notEqual(r.e(), r.a(), r.aClass());

@@ -346,7 +346,7 @@ public final class PureTestRunner implements AutoCloseable {
                 // the body planned whole, nothing told to anyone; then run, its listener told each verdict at its
                 // turn (2026-11-10: no fixture is provided between the halves -- the corpus's and the stress lanes'
                 // verdicts measured unmoved without one, census M9)
-                planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved), runtimeFqn, options);
+                planned = TestExecution.planBody(observer.door(Compiler.queryResolved(ctx, resolved)), runtimeFqn, options);   // H10 SPIKE: the stand-in door
                 TestExecution.runBody(planned, conn,
                         new AssertListener() {
                             @Override

@@ -608,6 +608,21 @@ public final class MinimalCorpus {
         }
 
         @Override
+        public com.legend.TypedQuery door(com.legend.TypedQuery body) {
+            // H10 SPIKE: R-S131 at the door, under -Dlegend.spike.rS131
+            if (System.getProperty("legend.spike.rS131") == null) {
+                return body;
+            }
+            int before = com.legend.edge.IncidentalOrderAsserts.rewritten;
+            com.legend.TypedQuery r = com.legend.edge.IncidentalOrderAsserts.rewrite(body);
+            if (com.legend.edge.IncidentalOrderAsserts.rewritten != before) {
+                System.out.println("[rS131]\t" + System.getProperty("legend.test.current", "?") + "\t"
+                        + (com.legend.edge.IncidentalOrderAsserts.rewritten - before));
+            }
+            return r;
+        }
+
+        @Override
         public com.legend.testexec.JudgeRun edgeRun(PureTests.TestCase t) {
             // the corpus's appeals heard at the edge, decided by its referee (census C2, 2026-11-17)
             return com.legend.edge.AppealRun.with(referee);

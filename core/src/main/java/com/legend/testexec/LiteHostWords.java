@@ -200,6 +200,9 @@ public final class LiteHostWords {
 
     /** H10 SPIKE: lite's words of a failure record (the presenter; the judge decided, these only word it). */
     public static String present(VerdictRecord failure) {
+        if (System.getProperty("legend.measure.present") != null) {
+            System.out.println("[present]\tlite\t" + failure.getClass().getSimpleName() + "\t" + System.getProperty("legend.test.current", "?"));
+        }
         return switch (failure) {
             case VerdictRecord.RowValuesDiffer r -> W.rowValuesDiffer(r.e(), r.a(), r.te(), r.ta(), r.incidental());
             case VerdictRecord.NotEqual r -> W.notEqual(r.e(), r.a(), r.aClass());

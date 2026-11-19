@@ -79,7 +79,7 @@ public final class TdsCompare {
         // H6 PROTOTYPE (MEASUREMENT ONLY): an unordered grid compared as a row multiset where the ordered compare fails
         if (!Equality.ordered(te, ta, rules)) {
             com.legend.diagnostics.LeniencyProbe.changed("S131", "grid rows as a multiset");
-            if (com.legend.diagnostics.LeniencyProbe.off("S131")) {
+            if ((com.legend.diagnostics.LeniencyProbe.off("S131") || com.legend.diagnostics.LeniencyProbe.off("S131T"))) {
                 return false;
             }
         }

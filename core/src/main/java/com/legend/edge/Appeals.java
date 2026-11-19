@@ -145,6 +145,9 @@ final class Appeals implements com.legend.testexec.JudgeRun.Hearing {
 
     @Override
     public String caughtMessage(RuntimeException error) {
+        if (System.getProperty("legend.measure.present") != null) {
+            System.out.println("[caught]\tlegend-pure\t" + (error.getCause() instanceof com.legend.exec.RaisedErrors.Raised r && r.site() != null ? "planned-site" : "message") + "\t" + System.getProperty("legend.test.current", "?"));
+        }
         return EdgeHostWords.caught(error, this);
     }
 

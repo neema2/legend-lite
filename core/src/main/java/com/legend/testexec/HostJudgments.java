@@ -136,7 +136,7 @@ final class HostJudgments {
                 // H6 PROTOTYPE (MEASUREMENT ONLY): the incidental-order fallback held where the ordered compare failed
                 if (hostHeld) {
                     com.legend.diagnostics.LeniencyProbe.changed("S131", name + " cells as a row multiset");
-                    if (com.legend.diagnostics.LeniencyProbe.off("S131")) {
+                    if ((com.legend.diagnostics.LeniencyProbe.off("S131") || com.legend.diagnostics.LeniencyProbe.off("S131T"))) {
                         hostHeld = false;
                     }
                 }
@@ -829,7 +829,7 @@ final class HostJudgments {
         // H6 PROTOTYPE (MEASUREMENT ONLY): an incidental order compared as a multiset where the ordered compare fails
         if (incidental && equal && !com.legend.testexec.Equality.ordered(te, ta, rules)) {
             com.legend.diagnostics.LeniencyProbe.changed("S131", name + " values as a multiset");
-            if (com.legend.diagnostics.LeniencyProbe.off("S131")) {
+            if ((com.legend.diagnostics.LeniencyProbe.off("S131") || com.legend.diagnostics.LeniencyProbe.off("S131T"))) {
                 equal = false;
             }
         }
@@ -888,7 +888,7 @@ final class HostJudgments {
             String ordered = com.legend.testexec.Equality.pureJson(expected, actual);
             if (ordered != null) {
                 com.legend.diagnostics.LeniencyProbe.changed("S131", "JSON root array as a multiset");
-                if (com.legend.diagnostics.LeniencyProbe.off("S131")) {
+                if ((com.legend.diagnostics.LeniencyProbe.off("S131") || com.legend.diagnostics.LeniencyProbe.off("S131T"))) {
                     diff = ordered;
                 }
             }
