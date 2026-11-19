@@ -501,17 +501,20 @@ final class HostJudgments {
     }
 
     /** A default-message assert: its positive judgment over the same sides, negated, worded by the rules (#28). */
-    private static TypedSide negatedOf(HostJudgment.Negated n, List<TypedSide> sides,
+    private static @com.legend.base.Nullable TypedSide negatedOf(HostJudgment.Negated n, List<TypedSide> sides,
             HostRules rules, BodyRun run) {
+        TypedSide inner;
         try {
-            judge(n.inner(), sides, run);
+            inner = judge(n.inner(), sides, run);
         } catch (com.legend.error.AssertFailed failed) {
             if (failed.unjudgedReason() != null) {
                 throw failed;
             }
             return com.legend.testexecutionplan.Verdicts.ok();
         }
-        return com.legend.testexecutionplan.Verdicts.fail(negatedWords(n.kind(), sides, rules, run));
+        // a positive judgment that declined the sides it read (null): so does its negation, never read as held (the
+        // PR #118 audit's JUDGES-8, track A5, 2026-11-19)
+        return inner == null ? null : com.legend.testexecutionplan.Verdicts.fail(negatedWords(n.kind(), sides, rules, run));
     }
 
     /** A default-message assert's failure: lite's sentence, or legend-pure's words (the prelude's bodies, which these
