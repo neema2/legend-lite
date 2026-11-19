@@ -145,9 +145,9 @@ final class PureMeaningRewrite {
         return new Rewritten(inlinedQuery.withBody(out), flagged);
     }
 
-    /** A let the rewrite would rewrite in place (a root holding a flagged call) that a statement it does not rewrite
-     *  also reads: that statement would get the database's meaning, where legend-engine computes it on the host with
-     *  Pure's. Refused by name (the reviewer's E-S1). The planner's inliner reduces each let-bound lambda a store-bound
+    /** A lambda let the rewrite would rewrite in place (a root holding a flagged call) that a statement it does not
+     *  rewrite also evaluates: that statement would get the database's meaning, where legend-engine computes it on the
+     *  host with Pure's. Refused by name (the reviewer's E-S1; narrowed to lambda lets, R2-S2). The planner's inliner reduces each let-bound lambda a store-bound
      *  statement uses into that statement, so after inlining no such let is known to stay a root; this holds the
      *  rewrite to that, whatever a future inliner keeps. */
     static void refuseSharedLetRoots(List<TypedSpec> body, PureMeaningCheck.Result flagged) {
@@ -158,7 +158,11 @@ final class PureMeaningRewrite {
             }
         }
         for (TypedSpec root : flagged.roots()) {
-            if (!(root instanceof TypedLet let) || !holds(let.value(), nodes)) {
+            // a lambda let alone: a value let is computed once, its call in its own SQL as legend-engine writes it
+            // (asked: `let d = ...->substring(1, 3); $d->toUpper()` answers "CRE"), so a later read of it is no
+            // reason to refuse (the reviewer's R2-S2)
+            if (!(root instanceof TypedLet let) || !(let.value() instanceof com.legend.compiler.spec.typed.TypedLambda)
+                    || !holds(let.value(), nodes)) {
                 continue;
             }
             for (TypedSpec stmt : body) {
