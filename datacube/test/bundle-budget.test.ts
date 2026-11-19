@@ -806,8 +806,12 @@ const BUDGET = 439_800;
  *  wording, as the grid's note). Measured 425,638 over main's 425,473.
  *  425,650 -> 425,800 (2026-11-17, the user's word typed in D's session, 2026-11-17: "raise the three datacube bundle budgets to 438,250 / 425,800 / 454,150"; re-measured on d-stage b27bfa1a7, as the grid's note).
  *  Measured 425,750 on Linux.
- *  425,800 -> 426,250 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 426,192 on Linux. */
-const ENGINE_BUDGET = 426_250;
+ *  425,800 -> 426,250 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 426,192 on Linux.
+ *  426,250 -> 426,450 (2026-11-19, the orchestrator's approval of ~12:59 UTC under the user's delegation of small
+ *  explained steps; the user's CP-13, H4's P3: the page reads the planner's answers by the tab's ONE folded reader,
+ *  engine-client's folded.ts, lite's closed refusal check included -- "one reader is worth 0.05%; do not keep a second,
+ *  weaker one"). Measured 426,035 before P3, 426,414 with it, 426,442 with P10's generated keys, on Linux. */
+const ENGINE_BUDGET = 426_450;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1329,8 +1333,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  Measured 453,807.
  *  454,100 -> 454,150 (2026-11-17, the user's word typed in D's session, 2026-11-17: "raise the three datacube bundle budgets to 438,250 / 425,800 / 454,150"; re-measured on d-stage b27bfa1a7, as the grid's note).
  *  Measured 454,117 on Linux.
- *  454,150 -> 454,600 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 454,563 on Linux. */
-const WIDGET_BUDGET = 454_600;
+ *  454,150 -> 454,600 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 454,563 on Linux.
+ *  454,600 -> 454,850 (2026-11-19, the orchestrator's approval of ~12:59 UTC under the user's delegation of small
+ *  explained steps; the user's CP-13, H4's P3: the tab's one folded reader, as the engine page's note). Measured
+ *  454,417 before P3, 454,804 with it, 454,833 with P10's generated keys, on Linux. */
+const WIDGET_BUDGET = 454_850;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
