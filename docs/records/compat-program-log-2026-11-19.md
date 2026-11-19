@@ -3011,3 +3011,14 @@ who confirms or changes phases 1-3.
   1 skipped. The user asked about lean option 2: answered (sound but not worth it; a second wording system kept for
   good, half a match with compile errors in lite's words, no much leaner form within CP-7; reversible later at about
   today's cost if option 1 skips the operand cleanup); recommendation still option 1.
+- **~22:37 UTC, B1-R: E-M1 answered from legend-engine 4.145.0's own answers** (20 probes, H2 2.1.214 and DuckDB
+  v1.3.0; `compat-homework/a3-engine-probes/`, shape note §11). Every store-bound shape lite serves is computed in the
+  SQL (database meaning: a class query's terminal `->toOne().desk->substring`, `map` inside and after `from`, a class
+  project and filter, graphFetch then a property, a graphFetch tree's qualified properties), so `engine` matches; the
+  only host-side shape (a let-bound value used in a later statement) is never store-bound, so never rewritten;
+  legend-engine refuses `serialize(...)->substring` and a TDS `.rows->at(0)`; lite's door refuses scalar and collection
+  results on every setting today. No position needs refusing. **A detector gap found and fixed:** a graphFetch tree's
+  properties were not walked, so a qualified `substring` in a tree went unflagged (silently Pure's meaning under
+  `refuse`); fixed at `claude/compat-a3-detector` `e4496b763` with plant P8; the judges merge it, the reviewer checks.
+  **Ruled here:** no battery pin move in stage A; the class shapes guarded as ordinary PureMeaningEngineTest cases
+  asserting the probed answers (both settings, H2 and DuckDB); a class model in the batteries on stage B's list.
