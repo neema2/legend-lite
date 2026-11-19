@@ -19,10 +19,13 @@ missing cases (`EdgeCasesGoldenTest`). Each recording is diffed against its gold
 
 ## The platform overlays
 
-The goldens are Linux's. Measured on PR #123's first Windows run (2026-11-19), the one platform difference is this:
-- DuckDB and SQLite take `sinh`, `cosh`, `tanh`, `cbrt` and `pow` from the platform's C maths library (glibc on
-  Linux, the MSVC runtime on Windows), so lite's answers for those differ in the last place between Linux and Windows;
-- the two databases' hyperbolic results agree with each other on each OS;
+The goldens are Linux's. Measured on the first Windows and macOS runs of the net (PR #123's and #124's, 2026-11-19),
+the one platform difference is this:
+- DuckDB and SQLite take some maths functions from the platform's C maths library (glibc on Linux, the MSVC runtime
+  on Windows, macOS's libm), so lite's answers for them differ in the last place: on Windows `sinh`, `cosh`, `tanh`,
+  `cbrt` and `pow`; on macOS `acos`, `asin`, `cot`, `sinh`, `cosh` and `cbrt`. Each moved value is 1 or 2 units in
+  the last place on Windows, and exactly 1 on macOS;
+- the two databases' results agree with each other on each OS, except for `cbrt` and `pow`, which differ by database;
 - H2, which computes in Java, does not differ. Nor does any row order, locale, path or line ending.
 
 The net once hid this: until S0 (2026-11-18) its mask hid a Float's 16th digit on.
@@ -33,12 +36,14 @@ those values, one row per fact: suite, test, case, databases, function, the Linu
   A row that finds no line, or a line with another value, fails the run.
 - On every other OS, each row's Linux value is checked against the recording. On Linux that is the golden's value,
   so an overlay cannot drift from the golden.
+- An OS's own rows apply before the other OSes' rows are checked: two OSes can move the same fact (both move
+  `testSinH_Eval` 003), and the other OS's row finds Linux's value only after this OS's row has rewritten the line.
 - Any difference no row names still fails the diff test.
 
 The overlay files are pinned like the goldens: a row moves only by a ruled re-record.
 
 | OS | overlay | rows |
 |---|---|---|
-| Windows | `overlay_windows.tsv` | 17: `sinh`, `cosh`, `tanh` (13, on both databases), `cbrt` (3), `pow` (1) |
-| macOS | none yet: its first `edge_net` run decides | - |
+| Windows | `overlay_windows.tsv` | 17 facts, 30 lines: `sinh`, `cosh`, `tanh` (13, on both databases), `cbrt` (3), `pow` (1) |
+| macOS | `overlay_macos.tsv` | 16 facts, 31 lines: `sinh`, `cosh` (12, on both databases), `acos`, `asin`, `cot` (3, on both), `cbrt` (1, DuckDB) |
 | Linux arm | unmeasured: no `edge_net` lane runs on arm | - |

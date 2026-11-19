@@ -172,6 +172,31 @@ class EdgeNormalizeTest {
                 "a line holding neither value is a new difference, and fails");
     }
 
+    private static List<PlatformOverlay.Row> macosRow() {
+        return PlatformOverlay.parse("macos", List.of("suite\ttest\tcase\tdatabases\tfunction\tlinux\tmacos",
+                "standard\ttestSinH_Eval\t003\tduckdb,sqlite\tsinh\t-0.8423951260776953\t-0.8423951260776952"));
+    }
+
+    // a fact two OSes both move (2026-11-19: macOS and Windows both move testSinH_Eval 003): each OS's own row rewrites
+    // its line before the other OS's row checks Linux's value, whichever overlay is listed first
+    @Test
+    void aFactTwoOsesMoveIsAppliedOnEachWhicheverOverlayComesFirst() {
+        List<PlatformOverlay.Row> windowsFirst = new java.util.ArrayList<>(windowsRow());
+        windowsFirst.addAll(macosRow());
+        List<PlatformOverlay.Row> macosFirst = new java.util.ArrayList<>(macosRow());
+        macosFirst.addAll(windowsRow());
+        List<String> moved = List.of(SINH.formatted("-0.8423951260776952"));
+        List<String> linux = List.of(SINH.formatted("-0.8423951260776953"));
+        for (List<PlatformOverlay.Row> rows : List.of(windowsFirst, macosFirst)) {
+            assertEquals(linux, PlatformOverlay.applied(moved, "duckdb_standard_answers.tsv", rows, "macos"),
+                    "on macOS its row rewrites the line, then Windows' row finds Linux's value");
+            assertEquals(linux, PlatformOverlay.applied(moved, "duckdb_standard_answers.tsv", rows, "windows"),
+                    "on Windows likewise");
+            assertEquals(linux, PlatformOverlay.applied(linux, "duckdb_standard_answers.tsv", rows, "linux"),
+                    "on Linux both rows' Linux value is the recording's");
+        }
+    }
+
     @Test
     void anOverlayTouchesOnlyItsGoldens() {
         List<String> lines = List.of(SINH.formatted("-0.8423951260776952"));

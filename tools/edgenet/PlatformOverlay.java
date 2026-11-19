@@ -17,9 +17,10 @@ import java.util.regex.Pattern;
 
 /**
  * THE EDGE GOLDEN NET's PLATFORM OVERLAY (the compatibility program's slice 0.2, 2026-11-19, the program owner's call on
- * PR #123's first Windows run). The net's goldens are Linux's, and every digit of a Float is pinned. DuckDB and SQLite
- * take a few functions ({@code sinh}, {@code cosh}, {@code tanh}, {@code cbrt}, {@code pow}) from the platform's C
- * maths library, whose last place differs between glibc and the MSVC runtime. An overlay lists exactly those values
+ * PR #123's first Windows and macOS runs). The net's goldens are Linux's, and every digit of a Float is pinned. DuckDB
+ * and SQLite take a few functions ({@code acos}, {@code asin}, {@code cot}, {@code sinh}, {@code cosh}, {@code tanh},
+ * {@code cbrt}, {@code pow}) from the platform's C maths library, whose last place differs between glibc, the MSVC
+ * runtime and macOS's libm. An overlay lists exactly those values
  * for one OS, keyed by suite, test and case, with the Linux value and that OS's value. It keeps every digit pinned on
  * every OS:
  * <ul>
@@ -96,6 +97,10 @@ public final class PlatformOverlay {
      * {@code currentOs}: on the row's own OS its line's value rewritten from that OS's to Linux's; on another OS its
      * line checked to hold Linux's value. Fails, naming the row, if a row finds no line of its key, or its line holds
      * another value. Rows for other goldens are ignored.
+     *
+     * <p>The current OS's rows apply first, and only then are the other OSes' rows checked: two OSes can move the same
+     * fact (macOS and Windows both move {@code testSinH_Eval} 003, 2026-11-19), and on one of them the other's row finds
+     * Linux's value only once that OS's own row has rewritten its line.
      */
     public static List<String> applied(List<String> lines, String golden, List<Row> rows, String currentOs) {
         Matcher g = GOLDEN.matcher(golden);
@@ -104,8 +109,19 @@ public final class PlatformOverlay {
         }
         String database = g.group(1);
         String suite = g.group(2);
-        List<String> out = new ArrayList<>(lines);
+        List<Row> ordered = new ArrayList<>();
         for (Row row : rows) {
+            if (row.os().equals(currentOs)) {
+                ordered.add(row);
+            }
+        }
+        for (Row row : rows) {
+            if (!row.os().equals(currentOs)) {
+                ordered.add(row);
+            }
+        }
+        List<String> out = new ArrayList<>(lines);
+        for (Row row : ordered) {
             if (!row.suite().equals(suite) || !row.databases().contains(database)) {
                 continue;
             }
