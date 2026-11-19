@@ -130,7 +130,7 @@ final class EngineAllocations {
                             req.toString(),
                             PurePrint.source(let.value())));
         }
-        var renderer = LiteSqlText.of(dbType);
+        var renderer = PureText.dialect(dbType);
         EnginePlans.EngineSql es = EnginePlans.engineSql(List.of(let.value()),
                 mappingFqn, specs, env, renderer, params,
                 UnaryOperator.identity());
@@ -142,8 +142,7 @@ final class EngineAllocations {
             // the Allocation's own type block is the impls form
             String inner = PlanText.single(env.ctx(),
                     rootClass, mappingFqn, es.plan(), es.sql(),
-                    List.of(let.value()), connName, List.of(), es.plan(), false,
-                    renderer::selectList);
+                    List.of(let.value()), connName, List.of(), es.plan(), false);
             return PlanText.allocation(let.name(),
                     PlanText.typeBlock(env.ctx(), rootClass,
                             impl, es.plan(), List.of(let.value())),
@@ -165,8 +164,7 @@ final class EngineAllocations {
                 sel.offset(), sel.outputs());
         String bareSql = renderer.render(bareSel);
         String inner = PlanText.scalarRelational(env.ctx(),
-                impl[2], sel, typeName, size, bareSql,
-                renderer::renderedAlias, connName);
+                impl[2], sel, typeName, size, bareSql, connName);
         return PlanText.allocation(let.name(),
                 PlanText.scalarTypeBlock(typeName, size),
                 inner);
