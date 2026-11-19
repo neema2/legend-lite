@@ -868,3 +868,26 @@ broken by 1.6. Nothing in the operands design blocks 1.6.
 **Not in it** (each elsewhere, sized above): the defect cell (B2, 1 to 1.5 days, section 15); the size words (with the
 judges' `Hearing`, section 16); lite's sentence leaving the plan (slice 1.6); `EngineStyleH2.raiseMessage`, the SQL
 sentence's last caller (A2, section 3).
+
+## 21. B1's H9 found the same six independently (credit, and how the two fixes compare)
+
+B1's homework (`claude/compat-b1-homework`, `docs/records/compat-homework/H9-phase1-measures.md` §0.4 (g) and "The
+Operand's coverage"; raw data `H9-data/raise_census.tsv`, `g7_moved_lines.tsv`) found the same 6 PCT essential tests
+by its own probe (a `<<G7>>` marker on every computed-operand sentence the edge wrote in SQL, the whole net
+re-recorded), and censused all 5,017 raise renders of the net. Its counts agree with this record's sections 6 and 7:
+literal kinds String 4,135, Integer 465, Float 36, Decimal 21; no Date, Timestamp, Boolean, null, Time, Array or Struct
+literal; a literal under a cast in 100 renders (`Cast(IntLit -> DOUBLE)` 36, `Cast(StringLit -> TEMPORAL_TEXT)` 32,
+`Cast(FloatLit -> DOUBLE)` 32); `INDEX_OUT_OF_BOUNDS`'s size never a literal. This session did not re-measure what H9
+measured.
+
+**H9's proposal, and what this session did instead:**
+
+| H9 | This session (section 11) | Why |
+|---|---|---|
+| "a `Cast` over a literal is that literal, with the literal's Pure kind", in `Operand.of` | no cast is read anywhere: `sqrt` hands the raise the argument it was given; a date part hands it the typed literal's text | the orchestrator's caution (invariant 2) is met without a structural rule on casts at all. And it covers a case the cast rule does not: an hour or minute date literal reaches the raise as a padded `TimestampLit` (no cast), whose text was the database's (`2017-01-01 10:30:00`); now it is legend-pure's (`2017-01-01T10:30+0000`) |
+| "a literal list's size folded at planning" | the size READ from the typed multiplicity (`statedSize`: `IntLit(k)` where the multiplicity is exactly `[k]`) | the orchestrator's acceptable form: a type fact the typer already holds (`[1, 2]` is `[2]`), nothing counted at lowering. It also covers lists that are not literals but have an exact multiplicity (`$collection->map(...)`, section 18) |
+
+- Both reach the same result on the net: all 6 tests exact.
+- H9's census rows map to section 11's changes: the 68 `Cast(... -> DOUBLE)` renders are `sqrt`'s (now its argument),
+  the 32 `Cast(StringLit -> TEMPORAL_TEXT)` are the date parts' (now the literal's text), and the sizes are now a
+  literal wherever the multiplicity is exact.
