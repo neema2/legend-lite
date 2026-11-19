@@ -279,6 +279,14 @@ public class Postgres extends AnsiSqlRenderer {
         return 1664;
     }
 
+    /** Postgres's float8 output (shortest digits, Ryu) leaves out a rounding boundary Java keeps: 1e23's double, which
+     *  1e23 reaches only by round-half-even, is written 9.999999999999999e+22 (measured on 16.15, 2026-11-19), so lite's
+     *  canonical text takes the shortest rounding that reads back (FloatShortestText.shortestOf). */
+    @Override
+    protected boolean writesShortestDoubleText() {
+        return false;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

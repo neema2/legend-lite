@@ -271,7 +271,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // lite's canonical text of a Float (a message's; the edge's text of a Float too), expanded before every other
         // pass unless this dialect spells it itself
         if (!spellsFloatShortestText()) {
-            ps.add(new FloatShortestText.Expansion(readsLongTextOnce()));
+            ps.add(new FloatShortestText.Expansion(readsLongTextOnce(), !writesShortestDoubleText()));
         }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
@@ -281,6 +281,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A HUGEINT-fact integer literal (past a signed BIGINT): bare, the database types it by its magnitude. */
     protected String hugeIntLiteral(java.math.BigDecimal v) {
         return v.toPlainString();
+    }
+
+    /** Whether this database's text of a double ({@code CAST(x AS VARCHAR)}) is always the shortest digits that read back
+     *  as it, Java's choice at a rounding tie included: measured so on DuckDB, H2, SQLite, MariaDB, MySQL, Trino and
+     *  ClickHouse (2026-11-19, lite's canonical text of whole doubles past 2^53). A dialect whose text may hold more
+     *  says no, and its canonical text of a whole value takes the shortest of its 15- and 16-digit roundings that reads
+     *  back ({@code FloatShortestText.shortestOf}). */
+    protected boolean writesShortestDoubleText() {
+        return true;
     }
 
     /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_SHORTEST_TEXT} itself; else it is expanded before every
@@ -1466,7 +1475,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** Lite's canonical text of a Float ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_SHORTEST_TEXT} call): the portable decomposition
      *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatShortestTextByCast(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        return writer.expr(FloatShortestText.of(c.args().get(0)), parentPrec);
+        return writer.expr(FloatShortestText.of(c.args().get(0), !writesShortestDoubleText()), parentPrec);
     }
 
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},

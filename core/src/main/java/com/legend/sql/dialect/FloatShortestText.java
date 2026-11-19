@@ -32,15 +32,18 @@ final class FloatShortestText {
     static final class Expansion extends com.legend.sql.SqlRewriter {
 
         private final boolean bind;
+        private final boolean shortens;
         private final int[] fresh = {0};
         private final java.util.Map<SqlExpr.Call, SqlExpr> spelledCalls = new java.util.HashMap<>();
 
         /** {@code bind}: the value and its text are columns of a one-row derived table, each written once, under a
          *  scalar subquery ({@code (SELECT <spelling over v and t> FROM (SELECT v, CAST(v AS VARCHAR) AS t FROM
          *  (SELECT <value> AS v) AS __fpN) AS __fpN)}, the shape the Float canon's binding takes); else the spelling
-         *  reads them in place. */
-        Expansion(boolean bind) {
+         *  reads them in place. {@code shortens}: the database's text of a double may hold more digits than the
+         *  shortest that read back ({@link #shortestOf}). */
+        Expansion(boolean bind, boolean shortens) {
             this.bind = bind;
+            this.shortens = shortens;
         }
 
         @Override
@@ -50,7 +53,7 @@ final class FloatShortestText {
                 // a double's text is the dialect's long expression; any other value's (a literal, a decimal slot) is
                 // the database's own cast, read in place as before
                 if (!(bind && isDouble(x))) {
-                    return of(x);
+                    return of(x, shortens);
                 }
                 // an equal call is the same node, its aliases too: a cell's text read again (a CSV cell's quoting
                 // reads it five times) is then one subtree a common-subexpression binding writes once, as the canon's
@@ -69,7 +72,7 @@ final class FloatShortestText {
                     projection(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), "t", SqlType.Scalar.VARCHAR)),
                     new com.legend.sql.SqlSource.Subselect(value, inner, null));
             SqlExpr spelled = print(column(outer, "v", SqlType.Scalar.DOUBLE),
-                    column(outer, "t", SqlType.Scalar.VARCHAR));
+                    column(outer, "t", SqlType.Scalar.VARCHAR), shortens);
             return new SqlExpr.ScalarSubquery(select(List.of(projection(spelled, "p", SqlType.Scalar.VARCHAR)),
                     new com.legend.sql.SqlSource.Subselect(texted, outer, null)));
         }
@@ -93,9 +96,9 @@ final class FloatShortestText {
         }
     }
 
-    /** Lite's canonical text of the double {@code x}, as SQL over its text. */
-    static SqlExpr of(SqlExpr x) {
-        return print(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
+    /** Lite's canonical text of the double {@code x}, as SQL over its text ({@code shortens}: {@link Expansion}'s). */
+    static SqlExpr of(SqlExpr x, boolean shortens) {
+        return print(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), shortens);
     }
 
     /**
@@ -107,7 +110,7 @@ final class FloatShortestText {
      * with trailing zeros trimmed (and a bare trailing dot restored to '.0'). Magnitudes outside DECIMAL(38,18) keep the
      * exponent form.
      */
-    private static SqlExpr print(SqlExpr x, SqlExpr s) {
+    private static SqlExpr print(SqlExpr x, SqlExpr s, boolean shortens) {
         // FRACTION-FREE values written with an exponent are laid out from that text ({@link #wholeLaidOut}: the
         // database's shortest digits, padded) for the whole band below 1e38, where the DECIMAL(38,18) cast
         // fabricates garbage (audit: 1e18 printed ...042.42...); every double >= 2^53 is fraction-free, so all large
@@ -133,7 +136,7 @@ final class FloatShortestText {
         // computes every branch of a CASE -- ClickHouse, whose constant folding casts a constant whatever its guard --
         // otherwise failed the cast of a value the branch never takes (cosh(-100), 1.3E43, out of Decimal(38,18):
         // DECIMAL_OVERFLOW; step 9, 2026-10-19, the ClickHouse lane on the plan route)
-        SqlExpr intPlain = wholeLaidOut(x, s);
+        SqlExpr intPlain = wholeLaidOut(x, s, shortens ? fractionFree : null);
         SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
                 new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(inRange, x), new SqlType.Decimal(38, 18), SqlExpr.Reason.PRINT),
                         SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
@@ -168,7 +171,7 @@ final class FloatShortestText {
      * a text with none as {@code 0}), so the arm reads any text without failing: a database that computes a branch it
      * does not take (ClickHouse folds every constant branch) needs no guard around it.
      */
-    private static SqlExpr wholeLaidOut(SqlExpr x, SqlExpr s) {
+    private static SqlExpr wholeLaidOut(SqlExpr x, SqlExpr s, @com.legend.base.Nullable SqlExpr shortenWhere) {
         SqlExpr e = SqlExpr.Call.of(SqlFn.LOWER, s);
         SqlExpr mantissa = SqlExpr.Call.of(SqlFn.SPLIT_PART, e, text("e"), new SqlExpr.IntLit(1));
         SqlExpr exponentDigits = SqlExpr.Call.of(SqlFn.REPLACE, SqlExpr.Call.of(SqlFn.REPLACE,
@@ -184,7 +187,43 @@ final class FloatShortestText {
         // StringCountsAsInt), stated here so each road writes the one cast
         SqlExpr width = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.PLUS, exponent, new SqlExpr.IntLit(1)),
                 SqlType.Scalar.INTEGER, SqlExpr.Reason.PRINT);
-        return SqlExpr.Call.of(SqlFn.CONCAT, sign, SqlExpr.Call.of(SqlFn.RPAD, digits, width, text("0")), text(".0"));
+        SqlExpr laidOut = SqlExpr.Call.of(SqlFn.RPAD, digits, width, text("0"));
+        if (shortenWhere != null) {
+            laidOut = shortestOf(x, sign, onlyWhere(shortenWhere, digits), exponent, laidOut);
+        }
+        return SqlExpr.Call.of(SqlFn.CONCAT, sign, laidOut, text(".0"));
+    }
+
+    /**
+     * The whole value's digits as lite's host writes them where the database's text may hold more than the shortest that
+     * reads back: the first of the text's 15- and 16-digit roundings (half up, on its digits) that the database reads
+     * back as {@code x}, else the text's own digits ({@code laidOut}). Postgres's float8 output leaves out a rounding
+     * boundary (1e23's double, which 1e23 reaches only by round-half-even, it writes 9.999999999999999e+22); Spark's
+     * text is its JDK's Double.toString, seventeen digits or more where fewer read back (2^60 1.15292150460684698E18,
+     * the Databricks lane at 4d2f383c, 2026-11-19). The rule is BigQuery's and Snowflake's (the shortest of 15, 16 and
+     * 17 significant digits that reads back; the orchestrator's ruling of 2026-11-19, S117 at rounding ties too), done
+     * on the text's digits in 64-bit integers, so every database can run it. {@code digits} is NULL off the whole-value
+     * band, so a database that folds a branch it does not take never casts a NaN's text.
+     */
+    private static SqlExpr shortestOf(SqlExpr x, SqlExpr sign, SqlExpr digits, SqlExpr exponent, SqlExpr laidOut) {
+        List<SqlExpr.Case.When> whens = new java.util.ArrayList<>();
+        for (int k = 15; k <= 16; k++) {
+            SqlExpr head = SqlExpr.Call.of(SqlFn.SUBSTRING, digits, new SqlExpr.IntLit(1), new SqlExpr.IntLit(k));
+            SqlExpr next = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CONCAT, text("0"), SqlExpr.Call.of(SqlFn.SUBSTRING,
+                    digits, new SqlExpr.IntLit(k + 1), new SqlExpr.IntLit(1))), SqlType.Scalar.BIGINT, SqlExpr.Reason.PRINT);
+            SqlExpr up = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.PLUS, new SqlExpr.Cast(head, SqlType.Scalar.BIGINT,
+                    SqlExpr.Reason.PRINT), new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
+                    next, new SqlExpr.IntLit(5)), new SqlExpr.IntLit(1))), new SqlExpr.IntLit(0), SqlExpr.Reason.PRINT)),
+                    SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
+            // a rounding that carries (999... to 1000...) has one digit more, and the value one place more
+            SqlExpr width = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.PLUS, exponent,
+                    SqlExpr.Call.of(SqlFn.PLUS, new SqlExpr.IntLit(1), SqlExpr.Call.of(SqlFn.LENGTH, up))),
+                    SqlExpr.Call.of(SqlFn.LENGTH, head)), SqlType.Scalar.INTEGER, SqlExpr.Reason.PRINT);
+            SqlExpr candidate = SqlExpr.Call.of(SqlFn.RPAD, up, width, text("0"));
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CONCAT,
+                    sign, candidate), SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT), x), candidate));
+        }
+        return new SqlExpr.Case(whens, laidOut, SqlExpr.Reason.PRINT);
     }
 
     /** {@code x} where {@code guard} holds, else NULL. */

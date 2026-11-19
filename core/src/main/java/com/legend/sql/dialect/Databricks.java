@@ -184,6 +184,14 @@ public class Databricks extends AnsiSqlRenderer {
         return null;
     }
 
+    /** Spark's text of a double is its JDK's Double.toString, which before JDK 19 can write more digits than read back
+     *  (2^60 as 1.15292150460684698E18, the Databricks lane at 4d2f383c, 2026-11-19), so lite's canonical text takes the
+     *  shortest rounding that reads back (FloatShortestText.shortestOf). */
+    @Override
+    protected boolean writesShortestDoubleText() {
+        return false;
+    }
+
     @Override
     public boolean needsStaticPivot() {
         return true;

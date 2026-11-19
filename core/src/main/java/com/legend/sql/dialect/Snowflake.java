@@ -1896,9 +1896,11 @@ public class Snowflake extends AnsiSqlRenderer {
      * Pure's print form of a Float ({@link SqlFn#FLOAT_SHORTEST_TEXT}), spelled here from {@link #floatText}'s digits, the value
      * read once: what the portable spelling (dialect/FloatShortestText) makes of {@link #floatText}'s text, which it read
      * nine times (Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB, 46 KB of it the text nine times, measured
-     * 2026-10-22). The text where it is plain (an exponent from -4 to 15); past it, a whole value's exact digits under
-     * 10^38 with {@code .0}; a value from 10^-17 below 10^-4 at eighteen places with its trailing zeros trimmed; else
-     * the text with its exponent. NaN and the infinities are Pure's names, which are Java's.
+     * 2026-10-22). The text where it is plain (an exponent from -4 to 15); past it, a whole value under 10^38 as its
+     * shortest digits padded with zeros to its exponent, with {@code .0} (lite's host writer's text: 2^60 is
+     * 1152921504606847000.0; until 2026-11-19 the value's exact binary digits, 1152921504606846976.0, the Snowflake lane's
+     * probe at 4d2f383c, Q4's family); a value from 10^-17 below 10^-4 at eighteen places with its trailing zeros
+     * trimmed; else the text with its exponent. NaN and the infinities are Pure's names, which are Java's.
      */
     private SqlWriter floatShortestText(SqlWriter writer, SqlExpr v) {
         return writer.piece(shortestDigits(v, d -> {
@@ -1908,8 +1910,8 @@ public class Snowflake extends AnsiSqlRenderer {
             String fixed = "RTRIM(CAST(CAST(IFF(" + inRange + ", " + x + ", NULL) AS NUMBER(38, 18)) AS VARCHAR), '0')";
             return "CASE WHEN " + nonFinite(x) + " THEN " + javaNonFinite(x) + " WHEN " + x + " = 0 THEN '0.0' WHEN "
                     + d.exponent() + " BETWEEN -4 AND 15 THEN " + d.sign() + " || " + d.unfolded() + " WHEN "
-                    + fractionFree + " THEN CAST(CAST(IFF(" + fractionFree + ", " + x + ", NULL) AS NUMBER(38, 0)) AS"
-                    + " VARCHAR) || '.0' WHEN " + inRange + " THEN IFF(ENDSWITH(" + fixed + ", '.'), " + fixed + " || '0', "
+                    + fractionFree + " THEN " + d.sign() + " || RPAD(" + d.digits() + ", " + d.exponent() + " + 1, '0') || '.0'"
+                    + " WHEN " + inRange + " THEN IFF(ENDSWITH(" + fixed + ", '.'), " + fixed + " || '0', "
                     + fixed + ") ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH(" + d.digits()
                     + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent() + ") END";
         }));

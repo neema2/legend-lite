@@ -120,12 +120,12 @@ class NumbersProbeTest {
             9223372036854775808.0, 1.2345678901234567e19, 1e22, 1e23, 1e37, -1152921504606846976.0, 123456789012345678.0,
             1e16, 1.5, 0.1, 1e-5, 2.5e-7);
 
-    /** A database whose shortest-digits algorithm leaves out a rounding boundary: Postgres's float8 output (Ryu, the
-     *  bounds excluded) writes 1e23's double (99999999999999991611392, exactly halfway between two decimals' doubles,
-     *  which 1e23 reaches only by round-half-even) as 9.999999999999999e+22, where Java writes 1.0E23 -- both read back
-     *  as the double; measured 2026-11-19, a judge-parity finding for the orchestrator (the two judges' texts of such a
-     *  boundary value differ on Postgres). Pinned, so a move shows. */
-    static final Map<String, String> BOUNDARY_TEXTS = Map.of("Postgres 1.0E23", "99999999999999990000000.0");
+    /** The rounding boundaries a database's own shortest digits leave out: Postgres's float8 output (Ryu, the bounds
+     *  excluded) writes 1e23's double (99999999999999991611392, which 1e23 reaches only by round-half-even) as
+     *  9.999999999999999e+22, where Java writes 1.0E23 (measured 2026-11-19); lite's canonical text there takes the
+     *  shortest rounding that reads back (FloatShortestText.shortestOf, the orchestrator's ruling of 2026-11-19), so the
+     *  host's text is expected, named here so the case stays in view. */
+    static final Map<String, String> BOUNDARY_TEXTS = Map.of("Postgres 1.0E23", "100000000000000000000000.0");
 
     /** Lite's canonical text of each double is the host writer's ({@code CellText.carriedFloat}: its shortest digits,
      *  laid out): the database judge's message text and the host judge's alike (Q4 and the 2^60 case of the PR #118

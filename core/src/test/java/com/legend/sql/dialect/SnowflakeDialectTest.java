@@ -107,7 +107,10 @@ class SnowflakeDialectTest {
             assertTrue(sql.length() < 8_000, fn + ": " + sql.length() + " characters: " + sql);
             assertFalse(sql.contains("(SELECT"), fn + ": " + sql);
             assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
-            assertTrue(sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"), sql);
+            // a whole value past 10^16 is its shortest digits padded to its exponent (2026-11-19, the Snowflake lane's
+            // probe: the NUMBER(38, 0) cast wrote 2^60's exact binary digits, 1152921504606846976.0)
+            assertTrue(sql.contains(" + 1, '0') || '.0'") && !sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"),
+                    sql);
             assertTrue(sql.contains("AS NUMBER(38, 18)) AS VARCHAR), '0')"), sql);
             assertTrue(sql.contains("THEN 'NaN' WHEN "), sql);
         }
