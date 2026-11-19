@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""H5 / 0.6: the translator's ledger, FIRST DRAFT. One row per H1 row the translator touches (R0, R1, X other than
+lite-scope, S defect), plus the rows the H5 spike found. Decided under R4, E-R2, CP-4, CP-5 (provisional), CP-8.
+Writes translator-ledger-draft.tsv. Evidence: H1's (read at the pins by H1) unless marked 'H5 read'."""
+import csv, sys
+
+H1 = {}
+with open(sys.argv[1]) as f:
+    r = csv.reader(f, delimiter='\t')
+    head = next(r)
+    for row in r:
+        H1[row[0]] = dict(zip(head, row))
+
+# action vocabulary (the brief's): pass | rewrite | refuse by name | Pure's answer recorded |
+# lite answers where upstream refuses. 'pass' rows say whose the row is when it is not the translator's.
+PASS, RW, REF, PUREREC, LITEANS = ('pass', 'rewrite', 'refuse by name', "Pure's answer recorded",
+                                   'lite answers where upstream refuses')
+
+# (id, construct, audience, database, action, text, test, confidence, unclear, note)
+R = []
+def row(i, construct, aud, db, action, text, test, conf, unclear='', note='', evidence=None):
+    ev = evidence if evidence is not None else ('H1: ' + H1[i]['evidence'] if i in H1 else '')
+    R.append([i, construct, aud, db, action, text, ev, test, conf, unclear, note])
+
+# ---------------------------------------------------------------- substring / indexOf (the spike's subject) ----
+SP = 'H5 read: pureToSQLQuery.pure:4660-4666 (processSubstring: the flag corrects substring only), :10644 (indexOf -> processDynaFunction, locate); h2Extension2_1_214.pure:231, duckdbExtension.pure:237; H3 grid h3/a/grid/'
+row('S130', 'substring(s, a[, b]) in code sent to the store (a routed query lambda, the helpers forwarding one)', 'ENGINE', 'H2', RW,
+    'meta::legend::compat::engine::substring (compat-engine-h2.pure): the 1-based window [p, p+b-1], p = a if a>0, 1 if a=0, len+a+1 if a<0, as Pure substring of clamped bounds',
+    'corpus testFilterUsingSubstringFunction, testFilterUsingParseIntegerFunction, testFilterUsingParseDecimalFunction; H3 battery (oracle) 25/25', 'high', '',
+    'H5 measured: V2 to V3 is exactly +4 passes per lane (H2, DuckDB), nothing else moves', SP)
+row('S130', 'substring(s, a[, b]) in code sent to the store', 'ENGINE', 'DuckDB', RW,
+    'meta::legend::compat::engine::substring (compat-engine-duckdb.pure): as H2 but a=0 starts at 0 and a start before the first character keeps its length from position 1 (DuckDB runtime)',
+    'H3 battery (oracle) 24/25; corpus as H2', 'high', '', '', SP)
+row('S130', 'substring(s, a, b) with a NEGATIVE length b, sent to the store', 'ENGINE', 'H2,DuckDB', REF,
+    'no lite program computes it the same on both (DuckDB counts backwards, H2 answers empty); refuse by name: "legend-engine substring with a negative length"',
+    'H3 battery request substring(2, -1) (DuckDB miss)', 'medium', 'Y',
+    'unclear: H2 answers empty, which IS computable (window empty); refuse only on DuckDB?', SP)
+row('S130', "substring on a DuckDB LITERAL string with a start before the first character", 'ENGINE', 'DuckDB', REF,
+    "DuckDB's constant folder keeps the window, its runtime does not (one database, two answers): refuse by name, or rewrite to the runtime rule and record",
+    'H3 grid substring(\'Credit\', -7, 2)', 'low', 'Y', 'no corpus or PCT case hits it (H3)', SP)
+row('S130', 'substring in code legend-engine does NOT send to the store: a test body after the run, a host-side helper, an M2M mapping run in memory', 'ENGINE', 'any', PASS,
+    "Pure's meaning (the core's, R4): legend-pure's interpreter runs it upstream",
+    'corpus executionPlanTest datetime tests (indexOf != -1), planExecutionTestUtility.sortCsv users', 'high', '',
+    'H5 F1: a definition-site rename would be WRONG here', 'H5 read: executionPlanTest.pure:936-982; planExecutionTestUtility.pure:132-133; testObjectReferenceIn.pure:404-405')
+row('S130', 'substring in an M2M mapping executed CHAINED over a relational store (ModelChainConnection)', 'ENGINE', 'any', RW,
+    'as the routed rewrite, applied to the mapping only for the routed calls whose runtime chains it: needs the runtime at each call (data flow); the 2 corpus cases judge plan text only (CP-4)',
+    'corpus testModelConnectionAgg, testModelConnectionMultipleAgg (CP-4 not promised)', 'low', 'Y',
+    'not built in H5; possibly refuse by name instead', 'H5 read: executionPlanTest.pure:2216-2236')
+row('S130', 'CORRECT_SQL_SUBSTRING_INDEXING on the routed call', 'ENGINE', 'any', PASS,
+    "the flagged call's query keeps Pure's substring (no rewrite); indexOf still rewritten (the flag does not touch it)",
+    'corpus testSubstringIndexingCorrectedByFeatureFlag (CP-4 not promised: plan text)', 'high', '',
+    'one let-bound lambda passed to a flagged and an unflagged call has two meanings: exact only by copying the lambda per call (H5 F1.3)', SP)
+row('S134', 'indexOf(s, t) in code sent to the store', 'ENGINE', 'H2,DuckDB', RW,
+    'meta::legend::compat::engine::indexOf: meta::pure::functions::string::indexOf($s, $t) + 1 (1-based, 0 on a miss)',
+    'corpus sqlFunction::indexOf (dyna, see H5-D1); H3 battery; PCT ENGINE lane (0.3)', 'high', '', '', SP)
+row('S134', 'indexOf(s, t, from) in code sent to the store', 'ENGINE', 'H2,DuckDB', LITEANS,
+    "legend-engine has no SQL translation (DuckDB manifest 'No SQL translation exists for ... indexOf_String_1__String_1__Integer_1__Integer_1_'); E-R2: lite answers, Pure's meaning (0-based, -1 on a miss)",
+    'PCT ENGINE lane, DuckDB essential testFromIndex', 'medium', 'Y',
+    "unclear: in the same program the 2-argument form answers 1-based and this one 0-based; rule 4 says refuse by name where Pure's answer would mislead",
+    'H1: ' + H1['S134']['evidence'])
+row('S134', 'indexOf outside the store (host-side, in-memory M2M)', 'ENGINE', 'any', PASS,
+    "Pure's meaning (R4)", 'corpus executionPlanTest datetime tests', 'high', '', 'H5 F1', 'H5 read: executionPlanTest.pure:936-982')
+row('D23', 'substring (PURE audience)', 'PURE', 'any', PASS, "the core's meaning is Pure's (R4): no rewrite", 'PCT essential substring tests', 'high')
+row('D24', 'indexOf (PURE audience)', 'PURE', 'any', PASS, "the core's meaning is Pure's (R4): no rewrite; S134's 3 PCT known failures pass", 'PCT essential DuckDB testSimple, testFromIndex, testIndexOfOneElement', 'high')
+
+# ---------------------------------------------------------------- H5's new rows (not in H1) -----------------------
+row('H5-D1', '###Relational dynaFunctions substring, indexOf, position (a mapping\'s DSL)', 'ALL', 'any', PASS,
+    "the CORE's: SQL's meaning in every audience (3.1's split, normalizer/RelOpTranslator.java); not Pure code, the parsed-model translator never sees them",
+    'corpus propertyfunc (6), sqlFunction::indexOf::testProject; core DynaFunction property-mapping tests', 'high', '',
+    'H5 F2; split built in the spike', 'H5 read: simplePropertyFunc.pure:169-173; testSqlFunctionsInMapping.pure:820; RelOpTranslator.java:451-505')
+row('H5-D2', "lite's own frontends that write substring/indexOf (Cypher, #SQL/Postgres, #IQ)", 'LITE', 'any', PASS,
+    "the CORE's: each frontend writes Pure's meaning (3.1); not the translator's", 'CypherIslandIntegrationTest; the #SQL and #IQ suites', 'high', '',
+    'H5 section 3: about 49 sites in 5 files, not only Cypher', 'H5 read: grep of protocol/cypher, protocol/sql, protocol/sql/iq')
+row('H5-D3', 'a user function or derived property reached from BOTH a routed query and host code, containing substring/indexOf', 'ENGINE', 'any', RW,
+    'clone it (f and its store twin) and retarget the routed call graph; or refuse by name', 'none in the corpus (H5 measured)', 'low', 'Y',
+    'not built in H5', '')
+row('H5-D4', 'the compatibility function named in a compile error (in call to meta::legend::compat::engine::substring)', 'ENGINE', 'any', PASS,
+    "the PRESENTER words the user's name back (map compat::engine::X to X); or the translator refuses before compile", 'H5 probe q.typeError', 'high', 'Y',
+    'unclear: which side owns it (1.2 presenter vs translator)', 'H5 probe (c)')
+
+row('H5-D5', "a cross-kind != in host-side code (legend-engine's own typo: '...' != -1, executionPlanTest.pure:982)", 'ENGINE', 'H2,DuckDB', PASS,
+    "a PRODUCT defect, not the translator's: lite's SQL compares a String with an Integer and the database raises; legend-pure answers true (S127's family)",
+    'corpus testPlanForDateTimeVariableESTTimeZone (DuckDB: a vacuous pass at main, made real by R4)', 'high', '',
+    'for the product owner', 'H5 V3 DuckDB log: Conversion Error ... to INT32; V0 H2: Data conversion error converting CHARACTER VARYING to DECFLOAT')
+row('H5-D6', 'a routed call whose query argument the translator cannot follow (a property such as $t.query, a function call, a string)', 'ENGINE', 'any', REF,
+    "follow it by data flow, or refuse by name where the lambda that reaches it uses substring/indexOf: 'the translator cannot tell whether this query is sent to the store'",
+    'the 40 corpus sites H5 counted (none moved a verdict)', 'low', 'Y', 'refusing would cost answers; how many reach substring/indexOf is unmeasured', 'H5 V3 log: 40 unresolved routed arguments')
+
+# ---------------------------------------------------------------- the other R0 rows -------------------------------
+row('S3', 'overload dispatch by legend-engine handler registration order', 'ENGINE', 'any', RW,
+    "steer lite's typer to the overload legend-engine's first passing handler binds (an explicit FQN or cast on the arguments)", 'to write: the W1.13 sub-rows, one oracle battery each', 'low', 'Y',
+    'disagreements not enumerated (H1)')
+row('S19', 'average([]) of a possibly empty collection', 'PURE', 'any', RW,
+    "if($c->isEmpty(), |fail(<legend-pure's kind>), |$c->average()) (ordinary if/isEmpty/fail)", 'PCT average of an empty list; to write', 'medium')
+row('S21', 'a Pure class mapping with no ~src', 'ENGINE', 'any', RW,
+    'drop the sourceless class mapping from the model handed to lite; a query through it refused by name at planning', 'to write: a pure/v1 model with one such mapping', 'medium', 'Y', 'not yet ruled (H1)')
+row('S27', 'a store the runtime does not bind (connectionByElement)', 'ENGINE', 'any', RW,
+    "bind it to the runtime's first connection, as runtimeExtension.pure:79-93 does", 'to write', 'medium')
+row('S29', 'lenient protocol JSON (unknown and older fields)', 'ENGINE', 'any', REF,
+    "refuse by name (decision C, every audience) -- E-R2 would instead drop what legend-engine drops", 'OlderJsonParityTest', 'medium', 'Y',
+    'unclear: decision C (refuse) vs E-R2 (answer what lite can)')
+row('S43', "Legend SQL unquoted identifier case", 'ENGINE', 'any', RW, 'quote every unquoted identifier before the #SQL front end', 'to write', 'medium', 'Y', "awaiting the user's ruling (H1)")
+row('S44', 'Legend SQL null-unsafe = and [0..1] overloads', 'ENGINE', 'any', RW, "translate #SQL by fromPure.pure's rules over existing natives", 'to write', 'medium')
+row('S46', 'Legend SQL date literal in any Postgres spelling', 'ENGINE', 'any', RW,
+    "parse the literal's spelling (build-time program text) into a Pure date constant", 'to write', 'medium', 'Y',
+    "check against 3.2's guard 'the translator evaluates nothing' (it is program text, JAVA_EVICTION's build-time rule)")
+row('S47', 'Legend SQL / between integers', 'ENGINE', 'any', RW, 'translate / to divide (an existing native)', 'to write', 'high')
+row('S50', '#IQ{...}# island text', 'ENGINE', 'any', LITEANS, "legend-engine's parser refuses it; E-R2: lite reads the IQ island", 'to write', 'medium', 'Y', "H1 had X (E-R1)")
+row('S50', '#IQ{...}# island text', 'PURE', 'any', PASS, "the grammar level reads legend-pure's legacy graph fetch (the parser's, not the translator's)", 'OWN_CORPUS_DECISIONS section 14', 'medium')
+row('S89', "legend-engine's parser drops text its grammar accepts", 'ENGINE', 'any', PASS, "the door parses at legend-engine's grammar level (the parser's, built)", 'EngineDropsTest', 'high')
+row('S94', "a function's pre- and post-conditions", 'PURE', 'any', RW,
+    'a call of a constrained function becomes its body guarded by its conditions: if(!pre, |fail(kind), |...) and the post over the let-bound result', 'to write: a PCT-style battery', 'medium')
+row('S96', "ModelStore '-9223372036854775808'", 'ENGINE', 'any', PASS, "the ENGINE grammar level joins sign and digits (the parser's)", 'to write', 'medium', 'Y', 'undecided today (H1)')
+row('S107', "a quoted generated pivot column reference ('2000__|__newCol')", 'BOTH', 'any', RW,
+    "rewrite the quoted reference to the bare name (then the core's pivotColumnType reads one spelling only); the quotes on output are the presenter's", 'PCT pivot tests', 'medium')
+row('S119', 'acos/asin outside [-1, 1]', 'PURE', 'any', RW, "if($x < -1 || $x > 1, |fail(ACOS_DOMAIN), |acos($x))", 'PCT acos/asin', 'medium')
+row('S119', 'acos/asin outside [-1, 1]', 'ENGINE', 'any', PASS, 'the presenter writes a NaN cell null (P)', 'oracle', 'medium')
+row('S127', 'Integer vs Decimal vs Float equality in a body', 'PURE', 'any', RW,
+    "a folded ==/!= across kinds: toString(a) == toString(b) for Integer vs Decimal, false with a Float", 'upstream-api/s127-number-equality.txt cases', 'low', 'Y',
+    "needs lite's Decimal text to equal BigDecimal's (unverified); the judge half is J")
+row('S140', 'cast(@Numeric(p,s)), Varchar(x) and ^Class over precise primitives', 'PURE', 'any', RW,
+    "if(<the primitive's constraint>, |x, |fail(constraint kind)) over existing natives", 'to write', 'medium', 'Y',
+    "validate() reads a Decimal's toString inside the query: X where that text differs (CP-5)")
+row('S183', "a connection's time zone applied to every query", 'ENGINE', 'any', RW,
+    "wrap the query in lite's execute frame with the connection's zone", 'to write', 'medium', 'Y', 'S if the product fix lands first (H1)')
+row('S305', 'mayExecuteAlloyTest(serverTest, fallback)', 'ENGINE', 'any', RW, "rewrite to the fallback's evaluation (upstream's own run with no server)", 'the 7 _Alloy corpus tests', 'medium', 'Y',
+    "it reproduces a VACUOUS pass; ruled refused in LITE: needs the user's word for ENGINE")
+row('S360', "a let's relation read twice that picks rows by no order", 'ENGINE', 'Trino,BigQuery', RW, 'inline the let at each read (upstream\'s expansion)', 'PlanMakerTest', 'medium', 'Y',
+    'reproduces non-determinism (G10); same answer set elsewhere')
+row('S364', "lite's declared extensions in a legend-engine program", 'ENGINE', 'any', LITEANS,
+    "E-R2: lite reads its extensions (H1 had refuse in legend-engine's words); what legend-engine's walker DROPS is dropped (rewrite of the parsed model, extendsId changes meaning)", 'EngineDropsTest', 'medium', 'Y', 'E-R2 vs H1')
+row('S365', 'parseDecimal(s), one argument', 'ENGINE', 'H2', RW, 'parseDecimal($s, 5, 2): a cast to DECIMAL(5,2) the database rounds and overflows', 'corpus testFilterUsingParseDecimalFunction; PCT ENGINE lane', 'high')
+row('D10', 'parseDecimal(s), one argument', 'ENGINE', 'DuckDB', RW, 'parseDecimal($s, 18, 3)', "DuckDB essential manifest (the design's line 398)", 'high')
+row('D10', 'parseDecimal(s)', 'PURE', 'any', PASS, "the product's exact parse (S5a)", 'PCT parseDecimal', 'medium')
+row('S368', 'H2 DEFAULT_NULL_ORDERING=HIGH', 'ENGINE', 'H2', PASS,
+    "CP-8: not emulated; lite's sorts stamp the null placement and legend-engine's canonical order (asc nulls last, desc nulls first) relies on HIGH only to omit the clause, so the answers agree; raw executeInDb SQL is the register row",
+    'corpus H2 lane under H2 defaults (0.4 (h))', 'medium', '', 'H5 read: dbExtension.pure:360-368',
+    'H5 read: dbExtension.pure:360-368 (canonicalNullOrder), :407 nullsHighWithClauseSupport')
+row('D15', 'H2 MODE=LEGACY and HIGH (DatabaseSettingsForm)', 'ENGINE', 'H2', PASS, 'CP-8: deleted by default; 0.4 (h) counts the moves', 'corpus H2 lane (0.4 (h))', 'medium', 'Y', "LEGACY's other effects unmeasured")
+row('C09', "legend-engine's H2 lexicon, NON_KEYWORDS", 'ENGINE', 'H2', PASS, 'CP-8, as D15; else declared as the target\'s settings (data)', '0.4 (h)', 'medium', 'Y')
+row('S370', 'isNumeric(s)', 'ENGINE', 'H2,DuckDB', RW, '$s->toLower() == $s->toUpper()', 'corpus sqlFunction::isNumeric::testProject; oracle', 'medium', 'Y', 'NULL on NULL: lite == must answer empty there (check)')
+row('D12', 'isNumeric dynaFunction in a mapping', 'ENGINE', 'H2,DuckDB', RW,
+    "rewrite the ###Relational operation isNumeric(x) to equal(lower(x), upper(x)): a DSL rewrite of the parsed model's RelationalOperation (the translator walks mappings' operations too)", 'corpus sqlFunction::isNumeric::testProject', 'medium', 'Y',
+    "conflicts with H5-D1's rule that a dynaFunction is the core's (SQL's meaning): here legend-engine's dyna meaning is its own text, not SQL's standard")
+row('D06', "a list's text inside a query", 'PURE', 'any', RW,
+    "'[' + $l->map(x|$x->toString())->joinStrings(', ') + ']' for String/Integer/Boolean elements; Float, Decimal, date elements: refuse by name where the text is read (CP-5); at a root the presenter", 'PCT list toString', 'medium', 'Y', 'the element print rule (D01, D02)')
+row('D06', "a list's text inside a query", 'ENGINE', 'any', LITEANS, "upstream refuses in the query; E-R2: lite's answer (its JSON array) -- or the PURE form?", 'PCT ENGINE lane', 'low', 'Y', 'which text lite answers under E-R2 is unruled')
+row('D25', "a Pair's text inside a query", 'PURE', 'any', RW, "'<' + toString($p.first) + ', ' + toString($p.second) + '>' (element prints as D06)", 'PCT pair toString', 'medium', 'Y')
+row('D17', "legend-engine's H2 SQL text in executeInDb, run on another target", 'ENGINE', 'not H2', RW,
+    "parse it (legend-engine's SQL grammar) into a lite program; else refuse by name by 0.4's count", '0.4 count', 'low', 'Y', 'needs an H2-SQL reader the core does not have')
+
+# ---------------------------------------------------------------- R1 rows under CP-5 (no special functions) -------
+row('S9', 'Float arithmetic as DECIMAL (numeric charter rule 1)', 'ENGINE', 'H2,DuckDB,Postgres', PUREREC, "lite's double (S20's bare DECIMAL deleted, CP-5); one register row", '0.4 (j) counts the answers that move', 'medium', 'Y', 'CP-5 pending its count')
+row('S20', 'a Float literal written bare (the database types it)', 'ENGINE', 'H2,DuckDB,Postgres', PUREREC, "lite's double; S20 deleted (CP-5)", '0.4 (j)', 'medium', 'Y', 'CP-5 pending')
+row('D03', 'as S20', 'ENGINE', 'any', PUREREC, 'as S20', '0.4 (j)', 'medium', 'Y')
+row('S17', 'splitPart', 'BOTH', 'DuckDB', RW, "Pure's character-set split by lite's split(...)->at(n) where it matches; else lite's answer recorded", 'PCT splitPart; oracle', 'low', 'Y', 'D20 open; the empty-token and collapse cases unverified')
+row('S26', 'a column of OTHER/JSON type compared or grouped', 'ENGINE', 'Postgres', PUREREC, "lite's text reading (upstream fails on GROUP BY json: lite answers)", 'to write', 'medium')
+row('S121', "print forms: DateTime +0000, an instance's id, an element's name, graph-fetch dates", 'BOTH', 'any', PASS,
+    "the presenter at a root (P); in a query: an element's name or instance id is a planning constant (rewrite); a DateTime text whose content is read: refuse by name (CP-5)", 'PCT toString', 'low', 'Y')
+row('S124', "an executeInDb grid's cells in arrival order", 'PURE', 'any', PUREREC, "lite numbers rows by its sort keys (no order promised); register row", 'to write', 'low', 'Y')
+row('S129', 'a let evaluated once at its turn (now(), a random, a raising let)', 'PURE', 'any', PUREREC, "lite splices the let at each reader; K12 not built (CP-5: an optimisation switch)", 'to write', 'low', 'Y', 'determinism (G10) for now() read twice')
+row('S135', "assertError keeping f's writes", 'PURE', 'any', PUREREC, "lite's savepoint rollback; register row", 'to write', 'low')
+row('S139', 'Decimal equality by value and scale in a query', 'BOTH', 'any', PUREREC, "the database's = by value; the assert half is the judge's (J)", 'to write', 'low')
+row('S141', "H2 2.1.214's decimal division scale", 'ENGINE', 'H2', PUREREC, "CP-8's blanket row: not chased", 'none (ruled)', 'high')
+row('O5', 'cell.float 0.33333333 (DECFLOAT on H2 2.1.214)', 'ENGINE', 'H2', PUREREC, "CP-8's blanket row", 'pure/v1 golden cell.float', 'high')
+row('S147', 'a count over a declared key (KeyedCounts)', 'ENGINE', 'any', PUREREC, "lite's fold stands (K16 never built: an optimisation switch, CP-5)", 'S147 row', 'high')
+row('S173', "an Integer CSV cell ' 5'", 'PURE', 'DuckDB,H2', PUREREC, "the database's cast decides (ruled out of LITE); register row", 'csv_format_probe IntCells', 'medium')
+row('S191', "the test-data generator's scrubbed cell text", 'ENGINE', 'DuckDB,H2,SQLite', PASS,
+    "a presenter after the run (3.6) -- but assertTestData compares the text INSIDE the body", 'the generator corpus tests (S193: 45 asserts)', 'low', 'Y',
+    'unclear: a body comparison cannot be presented after the run; refuse by name or keep as the presenter of the generator route only')
+row('S306', "the generator's cell printing (timestamps to seconds, Float by toString)", 'ENGINE', 'DuckDB,H2,SQLite', PASS, 'as S191', 'as S191', 'low', 'Y')
+row('S361', "execute(...) through an aggregation-aware mapping: activities' rewrittenQuery", 'ENGINE', 'any', PASS, "CP-4: lite's SQL in the activity (not promised)", 'corpus aggregationAware tests', 'medium', 'Y', 'a body reads it as a value')
+row('D01', "a Float's text (toString) inside a query", 'PURE', 'any', REF,
+    "where the text's content is read (compare, concatenate, sort, group, filter): refuse by name (CP-5); carried or at a root: the presenter", 'PCT toString Float; H3 (b) battery (8/26 match today)', 'medium', 'Y', "H2's count of such sites over Float is 0 (CP-5's evidence)")
+row('D01', "a Float's text inside a query", 'ENGINE', 'any', REF,
+    "legend-engine's text is the database's cast(x as varchar): no ordinary lite function writes it; refuse by name where read, the presenter at a root", 'PCT ENGINE lane toString', 'medium', 'Y', 'the presenter cannot recover the database\'s own text after the run either')
+row('D02', "a DateTime's text inside a query", 'BOTH', 'any', REF, 'as D01; at a root the presenter with the precision fact (CP-6)', 'PCT DateTime toString', 'medium', 'Y')
+row('C22', "a DateTime literal's written precision", 'PURE', 'any', PASS, 'the presenter, from the CP-6 fact', 'PCT DateTime toString', 'medium')
+row('D04', 'format(%r, %0Nd, %.Nf)', 'PURE', 'any', RW,
+    "%0Nd: sign + repeatString('0', N - digits) + digits (ordinary); %r: toRepresentation's Pure body where its prints are not Float/DateTime; %.Nf: refuse by name in a query (CP-5), the presenter at a root; a format known only at run time: refuse", 'PCT format tests', 'medium', 'Y')
+row('D04', 'format(...)', 'ENGINE', 'any', LITEANS, "upstream refuses ('No SQL translation exists for ... format_String_1__Any_MANY__String_1_'); E-R2: lite's format (which itself refuses %r and padding, S314)", 'DuckDB essential manifest (11 entries)', 'medium')
+row('D08', 'unchecked operations (class A): sqrt of a negative, division by zero, parse casts', 'ENGINE', 'per target', RW,
+    "per operation and target where an ordinary-function guard reproduces it: if($x < 0, |[], |sqrt($x)) on H2 (null); else lite's check stands and Pure's answer is recorded", 'pure/v1 raise.sqrtOfNegative; 0.4 (j) by case', 'medium', 'Y', 'per-operation list from 0.4 (c)')
+row('D08', 'class B (refused at planning upstream)', 'ENGINE', 'any', LITEANS, 'E-R2', 'PCT ENGINE lane', 'medium')
+row('D08', 'raise words', 'PURE', 'any', PASS, "the presenter (legend-pure's sentence from kind and literal operands)", 'PCT', 'medium')
+row('D09', 'parseInteger/parseFloat as plain casts', 'ENGINE', 'H2,DuckDB', PUREREC,
+    "lite's guarded parse; an R0 path only if a precise-primitive cast lowers to the database's own CAST (unmeasured)", 'corpus testFilterUsingParseIntegerFunction', 'low', 'Y')
+row('D11', 'parseJson', 'ENGINE', 'H2', PUREREC, "CP-8: legend-engine's H2 UDF not emulated", 'to write', 'low', 'Y')
+row('D11', 'parseJson', 'ENGINE', 'DuckDB', PUREREC, "lite's parse; the database's cast(x as JSON) is not an ordinary lite function", 'to write', 'low', 'Y')
+row('D18', 'a pruned extend column whose raise upstream fires', 'PURE', 'any', PUREREC, 'lite prunes (ruled); K10 never built (CP-5)', 'to write', 'low')
+
+# ---------------------------------------------------------------- X: upstream refuses (E-R2: lite answers) --------
+for i, c in [('S1', 'a model with any function body that fails to compile'), ('S24', 'over() with no partition'),
+             ('S25', 'mixed Integer/Float arithmetic typed Float'), ('S63', 'a StrictTime value in a relational query'),
+             ('S95', 'a bare meta::pure::mapping::Result'), ('S106', 'an uncast pivot'),
+             ('S108', 'pivot on H2 and the default extension'), ('S110', 'a dynamic pivot off DuckDB'),
+             ('S112', 'a user function with type parameters'), ('S126', 'asOfJoin on H2'), ('S128', 'print'),
+             ('S146', "user functions whose upstream ids collide; ColSpec overload ties"), ('S156', 'asOfJoin on Postgres, H2, SQLite, MariaDB, BigQuery')]:
+    aud = H1[i]['audience']
+    row(i, c, 'ENGINE' if aud in ('ENGINE', 'BOTH') else aud, 'any', LITEANS, "E-R2's blanket register row: lite answers; the translator copies no refusal", 'the ENGINE PCT lane (0.3) against PCT\'s expected value', 'high' if H1[i]['confidence'] == 'high' else 'medium')
+row('S109', "a dynamic pivot whose cast names a missing key", 'ENGINE', 'DuckDB', PASS, "same native form and error on DuckDB; off DuckDB E-R2 (lite answers)", 'to write', 'medium')
+row('S97', 'write<T>: a column subset, widening, multiplicity', 'ENGINE', 'any', LITEANS, "E-R2; legend-engine-valid programs write identically", 'to write', 'medium', 'Y', 'H1: positional vs by-name binding: check no legend-engine-valid program answers differently')
+row('S36', 'a table pointer with no schema, a filter with no db, a test with no assertions', 'ENGINE', 'any', PASS, "both refuse; lite's refusal stands, the words the presenter's", 'to write', 'medium')
+row('S48', "a database type outside legend-engine's 21", 'ENGINE', 'any', PASS, "already refused on the drop-in surface; the words the presenter's", 'ConnectionSectionGrammar', 'high')
+
+# ---------------------------------------------------------------- X: no exact rewrite -----------------------------
+row('S33', 'older protocol JSON no record carries', 'ENGINE', 'any', REF, 'refused by name (every audience)', 'OlderJsonParityTest', 'medium')
+row('S42', 'a dot call matched across generalizations by parameter types', 'PURE', 'any', REF, 'refuse the ambiguous shape by name', 'to write', 'low', 'Y')
+row('S93', 'an Operation union naming no member set', 'ENGINE', 'any', REF, 'refused by name and recorded (PARK-39)', 'to write', 'medium', 'Y', 'E-R2 would rather drop it as S21 does (answers move: no mapping vs no rows)')
+row('S111', 'object identity per evaluation', 'BOTH', 'any', REF, 'the four untracked cases refused by name', 'OBJECT_IDENTITY section 3.2', 'high')
+row('S120', 'a Float literal no double holds', 'PURE', 'any', REF, 'refuse by name', 'pure abs.pure testBigFloatAbs', 'medium')
+row('S123', 'a sort mixing Decimal with other kinds', 'PURE', 'any', RW, "R0 by a sort key ranking Decimal after the five classes where no cycle; else refuse by name", 'pure CompiledSupport order', 'low', 'Y', "pending the user's ruling (H1)")
+row('S138', 'acos of 2.0 on SQLite, MariaDB, MySQL (no NaN)', 'BOTH', 'SQLite,MariaDB,MySQL', REF, "lite's kind, the presenter's words", 'to write', 'medium')
+row('S170', 'a computed window frame bound whose sign flips its direction', 'ENGINE', 'any', REF, 'refuse by name (every audience)', 'FrameFromParameterTest', 'medium')
+row('S175', 'a Decimal/Number parameter on H2', 'ENGINE', 'H2', PUREREC, 'ruled to stand (A3: a bound value)', 'h2_number_probe', 'medium')
+row('S179', 'ClickHouse Date/DateTime literals and parameters', 'ENGINE', 'ClickHouse', PUREREC, "ruled: lite's form stands", 'clickhouse_date_parameter_probe', 'medium')
+row('S178', 'Class.all() extent', 'BOTH', 'any', PUREREC, "lite's catalog (reference-checkout tenet)", 'PCT getAll', 'medium')
+row('S184', "DuckDB's CSV reader vs Commons CSV EXCEL", 'PURE', 'DuckDB', PUREREC, "ruled lite's form", 'csv probes', 'medium')
+row('S186', 'H2 CSVREAD vs Commons CSV EXCEL', 'PURE', 'H2', PUREREC, "ruled lite's form", 'csv probes', 'medium')
+row('S196', 'generateTestData at a let', 'ENGINE', 'any', REF, 'refuse a database effect between the let and its read by name', 'to write', 'medium')
+row('D05', "a relation's text (toString) in a query", 'BOTH', 'any', REF, 'the presenter at a root; refuse by name where it feeds a computation', 'PCT relation toString', 'medium')
+row('D16', 'Decimal arithmetic on SQLite', 'PURE', 'SQLite', RW, "CP-11's recommendation: a SQLite rewrite to Float arithmetic (ordinary toFloat), a ledgered approximation; else refuse by name", 'PCT SQLite lane', 'medium', 'Y', 'CP-11 unruled')
+row('C27', 'as D16 (PureText.refusesDecimalArithmetic)', 'PURE', 'SQLite', RW, 'as D16', 'as D16', 'medium', 'Y', 'CP-11 unruled')
+
+# ---------------------------------------------------------------- S defect: lite answers correctly, recorded ------
+for i in ['S7', 'S8', 'S22', 'S23', 'S28', 'S32', 'S37', 'S38', 'S39', 'S40', 'S197', 'S302']:
+    d = H1[i]
+    who = 'the presenter (protocol composer)' if i in ('S32', 'S37', 'S38', 'S39') else "lite's answer"
+    row(i, d['difference'][:110], d['audience'], 'any', PASS, "upstream's defect is not reproduced: " + who + '; register row', 'register row ' + i, d['confidence'])
+
+with open(sys.argv[2], 'w', newline='') as f:
+    w = csv.writer(f, delimiter='\t', lineterminator='\n')
+    w.writerow(['row', 'construct', 'audience', 'database', 'action', 'rewrite_or_refusal', 'evidence', 'proving_test',
+                'confidence', 'unclear', 'note'])
+    for r in R:
+        w.writerow([str(x).replace('\t', ' ').replace('\n', ' ') for x in r])
+from collections import Counter
+print(len(R), 'rows;', Counter(r[4] for r in R), 'unclear', sum(1 for r in R if r[9]))
+print('H1 rows covered:', len({r[0] for r in R if r[0] in H1}))

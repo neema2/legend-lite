@@ -194,10 +194,70 @@ the translator off and on:
   data flow; none of them moved a corpus verdict here, but a real translator must either follow them or refuse.
 - **What broke:** nothing beyond F4's list.
 
-## 3. 3.1 sizing
+## 3. 3.1 sizing: the product's own dependencies on today's meaning
 
-(to be filled in)
+**The finding: there are three, not two.** The plan names lite's Cypher translator and the `###Relational`
+dynaFunction. Lite's `#SQL` (Postgres) frontend and its `#IQ` frontend write today's meaning too.
+
+### 3.1 (i) The `###Relational` dynaFunctions: split in the spike, cheap
+
+- **Where:** `normalizer/RelOpTranslator.java` turns the DSL's `indexOf` (`:451-457` at main), `substring`
+  (`:469-473`) and `position` (`:497-505`) into calls of the Pure functions.
+- **The split built** (+49 / -5, no new native): each dynaFunction keeps SQL's meaning written over Pure's:
+  `indexOf(s, t)` and `position(t, s)` become `indexOf(s, t) + 1`; `substring(s, a[, n])` becomes
+  `substring(s, a - 1[, a - 1 + n])`, a literal operand folded so Pure's rule (`CORRECTED_SUBSTRING`) writes SQL's
+  `SUBSTRING(s, a, n)` back with the same operands. The database answers exactly as before.
+- **Measured:** the 7 corpus tests H3 lost pass again (V2, both lanes); their SQL text moves (`locate(...)` becomes
+  `(locate(...) - 1) + 1` for a computed operand), so their SQL-text asserts are decided by the appeal on rows.
+- **The caveat:** the split relies on Pure's `substring` lowering being a pure index shift over SQL's `SUBSTRING`.
+  3.3 plans "a negative start raises, as Pure does"; then a dynaFunction `substring(col, 0, n)` (start 0 is legal SQL
+  and the corpus uses it: `simplePropertyFunc.pure:169`) would raise. Once 3.3's raise lands, the dynaFunction needs its
+  own rule: one lite-internal native lowered verbatim to `SqlFn.SUBSTRING` (and `STRPOS`), which moves
+  `NativeCatalogGovernanceTest`'s `INTERNAL_DESUGAR` ceiling (the user's word), or a lowering of the DSL's own
+  operation without a Pure call.
+- **Size:** done for the spike (0.5 day); with 3.3's raise, +0.5 day and one guard move.
+
+### 3.1 (ii) The frontends: 47 call sites in 4 files, mechanical
+
+At main, these write `substring` with SQL's 1-based start and a length, and `indexOf` 1-based with 0 on a miss:
+
+| frontend | file | `substring` | `indexOf` | lines at main |
+|---|---|---|---|---|
+| `#Cypher` | `protocol/cypher/CypherToPure.java` | 20 | 1 | 466, 491, 7988, 11674, 11677, 13123, 14455, 14469, 14471, 14472, 14480, 14774, 14793, 17781, 17817, 17833, 17881, 18964 |
+| `#SQL` (Postgres) | `protocol/sql/PostgresFunctions.java` | 8 | 2 | 212, 458, 477, 692, 787, 788, 789, 908, 911, 915 |
+| `#IQ` | `protocol/sql/iq/IqFunctions.java` | 10 | 4 | 667, 910, 1512, 1515, 1541, 1580, 1993, 1998, 2008, 2151, 2194, 3241, 4593 |
+| `#IQ` | `protocol/sql/iq/IqAggregates.java` | 1 | 1 | 1489 |
+
+(`CypherToPure.java:21544` writes Pure's `substr`, already Pure's meaning; `SqlParser.java:1423` builds a SQL AST node,
+not a Pure call; `IqFunctions.java:1774` infers a width. None moves.)
+
+- **The split, written for the spike:** two shared helpers in `protocol/sql/SqlToPure.java`, `sqlSubstring(s, start[,
+  length])` and `sqlIndexOf(s, t)`, the same rule as the dynaFunctions', and each call head retargeted to them. The
+  measurement of the parity lanes with and without it is below.
+- **Size:** 1 to 1.5 days with the parity lanes (cypher, sql, iq, each against snapped answers), plus the same caveat
+  as (i) once 3.3's raise lands (a frontend whose start can be 0 or below must keep SQL's rule there).
+
+### 3.1, the total
+
+The plan's 1.5 days covered Cypher and the dynaFunction. Measured: about 2 to 2.5 days for the dynaFunctions, three
+frontends and their parity lanes; +0.5 day and one guard move once 3.3's negative-start raise lands.
 
 ## 4. 0.6, the ledger's first draft
 
-(to be filled in)
+`H5-translator-ledger-draft.tsv` beside this record (generator: `h5/ledger.py.txt`, over H1's TSV).
+
+- **129 rows:** one per H1 row the translator touches (106 rows: every R0, R1, X other than lite-scope, and S
+  defect), split by audience or database where the action differs, plus 6 rows the spike found (H5-D1 to H5-D6).
+- **Actions:** rewrite 34; pass 38 (of which the parser's, the presenter's, the judge's or the core's, said in the
+  row); Pure's answer recorded 21; lite answers where upstream refuses 20 (E-R2); refuse by name 16.
+- **52 rows are flagged unclear**, each with its reason in the `note` column. The biggest groups:
+  - **CP-5's cost** (S9, S20, D03, D08 class A): the rows move to "Pure's answer recorded" by CP-5, pending 0.4 (j);
+  - **E-R2 against H1's refusals** (S50, S364, S29, D06's ENGINE half): H1 classed them X under E-R1; E-R2 says lite
+    answers, so what lite answers (lite's own text, or legend-pure's) is unruled;
+  - **text read inside a query** (D01, D02, D04, D06, D25, S121, S140): refused by name where the content is read
+    (CP-5, 1.3's rule), presented at a root;
+  - **the generator's text compared inside a body** (S191, S306): a presenter after the run cannot reach it;
+  - **reproducing upstream's defects or non-determinism** (S305's vacuous pass, S360's double read): the user's word.
+- **Evidence:** H1's (read at the pins by H1) unless the row says "H5 read"; this session re-read the substring,
+  indexOf and null-ordering rows (`pureToSQLQuery.pure:4660-4666`, `:10644`; `dbExtension.pure:360-407`).
+- **Tests:** where a test exists it is named; "to write" means none exists yet (an oracle battery or a PCT case).
