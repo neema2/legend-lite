@@ -70,6 +70,8 @@ from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 from ._params import ParametersRefused
 from ._types import is_float, is_model_type, is_strict_date
 from ._plans import PlanParamsRefused
+from ._raised import raised_of, wire_name
+from ._runs import LoadRefused
 from ._reads import count_of, read_plane, run_on_plane, run_plan
 from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
 from .keeper import PageKeeper, Refused
@@ -733,9 +735,20 @@ class Engine:
                 rows = rows_of(plan)
             except (ParametersRefused, PlanParamsRefused) as wrong:
                 return refused(compiler.parameters_refused(str(wrong)))
-            except (duckdb.Error, UntypedColumn) as failure:
+            except (duckdb.ConnectionException, UntypedColumn) as failure:
+                # the connection lost (Java's CONNECTION_ERROR), or a column the plan does not type: the environment or
+                # a defect, never the caller's query -- internal
                 message = redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values())
                 return refused(LegendError(message, compiler.error_kind('INTERNAL')))
+            except duckdb.Error as failure:
+                # a run's failure as Java's LiteV1Api.dataRefusal answers it (the PR #118 follow-up, 2026-11-19, Q9):
+                # a planned raise is data, its kind in raise and its site's where; the database refusing the work in
+                # its own words, and a user's fail, are data with no raise
+                said = raised_of(failure)
+                message = redact_held(str(failure), self.frames.held_values())
+                if said is not None and said.kind is not None:
+                    return refused(LegendError(message, compiler.error_kind('DATA'), said.where, wire_name(said.kind)))
+                return refused(LegendError(message, compiler.error_kind('DATA')))
             shape = _json.loads(planned[len('OK\n'):])['plan']['root']['shape']
             if form == 'json':
                 try:
@@ -765,6 +778,18 @@ class Engine:
         except (ModelRefused, NotAModel) as no_model:
             # the model's own refusal by the compiler: its kind and where, as the compiler said them
             return refused(no_model)
+        except LegendError as error:
+            # any other refusal of the product's (a project's Data the planner refuses: a value its column cannot hold)
+            # in lite's one shape, its own kind (the PR #118 follow-up, 2026-11-19, N-c: until then a 500 in text)
+            return refused(error)
+        except LoadRefused as load:
+            # a project's load the database refused in its own words (the load's statement, its cause): data with no
+            # raise, as Java's server answers a load's DATABASE_ERROR (the PR #118 follow-up, 2026-11-19, Q9); a lost
+            # connection, or a load refused before the database saw it, is not the caller's data -- left as it was
+            cause = load.__cause__
+            if not isinstance(cause, duckdb.Error) or isinstance(cause, duckdb.ConnectionException):
+                raise
+            return refused(LegendError(redact_held(str(load), self.frames.held_values()), compiler.error_kind('DATA')))
 
     def _answered(self, work: Callable[[str], Answer], body: str) -> Answer:
         """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug,

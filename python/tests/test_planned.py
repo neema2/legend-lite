@@ -1166,6 +1166,24 @@ class ARaiseIsWorded(unittest.TestCase):
             Result(Failing(), 'SELECT 1 / 0').fetchall()
         self.assertEqual(str(raised.exception), 'division by zero')
 
+    def test_a_worded_raise_carries_its_sites_kind_and_where_as_javas_data_error(self):
+        # what Java's DataError carries (the PR #118 follow-up, 2026-11-19, Q9): a site's raise its kind and its where;
+        # a user's fail, which names no site, neither; the database's own failure is no raise at all
+        from legend_lite._raised import Raised, declare_statement_sites, raised_of, wire_name, worded
+        declare_statement_sites('SELECT a sized read', [{'n': 1, 'kind': 'SIZE_NOT_MULTIPLICITY', 'where': '[1]',
+                                                         'message': 'expected one value, got 2'}], 'a plan')
+        said = worded(RuntimeError('Invalid Input Error: \x1f\x1cLG#1\x1f'), 'SELECT a sized read')
+        self.assertEqual((str(said), raised_of(said)),
+                         ('expected one value, got 2', Raised('SIZE_NOT_MULTIPLICITY', '[1]')))
+        fail = worded(RuntimeError('Invalid Input Error: \x1fboom\x1f'), 'SELECT a sized read')
+        self.assertEqual((str(fail), raised_of(fail)), ('boom', Raised(None, None)))
+        own = RuntimeError('Conversion Error: Could not convert string "x" to INT32')
+        self.assertIsNone(worded(own, 'SELECT a sized read'))
+        self.assertIsNone(raised_of(own))
+        # the wire's spelling of a kind (the lite API spec's §3), as Java's LiteV1Api spells it
+        self.assertEqual([wire_name(k) for k in ('DIVIDE_BY_ZERO', 'SIZE_NOT_MULTIPLICITY', 'USER_FAIL')],
+                         ['divideByZero', 'sizeNotMultiplicity', 'userFail'])
+
 if __name__ == '__main__':
     unittest.main()
 

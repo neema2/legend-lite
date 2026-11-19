@@ -516,6 +516,50 @@ class QueryRunRoute(Served):
                              '"2024-01-02T03:04:05.120000Z"],'
                              '[null,0.1,"-0.05",null,false,null,null]]}')
 
+    def test_a_runs_failure_is_data_as_javas_server_answers_it(self):
+        # the PR #118 follow-up, 2026-11-19, Q9 (Java's LiteV1Api.dataRefusal): a planned raise is 422 data, its kind in
+        # raise and its site's where; the database refusing the work in its own words is 422 data with no raise
+        fixture = json.loads(Path(os.environ['LEGEND_LITE_API_CASES']).read_text(encoding='utf-8'))
+        [case] = [c for c in fixture['cases'] if c['op'] == 'query/run' and c.get('refusal', {}).get('kind') == 'data']
+        status, _, body = self.ask(**case['request'])
+        said = json.loads(body)
+        self.assertEqual((status, said['kind'], said.get('raise'), said.get('where')),
+                         (422, 'data', 'sizeNotMultiplicity', '[1]'), body[:300])
+        # an ID past the 32 bits of the INTEGER column the database makes for it: its load refused in its own words
+        bad = PARTY.replace("'ID,NAME\\n1,Meridian Capital\\n", "'ID,NAME\\n3000000000,Meridian Capital\\n")
+        self.assertNotEqual(bad, PARTY)
+        status, headers, body = self.ask(model=bad, query=ll.parse(PARTY_QUERY), runtime='demo::party::Runtime',
+                                         format='json')
+        self.assertEqual((status, headers['Content-Type']), (422, 'application/json'), body[:300])
+        said = json.loads(body)
+        self.assertEqual((status, said['kind'], 'raise' in said, 'where' in said), (422, 'data', False, False),
+                         body[:300])
+
+    def test_a_value_over_a_projects_rows_is_answered(self):
+        # a VALUE (a property read alone) over a project's own rows, its one column the plan's 'value' (the PR #118
+        # follow-up, 2026-11-19, N-b: until then every one answered 500, the result column untyped by its alias)
+        query = ll.parse('|demo::party::Party.all()->filter(p|$p.id == 1)->toOne().name')
+        status, _, body = self.ask(model=PARTY, query=query, runtime='demo::party::Runtime', format='json')
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(json.loads(body), {'shape': 'VALUE', 'columns': [{'name': 'value', 'type': 'String'}],
+                                            'rows': [['Meridian Capital']]})
+        status, _, body = self.ask(model=PARTY, query=query, runtime='demo::party::Runtime', format='arrow')
+        self.assertEqual(status, 200, body[:300])
+        rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
+        self.assertEqual((rows.schema.metadata[b'legend.shape'], rows.to_pylist()), (b'VALUE', [{'value': 'Meridian Capital'}]))
+
+    def test_a_refusal_of_a_projects_data_is_lites_shape(self):
+        # the planner refusing a project's Data (a value its column cannot hold) is lite's {kind, message}, its own kind:
+        # the product's data, 422 (the PR #118 follow-up, 2026-11-19, N-c: until then a 500 in text)
+        bad = PARTY.replace("'ID,NAME\\n1,Meridian Capital\\n", "'ID,NAME\\nnot a number,Meridian Capital\\n")
+        self.assertNotEqual(bad, PARTY)
+        status, headers, body = self.ask(model=bad, query=ll.parse(PARTY_QUERY), runtime='demo::party::Runtime',
+                                         format='json')
+        self.assertEqual(headers['Content-Type'], 'application/json', body[:300])
+        said = json.loads(body)
+        self.assertIn("its data holds 'not a number'", said['message'])
+        self.assertEqual((status, said['kind']), (422, 'data'), said)
+
     def test_each_refusal_is_lites_by_its_kind(self):
         good = self.frame_query()
         for asked, status, kind in (
@@ -565,7 +609,10 @@ class HostRoutesConformance(unittest.TestCase):
                     said = engine.answer('POST', path, '', json.dumps(case['request']))
                 if 'refusal' in case:
                     self.assertGreaterEqual(said.status, 400, said.body[:300])
-                    self.assertEqual(json.loads(said.body)['kind'], case['refusal']['kind'])
+                    # its kind, and each other key the case names (a data refusal's raise and where), equal -- as the
+                    # server's reader holds them (the PR #118 follow-up, 2026-11-19, Q9)
+                    refusal = json.loads(said.body)
+                    self.assertEqual({k: refusal.get(k) for k in case['refusal']}, case['refusal'], said.body[:300])
                 else:
                     self.assertEqual(said.status, 200, said.body[:300])
                     self.assertEqual(_json.loads(said.body), case['answer'])

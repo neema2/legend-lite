@@ -352,6 +352,20 @@ class TypedByPlan(unittest.TestCase):
             typed_by_plan(pa.table({'a': [1], 'b': [2]}), plan)
         self.assertIn("does not type the result column 'b'", str(e.exception))
 
+    def test_a_column_is_typed_by_position_and_named_by_the_plan(self):
+        # as the server's runner reads a typed-rows statement (the PR #118 follow-up, 2026-11-19, N-b): a VALUE's one
+        # column is the plan's 'value' whatever its SQL alias; a statement answering fewer columns is refused by name
+        from legend_lite.frames import typed_by_plan
+        plan = ll.Plan('SELECT t0.N AS u_map__n FROM V AS t0', (ll.Column('value', 'Integer', {}),))
+        rows = typed_by_plan(pa.table({'u_map__n': pa.array([5], pa.int32())}), plan)
+        self.assertEqual((rows.column_names, rows.schema.field('value').type, rows.to_pylist()),
+                         (['value'], pa.int64(), [{'value': 5}]))
+        self.assertEqual(rows.schema.field('value').metadata[b'legend.type'], b'Integer')
+        two = ll.Plan('SELECT a, b', (ll.Column('a', 'Integer', {}), ll.Column('b', 'Integer', {})))
+        with self.assertRaises(RuntimeError) as e:
+            typed_by_plan(pa.table({'a': [1]}), two)
+        self.assertIn('the statement answers 1 columns, and the plan declares 2 [a, b]', str(e.exception))
+
     def test_a_precise_integer_is_an_integer(self):
         # a column named by a precise primitive (the lattice knows them: _type_facts) is the plain primitive it refines:
         # an Int or a BigInt is an Integer by legend-lite's lattice (_types, generated), so an int64, and its name kept
