@@ -61,6 +61,14 @@ public final class SeedDuckDbMain
         PureGrammarParser parser = PureGrammarParser.newInstance();
         PureModelContextData model = parser.parseModel(Files.readString(Path.of(a.get("model")), StandardCharsets.UTF_8));
         List<String> seed = seedOf(model);
+        if (a.containsKey("statements-out"))
+        {
+            // the statements as legend-engine's parser reads them (H7: the batteries' per-push half seeds lite's own
+            // file from them, so neither half parses the model differently)
+            Files.writeString(Path.of(a.get("statements-out")),
+                    EngineRoutes.SERVER_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(seed) + "\n",
+                    StandardCharsets.UTF_8);
+        }
         Path db = Path.of(a.get("db"));
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:" + db.toAbsolutePath());
              Statement s = c.createStatement())

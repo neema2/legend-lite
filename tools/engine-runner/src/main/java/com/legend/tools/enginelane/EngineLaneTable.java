@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package planoracle.enginelane;
+package com.legend.tools.enginelane;
 
 import com.legend.json.Json;
 
@@ -120,7 +120,9 @@ public final class EngineLaneTable {
             String test = f[0];
             boolean litePass = "SUCCESSFUL".equals(f[1]);
             String liteClass = litePass ? "" : liteFailure(f.length > 2 ? f[2] : "");
-            String[] engine = engine(expected.get(test));
+            // a test the manifest does not list is one legend-engine passes
+            String listed = expected.get(test);
+            String[] engine = listed == null ? new String[] {"PASS", ""} : engine(listed);
             rows.put(test, new String[] {engine[0], engine[1], litePass ? "PASS" : "FAIL", liteClass,
                     verdict(engine[0], litePass)});
         }
@@ -138,9 +140,6 @@ public final class EngineLaneTable {
 
     /** legend-engine's outcome for a test, from its manifest's expected error: {class, detail}. */
     static String[] engine(String expectedError) {
-        if (expectedError == null) {
-            return new String[] {"PASS", ""};
-        }
         Matcher m = NO_SQL.matcher(expectedError);
         if (m.find()) {
             return new String[] {"REFUSES", m.group(1)};

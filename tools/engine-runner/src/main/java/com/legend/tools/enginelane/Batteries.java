@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package planoracle.enginelane;
+package com.legend.tools.enginelane;
 
 import com.legend.json.Json;
 
@@ -52,21 +52,35 @@ public final class Batteries {
             o.put(a.substring(2, a.indexOf('=')), a.substring(a.indexOf('=') + 1));
         }
         switch (args.length == 0 ? "" : args[0]) {
-            case "engine-answers" -> write(o.get("out"), engineAnswers(read(o.get("in"))));
+            case "engine-answers" -> write(need(o, "out"), engineAnswers(read(need(o, "in"))));
             case "compare" -> {
                 if (o.containsKey("engine-digest") || o.containsKey("lite-digest")) {
-                    String e = Files.readString(Path.of(o.get("engine-digest"))).strip();
-                    String l = Files.readString(Path.of(o.get("lite-digest"))).strip();
+                    String e = Files.readString(Path.of(need(o, "engine-digest"))).strip();
+                    String l = Files.readString(Path.of(need(o, "lite-digest"))).strip();
                     if (!e.equals(l)) {
                         throw new IllegalStateException("the two sides answer from different rows: legend-engine's"
                                 + " DuckDB file holds [" + e + "], lite's [" + l + "]");
                     }
                 }
-                write(o.get("out"), compare(o.get("db"), read(o.get("engine")), read(o.get("lite"))));
+                write(need(o, "out"), compare(need(o, "db"), read(need(o, "engine")), read(need(o, "lite"))));
             }
-            case "digest" -> write(o.get("out"), digestOf(o.get("duckdb")) + "\n");
-            default -> throw new IllegalArgumentException("engine-answers, compare or digest");
+            case "digest" -> write(need(o, "out"), digestOf(need(o, "duckdb")) + "\n");
+            case "seed" -> {
+                seed(Files.readString(Path.of(need(o, "statements"))), need(o, "duckdb"));
+                write(need(o, "digest"), digestOf(need(o, "duckdb")) + "\n");
+            }
+            case "compose" -> write(need(o, "out"), compose(Files.readString(Path.of(need(o, "model"))),
+                    Files.readString(Path.of(need(o, "connection")))));
+            default -> throw new IllegalArgumentException("engine-answers, compare, digest, seed or compose");
         }
+    }
+
+    private static String need(Map<String, String> o, String key) {
+        String v = o.get(key);
+        if (v == null) {
+            throw new IllegalArgumentException("--" + key + "= is required");
+        }
+        return v;
     }
 
     private static List<String> read(String path) throws IOException {
@@ -193,6 +207,31 @@ public final class Batteries {
             m.put(f[0], new String[] {f[1], f.length > 2 ? f[2] : ""});
         }
         return m;
+    }
+
+    /** A new DuckDB file seeded with lite's own driver from {@code statementsJson}, the statements legend-engine's
+     *  parser read from the model's LocalH2 connection (SeedDuckDbMain's {@code --statements-out}, pinned): the
+     *  per-push half's file, which {@link #digestOf} then holds to legend-engine's. */
+    static void seed(String statementsJson, String file) throws Exception {
+        try (java.sql.Connection c = java.sql.DriverManager.getConnection("jdbc:duckdb:" + file);
+                java.sql.Statement s = c.createStatement()) {
+            for (Json.Node n : ((Json.Arr) Json.parse(statementsJson)).items()) {
+                s.execute(((Json.Str) n).value());
+            }
+        }
+    }
+
+    /** {@code model} with its {@code ###Connection} section replaced by {@code connection}'s: the text the per-push
+     *  half runs its DuckDB requests over (the heavy half's model is legend-engine's own composition of the same two). */
+    static String compose(String model, String connection) {
+        int from = model.indexOf("###Connection");
+        int to = model.indexOf("###Runtime");
+        int at = connection.indexOf("###Connection");
+        if (from < 0 || to < from || at < 0) {
+            throw new IllegalStateException("a model with a ###Connection section before its ###Runtime, and a"
+                    + " connection file with one, are needed");
+        }
+        return model.substring(0, from) + connection.substring(at).strip() + "\n\n" + model.substring(to);
     }
 
     /** The rows a trades DuckDB file holds, as one line: their count, their qty's sum and the md5 of every row's text in

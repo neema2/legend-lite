@@ -169,7 +169,7 @@ legend_java_library(
 # legend-engine's manifest and classified; //pct:engine_lane_* runs it (the PCT module holds no comparison machinery)
 legend_java_library(
     name = "enginelane",
-    srcs = glob(["src/main/java/planoracle/enginelane/*.java"]),
+    srcs = glob(["src/main/java/com/legend/tools/enginelane/*.java"]),
     testonly = True,
     visibility = ["//pct:__pkg__"],
     deps = ["//json"],
@@ -206,12 +206,14 @@ java_run(
     outs = [
         "pure_v1/trades.duckdb",
         "pure_v1/trades-duckdb.pure",
+        "pure_v1/trades_seed.json",
     ],
     arguments = [
         "--model=$(execpath //core:src/test/resources/upstream-api/trades-h2.pure)",
         "--connection=$(execpath src/test/resources/pure_v1/duckdb-connection.pure)",
         "--db={OUT_DIR}/trades.duckdb",
         "--model-out={OUT_DIR}/trades-duckdb.pure",
+        "--statements-out={OUT_DIR}/trades_seed.json",
     ],
     jvm_flags = _ORACLE_JVM,
     main_class = "planoracle.SeedDuckDbMain",
@@ -376,7 +378,7 @@ java_run(
         "--in=$(execpath :batteries/%s/engine.jsonl)" % db,
         "--out={OUT}",
     ],
-    main_class = "planoracle.enginelane.Batteries",
+    main_class = "com.legend.tools.enginelane.Batteries",
     mnemonic = "EngineBatteries",
     tags = ["manual"],
     deps = [":enginelane"],
@@ -395,7 +397,7 @@ java_run(
         "--duckdb=$(execpath :pure_v1/trades.duckdb)",
         "--out={OUT}",
     ],
-    main_class = "planoracle.enginelane.Batteries",
+    main_class = "com.legend.tools.enginelane.Batteries",
     mnemonic = "EngineBatteries",
     tags = ["manual"],
     deps = [
@@ -412,8 +414,56 @@ write_source_files(
         "src/test/resources/batteries/engine_h2_answers.tsv": ":batteries/h2/answers.tsv",
         "src/test/resources/batteries/engine_duckdb_answers.tsv": ":batteries/duckdb/answers.tsv",
         "src/test/resources/batteries/trades_duckdb_digest.txt": ":batteries/trades_duckdb_digest.txt",
+        "src/test/resources/batteries/trades_seed.json": ":pure_v1/trades_seed.json",
     },
     tags = ["manual"],
+)
+
+# the per-push half's file: a DuckDB file seeded with lite's own driver (the ruled jars_table entry) from the
+# statements legend-engine's parser read (pinned above), its rows held to legend-engine's file by //pct's compare; and
+# the model its requests run over, the goldens' model with the DuckDB connection in place of the H2 one, composed as
+# text (no legend-engine JVM: this half runs per push)
+java_run(
+    name = "lite_battery_seed",
+    testonly = True,
+    srcs = ["src/test/resources/batteries/trades_seed.json"],
+    outs = [
+        "batteries/lite/trades.duckdb",
+        "batteries/lite/trades_duckdb_digest.txt",
+    ],
+    arguments = [
+        "seed",
+        "--statements=$(execpath src/test/resources/batteries/trades_seed.json)",
+        "--duckdb={OUT_DIR}/trades.duckdb",
+        "--digest={OUT_DIR}/trades_duckdb_digest.txt",
+    ],
+    main_class = "com.legend.tools.enginelane.Batteries",
+    mnemonic = "LiteBatteries",
+    visibility = ["//pct:__pkg__"],
+    deps = [
+        ":enginelane",
+        "@duckdb_jdbc//jar",
+    ],
+)
+
+java_run(
+    name = "lite_battery_model",
+    testonly = True,
+    srcs = [
+        "//core:src/test/resources/upstream-api/trades-h2.pure",
+        "src/test/resources/pure_v1/duckdb-connection.pure",
+    ],
+    outs = ["batteries/lite/trades-duckdb.pure"],
+    arguments = [
+        "compose",
+        "--model=$(execpath //core:src/test/resources/upstream-api/trades-h2.pure)",
+        "--connection=$(execpath src/test/resources/pure_v1/duckdb-connection.pure)",
+        "--out={OUT}",
+    ],
+    main_class = "com.legend.tools.enginelane.Batteries",
+    mnemonic = "LiteBatteries",
+    visibility = ["//pct:__pkg__"],
+    deps = [":enginelane"],
 )
 
 test_suite(

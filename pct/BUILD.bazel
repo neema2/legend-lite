@@ -936,7 +936,7 @@ _ENGINE_LANE_MANIFEST = {
         "--outcomes=$(execpath :engine_lane/%s_%s/outcomes.tsv)" % (lane, s.lower()),
         "--out={OUT}",
     ],
-    main_class = "planoracle.enginelane.EngineLaneTable",
+    main_class = "com.legend.tools.enginelane.EngineLaneTable",
     mnemonic = "EngineLaneTable",
     deps = ["//tools/engine-runner:enginelane"],
 ) for (lane, backend, s) in _ENGINE_LANES]
@@ -956,7 +956,7 @@ java_run(
         "--out={OUT_DIR}/summary.tsv",
         "--refusals-out={OUT_DIR}/refusals.tsv",
     ] + ["$(execpath :%s)" % t for t in _ENGINE_LANE_TABLES],
-    main_class = "planoracle.enginelane.EngineLaneTable",
+    main_class = "com.legend.tools.enginelane.EngineLaneTable",
     mnemonic = "EngineLaneTable",
     deps = ["//tools/engine-runner:enginelane"],
 )
@@ -981,55 +981,37 @@ test_suite(
 # THE BATTERIES' PER-PUSH HALF (H7; CP-9 of docs/records/compat-program-plan-2026-11-19.md): each battery answered by
 # lite as legend-engine's audience (pure/v1's execute route as the edge ships it), compared with legend-engine's pinned
 # answers (//tools/engine-runner:update_batteries, the heavy half); no legend-engine JVM runs. DuckDB answers from a
-# file lite seeds with its own driver from the statements legend-engine's file is seeded from, refused if its rows
-# differ from that file's (trades_duckdb_digest.txt).
+# file seeded with lite's own driver from the statements legend-engine's file is seeded from (the oracle's package,
+# //tools/engine-runner:lite_battery_seed), refused if its rows differ from that file's (trades_duckdb_digest.txt).
 _BATTERY_REQUESTS = "//tools/engine-runner:src/test/resources/batteries/substring_indexof.tsv"
 
 _TRADES_H2 = "//core:src/test/resources/upstream-api/trades-h2.pure"
 
-java_run(
-    name = "battery_seed",
-    testonly = True,
-    srcs = [_TRADES_H2],
-    outs = [
-        "battery_run/trades.duckdb",
-        "battery_run/trades_duckdb_digest.txt",
-    ],
-    arguments = [
-        "seed",
-        "--model=$(execpath %s)" % _TRADES_H2,
-        "--duckdb={OUT_DIR}/trades.duckdb",
-        "--digest={OUT_DIR}/trades_duckdb_digest.txt",
-    ],
-    main_class = "org.finos.legend.lite.pct.oracle.LiteBatteries",
-    mnemonic = "LiteBatteries",
-    deps = [
-        ":pct_tests_lib",
-        "//core:drivers",
-    ],
-)
+# the model each battery runs over: the goldens' own on H2; on DuckDB the same with its connection replaced, and the
+# file lite seeded (//tools/engine-runner:lite_battery_seed and lite_battery_model)
+_BATTERY_MODEL = {
+    "h2": _TRADES_H2,
+    "duckdb": "//tools/engine-runner:batteries/lite/trades-duckdb.pure",
+}
 
 [java_run(
     name = "battery_lite_" + db,
     testonly = True,
     srcs = [
         _BATTERY_REQUESTS,
-        _TRADES_H2,
-    ] + ([
-        "//tools/engine-runner:src/test/resources/pure_v1/duckdb-connection.pure",
-        ":battery_run/trades.duckdb",
-    ] if db == "duckdb" else []),
+        _BATTERY_MODEL[db],
+    ] + (["//tools/engine-runner:batteries/lite/trades.duckdb"] if db == "duckdb" else []),
     outs = ["battery_run/%s/lite.tsv" % db],
     arguments = [
         "run",
-        "--model=$(execpath %s)" % _TRADES_H2,
+        "--model=$(execpath %s)" % _BATTERY_MODEL[db],
         "--requests=$(execpath %s)" % _BATTERY_REQUESTS,
         "--out={OUT}",
     ] + ([
-        "--duckdb-connection=$(execpath //tools/engine-runner:src/test/resources/pure_v1/duckdb-connection.pure)",
-        "--duckdb=$(execpath :battery_run/trades.duckdb)",
+        "--database-file=$(execpath //tools/engine-runner:batteries/lite/trades.duckdb)",
+        "--file-token=${DUCKDB_PATH}",
     ] if db == "duckdb" else []),
-    main_class = "org.finos.legend.lite.pct.oracle.LiteBatteries",
+    main_class = "org.finos.legend.lite.pct.batteries.LiteBatteries",
     memory_mb = 2048,
     mnemonic = "LiteBatteries",
     deps = [
@@ -1045,7 +1027,7 @@ java_run(
         ":battery_run/%s/lite.tsv" % db,
         "//tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv" % db,
     ] + ([
-        ":battery_run/trades_duckdb_digest.txt",
+        "//tools/engine-runner:batteries/lite/trades_duckdb_digest.txt",
         "//tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt",
     ] if db == "duckdb" else []),
     outs = ["battery_run/%s/agreement.tsv" % db],
@@ -1057,9 +1039,9 @@ java_run(
         "--out={OUT}",
     ] + ([
         "--engine-digest=$(execpath //tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt)",
-        "--lite-digest=$(execpath :battery_run/trades_duckdb_digest.txt)",
+        "--lite-digest=$(execpath //tools/engine-runner:batteries/lite/trades_duckdb_digest.txt)",
     ] if db == "duckdb" else []),
-    main_class = "planoracle.enginelane.Batteries",
+    main_class = "com.legend.tools.enginelane.Batteries",
     mnemonic = "LiteBatteries",
     deps = ["//tools/engine-runner:enginelane"],
 ) for db in ["h2", "duckdb"]]
