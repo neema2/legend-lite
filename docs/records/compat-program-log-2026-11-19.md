@@ -2979,3 +2979,10 @@ who confirms or changes phases 1-3.
   in the database. Shoulds: E-S1 (a let-bound lambda root also named host-side: refuse by name, a plant), E-S2 (pin W2
   with a DuckDB seed test now), E-S3 (stale lines in design note rev 2 and `1e6d9c68c`'s javadoc). Its switch-rule
   note added to B5's row in the final plan. own_corpus.matched on the merged tree expected 3320.
+- **~22:19 UTC, B1-R: the funnel row made** (`claude/compat-a3-engine` at `03a049825`, citing ~22:20; census green). The
+  two pins land with the wiring by an ordinary merge of the batch head once B1's native is in it; their dated note goes
+  in `pct/BUILD.bazel` beside `_BATTERY_HALVES` (generated files hold no comment). E-M1 and the shoulds in progress.
+  The user asked whether the 16 PCT tests Q3's option 1 loses read a column or a literal: all 16 are static (6
+  literals the lowering wraps in a cast, H13 §9: "0 of them raise over a value known only at run time"; 4 window-frame
+  and 2 bit-shift sentences carry no value; 6 plain literals), and the corpus has no assertError, so option 3 is off
+  the table either way and the choice is option 1 against option 2.
