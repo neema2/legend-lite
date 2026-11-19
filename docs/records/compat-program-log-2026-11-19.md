@@ -2364,3 +2364,15 @@ who confirms or changes phases 1-3.
   this session alone (S380 A2, S381 A5's threads, S382 the maths row, S383-S385 A3's new rows; S130 and S134 rewritten
   in place), in `compat-batch-register-rows-2026-11-19.md`. #127's CI: Linux 16/16 and Windows 16/16 green, macOS
   queued.
+- **~19:20 UTC, B1: H15, the nested table texts counted** (`compat-homework/H15-table-text-nested.md` on
+  `claude/compat-h15-nested`, `a8b5be0e55`; typed by lite's compiler, the relation-text calls being
+  `TextRefusals.relation`'s three callers). **54 NESTED nodes, all in the corpus** (the same per lane); every other
+  relation text is ROOT. PCT channel A 0/0; channel B DuckDB 431 ROOT (423 tests) and H2 relation 373 ROOT, 0 nested;
+  core 20 ROOT sites in 16 tests, 0 nested; pure/v1 0. Corpus per lane: 398 ROOT in 253 tests (assertEquals 387,
+  assertSameElements 11, every one a direct assert argument), **54 NESTED in 46 tests**: 41 are
+  `toCSV($result.values)->replace('\n', ',')`, one in each calendarAggregations test, compared by `assertEquals` with a
+  literal (the verdict depends on legend-pure's CSV spelling byte for byte, the Float text included); 13 are
+  `println(toCSV(...))` in 5 `tds::tests::extensions` tests, read by no verdict. Cross-checked with H11 (PCT exact;
+  corpus differences explained). Limits: 6,759 helper bodies would not type (every H11 side was still found). Asked:
+  the 46 tests' outcomes on `main` and under the ruled B2, whether any lite text could pass the 41, and whether
+  `println(<relation text>)` can count as a last step.
