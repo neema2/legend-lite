@@ -548,3 +548,10 @@ who confirms or changes phases 1-3.
     (cached); the batteries 8 s; the heavy oracle half 34 s. The edge net is 568 s.
   - The census (`//gates:local`) refused the batteries' PCT runner for naming a database outside its owners and parsing
     by grammar level outside the parser. Fixed by moving the seeding into the oracle's package; no pin moved.
+- **~12:27 UTC, slice 0.2 is PR #123** (`claude/compat-s0` at `5e3bbe6d1`, four commits on `main` `b75d6c73a`): the
+  edge net hardened, plus `//gates:edge_net` as a per-push lane.
+  - `//gates:local` is green: 557 of 558 as root in 2,539 s, and the 13 Postgres-backed tests as non-root.
+  - No pin, ceiling, ledger or allowlist moves.
+  - B1 is subscribed to its CI: the first run of this program's code on every OS.
+  - The per-part cost and CI's wall time follow as the run reports.
+  - Independent review requested of the reviewer session (~12:28).
