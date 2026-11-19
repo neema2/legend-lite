@@ -67,7 +67,7 @@ class TsLineSpikeTest {
               $x->extend(~ord:r|%%1970-01-01->dateDiff($r.date, meta::pure::functions::date::DurationUnit.DAYS))
                 ->timeseries::periodsPerYear(~key, ~ord, meta::pure::functions::date::DurationUnit.DAYS, ~py)
                 ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~r)
-                ->timeseries::volatilityPeriod(~key, ~date, ~value, ~r, $n, $unit, ~py, ~v)
+                ->timeseries::volatilityPeriod(~key, ~date, ~r, $n, $unit, ~py, ~v)
                 ->select(~[date, key, v])->rename(~v, ~value)
             }
 
