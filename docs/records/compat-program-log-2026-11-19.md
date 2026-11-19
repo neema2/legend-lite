@@ -2035,3 +2035,10 @@ who confirms or changes phases 1-3.
   EdgeHearing.rowAppealed, EdgeRun.wordsAlike), the test plan JSON's `appeal` field leaving `RootLoop.Row`. **This
   session's call (17:25): in A4**, the hook narrowing marked plainly for the user's word in the PR body. The PR is
   asked of the user in the judges session.
+- **~17:18 UTC, the CI-health worker on PR #125's run:** Windows warehouse red on `//python:markets_test` (TIMEOUT
+  300.1 s), the pre-existing timeout (red on `main` and in both of #123's runs); no 404 or 429; the rest running. Its
+  fix is `bb0fe2fc1` on the paused `claude/ci-health` (Python host only, `_headless.py` +63 and `projects.py` +13: the
+  headless host keeps a model text's answers and the models DataCube held instead of re-reading a 5 MB project 48
+  times; 210.6 s → 45.8 s). **This session's call (17:30):** a piece this program needs (it reds every compatibility
+  PR's Windows lane), so its own small PR, `claude/compat-markets-test-time`, checked against the rules of record; the
+  CI-health session asks the user in its session for the word to push it (not CI-only).
