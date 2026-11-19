@@ -333,3 +333,17 @@ recorded gaps.
   `f832a6671` (`git diff --name-only f832a6671` lists none);
 - `//pct:batteries_test`, the batteries, which call the route under `warn`.
 
+**The section fix (the judges' fast loop on the batch, ~21:30).** `//parser-equivalence:parser_parity` found six
+of `PureMeaningCheckTest`'s model literals without their `###Section` headers: a Database, two Mappings, a
+Connection and two Runtimes. `OwnDialectCensusTest` refused them at LEGEND_LITE, and they added
+`GRAMMAR-REFUSAL-nullmsg=6` to the leniency ledger. Each non-Pure element's literal now carries its own header.
+
+The class holding a function value (`Function<{String[1]->Integer[1]}>`) was replaced:
+- It is lite's own dialect, and the reference grammar refuses it ("The type ... is not supported yet").
+- So no legend-engine client can send it to this door.
+- It also moved three pins: PURE-DIALECT-function-types 20 → 21, a new adjudication kind, and an extension host.
+
+The unverified function value is now a lambda read out of a collection (`[{s|...}]->at(0)->eval(...)`), which
+legend-engine's grammar writes. Plant P3 still turns it red. After the fix `parser_parity` is green, and only
+own_corpus.matched moves, 3315 → 3321, under the ~20:10 ruling.
+
