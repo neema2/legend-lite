@@ -5,7 +5,6 @@ package com.legend.exec;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.testbackend.TestBackends;
 import com.legend.testing.Lean;
@@ -17,11 +16,11 @@ import org.junit.jupiter.api.Test;
 
 /**
  * AN INTEGER OVER A DECIMAL SLOT (the PR #118 follow-up, 2026-11-19, Q8): an Integer property mapped to a DECIMAL(10,0)
- * column is the Integer the column holds, on each database the platform runs in-process. A driver hands its cell as
- * the decimal it is (a {@code BigDecimal}); the decode reads it as the Integer's carrier, its exact integral, as an
- * integral slot's scale-0 decimal is read (JdbcDecode; the decode's own case in JdbcDecodeDuckDbTest). A cell with a
- * fraction under an Integer is refused by name, never truncated (AGENTS.md invariant 4). Until then the product's batch
- * refused the column's every cell ("a cell BigDecimal 5 is not its type's carrier").
+ * column is the Integer the column holds, on each database the platform runs in-process. The plan converts it in SQL
+ * on every road (register S371; the orchestrator's ruling of 2026-11-19): a whole value at any scale is its BIGINT, a
+ * fraction the planned raise CAST_IMPOSSIBLE, never truncated (AGENTS.md invariant 4); the decode's own reading of a
+ * whole decimal stays as a check no lite plan reaches (JdbcDecodeDuckDbTest). Until Q8 the product's batch refused the
+ * column's every cell ("a cell BigDecimal 5 is not its type's carrier").
  */
 class IntegerOverDecimalTest {
 
@@ -121,12 +120,14 @@ class IntegerOverDecimalTest {
                     assertEquals(List.of(List.of(whole.get(1))), one.rows(), backend.type() + ": " + one.text());
                 }
             }
+            // a fraction is the plan's planned raise, as on the object road (S371's one answer on both roads, the
+            // orchestrator's ruling of 2026-11-19: until then the decode refused it, lite's own 500 internal)
             try (Connection c = backend.open()) {
-                Throwable refused = assertThrows(Throwable.class,
-                        () -> Lean.established(model, "|p::S.all()->project(~[f: x|$x.f])", "p::RT", c));
-                String words = String.valueOf(refused.getMessage());
-                assertTrue(words.contains("column 'f'") && words.contains("declared Integer") && words.contains("5.5"),
-                        backend.type() + ": " + refused);
+                com.legend.error.DataError refused = assertThrows(com.legend.error.DataError.class,
+                        () -> Lean.established(model, "|p::S.all()->project(~[f: x|$x.f])", "p::RT", c),
+                        backend.type().toString());
+                assertEquals(com.legend.error.ErrorKind.CAST_IMPOSSIBLE, refused.kind(), backend.type() + ": " + refused);
+                assertEquals("Decimal to Integer", refused.where(), backend.type() + ": " + refused);
             }
         }
     }

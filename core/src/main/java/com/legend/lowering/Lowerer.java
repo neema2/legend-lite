@@ -1781,9 +1781,13 @@ public final class Lowerer {
     SqlAgg.Reducer aggExpr(SqlSelect base, TypedAggCol a) {
         SqlExpr e = aggValue(base, a);
         if (!(e instanceof SqlAgg.Reducer r)) {
-            throw new IllegalStateException("aggregate '" + a.name()
-                    + "' composes multiple reducers (wavg) — PIVOT USING"
-                    + " takes exactly one");
+            // its words name the reduction refused (until 2026-11-19 they named wavg whatever it was: hashCode's
+            // HASH(LIST(...)) was refused as "(wavg)", found by the S374 probe)
+            List<TypedSpec> body = a.reduce().body();
+            String reduction = !body.isEmpty() && body.get(body.size() - 1) instanceof TypedNativeCall c
+                    ? c.callee().qualifiedName() : "its reduction";
+            throw new IllegalStateException("aggregate '" + a.name() + "' reduces by " + reduction
+                    + ", which composes several SQL reducers — PIVOT USING takes exactly one");
         }
         return r;
     }

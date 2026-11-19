@@ -1405,6 +1405,9 @@ final class Fold {
      * so the conformed label is DOUBLE. */
     static SqlSelect declaredKindEnvelope(SqlSelect s,
             com.legend.compiler.element.type.Type root) {
+        if (root == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
+            return integerOverDecimal(s, p -> true);
+        }
         if (root != com.legend.compiler.element.type.Type.Primitive.FLOAT) {
             return s;
         }
@@ -1469,10 +1472,17 @@ final class Fold {
             com.legend.compiler.element.type.Type.RelationType rt,
             java.util.function.Supplier<String> alias) {
         java.util.Set<String> floatCols = new java.util.HashSet<>();
+        java.util.Set<String> integerCols = new java.util.HashSet<>();
         for (com.legend.compiler.element.type.Type.Column c : rt.columns()) {
             if (c.type() == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
                 floatCols.add(c.name());
             }
+            if (c.type() == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
+                integerCols.add(c.name());
+            }
+        }
+        if (!integerCols.isEmpty()) {
+            rel = integerOverDecimal(rel, col -> integerCols.contains(col.name()));
         }
         if (floatCols.isEmpty()) {
             return rel;
@@ -1579,6 +1589,33 @@ final class Fold {
     /** The serialize leaf's DECLARED result type (the lambda's
      * FunctionType result — the resolver stamps the MODEL property type
      * there; the body's own info is column-typed). */
+    /**
+     * S371's one rule at a ROOT (the relation's Integer-declared columns, a VALUE's Integer root): a projection whose
+     * value is a DECIMAL converts in SQL as a graph leaf does ({@link #wholeInteger}: a whole value its BIGINT, a
+     * fraction the planned raise CAST_IMPOSSIBLE), so every host reads an integer and the two roads answer alike (the
+     * orchestrator's ruling, 2026-11-19: until then the relation road's decode refused a fraction as lite's own 500
+     * internal, and Python answered its text "5.50", F6). The decode's refusal stays, a check no lite plan reaches.
+     */
+    private static SqlSelect integerOverDecimal(SqlSelect s, java.util.function.Predicate<OutputCol> declaredInteger) {
+        java.util.List<SqlSelect.Projection> out = null;
+        for (int i = 0; i < s.projections().size(); i++) {
+            SqlSelect.Projection p = s.projections().get(i);
+            OutputCol col = p.out();
+            if (col == null || !declaredInteger.test(col)
+                    || !(p.expr().type() instanceof com.legend.sql.TypeFact.Typed typed)
+                    || !(typed.type() instanceof com.legend.sql.SqlType.Decimal)) {
+                continue;
+            }
+            if (out == null) {
+                out = new java.util.ArrayList<>(s.projections());
+            }
+            out.set(i, new SqlSelect.Projection(wholeInteger(p.expr()), p.outputName(),
+                    new OutputCol(col.name(), PureSql.type(com.legend.compiler.element.type.Type.Primitive.INTEGER),
+                            col.nullable(), col.origin())));
+        }
+        return out == null ? s : s.withProjections(out);
+    }
+
     /**
      * An INTEGER-declared graph leaf over a DECIMAL value (an Integer property mapped to a DECIMAL column): S371's one
      * rule, on the object road too (F10 of PR #121's review, 2026-11-19, the orchestrator's (a)) -- a whole value at any
