@@ -2587,3 +2587,11 @@ who confirms or changes phases 1-3.
   the merged tree); **`native-claims.tsv` regenerated** (the generated inventory now lists `PureMeaningCheck` among the
   two natives' claimants). Taken to the user, recommended yes.
 - **~20:10 UTC, the detector's three guard moves ruled yes** (§1's row); B1-R told.
+- **~20:13 UTC, the CI-health worker: the parser_parity memo built** (`5a6ce154a` on
+  `claude/compat-parser-parity-memo`, not pushed; it asks the user in its session). `RefereeParses` (new) keeps the
+  referee's answer per text and source-information option, held softly; the four classes switched (+16 / −11); no size,
+  timeout or shard change. **284.7 s → 176.7 s locally (−38%).** 9,731 texts parsed, 28,176 answers reused, 0 let go.
+  Heap: live peak 616-665 MB → 817 MB; peak before a collection 2,328-2,337 → 2,548 MB of 2,816 (watch on CI). Proof:
+  the same 45 testcases and outcomes; 22 of 23 outputs byte-identical (the 23rd a never-asserted diagnostic whose crash
+  messages read the JVM's NPE text, the fast-throw optimisation); two planted differences fail the same testcases with
+  the same messages on `main` and the branch. For the reviewer once pushed.
