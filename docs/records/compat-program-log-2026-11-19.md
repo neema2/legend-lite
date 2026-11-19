@@ -533,3 +533,18 @@ who confirms or changes phases 1-3.
     test implementation.
   - **A lesson for the ledger:** H1's rows are readings, not measurements. Two of its "new" findings have now failed a
     test (this one, and its S138 claim was itself a correction). The 0.6 ledger marks each row "measured" or "read".
+- **~12:26 UTC, B1-R's answers** (`claude/compat-engine-lane` pushed at `24c858542`):
+  - **Where lite answers and legend-engine refuses or fails, lite gives PCT's expected value: no exception found.** Of
+    the 245 such tests (DuckDB's 153 LITE_FIXES and 55 LITE_ANSWERS; H2's 37 LITE_FIXES), every body was scanned in the
+    pinned sources:
+    - 191 assert an exact value;
+    - 44 assert a Boolean lite computed;
+    - 4 assert emptiness;
+    - 4 assert a type;
+    - 2 check less than a value (`letFn::testLetChainedWithAnotherFunction`, `assertNotEmpty`;
+      `parseDate::testParseDateTypes`, `assertInstanceOf`). Those 2 are the only places lite could differ from
+      legend-pure's value and still pass.
+  - **The per-push cost, by part:** the ENGINE lane 273 s serial when its inputs move, nothing when they don't
+    (cached); the batteries 8 s; the heavy oracle half 34 s. The edge net is 568 s.
+  - The census (`//gates:local`) refused the batteries' PCT runner for naming a database outside its owners and parsing
+    by grammar level outside the parser. Fixed by moving the seeding into the oracle's package; no pin moved.
