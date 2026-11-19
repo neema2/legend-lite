@@ -505,3 +505,18 @@ who confirms or changes phases 1-3.
   - S374 → S375, the database versions' blanket row;
   - S375 → S376, E-R2's blanket row;
   - S376 → S377, the prelude and the parser.
+- **~12:22 UTC, B2's H8 (h): the corpus's H2 lane without legend-engine's H2 settings** (`d37427ef4`): the product's
+  `MODE=REGULAR` and `DEFAULT_NULL_ORDERING=LOW` in place of `MODE=LEGACY` and `HIGH`.
+  - **Exactly 1 test moves, from pass to fail** (the fail roster 276 → 277; the skipped, unordered and engine-order
+    registers are identical): `meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter`. Its
+    own model compares a `BIT` column with `1`, which H2's regular mode refuses and legacy mode allows. That is the
+    test's own model text, not lite's lowering.
+  - **Null ordering moves nothing:** lite's H2 writes the null placement on every sort key.
+  - **The referee keeps its own database:** legend-engine's H2 2.1.214, isolated, opened with LEGACY, HIGH and
+    NON_KEYWORDS (`core/src/test/java/com/legend/testbackend/EngineH2Referee.java`; the user's ruling of 2026-11-05,
+    "Engine's 2.1.214, isolated"; "the mirror" beside every lane's session).
+  - **So CP-8 costs 1 corpus test,** and `DatabaseSettingsForm` can simply be deleted (3.2). No "target settings as
+    data" design is needed.
+  - **To reconcile:** the judges session's H6 §6 (b) said the referee replays on the body's own target's session.
+    Asked of it (~12:23); if B2 is right, plan 3.2's step "the referee first gets its own declared target" is
+    unnecessary.

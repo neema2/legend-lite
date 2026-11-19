@@ -19,6 +19,7 @@ What phase 0 found, the numbers behind it, and the decisions it puts to the user
 | Q8 | Where does legend-engine skip lite's safety checks? | **16 test cells on 8 databases** (none on Postgres, Spanner or SQL Server). 3 of today's "unchecked" entries are dead. Lite plants 27 kinds of check; PCT exercises 9 | B2, H8 §(c) |
 | Q9 | Is the strand map right? | **Yes**, confirmed body to body against the code, with 5 corrections and 1 missing strand. The ratchet's start: `PlanStyle` has 10 methods, 49 parameters in 19 classes and 50 calls | B2, H8 §(a) |
 | Q10 | What do the compatibility checks cost per push? | The ENGINE lane: 272.7 s serial, about 1.5 to 2 minutes of wall time on a 16 GB Linux runner and 4.5 minutes on macOS; the batteries 7.7 s. The edge net: 568 s locally as its own parallel lane, CI time PENDING | B1 (0.2), B1-R (H7) |
+| Q12 | What does dropping legend-engine's H2 legacy settings cost (CP-8)? | **1 corpus test** (its own model compares a BIT column with 1). Null ordering moves nothing. The referee keeps its own isolated legend-engine H2 2.1.214 | B2, H8 §(h) (`d37427ef4`) |
 | Q11 | Is legend-engine's manifest a trustworthy oracle? | **Yes:** 21 of 21 sampled rows agree when legend-engine itself is asked, including its own wrong answers | B1-R (H7) |
 
 ## 2. Product bugs phase 0 found (handed to the product orchestrator)
