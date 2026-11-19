@@ -1472,3 +1472,17 @@ who confirms or changes phases 1-3.
   any unnamed difference still fails. Plants in `//tools/guards:edge_normalize_test` (now 13 tests). `//gates:edge_net`,
   the plants and `//tools/guards:all` green on Linux. The finding is in the PR body and a new `tools/edgenet/README.md`;
   the overlay file and its BUILD wiring are named as a new pinned file for the user's word. macOS decides on this run.
+- **~13:52 UTC, B2: the differences page drafted** (`differences-page-draft.md` on `claude/census-b2` at `d13d1d4ba`,
+  about 1,800 words; register ids only in each entry's last line). **11 entries** (10 measured, 1 read: the feature
+  flags); by when: today 4 (`toOne` of empty, error words, lite answering where legend-engine refuses, the Windows last
+  digits), stage A 2 (`substring`/`indexOf` with the detector; lite's own SQL text), stage B 5 (unchecked maths as a
+  6-row table with each guard, per database; Float literals with "write `1.1D` or `toDecimal()`"; `isNumeric`/
+  `parseDecimal`/`parseJson`; H2's regular mode; feature flags). A gaps section (the 33 H2 functions; H2's NaN and shift
+  wrap; what is not supported yet) and a "what is the same" section (6 points).
+  - **New:** `toOne()` of an empty collection answers 200 with null on legend-engine (H2 and DuckDB, the oracle); lite
+    raises; `$x->first()` reproduces legend-engine's. Pure's Decimal literal is `1.1D` (legend-pure's `M3CoreLexer`).
+  - **Rows missing from the register:** `toOne` of empty, `parseJson`, CP-4, D2, the blanket "lite answers where
+    legend-engine refuses". **This session's call (14:25):** each lands with the step that creates its difference (A2
+    the CP-4 row; A3 the `substring`/`indexOf` rows plus the two that exist today, `toOne` and E-R2's blanket row, with
+    the page; B4 D2's and `parseJson`'s). Written into the final plan. B2 waits for stage A's ratification (A2's
+    proposed builder).

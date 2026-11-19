@@ -51,7 +51,7 @@ amended to say this, in A3's PR (the wording drafted in the log at ~13:15 UTC). 
 | E-R2 | the legend-engine route answers everything lite can |
 | CP-13 | plan export and import deferred; lite's own host drift is the product track's |
 | CP-14 (iii), CP-6, CP-7, CP-11 | the judge as records plus a formatter; typed facts on results; error words never in the plan; SQLite Decimal kept as a door rule |
-| The differences page | written from the register rows, landed with A3, kept current by every later step |
+| The differences page | drafted (`differences-page-draft.md` on `claude/census-b2`, `d13d1d4ba`: 11 entries, 10 measured; a gaps section; a "what is the same" section); lands with A3, kept current by every later step. The register rows it needs land with the step that creates each difference: A2 the SQL-text row (CP-4); A3 the `substring`/`indexOf` rows, and the two differences that exist today without a row (`toOne` of an empty list; lite answering where legend-engine refuses); B4 the number-shortcut and `parseJson` rows |
 
 ## 4. Stage A: measured and low risk (about 3 weeks; 2 at best; 4 if the product's gates slip)
 
