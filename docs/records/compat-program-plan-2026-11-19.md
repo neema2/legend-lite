@@ -936,8 +936,7 @@ words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to
     text alone: a declined appeal (64), a printed SQL, plan or DDL string compared (22), a construct lite's printer
     has no form for (53, mostly `planToString` goldens), or SQL read from legend-engine's plan (4);
   - **6 tests assert legend-engine's PLAN STRUCTURE**, not SQL text (`testSupportStreamFlag*`: a
-    `FunctionParametersValidationNode`'s `supportsStream`). Recommendation: not promised, as an internal shape (rule
-    4); phase 5's export decides whether it comes back naturally;
+    `FunctionParametersValidationNode`'s `supportsStream`). **RULED by the user, 2026-11-19 ~12:10 UTC: "Yes to the six" (CP-13, CP-14 (iii), CP-6, CP-7, the 6 plan-structure tests not promised, CP-11).** Not promised, as an internal shape (rule 4);
   - **3 DIVERGED appeals, the only answer differences:**
     - `testToSQLStringForTDSStringJoin` and `testHashFunctions`: legend-engine's golden SQL writes `joinStrings` with
       the separator appended (`concat(a, ' ', b, '|')`), against Pure's `joinStrings`. Lite answers Pure. That is
@@ -991,7 +990,7 @@ words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to
     choice) are the same thing in another form.
 - **Either way:** the four that would switch a product optimisation off (K7, K10, K12, K16) are never built.
 
-**CP-6. The typed facts the result must carry.** *Gates 1.1.*
+**CP-6. The typed facts the result must carry.** *Gates 1.1.* **RULED by the user, 2026-11-19 ~12:10 UTC: "Yes to the six" (CP-13, CP-14 (iii), CP-6, CP-7, the 6 plan-structure tests not promised, CP-11).**
 - **Carry, because they are lite's own meaning:**
   - a DateTime's written precision (D02, S118);
   - a column's Pure type, and whether it is stored or computed (legend-engine's `relationalType`; slice R's
@@ -1002,7 +1001,7 @@ words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to
 - **Do not carry, because they are facts of upstream's SQL:** legend-engine's Decimal scale (S104), the JDBC metadata
   of upstream's statement (S125). Those rows stay ledgered.
 
-**CP-7. Error words leave the plan.** *Gates 1.2 and 1.6. It re-cuts (h) K1.*
+**CP-7. Error words leave the plan.** *Gates 1.2 and 1.6. It re-cuts (h) K1.* **RULED by the user, 2026-11-19 ~12:10 UTC: "Yes to the six" (CP-13, CP-14 (iii), CP-6, CP-7, the 6 plan-structure tests not promised, CP-11).** The `EdgeOnlyDataTest` row is accepted.
 - **Upstream words never enter the plan:** the presenter words them from the site's kind and literal operands.
 - **Lite's own sentence leaves the plan in 1.6.** The tab and Python then read lite's sentences from a table generated
   from Java (one rule, no copy by hand, no call into Java on the failure path). Until then it stays, as K1 ruled.
@@ -1050,7 +1049,7 @@ worry or even support older database versions".
   columns in product lowering, `CalendarAgg`) becomes a ruled (b) row. H1 classed it S `same`: the names are the
   calendar functions' own store contract (`calendarStore.pure:19`), not a presentation.
 
-**CP-11. SQLite's Decimal arithmetic for the legend-pure audience.** *Gates 3.4.*
+**CP-11. SQLite's Decimal arithmetic for the legend-pure audience.** *Gates 3.4.* **RULED by the user, 2026-11-19 ~12:10 UTC: "Yes to the six" (CP-13, CP-14 (iii), CP-6, CP-7, the 6 plan-structure tests not promised, CP-11).** Kept as a translator rule.
 - **Today:** the edge answers Decimal arithmetic on SQLite with REAL (a double) where the product refuses (ruling (c),
   D16, C27; `PureText.refusesDecimalArithmetic`).
 - **Recommendation:** keep ruling (c) as a translator rewrite on SQLite (ordinary functions, a ledgered
@@ -1075,8 +1074,7 @@ Raised by the independent review: the plan contradicts itself here.
   functions); answer Pure's way only for its outright defects. More translator work; more answers match legend-engine.
 - **Decided with task 0's numbers:** how many tests each strand loses (the translator session, phase 0).
 
-**CP-13. A smaller plan (the independent review's Q4): defer what removes no upstream meaning.** *For the phase-0
-checkpoint.*
+**CP-13. A smaller plan (the independent review's Q4): defer what removes no upstream meaning.** **RULED by the user, 2026-11-19 ~12:10 UTC: "Yes to the six" (CP-13, CP-14 (iii), CP-6, CP-7, the 6 plan-structure tests not promised, CP-11).**
 - **Defer phase 5** (export and import, 6.5 days). It is a new capability and removes no upstream meaning from the
   core. But the user named it a goal on 2026-11-18 ("import upstream plans to run on our platform and export plans
   from us to run in upstream"), so it is the user's call.
@@ -1086,7 +1084,7 @@ checkpoint.*
 - **Shrink phase 3** under CP-12's strict reading, and 1.4 if plan structure is not promised.
 - **Together about 20 to 25 session-days**, without giving up done-when 1 to 3.
 
-**CP-14. What the "whole" compatibility host judge is.** *Gates 2.2.* Found by the judges session's map.
+**CP-14. What the "whole" compatibility host judge is.** *Gates 2.2.* Found by the judges session's map. **RULED by the user, 2026-11-19 ~12:10 UTC: "Yes to the six" (CP-13, CP-14 (iii), CP-6, CP-7, the 6 plan-structure tests not promised, CP-11).** Option (iii).
 - **(i) The edge's own copy** of the product's host judge (about 2,765 lines). It has no seam in the product, but it
   is a second judge to keep in step: +3 days, and drift risk.
 - **(ii) The product's host judge stays the one library**, and the edge passes its rules as a typed parameter. There

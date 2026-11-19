@@ -20,10 +20,11 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~11:27 | "1 yes, 2 a1" (on the hosts worker's `currentUser` case) | `/api/server/v1/currentUser` on both hosts: GET answers 200 `"anonymous"`, any other method 405 with lite's upstream-405 body, plus one register row (the 405 body stands in for Dropwizard's, unread; HEAD and OPTIONS unread). Python's user is `"anonymous"` everywhere, with a one-time re-owning of records saved as 'this user' (a data migration, never a run-time fallback) |
 
-**Still open:**
-- at the phase-0 checkpoint: CP-6 (typed facts), CP-7 (error words out of the plan, one guard row), the 6
-  plan-structure tests (not promised), PCT under the LITE judges (§12 I5);
-- later, each with its numbers: CP-5 (special functions: none?), CP-11 (SQLite Decimal as REAL).
+| ~12:10 | "Yes to the six" | CP-13: defer phase 5 (export, import) and hand the LITE-host drift fixes of 1.5 and 1.6 to the product track, keeping HOSTS-9's store pilot (R11(a)), CP-7's part, the ENGINE host pieces and 1.7. CP-14 (iii): the compatibility judge is lite's verdict records worded by legend-pure's presenter, with four door rewrites of corpus test bodies (S137, S144, S131's typed half, S15). CP-6: the typed facts. CP-7: error words leave the plan, with one `EdgeOnlyDataTest` row. The 6 plan-structure tests are not promised. CP-11: SQLite Decimal as REAL for the legend-pure audience, kept as a translator rule |
+
+**Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
+each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
+being built by the product's judges track (C3).
 
 **Held by the previous orchestrator:** R-a (a fractional cell under an Integer property, PR #121).
 
