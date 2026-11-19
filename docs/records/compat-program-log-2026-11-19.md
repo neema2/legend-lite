@@ -2720,3 +2720,6 @@ who confirms or changes phases 1-3.
   MB); no size, timeout, shard or guard change. Should-fix: never memoize a VirtualMachineError. Sent to the CI-health
   worker.
 - **~20:50 UTC, A3 piece 1's up moves approved by the user** (§1's row); relayed to the translator, whose own rules need the word in its session too.
+- **~20:52 UTC, the parser memo final** (`7f36f2730`: an OutOfMemoryError never kept; parser_parity green in 167.3 s,
+  same counts); handed to the judges to merge into the batch branch. The translator confirmed it needs the user's word
+  in its own session for piece 1's guard moves and its pushes.
