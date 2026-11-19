@@ -2188,3 +2188,22 @@ who confirms or changes phases 1-3.
   `UpstreamVerdictWords`, `SqlTextVerdicts`, `EdgeEngineTestText` and the guard maps; A2 and A3 asked to measure by trial
   merge once pushed. **Corrected:** the user's ~10:45 ruling 2 lets program sessions push their own `claude/compat-*`
   branches without an ask; this session had told A2, A3, A4 and A5 to ask. Corrected in each.
+- **~17:55 UTC, B2: A2's meeting points with A4.** A2 touches none of A4's named files. Shared: `edge/PureText.java`
+  (A2 deletes the engineText/enginePlanText factories), `ArchitectureTest` (A2 deletes invariant 4d's two quarantine
+  rules and a clause of `upstreamSidesOutsideTheEdge`), `JavaEvalLedgerTest` (EnginePlans 760 → 758; the edge file list
+  −4 printers +`LiteSqlText.java`), `core/edge_tests.bzl` (+`PureV1SqlTextTest`), the register (S380, S4 superseded),
+  `docs/GATES.md`, `AGENTS.md` (invariant 3's printer paragraph and the dialect list), the corpus rosters and host-judge
+  ledgers, and possibly `DialectBoundaryTest`, `CodeShapeGuardrailTest`, `DialectOwnerExclusivityTest`. **Order now: A2,
+  then A5, then A4** (A4's rosters measured on A2's); A4 merges both and resolves. B2's own session rules keep a one-line
+  ask to the user in its session before its push.
+- **~17:55 UTC, the translator: the scoped cross-kind prototype measured** (homework, not a landing; record
+  `compat-homework/xk/scoped/README.md` at `536f105d` on `claude/compat-translator-spike`). The scoped rule
+  (`###Relational` `=` keeps the database's comparison; Pure code keeps kinds-first): corpus H2 276 → 286 (+11, −1
+  fixed), DuckDB 108 → 123 (+15); each unordered register −5. By cause: `###Relational` `=` 15 per database (pass again
+  under the scoped rule), lite-built comparisons 0, the program's own Pure code 11 (H2) and 15 (DuckDB). **Every
+  Pure-code case is the program's own cross-kind comparison** in legend-engine's test code (e.g. `$t.id == '1'` with
+  `Trade.id: Integer`, `testQualifier.pure:273`; the 8 `XStore::ordered` cross-store conditions, String against
+  Integer, `testOrderedCrossStoreGraphFetch.pure:131,169,261,316`): legend-engine answers the database's coerced
+  comparison, legend-pure "never equal". PCT and `//gates:local` green but the moved guards (rosters, registers, the
+  verdict ledger's appeal passes 990 → 985, the fix's `SqlFnSortedTest` pin); `//core:corpus_differential_test` green.
+  For the meaning decision after stage A, with these numbers.
