@@ -437,3 +437,9 @@ who confirms or changes phases 1-3.
   now uses `Databases.PLATFORM` and `REPLAY_REFEREE`, the golden is unchanged, and the census is green.
   - **The landing order:** 0.2 first, and the numbers worker's `FloatShortestText` change re-records on top (this
     session's call, sent to both).
+- **~12:12 UTC, CP-13's host drift taken by the product side:** the new host-parity track
+  (`session_0195rQEmBA2Ek93uxggvDTQx`, `claude/host-parity`) takes P2, P3 (with the three stale Python readers), P4,
+  P5, P6, P7, P9, P10, P12, H4 §8's byte-parity suite and per-export differentials, and PR #121's review F1-F3. The
+  compatibility program keeps HOSTS-9's pilot, CP-7's part, the ENGINE host pieces, DC1 and F4. The edge file in its
+  list (`edge/_pure_v1.py`'s stale ERR reader) is given to it as the same fix, reader only; any other edge file needs
+  a message first.
