@@ -765,3 +765,31 @@ who confirms or changes phases 1-3.
 - **~12:48 UTC:** the window-inside-a-list-encoding defect (H11 §8 P1) has its own product track
   (`session_0195rQEjkEZDfj2GjXCAhyJr`, `claude/window-list-lowering`). It gates slice 1.3, and it will report when the
   fix is on its branch.
+- **~12:54 UTC, the independent reviewer's checkpoint re-check** (`docs/records/compat-checkpoint-recheck-2026-11-19.md`
+  on `claude/compat-review` at `5d2ce214`; read from the records, not from this session's summaries). **VERDICT:
+  proceed to stage A**, on four conditions:
+  1. the user rules the change of goal first (R1): "lite follows Pure; legend-engine's formats are matched, its
+     answers where they agree with Pure; the rest is recorded". AGENTS.md's upstream-fidelity tenet and G8 are amended.
+     D1 and D2 then follow from it;
+  2. the "what we lose" table is completed (R3): PCT SQLite's 5 Decimal tests; legend-engine's feature flags in
+     requests; error words and positions; generatePlan after A2; lite's own users under R4; E-R2 being one-way;
+     warehouse query cost; the mislabelled "fixes". **Done** in the plain plan (rows 8 to 12, and "not measured").
+     Checked in the code for (d): `PureV1Routes.generatePlan` builds from lite's plan and does not use the printers
+     A2 deletes;
+  3. A1's nets are sound and green on every OS (R4): #123 and #124 are both on HOLD; the referee's H2 jar should be
+     vendored or mirrored, sha-pinned;
+  4. H6 §6.3 is corrected (R5): the referee replays on legend-engine's isolated H2 2.1.214; H8 is right. The plan's
+     "declared LEGACY referee target" step is dropped.
+  - **Its strongest case against D1:** the `substring` change is SILENT. Its fix: "Pure's way, LOUD where it differs",
+    a detector at the ENGINE door (warn, or refuse by a switch), a subset of H5's use-site analysis. Its own count: 0
+    calls of the affected functions in legend-engine's six pinned showcase projects (99 files).
+  - **D2:** hold until the ENGINE-lane PCT count with both shortcuts off lands.
+  - **Stage A:** the order A1, then A2 and A3, then A4 is right; A2's scope must name the plan-text family (about
+    3,500 lines) and roster the moved tests; A3 and A4 have listed dependencies. All folded into the plain plan.
+  - **Stage B:** the least proven step is B1, error records (H13 started at 12:46); B3 before B2's real build; H11's
+    presentation instruction in the test plan needs done-when 3 amended, or kept out of the plan.
+  - **B5's guard:** B2's 49 parameters and 50 calls is the ratchet, not `ModeBranchCensusTest`.
+  - **Not yet looked at:** warehouse databases; Studio end to end; large results through Java presenters; how the
+    pins are re-baselined when legend-engine moves past 4.145.0; the edge net's CI time.
+  - **F1-F13:** answered F1, F2, F7, F11, F13; mostly F12; measured with a decision pending F5; measured but not yet
+    planned F6 (now in B5); partly F3, F4, F8, F9; open F10 (who lists version-caused differences).
