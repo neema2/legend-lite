@@ -110,6 +110,15 @@ class EdgeServerTest {
         }
     }
 
+    /** ONE DOOR EACH (the PR #118 follow-up, 2026-11-19, R11(b), HOSTS-7): the edge's server starts one way, the product
+     *  server's mount ({@code --engine legend-engine}); its composition root declares no main of its own. */
+    @Test
+    void theEdgeHasNoDoorOfItsOwn() {
+        for (java.lang.reflect.Method m : com.legend.edge.EdgeServer.class.getDeclaredMethods()) {
+            assertTrue(!m.getName().equals("main"), "EdgeServer declares " + m);
+        }
+    }
+
     @Test
     void theShippedServerAnswersBoth() throws Exception {
         LegendHttpServer server = com.legend.edge.EdgeServer.loopback(0);

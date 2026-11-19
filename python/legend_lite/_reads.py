@@ -56,13 +56,21 @@ def typed_by_plan(rows: pa.Table, plan: Plan, model_types: bool = False) -> pa.T
     unless ``model_types``: lite's query/run, which carries a column of the MODEL's own type (a class's, an
     enumeration's path) as the driver read it, as the server's query/run does (JdbcDecode.byPureType; the host train,
     2026-11-17). DataCube's frames keep refusing one (types.ts typeFact: a page reads an enumeration as its
-    ``toString()``)."""
-    types = {c.name: c.type for c in plan.columns}
+    ``toString()``).
+
+    Read BY POSITION, as the server's runner reads a typed-rows statement (JdbcStatements: "a typed-rows statement answers
+    the plan's columns in their order"), each column named as the plan names it: a VALUE's one column is ``value``
+    whatever its SQL alias (``u_map__n``), and a statement answering other columns than the plan's is refused (the PR #118
+    follow-up, 2026-11-19, N-b: until then read by name, so every VALUE answer over a project was an UntypedColumn)."""
+    declared = plan.columns
+    if len(rows.schema) != len(declared):
+        beyond = [f.name for f in rows.schema][len(declared):]
+        said = (f"the plan does not type the result column '{beyond[0]}'" if beyond
+                else f'the statement answers {len(rows.schema)} columns, and the plan declares {len(declared)}')
+        raise UntypedColumn(f'{said} [{", ".join(c.name for c in declared)}]: {plan.sql}')
     fields, columns = [], []
-    for field, column in zip(rows.schema, rows.columns):
-        typed = types.get(field.name)
-        if typed is None:
-            raise UntypedColumn(f"the plan does not type the result column '{field.name}': {plan.sql}")
+    for field, column, own in zip(rows.schema, rows.columns, declared):
+        typed = own.type
         try:
             # a model's own type (a class, an enumeration) carried as the driver read it, where asked (_types)
             integer = not (model_types and is_model_type(typed)) and is_integer(typed)
@@ -70,7 +78,7 @@ def typed_by_plan(rows: pa.Table, plan: Plan, model_types: bool = False) -> pa.T
             raise UntypedColumn(f'{unknown}: {plan.sql}') from None
         if integer:
             column = _integer(column)
-        fields.append(pa.field(field.name, column.type, field.nullable, {**(field.metadata or {}), TYPE_KEY: typed}))
+        fields.append(pa.field(own.name, column.type, field.nullable, {**(field.metadata or {}), TYPE_KEY: typed}))
         columns.append(column)
     return pa.Table.from_arrays(columns, schema=pa.schema(fields, rows.schema.metadata))
 

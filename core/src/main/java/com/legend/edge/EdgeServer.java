@@ -88,10 +88,6 @@ public final class EdgeServer {
                 null, LegendHttpServer.NO_SOURCES, UPSTREAM);
     }
 
-    /** The shipped server, as {@link LegendHttpServer#serve} starts one, with legend-engine's API mounted. */
-    public static void main(String[] args) throws IOException {
-        LegendHttpServer.serve(args, UPSTREAM);
-    }
     /** LEGEND-ENGINE'S SENTENCE OF A QUERY STORE'S REFUSAL: {@link StoreWords} (moved there 2026-11-16, the P2
      *  checkpoint audit's M2: the query-store page words upstream's path with it too). */
     public static String storeWords(com.legend.queries.SavedQueries.Refusal r) {

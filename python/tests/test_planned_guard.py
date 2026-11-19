@@ -170,8 +170,12 @@ ATTACHES = {
 # 2026-11-14 (the C4 final fix round's B1): PermissionException, refused before its statement runs, and IOException, a
 # file not there, which a read tells apart (_reads._REFUSED_BEFORE_RUNNING, _reads._ABORTS_UNLESS_ABORTED) -- errors, as
 # the rule admits.
+# 2026-11-19 (the PR #118 follow-up's Q9): ConnectionException, a connection that could not be opened or was lost,
+# which lite's query/run answers internal as Java's CONNECTION_ERROR (engine.py _query_run) -- an error, as the rule
+# admits.
 DUCKDB_NAMES = {'Error', 'TransactionException', 'ParserException', 'CatalogException', 'BinderException',
-                'InvalidInputException', 'PermissionException', 'IOException', 'DuckDBPyConnection', '__version__'}
+                'InvalidInputException', 'PermissionException', 'IOException', 'ConnectionException',
+                'DuckDBPyConnection', '__version__'}
 SUBMITS = {'warehouse.py': 1}
 NETWORK = {
     # the SQL API's client (the one): its HTTP, its errors

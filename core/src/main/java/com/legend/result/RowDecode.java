@@ -129,7 +129,11 @@ public final class RowDecode {
                 return node instanceof Json.Str s && !numericPure(type) ? s.value() : floating(node, c);
             }
             case "DECIMAL", "NUMERIC" -> {
-                return node instanceof Json.Str s && !numericPure(type) ? s.value() : decimal(node, c);
+                // an Integer over a DECIMAL slot: the decimal it spells, its exact integral where whole, a fraction
+                // refused by name (JdbcDecode's rule, the PR #118 follow-up, 2026-11-19, Q8; the review of PR #121, B2:
+                // a whole value the wire spells as text, "5.00", is its Integer too)
+                return node instanceof Json.Str s && !numericPure(type) ? s.value()
+                        : type.equals("Integer") ? wholeDecimal(node, c) : decimal(node, c);
             }
             case "BOOLEAN" -> {
                 if (node instanceof Json.Bool b) {
@@ -281,12 +285,41 @@ public final class RowDecode {
             case Json.Num n when n.isInteger() -> BigInteger.valueOf(n.longValue());
             case Json.Num n when n.decimalValue() != null && n.decimalValue().stripTrailingZeros().scale() <= 0 ->
                     n.decimalValue().toBigIntegerExact();
-            case Json.Str s -> new BigInteger(s.value().trim());
+            case Json.Str s -> wholeText(s, c);
             default -> throw refused(node, c);
         };
         // a long holds a whole number of up to 63 bits beside its sign (bitLength counts the sign apart): until
         // 2026-10-29 the bound was 63 exclusive, and [2^62, 2^63-1] rode as a BigInteger (the track A audit, finding 2)
         return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
+    }
+
+    /** An Integer's cell under a DECIMAL slot: the decimal it spells, a number or its text, and its exact integral where
+     *  it is whole ("5.00", "-0.00", 1E+3); a fraction, or a text that is no number, refused by name (JdbcDecode's
+     *  wholeDecimal; the review of PR #121, 2026-11-19, B2). */
+    private static Object wholeDecimal(Json.Node node, ExecutionPlan.Column c) {
+        BigDecimal d;
+        try {
+            d = decimal(node, c);
+        } catch (NumberFormatException e) {
+            throw refused(node, c);
+        }
+        // the integer read's own decimal arm, over the number the cell spells (a whole decimal its integer, anything
+        // else refused): one rule, and the refusal names the cell's token as it came
+        try {
+            return integer(Json.Num.ofDecimal(d), c);
+        } catch (IllegalStateException fraction) {
+            throw refused(node, c);
+        }
+    }
+
+    /** An Integer's cell the wire spells as text: its whole number, any other text (a fraction) refused by name (as
+     *  JdbcDecode's; Q8, 2026-11-19). */
+    private static BigInteger wholeText(Json.Str s, ExecutionPlan.Column c) {
+        try {
+            return new BigInteger(s.value().trim());
+        } catch (NumberFormatException e) {
+            throw refused(s, c);
+        }
     }
 
     private static Object floating(Json.Node node, ExecutionPlan.Column c) {

@@ -56,6 +56,14 @@ class TheEdgesDoor(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "the edge's door gives the engine its routes itself"):
             edge.engine(ll.Frames(), edge=NO_EDGE_ROUTES)
 
+    def test_the_door_is_the_one_way_to_legend_engines_routes(self):
+        # one door each (the PR #118 follow-up, 2026-11-19, R11(b), HOSTS-7): legend-engine's routes are made by the
+        # edge's door alone, never by a caller composing an engine of its own -- refused by name, the door named
+        for made in (lambda: edge.EngineRoutes(), lambda: edge.EngineRoutes(object())):
+            with self.assertRaisesRegex(TypeError, r"legend_lite\.edge\.engine"):
+                Engine(ll.Frames(), edge=made())
+        self.assertIsInstance(edge.engine(ll.Frames()).edge, edge.EngineRoutes)
+
     def test_a_product_engine_serves_none_of_legend_engines_routes(self):
         engine = Engine(ll.Frames())
         # legend-engine's current user among them (N4 of PR #118's fix round, 2026-11-18): an unknown path, as any other

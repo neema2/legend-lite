@@ -39,7 +39,8 @@ import java.util.Map;
  * surfaced as +21458); a text the database holds under a numeric slot is the text unless the Pure type is itself
  * numeric (the engine's test store declares {@code interactionTable.ID INT} over a VARCHAR column; step 6's
  * finding); an integral slot's scale-0 {@code BigDecimal} (DuckDB types a literal past int64 DECIMAL) is its exact
- * integral; a double slot's {@code BigDecimal} (H2's LEGACY mode hands a DOUBLE aggregate back so) is the double; a
+ * integral, and an Integer's cell under a DECIMAL slot its exact integral too (a fraction refused by name; Q8,
+ * 2026-11-19); a double slot's {@code BigDecimal} (H2's LEGACY mode hands a DOUBLE aggregate back so) is the double; a
  * JSON cell arrives as text, as H2's UTF-8 bytes or as a driver's own node object, read to its text beside the
  * driver ({@link DriverCells}); a list or a struct the database carries as JSON text (H2's list, Postgres's jsonb
  * struct) decodes by the slot's declared layout; a boolean SQLite answers as 1 or 0 is the boolean.
@@ -279,6 +280,13 @@ final class JdbcDecode {
                 if (v instanceof String s && !com.legend.result.RowDecode.numericPure(type)) {
                     return s;
                 }
+                // an Integer over a DECIMAL slot (an Integer property mapped to a DECIMAL(10,0) column; the PR #118
+                // follow-up, 2026-11-19, Q8): the cell read as the decimal it is -- whatever the driver's carrier, a
+                // BigDecimal or its text (SQLite's scaled DECIMAL, printf's '5.00'; the review of PR #121, B2) -- and the
+                // Integer's carrier its exact integral where it is whole; a fraction refused by name, never truncated
+                if (type.equals("Integer")) {
+                    return wholeDecimal(v, c);
+                }
                 BigDecimal d = decimal(v, c);
                 // a driver that drops a decimal's trailing zeros (BigQuery's): the slot's declared scale is the
                 // value's own, its digits padded back -- setScale to a greater scale never rounds
@@ -393,11 +401,40 @@ final class JdbcDecode {
             case Byte n -> BigInteger.valueOf(n);
             case BigInteger b -> b;
             case BigDecimal d when d.stripTrailingZeros().scale() <= 0 -> d.toBigIntegerExact();
-            case String s -> new BigInteger(s.trim());
+            case String s -> wholeText(s, c);
             default -> throw refused(v, c);
         };
         // 63 bits beside the sign fit a long (the track A audit's finding 2, 2026-10-29: 63 exclusive until then)
         return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
+    }
+
+    /** An Integer's cell under a DECIMAL slot: the decimal it is, any carrier ({@link #decimal}), and its exact integral
+     *  where it is whole -- 5, 5.00, -0.00 and 1E+3 alike -- a long within 63 bits, else the BigInteger; a fraction, or a
+     *  text that is no number, refused by name (the review of PR #121, 2026-11-19, B2). */
+    private static Object wholeDecimal(Object v, ExecutionPlan.Column c) {
+        BigDecimal d;
+        try {
+            d = decimal(v, c);
+        } catch (NumberFormatException e) {
+            throw refused(v, c);
+        }
+        // the integral read's own decimal arm (a whole decimal its integer, anything else refused): one rule, and the
+        // refusal names the driver's value as it came
+        try {
+            return integral(d, c);
+        } catch (IllegalStateException fraction) {
+            throw refused(v, c);
+        }
+    }
+
+    /** An Integer's cell the driver answered as text: its whole number, and any other text (a fraction, "5.50", as
+     *  SQLite hands a DECIMAL(10,2) cell back) refused by name, never a parse error of no column (Q8, 2026-11-19). */
+    private static BigInteger wholeText(String s, ExecutionPlan.Column c) {
+        try {
+            return new BigInteger(s.trim());
+        } catch (NumberFormatException e) {
+            throw refused(s, c);
+        }
     }
 
     private static Object floating(Object v, ExecutionPlan.Column c) {
