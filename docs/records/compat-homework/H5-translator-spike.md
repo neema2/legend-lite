@@ -185,7 +185,8 @@ retarget of F5; 494 without it):
   (2 arguments), bare or by its `meta::pure::functions::string::` name, is renamed to its twin in
   `meta::legend::compat::engine::`, H3's target-aware library (`spec/src/test/resources/compatspike/`, unchanged);
 - **scopes** (`-Dcompat.translator`): `identity` (rebuild every record, rename nothing), `everywhere` (the
-  definition-site rename), `queries` (the use-site rename: only the code legend-engine sends to the store);
+  definition-site rename), `queries` (the use-site rename: only the code legend-engine sends to the store), and F5's
+  `typed` and `typedqueries` (the same, renaming only the calls that typed as the String overloads);
 - **`queries` finds the store-bound code** syntactically: the first argument of a routed call (`execute`,
   `executionPlan`, `toSQLString`, `toSQL`, `toSQLStringPretty`, `toNonExecutableSQLString`, `executeInternal`,
   `printDebug`, `relationalMapperSqlQuery`, `executeLegendQuery`, counted over the corpus), a lambda bound by `let` in
@@ -200,10 +201,12 @@ retarget of F5; 494 without it):
 **It sits in the spec tests' source tree on purpose**: only the core's public API is reachable from there, so "no
 new hook" is checked by javac.
 
-**The core** (the only core change, `core/src/main/java/com/legend/`):
+**The core** (every core change, `core/src/main/java/com/legend/`; none is a hook):
 - `lowering/Scalars.java`, +20 / -26: H3 (a)'s change exactly: `substring` always `CORRECTED_SUBSTRING` (Pure's), string
   `indexOf` 0-based with -1 on a miss, and Java's `indexOf(t, from)`;
-- `normalizer/RelOpTranslator.java`, +49 / -5: 3.1's split for the dynaFunctions (§3), no new native.
+- `normalizer/RelOpTranslator.java`, +49 / -5: 3.1's split for the dynaFunctions (§3), no new native;
+- `protocol/` (`CypherToPure`, `PostgresFunctions`, `SqlToPure`, `IqFunctions`, `IqAggregates`), +75 / -42: 3.1's split
+  for the frontends (§3), applied after the corpus runs (the corpus uses none of them).
 
 **The runs** (each both lanes, `bazel build //spec:judge_host_h2 //spec:judge_host_duckdb`, outputs saved under
 `h5/corpus/`):
@@ -269,15 +272,15 @@ the translator off and on:
   - **26.1-26.8 s** as first built (V3: each record's components read and made accessible again at every node);
   - **1.1-1.3 s** with each record class's shape read once (V5, `identity`, which rebuilds EVERY record: the upper
     bound of the walk); **2.7 s** for the `queries` scope (V3 re-run, the same rosters), of which 1.4 s is the
-    helper fixpoint (a whole-model walk per round). A real translator would be a typed visitor over the protocol records, not reflection, and
-    cheaper still.
+    helper fixpoint (a whole-model walk per round); **7.1 s** with F5's typing (V6). A real translator would be a
+    typed visitor over the protocol records, not reflection, and cheaper still.
 - **The pass-through check (3.2's first check) holds:** with every one of the 1,029,638 records rebuilt and nothing
   renamed (V5), all four rosters on both lanes are identical to the translator-off run (V2).
 - **The probe's small model:** 4-12 ms to translate, against 548-690 ms to build.
 - **What the translator saw in the corpus:** 5 `substring` calls in store-bound code (all 3-argument), 0 string
   `indexOf`; kept Pure's: 78 + 4 `substring`, 190 `indexOf` (mostly the list `indexOf`, the same meaning in both), 6
-  three-argument `indexOf`; 34 records rebuilt. 188 helper functions forward a query into a routed call (by simple name, so an over-count). **40 routed calls have
-  a first argument the syntactic search cannot follow** (a property such as `$t.query`, a function call, a string):
+  three-argument `indexOf`; 34 records rebuilt. 188 helper functions forward a query into a routed call (by simple
+  name, so an over-count). **40 routed calls have a first argument the syntactic search cannot follow** (a property such as `$t.query`, a function call, a string):
   data flow; none of them moved a corpus verdict here, but a real translator must either follow them or refuse.
 - **What broke:** nothing beyond F4's list.
 
