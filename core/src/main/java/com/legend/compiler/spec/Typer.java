@@ -500,6 +500,11 @@ final class Typer {
             }
         }
         Optional<CoreFn> core = com.legend.compiler.ResolvedNames.form(af);
+        if (core.isPresent() && formYieldsByArity(af)) {
+            // a form is one candidate among the call's: another visible function takes this arity and the form's
+            // declarations do not -- the generic path picks among them all (formYieldsByArity)
+            core = Optional.empty();
+        }
         if (core.isPresent()) {
             com.legend.builtin.DecisionProbe.form(af.function(), core.get().name());
             // real pure resolves by TYPE: a model function of this name whose
@@ -680,6 +685,51 @@ final class Typer {
         return Optional.empty();
     }
 
+
+    /** The namespace of the forms lite adds to Pure's vocabulary, which no upstream code calls. */
+    private static final String LITE_FORMS = "meta::legend::lite::";
+
+    /**
+     * A LITE FORM IS ONE CANDIDATE AMONG A CALL'S (2026-11-19, the reference lane's mergeSQLQueryData): a bare call's
+     * referents are every function its name may denote -- its own package's, its imports', the platform's -- and Pure
+     * resolves it by overload over all of them, by arity and types. A form lite adds to Pure's vocabulary
+     * ({@code meta::legend::lite::*}: the writes' merge, delete and update, navigate) is one of them, never a shadow:
+     * the call is not that form's when none of the form's declarations takes the call's arity and another referent has
+     * a function that does (core_relational's 6-argument pureToSqlQuery::merge beside lite's 3-argument write merge,
+     * which shadowed it from the writes' landing, PR #67, until this). Only lite's own forms: a platform form accepts
+     * shapes its declarations do not list (join's by-column-name forms, measured: the same rule over every form broke
+     * 23 of the lane's bodies), so its arity is its checker's, not its declarations'. Two candidates at one arity stay
+     * the form's.
+     */
+    private boolean formYieldsByArity(AppliedFunction af) {
+        if (af.function().contains("::")) {
+            return false;
+        }
+        int arity = af.parameters().size();
+        boolean formDeclares = false;
+        boolean formTakes = false;
+        boolean otherTakes = false;
+        for (String fqn : af.referents()) {
+            if (CoreFn.owning(fqn).isPresent() && !fqn.startsWith(LITE_FORMS)) {
+                // a platform form among the call's referents: its arity is its checker's
+                return false;
+            }
+            if (CoreFn.owning(fqn).isPresent()) {
+                for (com.legend.model.NativeFunctionDefinition n : com.legend.builtin.Pure.nativeFunctionsAt(fqn)) {
+                    formDeclares = true;
+                    formTakes |= n.parameters().size() == arity;
+                }
+            } else {
+                try {
+                    otherTakes |= functionCandidates(fqn).stream().anyMatch(f -> f.parameters().size() == arity);
+                } catch (RuntimeException broken) {
+                    // a referent whose overloads are all broken (a tolerant module) takes nothing, as the
+                    // generic path's candidates read it (Overloads.candidatesOf)
+                }
+            }
+        }
+        return formDeclares && !formTakes && otherTakes;
+    }
 
     /**
      * The core-construct dispatch &mdash; exhaustive over {@link CoreFn} (a new

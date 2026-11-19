@@ -145,6 +145,24 @@ class NameResolverTest {
                 .getMessage().contains("type variables"), "another count refused");
     }
 
+    /** A bare call resolves over every function its name may denote, a lite form one candidate among them, never a
+     *  shadow (2026-11-19, the reference lane's mergeSQLQueryData: lite's write merge, meta::legend::lite::merge,
+     *  captured core_relational's own 6-argument pureToSqlQuery::merge). Both ways in one package: its own merge of
+     *  another arity, called bare, is its own; lite's write merge, called with its arity, is still the write. */
+    @Test
+    void aFormIsOneCandidateAmongABareCallsFunctions() {
+        String model = """
+                ###Relational
+                Database w::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20)) Table SRC (ID INTEGER, NAME VARCHAR(20)) )
+                ###Pure
+                function w::merge(a: String[1], b: String[1], c: String[1], d: String[1]): String[1] { $a + $b + $c + $d }
+                function w::usesItsOwnMerge(): String[1] { merge('a', 'b', 'c', 'd') }
+                function w::writesWithLitesMerge(): Any[*] { #>{w::DB.SRC}#->merge(#>{w::DB.T}#, ~[ID]) }
+                """;
+        assertEquals(List.of(), com.legend.Compiler.compileErrors(model),
+                "the package's own merge called bare, and lite's write merge at its own arity");
+    }
+
     private static PropertyDefinition prop(String name, TypeExpression type) {
         return new PropertyDefinition(name, type, ONE, List.of(), List.of());
     }

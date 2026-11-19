@@ -3,23 +3,23 @@
 
 == coverage
 reference functions	12380
-our functions	16207
-our bodies typed	17337
-our bodies FAILED	970
+our functions	16202
+our bodies typed	17320
+our bodies FAILED	959
 our sources DROPPED	22
-functions in both	11899
-reference only	481
-ours only	4308
-reference typed, we FAILED	807
+functions in both	11895
+reference only	485
+ours only	4307
+reference typed, we FAILED	796
 
 == buckets
-AGREE	79436
+AGREE	79622
 OVERLOAD	70
 PACKAGE	14
 DRIFT	0
-ABSENT	80145
+ABSENT	80386
 PROPERTY_AS_CALL	0
-EXTRA	18225
+EXTRA	18216
 
 == dropped sources
 /core/pure/corefunctions/unit.pure
@@ -443,7 +443,6 @@ meta::pure::executionPlan::tests::testModelConnectionMultipleAgg__Boolean_1_
 meta::pure::executionPlan::tests::testModelConnectionSimple__Boolean_1_
 meta::pure::executionPlan::tests::testPreprocessFunctionOnRuntime__Boolean_1_
 meta::pure::executionPlan::tests::testRelationalProjectionWithExternalFormat__Boolean_1_
-meta::pure::executionPlan::tests::testRoutingContextBuilderFunctions__Boolean_1_
 meta::pure::executionPlan::tests::testSupportStreamFlagFromSimple__Boolean_1_
 meta::pure::executionPlan::tests::testSupportStreamFlagSimple__Boolean_1_
 meta::pure::executionPlan::tests::testSupportStreamFlagWithGraphFetchAndFrom__Boolean_1_
@@ -682,17 +681,8 @@ meta::pure::tds::schema::tests::assertSchemaRoundTripEquality_FunctionDefinition
 meta::pure::tds::schema::tests::assertSchemaRoundTripEquality_TDSColumn_MANY__FunctionDefinition_1__Boolean_1_
 meta::pure::tds::schema::tests::assertSchemaRoundTripEquality_TDSColumn_MANY__FunctionDefinition_1__Extension_MANY__Boolean_1_
 meta::pure::tds::schema::tests::resolveSchemaTest__Boolean_1_
-meta::pure::tds::tests::extensions::columnValueDifferenceTest__Boolean_1_
-meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest__Boolean_1_
-meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_DupeJoinKeys_Test__Boolean_1_
-meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPreval_ExtraCols_Test__Boolean_1_
-meta::pure::tds::tests::extensions::columnValueDifference_DupeJoinKeys_Test__Boolean_1_
 meta::pure::tds::tests::extensions::columnValueDifference_DuplicateNonKeyCols_Test__Boolean_1_
-meta::pure::tds::tests::extensions::columnValueDifference_ExtraCols_Test__Boolean_1_
 meta::pure::tds::tests::extensions::iqrClassifyTest__Boolean_1_
-meta::pure::tds::tests::extensions::rowValueDifferenceTest__Boolean_1_
-meta::pure::tds::tests::extensions::testExtendDigest_InMemory__Boolean_1_
-meta::pure::tds::tests::extensions::testExtendDigest_Relational__Boolean_1_
 meta::pure::tds::tests::extensions::zScoreTest__Boolean_1_
 meta::pure::tds::toRelation::tdsToRelationExtension__TdsToRelationExtension_V_X_X_1_
 meta::pure::tds::toRelation::testConcatenate__Boolean_1_
@@ -952,7 +942,6 @@ meta::relational::tests::tds::tdsFilter::testFilterOnAssociatedClassAggValueAfte
 meta::relational::tests::tds::tdsFilter::testFilterOnDecimal__Boolean_1_
 meta::relational::tests::tds::tdsFilter::testFilterOnRootClassAggValueAfterGroupByWithHavingMultipleFilters__Boolean_1_
 meta::relational::tests::tds::tdsFilter::testFilterOnRootClassAggValueAfterGroupBy__Boolean_1_
-meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries__Boolean_1_
 meta::relational::tests::tds::tdsProject::testDropAfterLimit__Boolean_1_
 meta::relational::tests::tds::tdsProject::testFilterAfterLimit2__Boolean_1_
 meta::relational::tests::tds::tdsProject::testFilterAfterLimit__Boolean_1_
@@ -1024,7 +1013,7 @@ ABSENT	addGroupBy			1
 ABSENT	addProject			1
 ABSENT	addSubTree			1
 ABSENT	adjust			2
-ABSENT	agg			313
+ABSENT	agg			353
 ABSENT	aggColSpec			119
 ABSENT	aggColSpec2			129
 ABSENT	aggregate			8
@@ -1034,17 +1023,13 @@ ABSENT	allSuperSetImplementations			1
 ABSENT	and			18
 ABSENT	asOfJoin			8
 ABSENT	asString			25
-ABSENT	asc			56
+ABSENT	asc			71
 ABSENT	ascending			986
-ABSENT	assert			119
+ABSENT	assert			110
 ABSENT	assertEmpty			2
 ABSENT	assertEquals			30
 ABSENT	assertFalse			5
-ABSENT	assertIsNot			1
-ABSENT	assertNotContains			1
 ABSENT	assertNotEmpty			22
-ABSENT	assertNotEq			4
-ABSENT	assertNotSize			1
 ABSENT	assertSameElements			2
 ABSENT	assertSize			5
 ABSENT	assertTestData			26
@@ -1057,16 +1042,17 @@ ABSENT	byPassRouterInfo			1
 ABSENT	cast			5190
 ABSENT	class			1
 ABSENT	classMappingById			1
-ABSENT	col			650
+ABSENT	col			661
 ABSENT	colSpec			1695
 ABSENT	colSpecArray			196
-ABSENT	columnValues			12
+ABSENT	columnValueDifference			8
+ABSENT	columnValues			14
 ABSENT	columns			6
 ABSENT	compare			2
-ABSENT	concatenate			2170
+ABSENT	concatenate			2171
 ABSENT	connectionByElement			27
-ABSENT	contains			10
-ABSENT	copy			1710
+ABSENT	contains			7
+ABSENT	copy			1712
 ABSENT	count			1
 ABSENT	createDbConfig			6
 ABSENT	createSchemaState			2
@@ -1090,11 +1076,11 @@ ABSENT	dropAndCreateTableInDb			2
 ABSENT	dropSchemaStatement			2
 ABSENT	dropTableStatement			2
 ABSENT	dropTempTable			1
-ABSENT	elementToPath			12
+ABSENT	elementToPath			18
 ABSENT	emptyFirst			5
 ABSENT	emptyLast			5
 ABSENT	enrichSourceTreeNode			2
-ABSENT	eq			5
+ABSENT	eq			2
 ABSENT	equal			129
 ABSENT	eval			3521
 ABSENT	evalWrapper			1
@@ -1108,24 +1094,25 @@ ABSENT	executePCTTest			1
 ABSENT	executeTest			1
 ABSENT	executionPlan			6
 ABSENT	exists			4
-ABSENT	extend			355
+ABSENT	extend			360
 ABSENT	extendColumns			1
+ABSENT	extendWithDigestOnColumns			2
 ABSENT	extendWithIsAdult			1
 ABSENT	extractDBs			1
-ABSENT	extractEnumValue			2079
+ABSENT	extractEnumValue			2102
 ABSENT	extractTableAliasColumns			1
 ABSENT	fail			159
 ABSENT	fetchDbColumnsMetaData			6
 ABSENT	fetchDbPrimaryKeysMetaData			6
 ABSENT	fetchDbSchemasMetaData			4
 ABSENT	fetchDbTablesMetaData			7
-ABSENT	filter			2929
+ABSENT	filter			2931
 ABSENT	findFunctionSequenceMultiplicity			1
 ABSENT	firmProjected			12
 ABSENT	firmProjected1			1
 ABSENT	flatten			13
 ABSENT	fold			303
-ABSENT	format			7
+ABSENT	format			5
 ABSENT	from			58
 ABSENT	func			16
 ABSENT	funcColSpec			318
@@ -1135,7 +1122,7 @@ ABSENT	generateProjectPath			1
 ABSENT	generateTestData			35
 ABSENT	genericType			2
 ABSENT	genericTypeClass			2
-ABSENT	getAll			2993
+ABSENT	getAll			3017
 ABSENT	getAllForEachDate			11
 ABSENT	getAllTypeGeneralisations			2
 ABSENT	getAllVersions			18
@@ -1160,7 +1147,7 @@ ABSENT	graphFetch			249
 ABSENT	graphFetchChecked			68
 ABSENT	greaterThan			3
 ABSENT	greaterThanEqual			5
-ABSENT	groupBy			375
+ABSENT	groupBy			395
 ABSENT	groupByWithWindowSubset			5
 ABSENT	hasToOneUpperBound			1
 ABSENT	hasUpperBound			2
@@ -1174,13 +1161,12 @@ ABSENT	inferDynaFunctionReturnType			1
 ABSENT	inferRelationalType			7
 ABSENT	insertIntoTempTableStatement			3
 ABSENT	instanceOf			27
-ABSENT	is			3
 ABSENT	isEmpty			12
 ABSENT	isNotEmpty			12
 ABSENT	isOnDay			2
 ABSENT	isOptionSet			17
-ABSENT	join			143
-ABSENT	joinStrings			36
+ABSENT	join			144
+ABSENT	joinStrings			35
 ABSENT	keys			1
 ABSENT	lastIndexOf			1
 ABSENT	left			2
@@ -1188,15 +1174,15 @@ ABSENT	length			4
 ABSENT	lenientPathToElement			1
 ABSENT	lessThan			4
 ABSENT	lessThanEqual			4
-ABSENT	letFunction			20238
-ABSENT	limit			36
+ABSENT	letFunction			20296
+ABSENT	limit			37
 ABSENT	list			264
 ABSENT	literal			1
 ABSENT	loadCsvDataToDbTable			2
 ABSENT	loadPCTManifest			1
 ABSENT	mainTable			2
 ABSENT	makeString			20
-ABSENT	map			10326
+ABSENT	map			10340
 ABSENT	match			1631
 ABSENT	maxBy			2
 ABSENT	meta::alloy::service::execution::schemaAndTableSetup			2
@@ -1228,9 +1214,10 @@ ABSENT	meta::pure::router::printer::asString			2
 ABSENT	meta::pure::tds::agg			1
 ABSENT	meta::pure::tds::distinct			1
 ABSENT	meta::pure::tds::extend			1
+ABSENT	meta::pure::tds::extensions::extendWithDigestOnColumns			2
 ABSENT	meta::pure::tds::filter			5
 ABSENT	meta::pure::tds::groupBy			2
-ABSENT	meta::pure::tds::project			12
+ABSENT	meta::pure::tds::project			14
 ABSENT	meta::pure::test::surveyor::buildTestGroup			2
 ABSENT	meta::pure::test::surveyor::flattenTestGroup			2
 ABSENT	meta::pure::test::surveyor::getUpstreamPackages			2
@@ -1266,7 +1253,7 @@ ABSENT	newLambdaFunction			1
 ABSENT	newMap			2
 ABSENT	newTDSRelationAccessor			1
 ABSENT	noDebug			10
-ABSENT	not			56
+ABSENT	not			47
 ABSENT	olapGroupBy			8
 ABSENT	openVariableValues			1
 ABSENT	optimizedTdsJSONStringStream			2
@@ -1282,7 +1269,7 @@ ABSENT	pathToElement			31
 ABSENT	personProjected			1
 ABSENT	pivot			21
 ABSENT	planNodeToString			1
-ABSENT	plus			1543
+ABSENT	plus			1550
 ABSENT	preval			2
 ABSENT	print			130
 ABSENT	printDebug			10
@@ -1291,7 +1278,7 @@ ABSENT	printDebugWithDepth			2
 ABSENT	printProperty			2
 ABSENT	printRelationalTreeNode			2
 ABSENT	println			65
-ABSENT	project			1833
+ABSENT	project			1836
 ABSENT	projectWithColumnSubset			5
 ABSENT	putAll			1
 ABSENT	quarter			1
@@ -1307,6 +1294,7 @@ ABSENT	restrict			126
 ABSENT	restrictDistinct			10
 ABSENT	resultSetToColumns			1
 ABSENT	resultSetToTables			1
+ABSENT	rowValueDifference			2
 ABSENT	rows			40
 ABSENT	runDataAssertionWhichDeviatesFromStandard			1
 ABSENT	runPCTTests			1
@@ -1318,9 +1306,9 @@ ABSENT	scanProperties			1
 ABSENT	select			211
 ABSENT	serialize			298
 ABSENT	simpleToString			2
-ABSENT	size			32
+ABSENT	size			33
 ABSENT	slice			77
-ABSENT	sort			757
+ABSENT	sort			777
 ABSENT	sortBy			76
 ABSENT	sortByReversed			3
 ABSENT	sourceInformation			2
@@ -1344,9 +1332,8 @@ ABSENT	toJSON			1
 ABSENT	toLower			1
 ABSENT	toMany			44
 ABSENT	toMultiplicity			9
-ABSENT	toOne			123
+ABSENT	toOne			129
 ABSENT	toOneMany			266
-ABSENT	toRepresentation			1
 ABSENT	toSQL			2
 ABSENT	toSQLString			2
 ABSENT	toString			103
@@ -1358,6 +1345,7 @@ ABSENT	validate			4
 ABSENT	value4Tag			1
 ABSENT	varToString			1
 ABSENT	window			9
+ABSENT	withContext			1
 ABSENT	withMapping			4
 ABSENT	wrapIfNecessary			1
 ABSENT	write			1
@@ -2711,23 +2699,20 @@ EXTRA	meta::pure::executionPlan::toString::planNodeToString			1
 EXTRA	meta::pure::executionPlan::toString::printImplementation			4
 EXTRA	meta::pure::extension::defaultExtensions			2
 EXTRA	meta::pure::extension::storeContractFromStore			3
-EXTRA	meta::pure::functions::asserts::assert			13
-EXTRA	meta::pure::functions::asserts::assertIsNot			1
-EXTRA	meta::pure::functions::asserts::assertNotContains			1
-EXTRA	meta::pure::functions::asserts::assertNotEq			4
-EXTRA	meta::pure::functions::asserts::assertNotSize			1
-EXTRA	meta::pure::functions::boolean::and			188
-EXTRA	meta::pure::functions::boolean::eq			5
-EXTRA	meta::pure::functions::boolean::equal			491
+EXTRA	meta::pure::functions::asserts::assert			4
+EXTRA	meta::pure::functions::boolean::and			194
+EXTRA	meta::pure::functions::boolean::eq			2
+EXTRA	meta::pure::functions::boolean::equal			495
 EXTRA	meta::pure::functions::boolean::greaterThan			6
 EXTRA	meta::pure::functions::boolean::greaterThanEqual			8
-EXTRA	meta::pure::functions::boolean::is			5
+EXTRA	meta::pure::functions::boolean::is			2
 EXTRA	meta::pure::functions::boolean::isTrue			15
-EXTRA	meta::pure::functions::boolean::not			126
-EXTRA	meta::pure::functions::boolean::or			105
+EXTRA	meta::pure::functions::boolean::not			117
+EXTRA	meta::pure::functions::boolean::or			107
 EXTRA	meta::pure::functions::collection::add			32
+EXTRA	meta::pure::functions::collection::and			5
 EXTRA	meta::pure::functions::collection::at			439
-EXTRA	meta::pure::functions::collection::contains			21
+EXTRA	meta::pure::functions::collection::contains			18
 EXTRA	meta::pure::functions::collection::count			2
 EXTRA	meta::pure::functions::collection::defaultIfEmpty			3
 EXTRA	meta::pure::functions::collection::exists			5
@@ -2747,7 +2732,7 @@ EXTRA	meta::pure::functions::collection::list			23
 EXTRA	meta::pure::functions::collection::newMap			113
 EXTRA	meta::pure::functions::collection::newMultiValueMap			1
 EXTRA	meta::pure::functions::collection::or			3
-EXTRA	meta::pure::functions::collection::pair			314
+EXTRA	meta::pure::functions::collection::pair			315
 EXTRA	meta::pure::functions::collection::put			7
 EXTRA	meta::pure::functions::collection::putAll			8
 EXTRA	meta::pure::functions::collection::range			26
@@ -2756,13 +2741,14 @@ EXTRA	meta::pure::functions::collection::removeDuplicates			175
 EXTRA	meta::pure::functions::collection::removeDuplicatesBy			13
 EXTRA	meta::pure::functions::collection::replaceTreeNode			4
 EXTRA	meta::pure::functions::collection::reverse			2
-EXTRA	meta::pure::functions::collection::size			50
+EXTRA	meta::pure::functions::collection::size			47
 EXTRA	meta::pure::functions::collection::sort			1
 EXTRA	meta::pure::functions::collection::tail			73
 EXTRA	meta::pure::functions::collection::zip			11
 EXTRA	meta::pure::functions::date::date			6
 EXTRA	meta::pure::functions::date::datePart			15
 EXTRA	meta::pure::functions::date::today			1
+EXTRA	meta::pure::functions::hash::hash			2
 EXTRA	meta::pure::functions::io::println			6
 EXTRA	meta::pure::functions::lang::dynamicNew			4
 EXTRA	meta::pure::functions::lang::evaluate			5
@@ -2773,7 +2759,7 @@ EXTRA	meta::pure::functions::math::divide			2
 EXTRA	meta::pure::functions::math::floor			2
 EXTRA	meta::pure::functions::math::max			2
 EXTRA	meta::pure::functions::math::min			6
-EXTRA	meta::pure::functions::math::minus			57
+EXTRA	meta::pure::functions::math::minus			61
 EXTRA	meta::pure::functions::math::mod			3
 EXTRA	meta::pure::functions::math::plus			75
 EXTRA	meta::pure::functions::math::sum			2
@@ -2821,22 +2807,21 @@ EXTRA	meta::pure::functions::multiplicity::toOne			3434
 EXTRA	meta::pure::functions::multiplicity::toOneMany			23
 EXTRA	meta::pure::functions::relation::toString			1
 EXTRA	meta::pure::functions::string::endsWith			2
-EXTRA	meta::pure::functions::string::format			9
+EXTRA	meta::pure::functions::string::format			7
 EXTRA	meta::pure::functions::string::generation::generateGuid			2
-EXTRA	meta::pure::functions::string::joinStrings			24
+EXTRA	meta::pure::functions::string::joinStrings			25
 EXTRA	meta::pure::functions::string::lastIndexOf			1
 EXTRA	meta::pure::functions::string::length			12
 EXTRA	meta::pure::functions::string::makeString			55
 EXTRA	meta::pure::functions::string::parseDate			60
 EXTRA	meta::pure::functions::string::parseInteger			1
-EXTRA	meta::pure::functions::string::plus			1725
+EXTRA	meta::pure::functions::string::plus			1726
 EXTRA	meta::pure::functions::string::regexpReplace			2
 EXTRA	meta::pure::functions::string::replace			9
 EXTRA	meta::pure::functions::string::startsWith			24
 EXTRA	meta::pure::functions::string::substring			12
 EXTRA	meta::pure::functions::string::toLower			5
-EXTRA	meta::pure::functions::string::toRepresentation			1
-EXTRA	meta::pure::functions::string::toString			189
+EXTRA	meta::pure::functions::string::toString			193
 EXTRA	meta::pure::functions::string::trim			16
 EXTRA	meta::pure::functions::test::testedBy			1
 EXTRA	meta::pure::graphFetch::addPassThroughSubTrees			1
@@ -2970,7 +2955,7 @@ EXTRA	meta::pure::router::preeval::toMultiplicity			1
 EXTRA	meta::pure::router::printer::asString			1
 EXTRA	meta::pure::router::routing::propogateSubType			2
 EXTRA	meta::pure::router::routing::resolveOperation			2
-EXTRA	meta::pure::router::routing::routeFunctionExpressionFunctionDefinition			1
+EXTRA	meta::pure::router::routing::routeFunctionExpressionFunctionDefinition			2
 EXTRA	meta::pure::router::routing::varToString			2
 EXTRA	meta::pure::router::store::routing::build			8
 EXTRA	meta::pure::router::store::routing::buildAggColSpec			2

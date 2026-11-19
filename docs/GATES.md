@@ -22484,3 +22484,54 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   (two DuckDB threads pulling at once would raise "cannot enter context"; measured on one); `_reads.end_read`'s
   `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
   static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.
+
+## 2026-11-19 — A lite form is one candidate among a bare call's functions; the reference lane re-blessed
+
+`//spec:update_reference_lane_test` (heavy, manual) had not run since its golden was blessed in PR #66 (eeba69684,
+2026-10-24). Branch `claude/ci-health` (the CI-health brief's heavy reds; the orchestrator's go to fix it here and
+re-bless, under the user's delegation, if the only moves were the improvements reported and no failure was new).
+
+- **The one regression, a compiler bug:** core_relational's `pureToSqlQuery::mergeSQLQueryData` calls its own package's
+  6-argument `merge(MergeResultContainer, RelationalTreeNode, ...)` by its bare name. Lite's writes (PR #67, e9246f5f9,
+  2026-10-24, right after the golden) added the MERGE form, which owns `meta::legend::lite::merge`. `ResolvedNames.form`
+  returns the first referent a form owns, so the form claimed the call ahead of the package's function, and the write
+  checker refused it ("merge: it writes a store table (#>{db.t}#), not TypedNativeCall").
+- **The rule now, Pure's:** a bare call's referents are every function its name may denote, and a form lite adds to
+  Pure's vocabulary (`meta::legend::lite::*`) is one candidate among them. The call is not the form's when none of the
+  form's declarations takes the call's arity and another referent has a function that does
+  (`Typer.formYieldsByArity`); the generic path then picks among the candidates by arity and types. Two limits:
+  - It applies to lite's own forms only. The same rule over every form, measured, broke 23 of the lane's bodies (the
+    TDS `join` and `concatenate` forms accept shapes their declarations do not list), so a platform form's arity is its
+    checker's.
+  - When a form and another function both take the call's arity, the form still wins. It is decided by arity, not
+    yet by types.
+- **Tested both ways in one model:** `NameResolverTest.aFormIsOneCandidateAmongABareCallsFunctions`. A package's own
+  4-argument `merge`, called bare, is its own; lite's write `merge`, called at its arity, is still the write. Red
+  without the fix, with the message above.
+- **The reference lane moved, in the right direction** (golden re-blessed in this push, `bazel run
+  //spec:update_reference_lane`):
+
+  | line | golden (2026-10-24) | today before the fix | after |
+  |---|---|---|---|
+  | our functions | 16,207 | 16,202 | 16,202 |
+  | our bodies typed | 17,337 | 17,320 | 17,320 |
+  | our bodies FAILED | 970 | 960 | 959 |
+  | functions in both | 11,899 | 11,895 | 11,895 |
+  | reference only | 481 | 485 | 485 |
+  | ours only | 4,308 | 4,307 | 4,307 |
+  | reference typed, we FAILED | 807 | 797 | 796 |
+  | AGREE | 79,436 | 79,557 | 79,622 |
+  | ABSENT | 80,145 | 80,336 | 80,386 |
+  | EXTRA | 18,225 | 18,179 | 18,216 |
+
+  OVERLOAD 70, PACKAGE 14, DRIFT 0, PROPERTY_AS_CALL 0 and the 22 dropped sources are unchanged. No body joined the
+  failed list. Eleven left it since the golden:
+  - the TDS extensions' six `columnValueDifference*` tests, `rowValueDifferenceTest` and the two `testExtendDigest_*`;
+  - `tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries`;
+  - `testRoutingContextBuilderFunctions`.
+
+  `mergeSQLQueryData` is the twelfth. A body that types joins the call-by-call comparison, so AGREE, ABSENT and EXTRA
+  grow with it. The fix's own moves are mergeSQLQueryData's calls: AGREE +65, ABSENT +50, EXTRA +37, every class up or
+  equal, none down. Since the golden, nine `assert` and nine `not` calls left both ABSENT and EXTRA (−9 in each, so
+  the two sides now place them alike).
+  `//spec:reference_lane` (every class has a reason) passes.
