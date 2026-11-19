@@ -1,4 +1,21 @@
-# A3 piece 3: the detector and its load-time report, the shape note (2026-11-19)
+# A3 piece 3: the detector, the shape note (2026-11-19)
+
+**Revision 2 (~19:30): the user changed the ruling at ~19:20 ("I think it has to be refuse then for now"), and the
+compat owner gave the go.**
+- **The default is `refuse`.** A legend-engine request whose answer would differ is refused in legend-engine's error
+  envelope, naming each call and its position, and the header still carries the codes. `warn` stays a value for an
+  operator who chooses it. Unset means `refuse`, and any other value stops the server's start.
+- **`engine` is not accepted** until the user rules H16. The setting is parsed by a `switch` that a third value could
+  join.
+- **The load-time report is not built now.** No body is typed ahead of time, and there is no endpoint, no saved-query
+  scan and no `compilation/compile` trigger. Section 5 below is kept as history only.
+- **New size: about 1.5 to 2 days.** About 380 main lines (`PureMeaningCheck` about 300, wiring about 80) and about 400
+  test lines (one test class).
+- **Guard moves: 2.** `ObservabilityGuardrailTest.ENV_FLAGS` +1, and **one** funnel-register row (`PureMeaningCheck`).
+- **The owner confirmed the three points:**
+  - constraints are flagged only through `validate` or a DataQuality validation;
+  - M2M transforms are flagged by the query's shape;
+  - Studio's client is read in its source at the slice.
 
 B1-R (track O), on the compat owner's brief of ~19:03 UTC: "THE DETECTOR at the legend-engine door, with its
 load-time report".
@@ -10,8 +27,8 @@ load-time report".
   handoff of ~19:15.
 
 **The rulings this carries:**
-- warn by default, with the report (the user, ~14:55, which also rules the report's eager typing as §4a designs it);
-- refusal by `LEGEND_LITE_PURE_MEANING=refuse`;
+- ~~warn by default, with the report (the user, ~14:55)~~, superseded at ~19:20: **refuse by default, no report**;
+  `warn` by `LEGEND_LITE_PURE_MEANING=warn`;
 - the literal-0 exemptions "per target and arity, as measured" (the compat owner);
 - built tested on flagging, landing in the batch after the core switch (the compat owner, ~19:07). Before the
   switch, lite's `substring` is SQL's, like legend-engine's, so a warning would name a difference that does not
@@ -106,13 +123,14 @@ type is read from the connection's record.)
 unverified ones. It never changes the query. The route plans and runs the `TypedQuery` it already holds, then adds a
 header or throws.
 
-- **`warn`, the default:**
+- **`warn`, an operator's choice (revision 2: no longer the default):**
   - the header `x-legend-lite-pure-meaning: substring/3=2, indexOf/2=1, unverified=1`. It has at most four codes and
     their counts, never the query's text, and is bounded by construction;
   - `Access-Control-Expose-Headers: x-legend-lite-pure-meaning`;
   - one log line on `System.err`, in the server's `WARNING:` style, with positions and elements, no text and no
     data.
-- **`refuse`:** a `NotImplementedException` with the same sentence. `EngineEnvelope.answer` turns it into 500
+- **`refuse`, the default (revision 2):** a `NotImplementedException` with the same sentence, the header still
+  carried on the refusal. `EngineEnvelope.answer` turns it into 500
   `COMPILATION`, legend-engine's error body. An unverified site is refused too.
 
 **The answer is never changed.** Its body is byte-identical with and without the check: a test compares them.
@@ -142,7 +160,7 @@ Each test is shown to catch a plant: a planted wrong check turns it red, as the 
 14. The setting: `warn`, `refuse` and unset are taken; any other value refuses to start, naming the value.
 15. The pure/v1 net is unchanged: `PureV1EdgeGoldenTest` stays green with its goldens untouched.
 
-## 5. The load-time report
+## 5. The load-time report: NOT BUILT (the user, ~19:20; kept as history)
 
 As §4a designs it and the user ruled (~14:55): at the edge only, once per model, on a background thread, never on an
 answer's path.
