@@ -53,6 +53,22 @@ DEFAULT_MEMORY_LIMIT = 2 * 1024 ** 3
 # a server is given this long to answer one fetch (seconds)
 _FETCH_TIMEOUT = 60
 
+# THE PLANNER'S ANSWERS THAT ARE THE MODEL TEXT'S ALONE, read once per text (2026-11-19, //python:markets_test's time):
+# a saved query's or a class's base is read anew on every grid call Python makes of DataCube's code (gridBaseOn,
+# gridOpened, pageRebase: the engine keeps no grid's base between calls), and each read asks the compiler for the
+# elements of the same project version's text -- the 5 MB markets model 48 times in that test, 2 s each, 104 s of its
+# 185 s. The compiler's answer is its text's (model/elements: the text's protocol elements), so a text asked again is
+# answered as the compiler answered it, the native library not asked. The last few texts kept.
+_TEXT_ONLY_KINDS = frozenset({'modelElements'})
+_TEXT_ONLY_KEPT = 4
+
+# THE MODELS DATACUBE'S CODE HOLDS, held by the engine too while it lives, the last few (2026-11-19, the same test): a
+# compiled model goes with its last holder (core's HeldStore), and DataCube's code holds a saved query's model to type its
+# base and lets it go as the call ends, so the next grid call compiled the 5 MB markets model again -- 22 times, a second
+# each, until Python's project database held it. The engine is a holder as the page's own planner is: the model compiled
+# once while the engine holds it, let go as it is pushed out or the engine closes.
+_HELD_KEPT = 2
+
 # V8's flags, set once for the process before its first engine: mini-racer's own (--single-threaded) and no memory
 # protection keys. Insurance against the crash seen twice on 20261111.127.1 (ubuntu-24.04 on GitHub's Linux runners,
 # 2026-11-13, gates runs 43370111355 and 43380062329: mini-racer's _make_context segfaulted wherever a process made a
@@ -197,6 +213,10 @@ class Headless:
         self._over: Any = None
         # the statements this session's planner answered: what DataCube's code may hand the database (_planned.py)
         self._answered = Answered()
+        # the answers of _TEXT_ONLY_KINDS, by kind and request, the latest last (each a text's own: _TEXT_ONLY_KINDS)
+        self._text_only: dict[tuple[str, str], dict[str, Any]] = {}
+        # the engine's own handles of the models DataCube's code held, by model and library, the latest last (_HELD_KEPT)
+        self._held: dict[tuple[str, str | None], str] = {}
         # the engine's own answers to a call of DataCube's (``engine``: a grid's query planned and run where its rows are,
         # a warehouse table opened under the session it holds), over the call's read, given by the engine's owner as a
         # weak reference to them (weakref.WeakMethod): this engine never keeps its owner alive; none, or its owner gone:
@@ -237,12 +257,50 @@ class Headless:
         refused = self._answered.refusal(asked)
         if refused is not None:
             return json.dumps({'id': asked.get('id'), 'ok': False, 'error': f'NotPlanned: {refused}'})
-        answered = answer(self._lib, asked)
+        answered = self._answer(asked)
         # what DataCube's code may hand the database from now on: the statements the answer carries, read by the
         # request's kind (_planned.Answered)
         if answered.get('ok'):
             self._answered.record(asked['kind'], answered['answer'])
+            if asked.get('kind') == 'hold':
+                self._hold_too(asked, answered['answer'])
         return json.dumps(answered)
+
+    def _hold_too(self, asked: dict[str, Any], held: str) -> None:
+        """A model DataCube's code held (``held``, the library's tagged answer), held by the engine too: its own handle,
+        kept for the latest ``_HELD_KEPT`` models, so the model stays compiled between DataCube's calls."""
+        if not held.startswith('OK\n'):
+            return
+        key = (asked['model'], asked.get('library'))
+        if key in self._held:
+            self._held[key] = self._held.pop(key)
+            return
+        own = answer(self._lib, {'kind': 'hold', 'model': key[0], **({} if key[1] is None else {'library': key[1]})})
+        if not (own.get('ok') and own['answer'].startswith('OK\n')):
+            return
+        self._held[key] = own['answer'][len('OK\n'):]
+        while len(self._held) > _HELD_KEPT:
+            self._let_go(self._held.pop(next(iter(self._held))))
+
+    def _let_go(self, handle: str) -> None:
+        answer(self._lib, {'kind': 'release', 'handle': handle})
+
+    def _answer(self, asked: dict[str, Any]) -> dict[str, Any]:
+        """``asked`` answered by the native library (``_planner.answer``) -- one of ``_TEXT_ONLY_KINDS`` answered as the
+        library answered the same request before, when it did, the native library not asked again."""
+        kind, request = asked.get('kind'), asked.get('request')
+        if kind not in _TEXT_ONLY_KINDS or not isinstance(request, str):
+            return answer(self._lib, asked)
+        kept = self._text_only.pop((kind, request), None)
+        if kept is None:
+            kept = answer(self._lib, asked)
+            if not kept.get('ok'):
+                # the call itself failed (the worker's failure): asked again next time
+                return kept
+        self._text_only[(kind, request)] = kept
+        while len(self._text_only) > _TEXT_ONLY_KEPT:
+            self._text_only.pop(next(iter(self._text_only)))
+        return {**kept, 'id': asked.get('id')}
 
     @property
     def answered(self) -> Container[str]:
@@ -422,6 +480,9 @@ class Headless:
             self._loop.call_soon_threadsafe(self._loop.stop)
             self._thread.join()
         self._loop.close()
+        # the models it held too (_hold_too)
+        while self._held:
+            self._let_go(self._held.pop(next(iter(self._held))))
         if self._own_db:
             self._db.close()
         if self._own_folder is not None:
