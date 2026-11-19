@@ -43,6 +43,11 @@ you need legend-engine's answer.
     `indexOf`: item 10.)
   - **An operator may choose to warn instead:** the server setting `LEGEND_LITE_PURE_MEANING=warn` answers Pure's way,
     with a log line and a response header, `x-legend-lite-pure-meaning`.
+  - **Or keep legend-engine's answer:** the user ruled an `engine` setting YES (2026-11-19), built in this batch.
+    Once it lands, an operator may set `LEGEND_LITE_PURE_MEANING=engine` to keep legend-engine's answer. Its
+    details are its design's.
+  - **The setting is read at the legend-engine door alone**, never in lite's core: the switch rule (the user,
+    2026-11-19 ~20:35; `docs/records/compat-rules-of-record-2026-11-19.md`).
   - **When the door lets the query through:** for `substring`, when the request sets legend-engine's corrected option.
     For `indexOf`, never: that option corrects `substring` alone.
   - **A literal start of 0 is exempt** where it is measured equal to Pure's answer: on H2 both forms, on DuckDB the
@@ -70,13 +75,16 @@ you need legend-engine's answer.
   expected SQL and comparing answers.
 - **To get legend-engine's answer:** compare results, not SQL strings.
 - **When:** stage A.
-- **Measured:** of legend-engine's 2,761 corpus tests, 147 or 148 on H2 and 152 on DuckDB stop passing, in three
-  kinds (`A2-roster.tsv`). The merged batch's H2 lane settles 147 or 148 (item 13 on H2, with A5):
+- **Measured:** of legend-engine's 2,761 corpus tests, 145 on H2 and 149 on DuckDB stop passing. The merged batch's
+  lanes settle both numbers. Their kinds (`A2-roster.tsv`):
   - **text only:** 139 on H2 and 143 on DuckDB check only the SQL text;
   - **plan structure:** 6 on each check legend-engine's plan structure (a `supportsStream` flag on its plan's
     parameter-validation node);
-  - **answers the text had hidden:** 2 or 3 on H2 and 3 on DuckDB, items 12 and 13.
-- That becomes 150 or 151, and 155, once item 1 lands: three more text tests that the old `indexOf` hid.
+  - **answers the text had hidden** (items 12 and 13) are not among them. The user ruled them legend-engine defects
+    before (2026-09-05 and 2026-09-08), so they are accepted divergences again (the user, 2026-11-19 ~20:35). Four
+    of batch 144's rows go back on the accepted rosters, and two H2 rows are new. The accepted rosters go H2 41 to
+    43 and DuckDB 46 to 49, also settled by the merged batch.
+- That becomes 148 and 152 once item 1 lands: three more text tests that the old `indexOf` hid.
 - Every other SQL-text test passes by its answer.
 - Studio's "generate plan" for an ordinary query answers byte for byte as before.
 - Evidence: A2's corpus rosters, exact against `A2-roster.tsv`, and `server/PureV1SqlTextTest`.
@@ -208,7 +216,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **When:** today. From 2026-09-21 until A2 the corpus test passed on its SQL text alone. Since A2 its rows are
   compared again.
 - **Measured:** the corpus's `testToSQLStringForTDSStringJoin` and `testHashFunctions`, on H2 and DuckDB (class b of
-  `A2-roster.tsv`).
+  `A2-roster.tsv`). With this batch they are accepted divergences, on the accepted rosters (item 2).
 - **Register:** S386 (provisional).
 
 ### 13. `firstDayOfWeek` is the Monday on every database, as Pure defines it
@@ -227,7 +235,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:**
   - The corpus's `testToSqlGenerationFirstDayOfWeek` on DuckDB (class b of `A2-roster.tsv`). Its rows were appealed
     against legend-engine's H2 under `en_US`: `2014-11-30` there, `2014-12-01` from lite.
-  - Its outcome on H2, now that lite answers the Monday there too, is measured on the merged batch.
+  - With this batch it is an accepted divergence, on the accepted rosters (item 2). On H2 that holds now that lite
+    answers the Monday there too; the merged batch's lane settles it.
   - Both databases were asked directly under `en_US`, `en_GB` and `fr_FR`
     (`docs/records/compat-homework/A3-piece4/first-day-of-week-probe.md`, on `claude/census-b2`).
 - **Register:** S387 (provisional).
@@ -241,8 +250,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - a whole Float prints `2.0`;
   - a date with a time prints `2000-10-25T06:30:00.000000Z`, where legend-pure prints `+0000`;
   - an empty cell prints `null`.
+- **`toCSV` too:** lite's route prints a relation's `toCSV` in the database, a standard CSV layout with lite's own
+  value texts. Lite keeps the `toCSV` name. Compiling legend-engine's own `toCSV` program instead waits on four gaps
+  in lite (H15 §11).
 - **Ruled:** by the user on 2026-11-19: ~18:05, "Agree with all four table printing recommendations"; ~18:12, "Yes
-  record it, and count the nested cases"; ~18:36, "Null is good".
+  record it, and count the nested cases"; ~18:36, "Null is good"; ~20:05, "toCSV yes toString or another easy
+  database sql that makes sense".
 - **When:** stage B (B2).
 - **Measured:** count pending; the nested cases are counted before B2 is built.
 - **Register:** a row comes with B2.
