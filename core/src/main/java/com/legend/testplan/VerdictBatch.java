@@ -544,40 +544,32 @@ public final class VerdictBatch {
             if (ps.isEmpty()) {
                 continue;
             }
-            // a new fused group at each member that may raise (the compatibility owner's (beta), 2026-11-19, G2): a
-            // database that rejects a fused statement names no verdict, so its rejection is its group's FIRST verdict's
-            // failure (TestRun, RootLoops) -- exact only where no later member of the group may raise. Until then one
-            // statement held every member, and Postgres's refusal of testAdjustByMinutesBigNumber's second expected
-            // literal was blamed on the first assert, which the host held
-            for (List<Pending> run : raisingRuns(ps)) {
-                ExecutionPlan.TdsResult fusedPlan;
-                try {
-                    fusedPlan = fusedOf(run, g.getKey());
-                } catch (com.legend.sql.DialectCapability e) {
-                    // the split rung at planning (P1, 2026-11-07, the milestone audit's 1): the fused statement the
-                    // dialect cannot spell -- each member its own statement, a group with no fused statement as the
-                    // keyed members' (the runner runs each verdict's wrapper); a member whose own statement the dialect
-                    // cannot spell is refused at its place in the root loop, nothing sent. Until the audit the members
-                    // the dialect spelled alone were dropped from every group, and the root loop found no row for them
-                    com.legend.diagnostics.Census.verdictFallback(e, fragments);
-                    Group own = ownStatements(run, g.getKey(), members, unspelled, false);
-                    if (own != null) {
-                        out.add(own);
-                    }
-                    continue;
+            ExecutionPlan.TdsResult fusedPlan;
+            try {
+                fusedPlan = fusedOf(ps, g.getKey());
+            } catch (com.legend.sql.DialectCapability e) {
+                // the split rung at planning (P1, 2026-11-07, the milestone audit's 1): the fused statement the dialect
+                // cannot spell -- each member its own statement, a group with no fused statement as the keyed members'
+                // (the runner runs each verdict's wrapper); a member whose own statement the dialect cannot spell is
+                // refused at its place in the root loop, nothing sent. Until the audit the members the dialect spelled
+                // alone were dropped from every group, and the root loop found no row for them
+                com.legend.diagnostics.Census.verdictFallback(e, fragments);
+                Group own = ownStatements(ps, g.getKey(), members, unspelled, false);
+                if (own != null) {
+                    out.add(own);
                 }
-                for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(run, fusedPlan,
-                        g.getKey())) {
-                    List<TestPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
-                    for (Pending p : part.getKey()) {
-                        TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
-                                null);
-                        verdicts.add(v);
-                        members.put(v.id(), p);
-                    }
-                    out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue(), runner.savepoint()),
-                            g.getKey(), false));
+                continue;
+            }
+            for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(ps, fusedPlan, g.getKey())) {
+                List<TestPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
+                for (Pending p : part.getKey()) {
+                    TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
+                            null);
+                    verdicts.add(v);
+                    members.put(v.id(), p);
                 }
+                out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue(), runner.savepoint()),
+                        g.getKey(), false));
             }
         }
         // a member the dialect cannot spell is refused at its place in the root loop with the dialect's own words,
@@ -755,45 +747,6 @@ public final class VerdictBatch {
         }
         return verdicts.isEmpty() ? null : new Group(new TestPlan.Verdicts(verdicts, null), on,
                 isKeyed);
-    }
-
-    /** {@code ps} in runs, in order, a new run at each member whose statement may raise ({@link MayRaise}): within a run
-     *  only its first member may, so a rejection of a run's fused statement -- or of a half of it, the budget's split
-     *  keeps the order -- is that first member's (the compatibility owner's (beta), 2026-11-19). The gap, named: a
-     *  literal a database refuses (a date past its range) beside no raising expression is not seen, and stays blamed
-     *  on its run's first member. */
-    private static List<List<Pending>> raisingRuns(List<Pending> ps) {
-        List<List<Pending>> out = new ArrayList<>();
-        List<Pending> run = new ArrayList<>();
-        for (Pending p : ps) {
-            if (!run.isEmpty() && MayRaise.of(p.query())) {
-                out.add(run);
-                run = new ArrayList<>();
-            }
-            run.add(p);
-        }
-        out.add(run);
-        return out;
-    }
-
-    /** Whether any expression of a statement, at any depth, may raise an error itself ({@code SqlExpr.raisesItself}):
-     *  a walk that reads, the statement unchanged. */
-    private static final class MayRaise extends com.legend.sql.SqlRewriter {
-        private boolean raises;
-
-        static boolean of(SqlQuery q) {
-            MayRaise walk = new MayRaise();
-            walk.rewrite(q);
-            return walk.raises;
-        }
-
-        @Override
-        protected com.legend.sql.SqlExpr expr(com.legend.sql.SqlExpr e) {
-            if (com.legend.sql.SqlExpr.raisesItself(e)) {
-                raises = true;
-            }
-            return e;
-        }
     }
 
     /** A fused statement's plan: one typed result (a member that reads a raw grid's report never joins one). */

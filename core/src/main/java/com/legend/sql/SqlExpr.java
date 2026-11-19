@@ -76,27 +76,6 @@ public sealed interface SqlExpr
         };
     }
 
-    /**
-     * Whether evaluating {@code e} ITSELF -- not its operands -- may raise an error (2026-11-19, track A5, the
-     * compatibility owner's (beta)): a raising function ({@link SqlFn#RAISING}), a checked narrowing, a cast that reads
-     * text as a value it may not spell or any JSON cast, a raise's text, a window frame whose bound the database
-     * computes (its check raises). The raising half of {@link #raisesNothing}, which counts what changes rows too (a
-     * subquery, an aggregate, UNNEST); a caller walks every expression of a statement with it. A literal is never one,
-     * though a database may refuse it (a date past its range): the planner knows no database's range.
-     */
-    static boolean raisesItself(SqlExpr e) {
-        return switch (e) {
-            case Call c -> SqlFn.RAISING.contains(c.fn());
-            case Cast c -> c.target() == SqlType.Scalar.JSON || mayFailToParse(c);
-            case WindowCall w -> w.frame() != null && w.frame().computed();
-            case CheckedOne c -> true;
-            case CheckedDefects c -> true;
-            case CheckedChildValue c -> true;
-            case RaiseText r -> true;
-            default -> false;
-        };
-    }
-
     /** Whether {@code c} reads text as a value that text may not spell -- a number, a decimal, a Boolean, a date, a
      *  time -- and so raises on a text that does not ({@code parseFloat('x')}): its value is text, or of a type not
      *  known (#81's final review, item 14k (5), 2026-11-10: such a cast was counted as raising nothing, so a merge or
