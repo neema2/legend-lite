@@ -847,3 +847,21 @@ today, with or without the plain set:
 Lite's H2 dialect writes no shift at all (the `DialectCapability` refusal above), so no rewrite helps until it does. That
 is a capability gap of lite's H2, not a CP-5 cost.
 
+### (j.5) (j.4) confirmed on B1-R's own H2 lanes
+
+**Why this rerun.** The compat owner asked for (j.4) to run on B1-R's lanes, not on a private widening. B1-R added H2's
+Essential and Standard suites to its ENGINE lane at `claude/compat-engine-lane` `10b311dee`, pinned there. (j.4) had
+already run on my local widening before that request reached me.
+
+**The rerun:** the same probe on `10b311dee` (`H8j_probe.patch.txt`'s `PureText` half), H2's Essential, Standard and
+Relation tables rebuilt, and diffed against B1-R's pins (`pct/engine_lane/h2_*.tsv` at `10b311dee`) on 2026-11-19,
+13:46-13:48 UTC (`H8j5-h2-lane-moved.tsv`, tables `H8j5-h2-lane-probe-tables/`).
+
+**The result is the same as (j.4):** 4 tests move, all BOTH_FAIL → LITE_FIXES:
+- Essential: `rem::testRemError`, `testSquareRootError`;
+- Standard: `bitShiftLeft::testBitShiftLeft_MoreThan62Bits`, `bitShiftRight::testBitShiftRight_MoreThan62Bits`.
+
+No SAME test moves, and Relation moves nothing. B1-R's classifier at `10b311dee` classes legend-engine's refusals in
+other words as REFUSES. That changes the baseline's counts (Essential: LITE_ANSWERS 85, not (j.4)'s 26) but none of the
+four moved rows. (j.4)'s answers, and its 3 H2 answers no ordinary guard reproduces, stand.
+

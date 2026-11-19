@@ -1,0 +1,471 @@
+# the ENGINE lane, h2 Relation: 469 tests (bazel run //pct:update_engine_lane)
+test	engine	engine_class	lite	lite_class	verdict
+meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_AggColSpec	PASS		PASS		SAME
+meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_AggColSpecArray	PASS		PASS		SAME
+meta::pure::functions::relation::tests::aggregate::testSimpleAggregate_WithFilter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch_MultipleExpressions	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin_MultipleExpressions	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::testCoalesceInPreFilter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testConcatenateFilterInSubQuery	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testConcatenateWithJoinOnOneSide	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testExtendAddOnNull	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testExtendFilter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testExtendFilterOutNull	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testExtendJoinStringOnNull	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testExtendLeadAdjustDerivedOffset	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testExtendWindowFilter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testFilterArithmeticComparisonExpression	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testFilterEqualOnNullableColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testFilterNotEqualOnNullableColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testFilterPostProject	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testGroupByCastAfterAgg	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testGroupByCastBeforeAgg	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testGroupByFilterExtendFilter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testGroupByOnNull	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testGroupBy_Conflicting_Alias_With_Table_Columns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testJoinOnNullKey	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testMixColumnNamesRenameExtend	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testMixColumnNamesRenameFilter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testMultiCoalesceInProject	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testMultiIfTDS	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testNestedJoinArithmeticComparisonExpression	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testOLAPAggCastWithPartitionWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testOLAPCastAggWithPartitionWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testOLAPCastExtractAggWithPartitionWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testOLAPCastExtractCastAggWithPartitionWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testProjectDistinct	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testProjectEqualityOnNullableColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testProjectExtendNestedIfLeadAdjust	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testProjectJoinWithProjectProject	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testProjectNotEqualityOnNullableColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testProjectNumbersPlusTimesMinus	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testProjectOfComputedColumn_withCast	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testStaticPivot_AfterConcatenate	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::testStaticPivot_AfterExtendConcatenate	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::testTDSPlusTimesMinus	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantArrayColumn_reverse	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantArrayColumn_sort	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_contains	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_distinct_removeDuplicates	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_extend_indexExtraction_filter	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsEmptyOfModelConversion	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsNotEmptyOfModelConversion	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_indexOf	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantColumn_isEmpty	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::testVariantColumn_isNotEmpty	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::testVariantColumn_modelOutputNotSupported	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testVariantColumn_projectModelProperty	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testVariantColumn_slice	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariantMapColumn_values_LateralFlatten	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::composition::testVariant_if	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::testWindowFunctionsAfterProject	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Distinct_Filter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Distinct_GroupBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Distinct_GroupBy_Filter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Distinct_Size	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::test_Extend_GroupBy_Extend_Select	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Extend_GroupBy_Project	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Extend_Sort_Extend_Select	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Extend_Sort_Project	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct_Filter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_GroupBy_Filter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_GroupBy_GroupBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Limit_Size	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Pivot_Filter	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::test_Project_Filter_Before_Static_Pivot	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::composition::test_Slice_Size	PASS		PASS		SAME
+meta::pure::functions::relation::tests::composition::test_Static_Pivot_Filter	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::concatenate::testSimpleConcatenateShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::concatenate::testSimpleConcatenate_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::cumulativeDistribution::testOLAPWithPartitionAndOrderCummulativeDistribution	PASS		PASS		SAME
+meta::pure::functions::relation::tests::denseRank::testOLAPWithPartitionAndOrderDenseRank	PASS		PASS		SAME
+meta::pure::functions::relation::tests::distinct::testDistinctAll	PASS		PASS		SAME
+meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::distinct::testDistinctMultiple	PASS		PASS		SAME
+meta::pure::functions::relation::tests::distinct::testDistinctMultiple_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::distinct::testDistinctSingle	PASS		PASS		SAME
+meta::pure::functions::relation::tests::distinct::testDistinctSingle_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::drop::testSimpleDropShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::drop::testSimpleDrop_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAll::testEqualAll	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAll::testEqualAll_EmptyRelation	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::equalAll::testEqualAll_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAll::testEqualAll_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAll::testEqualAll_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAny::testEqualAny	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAny::testEqualAny_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAny::testEqualAny_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAny::testEqualAny_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::equalAny::testEqualAny_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::eval::testSimpleEval	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsCorrelated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsCorrelated_ExtraInnerPredicate	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsCorrelated_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsInExtend	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsOnEmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsOnGroupedRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsSelfReferencing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsUncorrelated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testExistsWithNestedIn	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testSimpleExists	PASS		PASS		SAME
+meta::pure::functions::relation::tests::exists::testSimpleExists_NoMatch	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggIntegerWithPartitionAndOrderWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggIntegerWithPartitionAndOrderWindow_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggNoWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowChainedWithSimple	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowChainedWithSimple_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowMultipleColums	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowMultipleColums_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggNoWindow_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderASCUnboundedWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithNullableOrderEmptyFirst	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithNullableOrderEmptyLast	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithOrderWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithOrderWindow_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionWindowMultipleColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionWindowMultipleColumns_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndMultipleOrderWindowMultipleColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndMultipleOrderWindowMultipleColumnsWithFilter	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndOrderWindowMultipleColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testSimpleExtendFloat	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testSimpleExtendFloat_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testSimpleExtendInt	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testSimpleExtendInt_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testSimpleExtendStrShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testSimpleExtendStr_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testSimpleMultipleColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testSimpleMultipleColumns_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testVariantColumn	PASS		PASS		SAME
+meta::pure::functions::relation::tests::extend::testVariantColumn_filter	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::extend::testVariantColumn_fold	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::extend::testVariantColumn_indexExtraction	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::extend::testVariantColumn_keyExtraction	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::extend::testVariantColumn_map	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::filter::testSimpleFilterShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::filter::testSimpleFilter_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIndexExtractionValue	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIsEmptyOfKeyExtraction	PASS		PASS		SAME
+meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIsNotEmptyOfKeyExtraction	PASS		PASS		SAME
+meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::filter::testVariantColumn_filterOutputFromLambda	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::tests::first::testOLAPWithPartitionAndOrderFirstWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_CorrelatedSubQuery	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_DerivedRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_GroupedRelationWithNull	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_InExtend	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_LimitedRelationWithNull	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_Negated_NullValueAndNullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_NullValueAndNullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_OnlyNullsInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testGreaterThanAll_String	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAll::testSimpleGreaterThanAll	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_CorrelatedSubQuery	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_DerivedRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_GroupedRelationWithNull	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_InExtend	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_Negated_NullValueAndNullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_NullValueAndNullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_OnlyNullsInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testGreaterThanAny_String	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanAny::testSimpleGreaterThanAny	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAll::testGreaterThanEqualAll_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::greaterThanEqualAny::testGreaterThanEqualAny_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	PASS		PASS		SAME
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	PASS		PASS		SAME
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	PASS		PASS		SAME
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	PASS		PASS		SAME
+meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_CorrelatedSubQuery	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_DerivedRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_GroupedRelationWithNull	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_InExtend	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_InExtend_NullValueAndNullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testIn_String	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testSimpleIn	PASS		PASS		SAME
+meta::pure::functions::relation::tests::in::testSimpleIn_Negated	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::join::testFullJoin	PASS		PASS		SAME
+meta::pure::functions::relation::tests::join::testJoin_forFailedJoinWhenNoRowsMatchJoinCondition	PASS		PASS		SAME
+meta::pure::functions::relation::tests::join::testRightJoin	PASS		PASS		SAME
+meta::pure::functions::relation::tests::join::testSimpleJoinShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::join::testSimpleJoin_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_Aggregate_Ascending	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_Aggregate_EmptyLast	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Ascending	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Descending	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_EmptyFirst	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_ForcingSubSelect	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_MultipleSortColumns	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_RowFunction	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_SortColumnNotAggregated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lag::testOLAPWithPartitionAndOrderWindowUsingLag	PASS		PASS		SAME
+meta::pure::functions::relation::tests::last::testOLAPWithPartitionAndOrderLastWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lateral::testLateralJoin	DEFECT	PLANNER_FAULT	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins	DEFECT	PLANNER_FAULT	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	DEFECT	PLANNER_FAULT	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner	DEFECT	PLANNER_FAULT	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::relation::tests::lead::testOLAPWithPartitionAndOrderWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAll::testLessThanAll	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAll::testLessThanAll_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAny::testLessThanAny	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAny::testLessThanAny_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAny::testLessThanAny_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAny::testLessThanAny_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanAny::testLessThanAny_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAll::testLessThanEqualAll_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny_EmptyRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny_Negated	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny_NullInRelation	PASS		PASS		SAME
+meta::pure::functions::relation::tests::lessThanEqualAny::testLessThanEqualAny_NullValue	PASS		PASS		SAME
+meta::pure::functions::relation::tests::limit::testSimpleLimitShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::limit::testSimpleLimit_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::nth::testOLAPWithPartitionAndOrderNthWindow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::nth::testOLAPWithPartitionAndOrderNthWindow2	PASS		PASS		SAME
+meta::pure::functions::relation::tests::ntile::testOLAPWithPartitionAndOrderNTile	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_CurrentRow_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_CurrentRow_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithDifferentDurationUnits_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithDifferentDurationUnits_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NPreceding_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_InvalidWindowFrameBoundary	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NFollowing_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NFollowing_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NPreceding_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NPreceding_NPreceding_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NPreceding_UnboundedFollowing_WithNullValues_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithNullValues_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_WithNumbers_CurrentRow_NFollowing_WithoutPartition_WithSingleOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRange_WithNumbers_NFollowing_NFollowing_WithoutPartition_WithSingleOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_CurrentRow_CurrentRow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_CurrentRow_NFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_CurrentRow_UnboundedFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_InvalidWindowFrameBoundary	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_NFollowing_NFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_NFollowing_UnboundedFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_NPreceding_CurrentRow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_NPreceding_NFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_NPreceding_NPreceding	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_NPreceding_UnboundedFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_CurrentRow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_CurrentRow_WithMultiplePartitions_WithSingleOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_NFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_NPreceding	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing_WithMultiplePartitions_WithoutOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing_WithSinglePartition_WithoutOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::percentRank::testOLAPWithPartitionAndOrderPercentRank	PASS		PASS		SAME
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_MultipleExpressions	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle_MultipleExpressions	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_Dynamic_Aggregation	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleMultiple_MultipleExpressions	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle_StringPivotValue	REFUSES	REFUSES_OTHER: not implemented	PASS		LITE_ANSWERS
+meta::pure::functions::relation::tests::project::testSimpleProject	PASS		PASS		SAME
+meta::pure::functions::relation::tests::project::testSimpleProjectList	PASS		PASS		SAME
+meta::pure::functions::relation::tests::project::testSimpleProjectWithEmpty	PASS		PASS		SAME
+meta::pure::functions::relation::tests::project::testSimpleRelationProject	PASS		PASS		SAME
+meta::pure::functions::relation::tests::project::testSimpleRelationProjectLiterals	PASS		PASS		SAME
+meta::pure::functions::relation::tests::rank::testOLAPWithPartitionAndOrderRank	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_CurrentRow_CurrentRow_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_CurrentRow_CurrentRow_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_CurrentRow_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_CurrentRow_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NFollowing_NFollowing_WithDifferentDurationUnits_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NFollowing_NFollowing_WithDifferentDurationUnits_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NFollowing_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NFollowing_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NPreceding_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NPreceding_NPreceding_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_CurrentRow_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_InvalidWindowFrameBoundary	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NFollowing_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NFollowing_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NFollowing_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NPreceding_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NPreceding_NPreceding_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NPreceding_UnboundedFollowing_WithNullValues_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_NPreceding_UnboundedFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_UnboundedPreceding_NFollowing_WithNullValues_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_UnboundedPreceding_NFollowing_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByASC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByDESC	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_WithNumbers_CurrentRow_NFollowing_WithoutPartition_WithSingleOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRange_WithNumbers_NFollowing_NFollowing_WithoutPartition_WithSingleOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_CurrentRow_CurrentRow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_CurrentRow_NFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_CurrentRow_UnboundedFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_InvalidWindowFrameBoundary	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_NFollowing_NFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_NFollowing_UnboundedFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_NPreceding_CurrentRow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_NPreceding_NFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_NPreceding_NPreceding	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_NPreceding_UnboundedFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_UnboundedPreceding_CurrentRow	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_UnboundedPreceding_CurrentRow_WithMultiplePartitions_WithSingleOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_UnboundedPreceding_NFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_UnboundedPreceding_NPreceding	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_UnboundedPreceding_UnboundedFollowing	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_UnboundedPreceding_UnboundedFollowing_WithMultiplePartitions_WithoutOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::reduce::testRows_UnboundedPreceding_UnboundedFollowing_WithSinglePartition_WithoutOrderBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::rename::testSimpleRenameShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::rename::testSimpleRename_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::rowNumber::testOLAPWithPartitionAndRowNumber	PASS		PASS		SAME
+meta::pure::functions::relation::tests::select::testMultiColsSelectShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::select::testMultiColsSelect_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::select::testSelectAll	PASS		PASS		SAME
+meta::pure::functions::relation::tests::select::testSelectAll_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::select::testSingleColSelectShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::select::testSingleColSelect_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::select::testSingleSelectWithQuotedColumn	PASS		PASS		SAME
+meta::pure::functions::relation::tests::select::testSingleSelectWithQuotedColumn_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testComparisonOperationAfterSize	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testComparisonOperationAfterSize_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testGroupBySize	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testGroupBySize_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testSimpleSize	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testSimpleSize_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testSize_GroupBy	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testSize_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testSize_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::relation::tests::size::testWindowSize	PASS		PASS		SAME
+meta::pure::functions::relation::tests::slice::testSimpleSliceShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::slice::testSimpleSlice_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::sort::testSimpleSortShared	PASS		PASS		SAME
+meta::pure::functions::relation::tests::sort::testSimpleSort_MultipleExpressions	PASS		PASS		SAME
+meta::pure::functions::relation::tests::sort::testSortCanonicalNullOrdering	PASS		PASS		SAME
+meta::pure::functions::relation::tests::sort::testSortEmptyFirst	PASS		PASS		SAME
+meta::pure::functions::relation::tests::sort::testSortEmptyFirstTwoArg	PASS		PASS		SAME
+meta::pure::functions::relation::tests::sort::testSortEmptyLast	PASS		PASS		SAME
+meta::pure::functions::relation::tests::sort::testSortEmptyLastTwoArg	PASS		PASS		SAME
+meta::pure::functions::relation::tests::sort::testSortMultipleColumnsMixedNullOrder	PASS		PASS		SAME
+meta::pure::functions::relation::tests::write::testWrite	PASS		PASS		SAME
+meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Extend	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::relation::variant::tests::flatten::testFlatten_Scalar	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Array	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Map	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Navigation	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
