@@ -48,14 +48,14 @@ itself; H4: every host already runs Java, so one presenter per audience serves a
 
 | Phase | What it does | Biggest deletion | Size (session-days) | Track |
 |---|---|---|---|---|
-| **0. Rulings and the net** | the user's rulings; B1's safety net lands; the measurements the later slices need; the legend-engine PCT lane | none | 5 | all |
+| **0. Rulings and the net** | the user's rulings; B1's safety net lands; the measurements the later slices need; the legend-engine PCT lane; the translator's ledger (every rewrite and refusal, before any is built) | none | 6.5 | all |
 | **1. Formatters (output)** | one presenter per audience over typed results and the plan; error records as kind, place and literal operands; the hosts call the Java presenter | the SQL-built text and envelopes, about 2,000 edge lines; 3 facets and 4 two-form hooks | 21 | P (B1) and H (a host session) |
 | **2. Deletions that need no replacement** | compatibility judging becomes host-only; upstream's SQL text, shapes and appeals go, checked by answers | the compatibility database judge (51 of the census's 142 hits); the engine-style SQL printers, about 2,950 lines; the engine-text appeal and referee stack, about 3,360 lines | 13 | J (new) and G (B2) |
 | **3. Translator (input)** | a model-level, target-aware rewrite at the edge's doors, using only functions every lite user has; legend-engine's refusals derived from its manifests | the lowering's two-form choices (`LoweringForms`, 17 members) and the remaining two-form hooks | 15.5 | A (new) and O (B1-R) |
 | **4. Close-out** | `PlanStyle` deleted; the guards and the census blocking | `PlanStyle`, `PureText` and its 12 dialect subclasses | 3.5 | G (B2) |
 | **5. Portability** | export lite plans to legend-engine and import its plans, both checked by legend-engine running them | none | 6.5 | O (B1-R) |
 
-**In all: about 62 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
+**In all: about 63.5 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
 (phase 0, then the translator, then the close-out), with five or six sessions in parallel. Inside phase 1, the
 judges split (2.1, 2.2) runs first beside 1.1, 1.2 and 1.5, because 1.3 and 1.4 delete text the compatibility
 database judge still uses. The old three-mode design
@@ -214,7 +214,7 @@ and H1's TSV, and the confirmed map is the ratchet. Paths are under `core/src/ma
 
 Sizes are session-days at xhigh, the unit the three-mode design used, plus lane latency.
 
-### Phase 0: rulings, the net, the measurements (about 5 days)
+### Phase 0: rulings, the net, the measurements, the translator's ledger (about 6.5 days)
 
 **0.1 The rulings.** The user rules CP-1 to CP-11 (§5). The slices that wait on each are named there. Phase 1 and
 slice 2.2 need only CP-1 and CP-7. **Size:** 0. **Owner:** the user, with this session.
@@ -280,6 +280,25 @@ cherry-picked; S1m is not carried, and S1's deletions are re-done in 1.2).
 - **Deletes:** nothing. **Check:** each number reproducible from a committed probe.
 - **Size:** 2 days.
 - **Depends on:** 0.2. **Owner:** B2, with this session.
+
+**0.6 The translator's ledger: exactly what is rewritten and what is refused** (the user's question, 2026-11-19).
+- **Changes:** one checked table, `edge/translator-ledger.tsv`. Each row: the function or construct, the audience,
+  the database, its action (pass, rewrite, refuse in upstream's words, refuse by name, Pure's answer recorded), the
+  rewrite's text or the refusal's words, its evidence (a pinned source line, a manifest entry, an oracle answer), and
+  the test that proves it. It is built from:
+  - H1's rows: today 35 rewrites, 48 refusals and the 24 rows that needed a special function, each decided under
+    CP-5;
+  - 0.3's refusal table, derived from legend-engine's manifests per database, which H1 does not hold beyond its 17
+    known rows;
+  - 0.4's counts, so each row carries how many PCT, corpus and pure/v1 cases it touches.
+- **Deletes:** nothing.
+- **Check:** every row has evidence and a test; each rewrite's battery agrees with legend-engine (the oracle); the
+  table is put to the user before the translator's first rewrite lands.
+- **Guards:** the ledger is the translator's only source. A rewrite or refusal the translator performs that is not a
+  row fails a test, and a row without its test fails another. A new row is posted to the user before it lands, as a
+  register row is.
+- **Size:** 1.5 days.
+- **Depends on:** 0.3, 0.4, CP-5. **Owner:** the translator session, with B1-R.
 
 **0.5 Register housekeeping.**
 - **Changes:** S138 corrected (compiled legend-pure raises on `acos(2.0)`, `CoreHelper.java:141-148`), S63 recited
