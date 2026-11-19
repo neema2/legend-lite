@@ -29,7 +29,7 @@ the orchestrator's summaries. Review only: nothing in the product, and no pin, c
 1. The user rules the change of goal explicitly, before D1 and D2 (finding 1).
 2. The "what we lose" table is completed (finding 3).
 3. A1's nets are actually sound and green on every OS (finding 4).
-4. The H6/H8 contradiction about the referee is resolved (finding 5).
+4. H6 §6.3's account of the referee is corrected (finding 5: settled in the code, H8 is right).
 
 **On D1 and D2:** the recommendation (Pure's way, no translator; remove the two shortcuts) is supported by every number
 measured. But every number measures legend-engine's TEST suites, not its users' code. The decision should be taken
@@ -161,7 +161,7 @@ crown jewels") depends on an old artifact fetched from an outside host at build 
 - Stage A waits for all three nets green on every OS.
 - Vendor or mirror the referee's H2 jar under the repository's own control, sha-pinned as today.
 
-### R5. H6 and H8 contradict each other on where the referee replays, and the plan depends on which is true
+### R5. H6 and H8 contradict each other on where the referee replays. H8 is right, and a plan step falls away
 
 **The two records.**
 - H6 §6.3: "The referee has no session of its own ... on the H2 lanes the replay runs on the body's H2 session, which
@@ -169,17 +169,26 @@ crown jewels") depends on an old artifact fetched from an outside host at build 
 - H8 §(h): "It replays goldens on legend-engine's own H2, 2.1.214, opened `MODE=LEGACY;DEFAULT_NULL_ORDERING=HIGH`
   (`testbackend/EngineH2Referee.openReferee`)". The checkpoint's Q12 repeats this.
 
-**What the code shows.**
-- `edge/SqlTextRuns.java:188-193` passes the body's session to the referee SPI.
-- The harness's referee replays "on one beside the lane's session (the mirror)" (`core/src/test/java/com/legend/testbackend/EngineH2Referee.java`, javadoc).
-- H8 (h) measured the H2 corpus with the edge's settings off and lost 1 test, the BIT column: no appeal moved.
+**What the code shows (settled; H8 is right, H6 §6.3 is wrong).**
+- `edge/SqlTextRuns.java:188-193` passes the body's session to the referee SPI. That is the half H6 read.
+- The SPI's one implementation is the harness's `spec/src/test/java/com/legend/harness/ReplayReferee.java`. Its
+  `verifyArmed` takes the body's connection, and `verifyAuto` (about line 362) picks the replay's session:
+  `TestBackends.of(session) == TestBackends.referee() ? verifyOnSession(...) : verify(seeds, ...)`.
+- `TestBackends.of(Connection)` (`core/src/test/java/com/legend/testbackend/TestBackends.java:95-103`) answers a lane's
+  backend: `H2Backend.INSTANCE`, lite's 2.5.252, for an H2 session. `referee()` (`:88-90`) answers
+  `EngineH2Referee.INSTANCE`, a different singleton. The test is never true for a lane's session. So every golden replays
+  on the referee's own H2: the family mirror (`mirrorBegin`, opened by `openReferee`) or a fresh referee database,
+  legend-engine's 2.1.214 opened `MODE=LEGACY;DEFAULT_NULL_ORDERING=HIGH` with its extension functions
+  (`EngineH2Referee.java:67-70`). The body's session supplies only "our" rows and the recorded seeds.
+- Consistent with that, H8 (h) measured the H2 corpus with the edge's settings off: it lost 1 test, the BIT column, and
+  no appeal moved.
 
-So H8 looks right, and H6 read only the edge's half.
-
-**Change.** Settle it in the record before B4 is sized:
-- read `ReplayOracle`'s use of the session;
-- if the mirror is isolated, drop the "referee target" step;
-- if not, B4 waits for it.
+**Change.**
+- Correct H6 §6.3, and drop the plan's added "declared LEGACY referee target before CP-8" step. B4's removal of the H2
+  lane's legacy settings does not touch the referee.
+- Minor: `verifyOnSession` looks unreachable from every lane, a dead branch in the referee. Name it in B4's leftovers or
+  delete it.
+- R4's jar point stands with more force: the one database every SQL-text appeal replays on is that 404'd 2.1.214 jar.
 
 ### R6. A2's scope and proof are underspecified
 
@@ -277,7 +286,7 @@ ratchet as the end condition.
 | F8 | 0.4 (j) without the corpus | in part | corpus done (S20 +2/0; the plain set pure/v1 1). PCT pending (rows 4, 5) |
 | F9 | the plan format, and export | in part | export deferred; the 6 plan-structure tests not promised. generatePlan after A2 undefined (R3 (d), R6) |
 | F10 | CP-8's blanket row | open | S374 now says the oracle's file "will" class differences; no slice owns it |
-| F11 | the referee's settings | contradictory | H6 against H8 (R5) |
+| F11 | the referee's settings | answered, after correcting H6 | the referee replays on legend-engine's isolated 2.1.214 with its settings (R5). H6 §6.3 needs a correction |
 | F12 | the rulings' other consequences | mostly answered | E-R2 against the corpus: H8 (k), 0 runnable error asserts. `toSQLString` with no dialect: plan r7. The translator in the appeal: moot under D1. Saved artifacts' meaning version: not in the plain plan (R3 (e)) |
 | F13 | numbers | answered | corrected in r6 and r7 (H8 (a) confirmed the map) |
 
