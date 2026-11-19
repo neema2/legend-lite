@@ -555,3 +555,11 @@ who confirms or changes phases 1-3.
   - B1 is subscribed to its CI: the first run of this program's code on every OS.
   - The per-part cost and CI's wall time follow as the run reports.
   - Independent review requested of the reviewer session (~12:28).
+- **~12:35 UTC, the user:** "I'm not merging 122 that was a mistake to even open that PR stop asking". **PR #122 is
+  closed.** The lesson: no documentation-only PR is put up for the user's merge word; register corrections ride with
+  the code change they belong to. The product orchestrator was told; ids S372-S377 are unused.
+- **~12:35 UTC, the user asked** for "the actual design and plan clearly in detail in plain English", and "What do we
+  lose ... Will still be able to take legend-engine projects and run them? What will break?". **Written:**
+  `docs/records/compat-design-and-plan-plain-2026-11-19.md`: the design in four parts; what stays; what is lost, row
+  by row with its measured size; the plan in two stages with a stop between them; the two open decisions and the two
+  running prototypes. A new measurement for it: lite's own 62 projects use `substring` and `indexOf` 0 times.
