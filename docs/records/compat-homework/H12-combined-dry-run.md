@@ -93,3 +93,23 @@ lands.** No other interaction on any lane.
   (E-R2, CP-12's strict reading).
 - **Run times:** the combined invocation (both corpus lanes, 10 PCT suites, the ENGINE lane's 6 actions, pure/v1)
   took about 15 minutes on the 4-core container; DuckDB's corpus pass 547 s, H2's 156 s.
+
+## Addendum: H2's essential and standard suites on the ENGINE lane (2026-11-19, ~13:15 UTC)
+
+B1-R added H2's Essential and Standard suites to the ENGINE lane (`claude/compat-engine-lane` at `10b311de6`, PR #124);
+H12 above ran H2's Relation suite only. Merged into this branch as before; the three H2 lanes
+(`//pct:engine_lane_table_h2_{essential,standard,relation}`) run twice, with (1) alone and with the combined set
+(`h12/engine_lane_h2/{v2only,combined}/`), each against B1-R's pin (`pct/engine_lane/h2_*.tsv`, at `main` plus the lane).
+
+| suite | rows | moved | each move (lite before -> (1) alone -> combined; verdict) | attributed |
+|---|---|---|---|---|
+| H2 Essential | 345 | 7 | `indexOf` `testSimple`, `testIndexOfOneElement`: FAIL -> PASS -> PASS (BOTH_FAIL -> LITE_FIXES); `indexOf` `testFromIndex`: FAIL -> PASS -> PASS (BOTH_FAIL -> LITE_ANSWERS; legend-engine refuses the 3-argument form); `substring` `testStart`, `testStartEnd`: FAIL -> PASS -> PASS (BOTH_FAIL -> LITE_FIXES) | (1), 5 |
+| | | | `rem` `testRemError`, `testSquareRootError`: FAIL -> FAIL -> PASS (BOTH_FAIL -> LITE_FIXES) | (3), the plain set, 2 |
+| H2 Standard | 205 | 2 | `testBitShiftLeft_MoreThan62Bits`, `testBitShiftRight_MoreThan62Bits`: FAIL -> FAIL -> PASS (BOTH_FAIL -> LITE_FIXES) | (3), the plain set, 2 |
+| H2 Relation | 469 | 0 | | |
+
+**As expected: every move is lite FAIL to PASS, toward PCT's expected value; none moves the other way, no SAME row
+moves, and nothing moves only in the combination.** Each moved row is one legend-engine's own manifest marks DEFECT
+(WRONG_ANSWER, ERROR_MISMATCH or PLANNER_FAULT) or REFUSES. The two substring-keyed sorts that moved on DuckDB
+(`testSimpleSortWithKey`, `testSimpleSortWithFunctionVariables`) do not move on H2: lite REFUSES them there before
+and after (a pre-existing H2 refusal), so the meaning change cannot reach them. No pin moved.

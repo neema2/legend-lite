@@ -891,7 +891,7 @@ _ENGINE_LANE_DBS = {
 _ENGINE_LANES = [(db, "" if db == "duckdb" else db, s) for db in _ENGINE_LANE_DBS for s in _ENGINE_LANE_DBS[db]]
 
 # H5 SPIKE (H12, scratch): the strands the ENGINE lane runs with switched to the product's
-H5_OFF_PCT = "-Dh5.off=none"
+H5_OFF_PCT = "-Dh5.off=sqltext,s20,plain,isnumeric,parseddecimal,parsedjson,nullunsafe,settings"
 
 [java_run(
     name = "engine_lane_%s_%s" % (lane, s.lower()),

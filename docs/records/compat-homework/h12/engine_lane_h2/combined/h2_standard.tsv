@@ -1,0 +1,207 @@
+# the ENGINE lane, h2 Standard: 205 tests (bazel run //pct:update_engine_lane)
+test	engine	engine_class	lite	lite_class	verdict
+meta::pure::functions::boolean::tests::inequalities::between::testBetween_Date	PASS		PASS		SAME
+meta::pure::functions::boolean::tests::inequalities::between::testBetween_DateTime	PASS		PASS		SAME
+meta::pure::functions::boolean::tests::inequalities::between::testBetween_NumberFloat	PASS		PASS		SAME
+meta::pure::functions::boolean::tests::inequalities::between::testBetween_NumberInteger	PASS		PASS		SAME
+meta::pure::functions::boolean::tests::inequalities::between::testBetween_NumberLong	PASS		PASS		SAME
+meta::pure::functions::boolean::tests::inequalities::between::testBetween_StrictDate	PASS		PASS		SAME
+meta::pure::functions::boolean::tests::inequalities::between::testBetween_String	PASS		PASS		SAME
+meta::pure::functions::boolean::tests::operation::xor::testXor_BinaryExpressions	PASS		PASS		SAME
+meta::pure::functions::boolean::tests::operation::xor::testXor_BinaryTruthTable	PASS		PASS		SAME
+meta::pure::functions::collection::tests::and::testAnd	PASS		PASS		SAME
+meta::pure::functions::collection::tests::greatest::testGreatest_Boolean	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::greatest::testGreatest_Date	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::greatest::testGreatest_DateTime	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::greatest::testGreatest_Empty	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::greatest::testGreatest_Float	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::greatest::testGreatest_Integer	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::greatest::testGreatest_Number	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::greatest::testGreatest_Single	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::greatest::testGreatest_StrictDate	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::greatest::testGreatest_String	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::in::testInForDecimal	PASS		PASS		SAME
+meta::pure::functions::collection::tests::in::testInIsEmpty	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::in::testInNonPrimitive	REFUSES	REFUSES_OTHER: isn't a literal	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::in::testInPrimitive	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::in::testIn_relation_extend	PASS		PASS		SAME
+meta::pure::functions::collection::tests::in::testIn_relation_filter	PASS		PASS		SAME
+meta::pure::functions::collection::tests::least::testLeast_Boolean	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::least::testLeast_Date	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::least::testLeast_DateTime	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::least::testLeast_Empty	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::least::testLeast_Float	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::least::testLeast_Integer	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::least::testLeast_Number	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::least::testLeast_Single	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::least::testLeast_StrictDate	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::least::testLeast_String	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::max::testMax	DEFECT	RUNTIME_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::min::testMin	DEFECT	RUNTIME_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::or::testOr	PASS		PASS		SAME
+meta::pure::functions::date::tests::formatDate::testFormatDate_ISO8601	PASS		PASS		SAME
+meta::pure::functions::date::tests::formatDate::testFormatDate_ISO8601_NanoSecondPrecision	PASS		PASS		SAME
+meta::pure::functions::date::tests::max::testExtendMaxDate	PASS		PASS		SAME
+meta::pure::functions::date::tests::max::testMax_Date	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::date::tests::max::testMax_DateArray	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::date::tests::max::testMax_DateTime	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::max::testMax_DateTimeArray	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::date::tests::max::testMax_StrictDate	PASS		PASS		SAME
+meta::pure::functions::date::tests::max::testMax_StrictDateArray	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::date::tests::min::testExtendMinDate	PASS		PASS		SAME
+meta::pure::functions::date::tests::min::testMin_Date	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::date::tests::min::testMin_DateArray	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::date::tests::min::testMin_DateTime	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::min::testMin_DateTimeArray	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::date::tests::min::testMin_StrictDate	PASS		PASS		SAME
+meta::pure::functions::date::tests::min::testMin_StrictDateArray	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketDays	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketHours	PASS		PASS		SAME
+meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketMinutes	PASS		PASS		SAME
+meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketMonths	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketSeconds	PASS		PASS		SAME
+meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketWeeks	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketYears	REFUSES	REFUSES_OTHER: does not support	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::hashCode::tests::testHashCode	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::hashCode::tests::testHashCodeAggregate	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::average::testAverage_Floats	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::average::testAverage_Floats_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::average::testAverage_Floats_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::average::testAverage_Integers	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::average::testAverage_Integers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::average::testAverage_Integers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::average::testAverage_Numbers	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::average::testAverage_Numbers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::average::testAverage_Numbers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::average::testAverage_Round_Integers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::bitAnd::testBitAnd_LargeNumbers	DEFECT	DATABASE_ERROR	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::bitAnd::testBitAnd_NegativeNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::bitAnd::testBitAnd_SmallNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::bitNot::testBitNot_LargeNumbers	DEFECT	DATABASE_ERROR	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::math::tests::bitNot::testBitNot_NegativeNumbers	PASS		FAIL	OTHER	LITE_BEHIND
+meta::pure::functions::math::tests::bitNot::testBitNot_SmallNumbers	PASS		FAIL	OTHER	LITE_BEHIND
+meta::pure::functions::math::tests::bitOr::testBitOr_LargeNumbers	DEFECT	DATABASE_ERROR	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::bitOr::testBitOr_NegativeNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::bitOr::testBitOr_SmallNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_MoreThan62Bits	DEFECT	ERROR_MISMATCH	PASS		LITE_FIXES
+meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_UpTo62Bits	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_MoreThan62Bits	DEFECT	ERROR_MISMATCH	PASS		LITE_FIXES
+meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_UpTo62Bits	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::bitXor::testBitXor_LargeNumbers	DEFECT	DATABASE_ERROR	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::bitXor::testBitXor_NegativeNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::bitXor::testBitXor_SmallNumbers	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::corr::testCorr	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::corr::testSimpleWindowCorr	PASS		PASS		SAME
+meta::pure::functions::math::tests::covarPopulation::testCovarPopulation	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::covarPopulation::testSimpleWindowCovarPopulation	PASS		PASS		SAME
+meta::pure::functions::math::tests::covarSample::testCovarSample	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::covarSample::testSimpleWindowCovarSample	PASS		PASS		SAME
+meta::pure::functions::math::tests::max::testMax_Floats	PASS		PASS		SAME
+meta::pure::functions::math::tests::max::testMax_FloatsArray	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::max::testMax_Floats_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::max::testMax_Floats_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::max::testMax_Integers	PASS		PASS		SAME
+meta::pure::functions::math::tests::max::testMax_IntegersArray	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::max::testMax_Integers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::max::testMax_Integers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::max::testMax_Numbers	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::max::testMax_NumbersArray	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::max::testMax_Numbers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::max::testMax_Numbers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::maxBy::testMaxBy	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::maxBy::testSimpleGroupByMaxBy	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::math::tests::median::testMedian_Floats	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::median::testMedian_Floats_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::median::testMedian_Floats_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::median::testMedian_Integers	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::median::testMedian_Integers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::median::testMedian_Integers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::median::testMedian_Numbers	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::median::testMedian_Numbers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::median::testMedian_Numbers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::min::testMin_Floats	PASS		PASS		SAME
+meta::pure::functions::math::tests::min::testMin_FloatsArray	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::min::testMin_Floats_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::min::testMin_Floats_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::min::testMin_Integers	PASS		PASS		SAME
+meta::pure::functions::math::tests::min::testMin_IntegersArray	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::min::testMin_Integers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::min::testMin_Integers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::min::testMin_Numbers	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::min::testMin_NumbersArray	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::min::testMin_Numbers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::min::testMin_Numbers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::minBy::testMinBy	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::minBy::testSimpleGroupByMinBy	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::math::tests::mode::testMode_Float	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::mode::testMode_Floats_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::mode::testMode_Floats_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::mode::testMode_Integer	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::math::tests::mode::testMode_Integer_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::mode::testMode_Integer_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::mode::testMode_Number	DEFECT	WRONG_ANSWER	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::mode::testMode_Number_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::mode::testMode_Number_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::percentile::testPercentile	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::percentile::testPercentile_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::percentile::testPercentile_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::pi::testPi	PASS		PASS		SAME
+meta::pure::functions::math::tests::stdDev::testFloatStdDev	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::stdDev::testIntStdDev	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::stdDev::testMixedStdDev	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::stdDev::testNegativeNumberStdDev	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::stdDev::testPopulationStandardDeviation	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::stdDev::testSimpleGroupByStandardDeviationPopulation	PASS		PASS		SAME
+meta::pure::functions::math::tests::stdDev::testSimpleGroupByStandardDeviationSample	PASS		PASS		SAME
+meta::pure::functions::math::tests::stdDev::testSimpleWindowStandardDeviationPopulation	PASS		PASS		SAME
+meta::pure::functions::math::tests::stdDev::testSimpleWindowStandardDeviationSample	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Floats	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Floats_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Floats_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Integers	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Integers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Integers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Numbers	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Numbers_Relation_Aggregate	PASS		PASS		SAME
+meta::pure::functions::math::tests::sum::testSum_Numbers_Relation_Window	PASS		PASS		SAME
+meta::pure::functions::math::tests::toDegrees::testToDegrees	PASS		PASS		SAME
+meta::pure::functions::math::tests::toRadians::testToRadians	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::cosh::testCosH_Eval	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::cosh::testCosH_EvalFuncSig	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::cosh::testCosH_Floats	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::cosh::testCosH_Identities	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::cosh::testCosH_Integers	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::sinh::testSinH_Eval	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::sinh::testSinH_EvalFuncSig	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::sinh::testSinH_Floats	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::sinh::testSinH_Identities	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::sinh::testSinH_Integers	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::tanh::testTanH_Eval	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::tanh::testTanH_EvalFuncSig	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::tanh::testTanH_Floats	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::tanh::testTanH_Identities	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::tanh::testTanH_Integers	PASS		PASS		SAME
+meta::pure::functions::math::tests::variance::testSimpleGroupByVariancePopulation	PASS		PASS		SAME
+meta::pure::functions::math::tests::variance::testSimpleGroupByVarianceSample	PASS		PASS		SAME
+meta::pure::functions::math::tests::variance::testSimpleWindowVariancePopulation	PASS		PASS		SAME
+meta::pure::functions::math::tests::variance::testSimpleWindowVarianceSample	PASS		PASS		SAME
+meta::pure::functions::math::tests::variance::testVariancePopulation	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::variance::testVarianceSample	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::variance::testVariance_Population	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::variance::testVariance_Sample	REFUSES	REFUSES_OTHER: no matched function in function registry	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::math::tests::wavg::testSimpleGroupByMultipleWavg	PASS		PASS		SAME
+meta::pure::functions::math::tests::wavg::testSimpleGroupByWavg	PASS		PASS		SAME
+meta::pure::functions::math::tests::zScore::testZScore	PASS		PASS		SAME
+meta::pure::functions::math::tests::zScore::testZScore_FloatValues	PASS		PASS		SAME
+meta::pure::functions::math::tests::zScore::testZScore_SingleValuePartition	PASS		PASS		SAME
+meta::pure::functions::string::generation::tests::generateGuid::testGenerateGuid	PASS		PASS		SAME
+meta::pure::functions::string::generation::tests::generateGuid::testGenerateGuidWithRelation	PASS		PASS		SAME
+meta::pure::functions::tests::date::testDayOfWeek	PASS		PASS		SAME
+meta::pure::functions::tests::date::testDayOfWeek_Relation	PASS		PASS		SAME
