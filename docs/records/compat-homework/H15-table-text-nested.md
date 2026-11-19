@@ -357,3 +357,85 @@ S128 records `print`'s inertness (R18). No row names `println`. The draft, one l
 > standard output, through `print`. Lite plans it as no statement, its argument never evaluated, on both doors
 > (`ProductStatements`, `BodyDriver`'s `println` arm, `StoreResolver`; `NULL` inside an expression, `Scalars`), and so
 > writes nothing.
+- `H15-data/tocsv-program-{duckdb,h2}.txt`: §11's comparison, every test whose verdict moved with `toCSV` compiled
+  as a program. `tocsv-program-duckdb-causes.tsv` gives each DuckDB move's cause. `H15-probes/h15_compare.py.txt` is
+  the comparison.
+
+## 11. `toCSV` as a program: legend-engine's own body, compiled, instead of intercepted (the owner's third follow-up)
+
+### 11.1 The answer
+
+- **(1) The body IS the corpus's input.** The corpus walks all of `core_relational/relational`
+  (`MinimalCorpus.corpusFiles`), so `helperFunctions/helperFunctions.pure:198-250` is parsed with the tests.
+- **Lite intercepts the name ahead of it.** The three `toCSV` signatures are registry natives:
+  - `builtin/Pure.java:1871-1873`, registered in the platform catalog;
+  - `NativeFn.Verdict.TO_CSV`, `NativeFn.java:262-263`, filed with the asserts.
+
+  The catalog native is what a call resolves to, so the parsed body is never compiled.
+- **Where the intercepted name is answered:**
+  - the `Lowerer`'s `TO_CSV` arm (`Lowerer.java:4301-4304`) asks the `RelationTexts` facet. The edge's
+    `RelationTextLowering` builds legend-pure's CSV in SQL, and the product refuses it (`TextRefusals.relation("toCSV")`);
+  - the judges read it by name as a rendered-text form: `AssertVerdicts.java:1907,1917`,
+    `VerdictQueries.java:637-644`, `BodyDriver.java:237,270`, `AssertLift.java:55`, `DriverPkAppend.java:73`,
+    `OrderView.java:74`.
+- **(2) Why: a deliberate interception, not a construct lite cannot plan.**
+  - `Pure.java:1864-1865` gives the reason: "engine helperFunctions.pure:198-232 — the RENDER phase's CSV text (F4.2):
+    platform-owned lowerings, the DB constructs the text".
+  - D1.3 (S316, 2026-11-15) then moved the composition to the edge and refused it in the product.
+  - With the interception removed, the body types and plans as a program (§11.2). Its only missing pieces are two
+    platform constants.
+- **(3) With the interception removed** (the probe `4ffa125d1d`, scratch), on the corpus host passes:
+
+| | DuckDB | H2 |
+|---|---|---|
+| the 46 NESTED tests, pass (today) | **22** (39) | **33** (32) |
+| — the 41 calendar | 17 (34) | 31 (32) |
+| — the 5 extensions | 5 (5) | 2 (0) |
+| every test holding a `toCSV`, 170, pass (today) | **112** (158): 46 lost, 0 gained | **94** (150): 61 lost, 5 gained |
+| any other test | **0 moved** | **0 moved** |
+
+- **What the body needs that lite lacks.** Two natives, `meta::pure::functions::date::SimpleDateTimeFormat()` and
+  `ISO8601DateFormat()`: legend-engine's `core/pure/corefunctions/dateExtension.pure:384-392`, each returning a
+  constant format string.
+  - They are in the platform namespace, which lite owns. The corpus's guard (`MinimalCorpus.refusePlatformNamespace`)
+    rightly refuses them as input, so lite would provide them, as constants: rule 1's String fold.
+  - The probe copied the two bodies in for the measurement. Without them, every `toCSV` fails at typing ("unknown
+    function 'SimpleDateTimeFormat'").
+- **(4) The relation's `toString` is a program too, but a PLATFORM one.** It is legend-engine's
+  `core_functions_relation/relation/functions/toString.pure:19-33`, with cells through `s()` (`s.pure:18-23`).
+  - It is in `meta::pure::functions::relation`, `<<PCT.function, PCT.platformOnly>>`.
+  - By the reference-checkout tenet lite owns that namespace: the body is spec, never loaded. Lite's own text of a
+    relation is the ruled database text (H14).
+- **A TDS's `csv` is neither a program nor a native function.** It is a stored `String` property of legend-pure's
+  `TDS<T>` (`tds.pure:16-19`), set by whatever built the TDS: a `#TDS` literal's parser, or the engine's result in
+  Java.
+
+### 11.2 Why the compiled body loses tests: four differences in lite's evaluation of the program
+
+DuckDB's 46 lost tests, each cause measured (`tocsv-program-duckdb-causes.tsv`):
+
+| cause | DuckDB | H2 | what lite does differently from legend-pure |
+|---|---|---|---|
+| **a Float compared exactly, not within 2 ULP** | 14 (calendar) | 0 | today the side is a rendered text, judged within 2 ULP (S132). As a program the side is a plain String, compared exactly. The values themselves differ in the last place: DuckDB `6.840000000000002` against H2's golden `6.84`, `4.2299999999999995` against `4.23` |
+| **a null cell disappears** | 16 (11 cells, 3 calendar cells, 2 all-null rows) | 0 | `Firm X,David Scott,` comes out `Firm X,David Scott`, and an all-null row vanishes. Lite holds a null as SQL NULL, not a `TDSNull`, so `$r.values` holds no element for it and the `TDSNull` arm (hf:232) never prints its `''` |
+| **a column the TDS gains at run is missing** | 14 (13 validation tests, 1 `executeInDb`) | 14 (validation) | the validation helpers' result gains an `ID` column, and `executeInDb`'s columns come from the SQL text (`Count`). Lite's `$t.columns` is the typed schema at planning, so it lacks both |
+| **H2 has no list encoding** | 0 | 47 (no assert ran) | the body's `$r.values->map(...)->joinStrings(',')` needs `LIST_GET` and `STRING_AGG` over a list, which lite's H2 dialect refuses by name (`DialectCapability: ... reached a dialect without a list encoding`) |
+| a database error | 2 (validation: DuckDB binder errors) | 0 | |
+
+**H2's 5 gains:**
+- `testMtdValue` and `testSubclassValue`: the program's Float `toString` prints `3.0` and `10.0`, where today's
+  builder prints `3` and `10`;
+- `columnValueDifferenceTest`, `columnValueDifferenceWithoutPrevalTest` and `rowValueDifferenceTest`: both sides of
+  their `assertEquals(toCSV, toCSV)` are now the same program.
+
+### 11.3 What it means for the decision
+
+Compiling `toCSV` as the program it is (the world-map tenet) works, with lite's own value texts and legend-engine's
+layout. It needs:
+- the two platform constants (`SimpleDateTimeFormat`, `ISO8601DateFormat`);
+- a decision on a null cell: lite has no `TDSNull`, so a TDS row's values cannot hold one;
+- `columns` of a TDS whose columns are known only at run;
+- a list encoding on H2.
+
+The exact Float compare is the program behaving as legend-pure does: legend-pure compares the two Strings exactly
+too. The 14 calendar tests that now fail on DuckDB pass today only by S132's tolerance on a rendered text.

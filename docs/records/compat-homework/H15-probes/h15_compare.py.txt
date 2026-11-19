@@ -1,0 +1,58 @@
+"""H15 §11: the corpus host pass with toCSV compiled as a program, against the baseline, per lane.
+Usage: python3 -I h15_compare.py <baseline judge-host.tsv> <probe judge-host.tsv> <nodes.tsv> <lane> <probe host.log>"""
+import collections
+import re
+import sys
+
+base_p, probe_p, nodes_p, lane, log_p = sys.argv[1:6]
+
+
+def read(p):
+    v = collections.defaultdict(list)
+    for line in open(p, encoding="utf-8"):
+        q = line.rstrip("\n").split("\t")
+        if len(q) >= 4:
+            v[q[0]].append(q)
+    return v
+
+
+def verdict(rows):
+    if not rows:
+        return "ABSENT"
+    bad = [r for r in rows if r[3] != "PASS"]
+    return "PASS" if not bad else "FAIL"
+
+
+base, probe = read(base_p), read(probe_p)
+nodes = [l.split("\t") for l in open(nodes_p, encoding="utf-8").read().split("\n")[1:] if l]
+src = "corpus " + lane
+tocsv = collections.defaultdict(set)
+for n in nodes:
+    if n[0] == src and n[2] == "toCSV":
+        tocsv[n[1]].add("NESTED-replace" if n[3] == "NESTED" and "replace" in n[4]
+                        else "NESTED-println" if n[3] == "NESTED" else "ROOT")
+fails = {}
+for line in open(log_p, encoding="utf-8", errors="replace"):
+    m = re.match(r"\[corpus2\] FAIL (\S+) :: (.*)", line.rstrip("\n"))
+    if m:
+        fails[m.group(1)] = m.group(2)
+groups = {
+    "the 41 calendar (NESTED replace)": {t for t, k in tocsv.items() if "NESTED-replace" in k},
+    "the 5 println tests": {t for t, k in tocsv.items() if "NESTED-println" in k},
+    "every toCSV test": set(tocsv),
+}
+for name, tests in groups.items():
+    c = collections.Counter((verdict(base.get(t)), verdict(probe.get(t))) for t in tests)
+    print(f"{lane} {name} ({len(tests)}): " + ", ".join(f"{a}->{b} {n}" for (a, b), n in sorted(c.items())))
+alltests = set(base) | set(probe)
+changed = [(t, verdict(base.get(t)), verdict(probe.get(t))) for t in sorted(alltests)
+           if verdict(base.get(t)) != verdict(probe.get(t))]
+print(f"{lane} every test whose verdict moved: {len(changed)} "
+      f"(toCSV tests {sum(1 for t, _, _ in changed if t in tocsv)}, others {sum(1 for t, _, _ in changed if t not in tocsv)})")
+for t, a, b in changed:
+    why = ""
+    if b != "PASS":
+        bad = [r for r in probe.get(t, []) if r[3] != "PASS"]
+        why = (bad[0][2].rsplit("::", 1)[-1] + "[" + bad[0][1] + "]: " + (bad[0][4] if len(bad[0]) > 4 else "")) if bad \
+            else fails.get(t, "")
+    print(f"  {a}->{b}\t{'toCSV' if t in tocsv else 'other'}\t{t}\t{why[:260]}")
