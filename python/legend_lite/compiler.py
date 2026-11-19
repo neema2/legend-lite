@@ -35,37 +35,41 @@ class LegendError(Exception):
         self.raise_ = raise_
 
 
-# each kind's name, its wire text and the HTTP status a refusal of it is answered with, as the product says them
-_KINDS: dict[str, tuple[str, int]] | None = None
+# lite's error kinds by name, each its wire text, and the HTTP status a refusal of each kind is answered with, as the
+# product says them (``lite_refusal_kinds``), each read once
+_KINDS: dict[str, str] | None = None
+_STATUSES: dict[str, int] | None = None
 
 
-def _kinds() -> dict[str, tuple[str, int]]:
+def _said_kinds() -> dict[str, dict[str, Any]]:
     """LITE'S ERROR KINDS as the product says them (``lite_refusal_kinds``: the one Java type of §3's kinds,
-    ``LiteV1Api.Kind`` -- each name, its wire text and its status), read once."""
-    global _KINDS
-    if _KINDS is None:
-        tag, _, rest = library().call('lite_refusal_kinds').partition('\n')
-        if tag != 'OK':
-            raise OSError(f"the native library did not say lite's error kinds: {rest[:200]}")
-        _KINDS = {name: (said['wire'], said['status']) for name, said in _json.loads(rest).items()}
-    return _KINDS
+    ``LiteV1Api.Kind`` -- each name, its wire text and its status)."""
+    tag, _, rest = library().call('lite_refusal_kinds').partition('\n')
+    if tag != 'OK':
+        raise OSError(f"the native library did not say lite's error kinds: {rest[:200]}")
+    return _json.loads(rest)
 
 
 def refusal_kinds() -> dict[str, str]:
-    """LITE'S ERROR KINDS, by name, as the product names them (``lite_refusal_kinds``), each name and its wire text: a
-    refusal's ``kind`` is compared with these, never with a spelling of Python's own, so a rename in the product needs
-    no edit here (the lite API spec's §3, 2026-11-17)."""
-    return {name: wire for name, (wire, _) in _kinds().items()}
+    """LITE'S ERROR KINDS, by name, as the product names them (``lite_refusal_kinds``), each name and its wire text, read
+    once: a refusal's ``kind`` is compared with these, never with a spelling of Python's own, so a rename in the
+    product needs no edit here (the lite API spec's §3, 2026-11-17)."""
+    global _KINDS
+    if _KINDS is None:
+        _KINDS = {name: said['wire'] for name, said in _said_kinds().items()}
+    return _KINDS
 
 
 def refusal_status(kind: str) -> int:
     """The HTTP status a refusal of ``kind`` (its wire text) is answered with -- the product's (``LiteV1Api.Kind``,
-    through ``lite_refusal_kinds``), never a rule of Python's own (H4's P2, the user's CP-13 of 2026-11-19: until then
-    a ``notFound`` was answered 400 here). A kind the product does not say is refused by name."""
-    for wire, status in _kinds().values():
-        if wire == kind:
-            return status
-    raise LegendError(f'an error kind this binding does not know: {kind}', error_kind('INTERNAL'))
+    through ``lite_refusal_kinds``), read once, never a rule of Python's own (H4's P2, the user's CP-13 of 2026-11-19:
+    until then a ``notFound`` was answered 400 here). A kind the product does not say is refused by name."""
+    global _STATUSES
+    if _STATUSES is None:
+        _STATUSES = {said['wire']: said['status'] for said in _said_kinds().values()}
+    if kind not in _STATUSES:
+        raise LegendError(f'an error kind this binding does not know: {kind}', error_kind('INTERNAL'))
+    return _STATUSES[kind]
 
 
 def error_kind(name: str) -> str:

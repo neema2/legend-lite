@@ -411,7 +411,7 @@ class LiteV1PlanningTest {
                 + "{\"name\":\"name\",\"metadata\":{\"legend.type\":\"String\",\"legend.multiplicity\":\"[1]\","
                 + "\"legend.slot\":\"VARCHAR\"}},"
                 + "{\"name\":\"joined\",\"metadata\":{\"legend.type\":\"StrictDate\",\"legend.multiplicity\":\"[1]\","
-                + "\"legend.slot\":\"DATE\"}}]}", LiteV1Planning.hostRunArrowFacts(plan));
+                + "\"legend.slot\":\"DATE\",\"legend.precision\":\"DAY\"}}]}", LiteV1Planning.hostRunArrowFacts(plan));
         // a plan whose root is no one statement's typed result is refused by name
         assertThrows(IllegalArgumentException.class, () -> LiteV1Planning.hostRunJson("{}", "[]"));
     }
