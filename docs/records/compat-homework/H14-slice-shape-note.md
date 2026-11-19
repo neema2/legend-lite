@@ -145,11 +145,12 @@ row, `TWO_FORMS` untouched), not this slice's.
   §13.1).
 - **Evidence:** the product test of §3, the two ledgers' moves, and PCT channel B at 1,179 of 1,249.
 
-**One question, taken to the user by the program's owner (18:33):** the layout's empty-cell token is legend-pure's `null`, while S316 (a) makes a
+**Ruled (the user, ~18:36, "Null is good", relayed by the program's owner at 18:37):** a printed table's empty cell
+reads `null` in lite's own route; S316 (a)'s `makeString` rule is unchanged. S316 (b)'s amendment carries the line.
+The question as it was put: the layout's empty-cell token is legend-pure's `null`, while S316 (a) makes a
 TDS cell's own `toString` the empty value. These are two functions with two texts. H14 kept the layout exactly
 legend-pure's (390 of PCT's 423 pass byte for byte that way), so that is not a divergence from upstream. Inside the
-product, though, the empty value prints as `null` in one place and as nothing in the other; the user may want to
-rule on it.
+product, though, the empty value prints as `null` in one place and as nothing in the other.
 
 ## 6. Size
 
