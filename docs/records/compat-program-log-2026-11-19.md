@@ -1997,3 +1997,21 @@ who confirms or changes phases 1-3.
   `tools/postgres/postgres.bzl`'s fetch integrity-pinned too). It rewrites only repo1.maven.org/maven2, Central first;
   nothing can change what a build fetches beyond the URL. Nits: the export's visibility; the experimental retries flag
   (the run proves it parses on every OS); name `postgres.bzl` in the body. The 404 answer when CI completes.
+- **~17:11 UTC, H14 DONE (V1)** (`H14-table-text-in-db.md` at `46354194` on `claude/compat-table-text-db-spike`, from
+  `main` + A5's branch; scratch; no pin moved; NO hook, switch or mode). A relation's `toString` computed by the
+  database in the product, legend-pure's `#TDS` layout, each cell the product's own scalar text, PCT channel B under
+  LITE: **DuckDB 363 of 423 byte for byte** (relation 331/365, standard 32/58; the same under BOTH and HOST; nothing else
+  moved); SQLite 352; Postgres 16 361; H2 relation 297/365. **Every DuckDB failure, two causes:** (1) a whole Float
+  without its `.0`: 27 tests (`FLOAT_TO_TEXT` trims it; the six-decimal limit never bites: no PCT table has a Float
+  beyond six decimals); (2) an abstract Date holding a time: 33 tests, 484 cells: **the product has no text for an
+  abstract Date with a time**, so its scalar `toString` falls to the database's VARCHAR cast (DuckDB, H2, Postgres
+  `2026-01-07 00:00:00`; SQLite `2026-01-07 00:00:00.000000`; PCT wants `2026-01-07T00:00:00.000+0000`): **a product
+  parity gap** (lite answers differently by database). Decimal, StrictDate, null, Boolean, Integer, String, enums,
+  Variant, order: 0 failures. Others: Postgres 2 Variant cells (jsonb key order, fail on `main` too); SQLite 11 dialect
+  refusals in the tests' own queries; H2 35 list-encoding/LATERAL/fold refusals. **The SQL** (DuckDB, 365 relation
+  tests): `main`'s edge builder 376 statements / 696,964 chars; lite's own text in the database 372 / 659,940 (5% less);
+  rows presented in Java (H11) 376 / 187,864. **Database limits:** none reached (longest table 5,471 chars; 2 of 442
+  exceed MySQL's 1,024 default, and lite's MariaDB/MySQL dialects already set `group_concat_max_len` to 1 GiB). **Side
+  effect:** the window-in-list defect is hidden again (the text in SQL wraps the relation). **Built:** a 149-line
+  `lowering/ProductRelationText` from product parts, called in place of the refusal. **Asked (17:15):** V2 (whole Float
+  `2.0`), not yet run; and the abstract Date with one product text in two variants (lite's DateTime text; legend-pure's).
