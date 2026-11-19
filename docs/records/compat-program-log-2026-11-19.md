@@ -2913,3 +2913,11 @@ who confirms or changes phases 1-3.
   choice between 1 and 2 waits on the measurement).
 - **~21:57 UTC, `claude/compat-engine-runner-storeless` pushed** on the user's word in the CI-health session (head
   `b648c377b`); its //gates:local running. Sent to the judges (merge, independent of the rest) and the reviewer.
+- **~21:58 UTC, the judges: the batch at `ea8176a49`** (pushed): A2 PR 2 merged (`ca26a09d5`), 42 of 42 targets green
+  (the core and edge sets, every pct_channel_b lane, both corpus verdicts, every freshness test). The reviewer's should,
+  measured: no plan-text request reaches InProtocol's "FreeMarker collection splice" refusal, because the dialect
+  refuses an untyped String[*] template first (4 corpus tests per lane; 0 FreeMarker refusals).
+  `InCollectionSpliceRefusalTest` pins both levels: (a) the route refuses by the dialect's message, (b) the protocol's
+  refusal directly, shown red with it removed. **Ruled here: keep both** (the dialect's refusal at planning is the
+  right first stop; InProtocol's is the loud backstop no guard proves unreachable, invariant 4). The census advisory
+  applied (DialectOwnerExclusivityTest's ExecuteInDbDuckDbTest H2 crossing 6 → 2, down, ~20:45; predates the batch).
