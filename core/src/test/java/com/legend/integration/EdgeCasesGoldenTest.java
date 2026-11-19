@@ -88,7 +88,11 @@ class EdgeCasesGoldenTest {
     @Test
     void everyCasesAnswer() throws IOException {
         StringBuilder out = new StringBuilder();
-        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+        // the platform's own engine and legend-engine's database, by role (the dialect-leak ban: a test names no
+        // database; the census's DialectLeakRatchetTest caught the names here in the compatibility program's slice 0.2,
+        // 2026-11-19): Databases.REPLAY_REFEREE is the type legend-engine's tests run on, lite's own session of it here
+        for (DatabaseType type : List.of(com.legend.database.Databases.PLATFORM,
+                com.legend.database.Databases.REPLAY_REFEREE)) {
             TestBackend backend = TestBackends.of(type);
             for (Map.Entry<String, PlanStyle> style : STYLES.entrySet()) {
                 for (Map.Entry<String, String> c : CASES.entrySet()) {
