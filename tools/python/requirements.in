@@ -14,6 +14,10 @@ anywidget==0.11.0
 # IPython's on Windows (its terminal's colours): pinned here, for the lock is resolved on macOS, where IPython does
 # not ask for it
 colorama==0.4.6
+# ipykernel's on macOS (appnope), pinned here as colorama is: the lock is resolved on macOS, where ipykernel asks for it,
+# and with it named here a resolve on Linux gives the same lock (2026-11-19: //tools/python:requirements.test, run on
+# Linux, read the lock as out of date for this package alone)
+appnope==1.0.0
 # the notebook cube's real-notebook test only (//datacube:jupyterlab_test): JupyterLab, the notebook most people run, at
 # the version the manual check passed on (docs/datacube-python-show/jupyterlab-check/)
 jupyterlab==4.6.4
