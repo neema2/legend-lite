@@ -35,20 +35,37 @@ class LegendError(Exception):
         self.raise_ = raise_
 
 
-_KINDS: dict[str, str] | None = None
+# each kind's name, its wire text and the HTTP status a refusal of it is answered with, as the product says them
+_KINDS: dict[str, tuple[str, int]] | None = None
 
 
-def refusal_kinds() -> dict[str, str]:
-    """LITE'S ERROR KINDS, by name, as the product names them (``lite_refusal_kinds``: the one Java type of §3's kinds,
-    each name and its wire text), read once: a refusal's ``kind`` is compared with these, never with a spelling of
-    Python's own, so a rename in the product needs no edit here (the lite API spec's §3, 2026-11-17)."""
+def _kinds() -> dict[str, tuple[str, int]]:
+    """LITE'S ERROR KINDS as the product says them (``lite_refusal_kinds``: the one Java type of §3's kinds,
+    ``LiteV1Api.Kind`` -- each name, its wire text and its status), read once."""
     global _KINDS
     if _KINDS is None:
         tag, _, rest = library().call('lite_refusal_kinds').partition('\n')
         if tag != 'OK':
             raise OSError(f"the native library did not say lite's error kinds: {rest[:200]}")
-        _KINDS = _json.loads(rest)
+        _KINDS = {name: (said['wire'], said['status']) for name, said in _json.loads(rest).items()}
     return _KINDS
+
+
+def refusal_kinds() -> dict[str, str]:
+    """LITE'S ERROR KINDS, by name, as the product names them (``lite_refusal_kinds``), each name and its wire text: a
+    refusal's ``kind`` is compared with these, never with a spelling of Python's own, so a rename in the product needs
+    no edit here (the lite API spec's §3, 2026-11-17)."""
+    return {name: wire for name, (wire, _) in _kinds().items()}
+
+
+def refusal_status(kind: str) -> int:
+    """The HTTP status a refusal of ``kind`` (its wire text) is answered with -- the product's (``LiteV1Api.Kind``,
+    through ``lite_refusal_kinds``), never a rule of Python's own (H4's P2, the user's CP-13 of 2026-11-19: until then
+    a ``notFound`` was answered 400 here). A kind the product does not say is refused by name."""
+    for wire, status in _kinds().values():
+        if wire == kind:
+            return status
+    raise LegendError(f'an error kind this binding does not know: {kind}', error_kind('INTERNAL'))
 
 
 def error_kind(name: str) -> str:
@@ -133,9 +150,9 @@ def user(request: dict[str, Any] | None = None) -> dict[str, str]:
 def lite_route(path: str, body: str) -> tuple[int, str]:
     """LITE'S OWN API, v1, AS A ROUTE (the spec's §2, §3, §5; the host train, 2026-11-17): ``/api/lite/v1/<operation>``
     with its request JSON, answered by the operation's native entry (``operation``) -- 200 and the answer's JSON, or
-    §3's error ``{kind, message, where?, raise?}`` with its kind's status: 422 for a run's raise (``data``), 500 for
-    ``internal``, 400 for every other (ruled 1, 3, 6). Any other path is refused in lite's shape: the old route names
-    went in one step (ruled 5). The one rule Python's server and DataCube's code in this process (_headless) answer by."""
+    §3's error ``{kind, message, where?, raise?}`` with its kind's status, the product's (``refusal_status``). Any other
+    path is refused in lite's shape: the old route names went in one step (ruled 5). The one rule Python's server and
+    DataCube's code in this process (_headless) answer by."""
     prefix = '/api/lite/v1/'
     op = path[len(prefix):] if path.startswith(prefix) else None
     if op not in OPERATIONS and op != 'user':
@@ -154,15 +171,14 @@ def lite_route(path: str, body: str) -> tuple[int, str]:
 
 
 def refused_route(refused: LegendError) -> tuple[int, str]:
-    """A refusal as lite's route answers it (the spec's §3): ``{kind, message, where?, raise?}`` and its kind's status
-    -- 422 a run's raise (``data``), 500 ``internal``, 400 every other."""
+    """A refusal as lite's route answers it (the spec's §3): ``{kind, message, where?, raise?}`` and its kind's status,
+    the product's (``refusal_status``)."""
     said: dict[str, Any] = {'kind': refused.kind, 'message': refused.message}
     if refused.where is not None:
         said['where'] = refused.where
     if refused.raise_ is not None:
         said['raise'] = refused.raise_
-    status = 422 if refused.kind == error_kind('DATA') else 500 if refused.kind == error_kind('INTERNAL') else 400
-    return status, _json.dumps(said)
+    return refusal_status(refused.kind), _json.dumps(said)
 
 
 def parse(text: str) -> Tree:

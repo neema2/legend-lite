@@ -13,7 +13,7 @@ import { describe, it } from 'node:test';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { liteServer } from '../../query-store/test/lite-server.ts';
 import { parseExact } from '../src/values.ts';
-import { liteError, LiteRefusal, type LiteErrorKind } from '../src/lite-error.ts';
+import { liteError, LITE_ERROR_STATUS, LiteRefusal, type LiteErrorKind } from '../src/lite-error.ts';
 import { LiteServer } from '../src/doors/lite-server.ts';
 
 const server = liteServer();
@@ -61,10 +61,8 @@ function shaped(shape: Readonly<Record<string, string>>, answer: unknown): boole
   });
 }
 
-/** The status a refusal of each kind is answered with over HTTP (spec §3). */
-const STATUS: Readonly<Record<LiteErrorKind, number>> = {
-  parse: 400, compile: 400, unsupported: 400, request: 400, parameters: 400, data: 422, notFound: 404, internal: 500,
-};
+/** The status a refusal of each kind is answered with over HTTP (spec §3): the product's own, generated (H4's P2). */
+const STATUS = LITE_ERROR_STATUS;
 
 /** Lite's operations, each one POST of its request to `/api/lite/v1/<op>` (spec §2). */
 const POSTED: ReadonlySet<string> = new Set(['model/check', 'model/elements', 'model/createClass', 'model/createAssociation',

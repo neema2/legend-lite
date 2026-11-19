@@ -343,9 +343,10 @@ public final class Compiler {
 
 
 
-    /** LITE'S REFUSAL KINDS by name ({@code Boundary.refusalKinds}: {@code LiteV1Api.RefusalKind}'s names and the
-     *  texts a refusal of each is folded with) -- so a host reads the kinds from the product, never from a constant of
-     *  its own (the lite API spec's §3, 2026-11-17). */
+    /** LITE'S REFUSAL KINDS by name ({@code Boundary.refusalKinds}: {@code LiteV1Api.Kind}'s names, the texts a
+     *  refusal of each is folded with and the HTTP status it is answered with) -- so a host reads the kinds and their
+     *  statuses from the product, never from a constant of its own (the lite API spec's §3, 2026-11-17; the statuses
+     *  since H4's P2, 2026-11-19). */
     @CEntryPoint(name = "lite_refusal_kinds")
     static CCharPointer refusalKinds(IsolateThread thread) {
         String a;

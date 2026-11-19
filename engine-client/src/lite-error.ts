@@ -4,11 +4,12 @@
 // and sends nothing (//engine-client:records), a product file outside legend-engine's shapes (src/legend/ is the edge's,
 // H11). No legend-engine spelling -- no PARSER, COMPILATION, code -1 or errorType -- appears here.
 
-/** The kinds (spec §3), one closed list: a kind no binding writes is refused by name. */
-// notFound (the user, 2026-11-17 ~23:31): a saved query or saved page the request names does not exist, 404
-export const LITE_ERROR_KINDS = ['parse', 'compile', 'unsupported', 'data', 'parameters', 'request', 'notFound', 'internal'] as const;
+// The kinds (spec §3), one closed list, and the HTTP status each is answered with: GENERATED from the product's own
+// (LiteV1Api.Kind; H4's P2, the user's CP-13 of 2026-11-19), never a hand list. A kind no binding writes is refused by
+// name.
+import { LITE_ERROR_KINDS, LITE_ERROR_STATUS, type LiteErrorKind } from './generated/lite-errors.ts';
 
-export type LiteErrorKind = (typeof LITE_ERROR_KINDS)[number];
+export { LITE_ERROR_KINDS, LITE_ERROR_STATUS, type LiteErrorKind };
 
 /** A refusal as every binding writes it. `where`: a position or a site, where there is one. `raise`: a data refusal's
  *  raise kind, in lower camel (`divideByZero`). */

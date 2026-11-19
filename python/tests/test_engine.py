@@ -564,7 +564,9 @@ class HostRoutesConformance(unittest.TestCase):
                 else:
                     said = engine.answer('POST', path, '', json.dumps(case['request']))
                 if 'refusal' in case:
-                    self.assertGreaterEqual(said.status, 400, said.body[:300])
+                    # its kind, answered with that kind's status exactly -- the product's (H4's P2, 2026-11-19: until
+                    # then any status from 400 up passed here)
+                    self.assertEqual(said.status, ll.compiler.refusal_status(case['refusal']['kind']), said.body[:300])
                     self.assertEqual(json.loads(said.body)['kind'], case['refusal']['kind'])
                 else:
                     self.assertEqual(said.status, 200, said.body[:300])

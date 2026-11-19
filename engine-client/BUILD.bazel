@@ -37,6 +37,8 @@ _RECORDS = [
     # the raises the plans declare (phase D's option (D), 2026-11-15): a plan reader of either side declares them, the
     # run side words a failure from them -- no send, no plan
     "src/declared-raises.ts",
+    # lite's error kinds and their statuses (H4's P2, 2026-11-19), generated: the record lite-error.ts reads
+    "src/generated/lite-errors.ts",
     "src/generated/lite-facts.ts",
     # a product raise's envelope marks (#104's M2(b)): facts both sides may read
     "src/generated/lite-raise.ts",
@@ -375,7 +377,8 @@ legend_java_library(
     srcs = ["tools/typefacts/TypeFacts.java"],
     # a product raise's envelope (#104's M2(b), 2026-11-15): exec.RaisedErrors's marks and sql.RaiseKind's; its words
     # are the plans' own since 2026-11-15 (PlanJson.raises, phase D's option (D)), so error.ErrorKind is not read here
-    deps = ["//core:compiler_element_type", "//core:exec", "//core:sql"],
+    # lite's error kinds and their statuses (H4's P2, 2026-11-19): server.LiteV1Api.Kind
+    deps = ["//core:compiler_element_type", "//core:exec", "//core:lite_v1", "//core:sql"],
 )
 
 java_run(
@@ -402,6 +405,19 @@ java_run(
     deps = [":type_facts_main"],
 )
 
+# lite's error kinds and the HTTP status each is answered with (H4's P2, the user's CP-13 of 2026-11-19), a module of
+# their own that lite-error.ts reads: never a hand list
+java_run(
+    name = "lite_errors",
+    outs = ["generated/lite-errors.gen.ts"],
+    arguments = [
+        "errors-ts",
+        "{OUT}",
+    ],
+    main_class = "typefacts.TypeFacts",
+    deps = [":type_facts_main"],
+)
+
 # the same table for Python's reading of a column's type (python/legend_lite/_types.py,
 # docs/PYTHON_ASKS_DATACUBE_2026_10_15.md item 4): committed and diff-tested by //python:update_generated
 java_run(
@@ -420,6 +436,7 @@ write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact the engine client mirrors -- regenerate: bazel run //engine-client:update_generated, then read the diff (a changed Pure kind or pivot separator changes what a grid shows)",
     files = {
+        "src/generated/lite-errors.ts": ":lite_errors",
         "src/generated/lite-facts.ts": ":lite_facts",
         "src/generated/lite-raise.ts": ":lite_raise",
     },

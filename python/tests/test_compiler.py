@@ -141,6 +141,18 @@ class TheProductsKinds(unittest.TestCase):
         # a parse refusal says where (its position), and raised nothing (no raise_: the spec's §3)
         self.assertEqual((refused.exception.where, refused.exception.raise_), ('[1:5]', None))
 
+    def test_a_refusal_is_answered_with_its_kinds_status_the_products(self):
+        # H4's P2 (the user's CP-13, 2026-11-19): the status is the product's (LiteV1Api.Kind, through
+        # lite_refusal_kinds), never a rule of Python's -- whose 422/500/else-400 answered a notFound with 400
+        from legend_lite import compiler
+        status, said = compiler.refused_route(ll.LegendError('no such query', compiler.error_kind('NOT_FOUND')))
+        self.assertEqual((status, json.loads(said)), (404, {'kind': 'notFound', 'message': 'no such query'}))
+        self.assertEqual({compiler.refusal_status(wire) for wire in compiler.refusal_kinds().values()} - {400, 404, 422, 500},
+                         set())
+        with self.assertRaises(ll.LegendError) as unknown:
+            compiler.refusal_status('guessed')
+        self.assertEqual(unknown.exception.kind, compiler.error_kind('INTERNAL'))
+
 
 # the suite's operations a host serves on its own routes, which test_engine's HostRoutesConformance reads
 HOST_ROUTES = frozenset({'query/run', 'queries/get', 'queries/dataCube/get'})

@@ -365,6 +365,8 @@ legend_java_library(
 # fence (ConnectionResolver.runner(sources); ConnectionResolver.RUNNER is the library's, any file).
 legend_java_library(
     name = "lite_v1",
+    # //engine-client: the generator of lite's error kinds and their statuses (TypeFacts errors-ts; H4's P2, 2026-11-19)
+    visibility = ["//engine-client:__pkg__"],
     srcs = [
         "src/main/java/com/legend/server/CreateAssociation.java",
         "src/main/java/com/legend/server/CreateClass.java",
