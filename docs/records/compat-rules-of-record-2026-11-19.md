@@ -18,6 +18,36 @@ pieces and this program relitigated them.
 And, the same afternoon: **"legend lite tenet is java orchestrates and database does the work, upstream is not our
 implementation guide"** (~15:10) and **"everything must be pushed to database"** (~15:05).
 
+## The six tenets (adopted by the user, 2026-11-19 ~16:40 UTC: "Adopt tenets yes")
+
+Each has a test, so it cannot quietly erode.
+
+1. **The database computes.** Every value a program produces is computed by the database: numbers, `toString()` and
+   `format()` text, an error's values, product verdicts. *Test:* could this value differ from one row to the next? Then
+   the database computes it.
+2. **Java orchestrates and decides nothing about a value.** It plans, sends the statements, carries typed results and
+   serializes them; product presentation never chooses, rounds, reorders or rewords. *Test:* does this Java change what
+   a value is, or only how it is written on the wire?
+3. **Compatibility re-spells, never re-computes.** At the edge, Java may change how lite's typed output is written to
+   match legend-pure or legend-engine. If upstream's value differs, that is a meaning difference: answered Pure's way
+   and recorded. *Test:* would this fix change the answer for some input, not just its spelling?
+4. **Upstream is the spec of the answer, never the design.** *Test:* is the reason for a design "upstream does it that
+   way"? Then stop. Where a tenet and upstream fidelity conflict, the tenet wins and the difference is recorded.
+5. **Two judges in the product, one in compatibility.** In the product the database judge and the host judge implement
+   the same rules independently and must agree; the host judge is the one Java comparison allowed, because its
+   independence catches bugs. Compatibility uses the host judge alone.
+6. **No modes in the core.** The core never branches on who is asking; differences between audiences live only at the
+   door (input) and in the presenters (output).
+
+**Two readings ruled the same minute:**
+- **Folds** ("Folds okay"): the compiler may fold **constants and facts fixed by the types, never row data**. That
+  covers constant text and Boolean, Integer constants (including `substring`'s position arithmetic), a list's size
+  fixed by its type, and a query's column layout worked out from constants. Anything that could differ between rows is
+  the database's.
+- **Error records** ("Error records yes"): a raised error's record (its kind, its place and the program's own constants,
+  and later the database's typed values) is lite's typed output, so compatibility may word upstream's sentence in Java
+  from it (tenet 3).
+
 ## What they mean, concretely
 
 | Rule | In the product (lite's own route) | In compatibility (the legend-pure and legend-engine routes) |

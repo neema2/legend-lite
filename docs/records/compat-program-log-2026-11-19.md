@@ -34,6 +34,8 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~15:20 | "Yes to your rule / The host judge is the only exception bc I want to keep that in java for the product and it gets reused in compatibility mode as the only judge / Isn't this all the handoff/getting started? Have we lost that context? I thought we had this decided as part of the plan already / I'm worried we keep relitigating / Maybe we need to write these down in a consolidated way/doc? / Database calculates everything (there is some compiler fold rules for constant string and boolean) including format and tostring / Presentation is thin layer - in product it does not get to do anything but just serialize values correctly / Presentation is compatibility does all the pure or engine fixes in java it's allowed to do those in java to match pure/engine upstream but only from output of typed values from lite / Host judge is only judge in compatibility, database and host both in product with carve out that host is allowed to compare / This really isn't in the handoff doc? Or written as the goal/plan?" | **The four rules of record**, written in `docs/records/compat-rules-of-record-2026-11-19.md`: the database computes everything (folds for constant String and Boolean only), format and toString included; product presentation only serializes; compatibility presentation fixes upstream's output in Java from lite's typed values only; the host judge is the only judge in compatibility, both judges in the product. Every brief and review checks against it first |
 
+| ~16:40 | "Adopt tenets yes / Folds okay / Error records yes / Let's show steps of A again now that we are ready to go" | The six tenets adopted (written into the rules of record). Folds: the compiler may fold constants and facts fixed by the types, never row data (so `substring`'s index arithmetic stays a compile-time fold). Error records: a raised error's record is lite's typed output, so compatibility words upstream's sentences in Java from it (B1 stands) |
+
 **Superseded ~13:25:** **Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
 each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
 being built by the product's judges track (C3).
@@ -1925,3 +1927,7 @@ who confirms or changes phases 1-3.
   row until A4; (b3) hold for A4. **This session's call (16:35): (b1)**, the growth being in test plans' judge statements
   only, never a product plan; stop if any lane's time grows more than ~10%; the ratchet moves in the PR body for the
   user's word.
+- **~16:40 UTC, THE USER adopted the six tenets, ruled folds ("constants and facts fixed by the types, never row data")
+  and error records (yes)** (recorded in §1; the rules of record gain the tenets and both readings). A3's `substring`
+  index arithmetic stays a compile-time fold; B1 stands. The user asked to see stage A's steps again, "now that we are
+  ready to go".
