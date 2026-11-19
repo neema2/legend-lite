@@ -2640,3 +2640,10 @@ who confirms or changes phases 1-3.
   session's rules accept a relayed word, else keeps its ask there. The user's 10:45 ruling already lets program sessions
   push their own `claude/compat-*` branches; three sessions' own start instructions or permission checks require the
   word in their session.
+- **~20:40 UTC, the CI-health worker: the memo holds the referee's TEXT only** (`37ef44ff0`, amended locally, not
+  pushed). All four classes use only the serialized form, so the engine's object is let go; each element's text held
+  once and the whole model's JSON rebuilt as its exact bytes. **284.7 s → 168.8 s (−41%)**; live peak 616-665 → 827
+  MB; peak before a collection 2,328-2,337 → 2,429 MB of 2,816 (lower than the object memo's 2,548). Proof against
+  `main`: the same 45 testcases and outcomes; 22 of 23 outputs byte-identical (the 23rd an unasserted diagnostic); both
+  plants fail the same testcases with identical messages. It pushes and sends the reviewer the proof once the push is
+  allowed.
