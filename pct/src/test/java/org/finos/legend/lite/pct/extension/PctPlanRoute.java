@@ -80,7 +80,7 @@ final class PctPlanRoute {
                 java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
-        // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
+        // planned in the edge's style, a raise answered in the words its site carries (K10, 2026-11-18; K1, S1, 2026-11-19)
         ExecutionPlan plan = com.legend.edge.RaisedWords.run(com.legend.edge.Modes.PURE.computation(), style ->
                 com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full

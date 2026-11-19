@@ -30,7 +30,8 @@ import java.util.TreeMap;
  * §6): no code may branch on which mode a plan is in outside the mode records. Until S1m makes the modes data, this
  * census counts today's branches on "which edge style" (§2.7) by their call sites in the product's and the edge's
  * jars, and writes them to {@code mode_branch_census.txt} in the test's outputs: {@code PureText.isEdgeStyle},
- * {@code PlanStyle.judgesEngineText}, {@code PureText.recording}'s template check, and the {@code
+ * {@code PlanStyle.judgesEngineText} (S1, 2026-11-19: {@code PureText.recording}'s template check went with the
+ * recorder), and the {@code
  * Boolean.getBoolean} switches (the engine scan order's among them). It fails only when it cannot see a planted
  * branch; it blocks from S7, when every branch is gone.
  */
@@ -41,7 +42,6 @@ class ModeBranchCensusTest {
     static final List<String> BRANCHES = List.of(
             "com.legend.edge.PureText.isEdgeStyle",
             "com.legend.database.PlanStyle.judgesEngineText",
-            "com.legend.edge.PureText.recording",
             "java.lang.Boolean.getBoolean");
 
     /** Each branch's call sites ({@code Class.method(line)}) in {@code classes}, the planted class's left out. */

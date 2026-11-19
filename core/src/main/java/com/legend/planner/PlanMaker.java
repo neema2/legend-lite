@@ -1036,22 +1036,29 @@ public final class PlanMaker {
         // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
         SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
         // the raise sites its render wrote, planned: each token's kind, where and product words (phase D's Phase 2,
-        // 2026-11-16), the statement and its sites offered to the plan's style (K10b, 2026-11-17)
+        // 2026-11-16), and the style's data of them beside the statement (K1, S1, 2026-11-19: an upstream mode's words)
         return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content)
-                .raising(sites(rendered.sql(), rendered.sites(), style));
+                .raising(sites(rendered.sites(), style));
     }
 
-    /** The raise sites a dialect's render wrote into the statement {@code text} ({@code sql.dialect.RaiseSite}),
+    /** The raise sites a dialect's render wrote into a statement or a CSV reading ({@code sql.dialect.RaiseSite}),
      *  PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16): each one's product sentence its kind's and its where
-     *  ({@link ExecutionPlan.Site#sentence}). The statement and its sites are offered to {@code style}, the plan's
-     *  ({@code database.PlanStyle#siteWords}: the product's records nothing; the compatibility edge's recorder words
-     *  them as its own data; K10b of the edge audit, 2026-11-17). */
-    public static List<ExecutionPlan.Site> sites(String text, List<com.legend.sql.dialect.RaiseSite> written,
+     *  ({@link ExecutionPlan.Site#sentence}), and the plan style's data of it, its two-form {@link SiteFacts}'s (K1 of
+     *  the presentation program, S1, 2026-11-19: none in the product's form, an upstream mode's words in the edge's;
+     *  until then each statement was offered to the style's recorder, which kept the words beside the plan). */
+    public static List<ExecutionPlan.Site> sites(List<com.legend.sql.dialect.RaiseSite> written,
             com.legend.database.PlanStyle style) {
-        style.siteWords(text, written);
+        SiteFacts facts = style.twoForm(SiteFacts.class, NO_SITE_FACTS);
         return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
-                ExecutionPlan.Site.sentence(w.kind(), w.where()))).toList();
+                ExecutionPlan.Site.sentence(w.kind(), w.where()), facts.of(w))).toList();
     }
+
+    /** {@link SiteFacts}' product form: lite's plan carries no upstream words of a site, whose message is lite's own
+     *  sentence ({@link ExecutionPlan.Site#message}). */
+    static final SiteFacts NO_SITE_FACTS = written -> {
+        java.util.Objects.requireNonNull(written, "the raise site");
+        return List.of();
+    };
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database
      *  refuses it ({@link ExecutionPlan.Binding.Payload#label}: the database splits the payload itself, so its refusal --

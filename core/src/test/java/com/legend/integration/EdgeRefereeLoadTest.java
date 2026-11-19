@@ -12,7 +12,7 @@ import com.legend.executionplan.DataStores;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.setup.LoadSteps;
 import com.legend.edge.RawSqlBoundary;
-import com.legend.testexecutionplan.Extension;
+import com.legend.executionplan.Extension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

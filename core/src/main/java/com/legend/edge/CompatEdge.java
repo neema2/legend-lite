@@ -8,7 +8,7 @@ import com.legend.executionplan.DataStores;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.edge.RawSqlBoundary;
 import com.legend.testexecutionplan.Edge;
-import com.legend.testexecutionplan.Extension;
+import com.legend.executionplan.Extension;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,16 +53,6 @@ public final class CompatEdge implements Edge {
     @Override
     public List<Extension> seed(List<ExecutionPlan.LoadStep> steps, Map<String, String> content) {
         return List.of(new RefereeLoad(steps, content));
-    }
-
-    /** legend-pure's words of a statement's raise sites, planned as recorded (K10, 2026-11-17): the edge's own records
-     *  ({@link SiteWords}), one per site, keyed by the statement's step-local index {@code at} (the K10 trim,
-     *  2026-11-18). */
-    @Override
-    public List<Extension> siteWords(int at, Map<Integer, String> words) {
-        List<Extension> out = new ArrayList<>(words.size());
-        words.forEach((n, w) -> out.add(new SiteWords(at, n, w)));
-        return List.copyOf(out);
     }
 
     @Override

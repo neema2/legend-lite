@@ -94,16 +94,12 @@ class OpenClassMembersTest {
                     // J41 (F's a3c165df4a, train 14): textsHeld(Extension) -> gate(Extension, Supplier), the edge's
                     // engine-text arm answering its own database gate (TextsHeld became DatabaseGate); re-pinned
                     // 2026-11-18 on train 15 1931d419b1 by the GUARD stream's re-cut -- one member for one
-                    "public abstract com.legend.testplan.DatabaseGate gate(com.legend.testexecutionplan.Extension, java.util.function.Supplier<java.lang.String>)",
+                    "public abstract com.legend.testplan.DatabaseGate gate(com.legend.executionplan.Extension, java.util.function.Supplier<java.lang.String>)",
                     "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)",
                     // K10b of the edge audit (the orchestrator's ruling (A) of 2026-11-17; host train, pinned 2026-11-18
-                    // for train 19): a fresh recorder of one body's planning call, the test door's one read of its
-                    // raise-site words, and a required side's no-rows refusal in legend-pure's words (moved here from
-                    // the style: a site's words are no member of the product's style)
-                    "public abstract com.legend.database.PlanStyle recording(com.legend.database.PlanStyle)",
-                    // (siteWords' records keyed by the step-local index, no statement text: the host train's K10 trim,
-                    // 1a96dbd2d, 2026-11-18)
-                    "public abstract java.util.Map<java.lang.String, java.util.Map<java.lang.Integer, java.lang.String>> siteWords(com.legend.database.PlanStyle)",
+                    // for train 19): a required side's no-rows refusal in legend-pure's words (moved here from the
+                    // style). (recording and siteWords, the recorder's two members: gone 2026-11-19 with S1 of the
+                    // presentation program, K1 -- a site's words are its own planned record)
                     "public abstract java.lang.String sizeWords(java.lang.String)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(
@@ -149,7 +145,7 @@ class OpenClassMembersTest {
                     "public static com.legend.testplan.TextCollector collector(com.legend.testplan.BodyDriver$ExecEnv)",
                     "public static com.legend.testplan.TextPlanned planned(com.legend.testplan.HostSides$Check)",
                     "public static com.legend.testplan.VerdictBatch verdictBatch(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "public static int appeal(com.legend.testplan.BodyDriver$ExecEnv, java.util.function.IntFunction<com.legend.testexecutionplan.Extension>)",
+                    "public static int appeal(com.legend.testplan.BodyDriver$ExecEnv, java.util.function.IntFunction<com.legend.executionplan.Extension>)",
                     "public static java.lang.String calleeFqn(com.legend.compiler.spec.typed.TypedSpec)",
                     "public static java.lang.String inZone(java.lang.String, java.lang.String)",
                     "public static java.lang.String isoTimestamp(com.legend.values.PureDateLiteral)",

@@ -2200,7 +2200,7 @@ final class ArchitectureTest {
         java.util.List<String> outside = new java.util.ArrayList<>();
         int providers = 0;
         java.util.Enumeration<java.net.URL> files = ArchitectureTest.class.getClassLoader()
-                .getResources("META-INF/services/" + com.legend.testexecutionplan.ExtensionCodec.class.getName());
+                .getResources("META-INF/services/" + com.legend.executionplan.ExtensionCodec.class.getName());
         while (files.hasMoreElements()) {
             java.net.URL file = files.nextElement();
             try (var in = file.openStream()) {
@@ -2395,7 +2395,7 @@ final class ArchitectureTest {
             java.io.Writer.class, java.io.OutputStream.class,
             // EdgeRun: the referee's slot retyped (census C2, 2026-11-17: the referee's slot retyped, the orchestrator's P2)
             com.legend.testexecutionplan.Edge.class, com.legend.testexec.EdgeRun.class,
-            com.legend.testexecutionplan.Extension.class, com.legend.exec.Sessions.Opener.class,
+            com.legend.executionplan.Extension.class, com.legend.exec.Sessions.Opener.class,
             com.legend.exec.Sessions.Session.class);
 
     private static void takesData(java.lang.reflect.Type t, String where, java.util.Set<Class<?>> seen,

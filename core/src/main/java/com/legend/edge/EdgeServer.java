@@ -36,7 +36,7 @@ public final class EdgeServer {
     /** The run of an upstream execute: the product's door, planned in the edge's dialects, its file: sources fenced
      *  to {@code sources} as the server's own runner fences them. */
     public static Shipped runner(@com.legend.base.Nullable String sources) {
-        // planned in a fresh recorder of the style, a raise answered in legend-pure's words (K10, 2026-11-18)
+        // planned in the style, a raise answered in the words its site carries (K10, 2026-11-18; K1, S1, 2026-11-19)
         return (query, runtime, output) -> RaisedWords.run(Modes.ENGINE.computation(),
                 style -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources, style, output));
     }

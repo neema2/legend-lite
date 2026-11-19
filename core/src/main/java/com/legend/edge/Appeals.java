@@ -73,9 +73,6 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
 
     /** The plan's appeals by number (its own data, step 8b) and the referee that replays a golden, or none. */
     private final Map<Integer, Appeal> planned;
-    /** legend-pure's words of the plan's raise sites, by statement text and number (K10b, 2026-11-17: the plan's
-     *  records, held at the steps that send their statements). */
-    private final Map<String, Map<Integer, String>> siteWords;
     private final @Nullable SqlReplayReferee referee;
 
     /** {@code plan}'s appeals heard for one run, its reports to {@code listener}, decided by {@code referee}. A plan
@@ -84,7 +81,6 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
             @Nullable SqlReplayReferee referee) {
         PlannedAppeals.requireCarried(plan);
         this.planned = PlannedAppeals.byNumber(plan);
-        this.siteWords = siteWordsOf(plan);
         this.referee = referee;
         this.execution = java.util.Objects.requireNonNull(execution, "execution");
         this.listener = listener;
@@ -101,49 +97,6 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
     public TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged j, List<TypedSide> sides,
             boolean messaged) {
         return SqlTextRuns.judge((EngineTextJudgment) j.judgment(), j.appeal(), sides, this, messaged);
-    }
-
-    /** The plan's records of its raise sites' words, by statement text and number: each record's text read back from
-     *  the step that holds it, at its index among the texts the step sends ({@link TestPlan#sentTexts}; the K10 trim,
-     *  2026-11-18); an index the step does not send, or two records of one key with different words, refused by name
-     *  (the recorder refuses the latter at planning; a plan read from elsewhere is checked). */
-    private static Map<String, Map<Integer, String>> siteWordsOf(TestPlan plan) {
-        Map<String, Map<Integer, String>> out = new java.util.HashMap<>();
-        plan.extensionsByStep().forEach((step, records) -> {
-            List<String> texts = null;
-            for (com.legend.testexecutionplan.Extension e : records) {
-                if (e instanceof SiteWords w) {
-                    if (texts == null) {
-                        texts = TestPlan.sentTexts(plan.steps().get(step));
-                    }
-                    if (w.at() >= texts.size()) {
-                        throw new IllegalStateException("a test plan words a raise site of statement " + w.at()
-                                + " of step " + step + ", which sends " + texts.size() + " statement(s)");
-                    }
-                    String text = texts.get(w.at());
-                    String held = out.computeIfAbsent(text, t -> new java.util.HashMap<>()).putIfAbsent(w.n(),
-                            w.words());
-                    if (held != null && !held.equals(w.words())) {
-                        throw new IllegalStateException("a test plan words raise site " + w.n() + " of one statement"
-                                + " twice ('" + held + "' and '" + w.words() + "'): " + text);
-                    }
-                }
-            }
-        });
-        return out;
-    }
-
-    /** legend-pure's words of site {@code n} of {@code statement}, as the plan holds them; none refused by name. */
-    @Override
-    public String raisedWords(String statement, int n) {
-        Map<Integer, String> byN = siteWords.get(statement);
-        String words = byN == null ? null : byN.get(n);
-        if (words == null) {
-            throw new IllegalStateException("legend-pure's words of raise site " + n + " of a statement the plan"
-                    + " words no site of that number of (its operands not literals the edge words at planning, or the"
-                    + " statement none of the plan's steps sends): " + statement);
-        }
-        return words;
     }
 
     @Override

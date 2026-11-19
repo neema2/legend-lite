@@ -57,13 +57,6 @@ public record PlanningOptions(
 
     /** These options with the program's statements written in {@code d}'s dialects (the spelling hook, D1.0: the
      *  compatibility edge's, {@code com.legend.edge.PureText}, for PCT and the corpus). */
-    /** These options for ONE TEST BODY'S PLANNING CALL (K10b of the edge audit, 2026-11-17): the style a fresh
-     *  recorder of its raise sites' words where it is the compatibility edge's ({@link EngineTextGates#planningCall}),
-     *  read once by the test door; the product's style as it is. Asked by the test planner at the call's start alone. */
-    PlanningOptions forOnePlanningCall() {
-        return new PlanningOptions(edge, stores, features, judgeMode, options, EngineTextGates.planningCall(style));
-    }
-
     public PlanningOptions withStyle(com.legend.database.PlanStyle d) {
         return new PlanningOptions(edge, stores, features, judgeMode, options, d);
     }

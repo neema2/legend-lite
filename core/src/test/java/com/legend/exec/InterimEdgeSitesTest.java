@@ -35,12 +35,10 @@ class InterimEdgeSitesTest {
             "|#>{s::DB.T}#->extend(~r: r|sqrt(-1.0))->select(~r)",
             "|#>{s::DB.T}#->extend(~r: r|[1, 2, 3]->at($r.D))->select(~r)");
 
-    /** {@code query} planned in a fresh recorder of the edge's style on DuckDB (planning alone, no database), and the
-     *  words of its raise sites the recorder kept (K10b, 2026-11-17: the edge's records, read once after the planning). */
-    private record Planned(ExecutionPlan plan, java.util.Map<String, java.util.Map<Integer, String>> words) {
-    }
-
-    private static Planned planned(String query) {
+    /** {@code query} planned in the edge's style on DuckDB (planning alone, no database): each raise site carrying
+     *  the edge's words of it (K1 of the presentation program, S1, 2026-11-19: until then a recorder kept them beside
+     *  the plan). */
+    private static ExecutionPlan planned(String query) {
         String model = """
                 ###Relational
                 Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, D INTEGER NOT NULL ) )
@@ -55,11 +53,8 @@ class InterimEdgeSitesTest {
                 ###Runtime
                 Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
                 """;
-        com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
-                com.legend.edge.PureText.UPSTREAM);
-        ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query)
-                .executionPlan("s::RT", java.util.Set.of(), recording);
-        return new Planned(plan, recording.read());
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query)
+                .executionPlan("s::RT", java.util.Set.of(), com.legend.edge.PureText.UPSTREAM);
     }
 
     @Test
@@ -68,7 +63,7 @@ class InterimEdgeSitesTest {
         int worded = 0;
         int sites = 0;
         for (String query : QUERIES) {
-            Planned planned;
+            ExecutionPlan planned;
             try {
                 planned = planned(query);
             } catch (com.legend.sql.DialectCapability | com.legend.error.NotImplementedException
@@ -76,12 +71,11 @@ class InterimEdgeSitesTest {
                 interim.add("REFUSED " + query + ": " + refused.getMessage());
                 continue;
             }
-            for (ExecutionPlan.Sql sql : statements(planned.plan().root())) {
+            for (ExecutionPlan.Sql sql : statements(planned.root())) {
                 sites += sql.sites().size();
-                java.util.Set<Integer> worded_ = planned.words().getOrDefault(sql.statement(), java.util.Map.of())
-                        .keySet();
                 for (ExecutionPlan.Site site : sql.sites()) {
-                    assertTrue(worded_.contains(site.n()), "the edge's recorder words every edge site: " + site);
+                    assertTrue(site.extensions().stream().anyMatch(e -> e instanceof com.legend.edge.SiteWords),
+                            "the edge words every edge site at planning: " + site);
                 }
                 if (sql.tree() == null) {
                     continue;

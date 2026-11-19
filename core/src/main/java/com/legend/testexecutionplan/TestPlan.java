@@ -3,11 +3,12 @@
 
 package com.legend.testexecutionplan;
 
-import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.ExecutionPlan.Column;
 import com.legend.executionplan.ExecutionPlan.Keyed;
 import com.legend.executionplan.ExecutionPlan.Node;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.Extension;
 
 import java.util.List;
 import java.util.Map;

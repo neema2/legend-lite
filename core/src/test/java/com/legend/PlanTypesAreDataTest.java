@@ -62,7 +62,7 @@ class PlanTypesAreDataTest {
     private static List<Class<?>> extensionImplementations() {
         List<Class<?>> out = new java.util.ArrayList<>();
         for (var c : new com.tngtech.archunit.core.importer.ClassFileImporter().importPackages("com.legend")) {
-            if (!c.isInterface() && c.isAssignableTo(com.legend.testexecutionplan.Extension.class)) {
+            if (!c.isInterface() && c.isAssignableTo(com.legend.executionplan.Extension.class)) {
                 out.add(c.reflect());
             }
         }
@@ -135,7 +135,7 @@ class PlanTypesAreDataTest {
                         // a data type already walked: its components were judged on its first path
                         continue;
                     }
-                    if (c == com.legend.testexecutionplan.Extension.class) {
+                    if (c == com.legend.executionplan.Extension.class) {
                         // the edge's records (2.10, guard 1): every implementation on the classpath, each walked as
                         // the plan's data -- an extension point implemented by anything but data fails here
                         for (Class<?> impl : extensionImplementations()) {

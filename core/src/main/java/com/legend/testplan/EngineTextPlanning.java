@@ -80,7 +80,7 @@ import java.util.List;
     /** The edge's record numbered in the body: {@code numbered} makes it, given its number (census C2, 2026-11-17:
      *  the product holds the edge's records by number, no appeal type). */
     public static int appeal(BodyDriver.ExecEnv env,
-            java.util.function.IntFunction<com.legend.testexecutionplan.Extension> numbered) {
+            java.util.function.IntFunction<com.legend.executionplan.Extension> numbered) {
         return env.appeals().add(numbered);
     }
 

@@ -1234,8 +1234,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
      * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
      * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
-     * with its kind, its where and its operands (no words: the plan's style is offered the statement's sites where the
-     * planner makes it, {@code database.PlanStyle#siteWords}; K10b, 2026-11-17). A raise written outside a statement's
+     * with its kind, its where and its operands (no words: the planner plans each site with the plan style's data of
+     * it, {@code planner.SiteFacts}; K1, S1, 2026-11-19). A raise written outside a statement's
      * render has no table to declare it, refused by name.
      */
     protected final SqlExpr site(SqlExpr.RaiseText r) {

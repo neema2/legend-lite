@@ -3,6 +3,7 @@
 package com.legend.testexecutionplan;
 
 import com.legend.base.Nullable;
+import com.legend.executionplan.Extension;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

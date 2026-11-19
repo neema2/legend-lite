@@ -170,7 +170,7 @@ final class EdgeEngineTestText implements EngineTestText {
      *  text alone), so two equal texts read no store.</li>
      *  </ul> */
     @Override
-    public com.legend.testplan.DatabaseGate gate(com.legend.testexecutionplan.Extension judgment,
+    public com.legend.testplan.DatabaseGate gate(com.legend.executionplan.Extension judgment,
             java.util.function.Supplier<String> shape) {
         EngineTextJudgment e = (EngineTextJudgment) judgment;
         if (e.golden() == null) {
@@ -200,24 +200,6 @@ final class EdgeEngineTestText implements EngineTestText {
                 : ((com.legend.compiler.spec.typed.TypedNativeCall) bare).args();
         return reachesUpstreamText(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS,
                 com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs), letPrefix, specs);
-    }
-
-    /** A fresh recorder over {@code template} ({@link PureText#recording}). */
-    @Override
-    public com.legend.database.PlanStyle recording(com.legend.database.PlanStyle template) {
-        return PureText.recording(template);
-    }
-
-    /** The door's one read of {@code recording}, a recorder this facet minted; any other style refused by name. */
-    @Override
-    public java.util.Map<String, java.util.Map<Integer, String>> siteWords(
-            com.legend.database.PlanStyle recording) {
-        if (!(recording instanceof SiteWordsRecorder r)) {
-            throw new IllegalStateException("the raise sites' words of a body planned in "
-                    + recording.getClass().getName() + ", which records none: a test body under the compatibility"
-                    + " edge's style is planned in a fresh recorder (EngineTestText.recording)");
-        }
-        return r.read();
     }
 
     /** legend-pure's sentence of a SIZE_NOT_MULTIPLICITY site whose bound is {@code multiplicity}. */

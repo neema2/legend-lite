@@ -5,6 +5,7 @@ package com.legend.testexecutionplan;
 
 import com.legend.base.Nullable;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.Extension;
 import com.legend.json.Json;
 
 import java.util.ArrayList;

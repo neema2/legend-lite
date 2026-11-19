@@ -138,7 +138,7 @@ public final class TestDoor {
         // the ledger texts are the compatibility edge's to plan, by the step's index (the plan-as-data design's step 8,
         // 2.7: a recorder implies the compatibility rules); a run whose hook records no ledger (the product's NoEdge)
         // plans none
-        Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
+        Map<Integer, List<com.legend.executionplan.Extension>> byStep = new LinkedHashMap<>();
         if (edge.records()) {
             unseededLoads(planned, seeds);
             effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
@@ -147,11 +147,6 @@ public final class TestDoor {
                 com.legend.setup.LoadSteps referee = copy.get();
                 byStep.put(i, edge.seed(referee.steps(), referee.content()));
             });
-            // legend-pure's words of the raise sites this planning call's style recorded (K10 of the edge audit, the
-            // orchestrator's ruling (A) of 2026-11-17), read ONCE, after the planning above, planned by the edge and
-            // held at the step that sends their statement; a run whose hook records nothing judges by lite's rules,
-            // whose words are its own, and plans none
-            siteWordsByStep(steps, EngineTextGates.siteWords(style), byStep, edge);
         }
         // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
         // (the slice 2 invariant audit's hole 3, 2026-11-08)
@@ -165,32 +160,6 @@ public final class TestDoor {
                 style.twoForm(com.legend.lowering.VerdictWords.class,
                         com.legend.lowering.LiteVerdictWords.INSTANCE).name());
         return plan.withAnswerSizeWords(answerSizeWords(plan, style));
-    }
-
-    /** Each statement text's records of its raise sites' words ({@code words}) held at the first of {@code steps} that
-     *  sends that text, beside the step's other records, keyed by the text's step-local index among the statements the
-     *  step sends ({@link TestPlan#sentTexts}; the K10 trim, 2026-11-18: the plan carries no statement's text twice). A
-     *  text no step sends is never run, so never raises: its records are not the plan's. */
-    private static void siteWordsByStep(List<TestPlan.TestStep> steps, Map<String, Map<Integer, String>> words,
-            Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep,
-            com.legend.testexecutionplan.Edge edge) {
-        if (words.isEmpty()) {
-            return;
-        }
-        java.util.Set<String> filed = new java.util.HashSet<>();
-        for (int i = 0; i < steps.size(); i++) {
-            List<String> texts = TestPlan.sentTexts(steps.get(i));
-            for (int at = 0; at < texts.size(); at++) {
-                String text = texts.get(at);
-                Map<Integer, String> records = words.get(text);
-                if (records != null && filed.add(text)) {
-                    List<com.legend.testexecutionplan.Extension> held = new java.util.ArrayList<>(
-                            byStep.getOrDefault(i, List.of()));
-                    held.addAll(edge.siteWords(at, records));
-                    byStep.put(i, held);
-                }
-            }
-        }
     }
 
     /** The body's answer's refusal of no rows, worded at planning as {@code style} words it (C5's step E, 2026-11-17):

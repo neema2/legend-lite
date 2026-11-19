@@ -48,10 +48,9 @@ class HookRulingTest {
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), false),
-                    () -> productHearing().rowAppealed(0, List.of(), false),
-                    // K10b, 2026-11-17 (the orchestrator's ruling (A)): legend-pure's words of a planned raise site, looked
-                    // up in the plan's edge records -- the hearing's member, refused by the product's by name
-                    () -> productHearing().raisedWords("SELECT 1", 1))),
+                    () -> productHearing().rowAppealed(0, List.of(), false))),
+                    // (raisedWords, legend-pure's words of a planned raise site looked up in the plan's edge records:
+                    // gone 2026-11-19 with S1 of the presentation program, K1 -- the raised site carries its words)
             // (com.legend.testexec.PureWords, C5's step B's hook: deleted 2026-11-18, census J29 -- the host judge's
             // words are the run's HostWords, lite's form the product's and legend-pure's the edge's, never refused)
             // census C1, 2026-11-17 (the orchestrator's ruling that day: the edge hook typed, the product's refusal
@@ -60,9 +59,9 @@ class HookRulingTest {
                     () -> com.legend.testexecutionplan.NoEdge.NONE.effect(List.of(), List.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seed(List.of(), Map.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seeded(List.of(), List.of()),
-                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()),
-                    // a raise site's words, planned by the edge (K10 of the edge audit, 2026-11-18)
-                    () -> com.legend.testexecutionplan.NoEdge.NONE.siteWords(0, java.util.Map.of()))),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()))),
+                    // (siteWords, a raise site's words planned by the edge at the step that sends its statement: gone
+                    // 2026-11-19 with S1 of the presentation program, K1 -- the site's own record, planned with it)
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
@@ -247,7 +246,7 @@ class HookRulingTest {
     }
 
     private static com.legend.testexecutionplan.TestPlan plan(
-            Map<Integer, List<com.legend.testexecutionplan.Extension>> byVerdict) {
+            Map<Integer, List<com.legend.executionplan.Extension>> byVerdict) {
         var target = new com.legend.executionplan.ExecutionPlan.Target(
                 new com.legend.executionplan.ExecutionPlan.Database.Platform(
                         com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.PLATFORM), null),
@@ -331,22 +330,20 @@ class HookRulingTest {
                 "pure/v1 writes legend-engine's unchecked raises plain");
     }
 
-    /** THE RAISE SITES' WORDS (K10b of the edge audit, the orchestrator's ruling (A) of 2026-11-17): the product's style
-     *  answers its own form BY NAME -- an offered statement's sites say lite's message, and nothing is recorded (a call
-     *  returns, keeping nothing) -- and the edge's template records nothing either; only a fresh recorder of the edge
-     *  ({@code edge.PureText.recording}) keeps legend-pure's words, as its own data, read once and sealed. */
+    /** THE RAISE SITES' WORDS (K10b of the edge audit, the orchestrator's ruling (A) of 2026-11-17; K1 of the
+     *  presentation program, S1, 2026-11-19: the two-form {@code planner.SiteFacts}): the product's style answers its
+     *  own form -- a site says lite's message and carries nothing else -- and each of the edge's templates words the
+     *  site at planning, its own record, statelessly (until then only a fresh recorder of the edge kept the words). */
     @Test
-    void theRaiseSitesWordsAreTheProductsNoneAndTheEdgesRecordersAlone() {
+    void theRaiseSitesWordsAreTheProductsNoneAndTheEdgesRecordAtPlanning() {
         List<com.legend.sql.dialect.RaiseSite> sites = List.of(new com.legend.sql.dialect.RaiseSite(1,
                 com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, null, List.of()));
-        PlanStyle.PRODUCT.siteWords("SELECT 1", sites);
-        com.legend.edge.PureText.UPSTREAM.siteWords("SELECT 1", sites);
-        com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
-                com.legend.edge.PureText.UPSTREAM);
-        recording.siteWords("SELECT 1", sites);
-        assertEquals(java.util.Map.of(1, "Division by zero"), recording.read().get("SELECT 1"));
-        assertThrows(NotImplementedException.class, () -> com.legend.edge.PureText.recording(PlanStyle.PRODUCT),
-                "a recorder over the product's style");
+        assertEquals(List.of(), com.legend.planner.PlanMaker.sites(sites, PlanStyle.PRODUCT).get(0).extensions(),
+                "the product's site carries no upstream words");
+        for (PlanStyle edge : List.of(com.legend.edge.PureText.UPSTREAM, com.legend.edge.PureText.PURE_V1)) {
+            assertEquals(List.of(new com.legend.edge.SiteWords("Division by zero")),
+                    com.legend.planner.PlanMaker.sites(sites, edge).get(0).extensions(), "the edge words its site");
+        }
     }
 
     /** PlanStyle.twoForm (the orchestrator's ruling of 2026-11-17, census B9): its kinds are a CLOSED list, pinned here
@@ -392,7 +389,11 @@ class HookRulingTest {
                 // FailureWords, which named whose words they were by a flag, went with it)
                 com.legend.lowering.VerdictWords.class,
                 // DatabaseSettingsForm (the audit's J22, RULED by the user 2026-11-17: a database's settings)
-                com.legend.sql.dialect.DatabaseSettingsForm.class),
+                com.legend.sql.dialect.DatabaseSettingsForm.class,
+                // SiteFacts (K1 of the presentation program, S1, 2026-11-19, the orchestrator's approval of its shape's
+                // choice A: an upstream mode's words of a raise site, none in the product, the site's record at the
+                // edge; until then PlanStyle.siteWords offered each statement to the edge's recorder)
+                com.legend.planner.SiteFacts.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;
