@@ -831,3 +831,36 @@ who confirms or changes phases 1-3.
   - Run time: about 15 minutes for everything on a 4-core container (DuckDB corpus 547 s, H2 156 s).
   - Folded into the plain plan: row 2, rows 4 and 5, "what gets better" (the corrected counts), A2's proof, and a
     dry-run table under stage A.
+- **~13:15 UTC, two things prepared and HELD for the user's word** (this session's own homework; nothing applied):
+  1. **The rulebook amendment, if the user rules the goal's sentence.** Draft wording, to replace the first two
+     sentences of AGENTS.md's upstream-fidelity tenet and G8's first bullet
+     (`docs/GOALS_OF_RECORD_2026_11_07.md:131-135`):
+     > **Upstream-fidelity tenet (the user, 2026-10-29; amended 2026-11-19, the compatibility program):** lite follows
+     > PURE: a Pure program means what legend-pure's definition of it says. legend-engine's and legend-pure's FORMATS
+     > (result and error envelopes, printed values) are matched, at the edge. legend-engine's ANSWERS are matched
+     > where they agree with Pure. Where legend-engine departs from Pure's own definition (a database's meaning for a
+     > Pure function, an older database's behaviour, its SQL text), lite answers Pure's way, and the departure is
+     > POSTED to the user before it lands and LEDGERED as a row of `docs/SEMANTICS_REGISTER.md`. Both answers, Pure's
+     > and legend-engine's, are READ from the pinned sources or ASKED of the engine runner, never recalled or guessed.
+     > A divergence that is not a row is a defect; a row the user did not rule is a defect too.
+     The rest of the tenet (case by case; the engine runner's README) is unchanged. G8's "Lite does what upstream
+     does" becomes "Lite follows Pure; legend-engine's formats are matched, and its answers where they agree with
+     Pure". Both files change in the first stage-A code PR that relies on the sentence (A3), not in a PR of their own.
+  2. **D1's "loud" option, sized from the code** (read at `main` `b75d6c73a` and H5; not built):
+     - **Where:** the legend-engine server door only (`edge/PureV1Routes`, execute and generatePlan). A request there
+       IS the code sent to the database, so none of H5's hard part (finding store-bound code inside a test body, the
+       40 calls it could not follow) applies. The corpus needs no detector: its tests pass or fail.
+     - **What it reads:** the typed query (`TypedQuery.expression`, public) and the user functions it reaches through
+       `ModelContext.findFunction`: any call typed as the String overloads of `substring` (2 or 3 arguments) or
+       `indexOf` (2 arguments). The `###Relational` dynaFunctions are not flagged (SQL's meaning in every audience,
+       H5 F2).
+     - **When it is quiet:** the query carries legend-engine's own corrected option. Lite already reads both of
+       legend-engine's carriers (`ContextReading.contextFeatures` for `FeatureFlagOption.flags`,
+       `ExecutionContext.treeFeatures` for `withFeatureFlags`). The pure/v1 routes read no feature from the request's
+       JSON today (no hit in `edge/PureV1*.java`), so the query's own `withFeatureFlags` is the carrier there.
+     - **What it does:** by default a warning that names the call (a server log line and a response header); under a
+       server setting, a refusal by name before planning. Neither is a mode in the core: the detector reads the typed
+       query and never changes it.
+     - **Size (estimated):** about 150 lines in the edge plus its tests, 1 to 2 days, inside A3. One register row.
+     - **To settle if the user picks it:** whether the default is "warn" or "refuse"; what legend-engine's clients do
+       with an unknown response header (Studio must be shown to ignore it).
