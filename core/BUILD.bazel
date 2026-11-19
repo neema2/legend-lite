@@ -365,6 +365,18 @@ legend_java_library(
 # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
 # with the same code as the server. execute's run is its host's: the server hands in its product door under its file
 # fence (ConnectionResolver.runner(sources); ConnectionResolver.RUNNER is the library's, any file).
+# LITE'S OWN WIRE (lite/LiteWire.java; H4's P4, the user's CP-13, and the orchestrator's option (a), 2026-11-19): lite's
+# error kinds, its one refusal shape, a closed request's reader, the routes it serves and the user and not-POST answers,
+# over base and json alone -- so a host that carries no compiler (the query-store page) answers in the server's words.
+# Lite's own only: no classifier of the product's exceptions (LiteV1Api.refusal) and nothing of legend-engine's.
+legend_java_library(
+    name = "lite_wire",
+    srcs = glob(["src/main/java/com/legend/lite/*.java"]),
+    deps = ["//base", "//json"],
+    # //engine-client: the generator of the kinds (TypeFacts); //query-store: the page's store (its user and routes)
+    visibility = ["//engine-client:__pkg__", "//query-store:__pkg__"],
+)
+
 legend_java_library(
     name = "lite_v1",
     # //engine-client: the generator of lite's error kinds and their statuses (TypeFacts errors-ts; H4's P2, 2026-11-19)
@@ -381,7 +393,7 @@ legend_java_library(
         "src/main/java/com/legend/server/TsTree.java",
     ],
     # door (C5-J item 1, 2026-11-15): its parses through the parse doors, which ask the run's wall
-    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":door", ":error", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":door", ":error", ":execution_plan", ":lite_wire", ":model", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
 )
 legend_java_library(
     name = "server_lib",
@@ -399,14 +411,15 @@ legend_java_library(
     ),
     # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
     # class; :cache, :lowering and :setup were unused
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":lite_v1", ":result", ":saved_queries", ":sql_dialect"],
+    # lite_wire: the store's refusals at lite's mount, in lite's shape (the HOSTS-9 adapter, storeRoutes)
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":lite_v1", ":lite_wire", ":result", ":saved_queries", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":testexec", ":probe", ":testdatagen",
-    ":execution_plan", ":result", ":planner", ":lite_v1", ":saved_queries", ":testplan", ":execution",
+    ":execution_plan", ":result", ":planner", ":lite_wire", ":lite_v1", ":saved_queries", ":testplan", ":execution",
     ":test_execution", ":ide", ":test",
     ":server_lib", ":test_plan", ":exec_program",
 ]
@@ -417,7 +430,8 @@ _CORE_TARGETS = [
 _PLAN_SIDE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":lite_v1",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":lite_wire",
+    ":lite_v1",
 ]
 
 legend_java_library(

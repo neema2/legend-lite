@@ -383,7 +383,7 @@ class LiteV1PlanningTest {
                 request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME, "format", "json",
                         "params", request("since", 20220101)))) {
             LiteV1Api.Answer route = run("query/run", wrong);
-            LiteV1Api.Refusal refusal = LiteV1Api.refusal(assertThrows(RuntimeException.class,
+            com.legend.lite.LiteWire.Refusal refusal = LiteV1Api.refusal(assertThrows(RuntimeException.class,
                     () -> LiteV1Planning.queryRunRequestJson(Json.toCompact(wrong))));
             assertEquals(route.status(), refusal.kind().status(), route.json());
             assertEquals(route.json(), refusal.json());
@@ -421,14 +421,14 @@ class LiteV1PlanningTest {
     @DisplayName("user and a call by another method than POST: one answer each, the words every binding says")
     void userAndNotPostedAreOneAnswerEach() {
         // H4's P4 (the user's CP-13, 2026-11-19): Python's and the server's routes say these, never words of their own
-        assertEquals("{\"user\":\"someone\"}", LiteV1Api.user("POST", LiteV1Api.USER, "", "someone").json());
-        assertEquals("{\"user\":\"someone\"}", LiteV1Api.user("POST", LiteV1Api.USER, " {} ", "someone").json());
-        refused(LiteV1Api.user("POST", LiteV1Api.USER, "{\"x\":1}", "someone"), "request", 400,
+        assertEquals("{\"user\":\"someone\"}", LiteV1Api.user("POST", com.legend.lite.LiteWire.USER, "", "someone").json());
+        assertEquals("{\"user\":\"someone\"}", LiteV1Api.user("POST", com.legend.lite.LiteWire.USER, " {} ", "someone").json());
+        refused(LiteV1Api.user("POST", com.legend.lite.LiteWire.USER, "{\"x\":1}", "someone"), "request", 400,
                 "a user request has no key x (it holds none)");
-        LiteV1Api.Answer getUser = LiteV1Api.user("GET", LiteV1Api.USER, "", "someone");
+        LiteV1Api.Answer getUser = LiteV1Api.user("GET", com.legend.lite.LiteWire.USER, "", "someone");
         refused(getUser, "methodNotAllowed", 405, "lite's user operation takes POST, not GET: /api/lite/v1/user");
         assertEquals(Map.of("Allow", "POST"), getUser.headers());
-        refused(LiteV1Api.user("POST", LiteV1Api.USER + "/x", "", "someone"), "notFound", 404,
+        refused(LiteV1Api.user("POST", com.legend.lite.LiteWire.USER + "/x", "", "someone"), "notFound", 404,
                 "no such legend-lite API: /api/lite/v1/user/x");
         LiteV1Api.Answer put = LiteV1Api.notPosted("PUT", LiteV1Planning.API + "model/check");
         refused(put, "methodNotAllowed", 405, "lite's operations take POST, not PUT: /api/lite/v1/model/check");
@@ -437,8 +437,8 @@ class LiteV1PlanningTest {
                 "no such legend-lite API: /api/lite/v1/model/nothing");
         // the known routes are the one road's: each answered by it, an unknown one refused notFound (the orchestrator's
         // ruling of 2026-11-19: the set held equal to the switch; the census holds the switch to LITE_ROUTES)
-        for (String route : LiteV1Api.ROUTES) {
-            if (route.equals(LiteV1Api.USER) || route.equals(LiteV1Planning.API + "query/run")) {
+        for (String route : com.legend.lite.LiteWire.ROUTES) {
+            if (route.equals(com.legend.lite.LiteWire.USER) || route.equals(LiteV1Planning.API + "query/run")) {
                 continue;
             }
             assertFalse(Json.parseObject(LiteV1Api.answer(() -> LiteV1Api.operate(route, "{}", LiteV1Api.Models.COMPILED,

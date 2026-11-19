@@ -41,7 +41,7 @@ class LiteDataRefusalTest {
 
     @Test
     void aLostConnectionIsInternalNotTheCallersData() {
-        LiteV1Api.Refusal r = LiteV1Api.refusal(DataError.database(ErrorKind.CONNECTION_ERROR, "08006",
+        com.legend.lite.LiteWire.Refusal r = LiteV1Api.refusal(DataError.database(ErrorKind.CONNECTION_ERROR, "08006",
                 "Connection refused", "Connection refused", CAUSE));
         assertEquals("{\"kind\":\"internal\",\"message\":\"Connection refused\"}", r.json());
         assertEquals(500, r.answer().status());

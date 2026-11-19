@@ -1941,7 +1941,7 @@ class PlannerSurfaceTest {
     private static final Pattern CALL = Pattern.compile("(?<![\\w.])(\\w+)\\(");
     /** An operation's keys, {@code Map.entry("op", List.of("op", ...))}: what {@code HostOperationsJson} admits. */
     private static final Pattern ENTRY = Pattern.compile("Map\\.entry\\(\\s*\"\\w+\"\\s*,\\s*List\\.of\\(([^)]*)\\)\\)");
-    /** Lite's API v1 closure, {@code LiteV1Api.read(body, "<what>", Set.of(<optional>), <keys>)}: what the one road's
+    /** Lite's API v1 closure, {@code com.legend.lite.LiteWire.read(body, "<what>", Set.of(<optional>), <keys>)}: what the one road's
      *  request admits, its optional keys and its required ones (the held forms' closure; step 2c, 2026-11-17). */
     private static final Pattern LITE_READ = Pattern.compile(
             "\\bread\\(\\s*\\w+\\s*,\\s*\"[^\"]*\"\\s*,\\s*((?:java\\.util\\.)?Set\\.of\\([^)]*\\)(?:\\s*,\\s*\"[^\"]*\")*)\\)");

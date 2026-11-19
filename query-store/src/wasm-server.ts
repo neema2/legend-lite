@@ -26,6 +26,8 @@ export interface QueriesModule {
   readonly exports: {
     answer(method: string, rest: string, rawQuery: string, body: string, user: string, records: string): string;
     cubes(method: string, rest: string, rawQuery: string, body: string, user: string, rows: string): string;
+    /** Lite's other routes, `user` among them, in lite's own wire (lite.LiteWire: H4's P4, 2026-11-19). */
+    route(method: string, path: string, body: string, user: string): string;
   };
 }
 
@@ -97,9 +99,8 @@ function stored(status: number, body: string): Response {
   return refusal(status, message, status >= 500 ? 'internal' : 'request');
 }
 
-/** Where lite's store answers under the API root (spec §2), and its user. */
+/** Where lite's store answers under the API root (spec §2). */
 const QUERIES = '/lite/v1/queries';
-const USER = '/lite/v1/user';
 
 /** The records as the module reads them, `{"id": [versions...]}`, from each query's text as kept. */
 const recordsJson = (held: ReadonlyMap<string, string>): string =>
@@ -118,24 +119,17 @@ export function wasmQueryServer(options: WasmServerOptions): LocalServer {
   // which no other call, in this tab or another, interleaves with
   const handle = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
-    // lite's user operation (spec §2): the page's configured user, the store's; a request holding a key refused, as
-    // the server's
-    if (url.pathname.endsWith(USER)) {
-      if (request.method !== 'POST') return refusal(400, `lite's user operation is POST /api${USER}, not ${request.method} ${url.pathname}`);
-      const asked = await request.text();
-      let keys: string[];
-      try {
-        const o: unknown = JSON.parse(asked === '' ? '{}' : asked);
-        if (o === null || typeof o !== 'object' || Array.isArray(o)) return refusal(400, `a user request is a JSON object: ${asked}`);
-        keys = Object.keys(o);
-      } catch (e) {
-        return refusal(400, `a user request is a JSON object: ${(e as Error).message}`);
-      }
-      if (keys.length > 0) return refusal(400, `a user request has no key ${keys[0]} (it holds none)`);
-      return answer(200, JSON.stringify({ user }));
-    }
+    // lite's other routes -- user (spec §2: the page's configured user, the store's), any path the page does not serve
+    // -- answered by the module in lite's own wire, the server's words, status and headers (lite.LiteWire; H4's P4,
+    // 2026-11-19: until then words of this file's own)
     const at = url.pathname.indexOf(QUERIES);
-    if (at < 0) return refusal(404, `no such legend-lite API: ${url.pathname}`);
+    if (at < 0) {
+      const routed = JSON.parse((await module()).exports.route(request.method, url.pathname,
+        request.method === 'GET' || request.method === 'DELETE' ? '' : await request.text(), user)) as {
+        status: number; body: string; headers: Record<string, string>;
+      };
+      return new Response(routed.body, { status: routed.status, headers: { 'Content-Type': 'application/json', ...routed.headers } });
+    }
     const rest = url.pathname.slice(at + QUERIES.length);
     const body = request.method === 'GET' || request.method === 'DELETE' ? '' : await request.text();
     const queries = await module();

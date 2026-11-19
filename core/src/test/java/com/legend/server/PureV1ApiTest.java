@@ -914,14 +914,14 @@ class PureV1ApiTest {
     void aFailureOutsideARoute_isNamedAsTheRoutesNameIt() {
         RuntimeException parse = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> com.legend.Compiler.parseQuery("1 +"));
-        assertEquals(LiteV1Api.Kind.PARSE, LiteV1Api.refusal(parse).kind());
+        assertEquals(com.legend.lite.LiteWire.Kind.PARSE, LiteV1Api.refusal(parse).kind());
         assertEquals(parse.getMessage(), LiteV1Api.refusal(parse).message());
         RuntimeException compile = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> com.legend.Compiler.compileModel("Class demo::Desk\n{\n  name: Strin[1];\n}\n"));
-        assertEquals(LiteV1Api.Kind.COMPILE, LiteV1Api.refusal(compile).kind());
-        assertEquals(new LiteV1Api.Refusal(LiteV1Api.Kind.INTERNAL, "IllegalArgumentException: no", null, null),
+        assertEquals(com.legend.lite.LiteWire.Kind.COMPILE, LiteV1Api.refusal(compile).kind());
+        assertEquals(new com.legend.lite.LiteWire.Refusal(com.legend.lite.LiteWire.Kind.INTERNAL, "IllegalArgumentException: no", null, null),
                 LiteV1Api.refusal(new IllegalArgumentException("no")));
-        assertEquals(new LiteV1Api.Refusal(LiteV1Api.Kind.INTERNAL, "NullPointerException: broke", null, null),
+        assertEquals(new com.legend.lite.LiteWire.Refusal(com.legend.lite.LiteWire.Kind.INTERNAL, "NullPointerException: broke", null, null),
                 LiteV1Api.refusal(new NullPointerException("broke")));
     }
 

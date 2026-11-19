@@ -4,6 +4,7 @@
 package com.legend.server;
 
 import com.legend.json.Json;
+import com.legend.lite.LiteWire;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.PureComposer;
 import com.legend.server.LiteV1Api.Answer;
@@ -92,7 +93,7 @@ public final class LiteV1Planning {
                 return e;
             }
         }
-        throw new LiteV1Api.MalformedRequest(what + ", not '" + word + "'");
+        throw new LiteWire.MalformedRequest(what + ", not '" + word + "'");
     }
 
     /** {@code query/type}: {@code {columns: [{name, type, enumeration?}]}}, the query's result typed by the compiler,
@@ -162,7 +163,7 @@ public final class LiteV1Planning {
      * route runs it ({@link #queryRun}); a host that runs the plan itself reads it so ({@link #queryRunRequestJson}).
      */
     public static QueryRunRequest queryRunRequest(String body) {
-        Json.Obj request = LiteV1Api.read(body, "a query/run request", Set.of("params"),
+        Json.Obj request = LiteWire.read(body, "a query/run request", Set.of("params"),
                 "model", "query", "runtime", "format");
         Json.Obj queryJson = LiteV1Api.object(request, "query");
         com.legend.protocol.spec.LambdaFunction query = ProtocolReader.lambda(queryJson);

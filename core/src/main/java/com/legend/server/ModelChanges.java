@@ -3,6 +3,7 @@
 
 package com.legend.server;
 
+import com.legend.lite.LiteWire;
 import com.legend.compiler.element.ModelContext;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
@@ -636,7 +637,7 @@ public final class ModelChanges {
                 // its own words: a model change's request carries values (model text, documentation, a sample's rows),
                 // so the boundary doors' "names and fields only, never a value" is not its rule (the C4 final fix
                 // round's nit, 2026-11-14)
-                throw new LiteV1Api.MalformedRequest(what + " has no key " + key + " (a model change's request holds the"
+                throw new LiteWire.MalformedRequest(what + " has no key " + key + " (a model change's request holds the"
                         + " keys its wire writes, model-changes/src/wire.ts, and no other)");
             }
         }
@@ -647,7 +648,7 @@ public final class ModelChanges {
     static void needs(Json.Obj o, String what, String... keys) {
         for (String key : keys) {
             if (!o.fields().containsKey(key)) {
-                throw new LiteV1Api.MalformedRequest(what + " names no " + key);
+                throw new LiteWire.MalformedRequest(what + " names no " + key);
             }
         }
     }

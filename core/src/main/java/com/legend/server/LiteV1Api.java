@@ -5,12 +5,20 @@ package com.legend.server;
 
 
 import com.legend.json.Json;
+import com.legend.lite.LiteWire;
+import com.legend.lite.LiteWire.Kind;
+import com.legend.lite.LiteWire.MalformedRequest;
+import com.legend.lite.LiteWire.Refusal;
+import com.legend.lite.LiteWire.UnknownRoute;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.spec.LambdaFunction;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static com.legend.lite.LiteWire.read;
+import static com.legend.lite.LiteWire.requestObject;
 
 /**
  * legend-lite's OWN API, v1 (lite's API v1 spec, docs/records/lite-api-v1-2026-11-17.md; the user's go of 2026-11-17):
@@ -56,6 +64,11 @@ public final class LiteV1Api {
         public byte[] body() {
             return bytes != null ? bytes : json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         }
+
+        /** Lite's wire answer ({@link LiteWire.Answer}: a refusal's, the user operation's) as the server's. */
+        public static Answer of(LiteWire.Answer a) {
+            return new Answer(a.status(), a.json(), "application/json", null, a.headers());
+        }
     }
 
     /**
@@ -66,7 +79,7 @@ public final class LiteV1Api {
      * model's own JSON -- the bound {@code ModelReader} reads a model's text at (4096; 2026-10-21, the independent
      * audit: at 1024 a model compiled as text and was refused as data). It still bounds a hostile body.
      */
-    static final Json.Config REQUEST = new Json.Config(4096);
+    static final Json.Config REQUEST = LiteWire.REQUEST;
 
     /**
      * How a host runs an execute: the query this API compiled, planned and run by the host's door (legend-lite's
@@ -195,15 +208,6 @@ public final class LiteV1Api {
         throw new IllegalArgumentException("the request body is not a JSON object");
     }
 
-    /** {@code body} as lite's request, a JSON object, else refused by name, kind {@code request}. */
-    static Json.Obj requestObject(String body, String what) {
-        try {
-            return request(body);
-        } catch (IllegalArgumentException e) {
-            throw new MalformedRequest(what + " is not a JSON object: " + e.getMessage(), e);
-        }
-    }
-
     /** {@code ts/statement}'s answer over a model compiled ({@code {"statement": text}} or {@code {"refused": why}}; D12,
      *  Show #TS; upstream has no #TS): a query of {@code #TS} over grids -- the lambda's protocol JSON, each grid bound
      *  by {@code let} and the island reading it -- as the one statement a person would write, each grid a flat source
@@ -279,115 +283,6 @@ public final class LiteV1Api {
     }
 
 
-    /**
-     * LITE'S ERROR KINDS (lite's API v1 spec §3, the audit's J18, 2026-11-17): every refusal, on every binding, is one of
-     * these, written {@code {kind, message, where?, raise?}} ({@link Refusal}). Over HTTP the status follows the kind:
-     * 400 for parse, compile, unsupported, request and parameters; 405 for a method a route does not take, with its
-     * {@code Allow} header; 404 for what does not exist; 422 for data; 500 for internal. There is no
-     * {@code PARSER}/{@code COMPILATION}, no {@code code: -1}, no {@code status: "error"} and no {@code errorType} in the
-     * product: legend-engine's envelope is the edge's ({@code com.legend.edge.EngineEnvelope}).
-     */
-    public enum Kind {
-        /** The text does not parse. */
-        PARSE(400, "parse"),
-        /** The model or the query does not type or compile. */
-        COMPILE(400, "compile"),
-        /** A construct lite refuses by name (not yet, or by a ruling). */
-        UNSUPPORTED(400, "unsupported"),
-        /** A run's raise: division by zero, an index out of bounds, ... (its kind in {@link Refusal#raise}). */
-        DATA(422, "data"),
-        /** A run's parameter values: one missing, or one its declared type does not take (the caller's values). */
-        PARAMETERS(400, "parameters"),
-        /** The request itself is malformed: a key it does not read or lacks, a value of the wrong kind. */
-        REQUEST(400, "request"),
-        /** A known operation asked by a method it does not take (lite's operations take POST): the route exists, the
-         *  method does not; answered with {@code Allow: POST} (the orchestrator's ruling of 2026-11-19, H4's routes). */
-        METHOD_NOT_ALLOWED(405, "methodNotAllowed", Map.of("Allow", "POST")),
-        /** A saved query or saved page the request names, or a route under {@code /api/lite/v1/}, does not exist (the
-         *  user, 2026-11-17 ~23:31; spec §3; a route since the orchestrator's ruling of 2026-11-19). */
-        NOT_FOUND(404, "notFound"),
-        /** Anything else: a defect, said as one. */
-        INTERNAL(500, "internal");
-
-        private final int status;
-        private final String wire;
-        private final Map<String, String> headers;
-
-        // each kind's word explicit (2026-11-17, notFound: lower camel, which no spelling of the constant's name gives)
-        Kind(int status, String wire) {
-            this(status, wire, Map.of());
-        }
-
-        Kind(int status, String wire, Map<String, String> headers) {
-            this.status = status;
-            this.wire = wire;
-            this.headers = headers;
-        }
-
-        /** The HTTP headers a refusal of this kind is answered with, beside its status (a 405's {@code Allow}). */
-        public Map<String, String> headers() {
-            return headers;
-        }
-
-        /** The kind as every binding writes it: {@code parse}, {@code compile}, ..., {@code notFound}. */
-        public String wire() {
-            return wire;
-        }
-
-        /** The HTTP status a refusal of this kind is answered with. */
-        public int status() {
-            return status;
-        }
-    }
-
-    /**
-     * A refusal in lite's one error shape: its {@link Kind}, lite's own words, where it happened (a position, or a site)
-     * where there is one, and for a {@code data} refusal alone the raise's kind, in lower camel as every wire name is
-     * ({@code divideByZero}, {@code indexOutOfBounds}, ...).
-     */
-    public record Refusal(Kind kind, String message, @com.legend.base.Nullable String where,
-            @com.legend.base.Nullable String raise) {
-
-        /** {@code {kind, message, where?, raise?}}. */
-        public String json() {
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("kind", kind.wire());
-            out.put("message", message);
-            if (where != null) {
-                out.put("where", where);
-            }
-            if (raise != null) {
-                out.put("raise", raise);
-            }
-            return Json.toCompact(out);
-        }
-
-        /** The refusal answered over HTTP: the kind's status and headers, its JSON. */
-        public Answer answer() {
-            return new Answer(kind.status(), json(), "application/json", null, kind.headers());
-        }
-    }
-
-    /** A route under {@code /api/lite/v1/} that lite does not serve (kind {@code notFound}; the orchestrator's ruling of
-     *  2026-11-19: until then kind request, 400). */
-    public static final class UnknownRoute extends IllegalArgumentException {
-        public UnknownRoute(String path) {
-            super("no such legend-lite API: " + path);
-        }
-    }
-
-    /** A request lite cannot read: not a JSON object, a key it does not read or one it lacks, a value of the wrong kind
-     *  (kind {@code request}). */
-    public static final class MalformedRequest extends IllegalArgumentException {
-        public MalformedRequest(String message) {
-            super(message);
-        }
-
-        public MalformedRequest(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
-
     /** A call's JSON, 200, or its failure as lite's refusal ({@link #refusal}); a defect is logged whole and answered as
      *  one, never a dropped connection. */
     public static Answer answer(Supplier<String> call) {
@@ -398,64 +293,24 @@ public final class LiteV1Api {
             if (r.kind() == Kind.INTERNAL) {
                 e.printStackTrace();
             }
-            return r.answer();
+            return Answer.of(r.answer());
         }
     }
 
-    /** A refusal of {@code kind} in {@code message}'s words, answered. */
+    /** A refusal of {@code kind} in {@code message}'s words, answered (lite's wire: {@link LiteWire#refuse}). */
     public static Answer refuse(Kind kind, String message) {
-        return new Refusal(kind, message, null, null).answer();
+        return Answer.of(LiteWire.refuse(kind, message));
     }
 
-    /** The route of lite's {@code user} operation (spec §2): a host's own. */
-    public static final String USER = "/api/lite/v1/user";
-
-    /**
-     * EVERY ROUTE LITE SERVES under {@code /api/lite/v1/} by POST (spec §2): the operations of {@link #operate}'s switch,
-     * {@code query/run} (a host's: {@link #route}) and {@code user} (a host's: {@link #user}) -- what tells a route that
-     * does not exist (404) from one asked by a method it does not take (405) (the orchestrator's ruling of 2026-11-19).
-     * Held equal to the switch's cases by the census (PlannerSurfaceTest, whose LITE_ROUTES rows are the switch's).
-     */
-    public static final java.util.Set<String> ROUTES = java.util.Set.of(
-            "/api/lite/v1/model/check", "/api/lite/v1/model/elements", "/api/lite/v1/query/parse",
-            "/api/lite/v1/query/print", "/api/lite/v1/query/type", "/api/lite/v1/query/plan", "/api/lite/v1/query/run",
-            "/api/lite/v1/model/createClass", "/api/lite/v1/model/createAssociation",
-            "/api/lite/v1/model/createDataSpace", "/api/lite/v1/ts/item", "/api/lite/v1/ts/statement", USER);
-
-    /**
-     * A call of lite's routes in another method than POST -- every binding's answer (H4's P4, the user's CP-13 of
-     * 2026-11-19; the orchestrator's ruling of that day): a route lite does not serve, kind {@code notFound} (the path
-     * is read first); a route it serves, kind {@code methodNotAllowed}, its {@code Allow: POST}, the method asked named.
-     * Until then a GET was 400 lite JSON on the server and 404 text in Python.
-     */
+    /** A call of lite's routes in another method than POST, as every binding answers it ({@link LiteWire#notPosted}:
+     *  an unknown route notFound, a known one methodNotAllowed with its Allow). */
     public static Answer notPosted(String method, String path) {
-        if (!ROUTES.contains(path)) {
-            return refusal(new UnknownRoute(path)).answer();
-        }
-        return refuse(Kind.METHOD_NOT_ALLOWED, "lite's operations take POST, not " + method + ": " + path);
+        return Answer.of(LiteWire.notPosted(method, path));
     }
 
-    /**
-     * LITE'S {@code user} OPERATION (spec §2; the orchestrator's Q-b ruling of 2026-11-17): {@code {user}}, who the store
-     * keeps saved queries for -- {@code who}, the host's own caller (the server's {@code SavedQueries.ANONYMOUS},
-     * Python's local user). POST, its request none: an empty body, or an empty object; any other request refused by
-     * name, kind {@code request}; another method, kind {@code methodNotAllowed}; a path below it, kind {@code notFound}
-     * -- every binding's answer, so their words cannot differ (H4's P4, 2026-11-19).
-     */
+    /** Lite's {@code user} operation, as every binding answers it ({@link LiteWire#user}), its user {@code who}. */
     public static Answer user(String method, String path, String body, String who) {
-        if (!path.equals(USER)) {
-            return refusal(new UnknownRoute(path)).answer();
-        }
-        if (!"POST".equals(method)) {
-            return refuse(Kind.METHOD_NOT_ALLOWED, "lite's user operation takes POST, not " + method + ": " + path);
-        }
-        return answer(() -> {
-            // strip().isEmpty(), not isBlank(): text the tab writes alike (ArchitectureTest's portable-text rule)
-            if (!body.strip().isEmpty()) {
-                read(body, "a user request", java.util.Set.of());
-            }
-            return Json.toCompact(java.util.Map.of("user", who));
-        });
+        return Answer.of(LiteWire.user(method, path, body, who));
     }
 
     /**
@@ -524,28 +379,6 @@ public final class LiteV1Api {
             }
         }
         return out.toString();
-    }
-
-    /**
-     * {@code body} as lite's CLOSED request: a JSON object holding every one of {@code keys} and, where given,
-     * {@code optional}'s, and no other key -- anything else refused by name ({@link MalformedRequest}).
-     */
-    public static Json.Obj read(String body, String what, java.util.Set<String> optional, String... keys) {
-        Json.Obj request = requestObject(body, what);
-        java.util.Set<String> wanted = java.util.Set.of(keys);
-        String holds = keys.length == 0 && optional.isEmpty() ? "none" : String.join(", ", keys) + (optional.isEmpty()
-                ? "" : "; optional " + String.join(", ", new java.util.TreeSet<>(optional)));
-        for (String key : request.fields().keySet()) {
-            if (!wanted.contains(key) && !optional.contains(key)) {
-                throw new MalformedRequest(what + " has no key " + key + " (it holds " + holds + ")");
-            }
-        }
-        for (String key : keys) {
-            if (!request.fields().containsKey(key)) {
-                throw new MalformedRequest(what + " names no " + key + " (it holds " + holds + ")");
-            }
-        }
-        return request;
     }
 
     /** {@code request}'s {@code key}, a string, else refused by name. */

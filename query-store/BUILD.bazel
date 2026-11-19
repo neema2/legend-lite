@@ -21,6 +21,9 @@ legend_java_library(
     name = "page_entry",
     srcs = ["java/com/legend/queries/page/QueriesPage.java"],
     deps = [
+        # lite's own wire (H4's P4; the orchestrator's option (a), 2026-11-19): the page's user and other routes in the
+        # server's words -- base and json alone, no planner (//tools/deps:query_store_page_closure_test)
+        "//core:lite_wire",
         "//core:saved_queries",
         "//json",
         # TeaVM's annotations, at compile time only

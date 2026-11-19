@@ -180,7 +180,13 @@ planner	base builtin cache compiler compiler_element_type database door error ex
 # 2026-11-17 (B7 of the separation census, D's split by content): `pure_v1` is `lite_v1` -- the product's API kit
 # (server/LiteV1Api, lite's own routes, answer and refusal kinds); legend-engine's ExecuteInput binding moved to the edge
 # (edge.ExecuteInputs). The same reach, renamed.
-lite_v1	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
+# 2026-11-19 (H4's P4, the user's CP-13; the orchestrator's option (a) and its approval of ~13:05 UTC that day, under the
+# user's delegation): `lite_v1` reaches `lite_wire` -- lite's own wire (its kinds, refusal shape, closed-request reader,
+# routes and the user and not-POST answers) moved out of LiteV1Api into a library a host with no compiler can carry.
+lite_v1	arrow_ipc base compiler compiler_element_type database door error execution_plan json lite_wire model parser plan planner protocol result sql sql_dialect testdatagen
+# 2026-11-19 (the same approval): `lite_wire`, lite's own wire over base and json alone -- the query-store page carries it
+# (its user and routes in the server's words), the compatibility program's store pilot will too (HOSTS-9).
+lite_wire	base json
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
 # 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5): `driver` deleted. Its planning classes are
@@ -213,4 +219,6 @@ test	base compiler error exec execution_plan json model planner protocol result 
 saved_queries	base json
 # 2026-11-09 (the full audit): `server_lib` reaches no runtime library -- the server hands pure/v1 the product door;
 # `cache`, `lowering` and `setup` were declared and unused.
-server_lib	base compiler compiler_element_type database error execution execution_plan json lite_v1 model parser plan planner protocol result saved_queries sql_dialect
+# 2026-11-19 (H4's P4; named to the orchestrator with lite_wire's rows, awaiting its word): `server_lib` reaches `lite_wire`
+# -- the store's refusals at lite's mount (storeRoutes, HOSTS-9's adapter) are built as lite's Refusal, its Kind named.
+server_lib	base compiler compiler_element_type database error execution execution_plan json lite_v1 lite_wire model parser plan planner protocol result saved_queries sql_dialect

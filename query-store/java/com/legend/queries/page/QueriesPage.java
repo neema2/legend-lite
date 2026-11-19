@@ -1,6 +1,7 @@
 package com.legend.queries.page;
 
 import com.legend.json.Json;
+import com.legend.lite.LiteWire;
 import com.legend.queries.MemoryCubeRecords;
 import com.legend.queries.MemoryRecords;
 import com.legend.queries.SavedCubes;
@@ -57,6 +58,24 @@ public final class QueriesPage {
         out.put("status", a.status());
         out.put("body", a.json());
         out.put("changed", held.changed());
+        return Json.toCompact(out);
+    }
+
+    /**
+     * LITE'S OTHER ROUTES IN THE PAGE (H4's P4, the user's CP-13 of 2026-11-19; the orchestrator's option (a)): a call
+     * under {@code /api/lite/v1/} that is not the store's ({@code path} its whole path), answered in lite's own wire,
+     * the server's words ({@code lite.LiteWire}): {@code user} the page's configured {@code user}, any other path one
+     * the page does not serve (notFound) -- until then words of the page's TypeScript (wasm-server.ts).
+     * {@code {"status", "body", "headers"}}, JSON.
+     */
+    @org.teavm.jso.JSExport
+    public static String route(String method, String path, String body, String user) {
+        LiteWire.Answer a = path.startsWith(LiteWire.USER) ? LiteWire.user(method, path, body, user)
+                : LiteWire.refuse(LiteWire.Kind.NOT_FOUND, LiteWire.UnknownRoute.words(path));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("status", a.status());
+        out.put("body", a.json());
+        out.put("headers", a.headers());
         return Json.toCompact(out);
     }
 

@@ -70,7 +70,7 @@ public final class Boundary {
     /** {@code query/plan} over a model held ({@code {query, runtime}}; §7a: a held model is the binding's cache): what
      *  {@link #queryPlan} answers, the model compiled no more. */
     public static String queryPlanHeld(int handle, String request) {
-        com.legend.json.Json.Obj in = com.legend.server.LiteV1Api.read(request, "a query/plan request",
+        com.legend.json.Json.Obj in = com.legend.lite.LiteWire.read(request, "a query/plan request",
                 java.util.Set.of(), "query", "runtime");
         com.legend.protocol.spec.LambdaFunction query = com.legend.protocol.ProtocolReader.lambda(
                 com.legend.server.LiteV1Api.object(in, "query"));
@@ -82,7 +82,7 @@ public final class Boundary {
     /** {@code query/type} over a model held ({@code {query}}): what {@link #queryType} answers, the model compiled no
      *  more. */
     public static String queryTypeHeld(int handle, String request) {
-        com.legend.json.Json.Obj in = com.legend.server.LiteV1Api.read(request, "a query/type request",
+        com.legend.json.Json.Obj in = com.legend.lite.LiteWire.read(request, "a query/type request",
                 java.util.Set.of(), "query");
         com.legend.protocol.spec.LambdaFunction query = com.legend.protocol.ProtocolReader.lambda(
                 com.legend.server.LiteV1Api.object(in, "query"));
@@ -203,7 +203,7 @@ public final class Boundary {
      * {@link #queryRunRequest}); asked here, it is refused as the one road refuses it.
      */
     public static com.legend.server.LiteV1Api.Answer liteRoute(String method, String path, String body, String user) {
-        if (path.equals(com.legend.server.LiteV1Api.USER)) {
+        if (path.equals(com.legend.lite.LiteWire.USER)) {
             return com.legend.server.LiteV1Api.user(method, path, body, user);
         }
         if (!"POST".equals(method)) {
@@ -214,12 +214,12 @@ public final class Boundary {
     }
 
     /** Lite's refusal kinds as every binding writes them, each with the HTTP status a refusal of it is answered with
-     *  ({@code {NAME: {wire, status, headers}}}, {@link com.legend.server.LiteV1Api.Kind}): what a host's decoder reads a
+     *  ({@code {NAME: {wire, status, headers}}}, {@link com.legend.lite.LiteWire.Kind}): what a host's decoder reads a
      *  refusal's {@code kind} against, and what its routes answer it with -- never a status table of the host's own
      *  (H4's P2, the user's CP-13 of 2026-11-19: Python's own rule answered a {@code notFound} with 400). */
     public static String refusalKinds() {
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-        for (com.legend.server.LiteV1Api.Kind k : com.legend.server.LiteV1Api.Kind.values()) {
+        for (com.legend.lite.LiteWire.Kind k : com.legend.lite.LiteWire.Kind.values()) {
             java.util.Map<String, Object> kind = new java.util.LinkedHashMap<>();
             kind.put("wire", k.wire());
             kind.put("status", k.status());

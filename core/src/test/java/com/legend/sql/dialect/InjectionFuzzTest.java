@@ -118,7 +118,7 @@ class InjectionFuzzTest {
      * place and its database.
      */
     static boolean namedRefusal(RuntimeException e) {
-        if (com.legend.server.LiteV1Api.refusal(e).kind() != com.legend.server.LiteV1Api.Kind.INTERNAL) {
+        if (com.legend.server.LiteV1Api.refusal(e).kind() != com.legend.lite.LiteWire.Kind.INTERNAL) {
             return true;
         }
         if (e.getClass() != IllegalArgumentException.class || e.getStackTrace().length == 0) {

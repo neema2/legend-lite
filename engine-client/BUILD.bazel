@@ -371,9 +371,9 @@ legend_java_library(
     srcs = ["tools/typefacts/TypeFacts.java"],
     # a product raise's envelope (#104's M2(b), 2026-11-15): exec.RaisedErrors's marks and sql.RaiseKind's; its words
     # are the plans' own since 2026-11-15 (PlanJson.raises, phase D's option (D)), so error.ErrorKind is not read here
-    # lite's error kinds and their statuses (H4's P2, 2026-11-19): server.LiteV1Api.Kind; lite's Arrow metadata keys
+    # lite's error kinds and their statuses (H4's P2, 2026-11-19): lite.LiteWire.Kind; lite's Arrow metadata keys
     # (H4's P10): result.ArrowKeys; the plan format (H4's P8): executionplan.PlanJson.VERSION
-    deps = ["//core:compiler_element_type", "//core:exec", "//core:execution_plan", "//core:lite_v1", "//core:result",
+    deps = ["//core:compiler_element_type", "//core:exec", "//core:execution_plan", "//core:lite_wire", "//core:result",
             "//core:sql"],
 )
 

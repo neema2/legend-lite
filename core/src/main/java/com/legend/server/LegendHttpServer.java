@@ -5,6 +5,7 @@ import com.legend.queries.FileRecords;
 import com.legend.queries.SavedCubes;
 import com.legend.queries.SavedQueries;
 import com.legend.json.Json;
+import com.legend.lite.LiteWire;
 
 
 import com.sun.net.httpserver.HttpExchange;
@@ -301,15 +302,15 @@ public class LegendHttpServer {
                 // a record missing first, whatever the store's status (a batch's is upstream's 500), answered with its
                 // kind's 404; any other refusal its store's status
                 if (MISSING.contains(storeKind)) {
-                    return new LiteV1Api.Answer(LiteV1Api.Kind.NOT_FOUND.status(),
-                            new LiteV1Api.Refusal(LiteV1Api.Kind.NOT_FOUND, message, null, null).json());
+                    return new LiteV1Api.Answer(LiteWire.Kind.NOT_FOUND.status(),
+                            new LiteWire.Refusal(LiteWire.Kind.NOT_FOUND, message, null, null).json());
                 }
                 if (MALFORMED_REQUEST.contains(storeKind)) {
-                    return new LiteV1Api.Answer(LiteV1Api.Kind.REQUEST.status(),
-                            new LiteV1Api.Refusal(LiteV1Api.Kind.REQUEST, message, null, null).json());
+                    return new LiteV1Api.Answer(LiteWire.Kind.REQUEST.status(),
+                            new LiteWire.Refusal(LiteWire.Kind.REQUEST, message, null, null).json());
                 }
-                LiteV1Api.Kind kind = a.status() >= 500 ? LiteV1Api.Kind.INTERNAL : LiteV1Api.Kind.REQUEST;
-                return new LiteV1Api.Answer(a.status(), new LiteV1Api.Refusal(kind, message, null, null).json());
+                LiteWire.Kind kind = a.status() >= 500 ? LiteWire.Kind.INTERNAL : LiteWire.Kind.REQUEST;
+                return new LiteV1Api.Answer(a.status(), new LiteWire.Refusal(kind, message, null, null).json());
             }
         };
     }
@@ -421,7 +422,7 @@ public class LegendHttpServer {
     static final Routes USER = new Routes() {
         @Override
         public String prefix() {
-            return LiteV1Api.USER;
+            return LiteWire.USER;
         }
 
         @Override

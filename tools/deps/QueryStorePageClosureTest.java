@@ -37,5 +37,14 @@ class QueryStorePageClosureTest {
                         + " edge's");
         assertEquals(List.of(), labels.stream().filter(l -> l.contains("com/legend/edge/")).toList(),
                 "the query-store page's build compiles a class of com.legend.edge (K2: product root, edge opt-in)");
+        // the page carries core's saved-query rules and lite's own wire, and no other core library -- no planner, no
+        // compiler (2026-11-19, H4's P4 and the orchestrator's option (a), its approval of ~13:05 UTC: the page admits
+        // //core:lite_wire and nothing else)
+        assertEquals(List.of(), labels.stream().filter(l -> l.matches("//core:[a-z_]+"))
+                        .filter(l -> !PAGE_CORE.contains(l)).toList(),
+                "the query-store page reaches a core library beyond the saved queries and lite's wire");
     }
+
+    /** The core libraries the page carries: the saved-query rules, and lite's own wire (its user and routes). */
+    private static final Set<String> PAGE_CORE = Set.of("//core:saved_queries", "//core:lite_wire");
 }
