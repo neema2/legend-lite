@@ -409,9 +409,16 @@ public final class NameResolver {
                 // base primitives (String, Integer...) pass through resolveName
                 // unchanged; an extension-of-extension base resolves via imports
                 String base = resolveName(pe.baseTypeName(), scope);
-                yield base.equals(pe.baseTypeName()) ? pe
-                        : new com.legend.model.PrimitiveExtensionDefinition(
-                                pe.qualifiedName(), base);
+                // its declared type variables kept, each one's type resolved as a parameter's is (2026-11-19: the
+                // rebuild dropped them and none was resolved, so legend-pure's cast.pure, P(x:Integer[1]) extends
+                // Integer, declared none -- its own P(8) refused as the wrong count -- and, kept, x's Integer named no
+                // type the classifier finds: //spec:manifest_world_census's 28th wall)
+                List<ParameterDefinition> vars = new ArrayList<>();
+                for (ParameterDefinition v : pe.typeVariables()) {
+                    vars.add(resolveParameter(v, scope));
+                }
+                yield base.equals(pe.baseTypeName()) && vars.equals(pe.typeVariables()) ? pe
+                        : new com.legend.model.PrimitiveExtensionDefinition(pe.qualifiedName(), base, vars);
             }
             case ClassDefinition cd -> resolveClass(cd, scope);
             case AssociationDefinition ad -> resolveAssociation(ad, scope);

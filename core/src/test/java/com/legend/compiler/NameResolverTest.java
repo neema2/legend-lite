@@ -119,6 +119,32 @@ class NameResolverTest {
                 List.of(), List.of(), List.of(), List.of(), false);
     }
 
+    /** A precise primitive's declared type variables survive resolution, each one's type resolved (2026-11-19: the
+     *  rebuild dropped them, so legend-pure's cast.pure -- {@code Primitive P(x:Integer[1]) extends Integer} and a
+     *  property of type {@code P(8)} -- was refused, //spec:manifest_world_census's 28th load wall): the shape compiles,
+     *  and a value of the wrong type or the wrong count is still refused. */
+    @Test
+    void aPrecisePrimitivesTypeVariablesSurviveResolution() {
+        String primitive = """
+                import model::*;
+                Primitive model::P(x:Integer[1]) extends Integer
+                [
+                    $this < $x
+                ]
+                """;
+        // legend-pure's own grammar, as the census reads cast.pure (a precise primitive's variables are its level's)
+        java.util.function.Function<String, com.legend.model.ParsedModel> parse = text -> com.legend.Compiler.parseSources(
+                List.of(new com.legend.Compiler.ModelSource("cast.pure", primitive + text)), null,
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM).model();
+        com.legend.Compiler.buildModel(parse.apply("Class model::C { val : P(8)[1]; }"));
+        assertTrue(assertThrows(com.legend.error.LegendCompileException.class,
+                () -> com.legend.Compiler.buildModel(parse.apply("Class model::C { val : P('a')[1]; }")))
+                .getMessage().contains("is not an instance of Integer"), "a value of another type refused");
+        assertTrue(assertThrows(com.legend.error.LegendCompileException.class,
+                () -> com.legend.Compiler.buildModel(parse.apply("Class model::C { val : P(8, 9)[1]; }")))
+                .getMessage().contains("type variables"), "another count refused");
+    }
+
     private static PropertyDefinition prop(String name, TypeExpression type) {
         return new PropertyDefinition(name, type, ONE, List.of(), List.of());
     }
