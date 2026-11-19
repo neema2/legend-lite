@@ -15,10 +15,10 @@ import java.io.IOException;
  * Channel A through THE PRODUCT DOOR (2026-11-03, the user's order of fixes, step 6: one planning door, one execution
  * door): the case's expression and its injected model compiled by the one compiler and run by {@code Execution.run},
  * exactly as a product query runs -- its session the lane's for its plan ({@link PctBackend#executionSource}: as the
- * plan route's sessions chose it), its plan made for that session's server, its declared setup established, under the
- * PCT's feature flag
- * (CORRECT_SQL_SUBSTRING_INDEXING: the user's ruling of 2026-09-12, a written deviation from upstream's PCT adapter,
- * which sets none -- the engine's testable runner sets it for relation tests). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
+ * plan route's sessions chose it), its plan made for that session's server, its declared setup established, with no
+ * feature flag, as upstream's PCT adapter sets none (A3 of the compatibility program, 2026-11-19: substring is Pure's
+ * by default, so the 2026-09-12 written deviation, the adapter setting CORRECT_SQL_SUBSTRING_INDEXING, is reversed;
+ * register S130). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
  * answer the server writes from them ({@code edge.EngineAnswers.engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
  * PCT adapter reads it ({@link ValueBridge#engineTDS}); a value's elements cross as the reference's own instances
  * ({@link ValueBridge}).
@@ -42,8 +42,8 @@ final class PctPlanRoute {
                 .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
-        java.util.Set<com.legend.platform.Feature> features =
-                java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
+        // no feature flag (A3, 2026-11-19: substring is Pure's by default; S130), as upstream's own PCT adapters set none
+        java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)

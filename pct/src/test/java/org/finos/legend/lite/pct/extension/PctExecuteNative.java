@@ -137,15 +137,9 @@ public class PctExecuteNative extends NativeFunction {
             String model = defs.toString();
             PctCaseRecorder.record(model, pureExpression);   // debug only: -Dlegend.diagnostics=pct-cases
 
-            // The PCT runs with CORRECT_SQL_SUBSTRING_INDEXING on (USER
-            // 2026-09-12). A DELIBERATE, written deviation from the engine:
-            // its PCT never sets the flag and every reference relational
-            // adapter ledgers the substring tests as expected failures; the
-            // engine sets it only in its testable framework, for
-            // relation-returning function tests (TestExecutionContextHelper).
-            // Our PCT encodes the corrected (Pure) indexing; the corpus runs
-            // the uncorrected default, as the engine's relational tests do —
-            // one flag selects between them.
+            // The PCT runs with no feature flag, as the engine's own PCT adapters do (A3 of the compatibility program,
+            // 2026-11-19, reversing the 2026-09-12 deviation of setting CORRECT_SQL_SUBSTRING_INDEXING): substring and
+            // indexOf are Pure's meaning by default, on every road (register S130, S134).
             // A storeless expression executes on the lane's declared runtime,
             // as the engine's PCT adapter gives it one (StorelessRuntime), its
             // plan run on the lane's sessions; the answer is typed rows
