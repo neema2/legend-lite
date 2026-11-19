@@ -2986,3 +2986,10 @@ who confirms or changes phases 1-3.
   literals the lowering wraps in a cast, H13 §9: "0 of them raise over a value known only at run time"; 4 window-frame
   and 2 bit-shift sentences carry no value; 6 plain literals), and the corpus has no assertError, so option 3 is off
   the table either way and the choice is option 1 against option 2.
+- **~22:21 UTC, the judges: the detector's section fix merged** (batch head `9b3b6581e`; 14 of 14 touched lanes;
+  parser_parity 300 s). own_corpus.matched on the merged tree 3325 = 3314 + 6 (the detector's sections, under ~20:10)
+  + 5 (the judges' InCollectionSpliceRefusalTest model; measured 3320 without it). The +5 is a floor rising (stricter)
+  but not the detector's: listed for the user's word at the batch PR. The user asked why option 2 is so big: answered
+  from H13 §20 (the core is the record, the formatter and the lowering fixes, about +520 / −200 and 2.5 days; the rest
+  is S1's groundwork, compile-time errors, tests and checks); a lean option 2 (run-time errors only) roughly 4 to 5
+  days, unsized; offered to have H13 size it.
