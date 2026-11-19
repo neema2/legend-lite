@@ -1459,3 +1459,85 @@ class V8Started(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ModelTexts(unittest.TestCase):
+    """What the host keeps of a model's text is that text's own (2026-11-19, markets_test's time: the host now keeps a
+    model text's elements, the models DataCube's code held and an opened project's database by the text): a text edited
+    is answered afresh, never by the text it was, and the engine's holds go with it."""
+
+    MODEL = '''
+###Pure
+Class m::Party
+{
+  id: Integer[1];
+  name: String[1];
+}
+
+###Relational
+Database m::DB
+(
+  Schema P
+  (
+    Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
+  )
+)
+
+###Data
+Data m::Rows
+{
+  Relational
+  #{
+    P.PARTY:
+      '%s';
+  }#
+}
+'''
+
+    def test_an_edited_text_gets_its_own_elements_and_holds(self):
+        a = self.MODEL % 'ID,NAME\\n1,Meridian\\n'
+        b = a.replace('  name: String[1];\n', '  name: String[1];\n  rating: Integer[0..1];\n')
+        with Headless(bundle()) as h:
+            def ask(kind, **fields):
+                # as DataCube's code asks its planner: the host's call in V8 (calls.ts planner)
+                request = json.dumps({'id': 1, 'kind': kind, **fields})
+                return json.loads(h.evaluate(f'legendLiteHost.planner({json.dumps(request)})'))
+
+            def elements(text):
+                return ask('modelElements', request=json.dumps({'model': text}))['answer']
+
+            first = elements(a)
+            self.assertIn('"name"', first)
+            self.assertNotIn('rating', first)
+            # the edited text answered afresh, and the text it was answered as before
+            self.assertIn('rating', elements(b))
+            self.assertEqual(elements(a), first)
+            # each text held is its own model, the engine's holds one per text
+            held_a, held_b = ask('hold', model=a), ask('hold', model=b)
+            self.assertTrue(held_a['answer'].startswith('OK\n') and held_b['answer'].startswith('OK\n'))
+            self.assertEqual(sorted(h._held), sorted([(a, None), (b, None)]))
+        self.assertEqual(h._held, {}, 'its own holds let go as it closes')
+
+    def test_an_edited_projects_rows_are_its_own_database(self):
+        from legend_lite import projects
+        a = self.MODEL % 'ID,NAME\\n1,Meridian\\n'
+        b = self.MODEL % 'ID,NAME\\n1,Meridian\\n2,Halberd\\n'
+        frames = Frames()
+        databases = projects.ProjectDatabases(frames.connection, guard=frames.using_connection)
+
+        def rows(model):
+            with databases.using(model) as project:
+                return project.cursor._con.execute('SELECT count(*) FROM P.PARTY').fetchone()[0]
+
+        # the edited text's rows, never the text it was; and the text it was still its own
+        self.assertEqual((rows(a), rows(b), rows(a)), (1, 2, 1))
+        with databases.using(b) as project:
+            self.assertEqual(project.held.model, b)
+        self.assertEqual(len(databases.names), 2)
+        # the names remembered are the latest few texts', each the whole text: one let go is only asked again
+        for n in range(projects._NAMED_KEPT + 1):
+            self.assertEqual(rows(a.replace('Class m::Party', f'Class m::Other{n} {{ x: Integer[1]; }}\nClass m::Party')), 1)
+        self.assertEqual(len(databases._named), projects._NAMED_KEPT)
+        self.assertNotIn(a, databases._named)
+        self.assertEqual(rows(a), 1)
+        self.assertEqual(len(databases.names), 2, 'the same rows, the same database')
