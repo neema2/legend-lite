@@ -25,37 +25,27 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  */
 class PureV1EdgeGoldenTest {
 
-    private static final String RT = "->from(trades::h2::RT)";
-    private static final String TRADES = "#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#";
+    /** name -> the lambda's grammar, in the file's order: core/src/test/resources/edge/pure_v1_requests.tsv, the
+     *  list slice R's plan oracle reads too, so the two cannot drift (B1 of the presentation program, 2026-11-19). */
+    private static final Map<String, String> REQUESTS = requests();
 
-    /** name -> the lambda's grammar. */
-    private static final Map<String, String> REQUESTS = new LinkedHashMap<>();
-
-    static {
-        // one TDS answer and one value answer
-        REQUESTS.put("tds", "|" + TRADES + "->select(~[year, region])->sort([~year->ascending(), ~region->ascending()])->limit(2)" + RT);
-        REQUESTS.put("value", "|" + TRADES + "->size()" + RT);
-        // an error answer for each raise pure/v1 reaches
-        REQUESTS.put("raise.divideByZero", "|" + TRADES + "->limit(1)->extend(~d: r|$r.year->toOne() / 0)->select(~[d])" + RT);
-        REQUESTS.put("raise.atOutOfBounds", "|" + TRADES + "->limit(1)->extend(~a: r|[1, 2]->at(5))->select(~[a])" + RT);
-        REQUESTS.put("raise.toOneOverMany", "|" + TRADES + "->limit(1)->extend(~o: r|[1, 2]->toOne())->select(~[o])" + RT);
-        REQUESTS.put("raise.sqrtOfNegative", "|" + TRADES + "->limit(1)->extend(~s: r|sqrt(-2.0))->select(~[s])" + RT);
-        REQUESTS.put("raise.parseInteger", "|" + TRADES + "->limit(1)->extend(~p: r|'abc'->parseInteger())->select(~[p])" + RT);
-        // a raise the edge checks in its own plan, a site with words (S0 of the presentation program, 2026-11-18: until
-        // then every raise here was the database's own or a planning refusal, so the net pinned no planned site's words)
-        REQUESTS.put("raise.toOneOfEmpty",
-                "|" + TRADES + "->limit(1)->extend(~o: r|[]->cast(@Integer)->toOne())->select(~[o])" + RT);
-        // a cell of each kind
-        REQUESTS.put("cell.dateTimeCoarse", "|" + TRADES + "->limit(1)->extend(~t: r|%2024-01-02T10:30:00)->select(~[t])" + RT);
-        REQUESTS.put("cell.dateTimeSubMicro",
-                "|" + TRADES + "->limit(1)->extend(~t: r|%2024-01-02T10:30:00.123456789)->select(~[t])" + RT);
-        REQUESTS.put("cell.float", "|" + TRADES + "->limit(1)->extend(~f: r|1.0 / 3.0)->select(~[f])" + RT);
-        REQUESTS.put("cell.floatWhole", "|" + TRADES + "->limit(1)->extend(~f: r|2.0 * 3.0)->select(~[f])" + RT);
-        REQUESTS.put("cell.empty",
-                "|" + TRADES + "->limit(1)->extend(~e: r|[]->cast(@String)->first())->select(~[e])" + RT);
-        REQUESTS.put("cell.emptyIf",
-                "|" + TRADES + "->limit(1)->extend(~e: r|if(false, |'x', |[]->cast(@String)))->select(~[e])" + RT);
-        REQUESTS.put("cell.strictDate", "|" + TRADES + "->limit(1)->extend(~d: r|%2024-01-02)->select(~[d])" + RT);
+    private static Map<String, String> requests() {
+        Map<String, String> out = new LinkedHashMap<>();
+        try {
+            for (String line : resource("edge/pure_v1_requests.tsv").split("\n", -1)) {
+                if (line.isEmpty() || line.startsWith("#")) {
+                    continue;
+                }
+                int tab = line.indexOf('\t');
+                if (tab < 0 || out.put(line.substring(0, tab), line.substring(tab + 1)) != null) {
+                    throw new IllegalStateException("pure_v1_requests.tsv: not a name, a tab and a lambda, or a name"
+                            + " twice: " + line);
+                }
+            }
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return out;
     }
 
     private static String resource(String name) throws IOException {
