@@ -727,10 +727,16 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
   PCT recording, and the host byte-parity suite.
 - **Cost:** about +2 to +4 minutes per push, by the old design's figures; 0.2 and 0.3 re-measure it.
 - **The oracle stays in the heavy lane,** and every program PR runs it.
+- **One allowlist entry, the user's word:** `tools/engine-runner` as a `duckdb_jdbc` user in
+  `tools/deps/jars_table.bzl` (B1-R's pending item), so the oracle's DuckDB half builds in the lanes. It is test
+  tooling only (`testonly`, its pool usable from that package alone).
 
 **CP-10. Housekeeping.**
 - The register corrections S138 and S63, the prelude's register row, and H1's two unrecorded differences (0.5).
 - B1's three pending guard items are withdrawn, because the extension they guard is not built (§2).
+- The census's 23-hit calendar group (legend-engine's `LegendCalendarSchema.<type>_Calendar` names and fiscal
+  columns in product lowering, `CalendarAgg`) becomes a ruled (b) row. H1 classed it S `same`: the names are the
+  calendar functions' own store contract (`calendarStore.pure:19`), not a presentation.
 
 **Held by the previous orchestrator:** R-a, a fractional cell under an Integer property (PR #121). Its ENGINE
 answer, when ruled, becomes a translator rewrite or a refusal in phase 3.
