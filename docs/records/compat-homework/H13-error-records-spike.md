@@ -45,3 +45,91 @@ after the run; upstream words never enter a plan. It is a measuring instrument. 
 - Deleted on top of S1: `planner.SiteFacts` (S1's two-form hook), `edge.SiteWords`, the `siteWords` tag of
   `EdgeCodec`, `PureMessages.wordable`, `words` and `wordsOrNull` (the planning-time worder), and the edge dialects'
   choice between a site and a sentence in SQL.
+
+## 3. Wording after the run, as prototyped (run-time raises)
+
+- **Every raise is a site, under every style.** The 12 edge dialects of `PureText` no longer choose between a site
+  and legend-pure's sentence written in SQL (`PureMessages.wordable ? site : sentence`). They write the product's
+  token. So an edge plan's statements are the product's statements, raise for raise.
+- **One function words a raised site:** `PureMessages.worded(kind, List<Operand>)` returns the sentence and two
+  counts: `withheld` (printed operands that were computed, A3) and `javaPrinted` (printed literals the SQL sentence
+  had the database print: a Float, a Decimal, a DateTime, a Boolean).
+- **Both routes already funnel through it.** After S1, `RaisedWords.wordsOf(Raised)` serves pure/v1's shipped runner
+  and PCT channel A (`RaisedWords.run`), and a test body's `assertError` (`EdgeHostWords.caught`). The spike changed
+  that one function's body: it words from `r.site().kind()` and `r.site().operands()`. No recorder, no
+  `PlanStyle.siteWords`, no state, no lookup.
+- **The database judge still works.** Under the database judge the host catches the raise and binds its message to
+  the verdict statement (`VerdictSql.Raised.bound`). The bound message is the formatter's, worded after the run.
+- **A placeholder stands where a computed operand's value was:** `<computed>`. It is the spike's own spelling, not a
+  ruling. The register row slice 1.2 names would rule the spelling.
+
+**What stays in SQL, found by the spike (2 things):**
+
+1. **A checked graph's defect cell** (`RaiseText.asData`, kind `CONSTRAINT_UNEVALUABLE`). It is not a raise. It is
+   an ANSWER cell whose text the edge dialects write as legend-engine's sentence
+   (`Unable to evaluate constraint [id]: data not available - check your mappings`). The spike keeps it
+   (`r.asData() != null ? PureMessages.sentence(r) : site(r)`). An error record does not cover it: it needs a typed
+   defect cell that the ENGINE formatter words (slice 1.3 or 1.4), or a ruling that the cell says lite's words.
+2. **`EngineStyleH2.raiseMessage`** always writes `PureMessages.sentence` (legend-engine's SQL text, for
+   `toSQLString`, `planToString` and an activity's SQL). It is the SQL half's one remaining caller. It goes with
+   step A2 (the engine-spelling printers), not with this slice. Until A2 lands, `PureMessages.sentence` (57 lines)
+   cannot be deleted.
+
+## 4. The hosts (the tab, Python)
+
+**Checked by running each host's own reader over the shared fixture** (`engine-client/test/fixtures/raise-envelopes.json`,
+11 cases), with typed operands added to its four sites. The scripts are in section 10.
+
+| Host | Reader | Result |
+|---|---|---|
+| Python | `legend_lite/_raised.py` (`declare_sites`, `raised_words`, `raised_kind`) | 11 of 11 cases read as before |
+| The tab | `engine-client/src/declared-raises.ts`, `raised.ts` (`declareSites`, `failure`) | 11 of 11 cases read as before |
+| Java | `exec.RaisedErrors` | unchanged code; `Raised#site` now carries the operands |
+
+- **Why nothing breaks:** neither host checks a site's key set. Python checks `n`, `kind` and `message`
+  (`_sites_of`). The tab casts. Both read `message` for the words, so a LITE raise says exactly what it said.
+- **One rule that must be kept:** each host refuses a statement whose sites are declared two different ways
+  (`JSON.stringify` / `json.dumps` equality). An ENGINE answer declares a statement's sites twice: from its `sites`
+  view and from the plan beside it. **Checked:** a view written without the operands is refused by name by both
+  hosts. So `PlanJson.sitesOf` must write a site exactly as the plan does. It does, with no codec: the operands are
+  product data, so S1's two explicit-codec overloads (`write(plan, codec)`, `sitesOf(plan, statement, codec)`) are
+  not needed.
+- **What changes for the hosts in this slice:** only `PLAN_VERSION` (58 to 59), in `plan-runner.ts` and `_runs.py`.
+- **A gap this slice does not close, found here:** on the hosts' ENGINE routes (`wasm-edge.ts`,
+  `edge/_pure_v1.py`) a raise is worded from `site.message`, which is LITE's sentence. That is already so on `main`
+  for every raise the edge words at planning (its words sit in a `siteWords` table beside the plan that no host
+  reads). On `main` only the computed-operand raises say legend-pure's words on a host, because their sentence is
+  in the SQL. After this slice every raise on a host's ENGINE route says lite's sentence, until slice 1.6 moves the
+  ENGINE error half into Java. Java's own pure/v1 route is not affected.
+
+**Would lite's own sentence leaving the plan later (slice 1.6, plan v60) break anything?** Yes, in a small, known
+set of places, all of which that slice must change together:
+
+| Where | What breaks if `message` and the plan-level `raises` simply go |
+|---|---|
+| `_raised.py` `_sites_of` | refuses every site: it requires `message` to be a string |
+| `_raised.py` `raised_words`, `raised.ts` `failure` | read `site['message']` / `site.message` for the words |
+| `_raised.py` `declare_sites`, `declared-raises.ts` `declareSites` | refuse an answer that carries no `raises` map |
+| `PlanJson.readSites` | checks the site's `message` against its kind's sentence |
+| `exec.RaisedErrors.dataErrorOf` and `dataError` | build `DataError` from `site.message()` |
+| `raise-envelopes.json` | each site states its `message`; Java's test holds it to `ErrorKind` |
+| `edge.HostAnswers` | writes `raises` into both ENGINE answers |
+| tests that build sites by hand | `plan-runner.test.ts` (2 places), `test_planned.py` (2 plans with `raises`) |
+
+- The rule the generated table must carry is one line: `ErrorKind.sentence + (where == null ? "" : ": " + where)`,
+  over 27 raise kinds (`ExecutionPlan.Site.sentence`). Every reader of a planner's answer on both hosts goes through
+  two functions (10 call sites on the tab and in DataCube, 9 in Python), so the change is contained.
+- **Nothing in the operands design blocks it.** The operands do not depend on `message`.
+
+## 5. The first run of the edge's core tests (`//core:core_edge_tests`)
+
+1,011 tests: **991 pass, 20 fail.** Every failure is the design working as ruled, or a test of the deleted
+mechanism:
+
+| Count | Tests | Why |
+|---|---|---|
+| 6 | `AssertErrorNativeTest` | `[1,2]->at(3)`: legend-pure's sentence prints the collection's size, which the lowering computes even for a literal list. After: `... at offset 3 where the collection is of size <computed>` |
+| 11 | `MultiplicityStrictnessTest` (2), `RelationToOneGuardTest` (1), `OptionalCollectionNullDropTest` (2), `ToOneLaneTest` (6) | `toOne` over a collection of another size. The size is computed. These tests also call the door without the formatter (`RaisedWords.run`), which worked only while the sentence was in the SQL |
+| 1 | `InterimEdgeSitesTest` | the spike's own first draft of the measure (fixed) |
+| 1 | `PureV1ApiTest.m2_theHostsPureV1HalvesRaiseInPuresWords` | read S1's `extensions` on a site (adapted) |
+| 1 | counted in the 11 above | |

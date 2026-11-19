@@ -1050,9 +1050,47 @@ public final class PlanMaker {
     public static List<ExecutionPlan.Site> sites(List<com.legend.sql.dialect.RaiseSite> written,
             com.legend.database.PlanStyle style) {
         java.util.Objects.requireNonNull(style, "the plan's style");
+        h13(written, style);
         return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
                 ExecutionPlan.Site.sentence(w.kind(), w.where()),
                 w.operands().stream().map(com.legend.executionplan.Operand::of).toList())).toList();
+    }
+
+    /** H13 SPIKE INSTRUMENTATION, scratch: each planned site's kind, where and operand SHAPES (the SQL expression's
+     *  class, a cast's inner class behind it), appended to {@code -Dlegend.h13.sites} or
+     *  {@code /home/user/h13log/sites.tsv} where that directory exists: the census of what
+     *  {@code RaiseSite.operands()} produces over a suite. */
+    private static void h13(List<com.legend.sql.dialect.RaiseSite> written, com.legend.database.PlanStyle style) {
+        String file = System.getProperty("legend.h13.sites");
+        if (file == null) {
+            java.nio.file.Path dir = java.nio.file.Path.of("/home/user/h13log");
+            if (!java.nio.file.Files.isDirectory(dir)) {
+                return;
+            }
+            file = dir.resolve("sites.tsv").toString();
+        }
+        StringBuilder lines = new StringBuilder();
+        for (com.legend.sql.dialect.RaiseSite w : written) {
+            lines.append(style == com.legend.database.PlanStyle.PRODUCT ? "PRODUCT" : "EDGE").append('\t')
+                    .append(w.kind()).append('\t').append(w.where() == null ? "-" : "where").append('\t');
+            for (int i = 0; i < w.operands().size(); i++) {
+                lines.append(i == 0 ? "" : ",").append(h13Shape(w.operands().get(i)));
+            }
+            lines.append('\n');
+        }
+        synchronized (PlanMaker.class) {
+            try {
+                java.nio.file.Files.writeString(java.nio.file.Path.of(file), lines,
+                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+            } catch (java.io.IOException io) {
+                throw new java.io.UncheckedIOException(io);
+            }
+        }
+    }
+
+    private static String h13Shape(com.legend.sql.SqlExpr e) {
+        String name = e.getClass().getSimpleName();
+        return e instanceof com.legend.sql.SqlExpr.Cast c ? name + "(" + h13Shape(c.value()) + ")" : name;
     }
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database

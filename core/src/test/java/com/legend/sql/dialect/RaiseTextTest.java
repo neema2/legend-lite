@@ -125,8 +125,6 @@ class RaiseTextTest {
             }
         }
     }
-        }
-    }
 
     /** legend-pure's words of {@code q}'s one raise site, as {@code dialect} writes the statement and the formatter
      *  words its planned record after a run (H13 spike: the site's kind and typed operands, no words planned); null

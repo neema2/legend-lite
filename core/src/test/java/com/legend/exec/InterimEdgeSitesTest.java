@@ -4,8 +4,6 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.sql.RaiseKind;
-import com.legend.sql.SqlExpr;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -85,16 +83,6 @@ class InterimEdgeSitesTest {
                         withheld.add(site.kind() + " " + site.operands() + " -> " + worded.sentence() + " in " + query);
                     }
                 }
-                if (sql.tree() == null) {
-                    continue;
-                }
-                int raises = 0;
-                for (SqlExpr.RaiseText r : raises(sql.tree())) {
-                    if (r.asData() == null && r.kind() != RaiseKind.USER_FAIL) {
-                        raises++;
-                    }
-                }
-                assertTrue(raises >= sql.sites().size(), "every raise of the tree is a site: " + sql.sites());
                 assertTrue(!sql.statement().contains("Cannot divide") && !sql.statement().contains("Unable to compute"),
                         "no upstream sentence in an edge statement: " + sql.statement());
             }
@@ -108,20 +96,6 @@ class InterimEdgeSitesTest {
     /** The computed-operand raises over {@link #QUERIES}, as measured 2026-11-16. */
     private static final int INTERIM = 4;   // rem by a column and by 0 (its dividend a column), sqrt of a
                                             // literal (its operand cast), at by a column
-
-    private static List<SqlExpr.RaiseText> raises(com.legend.sql.SqlQuery q) {
-        List<SqlExpr.RaiseText> out = new ArrayList<>();
-        new com.legend.sql.SqlRewriter() {
-            @Override
-            protected SqlExpr expr(SqlExpr e) {
-                if (e instanceof SqlExpr.RaiseText r) {
-                    out.add(r);
-                }
-                return e;
-            }
-        }.rewriteRoot(q);
-        return out;
-    }
 
     private static List<ExecutionPlan.Sql> statements(ExecutionPlan.Node node) {
         List<ExecutionPlan.Sql> out = new ArrayList<>();

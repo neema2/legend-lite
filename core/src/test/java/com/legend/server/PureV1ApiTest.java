@@ -1026,9 +1026,12 @@ class PureV1ApiTest {
             assertTrue(sql.contains("LG#1"), sql);
             Json.Obj site = (Json.Obj) answer.getArr("sites").items().get(0);
             assertFalse(site.has("upstream"), "a plan's site carries no upstream field: " + a.json());
-            Json.Obj words = (Json.Obj) site.getArr("extensions").items().get(0);
-            assertEquals("siteWords", words.getString("_type"), a.json());
-            assertEquals("Division by zero", words.getString("words"), a.json());
+            // H13 spike: the answer carries NO upstream words -- the site is its kind, where, lite's message and its
+            // typed operands (none for Integer / Integer); legend-pure's sentence is the formatter's, after the run
+            assertFalse(site.has("extensions"), "no edge record on a site: " + a.json());
+            assertFalse(a.json().contains("Division by zero"), "no upstream sentence in a host's plan: " + a.json());
+            assertEquals("Division by zero", com.legend.edge.PureMessages.worded(
+                    com.legend.sql.RaiseKind.valueOf(site.getString("kind")), List.of()).sentence());
         }
     }
 
