@@ -1169,3 +1169,13 @@ who confirms or changes phases 1-3.
     (`TestObserver`, which already carries the caller's options and `EdgeRun`; no default, as K6); other ordering
     constraints; and the cost of the no-hook alternative (the harness types each body with the public compiler and
     rewrites the PARSED body before the build, as H5's typed retarget did).
+- **~13:29 UTC, H10's record committed** (`H10-judge-records-spike.md` at `b867f60b` on `claude/compat-judges-homework`;
+  spike code `beacf4c9` and `228a6a18` on `claude/compat-judges-spike`, neither for merge). Additions beyond the
+  counts: the stubs (§1: `AtIndex` carries its inner failure as text; `HostRules` kept only as the presenter's
+  carrier; `Hearing.json` stays until R-S144; `EdgeHostWords.cellMultisetDiffers` still compares; core's test sources
+  do not compile on the branch, 18 files, 12 of them guards, naming deleted types, no guard line touched); the door
+  options (§5); sizes (§6: 2.2b about 4.5 days; removing S15 from the judge moves 2 DuckDB corpus tests until R-S15
+  lands at a door, so 2.2b waits for the door or the two rows go to the user; 2.2b does not depend on 2.2a); lessons
+  (§7: find the door first; thread the hearing, not a function; presenters as thin adapters; a failing fixture per
+  record kind, since the lanes reach 9 of 25; measure the base's noise first). H6 corrected: `HostWords` has 27
+  methods (25 kinds). The answers to this session's four door questions (13:28) crossed with this message; awaited.
