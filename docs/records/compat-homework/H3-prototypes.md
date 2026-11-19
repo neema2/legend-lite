@@ -16,7 +16,7 @@ program is re-cut on it (§4).
 | | prototype | checked against | result | took |
 |---|---|---|---|---|
 | (c) | legend-engine's TDS envelope, written by a presenter AFTER a product run (no style, no mode) | the pure/v1 edge golden (`core/src/test/resources/edge/pure_v1_answers.tsv`) and legend-engine 4.145.0's own answers (the slice-R oracle) | **tds byte-identical**. 9 of 14 golden lines byte-identical; 11 of 14 with the SQL text masked. The other 3 are run-time raises a presenter cannot write | 0 product lines; a 125-line probe over the edge's existing writer |
-| (a) | `substring` / `indexOf` as an ENGINE input rewrite over lite's Pure meaning | legend-engine 4.145.0 run on the same requests, H2 and DuckDB, 25 requests | **H2 25 of 25, DuckDB 24 of 25** (the miss: a negative length). It needs a TARGET-AWARE rewrite: target-blind, DuckDB scores 17 of 25 | core +21/-26 lines (Scalars); about 30 Pure lines per target; a JSON rename |
+| (a) | `substring` / `indexOf` as an ENGINE input rewrite over lite's Pure meaning (ASSUMED by the prototype: whether LITE follows Pure or legend-engine is the user's open ruling R4; §3.1 says what moves under each choice) | legend-engine 4.145.0 run on the same requests, H2 and DuckDB, 25 requests | **H2 25 of 25, DuckDB 24 of 25** (the miss: a negative length). It needs a TARGET-AWARE rewrite: target-blind, DuckDB scores 17 of 25 | core +21/-26 lines (Scalars); about 30 Pure lines per target; a JSON rename |
 | (b) | `toString` of a Float inside a filter, as a PURE input rewrite calling ONE named core capability | legend-pure 5.99.0's own `CompiledSupport.primitiveToString`, called from its jar, on 26 Floats (PCT's literals among them) | **H2 26 of 26, DuckDB 25 of 26** rows kept, where legend-pure keeps 26 and the product alone keeps 8. The miss: the smallest subnormal | core +5 (Pure.java) +66 (Scalars), 0 dialect lines; 2 Pure functions |
 
 The four things the architecture must absorb, ranked (§4):
@@ -29,8 +29,8 @@ The four things the architecture must absorb, ranked (§4):
 4. The presenter reads **the plan too**. Some envelope fields are functions of upstream's SQL: a scalar's column
    label, a raise's message as the database's error text over upstream's statement. These need a class of their own:
    declared not promised, or refused.
-5. **The product leans on today's meaning in two places.** These must be separated before the core's meaning can
-   become Pure's:
+5. **The product leans on today's meaning in two places.** If R4 rules that LITE follows Pure, these must be separated
+   first:
    - lite's own Cypher translator writes Pure in legend-engine's meaning;
    - a `###Relational` dynaFunction `substring` shares the Pure function's rule.
 
@@ -112,7 +112,12 @@ style's facet for class and serialized roots only).
 
 ## 3. (a) `substring` and `indexOf`: an ENGINE input rewrite over lite's Pure meaning
 
-**The core's meaning, Pure's** (registers S130, S134; `h3/core-prototype.diff.txt`, Scalars +21/-26):
+**What the prototype ASSUMED, not a decision.** Whether LITE's own meaning of `substring` and `indexOf` follows
+legend-pure or legend-engine is the user's open ruling R4 (as the orchestrator relayed it, 2026-11-19). The prototype
+assumed Pure's, because the brief asks for an ENGINE rewrite over it. §3.1 says what moves under each choice.
+
+**The core's meaning under that assumption, Pure's** (registers S130, S134; `h3/core-prototype.diff.txt`, Scalars
++21/-26):
 - `substring` is always the corrected rule (0-based, end-exclusive; `FeatureRules.CORRECTED_SUBSTRING`), whatever the
   flag says;
 - string `indexOf(s, t)` is `STRPOS - 1` (0-based, -1 on a miss: exact for both);
@@ -215,6 +220,19 @@ case for a literal string, which no request here hit. Those two are for the adap
    function in every audience (upstream's DSL meaning, 1-based). Lite lowers it through the same rule as Pure's
    `substring`, so giving the Pure function Pure's meaning moved the dynaFunction too. The two need separate rules
    before the core's meaning can change.
+
+### 3.1 What moves under each choice of R4
+
+Either way, S130's flag leaves the core and becomes an adapter's rewrite: the architecture has no mode.
+
+| | LITE follows legend-pure (the prototype) | LITE follows legend-engine (today's main) |
+|---|---|---|
+| the core | Scalars +21/-26: substring always corrected, indexOf 0-based | no change |
+| who gets a rewrite | the ENGINE audience (pure/v1, the corpus): §3's target-aware compat functions | the PURE audience (PCT, legend-pure's words): `substring(s, a, b)` becomes legend-engine's `substring(s, a + 1, b - a)`, and `indexOf` becomes legend-engine's minus 1. By algebra this is exact for Pure-valid arguments; not measured here |
+| PCT | 3 known failures (S134) pass in the core itself | PCT runs through the PURE rewrite; S134's 3 would pass there (not measured) |
+| the corpus | 15 tests need the ENGINE rewrite at the MODEL level (§3, "What broke") | unchanged |
+| core's tests | 10 pin the old meaning and move; lite's Cypher translator and the `###Relational` dynaFunction must first be split from the Pure function's rule (items 5, 6) | unchanged |
+| legend-engine on DuckDB | the target-aware rewrite (24 of 25) | still needed: today's main is 16 of 25 on DuckDB. "legend-engine's meaning" is per database (start 0, a negative length, DuckDB's folder vs its runtime), so the product cannot simply follow legend-engine; the DuckDB clamp (item 4) answers neither database's way |
 
 ## 4. (b) a Float's `toString` inside a filter, through one named capability
 
