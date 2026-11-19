@@ -431,3 +431,9 @@ who confirms or changes phases 1-3.
   - **still open:** the no-translator count for the other meaning strands (`isNumeric`, `parsedDecimal`, `parsedJson`,
     SQLite's Decimal arithmetic, `CrossKindNumbers`, `raw`, `LEGACY_SQL_NULL_UNSAFE_EQUALS`), asked of the translator
     session at ~12:08. B2's (j) covers S20 and the plain set.
+- **~12:12 UTC, B1's 0.2 status:** the PR is about 1 hour away (`//gates:local` rerunning; its first run was broken by
+  a disk-cache deletion). The first run found a real defect in S0, now fixed as `5e3bbe6d1`: `//core:census`
+  (`DialectLeakRatchetTest`'s ban) refused S0's `EdgeCasesGoldenTest` for naming `DatabaseType.DuckDB` and `H2`; it
+  now uses `Databases.PLATFORM` and `REPLAY_REFEREE`, the golden is unchanged, and the census is green.
+  - **The landing order:** 0.2 first, and the numbers worker's `FloatShortestText` change re-records on top (this
+    session's call, sent to both).
