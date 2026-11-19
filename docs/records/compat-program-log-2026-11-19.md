@@ -3022,3 +3022,9 @@ who confirms or changes phases 1-3.
   `refuse`); fixed at `claude/compat-a3-detector` `e4496b763` with plant P8; the judges merge it, the reviewer checks.
   **Ruled here:** no battery pin move in stage A; the class shapes guarded as ordinary PureMeaningEngineTest cases
   asserting the probed answers (both settings, H2 and DuckDB); a class model in the batteries on stage B's list.
+- **~22:39 UTC, the reviewer CLOSED E-M1 and APPROVED the detector fix `e4496b763`** (record `a9e827e2e`), read from
+  legend-engine's own answer files (the toOne tails through a relational instantiation node's SQL; the tree's qualified
+  property 'Cre'; the let shape 're' from a Java plan; the two 500s), and accepted this session's calls (no battery move
+  in stage A; the class shapes as PureMeaningEngineTest cases). Under `engine` a graph-fetch tree's qualified property
+  is refused by name (a conservative refusal). Nits to B1-R: pin the let shape clean; probe or refuse a serialize tree
+  naming a qualified property the fetch tree lacks; the shape note to state the refusal.
