@@ -386,3 +386,201 @@ The run scripts are scratch, not committed. What they run:
 
 Nothing was changed on `main`. No pin, ceiling, ledger, roster or allowlist moved. Core's test sources do not compile
 on the spike branch, and the record says so (§1 item 7).
+
+## 9. Follow-ups from the owner, A5 and H13 (2026-11-19, afternoon)
+
+### 9.1 R-S131's cell pool against today's row tuples, the 7 cell cases (the owner's item 2)
+
+For a TDS's flat cells, the question is whether `assertSameElements` (cells pooled) passes anything today's row-tuple
+fallback fails. The 7 DuckDB cell cases are the 6 the H6 list holds plus `testConcatenateClassJoin`, which H6 counted
+too. Their per-assert verdicts across the three runs:
+- **P:** today's row-tuple fallback;
+- **R0:** no multiset at all;
+- **RS131:** the rewrite's pooled compare.
+
+| Test | P | R0 | RS131 | same as P |
+|---|---|---|---|---|
+| `classMappingFilterWithInnerJoin::testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter` | PASS, PASS | FAIL | PASS, PASS | yes |
+| `classMappingFilterWithInnerJoin::testRootFilterAndProjectionQueryWithInnerJoinClassMappingFilterAndPropertyMappedWithJoinToFilterTable` | PASS, PASS | FAIL | PASS, PASS | yes |
+| `concatenate::testConcatenateFlat` | PASS, PASS | FAIL | PASS, PASS | yes |
+| `query::routing::testCompositionInGroupBy` | PASS ×3 | PASS, FAIL | PASS ×3 | yes |
+| `query::routing::testCompositionInJoin` | PASS ×3 | PASS, FAIL | PASS ×3 | yes |
+| `query::routing::testCompositionInUnion` | PASS ×3 | PASS, FAIL | PASS ×3 | yes |
+| `concatenate::testConcatenateClassJoin` | PASS, PASS | PASS, PASS (row order luck) | PASS, PASS | yes |
+
+**0 of the 7 differ.** Corpus-wide, on both lanes, no assert's verdict goes from FAIL under P to PASS under RS131: the
+ledger moves are renames (PASS to PASS, FAIL to FAIL) and the JSON root's PASS to FAIL. So no cell case needs to keep
+the row-tuple compare as an edge rule.
+
+The limit: P and RS131 are two runs, so each compare met its own run's rows. Both runs passed all 7, so a run's row
+order cannot have hidden a pooled pass over a row-tuple failure here.
+
+### 9.2 The JSON root: the edge's second whole-kind rule (the owner's ruling)
+
+The spike's `Hearing.json()` (stub 4) becomes the `Json` kind's rule, as `renderedTexts()` is `Rendered`'s:
+- **The product's** reads strict JSON and compares arrays in order.
+- **The edge's** reads by json-simple, or strict once R-S144 rewrites the golden at the door, and compares a root
+  array as a multiset where the plan's `Json` judgment marks the root incidental (`incidentalRoot`, an order-view
+  fact).
+
+The product's `jsonOf` loses its S131 root site. One `Hearing` method, kept rather than added. `test6` passes again on
+both lanes.
+
+### 9.3 S131's narrowing rides neither 2.2a nor 2.2b's refactor
+
+On the spike the product judge's typed S131 is still live (`beacf4c9` changes no S131 site), as it is in LITE on
+`main`. Turning it off is the R-S131 change: the product's four typed sites off, together with the door's rewrite
+(phase 3). It moves 0 PCT verdicts (H6 §6.1) and 21 + 4 corpus tests until the rewrite is in (§4.2). It is its own
+step, after the door exists, and never inside 2.2a.
+
+### 9.4 The size words, worded by the hearing (the owner's input from H13)
+
+H13 found that `SideShape.sizeWords` and `TestPlan.answerSizeWords` (legend-pure's "Cannot cast a collection of size
+0 to multiplicity [1]") cannot leave the plan without a run-time word. Under `JudgeRun` that is one more record kind of
+the one word question, not a new member of a word hook:
+- **The record:** `VerdictRecord.SizeNotMultiplicity(long size, String multiplicity)`, from data the plan already
+  carries. A side's is `SideShape.lower` and `SideShape.multiplicity`. The answer's is the answer column's
+  `ExecutionPlan.Multiplicity` (`TestRunner.java:398-401`). The size is the rows the side returned, 0 at every site
+  today.
+- **The raise sites** present it through the run's hearing:
+  - `SideShapes.valuesShape`, `:262` (a scalar) and `:291` (a collection), reached by `SideShapes.shape` from
+    `HostSideShapes`, i.e. `TestRunner.java:301-302`, which holds the run record;
+  - `SideShapes.holding`'s `end()` for the answer, `TestRunner.java:400`;
+  - the edge's own `SqlTextRuns.java:254`/`:257`, which present with legend-pure's presenter directly.
+- **The presenters:**
+  - lite's is today's product branch, `ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + multiplicity`
+    (`testplan/EngineTextGates.java:108`);
+  - legend-pure's is `PureMessages.words(RaiseKind.SIZE_NOT_MULTIPLICITY, [StringLit(multiplicity)])`
+    (`edge/EdgeEngineTestText.java:224-228`).
+- **Deleted:** `SideShape.sizeWords`, `TestPlan.answerSizeWords` (and their JSON: `HostJson.java:187`/`:203`,
+  `TestPlanJson.java:110`/`:273`, a test plan version step), `JudgePlans.sizeWords`, `TestDoor.answerSizeWords`,
+  `EngineTextGates.sizeWords` and the facet member `EngineTestText.sizeWords`.
+- **Cost:** about 0.25 day inside 2.2b. The check: a side or an answer of no rows under each presenter. Core's
+  `testexec/SideShapesHoldingTest` covers the answer's holding sink; a side's needs a case under each presenter.
+
+`TestPlan.words` (the plan's word NAME) still goes with 1.2. Once nothing in the plan is worded, `Hearing.wordsName`
+and the mixed-run refusal (`TestRunner.java:99-106`) go with it.
+
+### 9.5 H13's records and `caughtMessage`: the two spikes meet
+
+H13 (`claude/compat-error-records-spike`, §2, §3, §8) carries two records:
+- a run-time raise's `ExecutionPlan.Site(n, kind, where, message, operands)`;
+- a planned failure's `Failure.Compile(prefix, kind, operands, position, suffix)`, lite's wrapper as data.
+
+It words them after the run through the one existing question, `HostWords.caught(RuntimeException)`, with each record
+riding the exception as its cause. Under `JudgeRun` that question is `Hearing.caughtMessage(RuntimeException)`
+(§3.2): the same parameter, the same place (`BodyRun.caughtMessage`, three callers), the same answers.
+- the product's: lite's own message;
+- the edge's: `RaisedWords.wordsOf` / `PureMessages.worded(kind, operands)` for a site, `PureMessages.planned(record)`
+  for a planned failure.
+
+**One difference, about order, not shape.** The spike's edge hearing still looks a site's words up in the plan's
+records (`Appeals.raisedWords`, from `Edge.siteWords`, planned by `PlanStyle.siteWords`). H13 deletes that and words
+from the site's operands. Whichever lands second makes `Appeals.caughtMessage` call H13's worder, and `Appeals` loses
+`siteWords`/`raisedWords` (about 30 lines).
+
+**A build choice for both, recommended:** type the parameter. `caughtMessage(Raised raised)`, where the product
+classifies the caught error once into a sealed record: `Site(ExecutionPlan.Site)`, `Planned(Failure.Compile, String
+liteMessage)` or `Message(String)`. Then a presenter never walks a cause chain. `AssertErrorRuns` already has the three
+paths:
+- an inner assert's failure (`:37`);
+- a planned failure (`:41-45`, whose planned `message` is read directly today; H13 routes it through `caught`);
+- a raise at the run (`:54-55`, its cause read).
+
+Sent to H13 directly.
+
+H13's dependency agrees with this record's order: deleting `PlanStyle.errorWords` needs the compatibility database
+judge gone first (2.2a), because that judge plants a planned failure's words at planning
+(`testplan/DatabaseAsserts.java:387`).
+
+### 9.6 H11's relation-text arm under `JudgeRun` (the owner's item: 2.2b before 1.3)
+
+H11 claims `assertEquals(<text>, toString(rel))` through the engine-text facet (`EngineTestText`, which 2.2b collapses
+into one claim). It plans `HostJudgment.EdgeJudged` holding the edge's record `RelationTextJudgment` ("present this
+side as `#TDS` text"), and judges it at `EdgeHearing.judged`. That record is a presentation INSTRUCTION in the plan.
+
+**How it fits `Hearing` without one:** make it a product judgment kind, as `Rendered` is.
+- **Planning (the product's test planner, no claim, every style):** a side whose root, through the lets, is the
+  program's own call `meta::pure::functions::relation::toString(rel[, false])` is planned as `HostJudgment.Printed(int
+  side, PrintCall call)`, the relation side asked TABULAR, as the grid pair's is. `call` names the program's call (its
+  overload), read from the typed tree as `OrderView` is: a FACT of the program, not an instruction from the edge. No
+  edge record, no `EdgeCodec` tag, no engine-text claim.
+- **The run:** `HostJudgments` asks the hearing `String print(TypedSide.Tabular relation, PrintCall call)`. It then
+  compares the two Strings by lite's exact rule, and words a failure as `SidesNotEqual` through `present`.
+  - The edge's `print` is H11's printer (`edge/RelationText.tds`).
+  - The product's refuses by name ("lite has no text of a relation of its own: `toString(relation)` is legend-pure's
+    `#TDS` text"), H6 §3.5's (a) unruled. LITE's relation tests fail by that name, not at typing as today.
+- **The arm's other needs are met as they stand:** at planning "claim an assert, ask for its sides" (the product's
+  planner plans `Printed` for every style), and at the run "be handed the sides' typed rows" (`print`).
+- **The amendment, if a reviewer reads `PrintCall` as a presentation instruction:** "a test plan may name the
+  program's own presentation call at a side's root (`toString`, `toCSV`: the call the program makes, as `Rendered`
+  names its form today); how an audience spells it is the run's". `Rendered`'s form already stands on that reading,
+  so I think no new amendment is needed, only that one stated.
+
+This makes 1.3's build sit on 2.2b's `JudgeRun`. 1.3 also needs 2.2a first (H11 §3: the compatibility database
+judge cannot judge it). The order is 2.2a, 2.2b, 1.3.
+
+### 9.7 An edge-owned door for the corpus (the owner's steer: no `TestObserver.door`)
+
+**(a) What an edge door can compose, and what it must copy.** Every platform call `PureTestRunner` makes is already a
+public entry:
+- `Compiler.resolveQuery` (`Compiler.java:868`), `Compiler.hasStatementEffects` (`:909`), `Compiler.queryResolved`
+  (`:768`);
+- `TestExecution.facts`, `planBody`, `runBody`, `runFixture`;
+- `TypedQuery.withBody`;
+- the caller's `Sessions` and `TestObserver`.
+
+The rest is the runner's own rules. Its parts at `491f6464`, in code lines (no comments, no blanks):
+
+| Part | Lines | Code | An edge door would |
+|---|---|---|---|
+| public types `Sessions`, `Status`, `Verdict`, `Result` | 54-98 | 24 | reuse (public) |
+| fields, constructors | 99-145 | 28 | copy |
+| `inertSetups`, `registerSetup` (public) | 146-158 | 6 | copy |
+| one session per package: `beginSession`, `endSession`, `close` | 159-189 | 23 | copy |
+| setup derivation (inheritance by package prefix, inert setups by `hasStatementEffects`) | 190-222 | 27 | copy |
+| `runSetup`, `runSetups` (a failed setup fails every dependent test, named) | 223-258 | 27 | copy |
+| `run(TestCase)`: resolve, facts, private workspace for inline CSV, options, judge, setups | 271-326 | 45 | copy, with the rewrite between `queryResolved` and `facts`/`planBody` |
+| `judge(...)`: plan, run, the listener's verdict bookkeeping (declined, refereed, unjudged ahead), FAIL / SKIPPED / PASS rules | 327-420 | 78 | copy |
+| `whole` (public static), the shape census | | 12 | reuse |
+
+**About 230 code lines copied**, against 288 in the class. The copy is the engine test framework's rules, implemented
+in the product from the spec. The runner is product surface: "the corpus harness is one caller; a user with
+`<<test.Test>>` functions is another" (its javadoc). Two copies drift. And the corpus would stop exercising the
+product's runner: today it is that runner's main regression, e.g. the inert-setup count the corpus pins.
+
+**(b) A small public seam, `PureTestRunner` taking a "body preparer" (`TypedQuery` → `TypedQuery`, the product's
+identity): my read is that it is a hook by another name.**
+- **Its only implementation would be compatibility.** A lite user's test is lite's meaning. Rewriting a typed body
+  before planning is a compiler pass, and no lite user needs one from the runner.
+- **As a JDK `UnaryOperator` it would escape the hook guards.** `HookLambdasTest` pins lambdas of a ruled hook type,
+  a facet kind, a two-form kind or `PlanStyle`, and a JDK functional type is none of these. `HookRulingTest`'s
+  criterion (b), "the PRODUCT style's answer refuses it by name", fails for an identity. So it would be an open line
+  of `EdgeSeparationTest`'s count until ruled.
+- **To be honest it must be a named product interface**, e.g. `test.BodyPreparer`: pinned in `HookRulingTest`, its
+  identity answer ruled as a pass-through (an amendment to criterion (b)), and counted in `HookRulingsAgreeTest`'s
+  registries.
+- **The guards it would pass as they stand:**
+  - `ArchitectureTest.onlyTheDoorsCompose` (R4): `TypedQuery` is in `PLANNING_API`, and the runner already composes
+    through the doors;
+  - `onlyTheDoorSeesBothHalves` (R3): the runner names no `testplan` or `testexec` class;
+  - "what a run takes from its caller is data": the runner is not in `RUN_ENTRY_CLASSES`, and the preparer runs before
+    planning, not inside a run;
+  - `EdgeSeparationTest`'s CODE guard: no edge type named.
+- **The rule it runs against:** the user's question behind the run-data rule ("why do we have any callbacks, esp
+  dangerous ones that can break our tenet?").
+
+**A third shape, no callback: split the runner's step.**
+- `PureTestRunner.prepare(TestCase)` returns a public `Prepared` record (the resolved body, its typed query, its
+  facts).
+- `run(Prepared)` runs it, and `Prepared.withBody(List<TypedSpec>)` re-states the facts through `TestExecution.facts`.
+- The corpus harness (spec) composes: prepare, the edge's rewrites, run.
+
+The product names nothing of compatibility and takes no function. The caller holds the typed body between the two
+calls, as `ChannelB` does today. The cost is a public surface change of about 30 lines and a split of
+`run(TestCase)`'s 45. R4 holds (the harness is in spec, outside core's classes). It is an open composition point, so
+any caller may rewrite between the halves, but that is the doors' own model ("callers compile and call a door").
+
+**My recommendation: the split.** It keeps one runner and adds no hook. The edge-owned copy keeps the product
+untouched but duplicates about 230 lines of the engine framework's rules. The preparer is the smallest change and the
+least honest.
