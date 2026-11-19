@@ -29,6 +29,10 @@ The four things the architecture must absorb, ranked (§4):
 4. The presenter reads **the plan too**. Some envelope fields are functions of upstream's SQL: a scalar's column
    label, a raise's message as the database's error text over upstream's statement. These need a class of their own:
    declared not promised, or refused.
+5. **The product leans on today's meaning in two places.** These must be separated before the core's meaning can
+   become Pure's:
+   - lite's own Cypher translator writes Pure in legend-engine's meaning;
+   - a `###Relational` dynaFunction `substring` shares the Pure function's rule.
 
 ## 1. Setup
 
@@ -134,12 +138,13 @@ each variant (`h3/a/lite_*`); compared by `h3/probes/compare.py.txt`.
 
 | lite variant | H2: agree of 25 | DuckDB: agree of 25 |
 |---|---|---|
-| today's main (the verbatim rule; DuckDB's start clamp), first 18 requests only | 17 of 18 | 12 of 18 |
-| Pure meaning, no adapter | 6 of 18 | 4 of 18 |
+| today's main (the verbatim rule; DuckDB's start clamp) | 24 (the miss: 3-argument `indexOf`, which lite answers and legend-engine refuses) | 16 |
+| Pure meaning, no adapter (first 18 requests) | 6 of 18 | 4 of 18 |
 | Pure meaning + a target-blind rewrite (`compat-engine.pure`) | 25 | 17 |
 | **Pure meaning + the target-aware rewrite** | **25** (23 rows, 2 joint refusals) | **24** (23 rows, 1 joint refusal; the miss `substring(2, -1)`) |
 
-(MAIN_BATTERY2: filled in below once measured.)
+Today's main is already wrong against legend-engine on DuckDB in 9 of 25. Every one is a start of 0 or below, or the
+3-argument form; the clamp in item 4 below causes most of them.
 
 **Why the rewrite must know the target** (`h3/a/grid/`, a 312-cell grid of `SUBSTRING(s, start, length)`, start -8..3,
 length -1..10, and the 2-argument form, on `Credit` and `FX`):
@@ -175,7 +180,17 @@ case for a literal string, which no request here hit. Those two are for the adap
   - Some assert legend-engine's SQL text, which rule 4 does not promise.
   - The corpus's programs are whole MODELS (library functions, mapping property functions, test bodies), so the
     ENGINE adapter would have to rewrite a parsed model, not a request's lambda. Not prototyped (time box).
-- core's behaviour suite: see §5.
+- core's behaviour suite (`//core:core_tests`, (a) and (b) together): **12 tests fail in 5 of 28 targets**.
+  - 10 pin the old meaning:
+    - `TypeInferenceIntegrationTest`'s `testSubstringStart`, `testStringIndexOf`, `testStringIndexOfSimple`,
+      `testStringIndexOfFromIndex`, `testIndexOfOneElement` and `testSortWithKeyFunction` (a substring sort key);
+    - `ExtendCheckerTest`'s `indexOf()`;
+    - `ValueSortComparatorTest`'s "1-based substring keys";
+    - `SubstrIndexingTest`, which pins "substring only under the flag" itself;
+    - the DynaFunction property-mapping test "substring() over a joined column".
+  - 1 is lite's own Cypher translator (`CypherIslandIntegrationTest.aMarkedListOfTemporalsReadsItsElementsBackOrIsReadWhole`).
+  - 1 is (b)'s catalog guard (§4).
+  - Two of these are findings in their own right (items 5 and 6 below).
 
 **What did not fit.**
 
@@ -191,6 +206,15 @@ case for a literal string, which no request here hit. Those two are for the adap
    while H2 counts from the end. The same lite program answers differently on the two databases (`substring(-1, 2)`:
    `t` on H2, `Cr` on DuckDB). Under Pure's meaning a negative start is invalid: legend-pure raises
    (`String.substring`); lite raises on neither. A meaning question for the core.
+5. **The product itself writes Pure in legend-engine's meaning.** Lite's Cypher translator emits `substring` calls with
+   a 1-based start and a length (`protocol/cypher/CypherToPure.java:11657` says so). Under Pure's meaning in the core,
+   that translated program reads the wrong characters, and DuckDB fails on the text it reads ("invalid timestamp field
+   format"). A frontend that writes Pure must write Pure's meaning; it is an input adapter of its own, inside the
+   product.
+6. **A `###Relational` dynaFunction shares the Pure function's rule.** The mapping DSL's `substring(col, ...)` is SQL's
+   function in every audience (upstream's DSL meaning, 1-based). Lite lowers it through the same rule as Pure's
+   `substring`, so giving the Pure function Pure's meaning moved the dynaFunction too. The two need separate rules
+   before the core's meaning can change.
 
 ## 4. (b) a Float's `toString` inside a filter, through one named capability
 
@@ -242,7 +266,7 @@ row with its legend-pure text, and the filter `filter(r|$r.f->toString() == $r.e
 | PCT's known-failure ledger (S134's indexOf rows) | (a) | 3 tests now pass |
 | the corpus's H2 fail roster, unordered register | (a) | 15 newly failing, 1 line |
 | `NativeCatalogGovernanceTest` | (b) | 1 unaccounted native |
-| core's behaviour suite (`//core:core_tests`) | (a) and (b) | CORE_TESTS |
+| core's behaviour suite (`//core:core_tests`) | (a) and (b) | 12 tests in 5 of 28 targets (§3) |
 | the pure/v1 edge golden, under rule 4 (the presenter without the style) | (c) | 2 lines (`activities[].sql`); 3 raise lines move with the input side |
 
 ## 6. Files and lines
