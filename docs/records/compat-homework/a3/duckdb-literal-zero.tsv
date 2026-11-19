@@ -1,0 +1,17 @@
+# DuckDB v1.5.6
+DUCKDB	substring('abcdef', 0, 3)	'ab'
+DUCKDB	substring('abcdef', 0)	'abcdef'
+DUCKDB	substring('abcdef', 0, 0)	''
+DUCKDB	substring('abcdef', 0, 1)	''
+DUCKDB	substring('abcdef', 0, 6)	'abcde'
+DUCKDB	substring('abcdef', 0, 9)	'abcdef'
+DUCKDB	substring('', 0, 2)	''
+DUCKDB	substring('', 0)	''
+DUCKDB	substring('abcdef', 1, 3)	'abc'
+DUCKDB	substring('abcdef', 1)	'abcdef'
+DUCKDB	substring('abcdef', 2, 3)	'bcd'
+DUCKDB	substring('abcdef', -1, 3)	'f'
+DUCKDB	substring(CAST(NULL AS VARCHAR), 0, 2)	NULL
+DUCKDB	substring('abcdef' FROM 0 FOR 3)	'ab'
+DUCKDB	substr('abcdef', 0, 3)	'ab'
+DUCKDB	substr('abcdef', 0)	'abcdef'

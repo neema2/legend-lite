@@ -1,0 +1,25 @@
+import java.sql.*;
+public class H2Zero {
+    public static void main(String[] a) throws Exception {
+        String[] urls = {"jdbc:h2:mem:d1", "jdbc:h2:mem:d2;MODE=LEGACY;DEFAULT_NULL_ORDERING=HIGH"};
+        String[] exprs = {
+            "substring('abcdef', 0, 3)", "substring('abcdef', 0)", "substring('abcdef', 0, 0)", "substring('abcdef', 0, 1)",
+            "substring('abcdef', 0, 6)", "substring('abcdef', 0, 9)", "substring('', 0, 2)", "substring('', 0)",
+            "substring('abcdef', 1, 3)", "substring('abcdef', 1)", "substring('abcdef', 2, 3)",
+            "substring('abcdef', -1, 3)", "substring(CAST(NULL AS VARCHAR), 0, 2)",
+            "substring('abcdef' FROM 0 FOR 3)", "substr('abcdef', 0, 3)", "substr('abcdef', 0)"};
+        try (Connection c0 = DriverManager.getConnection(urls[0])) {
+            System.out.println("# H2 " + c0.getMetaData().getDatabaseProductVersion());
+        }
+        for (String url : urls) {
+            try (Connection c = DriverManager.getConnection(url); Statement s = c.createStatement()) {
+                for (String e : exprs) {
+                    String v;
+                    try (ResultSet r = s.executeQuery("SELECT " + e)) { r.next(); String x = r.getString(1); v = x == null ? "NULL" : "'" + x + "'"; }
+                    catch (SQLException ex) { v = "ERROR " + ex.getMessage().split("\n")[0]; }
+                    System.out.println((url.contains("LEGACY") ? "LEGACY" : "REGULAR") + "\t" + e + "\t" + v);
+                }
+            }
+        }
+    }
+}
