@@ -1104,3 +1104,14 @@ who confirms or changes phases 1-3.
     lowering sites, the database judge's 4 tests, the defect cell's count and size, the size words as a `Hearing`
     input, two pure/v1 golden requests drafted, the guarded files and the size estimate, the `lite_wire` shape check);
   - the host-parity worker and the judges session were given H13's new address.
+- **~13:17 UTC, B1-R: #123 merged into #124 and the oracle re-pinned** (head `fa8294cca`; review item 2 closed).
+  `d32495fc1` merges `claude/compat-s0` at `ef9e9bfa3`; `fa8294cca` teaches `GoldenCompareMain` #123's format (plan
+  text compared from its own file; new pins `engine_<db>_plan_text.tsv`; core's export gains `pure_v1_plan_text.tsv`).
+  - **The 15th recorded request, `raise.toOneOfEmpty`, asked of legend-engine:** lite answers 500 (`Raised:
+    SIZE_NOT_MULTIPLICITY`), legend-engine 200 with a row. Another place legend-engine skips the check Pure makes
+    (Q8's family). Lite already differs today, so D2 does not change it; it is a register row when the error-records
+    slice words it.
+  - H2's 38 golden lines against legend-engine: 5 the same, 33 differ, 2 extra (activities legend-engine reports where
+    lite answered an error); recorded in slice R's record §8.
+  - `//gates:local` plus `edge_net`, both lane pins, both battery halves and both oracle pins running; CI restarted on
+    `fa8294cca` (the Maven 404 fix is not on it yet).
