@@ -91,10 +91,11 @@
 > `meta::pure::functions::` elements
 > (`LibraryPlatformNamespaceGuardTest`).
 >
-> **Upstream-fidelity tenet (the user, 2026-10-29; amended 2026-11-19 by
-> the user's ruling for the compatibility program: "Lite follows Pure.
+> **Upstream-fidelity tenet (the user, 2026-10-29; amended 2026-11-19 to the
+> goal the user ruled ~13:25 for the compatibility program, "Okay agree with
+> all"; the goal's sentence is the program's wording: Lite follows Pure.
 > legend-engine's formats are matched, and its answers where they agree with
-> Pure. The rest is recorded."):** lite follows PURE: a Pure program means
+> Pure. The rest is recorded.):** lite follows PURE: a Pure program means
 > what legend-pure's definition of it says. legend-engine's and
 > legend-pure's FORMATS (result and error envelopes, printed values) are
 > matched, at the edge. legend-engine's ANSWERS are matched where they agree
@@ -110,8 +111,11 @@
 > recorded differences as one page: `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`.
 >
 > **The six tenets (adopted by the user, 2026-11-19: "Adopt tenets yes";
-> `docs/records/compat-rules-of-record-2026-11-19.md`).** Each has a test, so
-> it cannot quietly erode:
+> `docs/records/compat-rules-of-record-2026-11-19.md`) `[CONVENTION until B5's
+> guards]`.** Each has a test, so it cannot quietly erode. The tests are
+> questions a reviewer asks; nothing turns red until B5's guards land. Cite
+> them as "tenet N of the six", never as "invariant N": the invariants below
+> and `core/README.md`'s are separate lists.
 > 1. **The database computes.** Every value a program produces is computed by
 >    the database: numbers, `toString()` and `format()` text, an error's
 >    values, product verdicts. *Test:* could this value differ from one row to

@@ -130,9 +130,9 @@ derive values, decide types from values, reshape rows, or count rows (charter Cl
   judges.
 - **G8. Upstream fidelity, verified and ledgered.**
   - Lite follows Pure; legend-engine's formats are matched, and its answers where they agree with Pure. Both are read
-    from the pinned sources or asked of the engine runner. (Amended 2026-11-19 by the user's ruling for the
-    compatibility program: "Lite follows Pure. legend-engine's formats are matched, and its answers where they agree
-    with Pure. The rest is recorded." Until then: "Lite does what upstream does".)
+    from the pinned sources or asked of the engine runner. (Amended 2026-11-19 to the goal the user ruled ~13:25
+    for the compatibility program, "Okay agree with all"; the sentence is the program's wording. Until then: Lite does
+    what upstream does.)
   - Every difference is a user-ruled row of `docs/SEMANTICS_REGISTER.md`.
   - The edge (G5) is where fidelity is bought.
   - This restates the AGENTS.md upstream-fidelity tenet, scoped to the edge.
