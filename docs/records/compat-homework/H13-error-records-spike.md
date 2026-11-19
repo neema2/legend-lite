@@ -202,6 +202,68 @@ The formatter worded 40 raises in this run:
 | `SHIFT_OUT_OF_RANGE` | 10 | none |
 | `INSERT_OUT_OF_BOUNDS` | 7 | none |
 
-- 91 of the 438 planned sites (21%) have a computed operand in a position legend-pure's sentence prints: 33
+- 90 of the 438 planned sites (21%) have a computed operand in a position legend-pure's sentence prints: 33
   `INDEX_OUT_OF_BOUNDS`, 30 `SQRT_OF_NEGATIVE`, 20 `DATE_PART_ABSENT`, 7 `SLICE_BOUNDS_INVERTED` and (2-operand form)
   0 `SIZE_NOT_MULTIPLICITY`. Only 18 raises of those sites fire in a test that reads the message (the 6 tests).
+
+## 7. The literal kinds `RaiseSite.operands()` produces today, and whether `Operand` carries each
+
+Two sources, which agree: a static read of every construction site (the whole table, site by site, with the code
+quoted, is `H13/raise-operand-census.md`, written by a subagent of this session and spot-checked here at 4 sites),
+and the run-time census of section 6.
+
+**Static counts** (at `main` `b75d6c73a`; no file under `lowering/`, `sql/` or `sql/dialect/` is changed by the spike):
+
+| | Construction sites | Operand positions | Always a String literal | Always an Integer literal | Always a Float or Decimal literal | Always computed | Either (a lowered argument) | Sites with no operand |
+|---|---|---|---|---|---|---|---|---|
+| The lowering | 26 | 37 | 18 | 4 | 1 | 6 | 8 | 4 |
+| A dialect, at render | 25 | 23 | 12 | 0 | 0 | 2 | 9 | 3 |
+| **Total** | **51** | **60** | **30** | **4** | **1** | **8** | **17** | **7** |
+
+- 15 sites are `RaiseText.placed` (their one operand is the where). 1 site is `asData` (the defect cell of section 3).
+- No package other than `lowering/` and `sql/dialect/` builds a raise.
+
+**Each literal kind against the record:**
+
+| SQL literal | Reaches an operand today? | `Operand` |
+|---|---|---|
+| `StringLit` | yes: labels, type names, bounds, the where (30 fixed positions, and any "either" position) | `Text` |
+| `IntLit` | yes: `rem`'s dividend, `at`'s offset, `slice`'s bounds, a date's components | `Int` |
+| `FloatLit` | yes: `rem`'s dividend, a date's fractional second | `Flt` |
+| `DecimalLit` | yes: a Float literal the lowering made exact (`rem`'s dividend), an Integer past 64 bits | `Dec` |
+| `DateLit` | only through `DATE_PART_ABSENT`'s date | `Day` |
+| `TimestampLit` | only through `DATE_PART_ABSENT`'s date | `Instant` |
+| `BoolLit` | **no position is Boolean today** | `Bool` (carried, unused) |
+| `NullLit`, `TimeLit`, `ArrayLit`, `StructLit`, `DatePartLit`, `FormatLit`, `TypeNameLit`, `JsonKindLit` | none is built as an operand at any site | `Computed` (the default arm) |
+| anything else (a column, a call, a cast, a parameter) | yes | `Computed` |
+
+**The record carries every literal kind that occurs.** `Bool` is the only variant with no producer.
+
+**Which kinds can lose a printed value.** 27 raise kinds. 15 cannot (no operand, or planner-known text only). 12
+have a position legend-pure's sentence prints that can be computed:
+
+| Kind | Position at risk | Note |
+|---|---|---|
+| `DIVIDE_BY_ZERO` | the dividend (either) | `rem` and `quotient` only; `Integer / Integer` has no operand |
+| `DATE_PART_ABSENT` | the date (either) | the raise is written only when planning KNOWS the date's precision, so the date is a literal in practice, wrapped in a cast |
+| `INDEX_OUT_OF_BOUNDS` | the offset (either), the size (always computed) | the size is `LIST_LENGTH(...)` |
+| `SQRT_OF_NEGATIVE` | the value (always computed) | always `Cast(argument, DOUBLE)` |
+| `SIZE_NOT_MULTIPLICITY` | the size (always computed), in the 2-operand form | `toOne` over a relation or a list; a row count |
+| `SLICE_BOUNDS_INVERTED` | both bounds (either) | each clamped at 0 |
+| `DATE_COMPONENT_INVALID` | the value, at 1 of 4 sites | the other three are all literal |
+| `TEXT_NOT_INTEGER`, `TEXT_NOT_FLOAT`, `TEXT_NOT_DATE` | the text (either) | a dialect's own cast errors; always computed on SQLite for `parseFloat` |
+| `FRACTION_NOT_KEPT` | the value, at 1 site | lite's own sentence, no upstream text |
+| `USER_FAIL` | the message | never a site: the statement raises the user's own message, in every style |
+
+**Four things the static read found that the real slice must decide:**
+
+1. **A literal's value is not always what the query wrote.** `slice`'s bounds are clamped at 0 (`slice(3, -1)`
+   holds `IntLit(0)`). A `parseDate` literal has its `T` replaced by a space. An hour- or minute-precision date
+   literal is a padded `TimestampLit`, spelled in the database's time zone when one is set. A Float literal can be a
+   `DecimalLit`. The operand records what the STATEMENT holds, which is what upstream's SQL sentence printed too.
+2. **An operand can contain another raise** (`FRACTION_NOT_KEPT`'s value is the guarded `CASE` that holds
+   `DATE_COMPONENT_INVALID`). `Computed` covers it.
+3. **`LIST_LENGTHS_DIFFER`'s text is a Java `List.toString()`** of function ids, not a native's name
+   (`Scalars.java:2146`). It is lite's own sentence, but it is a planner-internal spelling in a message.
+4. **Six raises are not a `RaiseText` at all** (`VerdictSql.java:1915`, `CanonicalRenderSql.java:668`, four in
+   `MongoDb.java`). They make no site and carry no operands; `RaiseTextGuardTest` exempts them.

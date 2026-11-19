@@ -1,0 +1,37 @@
+"""H13: Python's reader (legend_lite/_raised.py) over the shared raise fixture, its sites carrying typed operands."""
+import importlib.util, json, sys, types
+REPO = '/home/user/legend-lite'
+# load _type_facts and _raised as a tiny package, importing nothing else of legend_lite
+pkg = types.ModuleType('ll'); pkg.__path__ = [REPO + '/python/legend_lite']; sys.modules['ll'] = pkg
+for name in ('_type_facts', '_raised'):
+    spec = importlib.util.spec_from_file_location('ll.' + name, f'{REPO}/python/legend_lite/{name}.py')
+    mod = importlib.util.module_from_spec(spec); sys.modules['ll.' + name] = mod; spec.loader.exec_module(mod)
+raised = sys.modules['ll._raised']
+fixture = json.load(open(REPO + '/engine-client/test/fixtures/raise-envelopes.json'))
+OPERANDS = {1: [{'integer': 5}], 2: [{'string': '[1]'}, {'computed': True}],
+            3: [{'string': 'ts keeps 6: of 9'}], 4: [{'integer': 3}, {'computed': True}]}
+sites = [dict(s, operands=OPERANDS[s['n']]) for s in fixture['sites']]
+plan = {'format': 'legend-lite-plan', 'version': 59, 'raises': {}, 'root': {'sql': {'statement': fixture['statement'], 'sites': sites}}}
+raised.declare_sites(plan, 'a plan carrying operands')
+ok = bad = 0
+for case in fixture['cases']:
+    try:
+        words = raised.raised_words(case['message'], fixture['statement'])
+        kind = raised.raised_kind(case['message'], fixture['statement'])
+        got = (case['message'] if words is None else words, kind)
+        want = (case.get('words'), case.get('kind'))
+        refused = False
+    except ValueError as e:
+        refused, got, want = True, str(e), case.get('refused')
+    good = bool(case.get('refused')) if refused else (got == want and not case.get('refused'))
+    ok += good; bad += not good
+    if not good: print('DIFF', case['name'], got, want)
+# the view declared again beside the plan, as an ENGINE answer does: same sites, no refusal
+raised.declare_sites({'raises': {}, 'sql': fixture['statement'], 'sites': sites}, 'the view beside the plan')
+# ... and a view WITHOUT the operands is refused by name (the two declarations must be written alike)
+try:
+    raised.declare_sites({'raises': {}, 'sql': fixture['statement'], 'sites': fixture['sites']}, 'a view without operands')
+    print('a view without operands: ACCEPTED')
+except ValueError as e:
+    print('a view without operands: refused:', e)
+print(f'python: {ok} of {ok + bad} fixture cases read as before')

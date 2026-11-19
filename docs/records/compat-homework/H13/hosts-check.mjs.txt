@@ -1,0 +1,25 @@
+// H13: the tab's readers (engine-client/src/declared-raises.ts, raised.ts) over the shared raise fixture, its sites
+// carrying typed operands.
+import { readFileSync } from 'node:fs';
+const REPO = '/home/user/legend-lite';
+const { declareSites, declaredSites } = await import(`${REPO}/engine-client/src/declared-raises.ts`);
+const { failure, raiseIn, PlanRaise, DatabaseError } = await import(`${REPO}/engine-client/src/raised.ts`);
+const fixture = JSON.parse(readFileSync(`${REPO}/engine-client/test/fixtures/raise-envelopes.json`, 'utf8'));
+const OPERANDS = { 1: [{ integer: 5 }], 2: [{ string: '[1]' }, { computed: true }], 3: [{ string: 'ts keeps 6: of 9' }], 4: [{ integer: 3 }, { computed: true }] };
+const sites = fixture.sites.map((s) => ({ ...s, operands: OPERANDS[s.n] }));
+declareSites({ format: 'legend-lite-plan', version: 59, raises: {}, root: { sql: { statement: fixture.statement, sites } } }, 'a plan carrying operands');
+let ok = 0, bad = 0;
+for (const c of fixture.cases) {
+  const e = failure(c.message, fixture.statement, {});
+  const kind = e instanceof PlanRaise || e instanceof DatabaseError ? e.kind : undefined;
+  const refused = /which the statement does not declare/.test(e.message);
+  const good = c.refused ? refused : (e.message === c.words && (kind ?? null) === (c.kind ?? null) && (e.where ?? null) === (c.where ?? null));
+  good ? ok++ : bad++;
+  if (!good) console.log('DIFF', c.name, JSON.stringify({ message: e.message, kind, where: e.where }), JSON.stringify(c));
+}
+declareSites({ raises: {}, sql: fixture.statement, sites }, 'the view beside the plan');
+try {
+  declareSites({ raises: {}, sql: fixture.statement, sites: fixture.sites }, 'a view without operands');
+  console.log('a view without operands: ACCEPTED');
+} catch (e) { console.log('a view without operands: refused:', e.message); }
+console.log(`tab: ${ok} of ${ok + bad} fixture cases read as before; a declared site keeps its operands: ${JSON.stringify(declaredSites(fixture.statement)[1].operands)}`);
