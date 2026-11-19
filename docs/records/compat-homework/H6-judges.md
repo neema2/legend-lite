@@ -734,3 +734,145 @@ prefers it. After §6.1 it also needs the translator (phase 3) to take four inpu
 - Attribution: a newly failing test is credited to the leniencies its logging run recorded for it. One DuckDB test
   logged none and is S131's by its failure (rows in another order). A per-leniency OFF run for each id was not made;
   the attribution's only ambiguity is the 3 DuckDB tests that log both S131 and S137.
+
+---
+
+## 7. The shape note for 2.2a and 2.2b under CP-14 (iii) (the brief to build from)
+
+The user ruled CP-14 (iii) on 2026-11-19 (~12:10 UTC, "Yes to the six", relayed by the orchestrator). The product's
+host judge emits verdict RECORDS (kind and operands); legend-pure's words are a presenter's; no rules parameter. Four
+door rewrites of corpus test bodies cover the corpus's leniencies; the rendered-text comparison stays the edge judge's
+own rule for the `Rendered` judgment kind. No build until phases 1-3 are ratified. Paths under
+`core/src/main/java/com/legend/` at `main` `b75d6c73a`.
+
+### 7.1 The end state
+
+- **One object at the door.** A compatibility caller (PCT channel B, the corpus, the core edge tests) hands the test door
+  ONE judge: `edge.CompatJudge`. A LITE caller hands none: the door's default is the product's judge. `ExecuteOptions`
+  carries the judge in place of `edge` (`ExecuteOptions.recording` and the `(Edge, DataStores, Set)` constructor go).
+- **Three call sites in the product**, each through one narrow typed interface:
+  1. `testplan/TestDoor.java:141-155`, the planning records: `testexecutionplan.Edge` (kept, r6);
+  2. the test planner's per-assert entry, the claim: `testplan.EngineTextClaim` (the reshaped `EngineTestText`);
+  3. `testexec/TestRunner.java:98-132` and the run sink's step events (`:425-468`): `testexec.JudgeRun`, whose hearing
+     `BodyRun` carries to the host judge (`HostJudgments`' verdict step and `Rendered` kind).
+- **The product's host judge has lite's rules only**, inline, and emits a `VerdictRecord` on a failure. Lite's words
+  are `LiteHostWords` as a presenter of records; legend-pure's are `EdgeHostWords` as a presenter of the same records.
+- **The database judge is LITE's alone** (2.2a): no compatibility arm anywhere in `VerdictSql`, `DatabaseJudge`,
+  `AssertVerdicts`' database half, `VerdictQueries`.
+
+### 7.2 The two interfaces' method sets
+
+```java
+// PLANNING (kept, r6): com.legend.testexecutionplan.Edge -- writes the edge's records into the test plan (data)
+public interface Edge {
+    boolean records();                                                   // whether the door plans records for it
+    List<Extension> effect(List<String> texts, List<Boolean> queries);   // TestDoor.java:144
+    List<Extension> seed(List<ExecutionPlan.LoadStep> steps, Map<String, String> content);  // TestDoor.java:148
+}   // seeded/effectRan move to the run interface; siteWords goes with 1.2 (words out of the plan)
+
+// PLANNING, the claim: com.legend.testplan.EngineTextClaim (EngineTestText's 13 methods reshaped to one)
+public interface EngineTextClaim {
+    /** The edge's arm for this assert root, or null: the product plans it. Asked once per assert, at the per-assert
+     *  entry; the arm plans through EngineTextPlanning (the product's toolkit, dependency the right way round). */
+    @Nullable TextPlanned claim(TextAsk ask);
+}
+
+// RUN: com.legend.testexec.JudgeRun (replaces EdgeRun, EdgeHearing, NoEdgeRun, HostForms, HostWords, RenderedTexts,
+// the run's JsonGrammar)
+public interface JudgeRun {
+    Hearing open(TestPlan plan, @Nullable AssertListener callers, UUID execution);  // TestRunner.java:98
+    interface Hearing {
+        @Nullable AssertListener listener();                    // reports held while an appeal is pending (:109)
+        TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, boolean messaged);  // the appeal's step
+        TypedSide rendered(HostJudgment.Rendered j, List<TypedSide> sides);  // the edge's own rule for the kind
+        boolean errorMatches(String expected, VerdictRecord.Raised raised);  // assertError's match (§7.6)
+        void seeded(int step, List<Boolean> answeredRows);      // TestRunner.java:440
+        void effectRan(int step);                               // TestRunner.java:466
+        void writing();
+        void decide(Sessions.Session s, SystemDatabase.Leases l, Function<ExecutionPlan.Target, Sessions.Session> by);
+        RuntimeException afterFailure(RuntimeException failed, Sessions.Session s, SystemDatabase.Leases l,
+                Function<ExecutionPlan.Target, Sessions.Session> by);
+    }
+}
+```
+
+The product's own judge (the door's default) answers `rendered` with lite's two-strings rule (`LiteRenderedTexts`'s
+answer today), `errorMatches` with the raise's own message, `judged` and the appeal methods by refusing by name (no
+appeal is planned under LITE: `NoEdgeRun`'s refusals, kept as the default's), and the step events with nothing. The
+`VerdictRecord` family is the product's (`testexecutionplan`, data): one record per kind `HostWords` names today (28,
+§6.4's list), its fields the method's arguments; `Verdicts.fail(VerdictRecord)` replaces `Verdicts.fail(String)`.
+
+### 7.3 2.2a: what it deletes and what it touches (3.5 days; precondition: 2.1's LITE-PCT lane)
+
+| Delete | Where (`main`) |
+|---|---|
+| the 7 judge two-forms' database halves and their edge forms: `VerdictNumbers` + `LiteVerdictNumbers` + `CompiledPureVerdictNumbers`; `RenderedTextRule` + `LiteRenderedTextRule` + `UpstreamRenderedTextRule`; `DateLiteralTexts` + `LiteDateLiteralTexts` + `UpstreamDateLiteralTexts`; `GoldenNullWord` + `LiteGoldenNullWord` + `UpstreamGoldenNullWord`; `VerdictWords`' edge form `UpstreamVerdictWords` and `VerdictReads`; `CrossKindNumbers` + `LiteCrossKindNumbers` + `CompiledPureNumbers`; `JsonGrammar`'s database read (`DatabaseJudge.java:1078` reads strict) | §2.1 |
+| `VerdictSql`'s compatibility arms: every `floatTolerance()` branch and its CTEs; every `reads() == WRITTEN` branch's CANONS arm and the canon-only helpers | `lowering/VerdictSql.java` §2.1, §2.6 |
+| `DatabaseJudge`'s compatibility arms (`lite`, `crossNumberKinds`, `written`'s date form, `numbers`, `verdictNumbers`) | `testplan/DatabaseJudge.java:298-376` |
+| `AssertVerdicts.textFirst`'s ruled branch; `VerdictQueries`' null-word parameter | `:1869-1890`; `compiler/spec/VerdictQueries.java:782-981` |
+| the database judge's appeal paths: `EdgeHearing.rowAppealed`, `TestRunner.java:207`, `RootLoops`' `RowAppeal` (`:50`, `:135`, `:147`, `:159`, `:233`, `:265`), `edge/Appeals.java:150-151`; `EngineTestText.batchTexts` and `gate`, `EngineTextGates.batchTexts`/`gate`, `testplan/BatchTexts.java`, `testplan/DatabaseGate.java`, `AssertVerdicts.java:85`, `:190` | §2.9 item 3 |
+| `IsolatedRun#difference`'s `messages` flag and `!messages` branches (JUDGES-3), `EdgeRun.wordsAlike`: no compatibility run is isolated once PCT is host-only | `testexec/IsolatedRun.java:154-163`, `:176`; `TestRunner.java:58`, `:88` |
+
+Touches: PCT channel B's compatibility runs go HOST (`ChannelB.OPTIONS`'s judge, every lane); the channel B judge-SQL
+pins (`ratchets.tsv`'s `judge.*`, the reference lane under BOTH) and the residue pins (`DatabaseJudge` 852,
+`HostJudgments`, `BodyDriver`, `EngineTextPlanning`) re-pinned with the user's word; `core_edge_tests_judge_{database,both}`
+become host-only; the guard lists naming the deleted kinds (§2.8). Checks: channel B HOST unchanged on every lane (the
+leniencies change nothing there, §6.1), core BOTH green, the LITE-PCT lane green against its ledger, the corpus
+(already host-only) unchanged.
+
+### 7.4 2.2b: what it moves and what it deletes (6-7 days, plus the rewrites' 1.5 in phase 3)
+
+| Item | From | To |
+|---|---|---|
+| the run seams | `testexec/EdgeRun.java`, `EdgeHearing.java`, `NoEdgeRun.java` | `testexec.JudgeRun` (§7.2); the product's default judge; `edge.CompatJudge`'s run half (today `AppealRun` + `Appeals`' hearing) |
+| the step events | `testexecutionplan.Edge.seeded`/`effectRan`, called at `TestRunner.java:440`, `:466` | `JudgeRun.Hearing.seeded`/`effectRan` |
+| the claim | `EngineTestText` (13 methods), `EngineTextGates` (15 sites in `AssertVerdicts`, `BodyDriver:752/:756`, `DatabaseAsserts:629`, `JudgePlans:326`, `PlanningOptions:64`, `TestDoor:154`), `PlanStyle.judgesEngineText` | `EngineTextClaim.claim`, asked at the per-assert entry; `edge.CompatJudge`'s claim half over `SqlTextVerdicts` (unchanged) |
+| the host judge's rules | `HostForms`, `HostRules`, `LiteHostForms`, `CompiledPureHostForms` (`equalAcrossNumberKinds` S127, `equalDecimals` S139, `equalFloatsApart` S15); `testexec/Equality.java:168`, `:185`, `:206` | lite's rule inline in `Equality.same`; S127 and S139 deleted (no lane uses them, §6.1); S15 becomes the door rewrite R-S15 |
+| the words | `HostWords` (28 methods), `LiteHostWords`, `EdgeHostWords`, the 29 sites of §6.4 | `VerdictRecord` (the product's); `LiteHostWords` and `EdgeHostWords` as presenters of records; the door presents after the run (the listener and `AssertFailed` carry the record) |
+| the rendered-text rule | `RenderedTexts`, `LiteRenderedTexts`, `HostJudgments.java:330`, `edge/UpstreamRenderedTexts.java` (241) | `JudgeRun.Hearing.rendered`: the product's default answers the two strings; `edge.CompatJudge` answers with `UpstreamRenderedTexts`' ruled comparison (S131 rendered lines, S132 cells), unchanged |
+| the JSON grammar at run | `EdgeHearing.json()`, `HostJudgments.java:329`, `edge/JsonSimpleGrammar.java` (341) | the host judge reads strict JSON; json-simple moves to the door rewrite R-S144 |
+| the relation counting | `compiler/spec/RelationCounting.java`, `RelationCountAsserts` (`REFUSED` stays the product's), `edge/UpstreamRelationCounting.java`, `TestPlanner.java:227` | the planner keeps lite's refusal (`RelationCountAsserts.refuse`); the rewrite is R-S137 at the door |
+| the scan order | `edge/StableScanOrder.java` (598), `PureText.scanOrderPasses` | deleted once the corpus is measured without it under the rewrites (it fixes DuckDB's row order to H2's for tests that pass positionally and so log no leniency, §6.1: a check of its own, before the deletion) |
+| the door's options | `ExecuteOptions.recording`, `ExecuteOptions.edge()`, `PlanningOptions.edge`, `NoEdge` | the door's judge parameter; `PlanningOptions` carries the planning half (`Edge`, `EngineTextClaim`), the run the `JudgeRun` |
+
+### 7.5 The four door rewrites (the translator's, phase 3; ~1.5 days)
+
+Where they run: an edge door for compatibility test bodies (`edge.CompatTestDoor`), on the TYPED body: after
+`Compiler.queryResolved`, before `TestExecution.planBody`/`runProgram`, through `TypedQuery.withBody(List<TypedSpec>)`
+(public, `TypedQuery.java:43`). They walk the whole body recursively (an assert in a value's position too: the lift
+runs later, inside `TestPlanner`). Each is an input rewrite into ordinary lite functions; none adds a product hook.
+
+| Rewrite | Input (matched on the typed body) | Output | Lanes it serves (§6.1) |
+|---|---|---|---|
+| **R-S137** | a call of `assertSize`, `assertNotEmpty` or `assertEmpty` (`NativeFn.Verdict.ASSERT_SIZE`, `ASSERT_NOT_EMPTY`, `ASSERT_EMPTY`) whose first argument's type is a relation (`Type.isRelation`) | `assertSize`/`assertNotEmpty` with that argument replaced by the Integer literal 1 (`TypedCInteger(1L, Integer[1])`): `assertSize($rel, n)` holds only for n = 1, `assertNotEmpty($rel)` always holds, as upstream counts; `assertEmpty($rel)` refused by name with today's text ("say assertEquals(0, $relation->size())"). Today's code, moved whole: `UpstreamRelationCounting.countedAsOne` | corpus DuckDB 21, H2 21 |
+| **R-S144** | `assertJsonStringsEqual(e, a)` (and its message forms) whose `e` is a String constant of the plan (a literal or a constant concatenation, as in both corpus tests: `'[{...},' + ' {...}]"'`) that strict JSON refuses and json-simple 1.1.1 reads | the same call with `e` replaced by the literal of the prefix json-simple consumed (the root value; in both tests the golden without its stray trailing `"`), checked strict; where that prefix is not strict JSON, json-simple's value written as JSON (an object's key order is free: the assert compares parsed values). A constant json-simple refuses, or a non-constant `e`, is left as is (strict then refuses it, as lite does). S366's `}{` needs no rewrite: no lane meets it (§6.1) | corpus DuckDB 2, H2 2 (`graphFetch::milestoning::testMilestonedRootAndMilestonedProperty`, `graphFetch::embedded::otherwise::...`) |
+| **R-S131** (typed half) | `assertEquals(e, a)` (and its message forms) where the actual's order is incidental, `OrderView.of(a, letPrefix) == OrderView.INCIDENTAL` (`compiler/spec/OrderView.java:97`, public; `letPrefix` the body's statements before it), and the pair is not two relations (that is the grid pair's own judgment) | `assertSameElements(e, a)` with the same message argument. Exact where `a` is a list of values (the host judge already compares an incidental `assertEquals` by `Equality.sameElements`, `HostJudgments.java:819-821`, the very function `assertSameElements` uses) and where `a` is the flat cells of a one-column TDS. **Weaker** where `a` is the flat cells of a TDS of two or more columns: `assertSameElements` pools cells, today's fallback matches row tuples (`Equality.rowMultiset(te, ta, w)`, `HostJudgments.java:128-135`); at least 3 of DuckDB's 7 cell cases have two columns (`testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter`, `testConcatenateClassJoin`, `query::routing::testCompositionInJoin`) | corpus DuckDB 21 (values 14, cells 7), H2 3 |
+| **R-S15** | `assertEquals(e, a)` where `e` is a Float literal or a literal list of Floats and `a` is Float-typed (both corpus tests: `assertEquals([0.09531017980432493, 0.5877866649021191], $result.values->at(0).rows.values)`) | for one value, `assertEqWithinTolerance(e, a, d)`; for a list, `assertEquals(<n>, a->size())` then, for each i, `assertEqWithinTolerance(e_i, a->at(i), d_i)`; each `d` = 2 × `Math.ulp(|e_i|)` written at the door as a Float literal (a build-time constant from the program's text). `assertEqWithinTolerance` takes one number a side (`assertEqWithinTolerance.pure:17`), hence the expansion; the body's assert count grows, so the per-assert ledger's lines move, the per-test rosters do not | corpus DuckDB 2 (`mapping::sqlFunction::log::testFilter`, `testProject`), H2 0 |
+
+**Not covered by the four, for the user's list:**
+- **the JSON root array compared as a multiset** (S131 in `HostJudgments.jsonOf`, `incidentalRoot`, `:868-871`): 1
+  test on each corpus lane (`graphFetch::tests::union::propertyLevel::test6`). An `assertJsonStringsEqual` cannot become
+  `assertSameElements`. Either the edge judge's own rule for the `Json` kind with an incidental root (a second
+  whole-kind rule beside `Rendered`, one more `Hearing` method), or "not promised", listed;
+- **R-S131's weaker cell pool** for TDSes of two or more columns: a check in phase 3 that no corpus test failing today
+  passes under it; if one does, those tests take the `Json`-like kind rule instead.
+
+### 7.6 The one place words decide a verdict
+
+`assertError` matches the test's expected text against the raise. Today: `BodyRun.caughtMessage`
+(`testexec/BodyRun.java:36-40`) asks the hearing's words (`HostWords.caught`), which under compatibility looks the
+raise site's legend-pure words up in the plan's records (`EdgeHearing.raisedWords`; K10). Under (iii) the raise is a
+record (its kind, place and operands: 1.2's error record), and the match is `JudgeRun.Hearing.errorMatches(expected,
+raised)`: the product's default compares the raise's own message; `edge.CompatJudge` presents the record in
+legend-pure's words and compares. That is the only presenter call inside judging; every other word is presented after
+the verdict.
+
+### 7.7 What 2.2 must show before it lands (the checks, by lane)
+
+- **PCT** (channel B, every lane): HOST unchanged (the leniencies change nothing there); channel A unchanged (no lite
+  judge); the LITE-PCT lane green against its ledger (786 pass on DuckDB at `main`).
+- **The corpus**, DuckDB and H2: with R-S137, R-S144, R-S131, R-S15 at the door and no leniency in the host judge, the
+  committed rosters unchanged except the listed rows: the JSON root test (1 per lane) unless its kind rule is built, and
+  any move R-S131's cell pool causes (expected none); then the same with `StableScanOrder` off, its moves listed.
+- **Core:** BOTH green (core is LITE: no compatibility judge reaches it), and the guards of done-when 1 (three call
+  sites, no `HostForms`, `HostWords`, `EdgeRun`, `EdgeHearing`, `NoEdge` type left).
