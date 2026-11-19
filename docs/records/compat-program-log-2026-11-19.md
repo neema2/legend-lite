@@ -26,6 +26,8 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~14:30 | "Yes take over the paused pieces we need and/or fold them into existing sessions" (to this session's question 3: the paused product pieces stage A needs) | The compatibility program owns, as stage-A prerequisites: the Maven mirror fix (`f183b784a`), the PCT-under-both-judges lane C3 with the 5 judge-parity fixes and `firstDayOfWeek` (`claude/parity-a5`), and the cross-kind `!=` fix (`63421e0a`); the window-in-a-list lowering at stage B. Each still lands only on the user's word |
 
+| ~14:55 | "Detector default warn is okay" (to this session's options: (a) warn plus a report when a project loads, recommended; (b) refuse by default) | D1's detector warns by default, with the load-time report as planned (the reviewer's condition for warn); refusal by the server setting `LEGEND_LITE_PURE_MEANING=refuse` |
+
 **Superseded ~13:25:** **Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
 each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
 being built by the product's judges track (C3).
@@ -1659,3 +1661,5 @@ who confirms or changes phases 1-3.
   Linux arm warehouse 10.0. Linux edge_net stopped at analysis on Maven Central's 404s (h2 2.5.252 and 2.1.214) after a
   repository-cache miss; Linux product on the teavm 404. macOS lanes still queued. edge_net is not the longest lane on
   Windows. Next: macOS's verdict, Linux's re-run, Windows core, ~14:55.
+- **~14:55 UTC, THE USER: "Detector default warn is okay"** (recorded in §1): warn by default, with the load-time
+  report. The user also asked for stage A's steps "clearly in English" (written in chat).
