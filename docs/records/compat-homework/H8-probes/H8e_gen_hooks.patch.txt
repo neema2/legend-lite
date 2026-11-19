@@ -1,0 +1,67 @@
+diff --git a/core/src/main/java/com/legend/edge/EnginePlans.java b/core/src/main/java/com/legend/edge/EnginePlans.java
+index 02e7397a1..973d6baaa 100644
+--- a/core/src/main/java/com/legend/edge/EnginePlans.java
++++ b/core/src/main/java/com/legend/edge/EnginePlans.java
+@@ -957,6 +957,11 @@ public final class EnginePlans {
+      *  2026-10-31: the body driver's prelude wrote it until then). */
+     public static String ddlText(
+             com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {
++        return com.legend.base.GenProbe.generated("toDDL", ddlTextImpl(ds, env));
++    }
++
++    static String ddlTextImpl(
++            com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {
+         String fqn = ds.callee().qualifiedName();
+         if (DROP_SCHEMA_STATEMENT.equals(fqn)
+                 || CREATE_SCHEMA_STATEMENT.equals(fqn)) {
+diff --git a/core/src/main/java/com/legend/edge/EngineSeedText.java b/core/src/main/java/com/legend/edge/EngineSeedText.java
+index 3efa68ce1..84b79aef0 100644
+--- a/core/src/main/java/com/legend/edge/EngineSeedText.java
++++ b/core/src/main/java/com/legend/edge/EngineSeedText.java
+@@ -43,6 +43,16 @@ public final class EngineSeedText {
+             java.util.function.Function<String,
+                     java.util.Optional<DatabaseDefinition>> lookup,
+             com.legend.sql.dialect.SqlDialect engineText) {
++        java.util.List<String> out = setUpDataSqlsTextImpl(data, db, lookup, engineText);
++        out.forEach(x -> com.legend.base.GenProbe.generated("setUpDataSQLs", x));
++        return out;
++    }
++
++    static java.util.List<String> setUpDataSqlsTextImpl(String data,
++            DatabaseDefinition db,
++            java.util.function.Function<String,
++                    java.util.Optional<DatabaseDefinition>> lookup,
++            com.legend.sql.dialect.SqlDialect engineText) {
+         // include-first, group-by-name, table-dedup-by-name (first wins)
+         java.util.LinkedHashMap<String,
+                 java.util.LinkedHashMap<String,
+@@ -124,6 +134,17 @@ public final class EngineSeedText {
+             java.util.function.Function<String,
+                     java.util.Optional<DatabaseDefinition>> lookup,
+             com.legend.sql.dialect.SqlDialect engineText) {
++        java.util.List<String> out = setUpDataSqlsTextFromRecordsImpl(records, db, lookup, engineText);
++        out.forEach(x -> com.legend.base.GenProbe.generated("setUpDataSQLs", x));
++        return out;
++    }
++
++    static java.util.List<String> setUpDataSqlsTextFromRecordsImpl(
++            java.util.List<java.util.List<String>> records,
++            DatabaseDefinition db,
++            java.util.function.Function<String,
++                    java.util.Optional<DatabaseDefinition>> lookup,
++            com.legend.sql.dialect.SqlDialect engineText) {
+         java.util.List<String> out = setUpDataSqlsText("", db, lookup, engineText);
+         int i = 0;
+         while (i < records.size()) {
+diff --git a/core/src/main/java/com/legend/testplan/EffectPlanner.java b/core/src/main/java/com/legend/testplan/EffectPlanner.java
+index dfb0f5bdf..0ce47c9d0 100644
+--- a/core/src/main/java/com/legend/testplan/EffectPlanner.java
++++ b/core/src/main/java/com/legend/testplan/EffectPlanner.java
+@@ -103,6 +103,7 @@ public final class EffectPlanner {
+                 // (decision D2); the ledger records each as authored
+                 List<Statement> out = new ArrayList<>();
+                 for (String stmt : RawSql.splitStatements(values.get(0))) {
++                    com.legend.base.GenProbe.executed(stmt, String.valueOf(writtenFor), env.writtenIn().getClass().getName());
+                     out.add(new Statement(env.writtenIn().raw(stmt, writtenFor), stmt, false));
+                 }
+                 yield out;

@@ -1,0 +1,48 @@
+# H8 (e): each corpus lane alone, at main (claude/census-b2 9cd75578c+, product = b75d6c73a) and under the lite-text probe (claude/census-b2-sqltext 0968d1220 + H8e_strength_print.patch.txt), 2026-11-19 UTC
+== main-h2 start 11:36:10
+== main-h2 end 11:40:11 exit 0
+== probe-h2 start 11:40:11
+== probe-h2 end 11:43:42 exit 0
+== main-duckdb start 11:43:42
+== main-duckdb end 11:54:18 exit 0
+== probe-duckdb start 11:54:18
+== probe-duckdb end 12:04:57 exit 0
+== ALL DONE 12:20:18
+## main h2
+[corpus2] statement-origins body=3886 let=1932 value=0 seed=141 seed_generated=0 session=6718 system=9273 referee_ours=1136 referee_golden=1073 raw=0 side=0 statement=23 mirror_seed=68220 probe=0 other=5879
+[corpus2] pass=2289 fail=276 skipped=7 of 2613 in 187s
+[corpus2] strength LITERAL=1276
+[corpus2] strength DIFFERENTIAL+literal=795
+[corpus2] strength DIFFERENTIAL-only=169
+[corpus2] strength CARDINALITY=27
+[corpus2] strength SPELLING=22
+Test run finished after 193588 ms
+## main duckdb
+[corpus2] statement-origins body=3886 let=1951 value=0 seed=139 seed_generated=0 session=4823 system=10133 referee_ours=1156 referee_golden=1093 raw=0 side=0 statement=23 mirror_seed=69609 probe=0 other=6254
+[corpus2] pass=2452 fail=108 skipped=7 of 2613 in 628s
+[corpus2] strength LITERAL=1413
+[corpus2] strength DIFFERENTIAL+literal=821
+[corpus2] strength DIFFERENTIAL-only=169
+[corpus2] strength CARDINALITY=27
+[corpus2] strength SPELLING=22
+Test run finished after 634506 ms
+## probe h2
+[corpus2] statement-origins body=3886 let=1932 value=0 seed=141 seed_generated=0 session=6713 system=8929 referee_ours=1726 referee_golden=1628 raw=0 side=0 statement=23 mirror_seed=87618 probe=0 other=5805
+[corpus2] pass=2142 fail=423 skipped=7 of 2613 in 179s
+[corpus2] H8e strength LITERAL=689
+[corpus2] H8e strength DIFFERENTIAL-only=248
+[corpus2] H8e strength DIFFERENTIAL+literal=1185
+[corpus2] H8e strength CARDINALITY=20
+Test run finished after 184888 ms
+## probe duckdb
+[corpus2] statement-origins body=3886 let=1945 value=0 seed=139 seed_generated=0 session=4818 system=9789 referee_ours=1756 referee_golden=1659 raw=0 side=0 statement=23 mirror_seed=89447 probe=0 other=6150
+[corpus2] pass=2300 fail=260 skipped=7 of 2613 in 630s
+[corpus2] H8e strength LITERAL=805
+[corpus2] H8e strength DIFFERENTIAL-only=247
+[corpus2] H8e strength DIFFERENTIAL+literal=1228
+[corpus2] H8e strength CARDINALITY=20
+Test run finished after 636157 ms
+## e-main-h2: INFO: Elapsed time: 241.527s, Critical Path: 219.67s
+## e-probe-h2: INFO: Elapsed time: 210.625s, Critical Path: 194.89s
+## e-main-duckdb: INFO: Elapsed time: 636.457s, Critical Path: 635.46s
+## e-probe-duckdb: INFO: Elapsed time: 638.654s, Critical Path: 637.46s

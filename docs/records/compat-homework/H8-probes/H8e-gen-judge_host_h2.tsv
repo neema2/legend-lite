@@ -1,0 +1,5 @@
+# generated statements	260
+# kind	writtenFor	dialect	test	count
+toDDL	H2	com.legend.edge.PureText$H2	meta::relational::tests::aggregationAware::testRewrite::objectGroupBy::testRewriteCanAggregateGroupByOnLiteralWithMultipleAgg	19
+toDDL	H2	com.legend.edge.PureText$H2	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteFilter	19
+toDDL	H2	com.legend.edge.PureText$H2	meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy::testRewriteFilter	19

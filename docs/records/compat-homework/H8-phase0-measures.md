@@ -544,3 +544,109 @@ one test (LITERAL 1276 → 1275).
 `core/src/test/java/com/legend/testbackend/EngineH2Referee.java:67-70`). The probe does not touch it: the golden is
 replayed as legend-engine runs it, and lite's rows come from the regular-mode database.
 
+## (e) CP-4's remaining cost: what the appeal decides, the generated text executed, the time
+
+B1's review splits CP-4's cost three ways, and asks for the corpus lanes' time with every SQL-text assert sent to the
+appeal. A later question from the orchestrator is answered in (e.2): the tests that pass today THROUGH a successful
+appeal, where the text failed and the rows appeal held.
+
+### (e.1) Asserted legend-engine text the appeal cannot decide: 143
+
+This part is F1's count (`docs/records/census-b2-sqltext-probe-2026-11-19.md` §2, at `32ef19118`). **143 tests pass
+only by legend-engine's text.** By sub-class:
+- the text failed and the rows appeal declined: 64;
+- a printed string compared with no appeal: 22;
+- lite's printer has no form for the construct: 53;
+- SQL text read from legend-engine's plan: 4.
+
+Beside them, **3** tests are DIVERGED appeals: the text verdict had hidden an answer difference. **6** more are judged
+on legend-engine's plan structure, not on SQL text.
+
+### (e.2) The tests the appeal decides
+
+**The method.** The corpus's strength census classes every pass by what judged it (`MinimalCorpus.run`):
+- **DIFFERENTIAL:** a referee reported MATCH. It is reported only from a heard appeal (`SqlTextRuns.judge` → `hold`),
+  and an appeal is heard only when a SQL-text assert's text failed. So DIFFERENTIAL is exactly "a text failed and its
+  rows appeal held". `+literal` means a value assert held too; `-only` means the appeal alone carried the pass.
+- **LITERAL:** a value assert, with no referee.
+- **CARDINALITY:** only size, emptiness or boolean asserts.
+- **SPELLING:** every verdict was decided by text (a declined appeal).
+
+**The runs.** Each lane ran alone, one after another, on 2026-11-19 from 11:36 to 12:05 UTC (`H8e-timing.txt`):
+- **main:** `claude/census-b2`, whose product equals `b75d6c73a`;
+- **the lite-text probe:** F1's, `claude/census-b2-sqltext` at `0968d1220`, where every engine-text printer writes
+  lite's own SQL. So every SQL-text assert's text fails and goes to the appeal. One line was added
+  (`H8e_strength_print.patch.txt`) to print the census before the moved rosters' pins stop the run.
+
+| Passes by what judged them | H2 main | H2 probe | DuckDB main | DuckDB probe |
+|---|---:|---:|---:|---:|
+| **DIFFERENTIAL: a failed text whose appeal held** | **964** | **1,433** | **990** | **1,475** |
+| of which `+literal` | 795 | 1,185 | 821 | 1,228 |
+| of which `-only` (the appeal alone) | 169 | 248 | 169 | 247 |
+| LITERAL | 1,276 | 689 | 1,413 | 805 |
+| CARDINALITY | 27 | 20 | 27 | 20 |
+| SPELLING | 22 | 0 | 22 | 0 |
+| **Passes** | 2,289 | 2,142 | 2,452 | 2,300 |
+
+- **Today, 964 tests on H2 and 990 on DuckDB pass through a successful appeal.** For 169 on each lane, the appeal
+  alone carries the pass.
+- **With every SQL-text assert sent to the appeal, the appeal decides 1,433 on H2 and 1,475 on DuckDB.** That is 469
+  and 485 more than today, and they stay passing, by answer.
+- The 147 and 152 tests that fail under the probe are F1's.
+- SPELLING goes to 0: no pass is decided by text alone once text is never equal.
+
+### (e.3) The programs that EXECUTE generated text
+
+**The probe** (never for main): `H8e_GenProbe.java.txt`, planted by `H8e_gen_hooks.patch.txt`.
+- **Generation:** the edge's generators register each statement they write. These are `EnginePlans.ddlText` (`toDDL`'s
+  statements) and `EngineSeedText`'s two `setUpDataSqlsText` forms, each keyed to the test that generated it.
+- **Execution:** the test planner's `executeInDb` arm (`EffectPlanner`) counts each statement it plans that is one of
+  that test's own generated statements.
+
+Both lanes' host passes ran on 2026-11-19, 12:21-12:32 UTC. Output: `H8e-gen-judge_host_{h2,duckdb}.tsv`.
+
+**An earlier run was discarded.** It matched generated text across tests and counted 8,800 `setUpDataSQLs` executions
+in 391 tests. Every one was a hand-written statement whose text equals the generator's (the corpus's setups write
+`Drop table if exists PersonTable` as `setUpDataSQLs` does). Keyed to the generating test, none is left.
+
+| Generated text | Executed by `executeInDb` (each lane) | The tests |
+|---|---|---|
+| `toDDL` (`createSchemaStatement`, `createTableStatement`, ...) | **3 tests, 57 statements** (19 each), written for H2 | `aggregationAware::testRewrite::objectGroupBy::testRewriteCanAggregateGroupByOnLiteralWithMultipleAgg`, `testRewriteAsNOP::nonAggregationAware::testRewriteFilter`, `testRewriteAsNOP::nonGroupBy::testRewriteFilter`: their setup (`aggregationAware/test/store.pure:166-188`) maps `executeInDb` over the DDL |
+| `setUpDataSQLs` | **0** | none: lite sends none, by S192 |
+
+- **The 3 `toDDL` tests pass on both lanes at main, and on H2 under the lite-text probe.** There, `ddlText`'s printer
+  (`PureText.engineText`) writes lite's own DDL. So lite's own DDL text runs these programs as well. On the DuckDB
+  lane, the H2 text goes through DuckDB's `raw` pass.
+- **`setUpDataSQLs` passed to `executeInDb` is never sent.** Register row **S192** (ruled by the user 2026-11-11,
+  "Read only reload is fine") covers upstream's 30 `loadAndTestExecution` tests
+  (`testDataGeneration/tests/testDataGeneration.pure:1784-1792`):
+  - the reload sends no statement;
+  - the query after it is planned again with each reloaded table read from the generated slice by a typed table swap
+    (`TestDataPlanner.slice`, `TableSwaps`).
+  
+  So no program in the corpus depends on `setUpDataSQLs`' text executing. Its text is judged only where a test
+  compares it, which is F1's a2, and S195's row counts.
+
+### (e.4) The corpus lanes' time with every SQL-text assert sent to the appeal
+
+Each lane ran alone, as in (e.2):
+
+| Lane | Test loop, main | Test loop, probe | JUnit total, main / probe | Wall, main / probe |
+|---|---:|---:|---:|---:|
+| H2 | 187 s | 179 s | 193.6 / 184.9 s | 241.5 / 210.6 s |
+| DuckDB | 628 s | 630 s | 634.5 / 636.2 s | 636.5 / 638.7 s |
+
+**No measurable cost.** The appeal sends more statements under the probe:
+
+| Statements | H2 main → probe | DuckDB main → probe |
+|---|---|---|
+| Referee, ours | 1,136 → 1,726 (+590) | 1,156 → 1,756 (+600) |
+| Referee, the golden's replays | 1,073 → 1,628 (+555) | 1,093 → 1,659 (+566) |
+| Mirror seeds | 68,220 → 87,618 (+19,398) | 69,609 → 89,447 (+19,838) |
+
+Those are offset within a few seconds by two things: the probe's failing tests (147 and 152) stop early, and lite's
+printer is cheaper than the engine-text printer it replaces. The H2 lane even runs 8 s faster.
+
+So keeping the appeal as CP-4's judge costs no corpus time. Deleting the engine-text printers also removes the
+printing work itself.
+

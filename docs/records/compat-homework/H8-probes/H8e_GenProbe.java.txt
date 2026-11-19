@@ -1,0 +1,80 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.base;
+
+/**
+ * PROBE, NEVER FOR MAIN (census B2's H8 (e), 2026-11-19): a program that EXECUTES generated text. The edge registers
+ * each statement it generates (toDDL's, setUpDataSQLs'), under the test that generated it; the test planner reports
+ * each executeInDb statement that is one of that test's own, with the test (the harness's RefereeVerify.CURRENT_TEST, read by reflection), the language it is
+ * written in and the dialect that sends it. Written at JVM exit, one file per run.
+ */
+public final class GenProbe {
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, String> GENERATED =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> EXECUTED =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final String DIR = "/tmp/claude-0/-home-user-legend-lite/f84639bd-8c8c-5089-adae-aa79b00e3979/scratchpad/gen";
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(GenProbe::dump));
+    }
+
+    private GenProbe() {
+    }
+
+    private static String norm(String s) {
+        String t = s.strip();
+        while (t.endsWith(";")) {
+            t = t.substring(0, t.length() - 1).strip();
+        }
+        return t.replaceAll("\\s+", " ");
+    }
+
+    /** A generated text: each of its statements registered under {@code kind}. */
+    public static String generated(String kind, String text) {
+        if (text != null) {
+            for (String s : text.split(";")) {
+                if (!s.isBlank()) {
+                    // keyed by the test that generated it: a hand-written statement of the same text in another test
+                    // (the corpus's setups write "Drop table if exists ..." as the generator does) is not counted
+                    GENERATED.putIfAbsent(currentTest() + "\u0000" + norm(s), kind);
+                }
+            }
+        }
+        return text;
+    }
+
+    /** An executeInDb statement: counted when it is a generated one. */
+    public static void executed(String statement, String writtenFor, String dialect) {
+        String kind = GENERATED.get(currentTest() + "\u0000" + norm(statement));
+        if (kind != null) {
+            EXECUTED.computeIfAbsent(kind + "\t" + writtenFor + "\t" + dialect + "\t" + currentTest(),
+                    k -> new java.util.concurrent.atomic.LongAdder()).increment();
+        }
+    }
+
+    private static String currentTest() {
+        try {
+            Object tl = Class.forName("com.legend.harness.RefereeVerify").getField("CURRENT_TEST").get(null);
+            Object v = ((ThreadLocal<?>) tl).get();
+            return v == null ? "?" : String.valueOf(v);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return "?";
+        }
+    }
+
+    private static void dump() {
+        String cmd = System.getProperty("sun.java.command", "?");
+        StringBuilder out = new StringBuilder("# command\t" + cmd + "\n# generated statements\t" + GENERATED.size()
+                + "\n# kind\twrittenFor\tdialect\ttest\tcount\n");
+        new java.util.TreeMap<>(EXECUTED).forEach((k, v) -> out.append(k).append('\t').append(v.sum()).append('\n'));
+        try {
+            java.nio.file.Files.writeString(java.nio.file.Path.of(DIR, "gen-" + ProcessHandle.current().pid() + "-"
+                    + System.nanoTime() + ".tsv"), out);
+        } catch (java.io.IOException | RuntimeException e) {
+            System.err.println("GenProbe: " + e);
+        }
+    }
+}

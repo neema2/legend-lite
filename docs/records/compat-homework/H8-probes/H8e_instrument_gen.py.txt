@@ -1,0 +1,28 @@
+"""H8 (e): instrument generated text and its execution (a probe worktree only). usage: instrument_gen.py <worktree>"""
+import re, sys
+W = sys.argv[1] + "/core/src/main/java/com/legend/"
+def edit(path, old, new, count=1):
+    p = W + path; s = open(p).read()
+    assert s.count(old) >= count, (path, old[:60], s.count(old))
+    s = s.replace(old, new, count); open(p, "w").write(s)
+edit("edge/EnginePlans.java", "    public static String ddlText(\n            com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {",
+     "    public static String ddlText(\n            com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {\n"
+     "        return com.legend.base.GenProbe.generated(\"toDDL\", ddlTextImpl(ds, env));\n    }\n\n"
+     "    static String ddlTextImpl(\n            com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {")
+p = W + "edge/EngineSeedText.java"; s = open(p).read()
+# the two implementing overloads (4 parameters), each wrapped
+for name in ["setUpDataSqlsText", "setUpDataSqlsTextFromRecords"]:
+    sigs = [m for m in re.finditer(r"    public static java\.util\.List<String> " + name + r"\(([^)]*\)[^{]*)\{", s)]
+    impl = max(sigs, key=lambda m: m.group(1).count(","))
+    params = impl.group(1)
+    names = [re.split(r"\s+", a.strip())[-1] for a in re.sub(r"<[^>]*>", "", params[:params.rindex(")")]).split(",")]
+    head = impl.group(0)
+    wrapper = (head + "\n        java.util.List<String> out = " + name + "Impl(" + ", ".join(names) + ");\n"
+               "        out.forEach(x -> com.legend.base.GenProbe.generated(\"setUpDataSQLs\", x));\n        return out;\n    }\n\n"
+               + head.replace("public static java.util.List<String> " + name + "(", "static java.util.List<String> " + name + "Impl("))
+    s = s[:impl.start()] + wrapper + s[impl.end():]
+open(p, "w").write(s)
+edit("testplan/EffectPlanner.java", "                for (String stmt : RawSql.splitStatements(values.get(0))) {\n",
+     "                for (String stmt : RawSql.splitStatements(values.get(0))) {\n"
+     "                    com.legend.base.GenProbe.executed(stmt, String.valueOf(writtenFor), env.writtenIn().getClass().getName());\n")
+print("instrumented")

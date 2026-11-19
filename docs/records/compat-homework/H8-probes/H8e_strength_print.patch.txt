@@ -1,0 +1,13 @@
+diff --git a/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java b/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
+index 88eef6f9c..9a641437d 100644
+--- a/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
++++ b/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
+@@ -387,6 +387,8 @@ public class MinimalCorpusTest {
+         System.out.println("[corpus2] pass=" + pass.size() + " fail=" + fail.size()
+                 + " skipped=" + skipped.size() + " of " + ran.size() + " in "
+                 + (System.nanoTime() - t0) / 1_000_000_000L + "s");
++        // PROBE (census B2's H8 (e), 2026-11-19; never for main): the strength census printed before any pin can stop the run
++        strength.forEach((k, v) -> System.out.println("[corpus2] H8e strength " + k + "=" + v));
+         for (String f : fail) {
+             System.out.println("[corpus2] FAIL " + f);
+         }
