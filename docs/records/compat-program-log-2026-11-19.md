@@ -2233,3 +2233,16 @@ who confirms or changes phases 1-3.
 - **~18:12 UTC, compatibility's table text ruled** (§1's row): at the program's last step the legend-pure route
   takes a relation's `toString`/`toCSV` over; text used further in the query is lite's own, recorded. Written into the
   final plan's B2 row and the rules of record. The nested-case count assigned to B1 (idle since #123 folded into #124).
+- **~18:23 UTC, A5: S1 measured and the review's fixes built** (local: `032b8f3ef` fixes 1, 3, 4; `b08ec103e` merges
+  #124's branch `f832a6671` with ONE three-way selector, `PctPlanRoute.audience`: LEGEND_PURE default, LEGEND_ENGINE,
+  LITE, any other value and engine + LITE refused by name, planted in `//pct:pct_route_audience_test`, RouteAudience
+  still counting for AudienceCheck; `6f21bed29` the database's rejection raised in place of the ISE, with a test, and S2's
+  casts named). The merge's checks 42 of 42 green. **S1, measured:** a product plan's DuckDB with two failing expressions
+  in one projection raised the first expression's error 30 of 30 (both shapes); the error wanders only across
+  pipelines (the test plan's fused statement of joined CTEs: three errors in 30). So a product plan that joins or reads
+  CTEs keeps that G10 gap; test sessions no longer see it. **Shared file:** none left; `Targets.forTest` writes the test
+  session statement only where the platform makes the database (its engine, the catalog, an in-memory connection), so a
+  declared file's test target equals its product target; planted in
+  `PlanMakerDuckDbTest#aDeclaredFileKeepsItsOwnThreads_anInMemoryOneTheTestsSetting`. #127's CI at `3cb787902`: linux
+  pct_h2 and corpus_duckdb stopped on Central's 404 (no mirror on that head). Told: no re-run; push the three commits
+  once (the merge brings the mirror), the new run is A5's evidence.
