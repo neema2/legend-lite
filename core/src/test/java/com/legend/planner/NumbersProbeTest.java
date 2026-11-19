@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * The live half runs here on DuckDB, H2, SQLite and the embedded Postgres (a CI database, so B's Postgres half is held
  * per push); the planned half reads every product dialect's statement, the cloud dialects' among them (no account is
  * reached: a placeholder connection, planning only), for the spellings the lanes measured or the databases document.
+ * A third case holds lite's canonical text of a Float on the four databases (Q4: a whole value past 2^63 on SQLite).
  */
 class NumbersProbeTest {
 
@@ -111,6 +112,53 @@ class NumbersProbeTest {
             }
         }
         assertEquals(List.of(), wrong);
+    }
+
+    /** The whole doubles lite's canonical text of a Float ({@code FLOAT_SHORTEST_TEXT}, a message's text of a Float)
+     *  lays out from the database's exponent text, and a few inside the other windows. */
+    static final List<Double> WHOLE_AND_OTHER_FLOATS = List.of(9007199254740992.0, 1152921504606846976.0, 1e19,
+            9223372036854775808.0, 1.2345678901234567e19, 1e22, 1e37, -1152921504606846976.0, 123456789012345678.0,
+            1e16, 1.5, 0.1, 1e-5, 2.5e-7);
+
+    /** Lite's canonical text of each double is the host writer's ({@code CellText.carriedFloat}: its shortest digits,
+     *  laid out): the database judge's message text and the host judge's alike (Q4 and the 2^60 case of the PR #118
+     *  follow-ups, 2026-11-19). Until then a whole value with an exponent text was cast through a 128-bit integer:
+     *  SQLite's is 64-bit, so 1e19 printed 9223372036854775807.0; DuckDB wrote the exact binary digits (2^60
+     *  1152921504606846976.0); Postgres's numeric kept 15 digits (2^53 9007199254740990.0, no longer the value). */
+    @Test
+    void aFloatsCanonicalTextIsTheHostWritersText_onFourDatabases() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite,
+                DatabaseType.Postgres)) {
+            var dialect = com.legend.database.Databases.dialect(type);
+            try (Connection conn = TestBackends.of(type).open(); java.sql.Statement st = conn.createStatement()) {
+                for (String setup : dialect.sessionSetup()) {
+                    st.execute(setup);
+                }
+                for (double d : WHOLE_AND_OTHER_FLOATS) {
+                    String got;
+                    try (java.sql.ResultSet rs = st.executeQuery(dialect.render(canonicalTextOf(d)))) {
+                        rs.next();
+                        got = rs.getString(1);
+                    }
+                    String want = com.legend.result.CellText.carriedFloat(d);
+                    if (!want.equals(got)) {
+                        wrong.add(type + " " + Double.toString(d) + ": " + got + " (want " + want + ")");
+                    }
+                }
+            }
+        }
+        assertEquals(List.of(), wrong);
+    }
+
+    /** {@code SELECT FLOAT_SHORTEST_TEXT(<d>)}, {@code d} written as the product writes a Float literal (S20, the
+     *  double), so the database's reading of it is held too. */
+    static com.legend.sql.SqlSelect canonicalTextOf(double d) {
+        com.legend.sql.SqlExpr x = com.legend.sql.SqlExpr.FloatLit.of(d, com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE);
+        return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(
+                com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT, x), "t",
+                new com.legend.sql.OutputCol("t", com.legend.sql.SqlType.Scalar.VARCHAR, true))), false,
+                new com.legend.sql.SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of());
     }
 
     /** Every product dialect's statement for the four ways' cases, planned (no database reached). */

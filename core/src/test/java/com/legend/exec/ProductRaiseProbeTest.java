@@ -277,6 +277,14 @@ class ProductRaiseProbeTest {
                 }
             }
         }
+        // 12. lite's canonical text of a Float (FLOAT_SHORTEST_TEXT, a message's text of a Float; Q4 and the 2^60 case of
+        // the PR #118 follow-ups, 2026-11-19): the host writer's text, CellText.carriedFloat, the double's shortest
+        // digits laid out -- SQLite printed 9223372036854775807.0 for every whole value past 2^63, ClickHouse's Int128
+        // 10000000000000000000482.0 for 1e22, Postgres's numeric 15 digits; each statement sent as rendered, on a
+        // database the probe reaches over JDBC
+        if (backend.opensJdbc()) {
+            canonicalTexts(backend, wrong);
+        }
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
@@ -341,6 +349,42 @@ class ProductRaiseProbeTest {
             if (cell == null || !cell.matches("-?[0-9.eE+-]+") || Double.parseDouble(cell) != c.getValue()) {
                 wrong.add(label + ": expected " + c.getValue() + " exactly, answered " + describe(got));
             }
+        }
+    }
+
+    private static void canonicalTexts(com.legend.testbackend.TestBackend backend, List<String> wrong) {
+        var dialect = com.legend.database.Databases.dialect(backend.type());
+        try (java.sql.Connection c = backend.open(); java.sql.Statement st = c.createStatement()) {
+            for (String setup : dialect.sessionSetup()) {
+                st.execute(setup);
+            }
+            for (double d : List.of(9007199254740992.0, 1152921504606846976.0, 1e19, 9223372036854775808.0,
+                    1.2345678901234567e19, 1e22, 1e37, -1152921504606846976.0, 123456789012345678.0, 1e16, 1.5, 0.1,
+                    1e-5, 2.5e-7)) {
+                // the double as the product writes a Float literal (S20), so its reading is held too (the same
+                // statement //core:numbers_probe_test sends on DuckDB, H2, SQLite and Postgres)
+                com.legend.sql.SqlExpr x = com.legend.sql.SqlExpr.FloatLit.of(d, com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE);
+                String sql = dialect.render(new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(
+                        com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT, x), "t",
+                        new com.legend.sql.OutputCol("t", com.legend.sql.SqlType.Scalar.VARCHAR, true))), false,
+                        new com.legend.sql.SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null,
+                        List.of()));
+                String got;
+                try (java.sql.ResultSet rs = st.executeQuery(sql)) {
+                    rs.next();
+                    got = rs.getString(1);
+                } catch (java.sql.SQLException failed) {
+                    got = "SQLException: " + failed.getMessage();
+                }
+                String want = com.legend.result.CellText.carriedFloat(d);
+                System.out.println("[product raise probe] " + backend.name() + " the canonical text of " + d
+                        + ", answered: " + got);
+                if (!want.equals(got)) {
+                    wrong.add("the canonical text of " + d + ": " + got + " (want " + want + ")");
+                }
+            }
+        } catch (java.sql.SQLException failed) {
+            wrong.add("the canonical texts: " + describe(failed));
         }
     }
 

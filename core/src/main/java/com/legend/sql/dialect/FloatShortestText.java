@@ -108,11 +108,10 @@ final class FloatShortestText {
      * exponent form.
      */
     private static SqlExpr print(SqlExpr x, SqlExpr s) {
-        // FRACTION-FREE values render through HUGEINT — exact plain digits
-        // for the whole [1e16, 1e38) band where the DECIMAL(38,18) cast
-        // fabricates garbage (audit: 1e18 printed ...042.42...); every
-        // double >= 2^53 is fraction-free, so all large magnitudes take
-        // this branch.
+        // FRACTION-FREE values written with an exponent are laid out from that text ({@link #wholeLaidOut}: the
+        // database's shortest digits, padded) for the whole band below 1e38, where the DECIMAL(38,18) cast
+        // fabricates garbage (audit: 1e18 printed ...042.42...); every double >= 2^53 is fraction-free, so all large
+        // magnitudes take this branch (through HUGEINT until 2026-11-19: Q4).
         // the exponent marker in either case: DuckDB and Postgres write 2.5e-07, H2 1.5E15 (the output matrix,
         // docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3 gap 2, 2026-10-18)
         SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
@@ -134,10 +133,7 @@ final class FloatShortestText {
         // computes every branch of a CASE -- ClickHouse, whose constant folding casts a constant whatever its guard --
         // otherwise failed the cast of a value the branch never takes (cosh(-100), 1.3E43, out of Decimal(38,18):
         // DECIMAL_OVERFLOW; step 9, 2026-10-19, the ClickHouse lane on the plan route)
-        SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(fractionFree, x), SqlType.Scalar.HUGEINT, SqlExpr.Reason.PRINT),
-                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
-                new SqlExpr.StringLit(".0"));
+        SqlExpr intPlain = wholeLaidOut(x, s);
         SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
                 new SqlExpr.Cast(new SqlExpr.Cast(onlyWhere(inRange, x), new SqlType.Decimal(38, 18), SqlExpr.Reason.PRINT),
                         SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
@@ -156,6 +152,36 @@ final class FloatShortestText {
         whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed));
         whens.add(new SqlExpr.Case.When(bare, SqlExpr.Call.of(SqlFn.CONCAT, s, new SqlExpr.StringLit(".0"))));
         return new SqlExpr.Case(whens, s, SqlExpr.Reason.PRINT);
+    }
+
+    /**
+     * A whole value the database writes with an exponent (its text {@code s}: {@code 1.152921504606847e+18},
+     * {@code 1.0E19}, {@code 1e22}), laid out positionally: the mantissa's digits right-padded with zeros to the
+     * exponent's place, the sign, {@code .0} -- the database's own shortest digits, as lite's host writer lays out
+     * Java's ({@code result.CellText.carriedFloat}: 2^60 is {@code 1152921504606847000.0}). The spelled tokens are
+     * rearranged, nothing computed (docs/WORLD_MAP.md). Until 2026-11-19 the value was cast through a 128-bit integer
+     * (HUGEINT): the exact binary digits on DuckDB (2^60 {@code 1152921504606846976.0}, the two judges' texts apart),
+     * {@code 9223372036854775807.0} for every value past 2^63 on SQLite, whose integer is 64-bit (Q4 of the PR #118
+     * follow-ups), digits that are no value past about 1e21 on ClickHouse ({@code 1e22} wrote
+     * {@code 10000000000000000000482.0}), and 15 digits on Postgres, whose numeric rounds a double so (2^53 wrote
+     * {@code 9007199254740990.0}). The exponent is read as its digits behind a {@code 0} ({@code +18} as {@code 018},
+     * a text with none as {@code 0}), so the arm reads any text without failing: a database that computes a branch it
+     * does not take (ClickHouse folds every constant branch) needs no guard around it.
+     */
+    private static SqlExpr wholeLaidOut(SqlExpr x, SqlExpr s) {
+        SqlExpr e = SqlExpr.Call.of(SqlFn.LOWER, s);
+        SqlExpr mantissa = SqlExpr.Call.of(SqlFn.SPLIT_PART, e, text("e"), new SqlExpr.IntLit(1));
+        SqlExpr exponentDigits = SqlExpr.Call.of(SqlFn.REPLACE, SqlExpr.Call.of(SqlFn.REPLACE,
+                SqlExpr.Call.of(SqlFn.SPLIT_PART, e, text("e"), new SqlExpr.IntLit(2)), text("+"), text("")),
+                text("-"), text(""));
+        SqlExpr exponent = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CONCAT, text("0"), exponentDigits),
+                SqlType.Scalar.BIGINT, SqlExpr.Reason.PRINT);
+        SqlExpr digits = SqlExpr.Call.of(SqlFn.REPLACE, SqlExpr.Call.of(SqlFn.REPLACE, mantissa, text("-"), text("")),
+                text("."), text(""));
+        SqlExpr sign = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)), text("-"))), text(""), SqlExpr.Reason.PRINT);
+        return SqlExpr.Call.of(SqlFn.CONCAT, sign, SqlExpr.Call.of(SqlFn.RPAD, digits,
+                SqlExpr.Call.of(SqlFn.PLUS, exponent, new SqlExpr.IntLit(1)), text("0")), text(".0"));
     }
 
     /** {@code x} where {@code guard} holds, else NULL. */
