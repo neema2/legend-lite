@@ -1,6 +1,10 @@
 # The compatibility program: the re-cut plan (2026-11-19)
 
-**Status: DRAFT r1, for review by B1's lead, then for the user's ratification.** Owner: the compatibility session
+**Status: r3, for the user's ratification.**
+- **r1** (`71aa0fc7`) was reviewed by B1's lead (2026-11-19 ~04:08 UTC).
+- **r2** recorded the user's first rulings and revised CP-5.
+- **r3** folds in B1's review: the strand map corrected; the judges split before 1.3; 2.3 widened by the appeal stack and
+  executed DDL; sizes corrected. Owner: the compatibility session
 (`session_0195rQEoSpv1FxC3WndEk5ZH`), handed the program by the previous orchestrator
 (`docs/records/compat-program-handoff-2026-11-19.md` on `origin/claude/refactor-code-quality-review-9fqhug`). Branch
 `claude/compat-program`. Nothing here moves a pin, a ceiling, a ledger or an allowlist. Each guard move it names waits
@@ -42,26 +46,28 @@ itself; H4: every host already runs Java, so one presenter per audience serves a
 
 | Phase | What it does | Biggest deletion | Size (session-days) | Track |
 |---|---|---|---|---|
-| **0. Rulings and the net** | the user's rulings; B1's safety net lands; the measurements the later slices need; the legend-engine PCT lane | none | 4.5 | all |
-| **1. Formatters (output)** | one presenter per audience over typed results and the plan; error records as kind, place and literal operands; the hosts call the Java presenter | the SQL-built text and envelopes, about 2,000 edge lines; 3 facets and 4 two-form hooks | 19 | P (B1) and H (a host session) |
-| **2. Deletions that need no replacement** | compatibility judging becomes host-only; upstream's SQL shapes go, checked by answers | the compatibility database judge (51 of the census's 142 hits); the engine-style SQL printers, about 2,950 lines | 10 | J (new) and G (B2) |
+| **0. Rulings and the net** | the user's rulings; B1's safety net lands; the measurements the later slices need; the legend-engine PCT lane | none | 5 | all |
+| **1. Formatters (output)** | one presenter per audience over typed results and the plan; error records as kind, place and literal operands; the hosts call the Java presenter | the SQL-built text and envelopes, about 2,000 edge lines; 3 facets and 4 two-form hooks | 21 | P (B1) and H (a host session) |
+| **2. Deletions that need no replacement** | compatibility judging becomes host-only; upstream's SQL text, shapes and appeals go, checked by answers | the compatibility database judge (51 of the census's 142 hits); the engine-style SQL printers, about 2,950 lines; the engine-text appeal and referee stack, about 3,360 lines | 13 | J (new) and G (B2) |
 | **3. Translator (input)** | a model-level, target-aware rewrite at the edge's doors, using only functions every lite user has; legend-engine's refusals derived from its manifests | the lowering's two-form choices (`LoweringForms`, 17 members) and the remaining two-form hooks | 15.5 | A (new) and O (B1-R) |
-| **4. Close-out** | the optimiser switches decided; `PlanStyle` deleted; the guards and the census blocking | `PlanStyle`, `PureText` and its 12 dialect subclasses | 5 | G (B2) |
+| **4. Close-out** | `PlanStyle` deleted; the guards and the census blocking | `PlanStyle`, `PureText` and its 12 dialect subclasses | 3.5 | G (B2) |
 | **5. Portability** | export lite plans to legend-engine and import its plans, both checked by legend-engine running them | none | 6.5 | O (B1-R) |
 
-**In all: about 60 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
-(phase 0, then the translator, then the close-out), with five or six sessions in parallel. The old three-mode design
+**In all: about 62 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
+(phase 0, then the translator, then the close-out), with five or six sessions in parallel. Inside phase 1, the
+judges split (2.1, 2.2) runs first beside 1.1, 1.2 and 1.5, because 1.3 and 1.4 delete text the compatibility
+database judge still uses. The old three-mode design
 was 36 days. It did not include the translator's model-level rewrite, the hosts, the SQL-shape deletions or the
 judges' code; it also kept the modes, which this plan removes.
 
-**What the user rules first (§5).** Five decisions need the user's call:
+**What the user rules (§5).** Five decisions need the user's call:
 - **CP-1:** translator in and formatters out replace the three modes.
 - **CP-2 (R4):** lite's own `substring` and `indexOf` follow Pure.
 - **CP-3 (E-R1):** the legend-engine audience refuses exactly what legend-engine refuses.
 - **CP-4:** upstream's SQL text is never promised.
 - **CP-5:** no special functions that only the translator calls (revised after the user's question, 2026-11-19).
 
-Five smaller ones (CP-6 to CP-10) take the recommendation unless the user objects. R-a stays with the previous
+Six smaller ones (CP-6 to CP-11) take the recommendation unless the user objects. R-a stays with the previous
 orchestrator's PR #121.
 
 ---
@@ -71,11 +77,13 @@ orchestrator's PR #121.
 The program is done when all six hold, each checked by a test that runs per push:
 
 1. **No mode in the core.** `PlanStyle`, the facets (`facet(...)`), the two-form hooks (`twoForm(...)`),
-   `LoweringForms`, `PureText` and B1's `Mode` records do not exist. An ArchUnit rule forbids their return, and B1's
+   `LoweringForms`, `PureText`, B1's `Mode` records and the test runner's per-decision seams (`testexec` `EdgeRun`,
+   `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording`) do not
+   exist. A door chooses a whole translator, presenter and judge; nothing inside the core asks which. An ArchUnit rule forbids their return, and B1's
    `ModeBranchCensusTest` reads 0 and blocks.
 2. **No upstream meaning in the product.** The census (`MeaningCensusTest`) runs with `BLOCKING = true`. Its (a) and
    (p) counts are 0; every remaining hit is a (b) row citing the user's ruling.
-3. **No upstream word in a plan.** No plan the suites make carries an upstream sentence, an upstream envelope or a
+3. **No upstream word in a plan.** No plan the suites make, product or test plan, carries an upstream sentence, an upstream envelope or a
    presentation instruction. This is checked over every plan made by PCT, the corpus, pure/v1 and core's suites (the
    census's M1 lens, run over plans).
 4. **One presenter per rule.** Every presentation rule (words, kinds, statuses, envelopes, metadata keys, cell text)
@@ -109,34 +117,48 @@ The program is done when all six hold, each checked by a test that runs per push
 ## 3. The spine: every mode-dependent behaviour today, and where it goes
 
 The program is a set of **strands**. Each strand is one behaviour the core changes today when it serves an upstream
-audience. Each strand gets a destination: a formatter (P), an input rewrite over what the core already has (R0), a
-rewrite needing a function the core lacks (R1: under CP-5 none is built, so each R1 row becomes P, a Pure answer
-with a register row, or X), a refusal by name (X), host-only judging (J), or deletion because only
-upstream's SQL text or shape depended on it (S). When a strand's destination is built and its doors switched, its hook
-is deleted. **`PlanStyle` dies when the last strand closes (slice 4.3), not before.**
+audience, and each gets a destination:
+- **P:** a formatter, after the run;
+- **R0:** an input rewrite over what the core already has;
+- **R1:** a rewrite needing a function the core lacks. Under CP-5 none is built, so each R1 row becomes P, a Pure
+  answer with a register row, or X;
+- **X:** a refusal by name;
+- **J:** host-only judging;
+- **S:** deletion, because only upstream's SQL text or shape depended on it.
+
+When a strand's destination is built and its doors are switched, its hook is deleted. **`PlanStyle` dies when the
+last strand closes (slice 4.1), not before.**
 
 Counted at `main` `b75d6c73a`:
 - `PlanStyle` has 10 methods (`database/PlanStyle.java`, 173 lines) and is named by 43 product files outside
   `com.legend.edge`;
 - its facet kinds are 5 (`PlanStyleFacets.KINDS`);
 - its two-form hooks are 16 (`PlanStyleFacets.TWO_FORMS`; B1's S1 adds `SiteFacts`, which slice 1.2 does not keep);
-- `LoweringForms` has 17 members;
+- `LoweringForms` has 15 members (`lowering/LoweringForms.java:45-107`);
 - the edge is 93 files and 21,988 lines.
 
 The handoff counts 45 parameters and 37 call sites carrying the style; slice 0.4 re-measures them as the ratchet's
 start.
 
-**This map is a first cut.** It is drawn from H1's table and from reading each hook's declaration. Slice 0.4 confirms
-each row against the code and H1's TSV, and the confirmed map is the ratchet.
+**Two families inside `LoweringForms`, with different consequences** (B1's review, 2026-11-19):
+- the edge's own forms (`EdgeLoweringForms`) run in every edge plan's EXECUTED SQL;
+- `EngineShape` (`EdgeLoweringForms.java:186`) is used only for legend-engine's TEXT, through `engineSql` (`:156`),
+  which only `EnginePlans.java:174` calls (`toSQLString`, generatePlan, activities).
+
+A member whose executed edge form already equals the product's differs only in that text. It is therefore S, and is
+deleted with the text in 2.3.
+
+**This map was corrected by B1's review of r1** (against `00cd4295d`). Slice 0.4 confirms each row against the code
+and H1's TSV, and the confirmed map is the ratchet. Paths are under `core/src/main/java/com/legend/`.
 
 | Strand (today's hook) | What it does today | Class (H1 rows) | Slice |
 |---|---|---|---|
-| facet `RelationTexts` | a relation's `toString`, `toCSV`, a TDS's `csv`, built in SQL (`RelationTextLowering`, 791 lines) | P at a root or side; X if it feeds | 1.3 |
-| facet `PureOnlyTexts` | `format`'s `%0Nd` and `%r`, `toRepresentation`, an instance's `@_` id (`EdgePureOnlyTexts`) | P; R0 for `%r` in a query (D04); X if it feeds | 1.3, 3.6 |
+| facet `RelationTexts` | a relation's `toString`, `toCSV`, a TDS's `csv`, built in SQL (`RelationTextLowering`, 791 lines) | P at a root or side; X if it feeds or is composed | 1.3 |
+| facet `PureOnlyTexts` | `format`'s `%0Nd` and `%r`, `toRepresentation`, an instance's `@_` id (`EdgePureOnlyTexts`) | P; R0 for `%r` in a query (D04); X if it feeds or is composed | 1.3 |
 | facet `ResultEnvelopes` | legend-engine's `tdsBuilder`/`classBuilder` envelopes by the database's JSON (`EngineResultEnvelopes`) | P (H3 (c): byte-identical) | 1.4 |
 | facet `UpstreamPlans` | `toSQLString`, `planToString`, the engine-text asserts | S under CP-4: the SQL text goes; legend-engine's plan FORMAT stays as an ENGINE presenter | 2.3, 1.4 |
-| facet `EngineTestText` | the engine-text judge arm | J | 2.2 |
-| two-form `DateTimeTexts` | a DateTime's text in a message or a print | P; X if it feeds | 1.3, 3.6 |
+| facet `EngineTestText` | the engine-text judge arm | J (with the appeal stack, 2.3) | 2.2, 2.3 |
+| two-form `DateTimeTexts` | a DateTime's text in a message or a print | P; X if it feeds or is composed | 1.3 |
 | two-form `ListTexts` | a list's `[a, b]` vs the product's JSON array | P; R0 in a query (D06) | 1.3, 3.4 |
 | two-form `ExecutedValues` | legend-engine's json-builder `values` envelope | P | 1.4 |
 | two-form `JsonGrammar` | json-simple 1.1.1's grammar in the judge (S144) | J | 2.2 |
@@ -146,27 +168,33 @@ each row against the code and H1's TSV, and the confirmed map is the ratchet.
 | two-form `RenderedTextRule`, `DateLiteralTexts`, `GoldenNullWord`, `VerdictWords` | the compatibility database judge's rules and words | J (deleted with that judge, C4) | 2.2 |
 | two-form `RoutedQueries`, `ActivityTexts` | legend-engine's routed-query print and activity SQL in an answer | S under CP-4 (activities carry lite's SQL) | 2.3 |
 | two-form `TestDataPlanner.Printing` | the test-data generator's legend-engine CSV printing (S191, S306) | P, a presenter after the run; 20:10-R2's "for now" revisited there | 3.6 |
-| two-form `DatabaseSettingsForm` | H2's `MODE=LEGACY`, `DEFAULT_NULL_ORDERING=HIGH` (S368, D15) | R0: null placement by sort keys; the rest is version residue (CP-8) | 3.4 |
-| `LoweringForms.raise` | the plain set: no lite check where legend-engine plants none (B7; ENGINE raise class A) | a Pure answer with a register row (CP-3's defect rule, CP-5) | 3.6 |
+| two-form `DatabaseSettingsForm` | `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` on the edge's H2 (`edge/PureText.java`, the H2 constructor) | lite's sorts already stamp Pure's null placement, so "R0 by sort keys" adds nothing. The settings matter only where lite writes no ORDER BY (raw `executeInDb` statements written for H2) and for LEGACY's semantics. Under CP-8, deleted by default; 0.4 measures the corpus's H2 lane under H2's regular mode. If the move is material, the translator declares the target's settings as data (`ExecutionPlan.Target.settings`, which exec already verifies), and the count goes to the user | 0.4, 3.2 |
+| `LoweringForms.raise` | the plain set: no lite check where legend-engine plants none (B7; ENGINE raise class A) | R0 per target where an ordinary-function guard reproduces it (`if($x < 0, \|[], \|sqrt($x))`); else a Pure answer with a register row | 3.6 |
 | `LoweringForms.executeValues` | the JsonBuilder cardinality fold (`oneBare`) | P | 1.4 |
-| `LoweringForms.assertFailed` | "Assert failed" vs lite's "expected true, got false" (20:10-R1, R10) | P | 1.2 |
 | `LoweringForms.objectReferenceConnection` | a protocol constant inside an object reference (C1 row) | P, with the fact "this cell is an object reference" (S362) | 1.4 |
 | `LoweringForms.isNumeric`, `parsedDecimal`, `parsedJson` | legend-engine's H2/DuckDB forms (S370, S365, S366) | R0 | 3.4 |
-| `LoweringForms.relations` | a let's relation read twice (S360) | R0 | 3.4 |
-| `LoweringForms.whereZones` | a connection's time zone (S183) | R0 | 3.4 |
-| `LoweringForms.view`, `wireCast`, `unionFrame`, `existsJoin` | legend-engine's view nesting, wire cast, union framing (C1, LOWERSQL-1), exists-join rule (C2, LOWERSQL-4) | S if the answers are equal; R0 or X where an answer changes (rule 4) | 2.3 |
-| `LoweringForms.keyedCounts`, `computedPruning` | the product's key fold and pruning switched off for the edge (S147 K16, D18 K10) | switches: X by default (CP-5) | 4.2 |
-| `PlanStyle.errorWords` | a planning failure's upstream sentence | P (a kind and operands, worded after) | 1.2 |
-| `PlanStyle.traceCell` | legend-engine's trace comment around the execution id, written into SQL | S (SQL text) | 2.3 |
-| `PlanStyle.graphKeyDate`, `graphKeyString` | a key's literal inside the database-built graph JSON (C2 row) | P, or S where the key is an internal shape (0.4 decides) | 1.4 |
+| `LoweringForms.relations`, `keyedCounts`, `computedPruning` | in EXECUTED edge SQL already equal to the product's (`EdgeLoweringForms.java:104/111/118` against `ProductLoweringForms.java:58/64/70`); only `EngineShape` switches them off (`:189/:195/:203`), for legend-engine's text | S: deleted with the engine text. S147 and S360 already record the edge's executed answers as lite's; no answer moves and nothing is refused | 2.3 |
+| `LoweringForms.view`, `wireCast`, `unionFrame` | executed edge forms equal the product's (`EdgeLoweringForms.java:44/49` against `ProductLoweringForms.java:31/36`; `unionFrame` null in both); only `EngineShape` differs (`:223`, `:234`, `UNION_FRAME`) | S, pure text, no answer risk | 2.3 |
+| `LoweringForms.existsJoin`, `whereZones` | run in EXECUTED SQL on every edge style (`EdgeLoweringForms.java:143`, `:176`): legend-engine's exists-join rule (C2, LOWERSQL-4), and its WHERE conjunct order feeding it (user conditions, then correlation, then temporal; `EngineWhereZones`) | S: answer-equal by S367's own measurement; but they change the executed statement and with it H2's row order for unordered results, so they go after 2.2's multiset compare | 2.3 (after 2.2) |
+| `LoweringForms.assertFailed` | "Assert failed" vs lite's "expected true, got false" (20:10-R1, R10) | P | 1.2 |
+| `PlanStyle.errorWords` | a planning failure's upstream sentence (also the test plan's `Failure.message`, `testplan/AssertErrorNative.java:81`) | P (a kind, operands and lite's wrapper as data; worded after) | 1.2 |
+| the test plan's words: `TestPlan.words`, `answerSizeWords` (`testexecutionplan/TestPlan.java:45-48`), `SideShape.sizeWords` (`SideShape.java:37`) | upstream words planned into the test plan | P | 1.2 |
+| `PlanStyle.traceCell` | an ANSWER cell: the activity rows' comment, `-- "executionTraceID" : "<id>"`, wrapped around the execution id in a TDS cell (`planner/PlanEnv.java:173-177`, `Lowerer.withTraceText`) | P: the ENGINE presenter writes the comment around the activity's (lite's) SQL | 1.4 |
+| `PlanStyle.graphKeyDate`, `graphKeyString` | ANSWERS: the JSON key of a qualified property in graph-fetch output (`resolver/GraphEmission.java:1846`, `:2938`; `planner/BodyPlanner.java:72`), written by the database at planning | P: the presenter renames the keys from the typed graph tree, after the run (real work, budgeted in 1.4) | 1.4 |
 | `PlanStyle.judgesEngineText` (`EngineTextGates`) | "is this the edge" in the product test planner (JUDGES-6, 13 hits) | J: deleted | 2.2 |
-| `PlanStyle.dialect(type)` (`PureText`'s 12 subclasses: spelling passes, `floatToText`, `raiseMessage`, `floatLiteralKind`, `raw`, `scanOrderPasses`, `refusesDecimalArithmetic`, `dateTimeFormat`) | the edge's dialect wrapper | each pass to its strand: prints P/K1/K2, `raiseMessage` P, `floatLiteralKind` K5, `scanOrderPasses` J (S14; K7 only by ruling), the rest per 0.4 | 4.3 (`dialect` becomes `Databases.dialect`) |
-| `edge.StableScanOrder` (598 lines, a SQL rewrite of the plan, test-only) | legend-engine's H2 scan order for unordered corpus asserts (S14, D14) | J: the compatibility host judge compares an unordered actual as a multiset (S131's rule) | 2.2 |
-| The engine-text printers `EngineStyleH2` (2,507), `EngineStyleDB2` (365), `EngineStyleComposite` (79); `RelationalRootForm` (N-ROOTFORM) | legend-engine's SQL text formatting and root form | S under CP-4 | 2.3 |
+| the test runner's hooks: `testexec` `EdgeRun`, `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording` | per-decision seams by which the edge changes the product's judges and runner | J: the door hands the runner a whole judge (the product's, or the edge's compatibility host judge), never per-decision two-form seams inside the product's; the appeal paths go with the appeal stack | 2.2, 2.3 |
+| the engine-text appeal, referee and ledger stack (`edge/`: `SqlTextVerdicts` 1,675, `Appeals` 354, `AppealJson` 273, `SqlTextRuns` 291, `SqlTextReferee` 231, `Appeal` 191, `SqlReplayReferee` 173, `PlannedAppeals` 56, `AppealRun` 40, `RefereeLoad` 34, `EffectTexts` 28, `EngineTextJudgment` 18; about 3,360 lines; `CompatEdge`'s ledger half; `EffectPlanner`'s referee CSV copies) | turns an engine-text assert failure into a pass by replaying the golden statement against a referee database | S under CP-4: those tests become "not promised"; deleted, and possibly the test plan's `Extension` seam with it | 2.3 |
+| `PlanStyle.dialect(type)` = `PureText`'s 12 subclasses | the edge's dialect wrapper. Its passes: | per pass, below; then `dialect` is `Databases.dialect` | 4.1 |
+| … `spellingPasses` (`PurePrintForms.passes`, all 12), `floatToText` | legend-pure's Float and DateTime prints inside EXECUTED SQL | P at roots and sides; X where composed or feeding (CP-5) | 1.3 |
+| … `floatLiteralKind` (H2 `:406`, DuckDB `:318`, Postgres, Trino, Databricks) | DECIMAL literals, which change arithmetic (S20) | a Pure answer with a register row (CP-5), deleted | 3.6 |
+| … `raw` (DuckDB, Postgres; `edge/PureText.java:326-330`) | translates legend-engine's H2 `executeInDb` text for the target: INPUT | generated text: target-aware lite DDL in 2.3; user-written H2 text on another target: the translator, or X by 0.4's count | 2.3, 3.2 |
+| … `refusesDecimalArithmetic` (SQLite `:535`) | the edge answers with REAL arithmetic where the product refuses (ruling (c), D16, C27) | a translator rewrite on SQLite (CP-11), or X | 3.4 |
+| … `dateTimeFormat` (MongoDB) | a DateTime print | P | 1.3 |
+| … `scanOrderPasses`; `edge.StableScanOrder` (598 lines) | legend-engine's H2 scan order for unordered corpus asserts (S14, D14) | J: the compatibility host judge compares an unordered actual as a multiset (S131's rule) | 2.2 |
+| `RelationalRootForm.apply` (`resolver/RelationalRootForm.java:51`, called at `EnginePlans.java:164`) | legend-engine's root form, for its text only | S, `apply` alone. Its `primaryKeyColumns` is the product resolver's key rule on executed paths (`resolver/ObjectReferenceDecode.java:133`, `ClassSources.java:797`, `CorrelatedSubselects.java:321/486/1094`, `GraphEmission.java:533`) and stays the product's | 2.3 |
+| The engine-text printers `EngineStyleH2` (2,507), `EngineStyleDB2` (365), `EngineStyleComposite` (79) | legend-engine's SQL text formatting, plus statements a program EXECUTES: `toDDL`'s create and drop texts (`edge/EnginePlans.java:958-995`) and `setUpDataSQLs` (`:754`, `:767`), written for H2 whatever the target, run elsewhere through `raw` | S for the text; the executed generated statements become target-aware lite DDL in the same slice | 2.3 |
 | The census's word groups (C05, C08, C10, C11, C14-C17, C19; 24 hits) | an upstream sentence inside the product | P | 1.2 |
 | The Cypher translator's `substring` (`CypherToPure.java`, H3 item 5); the `###Relational` dynaFunction `substring` sharing the Pure function's rule (H3 item 6) | the product's own two dependencies on today's meaning | split from the Pure function first | 3.1 |
-
----
 
 ## 4. The phases and their slices
 
@@ -184,19 +212,20 @@ each row against the code and H1's TSV, and the confirmed map is the ratchet.
 
 Sizes are session-days at xhigh, the unit the three-mode design used, plus lane latency.
 
-### Phase 0: rulings, the net, the measurements (about 4.5 days)
+### Phase 0: rulings, the net, the measurements (about 5 days)
 
-**0.1 The rulings.** The user rules CP-1 to CP-10 (§5). The slices that wait on each are named there. Phase 1 and
+**0.1 The rulings.** The user rules CP-1 to CP-11 (§5). The slices that wait on each are named there. Phase 1 and
 slice 2.2 need only CP-1 and CP-7. **Size:** 0. **Owner:** the user, with this session.
 
-**0.2 The net lands** (B1's S0, rebased on `main`).
+**0.2 The net lands** (B1's S0 alone: a fresh branch from `main` with `6a1e0f695` and the requests commit `b7ec3649c`
+cherry-picked; S1m is not carried, and S1's deletions are re-done in 1.2).
 - **Changes:** what S0 changed: test code, tools and goldens only. Also: `//pct:edge_net` and `EdgeCasesGoldenTest`
   join the per-push lanes (CP-9; FOLLOW_UPS §8's C1).
 - **Deletes:** nothing.
 - **Check:** S0's planted-change proof (10 cases). The re-recorded goldens map back to the old ones line for line
   (0 answer moves).
 - **Guards:** G1, G3, G6 report-only.
-- **Size:** 1 day (rebase, re-record, PR).
+- **Size:** 1 day (cherry-pick, re-record, PR).
 - **Depends on:** nothing. **Owner:** B1.
 
 **0.3 The ENGINE PCT lane** (the old S0e, report-only).
@@ -226,8 +255,17 @@ slice 2.2 need only CP-1 and CP-7. **Size:** 0. **Owner:** the user, with this s
   raise class A), so 3.6 can count the register rows CP-5 creates.
 - (d) **The strands' doors:** which door reaches each strand (pure/v1, the corpus, PCT A, PCT B, the hosts' edge
   routes, the test-data generator).
+- (e) **CP-4's cost, split three ways** (B1's review): tests that pass by ASSERTED legend-engine text; tests that pass
+  through an APPEAL (the referee replaying the golden statement); and programs that EXECUTE generated text (`toDDL`,
+  `setUpDataSQLs` passed to `executeInDb`). B2 is measuring (b) now.
+- (f) **Composed prints:** of H2's 8 COMPOSED and 14 FEEDS query-side sites in PCT and the corpus, which print a
+  Float, a Decimal or a DateTime. 1.3 refuses those under CP-5, so the count is listed before 1.3 lands.
+- (g) **G7 over the net:** the computed-operand raises PCT and the corpus reach. Deleting `PureMessages.sentence` in
+  1.2 changes each one under A3. `InterimEdgeSitesTest` pins 4 in its own set: rem by a column, rem by 0, sqrt of a
+  cast literal, at by a column.
+- (h) **H2 without `MODE=LEGACY`:** the corpus's H2 lane run under H2's regular mode and default null ordering (CP-8).
 - **Deletes:** nothing. **Check:** each number reproducible from a committed probe.
-- **Size:** 1.5 days.
+- **Size:** 2 days.
 - **Depends on:** 0.2. **Owner:** B2, with this session.
 
 **0.5 Register housekeeping.**
@@ -239,11 +277,17 @@ slice 2.2 need only CP-1 and CP-7. **Size:** 0. **Owner:** the user, with this s
 - **Size:** 0.5 day.
 - **Depends on:** CP-10. **Owner:** this session.
 
-### Phase 1: formatters on the way out (about 19 days; tracks P and H)
+### Phase 1: formatters on the way out (about 21 days; tracks P and H)
 
 The proven half (H3 (c): legend-engine's TDS envelope byte-identical from a presenter after the run, 0 product
 lines). It comes first because it is the lowest risk and deletes the most text-building code. It also defines the
 error record the translator's refusals are worded through.
+
+**The order inside it** (B1's review):
+- 1.1, 1.2 and 1.5 run in parallel with the judges split (2.1, 2.2);
+- 1.3 and 1.4 wait for 2.2, because the compatibility DATABASE judge writes its failure messages through the very
+  text facets 1.3 deletes (`lowering/VerdictSql.java:2651-2657` calls `styled.pureOnly()...representationOf`;
+  `testplan/DatabaseJudge.java:301` and `:952` read `env.plan().styled()`).
 
 **1.1 The presenter seam.**
 - **Changes:**
@@ -254,7 +298,9 @@ error record the translator's refusals are worded through.
     facts (H3 (c)'s finding: `activities[].sql` comes from the plan, `relationalType` from the result type);
   - a presentation instruction (for example "print this root as `#TDS` text") is held by the edge's door and handed
     to the presenter; it is never written into the plan;
-  - the typed facts CP-6 rules in are added to the plan's column record.
+  - the typed facts CP-6 rules in are added to the plan's column record, written only when they differ from their
+    default, so a LITE plan's JSON stays as small as it can. Any move of `lean-sql-baseline.tsv`'s plan column is
+    listed for the user's word.
 - **Deletes:** nothing yet.
 - **Check:** pure/v1's net byte-identical; the oracle's answers unchanged.
 - **Guards:** a new ArchUnit rule: a presenter class depends only on `result`, `executionplan`, `error`, `values`
@@ -264,9 +310,16 @@ error record the translator's refusals are worded through.
 
 **1.2 Error records: kind, place and literal operands; words after the run** (re-cuts B1's S1, plan v59).
 - **Changes:**
-  - a raise site carries its kind, its place and its literal operands as typed data (A3: never a run-time value);
-  - a planning failure carries a kind and its operands, replacing `PlanStyle.errorWords`
-    (`Failure(kind, operands)`);
+  - a raise site carries its kind, its place and its literal operands as typed data (A3: never a run-time value).
+    Shape (B1's review): `Site` gains `List<Operand>`, a sealed type in `executionplan` with a typed literal per value
+    kind (Integer, Float, Decimal, String, date text, Boolean) or `Computed`, so A3 keeps the positions without the
+    values. `PlanMaker.sites` builds it from `sql.dialect.RaiseSite.operands()`; `Raised#site` already reaches both
+    presenters whole;
+  - a planning failure carries a kind, its operands and lite's wrapper as data (prefix, kinded part, suffix: today
+    `PureMessages.compile` splices upstream words into lite's "in function 'f': ... [inlined via ...]" by position,
+    `edge/PureMessages.java:358-366`), replacing `PlanStyle.errorWords`;
+  - the test plan's words go the same way: `TestPlan.words`, `answerSizeWords`, `SideShape.sizeWords` and a planned
+    `Failure.message` (test plan v34);
   - each audience's presenter words them: LITE's sentence by lite's presenter, legend-pure's by the PURE presenter
     (exact over a literal operand, without the value over a computed one, under one register row), legend-engine's by
     the ENGINE presenter;
@@ -276,14 +329,19 @@ error record the translator's refusals are worded through.
   - lite's own sentence stays in the plan's `sites[].message` until slice 1.6 makes the hosts word through Java
     (CP-7); upstream words never enter the plan.
 - **Deletes:** `PureMessages.sentence` (the SQL half, 57 lines; 93 SQL code lines in the file),
-  `SiteWordsRecorder` (124), `PlanStyle.siteWords` and `errorWords`, `LoweringForms.assertFailed`; the census's 9
-  word groups (24 hits) leave (a).
+  `SiteWordsRecorder` (124), `PlanStyle.siteWords` and `errorWords`, `LoweringForms.assertFailed`; S1's
+  `SiteFacts`, `SiteWords`, `Site#extensions` and the explicit-codec overloads never land (the operands are product
+  data that `PlanJson` writes natively, with no ServiceLoader and no WebAssembly workaround); the census's 9 word
+  groups (24 hits) leave (a).
 - **Check:** the net's messages unchanged (PCT channel A's `ERROR` lines, channel B's ledger substrings, pure/v1's 5
-  error bodies, the corpus's messages); the product plan's JSON byte-identical but its version; literal-operand raises
-  checked on the tab and Python.
-- **Guards:** a plan-scan rule: no upstream sentence in any plan the suites make (done-when 3, report-only until 4.3);
-  G7's computed-operand count pinned (ENGINE at 0).
-- **Size:** 3 days.
+  error bodies, the corpus's messages), except the computed-operand raises 0.4 (g) counts, each listed (A3: legend-pure's
+  sentence without the value); the product plan's JSON byte-identical but its version; literal-operand raises checked
+  on the tab and Python.
+- **Guards:** a plan-scan rule over product AND test plans: no upstream sentence in any plan the suites make
+  (done-when 3; report-only, and it cannot reach 0 before 2.2 deletes the compatibility database judge's
+  `VerdictWords`); G7's computed-operand count pinned (ENGINE at 0); `EdgeOnlyDataTest` gains one row,
+  `Site#operands: by the edge` (CP-7), for the user's word.
+- **Size:** 4.5 days.
 - **Depends on:** 1.1, CP-7. **Owner:** B1.
 
 **1.3 Value and relation text, at roots and sides, in Java.**
@@ -293,7 +351,9 @@ error record the translator's refusals are worded through.
     over typed rows;
   - the edge's door rewrites a root `toString` (or `toCSV`) into "answer the value; present it as text";
   - a judge side's print is the compatibility host judge's (rule 9);
-  - a print that FEEDS a further computation inside the query is refused by name (CP-5). H2 counted it: 0 upstream sites over Float, Decimal or dates; 14 over Integer or an enum, which R0
+  - a print that FEEDS a further computation inside the query, or is COMPOSED into a returned text (H2's
+    RETURNED-COMPOSED: no presenter can re-spell an inner value from the outer string), is refused by name where its
+    type's text differs (CP-5); 0.4 (f) lists them first; H2 counted it: 0 upstream sites over Float, Decimal or dates; 14 over Integer or an enum, which R0
     covers;
   - a Pair is its JSON object in LITE and `<a, b>` in PURE and ENGINE (R5). The prelude's print bodies stay (the
     2026-11-19 ruling); 1.3 checks whether LITE ever reaches one.
@@ -306,7 +366,7 @@ error record the translator's refusals are worded through.
   case listed (expected: none in PCT or the corpus beyond H2's 14 Integer and enum sites).
 - **Guards:** G1 (text-producing MIR built by the edge) shrinks; the census's M3 rows for these hooks leave (a).
 - **Size:** 4 days.
-- **Depends on:** 1.1. **Owner:** B1.
+- **Depends on:** 1.1, 2.2, 0.4 (f). **Owner:** B1.
 
 **1.4 Envelopes.**
 - **Changes:**
@@ -314,18 +374,22 @@ error record the translator's refusals are worded through.
     object-reference constant and the graph keys are written by the ENGINE presenter over typed rows;
   - legend-engine's plan FORMAT (generatePlan's `SingleExecutionPlan`, the plan-text family's envelope) becomes an
     ENGINE presenter carrying lite's own SQL (CP-4);
+  - the activity rows' trace comment (`-- "executionTraceID" : "<id>"`, today `PlanStyle.traceCell`) and the
+    graph-fetch output's qualified-property keys (today `graphKeyDate`/`graphKeyString`, written by the database at
+    planning) are written by the presenter after the run; the keys are renamed from the typed graph tree;
   - envelope fields that are a function of upstream's SQL (the scalar envelope's `COUNT(*)` label, O3; a database's
     error text over upstream's statement, H3 (c) item 3) carry lite's own value in upstream's envelope, under one
     register row (CP-4).
 - **Deletes:** `EngineResultEnvelopes` (92), `EngineExecutedValues` (44), `EdgeLoweringForms.oneBare`; facet
   `ResultEnvelopes`; two-form `ExecutedValues`; `LoweringForms.executeValues` and `objectReferenceConnection`;
-  `PlanStyle.graphKeyDate`/`graphKeyString` where 0.4 finds them P. Q7 (EDGE-8, rows aggregated with no ORDER BY)
+  `PlanStyle.traceCell`, `graphKeyDate` and `graphKeyString`. Q7 (EDGE-8, rows aggregated with no ORDER BY)
   goes with them.
 - **Check:** the corpus rosters; pure/v1's net; the oracle's answers; EDGE-8's ordered probe; the scalar `value`
-  request against legend-engine's own answer (the oracle).
+  request against legend-engine's own answer (the oracle). `pure_v1_plan_text.tsv` and the oracle's pinned answers
+  move where generatePlan now carries lite's SQL: listed golden moves.
 - **Guards:** the census's envelope M1 hits leave (a).
-- **Size:** 2 days.
-- **Depends on:** 1.1, CP-4. **Owner:** B1.
+- **Size:** 3 days.
+- **Depends on:** 1.1, 2.2, CP-4. **Owner:** B1.
 
 **1.5 The hosts' pilot and tables** (H4 steps 1 and 2; track H).
 - **Changes:**
@@ -349,8 +413,11 @@ error record the translator's refusals are worded through.
     attached by pyarrow (H4's C2);
   - ENGINE's remaining host pieces: the error half, Python's zstd frame, `FormatNotSet` and the ARROW_IPC parse move
     into Java; `currentUser` ruled (P11);
-  - a raise's words on the tab and in Python come from the Java presenter (exec's readers return a record: kind and
-    site), so lite's sentence leaves the plan (CP-7, plan v60);
+  - lite's raise sentences on the tab and in Python come from a table generated from Java (`TypeFacts`' pattern:
+    one rule, Java-sourced, no WebAssembly or native call on the failure path), and Java's exec words `DataError`
+    from `ErrorKind` directly, so lite's sentence leaves the plan (CP-7, plan v60): `PlanJson.readSites` drops its
+    message check, the plan-level `raises` map goes, and `declared-raises.ts`, `raised.ts`, `_raised.py` and
+    `raise-envelopes.json` change with it;
   - exec's own readers stay per language (H4's B, honestly used): P3's three stale Python readers fixed, HOSTS-11's
     two inputs and HOSTS-10's three divergences in the shared cases.
 - **Deletes:** `_carried_float`, `_lite_cell`, `_lite_rows_json` (about 60 lines); Python's ENGINE framing; the plan's
@@ -359,7 +426,7 @@ error record the translator's refusals are worded through.
   native).
 - **Guards:** H4 §8 (1), the host meaning lens (census-b2's `HostSources`), shrink-only to 0, with its planted
   TypeScript and Python examples; (3), the differentials.
-- **Size:** 3.5 days.
+- **Size:** 3 days.
 - **Depends on:** 1.2, 1.5. **Owner:** the host session.
 
 **1.7 DataCube's legend-engine workarounds to its ENGINE plane** (DC1, 20:10-R6).
@@ -371,7 +438,7 @@ error record the translator's refusals are worded through.
 - **Size:** 2 days, in parallel.
 - **Depends on:** nothing. **Owner:** the host session.
 
-### Phase 2: deletions that need no replacement (about 10 days; tracks J and G)
+### Phase 2: deletions that need no replacement (about 13 days; tracks J and G)
 
 **2.1 The 36 combinations ported into core** (C4, part 1).
 - **Changes:** the 36 judge shapes the compatibility database judge covers are ported as core LITE tests under both
@@ -389,7 +456,11 @@ error record the translator's refusals are worded through.
     reason, S14 and D14), the 2-ULP Float rule (S132), json-simple's grammar (S144, S366), a relation counted as one
     value (S137), the failure words (S195);
   - PCT runs HOST-only for compatibility judging; LITE keeps both judges with parity, and its exceptions go
-    (JUDGES-3: `IsolatedRun#difference`).
+    (JUDGES-3: `IsolatedRun#difference`);
+  - the door hands the test runner a WHOLE judge: the product's, or the edge's compatibility host judge. The
+    per-decision seams by which the edge reaches into the product's judges and runner go (`testexec` `EdgeRun`,
+    `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`), except the appeal paths, which go
+    with the appeal stack in 2.3.
 - **Deletes:**
   - `VerdictSql`'s two-form branches (the census's N-JUDGE, 38 hits);
   - `UpstreamVerdictWords` (198), `CompiledPureVerdictNumbers` (54);
@@ -406,33 +477,48 @@ error record the translator's refusals are worded through.
   - the corpus rosters unchanged, except unordered-assert lines that now pass as multisets (listed);
   - core's BOTH green.
 - **Guards:** the census's 52 J hits leave (a); `JavaEvalLedgerTest`'s pins shrink.
-- **Size:** 4 days.
+- **Size:** 5 days.
 - **Depends on:** 2.1. **Owner:** the judges session.
 
-**2.3 Upstream's SQL shapes go, checked by answers** (rule 4, CP-4).
+**2.3 Upstream's SQL text and shapes go, checked by answers** (rule 4, CP-4).
 - **Changes:**
   - lite's own SQL everywhere an answer carries SQL text (`toSQLString`, `planToString`, `activities[].sql`,
     generatePlan's `sqlQuery`, the test-data generator's `sqls`);
-  - corpus tests that judge upstream's SQL text form a listed "not promised" class: counted, never silently dropped;
+  - corpus tests that judge upstream's SQL text, or pass through an appeal, form a listed "not promised" class:
+    counted, never silently dropped;
+  - **statements a program EXECUTES are not text** (B1's review): `toDDL`'s create and drop texts
+    (`edge/EnginePlans.java:958-995`) and `setUpDataSQLs` (`:754`, `:767`) are written for H2 whatever the target, and
+    other targets run them through `PureText.raw`'s translation. They become target-aware lite DDL in this slice, and
+    `raw`'s translation of generated text goes with them;
   - each shape-only hook is deleted where the answers are equal; where an answer changes, the strand becomes an R0
     rewrite or an X refusal (rule 4's exception), named in the PR.
 - **Deletes:**
   - `EngineStyleH2` (2,507), `EngineStyleDB2` (365), `EngineStyleComposite` (79);
-  - `RelationalRootForm` (N-ROOTFORM);
+  - `RelationalRootForm.apply` alone (N-ROOTFORM). Its `primaryKeyColumns` is the product resolver's own key rule on
+    executed paths and stays;
   - the SQL spellings of the plan-text family (`EnginePlans`, `PlanText`, `PlanEnumForm`, `InProtocol`,
     `PlanVariables`; its plan FORMAT stays as 1.4's presenter);
-  - `LoweringForms.view`, `wireCast`, `unionFrame` (C1), `existsJoin` (C2);
-  - `PlanStyle.traceCell`;
+  - `EdgeLoweringForms.EngineShape` and with it the text-only halves of `LoweringForms.view`, `wireCast`,
+    `unionFrame` (C1), `relations`, `keyedCounts` and `computedPruning`;
+  - `LoweringForms.existsJoin` (C2) and `whereZones` (`EngineWhereZones`), which run in executed SQL: answer-equal by
+    S367's measurement, but they set H2's row order for unordered results, so they go after 2.2's multiset compare;
+  - **the engine-text appeal, referee and ledger stack, about 3,360 lines:** `SqlTextVerdicts` (1,675), `Appeals`
+    (354), `AppealJson` (273), `SqlTextRuns` (291), `SqlTextReferee` (231), `Appeal` (191), `SqlReplayReferee` (173),
+    `PlannedAppeals` (56), `AppealRun` (40), `RefereeLoad` (34), `EffectTexts` (28), `EngineTextJudgment` (18);
+    `CompatEdge`'s ledger half, `EffectPlanner`'s referee CSV copies, the appeal paths of `EdgeRun` and
+    `EdgeHearing`, `ExecuteOptions.recording`; and the test plan's `Extension` seam with `EdgeCodec` and its
+    ServiceLoader site if nothing else uses it;
   - two-forms `ActivityTexts`, `RoutedQueries`;
-  - facet `UpstreamPlans`' SQL half.
+  - facet `UpstreamPlans`' SQL half, and facet `EngineTestText`.
 - **Check:**
   - the corpus on H2 and DuckDB: every test that passed by answer still passes;
-  - the "not promised" class equals 0.4 (b)'s count;
+  - the "not promised" class equals 0.4 (e)'s count of asserted-text and appealed tests;
+  - programs that execute generated DDL seed the same data on every target (their answers unchanged);
   - pure/v1's net, with `activities[].sql` lite's own (moved lines listed);
   - the lean-SQL baseline (`lean-sql-baseline.tsv`) only shrinks.
 - **Guards:** the census's SQL-shape hits leave (a); `DialectLeakRatchetTest` and the edge's line count shrink.
-- **Size:** 4 days.
-- **Depends on:** CP-4, 0.4 (b), 1.4. **Owner:** B2, or the judges session after 2.2.
+- **Size:** 6 days.
+- **Depends on:** CP-4, 0.4 (e), 1.4, 2.2. **Owner:** B2, or the judges session after 2.2.
 
 ### Phase 3: the translator on the way in (about 15.5 days; tracks A and O)
 
@@ -475,8 +561,14 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
     found it untyped and refusing by the wrong name;
   - **upstream's flags are the translator's input,** never the core's: S130's `CORRECT_SQL_SUBSTRING_INDEXING`
     first;
+  - **the target's settings are the translator's knowledge:** by default (CP-8) the edge's H2 runs H2's own settings,
+    and `DatabaseSettingsForm` goes. If 0.4 (h) shows material moves, the door declares the target's settings as data
+    (`ExecutionPlan.Target.settings`, which exec already verifies), and the count goes to the user first;
+  - **legend-engine's H2 text that a user wrote for `executeInDb`,** run on another target: the translator converts
+    it, or refuses by name, by 0.4's count (today `PureText.raw`; generated text leaves in 2.3);
   - **the translator reaches the core only through the public doors** (`Compiler.query`, `TypedQuery`).
-- **Deletes:** `FeatureRules`' flag-keyed substring choice from the core (S130's flag moves).
+- **Deletes:** `FeatureRules`' flag-keyed substring choice from the core (S130's flag moves); `DatabaseSettingsForm`
+  (unless 0.4 (h) says otherwise); `PureText.raw`'s remaining half.
 - **Check:** every door's suite byte-identical with the translator in place and no rewrite registered (a pass-through
   first).
 - **Guards:**
@@ -485,7 +577,7 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
   - the translator evaluates nothing: no `values` arithmetic, rewrites only;
   - the compatibility library's Pure sources are edge resources, refused by the product loader
     (`LibraryPlatformNamespaceGuardTest`'s pattern).
-- **Size:** 3 days.
+- **Size:** 3.5 days.
 - **Depends on:** CP-1. Its pass-through starts at once; its refusals are worded through 1.2 once that lands. **Owner:**
   the translator session.
 
@@ -512,18 +604,18 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
 **3.4 The R0 rewrites, in two batches.**
 - **Changes:** each R0 row of H1 (35) becomes a rewrite in the compatibility library, or a target-aware rule:
   - batch 1, the lowering's forms: `isNumeric` (S370, D12), `parsedDecimal` (S365, D10), `parsedJson` (S366, D11),
-    null placement by sort keys (S368, D15), a let's relation read twice (S360), a connection's time zone (S183), a
-    list's text in a query (D06), `%r` (D04), cross-kind numbers (S127's product half);
+    a list's text in a query (D06), `%r` (D04), cross-kind numbers (S127's product half), and SQLite's Decimal
+    arithmetic as REAL for the legend-pure audience (ruling (c), D16, C27; `PureText.refusesDecimalArithmetic`) by
+    CP-11;
   - batch 2, the rest: dispatch by legend-engine's registration order (S3), `average([])` (S19), a class mapping with
     no `~src` (S21), the precise primitives' constraints (S140), the pivot column names (S107), Legend SQL's rows
     (S43, S44, S46, S47), the protocol's lenient reading (S29), and the other R0 rows 0.4 assigns.
-- **Deletes:** `LoweringForms.isNumeric`, `parsedDecimal`, `parsedJson`, `relations`, `whereZones`; two-form
-  `DatabaseSettingsForm`'s null-order half (its other settings recorded as version residue, CP-8);
-  `CrossKindNumbers`' product half.
+- **Deletes:** `LoweringForms.isNumeric`, `parsedDecimal`, `parsedJson`; `CrossKindNumbers`' product half;
+  `PureText.refusesDecimalArithmetic`.
 - **Check:** the ENGINE PCT lane (0.3) and the corpus move only toward the manifests and rosters; the oracle on each
   rewrite's battery; PURE's lanes toward PCT's expected values.
 - **Guards:** the census's matching M3 rows leave (a); the strand ratchet shrinks.
-- **Size:** 5 days (3 + 2).
+- **Size:** 4.5 days (2.5 + 2).
 - **Depends on:** 3.2. **Owner:** the translator session; B1-R writes each battery.
 
 **3.5 legend-engine's refusals** (E-R1, CP-3).
@@ -573,20 +665,13 @@ user's question "is this a sneaky way to have two sql paths").
 - **Size:** 0.5 day.
 - **Depends on:** 3.2, 1.3. **Owner:** the translator session.
 
-### Phase 4: the close-out (about 5 days; track G)
+### Phase 4: the close-out (about 3.5 days; track G)
 
-**4.1 The optimiser switches** (H1's K7, K10, K12, K13, K16; CP-5).
-- **Changes:**
-  - the product's key fold (S147), pruning (D18), let splice (S129), savepoint behaviour (S135) and scan order
-    (S14, now J) stay as the product's meaning;
-  - the upstream audience is refused by name where it would observe the difference, with a register row each;
-- **Deletes:** `LoweringForms.keyedCounts`, `computedPruning`.
-- **Check:** the corpus and PCT lanes: every newly refused case listed; the expected count is small (the corpus's
-  `KeyedCounts` cases, measured in 0.4).
-- **Size:** 1.5 days.
-- **Depends on:** CP-5, 3.6. **Owner:** B2.
+The r1 slice "4.1 the optimiser switches" is gone (B1's review). The key fold, pruning and the let's relation read
+twice already run as the product's in executed edge SQL, so their text-only halves go in 2.3. The let splice (S129),
+savepoints (S135) and scan order (S14, now J) have no hook to delete. They are register rows, settled by 3.6.
 
-**4.2 `PlanStyle` deleted; the census blocking.**
+**4.1 `PlanStyle` deleted; the census blocking.**
 - **Changes:**
   - `PlanStyle`, `PlanStyleFacets`, `LoweringForms`, `PureText` and its 12 dialect subclasses, and the hooks'
     plumbing through the 43 product files are deleted;
@@ -625,7 +710,7 @@ user's question "is this a sneaky way to have two sql paths").
 ### Throughout
 
 - **The census** runs report-only in the checks lane. From 0.4 its (a) count is a shrink-only pin, a new pin added by
-  the user's word, and each slice's PR states its delta. It blocks at 4.2.
+  the user's word, and each slice's PR states its delta. It blocks at 4.1.
 - **The strand ratchet** (0.4 (a)) shrinks with every strand closed.
 - **The per-push lanes** (CP-9): the edge net, the ENGINE PCT lane, the SQLite PCT recording, the host byte-parity
   suite. The oracle test stays in `//gates:heavy`, and every program PR runs it.
@@ -741,8 +826,11 @@ words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to
 
 **CP-7. Error words leave the plan.** *Gates 1.2 and 1.6. It re-cuts (h) K1.*
 - **Upstream words never enter the plan:** the presenter words them from the site's kind and literal operands.
-- **Lite's own sentence leaves the plan in 1.6,** once the tab and Python word errors through the Java presenter. Until
-  then it stays, as K1 ruled.
+- **Lite's own sentence leaves the plan in 1.6.** The tab and Python then read lite's sentences from a table generated
+  from Java (one rule, no copy by hand, no call into Java on the failure path). Until then it stays, as K1 ruled.
+- **One guard row, the user's word:** `EdgeOnlyDataTest` will report `Site#operands: by the edge`, because only the
+  upstream presenters read a site's literal operands. Lite's own sentence stays without operand values (the
+  2026-11-10 ruling). Recommendation: accept the row, rather than change lite's words.
 - **Why:** architecture rule 2, and H4's finding that a rule held in two places drifts.
 
 **CP-8. legend-engine's database versions: not supported.** **RULED by the user, 2026-11-19 ~04:02 UTC:** "Let's not
@@ -780,6 +868,12 @@ worry or even support older database versions".
   columns in product lowering, `CalendarAgg`) becomes a ruled (b) row. H1 classed it S `same`: the names are the
   calendar functions' own store contract (`calendarStore.pure:19`), not a presentation.
 
+**CP-11. SQLite's Decimal arithmetic for the legend-pure audience.** *Gates 3.4.*
+- **Today:** the edge answers Decimal arithmetic on SQLite with REAL (a double) where the product refuses (ruling (c),
+  D16, C27; `PureText.refusesDecimalArithmetic`).
+- **Recommendation:** keep ruling (c) as a translator rewrite on SQLite (ordinary functions, a ledgered
+  approximation), not a hook. The alternative is to refuse by name, as rule 5 would by default.
+
 **Held by the previous orchestrator:** R-a, a fractional cell under an Integer property (PR #121). Its ENGINE
 answer, when ruled, becomes a translator rewrite or a refusal in phase 3.
 
@@ -789,9 +883,9 @@ answer, when ruled, becomes a translator rewrite or a refusal in phase 3.
 
 | Guard | What it proves | Lands | Blocks |
 |---|---|---|---|
-| "No mode in the core" (ArchUnit) + `ModeBranchCensusTest` (B1's G6) + the strand ratchet | done-when 1 | 0.2 report-only; the ratchet from 0.4 | 4.2 |
-| The census, `MeaningCensusTest` | done-when 2 | today, report-only; shrink-only pin from 0.4 | 4.2 |
-| The plan scan (no upstream sentence, envelope or presentation instruction in a plan) | done-when 3 | 1.2, report-only | 4.2 |
+| "No mode in the core" (ArchUnit) + `ModeBranchCensusTest` (B1's G6) + the strand ratchet | done-when 1 | 0.2 report-only; the ratchet from 0.4 | 4.1 |
+| The census, `MeaningCensusTest` | done-when 2 | today, report-only; shrink-only pin from 0.4 | 4.1 |
+| The plan scan over product and test plans (no upstream sentence, envelope or presentation instruction) | done-when 3 | 1.2, report-only | 4.1 |
 | The presenter rule (a presenter reaches only records, never exec, the planner or JDBC) | rule 3: presentation after the run | 1.1 | 1.1 |
 | The host meaning lens, the cross-host byte-parity suite, one differential per export (H4 §8) | done-when 4 | 1.5, 1.6 | 1.6 |
 | The translator rule (public doors only; rewrites, never evaluation; its library refused by the product loader) | rule 5: the core never knows | 3.2 | 3.2 |
@@ -824,17 +918,17 @@ Every guard ships with a planted violator it must catch. No guard depends on a c
 
 | Track | Session | Slices | Calendar (weeks from ratification) |
 |---|---|---|---|
-| P, formatters | B1 (`session_0195rQEnAa5CYXHygAxEFh3Y`) | 0.2, 1.1-1.4 | weeks 1-3 |
+| P, formatters | B1 (`session_0195rQEnAa5CYXHygAxEFh3Y`) | 0.2, 1.1, 1.2, then (after 2.2) 1.3, 1.4 | weeks 1-4 |
 | H, hosts | new host session (xhigh) | 1.5-1.7 | weeks 2-4 |
-| J, judges | new judges session (xhigh) | 2.1, 2.2 (then 2.3 if B2 is busy) | weeks 1-2 |
+| J, judges | new judges session (xhigh) | 2.1, 2.2 first (they unblock 1.3), then 2.3 if B2 is busy | weeks 1-2 |
 | A, translator | new translator session (xhigh); a second one from 3.3, so the rewrites (3.3, 3.4) and the refusals and R1 decisions (3.5, 3.6) run in parallel | 3.1-3.7 | weeks 1-5 |
 | O, oracle | B1-R (`session_0195rQEkcevkNQ66fixkk4FF`) | 0.3, the batteries for phase 3, 5.1, 5.2 | weeks 1-6 |
-| G, guards and close-out | B2 (`session_0195rQEjuF2imym274M9Qvva`) | 0.4, 2.3, 4.1, 4.2; B3's items as they fall into slices | weeks 1-6 |
+| G, guards and close-out | B2 (`session_0195rQEjuF2imym274M9Qvva`) | 0.4, 2.3, 4.1; B3's items as they fall into slices | weeks 1-6 |
 | orchestration | this session | rulings, shape notes, reviews, PRs, the user | throughout |
 
 **The critical path:** phase 0 (about 2.5 days, its slices in parallel), then 3.1 and 3.2 (4.5), then the longer of
-the two translator lanes (3.3 + 3.4, 7.5; 3.5 + 3.6, 3), then 4.1 and 4.2 (5). That is about
-19 session-days, so about 5 to 6 weeks of calendar time with lane rounds, reviews and merge waits.
+the two translator lanes (3.3 + 3.4, 7.5; 3.5 + 3.6, 3), then 4.1 (3.5). That is about
+18 session-days, so about 5 to 6 weeks of calendar time with lane rounds, reviews and merge waits.
 
 **B3** (the separation close-out, not started) is not a separate track. Its items fall into slices:
 - C1, C2 into 2.3;
@@ -858,7 +952,7 @@ the two translator lanes (3.3 + 3.4, 7.5; 3.5 + 3.6, 3), then 4.1 and 4.2 (5). T
 | 9 | 2.1 + 2.2 |
 | 10 | 2.3 |
 | 11 | 3.1 + 3.2 + 3.3 |
-| 12+ | 3.4-3.7 in two or three PRs; then 4.1 + 4.2; then 5.1 + 5.2 |
+| 12+ | 3.4-3.7 in two or three PRs; then 4.1; then 5.1 + 5.2 |
 
 Each PR:
 - runs CI on every OS;
