@@ -158,7 +158,11 @@ B3 reshapes, so building B2 first would mean writing it twice).
 **Deferred:** exporting plans to legend-engine and importing its plans. **Moved to the product track:** lite's own
 rules copied across Python and the browser tab.
 
-## 6. What is still open
+## 6. What was open (all ruled 2026-11-19 ~13:25 UTC: "Okay agree with all")
+
+**Ruled:** the goal's sentence, yes; D1, Pure's way, loud; D2, remove both shortcuts; and a "differences from
+legend-engine" page. The plan to build from is now `compat-final-plan-2026-11-19.md`. The text below is kept as it was
+put to the user.
 
 **First, one sentence for the user to rule, because the goal has changed** (the independent reviewer's first
 condition). The project's rulebook says lite does exactly what legend-pure and legend-engine do, unless that is too

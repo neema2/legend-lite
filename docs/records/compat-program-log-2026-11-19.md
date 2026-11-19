@@ -22,7 +22,9 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~12:10 | "Yes to the six" | CP-13: defer phase 5 (export, import) and hand the LITE-host drift fixes of 1.5 and 1.6 to the product track, keeping HOSTS-9's store pilot (R11(a)), CP-7's part, the ENGINE host pieces and 1.7. CP-14 (iii): the compatibility judge is lite's verdict records worded by legend-pure's presenter, with four door rewrites of corpus test bodies (S137, S144, S131's typed half, S15). CP-6: the typed facts. CP-7: error words leave the plan, with one `EdgeOnlyDataTest` row. The 6 plan-structure tests are not promised. CP-11: SQLite Decimal as REAL for the legend-pure audience, kept as a translator rule |
 
-**Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
+| ~13:25 | "Okay agree with all" (to this session's message setting out the implications of the goal's sentence, D1 and D2, each with a recommendation) | **(1) THE GOAL:** "Lite follows Pure. legend-engine's formats are matched, and its answers where they agree with Pure. The rest is recorded." AGENTS.md's upstream-fidelity tenet and G8 are amended to say so (the draft of ~13:15, below), riding with the first stage-A code PR. **(2) D1 (was CP-12): Pure's way, LOUD:** no translator; a detector at the legend-engine server door warns (by default) or refuses (by a server setting) when a query sent to the database calls `substring`/`indexOf` with positions and the request has not set legend-engine's corrected option; built in A3. **(3) D2 (was CP-5): remove both shortcuts** (S20's exact-decimal literal and the unchecked-maths plain set), in B4. **(4) A "differences from legend-engine" page** for people bringing legend-engine projects, built from the register rows |
+
+**Superseded ~13:25:** **Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
 each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
 being built by the product's judges track (C3).
 
@@ -1115,3 +1117,9 @@ who confirms or changes phases 1-3.
     lite answered an error); recorded in slice R's record §8.
   - `//gates:local` plus `edge_net`, both lane pins, both battery halves and both oracle pins running; CI restarted on
     `fa8294cca` (the Maven 404 fix is not on it yet).
+- **~13:25 UTC, THE USER RULED the goal, D1 and D2: "Okay agree with all"** (recorded in §1). The checkpoint's
+  decisions table and the plain plan's §6 now say so.
+- **~13:35 UTC, the final plan written fresh:** `docs/records/compat-final-plan-2026-11-19.md` (the goal; the design in
+  four parts; the rulings it carries; stage A's four steps, each with what, done when, size, the user's words it needs
+  and its builder; stage B's five with their prototypes and what is open; what is not in the program; the safeguards).
+  The working plan is history. Sent to the independent reviewer to check before stage A goes to the user to ratify.

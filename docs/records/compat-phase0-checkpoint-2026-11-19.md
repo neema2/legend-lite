@@ -48,11 +48,13 @@ What phase 0 found, the numbers behind it, and the decisions it puts to the user
 | — | The 6 tests on legend-engine's plan structure | **RULED: not promised** | Q5 |
 | CP-11 | SQLite Decimal as floating point for legend-pure programs | **RULED: kept**, as one rule at the door | the plan |
 | CP-9 | The per-push cost | ruled in principle (~10:45); the edge net's CI time is still PENDING (PR #123) | Q10 |
-| — | **The goal's sentence** (new, from the reviewer's re-check): "Lite follows Pure. legend-engine's formats are matched, and its answers where they agree with Pure. The rest is recorded." | **OPEN, asked of the user ~12:56.** It is ruled before D1 and D2, and AGENTS.md's upstream-fidelity tenet and G8 are amended with the user's word | the re-check (`5d2ce214` on `claude/compat-review`) |
-| D1 (was CP-12) | Where legend-engine departs from Pure's own definition (`substring`, `indexOf`): copy it, or answer Pure's way? | **OPEN, asked of the user ~12:56.** Recommended: Pure's way, LOUD (a detector at the legend-engine door that warns, or refuses by a switch; no translator) | Q4; the re-check |
-| D2 (was CP-5) | Keep or remove S20's exact-decimal literal and the unchecked-maths plain set | **HELD** until B2's (j) count on the ENGINE lane lands | Q8 |
+| — | **The goal's sentence** (new, from the reviewer's re-check): "Lite follows Pure. legend-engine's formats are matched, and its answers where they agree with Pure. The rest is recorded." | **RULED yes** (~13:25, "Okay agree with all"). AGENTS.md's upstream-fidelity tenet and G8 are amended in the first stage-A code PR | the re-check (`5d2ce214` on `claude/compat-review`) |
+| D1 (was CP-12) | Where legend-engine departs from Pure's own definition (`substring`, `indexOf`): copy it, or answer Pure's way? | **RULED: Pure's way, LOUD** (~13:25): a detector at the legend-engine door that warns, or refuses by a server setting; no translator; built in A3 | Q4; the re-check |
+| D2 (was CP-5) | Keep or remove S20's exact-decimal literal and the unchecked-maths plain set | **RULED: remove both** (~13:25), in B4. The count: 9 legend-engine answers stop matching, each reproducible by the user; 10 PCT and 2 corpus tests gained, none lost | Q8 |
 
 ## 4. The plan after phase 0
+
+**Now:** `docs/records/compat-final-plan-2026-11-19.md`, written fresh after the rulings of ~13:25.
 
 The stages, their order, their sizes and what each one's proof is are in
 `docs/records/compat-design-and-plan-plain-2026-11-19.md` §5: stage A (A1 to A4, about 2 to 3 weeks), a stop, then
