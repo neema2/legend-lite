@@ -433,7 +433,7 @@ try {
   const saved = await cube.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 }).then(() => true, () => false);
   const records = saved ? readdirSync(join(home, 'pages')).filter((f) => f.endsWith('.json')) : [];
   const record = records.length === 1 ? JSON.parse(readFileSync(join(home, 'pages', records[0]), 'utf8')) : undefined;
-  const inFolder = saved && record?.name === 'Books from Python' && record.owner === 'this user' && typeof record.content === 'string';
+  const inFolder = saved && record?.name === 'Books from Python' && record.owner === 'anonymous' && typeof record.content === 'string';
   console.log(`${inFolder ? 'ok  ' : 'FAIL'} a page saved on Python's page is a record in this user's folder`);
   if (!inFolder) {
     console.log(`  saved: ${saved}, records: ${JSON.stringify(records)}, record: ${JSON.stringify(record)?.slice(0, 300)}`);

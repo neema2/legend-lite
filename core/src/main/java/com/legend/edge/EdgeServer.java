@@ -65,7 +65,12 @@ public final class EdgeServer {
         };
     }
 
-    /** {@code /api/server/v1/currentUser}: legend-engine's current user, the store's anonymous one. */
+    /** {@code /api/server/v1/currentUser}: legend-engine's current user, the store's anonymous one -- GET only, as
+     *  upstream serves it (its CurrentUser resource is a JAX-RS {@code @GET}; with its shipped configuration's pac4j
+     *  AnonymousClient the profile's id is "anonymous": legend-engine 4.145.0's server config.json, pac4j-core 4.5.8's
+     *  AnonymousProfile), any other method 405 in the body lite answers legend-engine's other 405s with (register S377:
+     *  upstream's body is Dropwizard's error mapper, not in the pinned sources; HEAD and OPTIONS not read). The user's
+     *  ruling, 2026-11-19 ~11:27 UTC, "1 yes": until then every method answered 200. */
     static LegendHttpServer.Routes currentUser() {
         return new LegendHttpServer.Routes() {
             @Override
@@ -76,6 +81,9 @@ public final class EdgeServer {
             @Override
             public LiteV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
                     String body) {
+                if (!"GET".equals(method)) {
+                    return new LiteV1Api.Answer(405, "{\"error\":\"Method not allowed\"}");
+                }
                 return new LiteV1Api.Answer(200, "\"" + SavedQueries.ANONYMOUS + "\"");
             }
         };

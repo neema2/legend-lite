@@ -32,9 +32,9 @@ describe("the page's own store: what a server here cannot be asked", () => {
       id: 'owned', name: 'Owned', groupId: 'demo', artifactId: 'trading', versionId: '0.0.0', content: '|1',
     });
     await assert.rejects(theirs.update({ ...q, name: 'Taken' }), (e: unknown) => e instanceof QueryStoreError && e.status === 403
-      && e.message === 'only the owner can update it');
+      && e.message === "only its owner, 'me', can update it, and the caller is 'someone'");
     await assert.rejects(theirs.delete('owned'), (e: unknown) => e instanceof QueryStoreError && e.status === 403
-      && e.message === 'only the owner can delete it');
+      && e.message === "only its owner, 'me', can delete it, and the caller is 'someone'");
     // and "mine only" is the caller's
     assert.deepEqual((await theirs.search({ showCurrentUserQueriesOnly: true })).map((x) => x.id), []);
     assert.deepEqual((await mine.search({ showCurrentUserQueriesOnly: true })).map((x) => x.id), ['owned']);

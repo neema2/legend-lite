@@ -42,5 +42,5 @@ conformance("Python's saved pages, the native library's", () => ({
   api,
   fetch: (input: string | URL | Request, init?: RequestInit) =>
     fetch(input, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), Authorization: authorization } }),
-  user: 'this user',
+  user: 'anonymous',
 }));

@@ -101,7 +101,14 @@ class TheEdgesDoor(unittest.TestCase):
         # legend-engine's current user is the edge's too (N4 of PR #118's fix round, 2026-11-18): the store's user
         self.assertTrue(engine.edge.serves('GET', '/api/server/v1/currentUser'))
         said = engine.answer('GET', '/api/server/v1/currentUser', '', None)
-        self.assertEqual((said.status, said.content_type, json.loads(said.body)), (200, 'application/json', 'this user'))
+        self.assertEqual((said.status, said.content_type, json.loads(said.body)), (200, 'application/json', 'anonymous'))
+        # GET alone, as upstream serves it (the user's ruling of 2026-11-19 ~11:27 UTC, "1 yes"): any other method 405,
+        # in Java's edge's body (register S377), never the product's 404
+        for method in ('POST', 'PUT', 'DELETE'):
+            self.assertTrue(engine.edge.serves(method, '/api/server/v1/currentUser'), method)
+            said = engine.answer(method, '/api/server/v1/currentUser', '', '{}')
+            self.assertEqual((said.status, said.content_type, said.body),
+                             (405, 'application/json', b'{"error":"Method not allowed"}'), method)
         # a call no route serves is refused as the product refuses it
         said = engine.answer('POST', '/no-such-route.json', '', '{}')
         self.assertEqual((said.status, said.body), (404, b'no such path: /no-such-route.json'))

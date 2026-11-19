@@ -69,8 +69,9 @@ public final class SavedQueries {
             ID_TAKEN("the ID '%1$s' is already taken"),
             /** An update would change the ID. */
             ID_CHANGED("the ID cannot be changed"),
-            /** Only the owner may do it: the act (update, delete). */
-            NOT_OWNER("only the owner can %1$s it"),
+            /** Only the owner may do it: the act (update, delete), the record's owner, the caller (the currentUser
+             *  ruling, 2026-11-19: a refusal names both, so a person whose records an earlier identity owns can tell). */
+            NOT_OWNER("only its owner, '%2$s', can %1$s it, and the caller is '%3$s'"),
             /** A search's limit of 0 or less. */
             LIMIT_NOT_POSITIVE("the limit must be greater than 0"),
             /** More IDs asked at once than the store serves: the most it serves. */
@@ -501,7 +502,7 @@ public final class SavedQueries {
             throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         if (!(q.get("owner") instanceof Json.Null) && !currentUser.equals(q.getString("owner"))) {
-            throw new Refusal(Refusal.Kind.NOT_OWNER, List.of("delete"), 403);
+            throw new Refusal(Refusal.Kind.NOT_OWNER, List.of("delete", q.getString("owner"), currentUser), 403);
         }
         long now = clock.getAsLong();
         Json.Obj deleted = with(with(q, "deletedAt", Json.num(now)), "validUntil", Json.num(now));
@@ -518,7 +519,7 @@ public final class SavedQueries {
             throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         if (!(prior.get("owner") instanceof Json.Null) && !currentUser.equals(prior.getString("owner"))) {
-            throw new Refusal(Refusal.Kind.NOT_OWNER, List.of("update"), 403);
+            throw new Refusal(Refusal.Kind.NOT_OWNER, List.of("update", prior.getString("owner"), currentUser), 403);
         }
         long now = clock.getAsLong();
         versions.set(versions.indexOf(prior), with(prior, "validUntil", Json.num(now)));

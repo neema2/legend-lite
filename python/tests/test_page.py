@@ -214,7 +214,7 @@ class Document(Paged):
         first = page.save()
         engine = Engine(ll.Frames())
         listed = json.loads(engine.answer('POST', '/api/lite/v1/queries/dataCube/search', '', '{}').body)
-        self.assertIn((first, page.name, 'this user'), [(q['id'], q['name'], q['owner']) for q in listed])
+        self.assertIn((first, page.name, 'anonymous'), [(q['id'], q['name'], q['owner']) for q in listed])
         opened = engine.answer('GET', f'/api/lite/v1/queries/dataCube/{first}', '', None)
         self.assertEqual(opened.status, 200)
         # its content the page document, its decimal's digits kept

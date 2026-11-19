@@ -4,6 +4,7 @@ then; the refusals in lite's error shape; and only the engine's own page answere
 cross-origin answer). legend-engine's pure/v1 is the edge's, tested by test_edge (the edge program's H5)."""
 
 import http.client
+import io
 import json
 import datetime
 from decimal import Decimal
@@ -987,6 +988,51 @@ class TheProductsStore(unittest.TestCase):
                              (400, {'kind': 'request',
                                     'message': f'the request could not be read: {words} is not percent-encoded'}), path)
 
+    # THE ONE-TIME RE-OWNING (the user's ruling of 2026-11-19 ~11:27 UTC on currentUser, "2 a1"): Python's user is
+    # "anonymous", as Java's and legend-engine's; a folder an earlier version wrote as 'this user' is re-owned once, a
+    # data step, never a run-time acceptance of both owners
+    QUERY = {'id': 'q-old', 'name': 'Old', 'groupId': 'demo', 'artifactId': 'trading', 'versionId': '0.0.0',
+             'content': '|1', 'executionContext': {'_type': 'explicitExecutionContext', 'mapping': 'demo::M',
+                                                   'runtime': 'demo::R'}}
+
+    def saved_as(self, owner, entry, folder, record):
+        # written as an earlier version of this package wrote it: the store's own rules, as that owner, no re-owning
+        from legend_lite._library import library
+        said = library().call(entry, str(folder), 'POST', '', '', json.dumps(record), owner)
+        self.assertTrue(said.startswith('OK\n200\n'), said)
+
+    def test_a_record_saved_as_this_user_is_re_owned_once_and_editable(self):
+        from legend_lite import _home
+        self.assertEqual((_home.THIS_USER, _home.EARLIER_USER), ('anonymous', 'this user'))
+        queries, pages = _home.queries_folder(), _home.pages_folder()
+        queries.mkdir(parents=True, exist_ok=True)
+        pages.mkdir(parents=True, exist_ok=True)
+        self.saved_as('this user', 'lite_store_queries', queries, self.QUERY)
+        self.saved_as('this user', 'lite_store_cubes', pages, {'id': 'p-old', 'name': 'Old', 'content': {'kind': 'datacube.page'}})
+        with mock.patch('sys.stderr', new_callable=io.StringIO) as said:
+            updated = self.engine.answer('PUT', '/api/lite/v1/queries/q-old', '', json.dumps({**self.QUERY, 'name': 'New'}))
+        self.assertEqual(updated.status, 200, updated.body)
+        self.assertEqual((json.loads(updated.body)['owner'], json.loads(updated.body)['name']), ('anonymous', 'New'))
+        self.assertIn("re-owned 1 saved record(s)", said.getvalue())
+        self.assertIn("from 'this user' to 'anonymous'", said.getvalue())
+        self.assertEqual(self.engine.answer('DELETE', '/api/lite/v1/queries/dataCube/p-old', '', None).status, 204)
+        # once: a record written as 'this user' after it is no record of the earlier version, and is not re-owned
+        self.saved_as('this user', 'lite_store_queries', queries, {**self.QUERY, 'id': 'q-later'})
+        later = self.engine.answer('DELETE', '/api/lite/v1/queries/q-later', '', None)
+        self.assertEqual((later.status, json.loads(later.body)), (403, {
+            'kind': 'request', 'message': "only its owner, 'this user', can delete it, and the caller is 'anonymous'"}))
+
+    def test_a_record_of_another_owner_is_still_refused_naming_both(self):
+        from legend_lite import _home
+        queries = _home.queries_folder()
+        queries.mkdir(parents=True, exist_ok=True)
+        self.saved_as('someone else', 'lite_store_queries', queries, self.QUERY)
+        said = self.engine.answer('PUT', '/api/lite/v1/queries/q-old', '', json.dumps({**self.QUERY, 'name': 'Mine'}))
+        self.assertEqual((said.status, json.loads(said.body)), (403, {
+            'kind': 'request', 'message': "only its owner, 'someone else', can update it, and the caller is 'anonymous'"}))
+        kept = json.loads((queries / 'q-old.json').read_text(encoding='utf-8'))
+        self.assertEqual([v['owner'] for v in kept], ['someone else'])
+
     def test_a_page_saved_at_lites_route_is_read_there(self):
         made = self.engine.answer('POST', '/api/lite/v1/queries/dataCube', '',
                                   json.dumps({'id': 'p-9', 'name': 'Both', 'content': {'kind': 'datacube.page'}}))
@@ -1038,7 +1084,7 @@ class SavedPagesKept(unittest.TestCase):
         made = self.call('POST', '', json.dumps({'id': 'p-2', 'name': 'Kept', 'content': {'kind': 'datacube.page'}}))
         self.assertEqual(made.status, 200, made.body)
         kept = json.loads((self.folder / 'p-2.json').read_text(encoding='utf-8'))
-        self.assertEqual((kept['owner'], kept['content']), ('this user', '{"kind":"datacube.page"}'))
+        self.assertEqual((kept['owner'], kept['content']), ('anonymous', '{"kind":"datacube.page"}'))
         # every write whole: nothing half-written left beside the pages
         self.assertEqual([p.name for p in self.folder.iterdir() if p.suffix == '.tmp'], [])
 
@@ -1107,7 +1153,7 @@ class SavedPagesKept(unittest.TestCase):
                 os.environ['XDG_DATA_HOME'] = self.place.name
                 self.assertEqual(ll.home(), Path(self.place.name) / 'legend-lite')
         said = json.loads(self.engine.answer('GET', '/services.json', '', None).body)
-        self.assertEqual(said['pages'], {'where': str(self.folder), 'user': 'this user'})
+        self.assertEqual(said['pages'], {'where': str(self.folder), 'user': 'anonymous'})
 
 
 class NoFiles(Served):

@@ -200,7 +200,8 @@ public final class SavedCubes {
             throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         if (current.has("owner") && !user.equals(text(current, "owner"))) {
-            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NOT_OWNER, java.util.List.of("update"), 403);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NOT_OWNER,
+                    java.util.List.of("update", text(current, "owner"), user), 403);
         }
         Json.Node now = Json.num(clock.getAsLong());
         Map<String, Json.Node> stamps = new LinkedHashMap<>();
@@ -222,7 +223,8 @@ public final class SavedCubes {
             throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         if (current.has("owner") && !user.equals(text(current, "owner"))) {
-            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NOT_OWNER, java.util.List.of("delete"), 403);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NOT_OWNER,
+                    java.util.List.of("delete", text(current, "owner"), user), 403);
         }
         records.remove(id);
     }
