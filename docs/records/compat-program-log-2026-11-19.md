@@ -1862,3 +1862,17 @@ who confirms or changes phases 1-3.
   (16:00): keep the ruled outcome** (both judges on the expected literal's range error): neither failure is the answer
   (legend-pure passes; DuckDB cannot hold the value), both keep evaluation in the database, and matching legend-engine's
   failure text would reorder every host side batch. The register row states all three facts.
+- **~15:15 UTC, the translator: the cross-kind fix (`63421e0a`) does NOT land as is** (measured locally on
+  `claude/compat-cross-kind-ne` = `main` + `c650d959`; record `xk/` at `0b687302`; nothing pushed, nothing asked of the
+  user). Corpus H2 fail roster 276 → 301 (+26, and -1: `testPlanForDateTimeVariableESTTimeZone` passes); DuckDB 108 →
+  138 (+30); unordered registers -14 each; red: `//spec:corpus_duckdb_verdict` ("differential passes SHRANK: 975 < 990"),
+  `//core:corpus_differential_test` (CV1_QuotedPillars rows lost), `//core:guardrails_edge` (`SqlFnSortedTest`); all
+  three pass at `main`. Green: `CrossKindEqualityTest`, PCT, the rest of `//gates:local`. **Why:** every new failure is a
+  cross-kind comparison now answering false (or true for `!=`) where legend-engine sends it to SQL and the database
+  coerces: `###Relational` mapping filters (`"ordertable_0".prodFk = '2'`, SQL's `=` by definition, like its substring),
+  and Pure query code legend-engine routes to SQL (`dayOfWeekNumber(...) != '2'`, `$t.id == '1'`). **A meaning change of
+  D1's kind, not a defect fix. It does not gate A3** (A3's moves are 7 per database either way). **This session's calls
+  (16:10):** out of stage A (the final plan corrected; no PR asked of the user); the scoped version (the mapping DSL's
+  `=` keeps the database's comparison; Pure code keeps legend-pure's kinds-first rule) prototyped and measured as
+  homework, then the meaning question goes to the user with numbers. The 15:40 "it holds under rule 1" call stands for
+  where the types alone decide it; the meaning is the open question.
