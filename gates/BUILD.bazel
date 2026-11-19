@@ -434,6 +434,9 @@ test_suite(
     name = "heavy",
     tags = ["manual"],
     tests = [
+        # the LITE-PCT lane's channel A (the compatibility program's A4, 2026-11-19): manual, its five suites per push
+        # only if CI shows they fit pct_duckdb's lane (the compatibility owner's ruling)
+        "//pct:pct_duckdb_lite",
         "//spec:reference_lane",
         "//spec:update_reference_lane_test",
         "//spec:corpus_warehouse_verdict",

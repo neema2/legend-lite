@@ -138,6 +138,30 @@ _SUITES = [
     ],
 ) for s in _SUITES]
 
+# THE LITE-PCT LANE'S CHANNEL A (the compatibility program's stage A, step A4, 2026-11-19): the five suites on DuckDB
+# under lite's own rules (-Dpct.channela.rules=LITE, PctPlanRoute: the product's style and default features, a raise in
+# lite's own words), legend-pure's interpreter judging lite's answers by value, each by its LITE ledger
+# (Test_LegendLite_LiteRules_<Suite>Functions_PCT: its COMPAT rows with lite's own in their place, LiteRulesLedger).
+# Manual, in //gates:heavy (the compatibility owner's ruling of 2026-11-19: per push only if the PR's CI shows it fits
+# pct_duckdb's lane).
+[junit_test(
+    name = "pct_duckdb_lite_" + s.lower(),
+    memory_mb = 4096,
+    jvm_flags = ["-Dpct.channela.rules=LITE"],
+    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_LiteRules_%sFunctions_PCT" % s],
+    tags = ["manual"],
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+) for s in _SUITES]
+
+test_suite(
+    name = "pct_duckdb_lite",
+    tags = ["manual"],
+    tests = [":pct_duckdb_lite_" + s.lower() for s in _SUITES],
+)
+
 # the module's discipline guard (no comparison machinery in Java), in gate 6 (G-02)
 # its own library, so the light //gates:local does not build the PCT adapter's 4 GB PAR to run a source scan
 # the module's files, as the discipline scan reads them: a declared list (SourceFiles; Bazel workplan P3-27b)
