@@ -2781,3 +2781,7 @@ who confirms or changes phases 1-3.
   would be a fallback under a false name). (3) One edge class `EngineSubstitutes` (substring → substringAsGiven,
   indexOf → sqlPosition, one `checked` path). B1's measurement: 11 relational dialects write the plain call; the same
   arguments' `SUBSTRING` clamps on 10 of them (all but H2); H2 and DuckDB 72 of 72 equal to the database's own call.
+- **~21:11 UTC, the reviewer approved the detector at `337e66ade`** (recorded at its `84d8d21f`): M1, M2, S1, S2 and
+  the proof met; 3316 on the merged tree answers its batch note; the two gaps rightly loud refusals for the product
+  track. The ~21:12 rulings consistent with the design, on one condition passed to B1: `native-claims.tsv` names the
+  door's class `EngineSubstitutes` as `substringAsGiven`'s producer.
