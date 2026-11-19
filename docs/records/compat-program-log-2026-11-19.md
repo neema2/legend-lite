@@ -936,3 +936,37 @@ who confirms or changes phases 1-3.
   B1-R's branch (its task 1, amended 13:15: no private lane extension). Two limits recorded by B1-R, no code change:
   a tolerant float assert hides a moved answer (`testFloatPlus` stays SAME); the oracle's pure/v1 answers differ by
   database, and the batteries pin each database separately.
+- **~13:05 UTC, B1: PR #123's review fixes are pushed** (head `ef9e9bfa3`; a fresh CI run of every job). The PR body
+  is rewritten for all 7 items.
+  - **Plants:** the three vacuous ones fixed; new plants for root order, `JudgeLedgerTest`'s message field and
+    pure/v1's plan-text split; each shown not vacuous (the old 16-hex mask planted fails 3 recorder plants; a full sort
+    planted fails 3 normalizer plants).
+  - **Guards:** `pct_tests_lib` no longer depends on `//tools/edgenet` (the normalizer's plants are
+    `//tools/guards:edge_normalize_test`); a `tools/deps/pools.bzl` allowlist edit was declined by the session's
+    safety check and not worked around. `EDGE_TEST_SRCS` +3 named and dated for the user's word; json visibility
+    avoided; no pool, pin or ledger move.
+  - **Mask by first appearance: not taken.** It would move 12 golden lines, format only (`testGenerateGuid` and
+    `testGenerateGuidWithRelation` on DuckDB and SQLite standard, which shows two distinct guids that `<id>` hides;
+    pure/v1's 8 plan-text ids). Offered in the PR, reverted (`4b523368e`); a re-record is the user's word.
+  - **CI at `5e3bbe6d1`:** the Maven 404 was transient. `windows/warehouse`'s `//python:markets_test` timed out at
+    300 s, in files the PR does not touch. **`windows/edge_net` is RED: 4 PCT diffs, DuckDB and SQLite essential and
+    standard**; everything else green. B1's unconfirmed hypothesis: the net now pins every digit, and DuckDB's and
+    SQLite's maths take the platform's libm, whose last digit differs on Windows. `ef9e9bfa3` puts the normalized
+    recordings in the lane's artifact so the lines show.
+  - **Lane cost:** locally 690 s wall (PCT A 1,484 s machine time over 11 actions; channel B 250 s; the corpus
+    ledgers 819 s, DuckDB's host pass 609 s the critical path). On CI: Linux `edge_net` 17.9 min green; Windows 19.4
+    min red; macOS not yet run.
+  - **This session's calls, 13:10:** take B1's split (PCT A, channel B, pure/v1 and the edge cases per push in
+    `edge_net`; the corpus ledgers' two diff tests to the corpus lanes, which already build both judge hosts; each
+    gates-list move named for the user's word). Windows: wait for the lines; if they are last-digit database maths,
+    a small per-OS overlay of only the differing lines (each with test, field, both values; stop if over about 20),
+    never fewer digits and never Linux-only; if they are anything else (order, locale, path, line ending), report at
+    once. `markets_test` goes to the CI-health session, re-run once, not touched in this PR. The mask question goes
+    to the user once, with the PR.
+- **~13:06 UTC, the host-parity worker's `//core:lite_wire` proposal** (lite's own wire library, base and json only:
+  the error kinds with `METHOD_NOT_ALLOWED`, `Refusal`, the closed-request readers, `UnknownRoute`, the user and
+  not-posted answers; the classifier and everything of legend-engine's left out). **Agreed, with three shapes:**
+  `Refusal.raise` carries the plan's raise object as JSON, not fixed scalar fields, so stage B's error records pass
+  through unchanged (agreed with H13 before either lands); the store's refusals stay codes, worded per mount, and
+  nothing at the edge reads a `Refusal`'s message back; `lite_wire` depends on nothing in `com.legend.edge`. Its
+  guard-file rows are its track's to name.
