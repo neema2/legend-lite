@@ -1364,7 +1364,7 @@ public final class AssertVerdicts {
                     specs, env, rawHook == null ? null : rawHook::apply);
         }
         TypedSide last = null;
-        VerdictBatch batch = DatabaseJudge.lite(env) ? env.verdictBatch() : null;
+        VerdictBatch batch = env.verdictBatch();
         for (int index = 0; index < elements.size(); index++) {
             TypedSpec element = elements.get(index);
             List<TypedSpec> reduced = com.legend.compiler.spec.VerdictQueries
@@ -1768,9 +1768,7 @@ public final class AssertVerdicts {
             com.legend.sql.SqlQuery et = DatabaseJudge.textRow(args.get(0), letPrefix, specs, env, hook);
             com.legend.sql.SqlQuery at = DatabaseJudge.textRow(args.get(1), letPrefix, specs, env, hook);
             return textFirst(name, wantEqual, et != null && at != null
-                    ? com.legend.lowering.VerdictSql.textEquals(et, at) : null, env,
-                    () -> DatabaseJudge.databaseVerdict(name, wantEqual, re.value(), ra.value(), letPrefix, specs,
-                            env, hook, true, false, false, true));
+                    ? com.legend.lowering.VerdictSql.textEquals(et, at) : null, env);
         }
         boolean goldenIsExpected = ra != null;
         var r = goldenIsExpected ? ra : re;
@@ -1792,101 +1790,21 @@ public final class AssertVerdicts {
         }
         com.legend.sql.SqlQuery rendered = DatabaseJudge.textRow(goldenIsExpected ? args.get(1) : args.get(0),
                 letPrefix, specs, env, hook);
-        var rendering = r;
         return textFirst(name, wantEqual, rendered != null
-                ? com.legend.lowering.VerdictSql.textEquals(text, rendered) : null, env,
-                () -> renderedRows(name, wantEqual, args, letPrefix, specs, env, hook, orderedForm, goldenIsExpected,
-                        rendering, text));
-    }
-
-    /** {@link #renderedValueVerdict}'s FALLBACK: the golden brought to rows by the render's own grammar and judged as
-     *  rows -- an unsorted query's as a multiset (S131), a Float within 2 ULP (S132) -- run where the two texts
-     *  differ. */
-    private static TypedSide renderedRows(String name, boolean wantEqual, List<TypedSpec> args,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable SpliceHook hook, boolean orderedForm, boolean goldenIsExpected,
-            com.legend.compiler.spec.VerdictQueries.RenderedSide r, String text) {
-        com.legend.compiler.element.type.Type.RelationType schema = null;
-        if (r.grid() && r.restrictTo() != null) {
-            // columnValues: the relation restricted to the one column, minted
-            // from the PLANNED schema (the static type may not carry it)
-            DatabaseJudge.SideRows whole = DatabaseJudge.planSide(r.value(), false, false, letPrefix, specs, env, hook);
-            if (whole.why() != null) {
-                return DatabaseJudge.unjudged(name, "rendered-text side: " + whole.why());
-            }
-            TypedSpec one = com.legend.compiler.spec.VerdictQueries.restrictedTo(r.value(),
-                    com.legend.compiler.element.type.Type.schemaView(
-                            java.util.Objects.requireNonNull(whole.side()).shapeInfo().type()),
-                    r.restrictTo());
-            if (one == null) {
-                return DatabaseJudge.unjudged(name, "rendered-text: column '" + r.restrictTo() + "' is not declared");
-            }
-            r = new com.legend.compiler.spec.VerdictQueries.RenderedSide(one, r.grammar(), true);
-        }
-        if (r.grid()) {
-            // the PLANNED side's schema (its shape info) is the grid verdict's
-            // own width and kinds — the static type can lag it (validate's
-            // late-bound ID column)
-            DatabaseJudge.SideRows planned = DatabaseJudge.planSide(r.value(), false, false, letPrefix, specs, env, hook);
-            if (planned.why() != null) {
-                return DatabaseJudge.unjudged(name, "rendered-text side: " + planned.why());
-            }
-            var side = java.util.Objects.requireNonNull(planned.side());
-            var pr = java.util.Objects.requireNonNull(planned.rider());   // width recorded at wrap
-            List<com.legend.sql.OutputCol> data = pr.dataPrefix(side.plan().outputs());
-            schema = com.legend.compiler.element.type.Type.schemaView(side.shapeInfo().type());
-            if (schema == null || schema.columns().isEmpty() || !schema.dynamicColumns().isEmpty()) {
-                // late-bound (a raw grid framed by the database's columns): the slots type it
-                schema = com.legend.compiler.spec.VerdictQueries.wireSchema(data);
-            } else {
-                // a wire-decided declaration's cell is what the wire printed
-                schema = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(schema, data);
-            }
-        }
-        var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(), schema, r.grid() ? null
-                : r.value().info().type(), env.options().style().twoForm(com.legend.compiler.spec.GoldenNullWord.class,
-                        com.legend.compiler.spec.LiteGoldenNullWord.NONE));
-        if (parsed.headerMismatch()) {
-            DatabaseJudge.staticallyDecided(env);
-            return fail(name + ": " + parsed.reason());   // a static verdict
-        }
-        if (parsed.literal() == null) {
-            return DatabaseJudge.unjudged(name, java.util.Objects.requireNonNull(parsed.reason()));
-        }
-        boolean multiset = !orderedForm
-                || com.legend.compiler.spec.OrderView.of(r.value(), letPrefix) != com.legend.compiler.spec.OrderView.SORTED;
-        boolean csv = r.grammar() instanceof com.legend.compiler.spec.VerdictQueries.RenderGrammar.Csv;
-        return goldenIsExpected
-                ? DatabaseJudge.databaseVerdict(name, wantEqual, parsed.literal(), r.value(), letPrefix, specs,
-                        env, hook, multiset, false, csv, true)
-                : DatabaseJudge.databaseVerdict(name, wantEqual, r.value(), parsed.literal(), letPrefix, specs,
-                        env, hook, multiset, false, csv, true);
+                ? com.legend.lowering.VerdictSql.textEquals(text, rendered) : null, env);
     }
 
     /** GENERIC FIRST (2026-11-04, the core program: every assert on its own merit generically): a rendered text's
-     *  equality is its two strings' ({@code textRow}, the database computing the render); the edge's style plans
-     *  {@code rows} -- the ruled line and row comparison (S131, S132) -- where they differ ({@link RenderedTextRule}). */
+     *  equality is its two strings' ({@code textRow}, the database computing the render). The ruled line and row
+     *  comparison where they differ (S131, S132) was the edge's style's here until A4 of the compatibility program
+     *  (stage A ratified by the user 2026-11-19): the database judge plans for the product alone (rule 4 of the rules of
+     *  record), and that comparison is the host judge's at the edge ({@code edge.UpstreamRenderedTexts}). */
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
-            BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
-        // the style decides (census C1, the orchestrator's ruling of 2026-11-17), never the rules
-        if (!env.options().style().twoForm(RenderedTextRule.class, LiteRenderedTextRule.STRINGS).ruledWhereTheyDiffer()) {
-            // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings are the
-            // verdict; the ruled row comparison is the edge's alone
-            return textRow == null
-                    ? DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String")
-                    : DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
-        }
-        if (!wantEqual || textRow == null) {
-            return rows.get();
-        }
-        com.legend.testplan.VerdictBatch batch = env.verdictBatch();
-        if (batch != null && batch.active()) {
-            batch.defer(name, true, textRow, env.target());
-            batch.orElse(rows::get);
-            return ok();
-        }
-        throw new IllegalStateException(name + ": a ruled rendered-text comparison is planned on its body's verdict"
-                + " batch (I2, 2026-11-07: the walk's unbatched road deleted)");
+            BodyDriver.ExecEnv env) {
+        // the two strings are the verdict (the user, 2026-11-05: after a verdict the harness may only explain)
+        return textRow == null
+                ? DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String")
+                : DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
     }
 
     /** The RENDERED-TEXT form of a side, or null: toCSV → CSVTEXT,

@@ -127,29 +127,9 @@ public final class PureText {
                 // legend-pure's words of a failed assert, the database judge's (census J29; C1's FailureWords before)
                 return kind.cast(UpstreamVerdictWords.INSTANCE);
             }
-            if (kind == com.legend.compiler.spec.GoldenNullWord.class) {
-                // legend-engine's TDSNull read as a golden's null cell (census C1)
-                return kind.cast(UpstreamGoldenNullWord.INSTANCE);
-            }
-            if (kind == com.legend.testplan.DateLiteralTexts.class) {
-                // a date literal's message text as legend-pure writes it (census C1)
-                return kind.cast(UpstreamDateLiteralTexts.INSTANCE);
-            }
-            if (kind == com.legend.testplan.RenderedTextRule.class) {
-                // upstream's ruled rendered-text comparison where the strings differ (S131, S132; census C1)
-                return kind.cast(UpstreamRenderedTextRule.INSTANCE);
-            }
             if (kind == com.legend.planner.ExecutedValues.class) {
                 // legend-engine's json-builder envelope around a serialized root's text (train 17 item 2)
                 return kind.cast(EngineExecutedValues.INSTANCE);
-            }
-            if (kind == com.legend.lowering.VerdictNumbers.class) {
-                // compiled legend-pure's Float and Decimal equality, the database judge's (S15/S132, S139; train 17)
-                return kind.cast(CompiledPureVerdictNumbers.INSTANCE);
-            }
-            if (kind == com.legend.testplan.CrossKindNumbers.class) {
-                // compiled legend-pure's number equality across kinds (S127; census C1)
-                return kind.cast(CompiledPureNumbers.INSTANCE);
             }
             if (kind == com.legend.testdatagen.TestDataPlanner.Printing.class) {
                 // a test-data generator's timestamp text as legend-engine's test-data CSV writes it (L9; census C1)
@@ -159,10 +139,6 @@ public final class PureText {
             if (kind == com.legend.compiler.spec.RelationCounting.class) {
                 // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (S137; census C1)
                 return kind.cast(UpstreamRelationCounting.INSTANCE);
-            }
-            if (kind == com.legend.testexecutionplan.JsonGrammar.class) {
-                // upstream's JSON grammar (register S144; census C1, 2026-11-17)
-                return kind.cast(JsonSimpleGrammar.INSTANCE);
             }
             if (kind == com.legend.planner.ActivityTexts.class) {
                 // legend-engine's text, as its activity records the SQL it generated: its upstream plan facet's (J40.PlanStyle,

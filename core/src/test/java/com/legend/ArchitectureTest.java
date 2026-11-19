@@ -1385,9 +1385,10 @@ final class ArchitectureTest {
             "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
                     + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
-            // (VerdictWords$Reads#CANONS until 2026-11-18: the enum left the two-form kind for its own type, the GUARD
-            // stream's re-cut on train 15 1931d419b1 -- PlanStyleSurfaceTest's criterion (a); the same member, renamed)
-            "lowering.VerdictReads#CANONS", "com.legend.edge.UpstreamVerdictWords",
+            // (VerdictWords$Reads#CANONS until 2026-11-18, then VerdictReads#CANONS -- the enum left the two-form kind for
+            // its own type, the GUARD stream's re-cut on train 15 1931d419b1 -- deleted with legend-pure's canon reading
+            // in A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge reads no
+            // compatibility audience's canons, the host judge being the only judge in compatibility)
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words (its
             // PlanStyle parameter 2026-11-15, phase D's D1.0, merged with main's #101 in ca5c4338f9; dated 2026-11-17 by
             // the GUARD stream's C.13-CI, which found the row changed with no note)

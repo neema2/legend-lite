@@ -29,36 +29,21 @@ import java.util.List;
      *  the product answers in its own canonical form and the edge in upstream's. A closed list, each kind added with its
      *  family and its dated reason: a DateTime's text in a message (census B9, 2026-11-17: {@code lowering.DateTimeTexts},
      *  lite's DATETIME_TO_TEXT in the product, legend-pure's print form at the edge). */
+    // A4 of the compatibility program (stage A ratified by the user 2026-11-19; rule 4 of the rules of record: the host
+    // judge is the only judge in compatibility): six kinds left the list with the database judge's compatibility arms --
+    // JsonGrammar's planning read, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts, GoldenNullWord
     public static final List<Class<?>> TWO_FORMS = List.of(com.legend.lowering.DateTimeTexts.class,
             // a list's text (F's B8, 2026-11-17: TEXT_FORMS left the MIR): the product's JSON array, the edge's [a, b]
             com.legend.lowering.ListTexts.class,
-            // a judge's JSON grammar (census C1, the orchestrator's ruling of 2026-11-17, register S144): the product's
-            // strict JSON, the edge's upstream json-simple 1.1.1
-            com.legend.testexecutionplan.JsonGrammar.class,
             // how a test counts a relation passed to assertSize/assertEmpty/assertNotEmpty (census C1, 2026-11-17,
             // register S137): the product refuses it, the edge counts it as one value
             com.legend.compiler.spec.RelationCounting.class,
             // a test-data generator's timestamp text (census C1, 2026-11-17, L9): the product's clean form, the
             // edge's legend-engine test-data CSV
             com.legend.testdatagen.TestDataPlanner.Printing.class,
-            // two numbers of different kinds at planning (census C1, 2026-11-17, register S127): never equal in the
-            // product, compiled legend-pure's Integer/Decimal-by-text at the edge
-            CrossKindNumbers.class,
-            // how the database judge compares two Floats or two Decimals (train 17, the orchestrator's item 4 of
-            // 2026-11-18, registers S15/S132, S139): lite's exact rule in the product, compiled legend-pure's at the edge
-            com.legend.lowering.VerdictNumbers.class,
             // the string entry's value of a serialized root (train 17 item 2, the orchestrator's ruling of 2026-11-18):
             // the product refuses it by name, the edge writes legend-engine's json-builder envelope
             com.legend.planner.ExecutedValues.class,
-            // how the database judge plans a rendered text's equality (census C1, 2026-11-17, registers S131, S132):
-            // the product's two strings, the edge's ruled comparison where they differ
-            RenderedTextRule.class,
-            // a date literal's text in the database judge's failure message (census C1, 2026-11-17): lite's own, the
-            // edge's legend-pure toRepresentation
-            DateLiteralTexts.class,
-            // the word a rendered golden writes for a null cell (census C1, 2026-11-17): none in the product (lite
-            // writes it empty), legend-engine's TDSNull at the edge
-            com.legend.compiler.spec.GoldenNullWord.class,
             // an execute's routing activity (J5 of the edge audit, 2026-11-17): the product records none, the edge
             // legend-engine's AggregationAwareActivity, the routed query's print
             com.legend.planner.RoutedQueries.class,

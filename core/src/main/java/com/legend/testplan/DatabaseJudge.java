@@ -164,7 +164,7 @@ public final class DatabaseJudge {
                     // both spelled in the expected's kinds where the columns' kinds differ (the grid owner's rule)
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
                             gridSide(wa.plan(), gridPairArm && sameNames(se, sa) ? se : sa, csvStrings),
-                            canonicalOrder, verdictNumbers(env), words(env));
+                            canonicalOrder, words(env));
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
@@ -201,7 +201,7 @@ public final class DatabaseJudge {
                     com.legend.sql.SqlQuery gq = cellPool
                             ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE, words(env))
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
-                                    canonicalOrder, words(env), verdictNumbers(env));
+                                    canonicalOrder, words(env));
                     return runVerdict(name, wantEqual, message.apply(gq),
                             env.withTarget(gw.storeFree() ? pw.target() : gw.target()));
                 }
@@ -230,10 +230,9 @@ public final class DatabaseJudge {
         // each side WRITTEN in the failure message as upstream writes it (VerdictSql.Message: toRepresentation, Pure's
         // sort for assertSameElements' cell pool), where its elements are of one known primitive kind (2026-11-04, the
         // assert bar: the message read the canons, Strings unquoted and assertSameElements in canon-text order)
-        boolean lite = lite(env);
         com.legend.lowering.VerdictSql.Message me = written(re, ie, cellPool, java.util.Objects.requireNonNull(we).plan(), eSpec, env);
         com.legend.lowering.VerdictSql.Message ma = written(ra, ia, cellPool, java.util.Objects.requireNonNull(wa).plan(), aSpec, env);
-        if (lite && me != null && ma != null && !me.canon() && !ma.canon()) {
+        if (me != null && ma != null && !me.canon() && !ma.canon()) {
             // each side's kind, for lite's sentence where the two texts tie; two DateTime literals each with its
             // written precision (the orchestrator's ruling, 2026-11-17)
             String ek = com.legend.lowering.VerdictSql.kindText(re.kinds().get(ie));
@@ -251,46 +250,21 @@ public final class DatabaseJudge {
                         java.util.Objects.requireNonNull(we).plan(), "__canon" + ie,
                         re.many(), canonicalOrder,
                         re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.FLOAT, me,
-                        verdictNumbers(env).decimalByValue(re.kinds().get(ie))),
+                        com.legend.lowering.VerdictSql.decimalByValue(re.kinds().get(ie))),
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
                         ra.many(), canonicalOrder,
                         ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma,
-                        verdictNumbers(env).decimalByValue(ra.kinds().get(ia))),
-                verdictNumbers(env));
-        // two single Strings compared by their raw text (no literal channel, whose canon is quoted already): the
-        // message prints them as upstream's %r prints a String, quoted and escaped (2026-11-03, round 18: a TDS's
-        // toString against its golden read unquoted under the database judge alone on Postgres, MariaDB, MySQL and
-        // ClickHouse -- the host quotes it)
-        boolean rawStrings = !lite && ie != re.literalIndex() && ia != ra.literalIndex() && !re.many() && !ra.many()
-                && re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.STRING
-                && ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.STRING;
-        String expectedClass = rawStrings || !wantEqual || lite ? null : instancesMessage(eSpec, aSpec);
-        if (expectedClass != null) {
-            // two class sides the database serializes as their objects: the failure message spells them as the host
-            // judge prints instances, <values instanceOf Type> (2026-11-04, the core program)
-            com.legend.sql.SqlQuery reprE = instancesRepr(we.plan(), eSpec, re.many(), expectedClass);
-            com.legend.sql.SqlQuery reprA = instancesRepr(wa.plan(), aSpec, ra.many(),
-                    java.util.Objects.requireNonNull(classOf(aSpec)));
-            if (reprE != null && reprA != null) {
-                vq = com.legend.lowering.VerdictSql.messageAsInstances(vq,
-                        com.legend.lowering.VerdictSql.firstValueRow(reprE),
-                        com.legend.lowering.VerdictSql.firstValueRow(reprA), words(env));
-            }
-        }
-        // two single numbers of different kinds (register S127, the user's ruling of 2026-11-04): never equal in lite's
-        // own runs -- decided false at planning, the rows read for the message; in backwards-compatibility mode compiled
-        // legend-pure's rule, an Integer and a Decimal compared by their texts (the canon's) and a Float equal to neither
-        if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia), numbers(env))) {
+                        com.legend.lowering.VerdictSql.decimalByValue(ra.kinds().get(ia))));
+        // (legend-pure's readings of the canons -- two raw Strings quoted as %r, two class sides as their instances, a
+        // Decimal's D -- left with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database
+        // judge plans for the product alone, its words lite's)
+        // two single numbers of different kinds (register S127, the user's ruling of 2026-11-04): never equal -- decided
+        // false at planning, the rows read for the message
+        if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia))) {
             vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
         }
-        // a single Decimal's text as upstream's %r writes it, its D (the canon the comparison reads drops it)
-        if (!lite) {
-            vq = com.legend.lowering.VerdictSql.messageWithDecimals(vq, !re.many() && decimal(re.kinds().get(ie)),
-                    !ra.many() && decimal(ra.kinds().get(ia)));
-        }
-        return runVerdict(name, wantEqual, rawStrings ? com.legend.lowering.VerdictSql.messageAsStrings(vq)
-                : message.apply(vq), runOn);
+        return runVerdict(name, wantEqual, message.apply(vq), runOn);
     }
 
     /** How a side's canon {@code i} is written in the failure message: its typed kind's (a literal channel's kind is
@@ -299,12 +273,10 @@ public final class DatabaseJudge {
             com.legend.lowering.CanonRider r, int i, boolean sorted, com.legend.sql.SqlQuery plan, TypedSpec side,
             BodyDriver.ExecEnv env) {
         com.legend.lowering.Styled styled = env.plan().styled();
-        // a date literal's text the style's (census C1, 2026-11-17): lite's own, or legend-pure's at the edge
-        com.legend.lowering.VerdictSql.Message m = written(r, i, sorted, plan, side, styled,
-                env.options().style().twoForm(DateLiteralTexts.class, LiteDateLiteralTexts.LITE));
-        if (!lite(env)) {
-            return m;
-        }
+        // a date literal's text is lite's own (A4 of the compatibility program, stage A ratified by the user
+        // 2026-11-19: the database judge plans for the product alone, rule 4; legend-pure's form, the two-form kind
+        // DateLiteralTexts, left with it)
+        com.legend.lowering.VerdictSql.Message m = written(r, i, sorted, plan, side, styled);
         if (m == null) {
             // no one primitive kind (a mixed-kind collection, a literal channel, an instance carried as its JSON):
             // each element from its canon's mark, an instance's class-prefixed
@@ -327,25 +299,22 @@ public final class DatabaseJudge {
                 t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano() / 1000);
     }
 
-    /** The database judge's words of a failure, the style's two-form kind (census J29, 2026-11-18): lite's sentences, or
-     *  the edge's legend-pure words; {@link #lite}: whether they read each side WRITTEN (lite's), else the canons. */
+    /** The words of a failure planned under the plan's style, the style's two-form kind (census J29, 2026-11-18):
+     *  lite's sentences, or the edge's legend-pure words where the HOST judge's planner words a decided verdict. The
+     *  database judge plans for the product alone, so its words are lite's (A4 of the compatibility program, stage A
+     *  ratified by the user 2026-11-19: their canon reading, VerdictReads.CANONS, left with legend-pure's). */
     static com.legend.lowering.VerdictWords words(BodyDriver.ExecEnv env) {
         return env.options().style().twoForm(com.legend.lowering.VerdictWords.class, com.legend.lowering.LiteVerdictWords.INSTANCE);
     }
 
-    static boolean lite(BodyDriver.ExecEnv env) {
-        return words(env).reads() == com.legend.lowering.VerdictReads.WRITTEN;
-    }
-
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
             com.legend.lowering.CanonRider r, int i, boolean sorted, com.legend.sql.SqlQuery plan, TypedSpec side,
-            com.legend.lowering.Styled styled, DateLiteralTexts dates) {
+            com.legend.lowering.Styled styled) {
         com.legend.compiler.element.type.Type kind = r.kinds().get(i);
         if (side instanceof com.legend.compiler.spec.typed.TypedCDate d) {
-            // a date LITERAL: its text spelled once at planning, the style's (DateLiteralTexts: lite's own, or
-            // upstream's toRepresentation at the edge) -- the database carries the literal's precision in no value it
-            // could print (2026-11-05, the user: "clean datetime for the clean plan")
-            return com.legend.lowering.VerdictSql.Message.literal(kind, dates.text(d.value()), styled);
+            // a date LITERAL: its text spelled once at planning, lite's own -- the database carries the literal's
+            // precision in no value it could print (2026-11-05, the user: "clean datetime for the clean plan")
+            return com.legend.lowering.VerdictSql.Message.literal(kind, liteDate(d.value()), styled);
         }
         if (kind instanceof com.legend.compiler.element.type.Type.GenericType g && !com.legend.compiler.element.type
                 .Type.isRelation(g) && plan instanceof com.legend.sql.SqlSelect ps
@@ -357,23 +326,16 @@ public final class DatabaseJudge {
                 ? com.legend.lowering.VerdictSql.Message.of(kind, sorted, styled) : null;
     }
 
-    /** Whether {@code e} and {@code a} are two numbers of different known kinds that are never equal (S127): any such
-     *  pair in lite's own runs; in backwards-compatibility mode all but an Integer and a Decimal, which compiled
-     *  legend-pure compares by text. An unrefined Number is no known kind. */
+    /** Whether {@code e} and {@code a} are two numbers of different known kinds, never equal (S127's lite side). An
+     *  unrefined Number is no known kind. (Compiled legend-pure's Integer-and-Decimal-by-text, the two-form kind
+     *  CrossKindNumbers, left the database judge with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge plans for the product alone, rule 4 of the rules of record.) */
     private static boolean crossNumberKinds(com.legend.compiler.element.type.Type e,
-            com.legend.compiler.element.type.Type a, CrossKindNumbers numbers) {
+            com.legend.compiler.element.type.Type a) {
         com.legend.compiler.element.type.Type fe = fineNumber(e);
         com.legend.compiler.element.type.Type fa = fineNumber(a);
-        return fe != null && fa != null && fe != fa && !numbers.byText(fe, fa);
+        return fe != null && fa != null && fe != fa;
     }
 
-    /** How the plan's style compares two Floats or two Decimals (train 17, 2026-11-18: the plan's rules' data before). */
-    private static com.legend.lowering.VerdictNumbers verdictNumbers(BodyDriver.ExecEnv env) { return env.options().style().twoForm(com.legend.lowering.VerdictNumbers.class, com.legend.lowering.LiteVerdictNumbers.EXACT); }
-
-    /** How the plan's style compares two numbers of different fine kinds (register S127; census C1, 2026-11-17). */
-    private static CrossKindNumbers numbers(BodyDriver.ExecEnv env) {
-        return env.options().style().twoForm(CrossKindNumbers.class, LiteCrossKindNumbers.NEVER);
-    }
 
     /** {@code kind}'s fine number kind -- Integer, Float, Decimal (a declared precision one's too) -- or null. */
     private static com.legend.compiler.element.type.@com.legend.base.Nullable Type fineNumber(
@@ -389,22 +351,6 @@ public final class DatabaseJudge {
     private static boolean decimal(com.legend.compiler.element.type.Type kind) {
         return kind == com.legend.compiler.element.type.Type.Primitive.DECIMAL
                 || kind instanceof com.legend.compiler.element.type.Type.PrecisionDecimal;
-    }
-
-    /** The declared class of {@code e} when both {@code e} and {@code a} are class-typed (the expected side's, as the host
-     *  judge names each side by its own declared type): the instance message's case; null otherwise. */
-    private static @com.legend.base.Nullable String instancesMessage(TypedSpec e, TypedSpec a) {
-        String ce = classOf(e);
-        return ce != null && classOf(a) != null ? ce : null;
-    }
-
-    /** {@code side}'s instances written for the failure message: one instance of a GENERIC class (a Pair) from its
-     *  struct's fields (VerdictSql.genericInstanceRepr), every other the planned objects' own representation. */
-    private static com.legend.sql.@com.legend.base.Nullable SqlQuery instancesRepr(com.legend.sql.SqlQuery plan,
-            TypedSpec side, boolean many, String classFqn) {
-        return !many && side.info().type() instanceof com.legend.compiler.element.type.Type.GenericType
-                ? com.legend.lowering.VerdictSql.genericInstanceRepr(plan, classFqn)
-                : com.legend.lowering.VerdictSql.instancesRepr(plan, classFqn);
     }
 
     private static @com.legend.base.Nullable String classOf(TypedSpec s) {
@@ -586,7 +532,7 @@ public final class DatabaseJudge {
         com.legend.lowering.CanonRider r = side.rider();
         com.legend.lowering.VerdictSql.Message listed = r == null || r.declined() != null || r.tdsWrapped()
                 || r.kinds().isEmpty() ? null : java.util.Optional.ofNullable(com.legend.lowering.VerdictSql.Message.listed(
-                        r.kinds().get(0), env.plan().styled())).map(m -> m.withLite(lite(env))).orElse(null);
+                        r.kinds().get(0), env.plan().styled())).map(m -> m.withLite(true)).orElse(null);
         com.legend.sql.SqlQuery vq = sw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.emptyOfGraph(sw.plan(), wantEmpty)
                 : listed != null ? com.legend.lowering.VerdictSql.empty(com.legend.lowering.VerdictSql.writtenRows(
@@ -945,11 +891,9 @@ public final class DatabaseJudge {
             }
             com.legend.compiler.element.type.Type ek = expected.type();
             com.legend.compiler.element.type.Type ak = actual.type();
-            com.legend.lowering.VerdictNumbers rules = verdictNumbers(env);
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
-                    crossNumberKinds(ek, ak, numbers(env)),
-                    ek == com.legend.compiler.element.type.Type.Primitive.FLOAT && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT ? rules : com.legend.lowering.LiteVerdictNumbers.EXACT,
-                    rules.decimalByValue(ek), words(env), env.plan().styled());
+                    crossNumberKinds(ek, ak), com.legend.lowering.VerdictSql.decimalByValue(ek), words(env),
+                    env.plan().styled());
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
                         + ak.typeName() + ")");
@@ -969,8 +913,8 @@ public final class DatabaseJudge {
             if (AssertVerdicts.elementTyped(args.get(0), specs) && AssertVerdicts.elementTyped(args.get(1), specs)) {
                 TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
                         specs.ctx(), args.get(0), args.get(1));
-                return databaseCondition(name, cond, true, letPrefix, specs, env, hook, lite(env)
-                        ? com.legend.lowering.VerdictSql.sentence(com.legend.error.AssertSentence.SAME_INSTANCE) : null);
+                return databaseCondition(name, cond, true, letPrefix, specs, env, hook,
+                        com.legend.lowering.VerdictSql.sentence(com.legend.error.AssertSentence.SAME_INSTANCE));
             }
             return unjudged(name, "is: neither an enum pair nor a tracked element pair");
         }
@@ -1071,11 +1015,11 @@ public final class DatabaseJudge {
         if (goldenText == null) {
             return unjudged(name, "json golden is not a literal");
         }
-        // the golden read as the plan's style reads JSON (register S144; census C1, 2026-11-17): the product's strict
-        // form, upstream's json-simple grammar the edge's (JsonGrammar, a two-form kind)
+        // the golden read as strict JSON, the product's (json-simple, register S144, is the host judge's at the edge:
+        // the two-form kind's planning read left with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge plans for the product alone, rule 4 of the rules of record)
         Object goldenRead;
         try {
-            goldenRead = env.options().style().twoForm(JsonGrammar.class, JudgeJson.STRICT).read(goldenText);
+            goldenRead = JudgeJson.STRICT.read(goldenText);
         } catch (IllegalStateException malformed) {
             // the host judge's words for the same golden (com.legend.testexec.HostJudgments.jsonOf): a golden the rules refuse fails the test
             throw new IllegalStateException("golden JSON does not parse: " + malformed.getMessage(), malformed);
