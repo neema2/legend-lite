@@ -1215,3 +1215,27 @@ who confirms or changes phases 1-3.
   @maven_teavm on `fa8294cca`'s linux/product; #121's `httpcore-4.4.13.jar` from @maven_runner), not only `jars.bzl`.
   #124's lanes hit: parser_equivalence, core, stress, corpus_h2, product. Already covered by the CI-health session's
   downloader config (both kinds of fetch); told B1-R.
+- **~13:34 UTC, H13 continued (`session_0195rQEjNZoybxirC5uGba42`): tasks 1 and 2 done** (`538ab17d`, §11-12).
+  - **The whole net now differs nowhere it should not:** channel A outcomes 0 on every lane (was 6 + 6); channel B 0
+    of 1,249 (was 10); pure/v1 0 of 28; channel A answers only the 2 known Relation lines per database (the quoted SQL
+    holds the site token; rows the same). Raises worded after the run: 26, all exact, 0 withheld.
+  - **The six tests pass** on DuckDB and SQLite, both channels: 33 lines in `lowering/`, none in `sql/` or a dialect,
+    no hook, no value read at run, no cast inspected. `sqrt`: the raise gets the argument as lowered, not the rule's
+    own cast. Date parts: a date literal's text as written, from the same typed date node the rule already reads.
+    `at`: the size as a literal where the typed multiplicity is exactly [k] (reading an annotation, invariant 2's
+    MAY), else the length. The formatter prints the date as legend-pure's `DateFormat.append` does (read at the pin).
+    One side effect toward legend-pure, outside PCT: `%2017-01-01T10:30->second()`'s message now prints
+    '2017-01-01T10:30+0000' (main: the database's '2017-01-01 10:30:00').
+  - **Not covered:** SIZE_NOT_MULTIPLICITY's size is built by the dialect (`AnsiSqlRenderer.checkedOne` from
+    `CheckedOne`, no typed spec); stating it needs a MIR field (12 core edge tests, no PCT test). Open for the real
+    slice: a typed `Operand.Date` (a MIR date literal, or typed operands on `RaiseText`).
+  - **The database judge's 4 tests:** +15/-4 lines in two product files, no hook, no new member (`DatabaseAsserts`
+    binds the planned failure's message instead of planting it; `TestRun.raisingVerdict` raises it at the verdict's
+    turn, as `AssertErrorRuns` does). All 4 pass under both judges. Need not wait for the judges' 2.2a; checked against
+    H10's `Hearing.caughtMessage`: the same shapes.
+  - **So B1's prototype now holds every pinned message on every lane of the net.**
+- **~13:34 UTC, the product orchestrator's register numbers, corrected:** S371 (#121, Integer over DECIMAL), S372 (the
+  warehouse's file-load refusal, proposed, pending the user), S378 (`currentUser` 405, renumbered in `91f8505c`), S379
+  (the pivot count, "Pure's null, by the user's 13:25 ruling"); S373-S377 unused. **Asked (13:50):** the user's 13:25
+  ruling here named the goal, D1 and D2, not the pivot count; if S379 is derived from the goal, it still goes to the
+  user case by case.
