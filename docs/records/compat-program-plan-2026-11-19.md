@@ -829,7 +829,11 @@ words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to
       upstream's defect: a register row (0.5);
     - `testToSqlGenerationFirstDayOfWeek`: lite answers Monday on DuckDB (Pure's `firstDayOfWeek`, legend-engine
       `dateExtension.pure:202`) and Sunday on H2. That is a lite parity bug (G2), handed to the product owner;
-  - no test moved from fail to pass; the runtime was 10.5 minutes for both lanes.
+  - no test moved from fail to pass; the runtime was 10.5 minutes for both lanes;
+  - the record: `docs/records/census-b2-sqltext-probe-2026-11-19.md` on `claude/census-b2` at `32ef19118`;
+  - **its limit, still to count in 0.4 (e):** the 143 were measured with the rows appeal still running. 2.3 deletes
+    the appeal stack, so the tests that pass today THROUGH a successful appeal also become "not promised". That
+    number is added before 2.3 lands.
 - **The question:** legend-engine's own suite calls `toSQLString` 588 times in 64 files (H1); its test-data
   generator's `sqls` are pinned by 45 asserts (S193); its answers carry SQL in `activities` and `sqlQuery`.
 - **Option A, never promised (recommended).**
