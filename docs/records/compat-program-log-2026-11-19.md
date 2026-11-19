@@ -2103,3 +2103,19 @@ who confirms or changes phases 1-3.
   cost in the body, corrected: not 2 extra copies, since the native `HeldStore` keeps one compiled model per text shared
   by every holder (`HeldStoreTest.builtOncePerKeyWhileHeld`), so up to 2 large models per host stay compiled after
   DataCube's code lets them go; the body names it a product change. #126's new CI run will 404 on H2 until #125 lands.
+- **~17:38 UTC, H14 V2 done** (record §6 at `487f3e40` on `claude/compat-table-text-db-spike`). **A whole Float as
+  `2.0` costs one more REPLACE:** a six-decimal text ends in `.000000` exactly when the value is whole, so it is marked
+  before the trim (`REPLACE(rtrim(REPLACE(REPLACE(t, '-0.000000', '0.000000'), '.000000', '.#'), '0'), '#', '0')`; the
+  value read once, no concatenation). Per Float cell +33 characters (DuckDB 81 → 114; SQLite, H2, Postgres, BigQuery the
+  same), +21 on the standard-trim dialects. **PCT's 423, V1 → V2:** DuckDB 363 → 390 (both judges), SQLite 352 → 379,
+  Postgres 361 → 388, H2 relation 297 → 300. **Float-caused failures left: 0 on all four**; what remains is exactly the
+  33 abstract-Date tests (and each database's own refusals). DuckDB essential gains 2 (`17.0`, `134210000.0`). Probed on
+  eight databases, identical text: `2.0`, `-2.0`, `0.0` (and `-0.0`), `100.0`, `100000000000000000000.0`; `±1e-7` now
+  `0.0` (V1 `0`); NaN and the infinities by name, except SQLite refuses NaN and MySQL/MariaDB all three, as today.
+  **What V2 would move (counted, not moved):** it changes the product's scalar `toString` of a whole Float from `2` to
+  `2.0`, a change to the user's 2026-11-10 ruling (S311): 5 core cases (`FloatTextTest`, `TypeInferenceIntegrationTest`,
+  `AuditRound3Test`, two dialect SQL pins), 3 rows of channel A's lite ledger (2 now pass), channel B's duckdb-lite
+  ledger (relation +4, standard +23 beyond V1's). V1 itself moves 4 core cases from the spike's `toString` change,
+  including `FloatTextTest.anEdgeRelationsTextPrintsAFloatCellAsLegendPure` (the edge style's table text now through the
+  product lowering, `1e-05`): asked H14 to confirm the compatibility routes stay untouched in a real slice. **D1 and D2
+  sent**, PCT only.
