@@ -96,16 +96,24 @@ public final class RootLoops {
             }
         }
 
-        /** The runner's word on one of the segment's fused statements: sent, or rejected -- counted here; the runner
-         *  then fails the body with the database's error, nothing retried another way (P1.2, G7, 2026-11-07). */
+        /** The runner's word on one of the segment's fused statements: sent, or rejected -- counted here, and a
+         *  rejection held as the failure of the first root that reads a row (the host's side batch's rule, 2026-11-19);
+         *  nothing retried another way (P1.2, G7, 2026-11-07). */
         public void fused(com.legend.error.@com.legend.base.Nullable DataError rejected) {
             counted();
             if (rejected == null) {
                 Census.inc(Census.Key.VERDICT_FUSED);
             } else {
                 Census.verdictFallback(rejected, loop.fragments());
+                if (this.rejected == null) {
+                    this.rejected = rejected;
+                }
             }
         }
+
+        /** The database's rejection of one of the segment's fused statements, or null: the first root that reads a row
+         *  raises it at its turn. */
+        private com.legend.error.@com.legend.base.Nullable DataError rejected;
 
         /** The row the runner read for {@code verdict} (null where none: a verdict with no statement); the root loop
          *  reaches an absent row at its place. A verdict of no row of the loop answers none: the segment's carrier where
@@ -238,9 +246,15 @@ public final class RootLoops {
                 // raises, nothing sent
                 throw orElseDecides(p.name(), orElse);
             }
+            com.legend.error.DataError fusedRejected = rejected;
+            if (row == null && fusedRejected != null && p.verdict() != RootLoop.NO_VERDICT) {
+                // the segment's fused statement was rejected: its database error is this root's failure, raised at its
+                // turn as the host's side batch raises it at its first verdict's
+                throw fusedRejected;
+            }
             if (row == null) {
                 // a member the dialect cannot spell, refused at planning: raised at its place, nothing sent; any other
-                // absent row is the runner's defect (a rejected fused statement fails the body before the root loop)
+                // absent row is the runner's defect
                 Failure refusal = p.refusal();
                 if (refusal == null) {
                     throw new IllegalStateException(p.name() + ": the runner answered no row for a verdict of the plan");
