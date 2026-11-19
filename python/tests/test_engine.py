@@ -535,6 +535,24 @@ class QueryRunRoute(Served):
         self.assertEqual((status, said['kind'], 'raise' in said, 'where' in said), (422, 'data', False, False),
                          body[:300])
 
+    def test_a_lost_connection_is_internal_and_a_users_fail_is_data_with_no_raise(self):
+        # Q9's other two mappings at the route (the review of PR #121, 2026-11-19, F5), as Java's LiteV1Api.dataRefusal:
+        # a connection that could not be opened or was lost is the environment, 500 internal (Java's CONNECTION_ERROR)
+        import duckdb
+        with mock.patch('legend_lite.engine.run_plan', side_effect=duckdb.ConnectionException(
+                'Connection Error: Connection already closed!')):
+            status, _, body = self.ask(model=PARTY, query=ll.parse(PARTY_QUERY), runtime='demo::party::Runtime',
+                                       format='json')
+        said = json.loads(body)
+        self.assertEqual((status, said['kind'], 'raise' in said), (500, 'internal', False), body[:300])
+        self.assertIn('Connection already closed', said['message'])
+        # a user's fail raises its own message, never a site's token (RaiseSite refuses USER_FAIL): no kind and no
+        # site, so 422 data with no raise and no where -- Java's DataError of no kind (LiteDataRefusalTest)
+        query = ll.parse("|fail('no such party')")
+        status, _, body = self.ask(model=PARTY, query=query, runtime='demo::party::Runtime', format='json')
+        said = json.loads(body)
+        self.assertEqual((status, said, ), (422, {'kind': 'data', 'message': 'no such party'}), body[:300])
+
     def test_a_value_over_a_projects_rows_is_answered(self):
         # a VALUE (a property read alone) over a project's own rows, its one column the plan's 'value' (the PR #118
         # follow-up, 2026-11-19, N-b: until then every one answered 500, the result column untyped by its alias)
