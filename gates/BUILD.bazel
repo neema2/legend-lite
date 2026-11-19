@@ -227,13 +227,22 @@ test_suite(
 # the relational corpus on DuckDB (gates 4 and 11): the host and database passes, their verdict, the roster diff tests
 test_suite(
     name = "corpus_duckdb",
-    tests = ["//spec:corpus_duckdb"],
+    tests = [
+        "//spec:corpus_duckdb",
+        # the edge golden net's DuckDB corpus ledgers, beside the host pass they read (2026-11-19, the compatibility
+        # program's slice 0.2: out of //gates:edge_net, whose critical path that pass was)
+        "//spec:update_edge_corpus_duckdb_tests",
+    ],
 )
 
 # the relational corpus on H2 (gate 5)
 test_suite(
     name = "corpus_h2",
-    tests = ["//spec:corpus_h2"],
+    tests = [
+        "//spec:corpus_h2",
+        # the edge golden net's H2 corpus ledgers, beside the host pass they read (2026-11-19, slice 0.2)
+        "//spec:update_edge_corpus_h2_tests",
+    ],
 )
 
 # PCT on DuckDB (gate 6): the five suites, one target each (P3-09)
@@ -406,9 +415,10 @@ test_suite(
 )
 
 # THE EDGE GOLDEN NET (the compatibility program's slice 0.2, CP-9 RULED by the user 2026-11-19: "per-push
-# compatibility checks"): every edge recording in-process on DuckDB, H2 and SQLite (PCT channels A and B, the
-# corpus's verdict ledger, pure/v1, the missing cases) diffed against its golden, and the net's planted-change proof;
-# a lane of its own, in parallel with the others (docs/records/compat-program-plan-2026-11-19.md, slice 0.2)
+# compatibility checks"): every edge recording in-process on DuckDB, H2 and SQLite (PCT channels A and B, pure/v1, the
+# missing cases) diffed against its golden, and the net's planted-change proof; a lane of its own, in parallel with the
+# others (docs/records/compat-program-plan-2026-11-19.md, slice 0.2). The corpus's ledgers, the net's fourth part, run
+# in corpus_duckdb and corpus_h2 beside the host passes they read (the owner's call, 2026-11-19)
 test_suite(
     name = "edge_net",
     tests = ["//pct:edge_net"],

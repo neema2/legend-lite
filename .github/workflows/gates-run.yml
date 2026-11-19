@@ -61,7 +61,7 @@ jobs:
             {"key":"pct_h2",             "cmd":"test",  "name":"PCT on H2"},
             {"key":"pct_postgres",       "cmd":"test",  "name":"PCT on Postgres 16"},
             {"key":"pct_channel_b",      "cmd":"test",  "name":"PCT Channel B, the dual verdict"},
-            {"key":"edge_net",           "cmd":"test",  "name":"the edge golden net: PCT, the corpus and pure/v1 against their goldens"},
+            {"key":"edge_net",           "cmd":"test",  "name":"the edge golden net: PCT and pure/v1 against their goldens"},
             {"key":"parser_equivalence", "cmd":"test",  "name":"parser equivalence"},
             {"key":"stress",             "cmd":"test",  "name":"the stress corpus"},
             {"key":"warehouse",          "cmd":"test",  "name":"the warehouse (on the JVM, as a native image, its launcher, live Postgres) and the legend-lite compiler as a native library"},

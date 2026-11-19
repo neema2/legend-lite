@@ -931,7 +931,8 @@ test_suite(
     name = "edge_contract_test",
     tests = [
         ":update_edge_contract_tests",
-        "//spec:update_edge_corpus_tests",
+        "//spec:update_edge_corpus_duckdb_tests",
+        "//spec:update_edge_corpus_h2_tests",
         "//core:update_edge_pure_v1_tests",
         # the missing cases and the net's own proof (S0 of the presentation program, 2026-11-18): the recorder's half
         # here, the normalizer's in //tools/guards (the review of PR #123, 2026-11-19)
@@ -941,10 +942,19 @@ test_suite(
     ],
 )
 
-# THE EDGE NET (S0 of the presentation program, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
-# §4 (d)): every recording above, in-process on DuckDB, H2 and SQLite, and the net's proof. It runs on every push, a
-# lane of its own (//gates:edge_net; the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19).
+# THE EDGE NET PER PUSH (S0 of the presentation program, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
+# §4 (d); a lane of its own, //gates:edge_net, the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19):
+# every recording above, in-process on DuckDB, H2 and SQLite, and the net's proof -- all of edge_contract_test but the
+# corpus ledgers' four diff tests, which run in the corpus lanes beside the host passes they read (the owner's call on
+# the per-push cost, 2026-11-19: the DuckDB pass was the net's whole critical path). edge_contract_test stays the
+# whole net, for a hand run.
 test_suite(
     name = "edge_net",
-    tests = [":edge_contract_test"],
+    tests = [
+        ":update_edge_contract_tests",
+        "//core:update_edge_pure_v1_tests",
+        "//core:update_edge_cases_tests",
+        ":pct_edge_net_planted_test",
+        "//tools/guards:edge_normalize_test",
+    ],
 )

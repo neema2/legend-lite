@@ -733,16 +733,24 @@ guards_package()
 # THE EDGE GOLDEN NET's corpora (the edge program's Phase 0, 2026-11-16; pct/BUILD.bazel's edge_contract_test): each
 # corpus lane's per-test outcomes (with each failure's message) and per-assert verdict ledger, for both judges, diffed
 # against goldens recorded at PR1's frozen head 26717de291. A ruled move re-records them (bazel run
-# //spec:update_edge_corpus, citing the ruling).
-write_source_files(
-    name = "update_edge_corpus",
+# //spec:update_edge_corpus, citing the ruling). One updater per lane (the compatibility program's slice 0.2,
+# 2026-11-19, the owner's call on the per-push cost): each lane's two diff tests run in that corpus lane, which builds
+# the same host pass (//gates:corpus_duckdb, //gates:corpus_h2), and not in //gates:edge_net, whose critical path the
+# DuckDB pass was (609 s of 690 s, measured); the umbrella below still re-records both.
+[write_source_files(
+    name = "update_edge_corpus_" + lane,
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA corpus answer moved at the edge (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); a regression unless it is a ruled move -- then bazel run //spec:update_edge_corpus, citing the ruling",
     files = {
         "src/test/resources/edge/corpus_%s_%s_%s" % (lane, judge, f): ":judge_%s_%s/%s" % (judge, lane, f)
-        for lane in ["duckdb", "h2"]
         for judge in ["host"]
         for f in ["outcomes.tsv", "judge-%s.tsv" % judge]
     },
-    visibility = ["//pct:__pkg__"],
+    visibility = ["//gates:__pkg__", "//pct:__pkg__"],
+) for lane in ["duckdb", "h2"]]
+
+write_source_files(
+    name = "update_edge_corpus",
+    testonly = True,
+    additional_update_targets = [":update_edge_corpus_duckdb", ":update_edge_corpus_h2"],
 )
