@@ -1,0 +1,528 @@
+From 2a05b904bc048a94993cd30ca98349f3f3f774c4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 19:14:20 +0000
+Subject: [PATCH] A3 of the compatibility program, piece 1: the islands and the
+ ###Relational dynaFunctions say SQL's SUBSTRING and POSITION by name
+
+Two lite-internal natives, meta::legend::lite::sqlSubstring (a 1-based start and a length) and sqlPosition (1-based,
+0 on a miss), each the database's function verbatim -- the same SqlFn.SUBSTRING and STRPOS calls the plain substring
+and String indexOf rules emit today -- and the 47 call heads of the #Cypher, #SQL and #IQ islands (CypherToPure 21,
+PostgresFunctions 10, IqFunctions 14, IqAggregates 2) and the 3 dynaFunction sites (RelOpTranslator: indexOf,
+substring, position) retargeted to them. Pure's own substring and indexOf are then free to take Pure's meaning (A3's
+second piece). The islands name the natives by their text (SqlToPure.SQL_SUBSTRING, SQL_POSITION: the protocol layer
+cannot import the catalog, as quotient). native-claims.tsv regenerated (bazel run //core:update_generated).
+
+Guard moves NOT made here, pending the user's word in this session: NativeCatalogGovernanceTest's INTERNAL_DESUGAR
+ceiling (38 -> 40) and the frontends' text goldens.
+
+Shape: docs/records/compat-homework/A3-shape-note.md (claude/compat-translator-spike), option (a).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0195rQEn5jsUCYS6QSWLrxgF
+---
+ .../main/java/com/legend/builtin/Pure.java    | 19 +++++++++-
+ .../java/com/legend/lowering/Scalars.java     | 10 ++++++
+ .../legend/normalizer/RelOpTranslator.java    | 13 ++++---
+ .../legend/protocol/cypher/CypherToPure.java  | 36 +++++++++----------
+ .../protocol/sql/PostgresFunctions.java       | 20 +++++------
+ .../com/legend/protocol/sql/SqlToPure.java    | 10 ++++++
+ .../legend/protocol/sql/iq/IqAggregates.java  |  2 +-
+ .../legend/protocol/sql/iq/IqFunctions.java   | 26 +++++++-------
+ .../com/legend/builtin/native-claims.tsv      |  3 ++
+ 9 files changed, 92 insertions(+), 47 deletions(-)
+
+diff --git a/core/src/main/java/com/legend/builtin/Pure.java b/core/src/main/java/com/legend/builtin/Pure.java
+index 83133881..51605648 100644
+--- a/core/src/main/java/com/legend/builtin/Pure.java
++++ b/core/src/main/java/com/legend/builtin/Pure.java
+@@ -446,6 +446,17 @@ public final class Pure {
+          *  multiplied that into statements of megabytes. Emitted by the SQL islands only, where both operands are
+          *  integers and the divisor's zero is tested before. */
+         public static final String QUOTIENT = PKG + "quotient";
++        /** SQL's SUBSTRING, by name (A3 of the compatibility program, 2026-11-19): {@code sqlSubstring(s, start[,
++         *  length])} is the database's SUBSTRING verbatim -- a 1-based start and a length, the meaning lite's SQL,
++         *  Cypher and IQ islands and the {@code ###Relational} {@code substring} dynaFunction write. Pure's own
++         *  {@code substring} is 0-based and end-exclusive; the frontends say SQL's meaning by this name, so Pure's
++         *  function can take Pure's meaning (docs/records/compat-homework/A3-shape-note.md, PR1, option (a)). */
++        public static final String SQL_SUBSTRING = PKG + "sqlSubstring";
++        /** SQL's POSITION, by name (A3, as {@link #SQL_SUBSTRING}): {@code sqlPosition(s, t)} is where {@code t}
++         *  first occurs in {@code s}, 1-based, 0 when it does not -- the database's STRPOS verbatim, which the islands
++         *  and the {@code indexOf} and {@code position} dynaFunctions write. Pure's {@code indexOf} is 0-based, -1
++         *  on a miss. */
++        public static final String SQL_POSITION = PKG + "sqlPosition";
+         /** A temporal value in text carriage (2026-10-18, the Cypher island's nanosecond values as a date and a time
+          *  of day, docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md W13): {@code dateTimeOfText(text)} is the date-time,
+          *  {@code timeOfText(text)} the time of day, the database's ISO text spells, carried to the caller as that
+@@ -654,7 +665,7 @@ public final class Pure {
+                     Lite.INSTANT_IN,
+                     Lite.LOCAL_IN,
+                     Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT,
+-                    Lite.QUOTIENT)
++                    Lite.QUOTIENT, Lite.SQL_SUBSTRING, Lite.SQL_POSITION)
+                     .map(Pure::liteLocalName)
+                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
+ 
+@@ -1159,6 +1170,10 @@ public final class Pure {
+      *  missing one is shifted forward by the gap (A6, 2026-11-10). Measured: Trino and Databricks follow it whole; H2 and
+      *  ClickHouse read a missing wall time in its later offset; DuckDB reads a repeated one in its later offset. */
+     public static final NativeFunctionDefinition QUOTIENT__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::quotient(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
++    /** SQL's SUBSTRING and POSITION by name ({@link Lite#SQL_SUBSTRING}, {@link Lite#SQL_POSITION}): A3, PR1. */
++    public static final NativeFunctionDefinition SQL_SUBSTRING__STRING_1__INTEGER_1 = signature("native function meta::legend::lite::sqlSubstring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
++    public static final NativeFunctionDefinition SQL_SUBSTRING__STRING_1__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::sqlSubstring(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], length:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
++    public static final NativeFunctionDefinition SQL_POSITION__STRING_1__STRING_1 = signature("native function meta::legend::lite::sqlPosition(str:meta::pure::metamodel::type::String[1], toFind:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
+     public static final NativeFunctionDefinition INSTANT_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::instantIn(local:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
+     public static final NativeFunctionDefinition LOCAL_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::localIn(instant:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
+     public static final NativeFunctionDefinition CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::convertTimeZoneFormat(d:meta::pure::metamodel::type::DateTime[0..1], tz:meta::pure::metamodel::type::String[1], fmt:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[0..1];");
+@@ -2627,6 +2642,8 @@ public final class Pure {
+     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
+     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
+     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
++    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_POSITION = com.legend.model.FunctionId.ofAll(SQL_POSITION__STRING_1__STRING_1);
++    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_SUBSTRING = com.legend.model.FunctionId.ofAll(SQL_SUBSTRING__STRING_1__INTEGER_1, SQL_SUBSTRING__STRING_1__INTEGER_1__INTEGER_1);
+     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_STAGE = com.legend.model.FunctionId.ofAll(STAGE__RELATION_1);
+     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
+     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
+diff --git a/core/src/main/java/com/legend/lowering/Scalars.java b/core/src/main/java/com/legend/lowering/Scalars.java
+index 290147c5..e61e323e 100644
+--- a/core/src/main/java/com/legend/lowering/Scalars.java
++++ b/core/src/main/java/com/legend/lowering/Scalars.java
+@@ -1496,6 +1496,16 @@ final class Scalars {
+                     new SqlExpr.Call(SqlFn.SUBSTRING, args));
+         }
+         // (the same call under CORRECT_SQL_SUBSTRING_INDEXING: FeatureRules)
++        // SQL's SUBSTRING and POSITION BY NAME (A3 of the compatibility program, PR1, 2026-11-19): the islands and the
++        // ###Relational dynaFunctions write the database's meaning through these two lite-internal natives, each the
++        // database's function verbatim -- the same calls the plain substring and String indexOf rules emit today, so
++        // no SQL moves; Pure's own substring and indexOf are then free to take Pure's meaning (A3's PR2)
++        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SQL_SUBSTRING) {
++            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.SUBSTRING, args));
++        }
++        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SQL_POSITION) {
++            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.STRPOS, args));
++        }
+         // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
+         // engine's RELATIONAL lowering registers it separately and ALWAYS
+         // corrects it (processSubstr, "needs no flag"); so does the platform:
+diff --git a/core/src/main/java/com/legend/normalizer/RelOpTranslator.java b/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
+index bb5c6954..c070768b 100644
+--- a/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
++++ b/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
+@@ -449,9 +449,11 @@ final class RelOpTranslator {
+             // indexOf rule IS 1-based locate (engine parity), so the
+             // dynafunction forwards VERBATIM (the old +1 emission paired
+             // with the 0-based rule; both sides dropped together).
++            // A3 of the compatibility program (PR1, 2026-11-19): SQL's meaning by name, lite's sqlPosition (the
++            // database's STRPOS verbatim), so Pure's indexOf can take Pure's 0-based meaning
+             case RelationalOperation.FunctionCall call
+                     when dyna(call) == DynaFn.INDEX_OF && call.args().size() == 2 ->
+-                    Calls.platform("indexOf", List.of(
++                    Calls.exact(com.legend.builtin.Pure.Lite.SQL_POSITION, List.of(
+                             translate(call.args().get(0), tableScope,
+                                     targetVarOrNull, rowBindOrNull, pipeline),
+                             translate(call.args().get(1), tableScope,
+@@ -469,7 +471,9 @@ final class RelOpTranslator {
+             case RelationalOperation.FunctionCall call
+                     when dyna(call) == DynaFn.SUBSTRING
+                     && (call.args().size() == 2 || call.args().size() == 3) ->
+-                Calls.platform("substring", toOneAll(translateArgs(call,
++                // A3 (PR1): SQL's SUBSTRING by name, lite's sqlSubstring (verbatim), so Pure's substring can take
++                // Pure's meaning
++                Calls.exact(com.legend.builtin.Pure.Lite.SQL_SUBSTRING, toOneAll(translateArgs(call,
+                         tableScope, targetVarOrNull, rowBindOrNull, pipeline)));
+             // dyna 'add'/'sub' are SQL ARITHMETIC — pure spells them
+             // plus/minus; the bare names would hit pure's COLLECTION
+@@ -496,8 +500,9 @@ final class RelOpTranslator {
+                     when dyna(call) == DynaFn.POSITION && call.args().size() == 2 ->
+                     // toOne on the haystack: an OPTIONAL column read would
+                     // otherwise infect the whole arithmetic chain with [*]
+-                    // (SQL null-propagates; erasure makes toOne free)
+-                    Calls.platform("indexOf", List.of(
++                    // (SQL null-propagates; erasure makes toOne free); A3 (PR1): SQL's position by name, lite's
++                    // sqlPosition
++                    Calls.exact(com.legend.builtin.Pure.Lite.SQL_POSITION, List.of(
+                             Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
+                                     translate(call.args().get(1), tableScope,
+                                             targetVarOrNull, rowBindOrNull,
+diff --git a/core/src/main/java/com/legend/protocol/cypher/CypherToPure.java b/core/src/main/java/com/legend/protocol/cypher/CypherToPure.java
+index 4fbf4793..fb187564 100644
+--- a/core/src/main/java/com/legend/protocol/cypher/CypherToPure.java
++++ b/core/src/main/java/com/legend/protocol/cypher/CypherToPure.java
+@@ -463,7 +463,7 @@ public final class CypherToPure {
+     private static Tx nodeProperties(NodeParts parts, Pos pos) {
+         ValueSpecification text = parts.props().stream().allMatch(p -> p.getValue().kind() == Kind.NULL)
+                 ? new CString("{}")
+-                : plus(new CString("{"), call("substring", propertyPieces(parts, pos), new CInteger(2L)),
++                : plus(new CString("{"), call(SqlToPure.SQL_SUBSTRING, propertyPieces(parts, pos), new CInteger(2L)),
+                         new CString("}"));
+         return Tx.value(present(parts, call("fromJson", text)), Kind.JSON, parts.absent() != null);
+     }
+@@ -488,7 +488,7 @@ public final class CypherToPure {
+         if (pieces == null) {
+             return noKeys();
+         }
+-        ValueSpecification text = plus(new CString("["), call("substring", pieces, new CInteger(2L)),
++        ValueSpecification text = plus(new CString("["), call(SqlToPure.SQL_SUBSTRING, pieces, new CInteger(2L)),
+                 new CString("]"));
+         return new Coll(call("toMany", call("fromJson", text), SqlToPure.typeArg("String")), Kind.STRING, false);
+     }
+@@ -7985,7 +7985,7 @@ public final class CypherToPure {
+     private static ValueSpecification temporalOfText(ValueSpecification text, Kind kind) {
+         int open = kind == Kind.DATE ? "Date('".length() : kind == Kind.TIME ? "Time('".length()
+                 : "DateTime('".length();
+-        ValueSpecification inner = call("substring", text, lit(open + 1), integer(minus(call("length", text),
++        ValueSpecification inner = call(SqlToPure.SQL_SUBSTRING, text, lit(open + 1), integer(minus(call("length", text),
+                 lit(open + 2))));
+         return switch (kind) {
+             case DATE -> call("datePart", call("parseDate", inner));
+@@ -11671,10 +11671,10 @@ public final class CypherToPure {
+             throw CypherErrors.invalid("Type mismatch: substring expects a String and Integers", c.pos());
+         }
+         if (length == null) {
+-            return strict(Kind.STRING, List.of(s, start), x -> call("substring", x.get(0),
++            return strict(Kind.STRING, List.of(s, start), x -> call(SqlToPure.SQL_SUBSTRING, x.get(0),
+                     AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L)))));
+         }
+-        return strict(Kind.STRING, List.of(s, start, length), x -> call("substring", x.get(0),
++        return strict(Kind.STRING, List.of(s, start, length), x -> call(SqlToPure.SQL_SUBSTRING, x.get(0),
+                 AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L))), x.get(2)));
+     }
+ 
+@@ -13120,7 +13120,7 @@ public final class CypherToPure {
+         for (int i = 1; i < pieces.size(); i++) {
+             text = plus(text, pieces.get(i));
+         }
+-        text = plus(new CString("["), call("substring", text, new CInteger(2L)), new CString("]"));
++        text = plus(new CString("["), call(SqlToPure.SQL_SUBSTRING, text, new CInteger(2L)), new CString("]"));
+         return scalar(Tx.value(call("fromJson", text), Kind.JSON, false));
+     }
+ 
+@@ -14452,7 +14452,7 @@ public final class CypherToPure {
+         if (time) {
+             return splitTime(clock);
+         }
+-        Tx date = strict(Kind.DATE, List.of(text), v -> call("datePart", call("parseDate", call("substring",
++        Tx date = strict(Kind.DATE, List.of(text), v -> call("datePart", call("parseDate", call(SqlToPure.SQL_SUBSTRING,
+                 v.get(0), lit(1), lit(10)))));
+         Tx parts = splitDateTime(date, clock);
+         return switch (kind) {
+@@ -14466,10 +14466,10 @@ public final class CypherToPure {
+     /** The nanoseconds since midnight an ISO clock spells from the character {@code at} on ({@code HH:mm:ss}, then
+      *  the fraction's digits after the point padded to nine), the database's parse of each field. */
+     private static ValueSpecification clockOfIso(ValueSpecification text, int at) {
+-        ValueSpecification fraction = call("substring", plus(call("substring", text, lit(at + 9L)),
++        ValueSpecification fraction = call(SqlToPure.SQL_SUBSTRING, plus(call(SqlToPure.SQL_SUBSTRING, text, lit(at + 9L)),
+                 new CString("000000000")), lit(1), lit(9));
+-        return clockNanos(call("parseInteger", call("substring", text, lit(at), lit(2))), call("parseInteger",
+-                call("substring", text, lit(at + 3L), lit(2))), call("parseInteger", call("substring", text,
++        return clockNanos(call("parseInteger", call(SqlToPure.SQL_SUBSTRING, text, lit(at), lit(2))), call("parseInteger",
++                call(SqlToPure.SQL_SUBSTRING, text, lit(at + 3L), lit(2))), call("parseInteger", call(SqlToPure.SQL_SUBSTRING, text,
+                 lit(at + 6L), lit(2))), call("parseInteger", fraction));
+     }
+ 
+@@ -14477,7 +14477,7 @@ public final class CypherToPure {
+      *  {@code DateTime('...')}, {@link #splitSpelled}). */
+     private static Tx splitOfSpelled(Tx spelled, Kind kind) {
+         int open = kind == Kind.TIME ? "Time('".length() : "DateTime('".length();
+-        Tx inner = strict(Kind.STRING, List.of(spelled), v -> call("substring", v.get(0), lit(open + 1L),
++        Tx inner = strict(Kind.STRING, List.of(spelled), v -> call(SqlToPure.SQL_SUBSTRING, v.get(0), lit(open + 1L),
+                 integer(minus(call("length", v.get(0)), lit(open + 2L)))));
+         return splitOfIso(inner, kind);
+     }
+@@ -14771,7 +14771,7 @@ public final class CypherToPure {
+         ValueSpecification clock = plus(two(quotient(ofDay, 3_600L * NANOS)), new CString(":"),
+                 two(quotient(past(ofDay, 3_600L * NANOS), 60L * NANOS)), new CString(":"),
+                 two(quotient(past(ofDay, 60L * NANOS), NANOS)), new CString("."),
+-                call("substring", call("toString", plus(past(ofDay, NANOS), lit(NANOS))), new CInteger(2L)));
++                call(SqlToPure.SQL_SUBSTRING, call("toString", plus(past(ofDay, NANOS), lit(NANOS))), new CInteger(2L)));
+         if (date == null) {
+             return clock;
+         }
+@@ -14790,7 +14790,7 @@ public final class CypherToPure {
+      *  raise by name (the databases count those years apart: Postgres has no year zero, its year of 1 BC is -1
+      *  where DuckDB's and Neo4j's is 0, measured 2026-10-18). */
+     private static ValueSpecification yearText(ValueSpecification year, boolean expanded) {
+-        ValueSpecification four = call("substring", call("toString", plus(year, lit(10000))), new CInteger(2L));
++        ValueSpecification four = call(SqlToPure.SQL_SUBSTRING, call("toString", plus(year, lit(10000))), new CInteger(2L));
+         ValueSpecification spelled = expanded ? call("if", call("greaterThan", year, lit(9999)),
+                 thunk(plus(new CString("+"), call("toString", year))), thunk(four)) : four;
+         ValueSpecification beyond = expanded ? call("lessThan", year, lit(1)) : call("or", call("lessThan", year,
+@@ -17778,7 +17778,7 @@ public final class CypherToPure {
+             ValueSpecification ns = integer(AppliedFunction.infixRun("times", List.of(call("dateDiff",
+                     call("firstMillisecondOfSecond", v), v, unit("MICROSECONDS")), new CInteger(1000L))));
+             // (Neo4j trims the fraction's trailing zeros to the digit, as a duration's: 10 microseconds is .00001)
+-            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
++            ValueSpecification digits = call("regexpReplace", call(SqlToPure.SQL_SUBSTRING, call("toString", plus(ns,
+                     lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
+             ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
+                     thunk(plus(new CString("."), digits)));
+@@ -17814,7 +17814,7 @@ public final class CypherToPure {
+                             thunk(plus(new CString("["), call("toOne", zone.region()), new CString("]")))))
+                     : zone.offsetSpelled();
+             ValueSpecification ns = past(n, NANOS);
+-            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
++            ValueSpecification digits = call("regexpReplace", call(SqlToPure.SQL_SUBSTRING, call("toString", plus(ns,
+                     lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
+             ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
+                     thunk(plus(new CString("."), digits)));
+@@ -17830,7 +17830,7 @@ public final class CypherToPure {
+ 
+     /** A number of at most two digits, zero-padded to two: the digits of 100 plus it, after the 1. */
+     private static ValueSpecification two(ValueSpecification n) {
+-        return call("substring", call("toString", plus(n, lit(100))), new CInteger(2L));
++        return call(SqlToPure.SQL_SUBSTRING, call("toString", plus(n, lit(100))), new CInteger(2L));
+     }
+ 
+     /** A field's name as Neo4j's messages spell it ({@code Year}). */
+@@ -17878,7 +17878,7 @@ public final class CypherToPure {
+             ValueSpecification secWhole = integer(call("floor", call("divide", magnitude, lit(NANOS))));
+             ValueSpecification frac = call("rem", magnitude, lit(NANOS));
+             // the fraction's nine digits (a leading 1 keeps the zeros, then dropped), the trailing zeros trimmed
+-            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(frac,
++            ValueSpecification digits = call("regexpReplace", call(SqlToPure.SQL_SUBSTRING, call("toString", plus(frac,
+                     lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
+             ValueSpecification secText = call("if", call("equal", frac, lit(0)), thunk(call("toString", secWhole)),
+                     thunk(plus(call("toString", secWhole), new CString("."), digits)));
+@@ -18961,7 +18961,7 @@ public final class CypherToPure {
+          *  domain model's writes on H2 raised "Function REVERSE not found"). */
+         private static ValueSpecification storeId(ValueSpecification identity) {
+             ValueSpecification unpackaged = call("replace", identity, new CString("::"), new CString("/"));
+-            return call("parseInteger", call("substring", unpackaged, plus(call("indexOf", unpackaged,
++            return call("parseInteger", call(SqlToPure.SQL_SUBSTRING, unpackaged, plus(call(SqlToPure.SQL_POSITION, unpackaged,
+                     new CString(":")), new CInteger(1L))));
+         }
+ 
+diff --git a/core/src/main/java/com/legend/protocol/sql/PostgresFunctions.java b/core/src/main/java/com/legend/protocol/sql/PostgresFunctions.java
+index 861172b1..641ed4a4 100644
+--- a/core/src/main/java/com/legend/protocol/sql/PostgresFunctions.java
++++ b/core/src/main/java/com/legend/protocol/sql/PostgresFunctions.java
+@@ -209,7 +209,7 @@ final class PostgresFunctions {
+                 // lowering (locate()), the acceptance surface; platform Pure's is 0-based, a divergence PCT ledgers
+                 // (Test_LegendLite_EssentialFunctions_PCT), and the parity corpus pins the relational one here
+                 kinds(f, a, Kind.STRING, Kind.STRING);
+-                return strict(Kind.INTEGER, a, v -> call("indexOf", v.get(0), v.get(1)));
++                return strict(Kind.INTEGER, a, v -> call(SqlToPure.SQL_POSITION, v.get(0), v.get(1)));
+             });
+         }
+         for (String sub : List.of("substring", "substr")) {
+@@ -455,7 +455,7 @@ final class PostgresFunctions {
+         }
+         if (a.size() == 2) {
+             kinds(f, a, Kind.STRING, Kind.INTEGER);
+-            return strict(Kind.STRING, a, v -> call("substring", v.get(0), v.get(1)));
++            return strict(Kind.STRING, a, v -> call(SqlToPure.SQL_SUBSTRING, v.get(0), v.get(1)));
+         }
+         kinds(f, a, Kind.STRING, Kind.INTEGER, Kind.INTEGER);
+         for (Tx x : a) {
+@@ -474,7 +474,7 @@ final class PostgresFunctions {
+         }
+         long from = Math.max(start, 1);
+         long count = Math.max(start + length - from, 0);
+-        return strict(Kind.STRING, List.of(a.get(0)), v -> call("substring", v.get(0),
++        return strict(Kind.STRING, List.of(a.get(0)), v -> call(SqlToPure.SQL_SUBSTRING, v.get(0),
+                 integer(java.math.BigInteger.valueOf(from)), integer(java.math.BigInteger.valueOf(count))));
+     }
+ 
+@@ -689,7 +689,7 @@ final class PostgresFunctions {
+                 return new CString("");
+             }
+             ValueSpecification all = parts.size() == 1 ? parts.get(0) : AppliedFunction.infixRun("plus", parts);
+-            return leading ? all : call("substring", all, AppliedFunction.infixRun("plus", List.of(call("length", sep),
++            return leading ? all : call(SqlToPure.SQL_SUBSTRING, all, AppliedFunction.infixRun("plus", List.of(call("length", sep),
+                     new CInteger(1L))));
+         });
+     }
+@@ -784,9 +784,9 @@ final class PostgresFunctions {
+             throw SqlTranslationException.invalid("negative substring length not allowed", f.args().get(2).pos());
+         }
+         return strict(Kind.STRING, args.subList(0, 2), v -> {
+-            ValueSpecification head = call("substring", v.get(0), new CInteger(1L), new CInteger(n - 1));
+-            ValueSpecification tail = m == null ? call("substring", v.get(0), AppliedFunction.infixRun("plus",
+-                    List.of(new CInteger(n), call("length", v.get(1))))) : call("substring", v.get(0),
++            ValueSpecification head = call(SqlToPure.SQL_SUBSTRING, v.get(0), new CInteger(1L), new CInteger(n - 1));
++            ValueSpecification tail = m == null ? call(SqlToPure.SQL_SUBSTRING, v.get(0), AppliedFunction.infixRun("plus",
++                    List.of(new CInteger(n), call("length", v.get(1))))) : call(SqlToPure.SQL_SUBSTRING, v.get(0),
+                     new CInteger(Math.max(n + m, 1)));
+             return AppliedFunction.infixRun("plus", List.of(head, v.get(1), tail));
+         });
+@@ -905,14 +905,14 @@ final class PostgresFunctions {
+     }
+ 
+     private static ValueSpecification field(ValueSpecification rest, CString delimiter, long n) {
+-        ValueSpecification at = call("indexOf", rest, delimiter);
++        ValueSpecification at = call(SqlToPure.SQL_POSITION, rest, delimiter);
+         ValueSpecification none = call("equal", at, new CInteger(0L));
+         if (n == 1) {
+-            return call("if", none, thunk(rest), thunk(call("substring", rest, new CInteger(1L),
++            return call("if", none, thunk(rest), thunk(call(SqlToPure.SQL_SUBSTRING, rest, new CInteger(1L),
+                     AppliedFunction.infixRun("minus", List.of(at, new CInteger(1L))))));
+         }
+         // the delimiter's length in characters, as SQL's substring counts them (not UTF-16's units)
+-        ValueSpecification after = call("substring", rest, AppliedFunction.infixRun("plus", List.of(at,
++        ValueSpecification after = call(SqlToPure.SQL_SUBSTRING, rest, AppliedFunction.infixRun("plus", List.of(at,
+                 new CInteger(delimiter.value().codePointCount(0, delimiter.value().length())))));
+         return call("if", none, thunk(new CString("")), thunk(field(after, delimiter, n - 1)));
+     }
+diff --git a/core/src/main/java/com/legend/protocol/sql/SqlToPure.java b/core/src/main/java/com/legend/protocol/sql/SqlToPure.java
+index 289b520f..794ac6e0 100644
+--- a/core/src/main/java/com/legend/protocol/sql/SqlToPure.java
++++ b/core/src/main/java/com/legend/protocol/sql/SqlToPure.java
+@@ -5938,6 +5938,16 @@ public final class SqlToPure {
+         return id.quoted() ? id.text() : fold(id.text());
+     }
+ 
++    /** SQL's SUBSTRING by name (A3 of the compatibility program, PR1, 2026-11-19): lite's
++     *  {@code meta::legend::lite::sqlSubstring}, a 1-based start and a length, which the islands write wherever they mean
++     *  the database's SUBSTRING (the protocol layer names lite's natives by their text: it cannot import the catalog).
++     *  Pure's {@code substring} is 0-based and end-exclusive. */
++    public static final String SQL_SUBSTRING = "meta::legend::lite::sqlSubstring";
++
++    /** SQL's POSITION by name (A3, as {@link #SQL_SUBSTRING}): lite's {@code meta::legend::lite::sqlPosition}, 1-based,
++     *  0 when the text does not occur; Pure's {@code indexOf} is 0-based, -1 on a miss. */
++    public static final String SQL_POSITION = "meta::legend::lite::sqlPosition";
++
+     public static AppliedFunction call(String fn, ValueSpecification... args) {
+         return call(fn, List.of(args));
+     }
+diff --git a/core/src/main/java/com/legend/protocol/sql/iq/IqAggregates.java b/core/src/main/java/com/legend/protocol/sql/iq/IqAggregates.java
+index a8a5083c..fee3bbd1 100644
+--- a/core/src/main/java/com/legend/protocol/sql/iq/IqAggregates.java
++++ b/core/src/main/java/com/legend/protocol/sql/iq/IqAggregates.java
+@@ -1486,7 +1486,7 @@ final class IqAggregates {
+ 
+     /** The value {@link #packedByKey} packed: what follows its first separator. */
+     static ValueSpecification unpacked(ValueSpecification packed) {
+-        return SqlToPure.call("substring", packed, AppliedFunction.infixRun("plus", List.of(SqlToPure.call("indexOf",
++        return SqlToPure.call(SqlToPure.SQL_SUBSTRING, packed, AppliedFunction.infixRun("plus", List.of(SqlToPure.call(SqlToPure.SQL_POSITION,
+                 packed, new CString(SEPARATOR)), new CInteger(1L))));
+     }
+ 
+diff --git a/core/src/main/java/com/legend/protocol/sql/iq/IqFunctions.java b/core/src/main/java/com/legend/protocol/sql/iq/IqFunctions.java
+index 517deb96..da34fdaa 100644
+--- a/core/src/main/java/com/legend/protocol/sql/iq/IqFunctions.java
++++ b/core/src/main/java/com/legend/protocol/sql/iq/IqFunctions.java
+@@ -664,7 +664,7 @@ final class IqFunctions {
+                 }
+                 case 's' -> {
+                     if (fraction && n <= 6) {
+-                        yield x -> SqlToPure.call("substring", lpad(microseconds(x), 6), integer(1), integer(n));
++                        yield x -> SqlToPure.call(SqlToPure.SQL_SUBSTRING, lpad(microseconds(x), 6), integer(1), integer(n));
+                     }
+                     if (n != 2) {
+                         throw dateFormatToken(t, f);
+@@ -907,7 +907,7 @@ final class IqFunctions {
+                 return SqlToPure.call("toString", SqlToPure.call("floor", magnitude(x)));
+             }
+             ValueSpecification text = SqlToPure.call("toString", x);
+-            return ifThen(lt(x, integer(0)), SqlToPure.call("substring", text, integer(2), integer(25)), text);
++            return ifThen(lt(x, integer(0)), SqlToPure.call(SqlToPure.SQL_SUBSTRING, text, integer(2), integer(25)), text);
+         }
+ 
+         /** The first {@code k} places' digits, cut toward zero. */
+@@ -1509,10 +1509,10 @@ final class IqFunctions {
+             ValueSpecification n = v.get(2);
+             // a start of 1 or more: substring's own; below 1: the positions from 1 to start + length - 1
+             ValueSpecification below = ifThen(lt(AppliedFunction.infixRun("plus", List.of(p, n)), integer(2)),
+-                    new CString(""), SqlToPure.call("substring", v.get(0), integer(1),
++                    new CString(""), SqlToPure.call(SqlToPure.SQL_SUBSTRING, v.get(0), integer(1),
+                             AppliedFunction.infixRun("minus", List.of(AppliedFunction.infixRun("plus", List.of(p, n)),
+                                     integer(1)))));
+-            ValueSpecification value = ifThen(lt(p, integer(1)), below, SqlToPure.call("substring", v.get(0), p, n));
++            ValueSpecification value = ifThen(lt(p, integer(1)), below, SqlToPure.call(SqlToPure.SQL_SUBSTRING, v.get(0), p, n));
+             return negative ? ifThen(lt(n, integer(0)), raise("String"), value) : value;
+         });
+     }
+@@ -1538,7 +1538,7 @@ final class IqFunctions {
+                     List.of(AppliedFunction.infixRun("plus", List.of(p, n)), integer(1)));
+             ValueSpecification first = ifThen(lt(p, integer(1)), integer(1), p);
+             ValueSpecification last = ifThen(gt(hi, length), length, hi);
+-            ValueSpecification text = ifThen(lt(last, first), new CString(""), SqlToPure.call("substring", str, first,
++            ValueSpecification text = ifThen(lt(last, first), new CString(""), SqlToPure.call(SqlToPure.SQL_SUBSTRING, str, first,
+                     AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("minus", List.of(last, first)),
+                             integer(1)))));
+             ValueSpecification far = SqlToPure.call("or", gt(p0, integer(32767)), lt(p0, integer(-32767)));
+@@ -1577,7 +1577,7 @@ final class IqFunctions {
+                             integer(1))));
+             ValueSpecification first = ifThen(lt(lo, integer(1)), integer(1), lo);
+             ValueSpecification last = ifThen(gt(hi, length), length, hi);
+-            return ifThen(lt(last, first), new CString(""), SqlToPure.call("substring", str, first,
++            return ifThen(lt(last, first), new CString(""), SqlToPure.call(SqlToPure.SQL_SUBSTRING, str, first,
+                     AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("minus", List.of(last, first)),
+                             integer(1)))));
+         });
+@@ -1990,12 +1990,12 @@ final class IqFunctions {
+             ValueSpecification find = fold ? asciiFold(v.get(1), false) : v.get(1);
+             ValueSpecification value;
+             if (from == null) {
+-                value = SqlToPure.call("indexOf", str, find);
++                value = SqlToPure.call(SqlToPure.SQL_POSITION, str, find);
+             } else {
+                 ValueSpecification p = v.get(2);
+                 // from start on: where it occurs in the rest, as a position of s
+                 ValueSpecification at = atLeastOne(p);
+-                ValueSpecification rest = SqlToPure.call("indexOf", SqlToPure.call("substring", str, at), find);
++                ValueSpecification rest = SqlToPure.call(SqlToPure.SQL_POSITION, SqlToPure.call(SqlToPure.SQL_SUBSTRING, str, at), find);
+                 ValueSpecification forward = ifThen(SqlToPure.call("equal", rest, integer(0)), integer(0),
+                         AppliedFunction.infixRun("minus", List.of(AppliedFunction.infixRun("plus", List.of(rest, at)),
+                                 integer(1))));
+@@ -2005,7 +2005,7 @@ final class IqFunctions {
+                         integer(1)));
+                 ValueSpecification prefix = SqlToPure.call("left", str, ifThen(lt(keep, integer(0)), integer(0),
+                         keep));
+-                ValueSpecification j = SqlToPure.call("indexOf", SqlToPure.call("reverseString", prefix),
++                ValueSpecification j = SqlToPure.call(SqlToPure.SQL_POSITION, SqlToPure.call("reverseString", prefix),
+                         SqlToPure.call("reverseString", find));
+                 ValueSpecification backward = ifThen(SqlToPure.call("equal", j, integer(0)), integer(0),
+                         AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("minus", List.of(
+@@ -2148,7 +2148,7 @@ final class IqFunctions {
+         }
+         ValueSpecification found;
+         if (!anchoredStart && !anchoredEnd) {
+-            found = SqlToPure.call("indexOf", x, literal);
++            found = SqlToPure.call(SqlToPure.SQL_POSITION, x, literal);
+         } else if (anchoredStart && !anchoredEnd) {
+             found = ifThen(SqlToPure.call("startsWith", x, literal), integer(1), integer(0));
+         } else if (!anchoredStart) {
+@@ -2191,7 +2191,7 @@ final class IqFunctions {
+             }
+             ValueSpecification value = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("left", str,
+                     AppliedFunction.infixRun("minus", List.of(p, integer(1)))), replacement,
+-                    SqlToPure.call("substring", str, AppliedFunction.infixRun("plus", List.of(p, n)))));
++                    SqlToPure.call(SqlToPure.SQL_SUBSTRING, str, AppliedFunction.infixRun("plus", List.of(p, n)))));
+             return ifThen(valid, value, SqlToPure.empty());
+         });
+         return Tx.value(r.vs(), Kind.STRING, true, r.detail());
+@@ -3238,7 +3238,7 @@ final class IqFunctions {
+                             SqlToPure.call("equal", p, integer(0)), integer(1), AppliedFunction.infixRun("plus",
+                                     List.of(length, p, integer(1)))));
+                     ValueSpecification match = SqlToPure.call("first", SqlToPure.call("regexpExtract",
+-                            SqlToPure.call("substring", str, from), new CString("(?s)" + pattern),
++                            SqlToPure.call(SqlToPure.SQL_SUBSTRING, str, from), new CString("(?s)" + pattern),
+                             new com.legend.protocol.spec.CBoolean(false)));
+                     return ifThen(SqlToPure.call("or", lt(from, integer(1)), SqlToPure.call("greaterThan", from,
+                             length)), SqlToPure.empty(), match);
+@@ -4590,7 +4590,7 @@ final class IqFunctions {
+                     }
+                     Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
+                         ValueSpecification s = v.get(0);
+-                        ValueSpecification rest = SqlToPure.call("substring", s, integer(n + 1));
++                        ValueSpecification rest = SqlToPure.call(SqlToPure.SQL_SUBSTRING, s, integer(n + 1));
+                         return ifThen(SqlToPure.call("lessThanEqual", SqlToPure.call("length", s), integer(n)), s,
+                                 ifThen(SqlToPure.call("equal", SqlToPure.call("replace", rest, new CString(" "),
+                                         new CString("")), new CString("")), SqlToPure.call("left", s, integer(n)),
+diff --git a/core/src/main/resources/com/legend/builtin/native-claims.tsv b/core/src/main/resources/com/legend/builtin/native-claims.tsv
+index f36d88c4..8fc0601a 100644
+--- a/core/src/main/resources/com/legend/builtin/native-claims.tsv
++++ b/core/src/main/resources/com/legend/builtin/native-claims.tsv
+@@ -74,6 +74,9 @@ meta::legend::lite::read	<T,Z>(row:T[1], columns:meta::pure::metamodel::relation
+ meta::legend::lite::recurse	<T>(base:meta::pure::metamodel::relation::Relation<T>[1], step:meta::pure::metamodel::function::Function<{meta::pure::metamodel::relation::Relation<T>[1]->meta::pure::metamodel::relation::Relation<T>[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1]	RECURSE__RELATION_1__FUNCTION_1	CORE_FN	CoreFn.RECURSE	CypherToPure
+ meta::legend::lite::route	<S,C,T>(target:C[*], rows:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Any[1]	ROUTE__C_MANY__RELATION_1__FUNCTION_1	CORE_FN	CoreFn.ROUTE	
+ meta::legend::lite::sourceUrl	(url:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]	SOURCE_URL__STRING_1	CORE_FN	CoreFn.SOURCE_URL	
++meta::legend::lite::sqlPosition	(str:meta::pure::metamodel::type::String[1], toFind:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1]	SQL_POSITION__STRING_1__STRING_1	SCALAR_RULE	Scalars.RULES	Scalars;SqlToPure
++meta::legend::lite::sqlSubstring	(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1]	SQL_SUBSTRING__STRING_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	Scalars;SqlToPure
++meta::legend::lite::sqlSubstring	(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], length:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1]	SQL_SUBSTRING__STRING_1__INTEGER_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	Scalars;SqlToPure
+ meta::legend::lite::stage	<T>(rows:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1]	STAGE__RELATION_1	CORE_FN	CoreFn.STAGE	SqlToPure
+ meta::legend::lite::tds	(tag:meta::pure::metamodel::type::String[1], raw:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]	TDS__STRING_1__STRING_1	CORE_FN	CoreFn.TDS	TdsLiteral
+ meta::legend::lite::timeOf	(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictTime[1]	TIME_OF__DATE_1	SCALAR_RULE	Scalars.RULES	CypherToPure;Scalars
+-- 
+2.43.0
+
