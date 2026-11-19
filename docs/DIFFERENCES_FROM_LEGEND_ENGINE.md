@@ -157,8 +157,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 9. Error messages
 - **legend-engine's message** is often its database's own error over legend-engine's SQL.
-- **lite gives** its own clear message, in legend-engine's error envelope and with the same status. Neither points into your
-  code (legend-engine's can carry a position in legend-engine's own Pure).
+- **lite gives** its own clear message, in legend-engine's error envelope and with the same status. Neither points
+  into your code (legend-engine's can carry a position in legend-engine's own Pure).
 - **When:** today; the words move to a formatter in stage B.
 - **Measured:** the pure/v1 net (for example divide by zero: 500 on both, different words).
 
@@ -197,19 +197,33 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **A hash over such a join differs with it** (`->joinStrings('|')->hash(HashType.MD5)`).
 - **Why:** Pure's `joinStrings` puts the separator between the strings (legend-pure `joinStrings.pure:23`).
 - **To get legend-engine's answer:** concatenate yourself, for example `$first + ' ' + $last + '|'`.
-- **When:** today. The corpus first saw it when SQL text stopped being compared, in A2.
+- **Ruled:** by the user on 2026-09-05, as a legend-engine defect ("quarantine/bucket those as engine bugs"), and the
+  accepted divergence confirmed on 2026-09-08 (`docs/GATES.md`, batches 67b and 144).
+- **When:** today. From 2026-09-21 until A2 the corpus test passed on its SQL text alone. Since A2 its rows are
+  compared again.
 - **Measured:** the corpus's `testToSQLStringForTDSStringJoin` and `testHashFunctions`, on H2 and DuckDB (class b of
   `A2-roster.tsv`).
 - **Register:** S386 (provisional).
 
-### 13. `firstDayOfWeek` is the Monday, as Pure defines it (on DuckDB)
-- **legend-engine's SQL** answers the Sunday before: `2014-11-30` for a date in the week of Monday `2014-12-01`.
-- **lite on DuckDB answers** the Monday, `2014-12-01`. Pure defines it as the most recent Monday (legend-engine's own
-  `core/pure/corefunctions/dateExtension.pure:202`, `mostRecentDayOfWeek(DayOfWeek.Monday)`).
-- **lite on H2 still answers legend-engine's Sunday.** That is lite's defect, listed under the gaps below.
-- **When:** today.
-- **Measured:** the corpus's `testToSqlGenerationFirstDayOfWeek` on DuckDB (class b of `A2-roster.tsv`); on H2 it
-  passes by its rows.
+### 13. `firstDayOfWeek` is the Monday on every database, as Pure defines it
+- **Pure defines it** as the most recent Monday (legend-engine's own `core/pure/corefunctions/dateExtension.pure:202`,
+  `mostRecentDayOfWeek(DayOfWeek.Monday)`).
+- **legend-engine on H2 answers the first day of the week in the Java locale H2 runs under.** It writes
+  `date_trunc('week', ...)`, and H2 starts that week on the locale's first day.
+  - Under `en_US` that is the Sunday: `2014-11-30` for Thursday `2014-12-04`.
+  - Under `en_GB` or `fr_FR` it is the Monday, `2014-12-01`.
+- **legend-engine on DuckDB answers the Monday**, as lite does.
+- **lite answers the Monday** on every database, whatever the locale.
+- **Ruled:** by the user on 2026-09-05, as a legend-engine defect ("quarantine/bucket those as engine bugs"), and the
+  accepted divergence confirmed on 2026-09-08 (`docs/GATES.md`, batches 67b and 144).
+- **When:** today. From 2026-09-21 until A2 the corpus test passed on its SQL text alone. Since A2 its rows are
+  compared again.
+- **Measured:**
+  - The corpus's `testToSqlGenerationFirstDayOfWeek` on DuckDB (class b of `A2-roster.tsv`). Its rows were appealed
+    against legend-engine's H2 under `en_US`: `2014-11-30` there, `2014-12-01` from lite.
+  - Its outcome on H2, now that lite answers the Monday there too, is measured on the merged batch.
+  - Both databases were asked directly under `en_US`, `en_GB` and `fr_FR`
+    (`docs/records/compat-homework/A3-piece4/first-day-of-week-probe.md`, on `claude/census-b2`).
 - **Register:** S387 (provisional).
 
 ### 14. A table's text used inside a query (stage B)
@@ -237,8 +251,6 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - H2 also answers `sqrt(-1.0)` with NaN and wraps a 63-bit shift. Pure has no NaN, so no query can reproduce that,
     and lite does not write shifts on H2 at all.
   - **Measured:** B1-R's lane; H8 (j.4).
-- **`firstDayOfWeek` on H2** answers legend-engine's Sunday, not Pure's Monday (item 13). Lite's two databases
-  disagree, so it is a defect, for the product track.
 - **Not supported yet:**
   - legend-engine's mapping test suites and service tests;
   - cross-store queries;
@@ -260,8 +272,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   compiled code; none of the 15 recorded requests is affected). Only a query that itself asks for SQL text is
   affected, and that is item 2.
 - **Tests that check SQL text** are still judged, by their answers, on legend-engine's own H2.
-- **A Float value read from the database is a double**, as in legend-engine (a Float literal is item 4). A 20-digit Float literal loses digits in both (only legend-pure's
-  interpreter keeps them; S120).
+- **A Float value read from the database is a double**, as in legend-engine (a Float literal is item 4). A 20-digit
+  Float literal loses digits in both (only legend-pure's interpreter keeps them; S120).
 - **On legend-engine's own function suite (PCT)**, measured before stage A, lite's legend-engine route passes more
   tests than legend-engine on DuckDB, H2 relation, H2 essential and H2 grammar, and fewer on H2 standard and H2
   unclassified:
