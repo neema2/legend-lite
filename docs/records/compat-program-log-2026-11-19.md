@@ -1554,3 +1554,16 @@ who confirms or changes phases 1-3.
   behaviour change for the user's word, at B3's PR:** today the refusal is an `IllegalStateException` that `assertError`
   does not catch; as a `DataError` it is caught, as upstream's `assertError` catches `PureExecutionException` (closer to
   upstream; reach 0 on the whole PCT net and both corpus lanes, H13 measured). Added to stage B's list.
+- **~14:11 UTC, H11 continued: the corpus half FINAL** (`H11-relation-text-spike.md` §13 at `fe57c506`; scratch, no pin
+  moved, no hook, all edits in `com.legend.edge`). **DuckDB: rosters, verdict ledger and every FAIL line, words
+  included, BYTE-IDENTICAL to `main`** (283 comparisons: 254 byte-equal, 18 ruled, 11 differ on `main` too; 0 printer
+  differences). **H2: identical except 3 gains toward upstream** (`3.0`/`10.0`/`100000.0`). These are the hybrid
+  numbers (the SQL builder kept only for the 11 `assertSameElements(..., toCSV(...))` prints per lane the arm cannot
+  claim); strict, those 11 fail by name and nothing else moves. PCT re-run: DuckDB relation 373/373, standard 58/58, H2
+  relation 342/342 byte-equal. **Calendar 41 as `CSVJOIN:<sep>`:** 0 fail, no refusal. **Judge-side composed relation
+  prints:** 41 in the corpus (one shape, covered by the form), 0 in PCT; the corpus half of 1.3's value prints is 1
+  test (`specialUnion::testGroupBy`, a list's text). **Abstract Date at midnight settled:** upstream prints a TIMESTAMP
+  cell at midnight as `yyyy-MM-dd 00:00:00` (`ResultSetValueHandlers`; `hasHour` is a precision fact); the SQL builder's
+  midnight rule (`RelationTextLowering.timed`) is not upstream's; nothing measured depends on it. **For the plan:** the
+  `Printed` judgment kind must cover `assertSameElements` (already written in); with it strict equals hybrid. Moves for
+  the real slice: H2 corpus fail roster -3, unordered register +1, PCT H2 ledger -4 rows; DuckDB none. H11 is done.
