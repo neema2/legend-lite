@@ -1725,3 +1725,17 @@ who confirms or changes phases 1-3.
   overlay now applies the current OS's rows first, then checks the others' (a new plant covers both orders on all three
   OSes and fails with the one-pass order). Local: 48 pass, 1 skipped. Both overlay files named in the PR body as new
   pinned files for the user's word; the README updated. Next: the new run on every OS.
+- **~14:43 UTC, B1-R: PR #124's final CI at `fa8294cca`** (run 44531926654, complete). Green everywhere except 5 lanes,
+  none #124's own code: Linux ui, product, corpus_h2 (Maven 404s; the mirror fixes them); Windows and macOS edge_net
+  (#123's net; B1's overlays fix them: Windows green at `e7764c9db`, macOS in `7b7ee6ea3`, not yet run). Green on all
+  three OSes: pct_duckdb (the five DuckDB ENGINE lanes and the batteries), pct_h2 (the three H2 ENGINE lanes), core,
+  checks, stress, parser_equivalence, corpus_duckdb, datacube, sdlc, warehouse, pct_postgres, pct_channel_b (and
+  product, ui, corpus_h2 on Windows and macOS); Linux arm warehouse green. Times: pct_duckdb Linux 8.3, Windows 9.9,
+  macOS 12.75 min; pct_h2 7.1, 5.2, 6.0 min. Local gate green. Next: one batched merge of B1's head and the mirror.
+- **~14:40 UTC, the user asked** whether everything in lite comes from the database as typed Arrow, with only the
+  presentation layer (JSON, CSV) in Java. **This session's answer:** yes, with the line between the program and the
+  response: the response's wire format (legend-engine's JSON envelope, CSV downloads, plan and error envelopes, a cell's
+  JSON text) is presentation, Java; a text the program itself computes (`toString()`, `toCSV()`, `format()` inside a
+  query, an error message a test checks) is a value, the database. So the H11 Java printer computed program values in
+  Java (withdrawn); option (a) keeps legend-pure's text in SQL as lite's own, with no mode. Raised: lite's Java-side test
+  judge compares rows in Java, which the rule questions (the user's call, now or later). Four decisions put.
