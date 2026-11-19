@@ -144,20 +144,33 @@ public final class PureMeaningCheck {
         }
     }
 
-    /** One flagged call: its kind, where it is (the query, a function, a mapping's class), and its position when the
-     *  request or the model carried one. */
-    record Site(Code code, String where, @com.legend.base.Nullable SourceInfo pos) {
+    /** One flagged call: its kind, where it is (the query, a function, a mapping's class), its position when the
+     *  request or the model carried one, and the call itself when the walk met it in the query's own tree (a root the
+     *  check walked), never in a body it followed (a function's, a mapping's): what the {@code engine} rewrite
+     *  replaces, by identity ({@link PureMeaningRewrite}; the reviewer's D-M1). */
+    record Site(Code code, String where, @com.legend.base.Nullable SourceInfo pos,
+            @com.legend.base.Nullable TypedNativeCall node) {
+
+        Site(Code code, String where, @com.legend.base.Nullable SourceInfo pos) {
+            this(code, where, pos, null);
+        }
 
         String described() {
             return code.text + (pos == null ? "" : " at " + pos.startLine() + ":" + pos.startColumn()) + " in " + where;
         }
     }
 
-    /** The check's answer: the flagged calls, in the order the walk met them. */
-    record Result(List<Site> sites) {
+    /** The check's answer: the flagged calls, in the order the walk met them, and the roots it walked as store-bound
+     *  code (each store-bound statement, each let-bound lambda's let it walked), in the body's order. */
+    record Result(List<Site> sites, List<TypedSpec> roots) {
 
         Result {
             sites = List.copyOf(sites);
+            roots = List.copyOf(roots);
+        }
+
+        Result(List<Site> sites) {
+            this(sites, List.of());
         }
 
         boolean clean() {
@@ -218,8 +231,10 @@ public final class PureMeaningCheck {
         }
         Map<String, TypedSpec> lets = new LinkedHashMap<>();
         List<TypedSpec> hostSide = new ArrayList<>();
+        List<TypedSpec> roots = new ArrayList<>();
         for (TypedSpec stmt : query.body()) {
             if (w.readsAStore(stmt)) {
+                roots.add(stmt);
                 w.node(stmt, features, "the query");
             } else {
                 hostSide.add(stmt);
@@ -236,17 +251,25 @@ public final class PureMeaningCheck {
             for (TypedSpec stmt : hostSide) {
                 if (stmt instanceof TypedLet let && w.named.contains(let.name()) && walkedLets.add(let.name())
                         && holdsALambda(let.value())) {
+                    roots.add(stmt);
                     w.node(let.value(), features, "the query");
                     grew = true;
                 }
             }
         }
         w.mappingReach(features);
-        return new Result(w.sites);
+        // the roots in the body's order (a let-bound lambda's let is found after the statements that name it)
+        List<TypedSpec> ordered = new ArrayList<>();
+        for (TypedSpec stmt : query.body()) {
+            if (roots.stream().anyMatch(r -> r == stmt)) {
+                ordered.add(stmt);
+            }
+        }
+        return new Result(w.sites, ordered);
     }
 
     /** The database the runtime's connections declare, when they declare one; else null (no exemption applies). */
-    private static @com.legend.base.Nullable DatabaseType target(ModelContext ctx,
+    static @com.legend.base.Nullable DatabaseType target(ModelContext ctx,
             @com.legend.base.Nullable String runtime) {
         if (runtime == null) {
             return null;
@@ -294,6 +317,8 @@ public final class PureMeaningCheck {
         final Set<String> mappings = new LinkedHashSet<>();
         boolean chained;
         boolean graphFetch;
+        /** how deep the walk is in bodies it followed (a function's, a mapping's): 0 in the query's own tree */
+        int following;
         final Map<FunctionId, Boolean> storeMemo = new HashMap<>();
 
         Walk(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable DatabaseType target) {
@@ -367,10 +392,15 @@ public final class PureMeaningCheck {
                 if (features.contains(Feature.CORRECT_SQL_SUBSTRING_INDEXING) || zeroStartExempt(nc, arity)) {
                     return;
                 }
-                sites.add(new Site(arity == 2 ? Code.SUBSTRING_2 : Code.SUBSTRING_3, where, nc.pos()));
+                sites.add(new Site(arity == 2 ? Code.SUBSTRING_2 : Code.SUBSTRING_3, where, nc.pos(), own(nc)));
             } else if (STRING_INDEX_OF_2.equals(id)) {
-                sites.add(new Site(Code.INDEX_OF_2, where, nc.pos()));
+                sites.add(new Site(Code.INDEX_OF_2, where, nc.pos(), own(nc)));
             }
+        }
+
+        /** The call itself when the walk is in the query's own tree; null in a body it followed. */
+        private @com.legend.base.Nullable TypedNativeCall own(TypedNativeCall nc) {
+            return following == 0 ? nc : null;
         }
 
         /** A literal start of 0, where legend-engine's answer is measured equal to Pure's on the target: the edge's
@@ -405,8 +435,13 @@ public final class PureMeaningCheck {
                 sites.add(new Site(Code.UNVERIFIED, fn.qualifiedName() + " (its body does not type)", pos));
                 return;
             }
-            for (TypedSpec s : body) {
-                node(s, features, fn.qualifiedName());
+            following++;
+            try {
+                for (TypedSpec s : body) {
+                    node(s, features, fn.qualifiedName());
+                }
+            } finally {
+                following--;
             }
         }
 

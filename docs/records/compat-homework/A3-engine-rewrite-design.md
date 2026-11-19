@@ -1,4 +1,4 @@
-# A3: the `engine` rewrite, the design note (2026-11-19)
+# A3: the `engine` rewrite, the design note (2026-11-19; revision 2, the reviewer's word, built)
 
 B1-R (track O), for the independent reviewer before any build, on the compat owner's brief of ~20:06 UTC.
 
@@ -14,6 +14,80 @@ set out.
 - H16 and its addendum, on this branch;
 - legend-engine 4.145.0's pinned sources, read here (each citation below checked);
 - a throwaway test run in this session through the public API and never committed (section 3).
+
+## Revision 2: the reviewer's word (record on claude/compat-review, "Design review: the `engine` rewrite")
+
+APPROVED TO BUILD, with 1 must-fix to the design and 4 should-fixes. Each one is taken as follows.
+
+**D-M1, how the sites are matched: by identity, from one walk, with each store-bound root inlined on its own.**
+"Matched by position" is withdrawn. Under `engine` the door (`PureMeaningRewrite`, built):
+1. runs the detector's walk on the query, which names its store-bound ROOTS: each statement that reads a store, and
+   each let-bound lambda that store-bound code names;
+2. inlines each of those roots ON ITS OWN, with the product planner's `UserCallInliner`: a statement, or a let's value
+   with the let kept;
+3. runs the detector's walk again on that body. The walk records each flagged call by identity (`Site.node`), only
+   where it met the call in the query's own tree. A call it met in a body it followed (a function the inliner kept as
+   a call, a mapping) has no node;
+4. rewrites exactly those nodes through `TypedSpec.mapChildren`, within those roots alone;
+5. refuses when the number of distinct nodes rewritten is not the number flagged.
+
+**Why each root is inlined on its own, not the whole body (measured).** `inlineBody` beta-reduces a query's lets into
+the statements that read them ("a let lives in the database or nowhere"). Inlining the whole body would therefore
+splice a host-side `let`'s value into the store-bound statement. There the walk would flag it, and the rewrite would
+give it SQL's meaning, where legend-engine computes it on the host with Pure's (H16's probe, `where region = 'bc'`).
+Inlining each root on its own leaves a host-side let as written, and the planner's G½ reduces it later, unrewritten.
+
+The plant R1 (the whole body inlined at once) turns four tests red:
+- the D-M1 plant (`aFunctionCalledHostSideAndStoreSideIsRewrittenAtTheStoreSideUseAlone`);
+- `aHostSideLetsCallStaysAsWritten_besideAStoreSideCallRewritten`;
+- the let-bound lambda test;
+- the store-bound let test.
+
+One walk still decides both what is flagged and what is rewritten, so they agree by construction.
+
+**D-S1, the native is the door's vocabulary.** No product frontend writes `substringAsGiven`; only the `engine`
+rewrite produces it. The question goes to the user, through the compat owner (~20:45): register it as the door's in
+`EdgeOnlyDataTest` and `EdgeOnlyMembersTest`, and whether lite's own SQL substring (piece 1's `sqlSubstring`, clamped)
+and this native stay two. The build is as if registered door-only, with two natives, until told otherwise. Each
+native's javadoc says which meaning it carries.
+
+**D-S2, the substitute is typed as the typer would.** The replacement `TypedNativeCall`'s callee is the registry's
+function for the native's `FunctionId`, with its declared signature. It is never a hand-assembled signature or
+`ExprType`. B1 builds that construction once, `com.legend.edge.SubstringAsGivenCall.of(ctx, call)`: the callee is
+resolved the typer's way, and its `checked` refuses any callee or info that is not exactly the registry's (its test
+plants four wrong callees). The rewrite calls it through one seam, `PureMeaningRewrite.Substitute`, and builds no
+call of its own.
+
+**D-S3, H2's route.** legend-engine's H2 SELECTs go through its dialect translation
+(`relationalMappingExecution.pure:440-443`): `'substring'` is `functionCall('substring')` (`toPostgresModel.pure:418`)
+and `'indexOf'` is `functionCall('strpos')` (`:381`). The H2 extension's `:262`/`:231` are not on that route. The
+conclusion does not change: it is the raw call with the arguments as given, and the batteries measured 46 of 46.
+
+**D-S4.** The edge's three engine-style printers are dropped from the native's part, since A2 deletes them.
+
+**Built beyond the note:**
+- the per-database facts are one record in `PureText`, `MEASURED` (`zeroStartAsPure`, `engineAnswers`), so
+  `DialectBoundaryTest`'s pin stays at 2. H2 answers under `engine`. DuckDB stays refused until its batteries are
+  measured with the native;
+- the three test-data routes re-type their query from the request, so under `engine` a flagged query there is refused
+  by name, not rewritten in half.
+
+**The rewrite's plants (each a sabotage of `PureMeaningRewrite.java`, run, then restored; 12 tests):**
+
+| plant | the tests it turns red |
+|---|---|
+| R1 the whole body inlined at once | the D-M1 plant, the host-side-let-beside test, the let-bound lambda test, the store-bound let test |
+| R2 a store-bound let root not rewritten | `aStoreBoundLetIsRewrittenInsideTheLet_andEveryRootIsCounted` (refused by the count check) |
+| R3 R2 with the count check gone | the same test (a half-rewritten answer) |
+| R4 an unmeasured database let through | `aDatabaseNotMeasuredUnderEngineIsRefused` |
+| R5 an unverified call let through | `anUnverifiedCallIsRefused` |
+| R6 a call outside the query's tree let through | `anM2MChainsTransformsAreRefused_theStoreResolverReachesThem` |
+
+**The notes for the build:**
+- register rows S130, S134 and S383 name the `engine` value and what it does;
+- the differences page's item 1 names the operator's option beside the hand rewrite;
+- the guard moves, each for the user's word with a dated note: `INTERNAL_DESUGAR` +1, native-claims, the funnel
+  register +1, the two new pins, and the `EdgeOnlyDataTest` census answer from D-S1.
 
 ## The decisions, on one page
 
@@ -37,7 +111,7 @@ set out.
 
   | extension | `substring` | `indexOf` |
   |---|---|---|
-  | `h2Extension2_1_214.pure:262`, `:231` | `substring%s` (the arguments joined) | `LOCATE(%s)`, the needle first |
+  | H2: the dialect translation its SELECTs take (`relationalMappingExecution.pure:440-443`; D-S3) | `functionCall('substring')` (`toPostgresModel.pure:418`) | `functionCall('strpos')` (`:381`) |
   | `duckdbExtension.pure:277`, `:237` | `substring%s` | `instr(%s, %s)` |
   | `postgresExtension.pure:248`, `:220` | `substring%s` | `strpos(%s, %s)` |
   | `snowflakeExtension.pure:379`, `:331` | `substring%s` | `CHARINDEX(%s)`, the needle first |
@@ -169,7 +243,7 @@ The 3-argument `indexOf` stays legend-engine's refusal against lite's answer, as
 
 | part | who | what | days |
 |---|---|---|---|
-| the core native | B1, in parallel, from the reviewer's approval | the two signatures (`Pure.java`, verified as piece 1's are); one `Scalars` rule; `SqlFn.SUBSTRING_AS_GIVEN`; one label in each dialect's SUBSTRING case (about 13 files) and the edge's three engine-style printers; the native's tests | about 1 |
+| the core native | B1, in parallel, from the reviewer's approval | the two signatures (`Pure.java`, verified as piece 1's are); one `Scalars` rule; `SqlFn.SUBSTRING_AS_GIVEN`; one label in each dialect's SUBSTRING case (about 13 files; no engine-style printer, A2 deletes them: D-S4); `SubstringAsGivenCall` (D-S2); the native's tests | about 1 |
 | the edge rewrite | B1-R | `PureMeaningRewrite` (the inline, the replacement by position, `withBody`, about 150 lines); `engine` in the setting's switch; `ENGINE_FACTS` in `PureText`; the refusals; `PureMeaningRewriteTest`; the batteries under `engine` and their two pins | about 1.5 |
 
 The two parts meet at the native's name alone, so B1-R builds against it from day one and rebases onto B1's commit.

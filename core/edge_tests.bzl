@@ -85,6 +85,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/DynamicPivotTextRefusalTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureMeaningCheckTest.java",
+    "src/test/java/com/legend/edge/PureMeaningRewriteTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/edge/SiteWordsRecorderTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",
