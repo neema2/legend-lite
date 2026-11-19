@@ -32,15 +32,15 @@ Where they do not agree, the difference is listed here, with what to write if yo
   - an end before the start.
 - **To get legend-engine's answer:** `substring($a - 1, $a - 1 + $b)` for legend-engine's `substring($a, $b)`; and
   `indexOf(...) + 1`, which also turns Pure's -1 into legend-engine's 0.
-- **You will be told:**
-  - **The legend-engine door warns** whenever a query sent to the database calls either one: a log line, and a
-    response header, `x-legend-lite-pure-meaning`.
-  - **A server setting makes it refuse instead:** `LEGEND_LITE_PURE_MEANING=refuse`.
-  - **When it is quiet:** for `substring`, when the request sets legend-engine's corrected option; `indexOf` always
-    warns.
+- **Nothing changes silently:**
+  - **The legend-engine door refuses** a query sent to the database that calls either one, in legend-engine's error
+    envelope, naming the call.
+  - **An operator may choose to warn instead:** the server setting `LEGEND_LITE_PURE_MEANING=warn` answers Pure's way,
+    with a log line and a response header, `x-legend-lite-pure-meaning`.
+  - **When the door lets the query through:** for `substring`, when the request sets legend-engine's corrected option.
+    For `indexOf`, never: that option corrects `substring` alone.
   - **A literal start of 0 is exempt** where it is measured equal to Pure's answer: on H2 both forms, on DuckDB the
     2-argument form only.
-  - **A report lists every such call in your project when it loads,** and in your saved queries.
 - **Lite's other languages keep SQL's meaning:** `#Cypher`, `#SQL`, `#IQ` and a `###Relational` mapping's own functions
   write SQL's `substring` and position by name. Nothing you write there changes.
 - **When:** stage A.
@@ -132,8 +132,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Register:** S368.
 
 ### 8. legend-engine's feature flags
-- **The corrected-substring flag** changes nothing, because item 1 makes Pure's meaning the only one. It only quiets
-  the door's `substring` warning. **When:** stage A.
+- **The corrected-substring flag** changes no answer, because item 1 makes Pure's meaning the only one. It only lets the
+  door pass a `substring` call that it would otherwise refuse. **When:** stage A.
 - **The legacy null-equality flag** is refused by name. **When:** stage B.
 - **The enum push-down flag** is accepted and changes nothing, since lite always transforms enums in SQL. **When:**
   stage B.
