@@ -303,8 +303,8 @@ cherry-picked; S1m is not carried, and S1's deletions are re-done in 1.2).
 **0.5 Register housekeeping.**
 - **Changes:** S138 corrected (compiled legend-pure raises on `acos(2.0)`, `CoreHelper.java:141-148`), S63 recited
   (the live refusal is `pureToSQLQuery.pure:10056`), the prelude's register row (the user's 2026-11-19 ruling: the
-  prelude and the parser stay), and the two unrecorded differences H1 found: legend-engine's H2 `parseJson` UDF, and
-  S110's DuckDB residual.
+  prelude and the parser stay), and the unrecorded differences found so far: legend-engine's H2 `parseJson` UDF and
+  S110's DuckDB residual (H1); legend-engine's `joinStrings` SQL appending the separator (B2's CP-4 count).
 - **Check:** `RegisterRowsTest` and the census's (b) rows citing them.
 - **Size:** 0.5 day.
 - **Depends on:** CP-10. **Owner:** this session.
@@ -815,6 +815,21 @@ item 2).
 
 **CP-4. Upstream's SQL text is never promised.** *Gates 1.4 and 2.3.* **RULED: option A, never promised** (the same
 words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to the user before 2.3 lands.
+- **Measured 2026-11-19 ~04:20 UTC by B2** (every engine-text printer answering lite's own SQL; judging unchanged;
+  the baseline the committed rosters):
+  - **143 distinct corpus tests move to "not promised"** (DuckDB 143, H2 139). They were judged on legend-engine's
+    text alone: a declined appeal (64), a printed SQL, plan or DDL string compared (22), a construct lite's printer
+    has no form for (53, mostly `planToString` goldens), or SQL read from legend-engine's plan (4);
+  - **6 tests assert legend-engine's PLAN STRUCTURE**, not SQL text (`testSupportStreamFlag*`: a
+    `FunctionParametersValidationNode`'s `supportsStream`). Recommendation: not promised, as an internal shape (rule
+    4); phase 5's export decides whether it comes back naturally;
+  - **3 DIVERGED appeals, the only answer differences:**
+    - `testToSQLStringForTDSStringJoin` and `testHashFunctions`: legend-engine's golden SQL writes `joinStrings` with
+      the separator appended (`concat(a, ' ', b, '|')`), against Pure's `joinStrings`. Lite answers Pure. That is
+      upstream's defect: a register row (0.5);
+    - `testToSqlGenerationFirstDayOfWeek`: lite answers Monday on DuckDB (Pure's `firstDayOfWeek`, legend-engine
+      `dateExtension.pure:202`) and Sunday on H2. That is a lite parity bug (G2), handed to the product owner;
+  - no test moved from fail to pass; the runtime was 10.5 minutes for both lanes.
 - **The question:** legend-engine's own suite calls `toSQLString` 588 times in 64 files (H1); its test-data
   generator's `sqls` are pinned by 45 asserts (S193); its answers carry SQL in `activities` and `sqlQuery`.
 - **Option A, never promised (recommended).**
@@ -908,7 +923,8 @@ worry or even support older database versions".
   tooling only (`testonly`, its pool usable from that package alone).
 
 **CP-10. Housekeeping.**
-- The register corrections S138 and S63, the prelude's register row, and H1's two unrecorded differences (0.5).
+- The register corrections S138 and S63, the prelude's register row, and the three unrecorded differences found so
+  far (0.5).
 - B1's three pending guard items are withdrawn, because the extension they guard is not built (§2).
 - The census's 23-hit calendar group (legend-engine's `LegendCalendarSchema.<type>_Calendar` names and fiscal
   columns in product lowering, `CalendarAgg`) becomes a ruled (b) row. H1 classed it S `same`: the names are the
