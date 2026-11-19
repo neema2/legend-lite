@@ -11,9 +11,42 @@ core: stop and report). The inputs: H3 (`claude/compat-homework-h3` at `086292ef
 at `b3e3902ea`). Upstream is READ from the pinned trees (legend-engine 4.145.0 at `230c1591`, legend-pure 5.99.0), the
 same archives the build pins.
 
-**Status: in progress.** This record is committed after each finding; the counts are filled in as they are measured.
+**Status: done (the time box's work), 2026-11-19.** Committed after each finding as it was measured.
 
-## 0. The findings so far
+## The answer, on one page
+
+1. **The model-level, target-aware translator works through the public doors, with no new core hook.** On the
+   relational corpus (both lanes), with Pure's `substring`/`indexOf` in the core, the translator wins back exactly the
+   tests it can win (+4 per lane, nothing else moves: V2 to V3). Of H3's 15 newly failing tests, 11 pass; the 4 left
+   are all in B2's CP-4 list (they judge legend-engine's plan or SQL text and nothing else). One DuckDB pass that was
+   vacuous under the old meaning becomes a real check and exposes a product defect (F4).
+2. **The rewrite is per USE and per TYPE, not per name and definition (F1, F5).** legend-engine gives `substring` and
+   `indexOf` the database's meaning only in code it sends to the store; everywhere else they are Pure's. And a rename
+   by name breaks lite's type inference (the list `indexOf`). Both were measured on the corpus (V4: worse by 4 and 6
+   tests); typed retargeting, built from public classes, removes the typing breaks (V6).
+3. **3.1 is the gate, and it is bigger than planned (§3).** Lite's own frontends (Cypher, `#SQL`, `#IQ`; 47 call
+   sites) and the `###Relational` dynaFunctions write today's meaning. Without their split, Pure's meaning in the core
+   breaks about 1,240 parity cases; with it (built here), no parity answer moves. 9 old-meaning pins and 8 text goldens
+   move, listed.
+4. **(c) positions:** the rewrite keeps every node's source position, but no lite error on these doors reports one
+   today, with or without it; the words do leak the rewrite (a type error names `meta::legend::compat::engine::
+   substring`).
+5. **(d) cost:** translator 584 lines (spec tree; 494 before the typed retarget), library 65 Pure lines; 2.7 s on the corpus world's 11,168
+   elements for the use-site scope, 7.1 s with typing (a first build plus 65 bodies); `buildModule` is 3.5-4 s.
+6. **0.6:** the ledger's first draft has 130 rows (every H1 row the translator touches, plus the spike's), 52 flagged.
+
+**For phase 3, in order of consequence:**
+- **3.1 lands before 3.3 (R4)**, with the frontends in it (§3); re-estimate about 2 days, +0.5 and one
+  `NativeCatalogGovernanceTest` ceiling move once 3.3's negative-start raise lands.
+- **3.2's skeleton must be use-site and typed:** find the store-bound code (routed calls, helpers, let-bound lambdas;
+  40 corpus sites need data flow or a refusal), type it with upstream's names, retarget the String-overload calls.
+  Decide early: whether `ArchitectureTest`'s entry rule admits an edge caller of `SpecCompiler` (the first possible
+  hook question), and who words the compat name back in errors (1.2's presenter or the translator).
+- **Two semantic questions the translator cannot answer alone:** an M2M mapping chained over a relational store
+  (the meaning depends on the runtime at each routed call), and `CORRECT_SQL_SUBSTRING_INDEXING` on one of two calls
+  that share a `let`-bound lambda. Both appear in the corpus only in CP-4 tests.
+
+## 0. The findings
 
 ### F1. legend-engine's programs use `substring` and `indexOf` in TWO meanings, by where the code runs
 
@@ -106,8 +139,8 @@ model), against V3's use-site rename:
 | H2 | 2,285 pass, 280 fail | 2,281 pass, 284 fail | +4 fail |
 | DuckDB | 2,447 pass, 113 fail | 2,442 pass, 119 fail | +7 fail, -1 (the vacuous pass comes back) |
 
-- **In typing:** 6 of the new failures are `type: cannot access 'name' on String` (the `columnValueDifference*` and
-  `rowValueDifferenceTest` tests). legend-engine's own TDS helper `tds/tdsExtension.pure:39` sorts by
+- **In typing:** all 4 new failures on H2 and 6 of the 7 on DuckDB are `type: cannot access 'name' on String` (the
+  `columnValueDifference*` and `rowValueDifferenceTest` tests). legend-engine's own TDS helper `tds/tdsExtension.pure:39` sorts by
   `sortBy(c|$columnsToCheck->indexOf($c.name))`, the LIST `indexOf`. Renamed to the compatibility overload set (a String
   overload and a generic `T[*]` one), lite's typer infers the lambda's `c` as a String. **An untyped rename to a user
   overload set changes type inference**, so a real translator must retarget TYPED calls: only a call that resolved to
@@ -121,9 +154,9 @@ model), against V3's use-site rename:
   The pieces are public today: `ModelContext.findFunction` gives a model function's `TypedFunction`, and
   `compiler.spec.SpecCompiler.compile(TypedFunction)` (`SpecCompiler.java:84`) types its body; a query's typed body is
   `TypedQuery.body()`. So it looks reachable without a new hook, at the cost of typing every body that holds a candidate
-  call twice (once with upstream's names, once rewritten). Two things to check before 3.2 relies on it: whether
-  `ArchitectureTest`'s listed-entries rule admits an edge caller of `SpecCompiler`, and the eager typing's time on the
-  corpus world (`EagerCorpusCompileProbe` measures it).
+  call twice (once with upstream's names, once rewritten). One thing to check before 3.2 relies on it: whether
+  `ArchitectureTest`'s listed-entries rule admits an edge caller of `SpecCompiler` (the spike, in the spec tests'
+  tree, is outside the rule's scope).
 - **Built and probed (`EngineTranslator.stringCallPositions`, `translateAt`):** build the model once with upstream's
   names, type every function whose body names `substring` or `indexOf` (`SpecCompiler.compile`), collect the
   positions of the `TypedNativeCall`s whose callee is `meta::pure::functions::string::substring` or `::indexOf`, and
@@ -131,8 +164,8 @@ model), against V3's use-site rename:
   String `indexOf` (the answer is legend-engine's, `[[0], [3]]`), kept `s::byPos`'s list `indexOf`, and left the
   untypeable `s::bad` unrenamed: 4 bodies typed in 4 ms. **No new hook: public classes only.**
 - **The corpus through it (V6: the typed retarget, at every definition):** H2 2,285 pass / 280 fail, identical to V3;
-  DuckDB 2,448 / 112, V3 plus the vacuous pass back. **All 7 of V4's typing breaks are gone**; what remains of V4's
-  damage is meaning alone (host-side code renamed). It renamed 48 calls (16 `indexOf`, 32 `substring`) and kept 174
+  DuckDB 2,448 / 112, V3 plus the vacuous pass back. **Every new failure of V4 is gone** (H2 4, DuckDB 7: the 6 typing
+  breaks and the moved witness); what remains of V4's damage is meaning alone (host-side code renamed). It renamed 48 calls (16 `indexOf`, 32 `substring`) and kept 174
   list `indexOf` and 55 `substring` that did not type as the String overload. The cost: 7.1 s (a first
   `buildModule` with upstream's names, then 65 bodies typed in 2.6-2.8 s); 83 candidate functions do not type in lite
   (mostly legend-engine's own implementation files the corpus loads) and keep their names.
@@ -142,8 +175,8 @@ model), against V3's use-site rename:
 
 ## 1. The spike's shape
 
-**The translator** (`spec/src/test/java/com/legend/compatspike/EngineTranslator.java`, 494 lines, about 400 without
-comments and blank lines):
+**The translator** (`spec/src/test/java/com/legend/compatspike/EngineTranslator.java`, 584 lines with the typed
+retarget of F5; 494 without it):
 - **input:** the parsed model (`Compiler.ParsedModule`) and the target, read from the runtime's connection
   (`ConnectionDefinition.databaseType()`: H2 or DuckDB; any other target refused by name);
 - **work:** a deep map over the model's records (functions, classes' derived properties and constraints, mappings,
@@ -160,7 +193,8 @@ comments and blank lines):
   model's functions, by simple name); a routed call carrying `CORRECT_SQL_SUBSTRING_INDEXING` keeps Pure's `substring`;
 - **output:** the rewritten `ParsedModule` plus the library's source, handed to the normal compiler through its public
   doors: the corpus harness parses the library with the model (`Compiler.parseSources`), translates, then builds
-  (`Compiler.buildModule`) and runs through the test door as before (`MinimalCorpus.java`, +24 / -3); the probe uses
+  (`Compiler.buildModule`) and runs through the test door as before (`MinimalCorpus.java`, +40 / -3 with the typed
+  scope); the probe uses
   `Compiler.parseQuery`, `Compiler.query`, `Execution.runOnProjectDatabases`.
 
 **It sits in the spec tests' source tree on purpose**: only the core's public API is reachable from there, so "no
@@ -185,7 +219,10 @@ new hook" is checked by javac.
 
 ## 2. The measurements
 
-### (a) H3's 15, and what else moved: F4 above. Variants V2, V4, V5 below as they land.
+### (a) H3's 15, and what else moved
+
+F4 (V2, V3) and F5 (V4, V6) above; V5, the pass-through check, in (d). Each variant's rosters, diffed, are in
+`h5/corpus/`.
 
 ### (b) The core APIs it needed; no new hook
 
@@ -225,8 +262,9 @@ the translator off and on:
 
 ### (d) Size, time, what broke
 
-- **Size:** translator 494 lines (about 400 without comments); library 32 + 33 Pure lines (H3's); the harness door
-  +24 / -3; the probe 161; core +69 / -31 (Scalars, RelOpTranslator).
+- **Size:** translator 584 lines (494 before F5's typed retarget); library 32 + 33 Pure lines (H3's); the harness door
+  +40 / -3; the probe 205; core: the meaning +20 / -26 (Scalars), the dynaFunction split +49 / -5, the frontend split
+  +75 / -42 (5 files).
 - **Time, the corpus world** (11,168 elements; 1,029,638 records): `buildModule` 3.4-4.1 s. The translator:
   - **26.1-26.8 s** as first built (V3: each record's components read and made accessible again at every node);
   - **1.1-1.3 s** with each record class's shape read once (V5, `identity`, which rebuilds EVERY record: the upper
@@ -331,9 +369,9 @@ real slice is the 17 listed test moves (9 old-meaning pins with R4, 8 goldens wi
 
 `H5-translator-ledger-draft.tsv` beside this record (generator: `h5/ledger.py.txt`, over H1's TSV).
 
-- **129 rows:** one per H1 row the translator touches (106 rows: every R0, R1, X other than lite-scope, and S
-  defect), split by audience or database where the action differs, plus 6 rows the spike found (H5-D1 to H5-D6).
-- **Actions:** rewrite 34; pass 38 (of which the parser's, the presenter's, the judge's or the core's, said in the
+- **130 rows:** one per H1 row the translator touches (106 rows: every R0, R1, X other than lite-scope, and S
+  defect), split by audience or database where the action differs, plus 7 rows the spike found (H5-D1 to H5-D7).
+- **Actions:** rewrite 34; pass 39 (of which the parser's, the presenter's, the judge's or the core's, said in the
   row); Pure's answer recorded 21; lite answers where upstream refuses 20 (E-R2); refuse by name 16.
 - **52 rows are flagged unclear**, each with its reason in the `note` column. The biggest groups:
   - **CP-5's cost** (S9, S20, D03, D08 class A): the rows move to "Pure's answer recorded" by CP-5, pending 0.4 (j);
