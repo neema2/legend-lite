@@ -1,0 +1,46 @@
+# test files:
+# legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testWithFunction.pure ['meta::relational::tests::query::function::testDayOfWeekNumberFunction']
+# legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/embedded/testEmbeddedOtherwiseMapping.pure ['meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierProperty']
+# legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/embedded/testInlineEmbeddedMapping.pure ['meta::relational::tests::mapping::embedded::advanced::testQualifierProperty']
+# legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/dynaJoin/testDynaJoin.pure ['meta::relational::tests::mapping::dynajoin::testFilterOnJoinWithAggregateFunction']
+# legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure ['meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone']
+# legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testQualifier.pure ['meta::relational::tests::projection::qualifier::testFilterOnRootTypeWithOrWithFilterInQualifier']
+# legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testIn.pure ['meta::relational::tests::projection::filter::in::testInWithDynaFunction']
+# legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testDistinct.pure ['meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter']
+SITE 29:60 BOOLEAN/STRING
+    testWithFunction.pure:29:60 | let result = execute(|Synonym.all()->filter(s|$s.type == $eType), simpleRelationalMapping, meta::external::store::relational::tests::testRuntime(), meta::relational::extension::relationalExtensions())
+SITE 31:60 BOOLEAN/STRING
+    (no test file line with == or != here: a model or mapping file)
+SITE 44:60 STRING/INTEGER
+    testDistinct.pure:44:60 | let result = execute(|Interaction.all()->filter(i|$i.id == 1)->project([#/Interaction/source/name!sourceName#, #/Interaction/id!id#])->distinct(), simpleRelationalMapping, meta::external::store::relat
+SITE 52:88 STRICT_DATE/STRING
+    testInlineEmbeddedMapping.pure:52:88 | let result = execute(|Product.all()->filter(p | $p.bondDetails.type == '7 weeks' )
+    testDynaJoin.pure:52:88 | let result = execute(|Trade.all()->filter(t|$t.id->in([1,6]) && ($t.latestEventDate == '2014-12-03')), meta::relational::tests::simpleRelationalMapping,meta::external::store::relational::tests::testRu
+SITE 76:74 INTEGER/STRING
+    (no test file line with == or != here: a model or mapping file)
+SITE 96:42 BOOLEAN/STRING
+    (no test file line with == or != here: a model or mapping file)
+SITE 110:77 INTEGER/STRING
+    testWithFunction.pure:110:77 | let result = execute(|Person.all()->filter(p|$p.firstName->length() == 4), simpleRelationalMapping, meta::external::store::relational::tests::testRuntime(), meta::relational::extension::relationalExte
+    testInlineEmbeddedMapping.pure:110:77 | let result = execute(|Product.all()->filter(p | $p.bondDetails.duration == '5' )
+SITE 131:51 STRING/INTEGER
+    (no test file line with == or != here: a model or mapping file)
+SITE 166:76 INTEGER/STRING
+    testEmbeddedOtherwiseMapping.pure:166:76 | let result = execute(|Product.all()->filter(p | $p.bondDetails.duration == '5' )
+SITE 169:51 STRING/INTEGER
+    (no test file line with == or != here: a model or mapping file)
+SITE 196:102 STRING/INTEGER
+    testIn.pure:196:102 | let result = execute(|Interaction.all()->filter(i| $i.active->in(['false', 'something']) && $i.id == 4)->project([i | $i.id, i | $i.active], ['id', 'active']),
+SITE 211:65 INTEGER/STRING
+    executionPlanTest.pure:211:65 | let generatedPlan = executionPlan({optionalPnl: Float[0..1]|Order.all()->filter(x|$x.pnl==$optionalPnl)}, simpleRelationalMapping, meta::external::store::relational::tests::testRuntime(), meta::relati
+    testIn.pure:211:65 | let result = execute(|Trade.all()->filter(t | $t.id == 10 || $t.id == 11)->project([i | $i.account.name, i | $i.account.accountCategory], ['name', 'cat']),
+SITE 261:65 INTEGER/STRING
+    (no test file line with == or != here: a model or mapping file)
+SITE 273:61 INTEGER/STRING
+    testQualifier.pure:273:61 | && $t.id == '1'))->project([col(t | $t.id, 'id'),
+SITE 316:65 INTEGER/STRING
+    (no test file line with == or != here: a model or mapping file)
+SITE 497:93 INTEGER/STRING
+    testWithFunction.pure:497:93 | let result = execute(|Trade.all()->filter([t | $t.date->dayOfWeekNumber(DayOfWeek.Monday) != '2'])
+SITE 982:169 STRING/INTEGER
+    executionPlanTest.pure:982:169 | assert($planAsString->indexOf('settlementDateTime = \'${GMTtoTZ( "[US/Arizona]" dt)}\'') != -1 || 'settlementDateTime = TIMESTAMP\'${GMTtoTZ( "[US/Arizona]" dt)}\'' != -1);

@@ -1,0 +1,600 @@
+//core:update_generated_0_test                                  (cached) PASSED in 0.1s
+//core:update_generated_1_test                                  (cached) PASSED in 0.1s
+//core:update_generated_2_test                                  (cached) PASSED in 0.0s
+//core:update_generated_3_test                                  (cached) PASSED in 0.1s
+//core:update_generated_4_test                                  (cached) PASSED in 0.0s
+//core:update_generated_5_test                                  (cached) PASSED in 0.1s
+//core:update_ladder_0_test                                     (cached) PASSED in 0.1s
+//core:update_ladder_10_test                                    (cached) PASSED in 0.1s
+//core:update_ladder_11_test                                    (cached) PASSED in 0.1s
+//core:update_ladder_1_test                                     (cached) PASSED in 0.1s
+//core:update_ladder_2_test                                     (cached) PASSED in 0.1s
+//core:update_ladder_3_test                                     (cached) PASSED in 0.0s
+//core:update_ladder_4_test                                     (cached) PASSED in 0.1s
+//core:update_ladder_5_test                                     (cached) PASSED in 0.1s
+//core:update_ladder_6_test                                     (cached) PASSED in 0.1s
+//core:update_ladder_7_test                                     (cached) PASSED in 0.1s
+//core:update_ladder_8_test                                     (cached) PASSED in 0.0s
+//core:update_ladder_9_test                                     (cached) PASSED in 0.1s
+//core:update_stress_corpus_0_test                              (cached) PASSED in 0.1s
+//core:update_stress_corpus_10_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_11_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_12_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_13_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_14_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_15_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_16_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_17_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_18_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_19_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_1_test                              (cached) PASSED in 0.0s
+//core:update_stress_corpus_20_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_21_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_22_test                             (cached) PASSED in 0.1s
+//core:update_stress_corpus_2_test                              (cached) PASSED in 0.1s
+//core:update_stress_corpus_3_test                              (cached) PASSED in 0.0s
+//core:update_stress_corpus_4_test                              (cached) PASSED in 0.1s
+//core:update_stress_corpus_5_test                              (cached) PASSED in 0.1s
+//core:update_stress_corpus_6_test                              (cached) PASSED in 0.1s
+//core:update_stress_corpus_7_test                              (cached) PASSED in 0.1s
+//core:update_stress_corpus_8_test                              (cached) PASSED in 0.1s
+//core:update_stress_corpus_9_test                              (cached) PASSED in 0.1s
+//datacube:adhoc_mode_test                                      (cached) PASSED in 2.3s
+//datacube:adhoc_session_test                                   (cached) PASSED in 0.3s
+//datacube:adhoc_state_test                                     (cached) PASSED in 0.3s
+//datacube:adhoc_transactions_dom_test                          (cached) PASSED in 2.0s
+//datacube:adhoc_transactions_test                              (cached) PASSED in 0.6s
+//datacube:app_test                                             (cached) PASSED in 1.5s
+//datacube:apply_refusal_test                                   (cached) PASSED in 2.5s
+//datacube:association_dialog_test                              (cached) PASSED in 3.5s
+//datacube:band_board_test                                      (cached) PASSED in 3.2s
+//datacube:bands_test                                           (cached) PASSED in 2.9s
+//datacube:brand_casts_test                                     (cached) PASSED in 9.2s
+//datacube:browser_guard_test                                   (cached) PASSED in 1.3s
+//datacube:bundle_budget_test                                   (cached) PASSED in 0.6s
+//datacube:calc_test                                            (cached) PASSED in 0.4s
+//datacube:cancel_http_test                                     (cached) PASSED in 0.7s
+//datacube:cancel_test                                          (cached) PASSED in 0.8s
+//datacube:chart_echarts_test                                   (cached) PASSED in 2.4s
+//datacube:chart_kinds_test                                     (cached) PASSED in 3.8s
+//datacube:chart_maps_test                                      (cached) PASSED in 3.8s
+//datacube:chart_rules_more_test                                (cached) PASSED in 0.5s
+//datacube:chart_rules_test                                     (cached) PASSED in 0.5s
+//datacube:chart_tiles_test                                     (cached) PASSED in 13.2s
+//datacube:class_dialog_test                                    (cached) PASSED in 4.3s
+//datacube:class_tree_test                                      (cached) PASSED in 0.4s
+//datacube:columns_panel_test                                   (cached) PASSED in 1.5s
+//datacube:columns_selector_dom_test                            (cached) PASSED in 1.3s
+//datacube:columns_selector_test                                (cached) PASSED in 0.4s
+//datacube:conditional_test                                     (cached) PASSED in 0.7s
+//datacube:config_fold_test                                     (cached) PASSED in 0.6s
+//datacube:config_readers_test                                  (cached) PASSED in 0.3s
+//datacube:create_class_test                                    (cached) PASSED in 0.5s
+//datacube:cube_adhoc_shell_test                                (cached) PASSED in 4.6s
+//datacube:cube_document_test                                   (cached) PASSED in 0.5s
+//datacube:cube_editors_app_test                                (cached) PASSED in 4.2s
+//datacube:cube_library_test                                    (cached) PASSED in 2.9s
+//datacube:cube_lifecycle_test                                  (cached) PASSED in 1.9s
+//datacube:cube_round_trip_test                                 (cached) PASSED in 2.2s
+//datacube:cube_state_test                                      (cached) PASSED in 1.2s
+//datacube:cube_transactions_test                               (cached) PASSED in 8.8s
+//datacube:datacube_app_live_test                               (cached) PASSED in 10.4s
+//datacube:dimensions_test                                      (cached) PASSED in 0.7s
+//datacube:duckdb_cancel_test                                   (cached) PASSED in 0.4s
+//datacube:duckdb_test                                          (cached) PASSED in 2.2s
+//datacube:dynamic_input_test                                   (cached) PASSED in 0.5s
+//datacube:editor_dom_test                                      (cached) PASSED in 2.7s
+//datacube:editor_test                                          (cached) PASSED in 0.7s
+//datacube:editors_live_test                                    (cached) PASSED in 1.8s
+//datacube:engine_remote_http_test                              (cached) PASSED in 0.3s
+//datacube:engine_remote_test                                   (cached) PASSED in 1.0s
+//datacube:epoch_test                                           (cached) PASSED in 0.2s
+//datacube:export_doc_test                                      (cached) PASSED in 0.4s
+//datacube:export_model_test                                    (cached) PASSED in 0.8s
+//datacube:export_rich_dom_test                                 (cached) PASSED in 2.8s
+//datacube:export_rich_test                                     (cached) PASSED in 0.5s
+//datacube:export_test                                          (cached) PASSED in 0.4s
+//datacube:filter_editor_dom_test                               (cached) PASSED in 1.9s
+//datacube:flow_page_test                                       (cached) PASSED in 2.5s
+//datacube:flow_sheet_test                                      (cached) PASSED in 1.0s
+//datacube:form_test                                            (cached) PASSED in 3.2s
+//datacube:format_code_test                                     (cached) PASSED in 0.6s
+//datacube:format_scale_test                                    (cached) PASSED in 0.9s
+//datacube:format_test                                          (cached) PASSED in 0.3s
+//datacube:grid_basics_test                                     (cached) PASSED in 1.5s
+//datacube:grid_between_test                                    (cached) PASSED in 4.8s
+//datacube:grid_commands_test                                   (cached) PASSED in 0.3s
+//datacube:grid_dom_test                                        (cached) PASSED in 4.6s
+//datacube:grid_edits_test                                      (cached) PASSED in 0.5s
+//datacube:grid_gestures_test                                   (cached) PASSED in 0.5s
+//datacube:grid_presets_test                                    (cached) PASSED in 0.8s
+//datacube:grid_resize_test                                     (cached) PASSED in 1.5s
+//datacube:grid_test                                            (cached) PASSED in 0.5s
+//datacube:guardrails_test                                      (cached) PASSED in 0.8s
+//datacube:headless_assert_test                                 (cached) PASSED in 1.9s
+//datacube:headless_roster_test                                 (cached) PASSED in 0.2s
+//datacube:headless_test_runner_test                            (cached) PASSED in 0.4s
+//datacube:headless_web_test                                    (cached) PASSED in 0.8s
+//datacube:host_join_flow_test                                  (cached) PASSED in 2.7s
+//datacube:host_test                                            (cached) PASSED in 0.2s
+//datacube:join_dialog_test                                     (cached) PASSED in 9.8s
+//datacube:join_inputs_test                                     (cached) PASSED in 0.4s
+//datacube:join_menu_test                                       (cached) PASSED in 0.8s
+//datacube:join_test                                            (cached) PASSED in 0.4s
+//datacube:layout_picker_test                                   (cached) PASSED in 1.4s
+//datacube:lazily_test                                          (cached) PASSED in 0.2s
+//datacube:lite_planner_node_test                               (cached) PASSED in 0.4s
+//datacube:lite_planner_test                                    (cached) PASSED in 1.1s
+//datacube:lite_server_test                                     (cached) PASSED in 0.2s
+//datacube:live_channel_test                                    (cached) PASSED in 12.4s
+//datacube:live_follow_test                                     (cached) PASSED in 1.0s
+//datacube:live_inputs_test                                     (cached) PASSED in 1.1s
+//datacube:live_soak_test                                       (cached) PASSED in 47.7s
+//datacube:long_press_test                                      (cached) PASSED in 1.1s
+//datacube:macros_test                                          (cached) PASSED in 0.5s
+//datacube:menu_ids_test                                        (cached) PASSED in 0.2s
+//datacube:menu_more_test                                       (cached) PASSED in 0.8s
+//datacube:menu_test                                            (cached) PASSED in 0.6s
+//datacube:menu_view_test                                       (cached) PASSED in 1.3s
+//datacube:model_measures_test                                  (cached) PASSED in 0.9s
+//datacube:multi_cube_test                                      (cached) PASSED in 4.6s
+//datacube:one_api_ledger_test                                  (cached) PASSED in 4.0s
+//datacube:page_app_test                                        (cached) PASSED in 17.3s
+//datacube:page_between_test                                    (cached) PASSED in 74.7s
+//datacube:page_commands_test                                   (cached) PASSED in 1.3s
+//datacube:page_corpus_test                                     (cached) PASSED in 1.7s
+//datacube:page_document_test                                   (cached) PASSED in 1.4s
+//datacube:page_filters_test                                    (cached) PASSED in 1.6s
+//datacube:page_gestures_test                                   (cached) PASSED in 0.8s
+//datacube:page_hash_test                                       (cached) PASSED in 0.9s
+//datacube:page_parameters_test                                 (cached) PASSED in 0.3s
+//datacube:page_rebase_test                                     (cached) PASSED in 1.3s
+//datacube:page_state_test                                      (cached) PASSED in 1.3s
+//datacube:page_text_dom_test                                   (cached) PASSED in 4.4s
+//datacube:page_text_test                                       (cached) PASSED in 0.6s
+//datacube:pivot_panel_dom_test                                 (cached) PASSED in 1.3s
+//datacube:pivot_panel_test                                     (cached) PASSED in 0.3s
+//datacube:pivot_values_test                                    (cached) PASSED in 0.8s
+//datacube:planner_http_test                                    (cached) PASSED in 0.2s
+//datacube:planner_test                                         (cached) PASSED in 0.6s
+//datacube:portability_test                                     (cached) PASSED in 1.0s
+//datacube:python_runner_test                                   (cached) PASSED in 1.4s
+//datacube:relation_type_test                                   (cached) PASSED in 0.2s
+//datacube:runner_test                                          (cached) PASSED in 0.3s
+//datacube:sample_test                                          (cached) PASSED in 0.7s
+//datacube:save_dialog_test                                     (cached) PASSED in 2.2s
+//datacube:saved_documents_test                                 (cached) PASSED in 0.7s
+//datacube:saved_pages_page_test                                (cached) PASSED in 0.5s
+//datacube:scale_test                                           (cached) PASSED in 4.4s
+//datacube:screen_colours_test                                  (cached) PASSED in 0.3s
+//datacube:selection_test                                       (cached) PASSED in 0.5s
+//datacube:share_link_node_test                                 (cached) PASSED in 0.1s
+//datacube:share_link_test                                      (cached) PASSED in 0.9s
+//datacube:sheet_tabs_test                                      (cached) PASSED in 2.7s
+//datacube:shell_test                                           (cached) PASSED in 2.7s
+//datacube:source_picker_test                                   (cached) PASSED in 1.9s
+//datacube:state_guardrail_test                                 (cached) PASSED in 0.3s
+//datacube:style_test                                           (cached) PASSED in 0.3s
+//datacube:text_files_test                                      (cached) PASSED in 0.3s
+//datacube:tile_icons_test                                      (cached) PASSED in 1.2s
+//datacube:timeseries_chart_test                                (cached) PASSED in 0.6s
+//datacube:timeseries_echarts_test                              (cached) PASSED in 2.7s
+//datacube:timeseries_edit_test                                 (cached) PASSED in 0.7s
+//datacube:timeseries_option_test                               (cached) PASSED in 0.7s
+//datacube:timeseries_spec_test                                 (cached) PASSED in 0.8s
+//datacube:tools_build_test                                     (cached) PASSED in 0.1s
+//datacube:tree_test                                            (cached) PASSED in 0.3s
+//datacube:typecheck_test                                       (cached) PASSED in 4.7s
+//datacube:undo_coverage_test                                   (cached) PASSED in 2.0s
+//datacube:update_generated_0_test                              (cached) PASSED in 0.0s
+//datacube:update_generated_1_test                              (cached) PASSED in 0.1s
+//datacube:update_generated_2_test                              (cached) PASSED in 0.0s
+//datacube:update_generated_3_test                              (cached) PASSED in 0.1s
+//datacube:update_generated_4_test                              (cached) PASSED in 0.0s
+//datacube:update_generated_5_test                              (cached) PASSED in 0.1s
+//datacube:update_generated_6_test                              (cached) PASSED in 0.1s
+//datacube:update_generated_7_test                              (cached) PASSED in 0.1s
+//datacube:upstream_plans_test                                  (cached) PASSED in 0.3s
+//datacube:value_groups_test                                    (cached) PASSED in 0.4s
+//datacube:values_test                                          (cached) PASSED in 0.4s
+//datacube:warehouse_session_http_test                          (cached) PASSED in 1.0s
+//datacube:warehouse_session_test                               (cached) PASSED in 0.5s
+//datacube:wasm_flag_test                                       (cached) PASSED in 0.2s
+//datacube:window_dom_test                                      (cached) PASSED in 1.5s
+//datacube:window_test                                          (cached) PASSED in 0.3s
+//docs:update_dialect_capability_test                           (cached) PASSED in 0.1s
+//docs:update_generated_0_test                                  (cached) PASSED in 0.0s
+//docs:update_generated_1_test                                  (cached) PASSED in 0.0s
+//engine-client:arrow_ipc_test                                  (cached) PASSED in 2.5s
+//engine-client:node_duckdb_test                                (cached) PASSED in 2.8s
+//engine-client:planned_sql_test                                (cached) PASSED in 0.2s
+//engine-client:run_frame_test                                  (cached) PASSED in 0.5s
+//engine-client:update_generated_0_test                         (cached) PASSED in 0.1s
+//engine-client:update_generated_1_test                         (cached) PASSED in 0.1s
+//engine-client:warehouse_corpus_test                           (cached) PASSED in 1.0s
+//fixtures/saved-queries:update_generated_0_test                (cached) PASSED in 0.1s
+//fixtures/saved-queries:update_generated_1_test                (cached) PASSED in 0.1s
+//fixtures/saved-queries:update_generated_2_test                (cached) PASSED in 0.1s
+//fixtures/saved-queries:update_generated_3_test                (cached) PASSED in 0.1s
+//json:tests                                                    (cached) PASSED in 2.4s
+//legend-art:update_generated_test                              (cached) PASSED in 0.1s
+//model-changes:replay_test                                     (cached) PASSED in 0.3s
+//parser-equivalence:update_generated_0_test                    (cached) PASSED in 0.1s
+//parser-equivalence:update_generated_1_test                    (cached) PASSED in 0.1s
+//parser-equivalence:update_generated_2_test                    (cached) PASSED in 0.1s
+//parser-equivalence:update_ratchets_test                       (cached) PASSED in 0.0s
+//pct:pct_discipline                                            (cached) PASSED in 1.7s
+//projects:contract_test                                        (cached) PASSED in 0.4s
+//projects:timeseries_adversarial_fixture_test                  (cached) PASSED in 0.3s
+//python:host_sql_test                                          (cached) PASSED in 1.5s
+//python:planned_guard_test                                     (cached) PASSED in 11.4s
+//python:run_closure_test                                       (cached) PASSED in 3.3s
+//python:update_generated_0_test                                (cached) PASSED in 0.1s
+//python:update_generated_1_test                                (cached) PASSED in 0.1s
+//python:update_generated_2_test                                (cached) PASSED in 0.1s
+//query:graph_test                                              (cached) PASSED in 0.2s
+//query:run_test                                                (cached) PASSED in 0.5s
+//query:tools_build_test                                        (cached) PASSED in 0.1s
+//query:typecheck_test                                          (cached) PASSED in 3.2s
+//query-store:share_test                                        (cached) PASSED in 0.2s
+//query-store:wasm_test                                         (cached) PASSED in 0.4s
+//scripts/corpus:changed_test                                   (cached) PASSED in 0.3s
+//scripts/corpus:density_gate                                   (cached) PASSED in 0.5s
+//scripts/corpus:executed_gate                                  (cached) PASSED in 30.2s
+//scripts/corpus:functions_gate                                 (cached) PASSED in 0.3s
+//scripts/corpus:quarantine_test                                (cached) PASSED in 1.3s
+//scripts/corpus:run_test                                       (cached) PASSED in 1.1s
+//scripts/corpus:scoreboard_gate                                (cached) PASSED in 41.8s
+//scripts/corpus:stacking_gate                                  (cached) PASSED in 22.1s
+//scripts/corpus:tools_build_test                               (cached) PASSED in 0.0s
+//scripts/parser:update_keyword_coverage_test                   (cached) PASSED in 0.1s
+//site:tools_build_test                                         (cached) PASSED in 0.0s
+//spec:update_ratchets_test                                     (cached) PASSED in 0.0s
+//spec:update_rcorpus_duckdb_1_test                             (cached) PASSED in 0.0s
+//spec:update_rcorpus_duckdb_3_test                             (cached) PASSED in 0.0s
+//spec:update_rcorpus_h2_1_test                                 (cached) PASSED in 0.1s
+//spec:update_rcorpus_h2_3_test                                 (cached) PASSED in 0.1s
+//studio:tools_build_test                                       (cached) PASSED in 0.1s
+//studio:typecheck_test                                         (cached) PASSED in 3.2s
+//third_party/teavm_classlib:tests                              (cached) PASSED in 9.9s
+//tools/browser:proxy_args_test                                 (cached) PASSED in 0.1s
+//tools/bump:bump_test                                          (cached) PASSED in 1.6s
+//tools/census:tools_build_test                                 (cached) PASSED in 0.0s
+//tools/deps:app_runs_test                                      (cached) PASSED in 5.0s
+//tools/deps:arrow_closure_test                                 (cached) PASSED in 1.5s
+//tools/deps:bundle_inputs_test                                 (cached) PASSED in 0.3s
+//tools/deps:core_closure_test                                  (cached) PASSED in 1.3s
+//tools/deps:core_layering_test                                 (cached) PASSED in 1.5s
+//tools/deps:datacube_doors_alone_test                          (cached) PASSED in 1.4s
+//tools/deps:datacube_planner_alone_test                        (cached) PASSED in 1.0s
+//tools/deps:datacube_run_alone_test                            (cached) PASSED in 1.4s
+//tools/deps:engine_client_doors_alone_test                     (cached) PASSED in 1.3s
+//tools/deps:engine_client_engine_api_alone_test                (cached) PASSED in 0.9s
+//tools/deps:engine_client_planner_alone_test                   (cached) PASSED in 0.9s
+//tools/deps:engine_client_run_alone_test                       (cached) PASSED in 1.6s
+//tools/deps:pools_list_test                                    (cached) PASSED in 1.6s
+//tools/deps:query_store_page_closure_test                      (cached) PASSED in 1.3s
+//tools/deps:ts_layering_test                                   (cached) PASSED in 1.3s
+//tools/deps:warehouse_closure_test                             (cached) PASSED in 1.2s
+//tools/engine-runner:update_vocab_test                         (cached) PASSED in 0.1s
+//tools/gs-quant-oracle:tools_build_test                        (cached) PASSED in 0.1s
+//tools/gs-quant-oracle:update_generated_0_test                 (cached) PASSED in 0.1s
+//tools/gs-quant-oracle:update_generated_1_test                 (cached) PASSED in 0.1s
+//tools/gs-quant-oracle:update_generated_2_test                 (cached) PASSED in 0.1s
+//tools/guards:ci_scripts_test                                  (cached) PASSED in 0.1s
+//tools/guards:compile_only_test                                (cached) PASSED in 1.4s
+//tools/guards:locks_test                                       (cached) PASSED in 1.4s
+//tools/guards:markdown_inputs_test                             (cached) PASSED in 1.4s
+//tools/guards:shrink_only_test                                 (cached) PASSED in 2.3s
+//tools/guards:workflows_test                                   (cached) PASSED in 0.3s
+//tools/iq-oracle:tools_build_test                              (cached) PASSED in 0.1s
+//tools/java_run:pins_test                                      (cached) PASSED in 0.1s
+//tools/js:late_bundle_test                                     (cached) PASSED in 0.1s
+//tools/js:lock_matches_package_json_test                       (cached) PASSED in 0.4s
+//tools/junit:pins_test                                         (cached) PASSED in 2.0s
+//tools/junit:runner_test                                       (cached) PASSED in 4.8s
+//tools/junit:tools_build_test                                  (cached) PASSED in 0.1s
+//tools/metrics:tools_build_test                                (cached) PASSED in 0.1s
+//tools/neo4j-oracle:tools_build_test                           (cached) PASSED in 0.1s
+//tools/python:lock_matches_requirements                        (cached) PASSED in 0.8s
+//tools/teavm:data_offsets_test                                 (cached) PASSED in 1.4s
+//warehouse:sqlapi_wasm_build_test                              (cached) PASSED in 1.7s
+//warehouse:tests                                               (cached) PASSED in 21.9s
+//warehouse:update_reachability_metadata_test                   (cached) PASSED in 0.1s
+//wasm:conformance_test                                         (cached) PASSED in 4.0s
+//wasm:tools_build_test                                         (cached) PASSED in 0.0s
+//tools/guards:classpath_test                                           SKIPPED
+//core:arrow_writer_test                                                 PASSED in 5.7s
+//core:cast_case_census_test                                             PASSED in 42.0s
+//core:census                                                            PASSED in 40.3s
+//core:census_edge                                                       PASSED in 8.4s
+//core:core_edge_tests                                                   PASSED in 90.7s
+//core:core_edge_tests_integration_h2                                    PASSED in 27.4s
+//core:core_edge_tests_integration_sqlite                                PASSED in 25.4s
+//core:core_edge_tests_judge_both                                        PASSED in 113.7s
+//core:core_edge_tests_judge_database                                    PASSED in 95.3s
+//core:core_tests_architecture                                           PASSED in 4.5s
+//core:core_tests_builtin                                                PASSED in 4.2s
+//core:core_tests_cache                                                  PASSED in 3.2s
+//core:core_tests_compiler                                               PASSED in 18.6s
+//core:core_tests_compiler_judge_both                                    PASSED in 19.7s
+//core:core_tests_compiler_judge_database                                PASSED in 17.5s
+//core:core_tests_exec                                                   PASSED in 22.1s
+//core:core_tests_exec_judge_both                                        PASSED in 20.8s
+//core:core_tests_exec_judge_database                                    PASSED in 23.9s
+//core:core_tests_ide                                                    PASSED in 3.3s
+//core:core_tests_integration                                            PASSED in 152.0s
+//core:core_tests_integration_h2                                         PASSED in 86.7s
+//core:core_tests_integration_judge_both                                 PASSED in 133.2s
+//core:core_tests_integration_judge_database                             PASSED in 145.2s
+//core:core_tests_integration_sqlite                                     PASSED in 84.8s
+//core:core_tests_ladder                                                 PASSED in 7.5s
+//core:core_tests_lexer                                                  PASSED in 2.6s
+//core:core_tests_lineage                                                PASSED in 2.9s
+//core:core_tests_lowering                                               PASSED in 19.2s
+//core:core_tests_lowering_judge_both                                    PASSED in 17.4s
+//core:core_tests_lowering_judge_database                                PASSED in 21.0s
+//core:core_tests_model                                                  PASSED in 6.2s
+//core:core_tests_normalizer                                             PASSED in 8.2s
+//core:core_tests_normalizer_judge_both                                  PASSED in 9.9s
+//core:core_tests_normalizer_judge_database                              PASSED in 7.8s
+//core:core_tests_parser                                                 PASSED in 5.1s
+//core:core_tests_planner                                                PASSED in 44.6s
+//core:core_tests_planner_judge_both                                     PASSED in 46.2s
+//core:core_tests_planner_judge_database                                 PASSED in 48.0s
+//core:core_tests_platform                                               PASSED in 4.7s
+//core:core_tests_protocol                                               PASSED in 12.1s
+//core:core_tests_resolver                                               PASSED in 18.3s
+//core:core_tests_resolver_judge_both                                    PASSED in 17.3s
+//core:core_tests_resolver_judge_database                                PASSED in 19.1s
+//core:core_tests_root                                                   PASSED in 50.2s
+//core:core_tests_root_judge_both                                        PASSED in 46.2s
+//core:core_tests_root_judge_database                                    PASSED in 71.2s
+//core:core_tests_server                                                 PASSED in 19.9s
+//core:core_tests_server_judge_both                                      PASSED in 24.3s
+//core:core_tests_server_judge_database                                  PASSED in 21.6s
+//core:core_tests_setup                                                  PASSED in 8.8s
+//core:core_tests_sql                                                    PASSED in 27.4s
+//core:core_tests_sql_judge_both                                         PASSED in 26.6s
+//core:core_tests_sql_judge_database                                     PASSED in 31.3s
+//core:core_tests_test                                                   PASSED in 5.8s
+//core:core_tests_testdatagen                                            PASSED in 8.3s
+//core:core_tests_testexec                                               PASSED in 9.2s
+//core:core_tests_testexec_judge_both                                    PASSED in 8.4s
+//core:core_tests_testexec_judge_database                                PASSED in 12.5s
+//core:core_tests_testing                                                PASSED in 3.2s
+//core:core_tests_testing_judge_both                                     PASSED in 3.2s
+//core:core_tests_testing_judge_database                                 PASSED in 3.0s
+//core:core_tests_testplan                                               PASSED in 27.6s
+//core:core_tests_testplan_judge_both                                    PASSED in 31.3s
+//core:core_tests_testplan_judge_database                                PASSED in 36.6s
+//core:corpus_differential_test                                          PASSED in 17.1s
+//core:cypher_parity_native_test                                         PASSED in 221.6s
+//core:cypher_parity_test                                                PASSED in 220.6s
+//core:data_loads_postgres_test                                          PASSED in 1.6s
+//core:guardrails                                                        PASSED in 50.5s
+//core:iq_parity_test                                                    PASSED in 142.7s
+//core:iq_syntax_cases_test                                              PASSED in 4.5s
+//core:keyed_expansion_conformance_test                                  PASSED in 1.6s
+//core:lean_sql_baseline_test                                            PASSED in 105.7s
+//core:lite_api_conformance_test                                         PASSED in 3.9s
+//core:planner_on_java_base_test                                         PASSED in 4.3s
+//core:query_capture_test                                                PASSED in 11.7s
+//core:raise_envelope_conformance_test                                   PASSED in 1.3s
+//core:section_grammar_registry_test                                     PASSED in 1.3s
+//core:sql_parity_test                                                   PASSED in 46.5s
+//core:timeseries_library_test                                           PASSED in 79.5s
+//core:ts_adversarial_test                                               PASSED in 12.3s
+//core:ts_documents_test                                                 PASSED in 15.8s
+//core:ts_gsquant_parity_test                                            PASSED in 183.9s
+//core:ts_island_test                                                    PASSED in 156.6s
+//datacube:adhoc_query_test                                              PASSED in 1.0s
+//datacube:app_dom_test                                                  PASSED in 9.2s
+//datacube:calc_fix_test                                                 PASSED in 1.8s
+//datacube:chart_queries_test                                            PASSED in 34.0s
+//datacube:child_groups_test                                             PASSED in 1.4s
+//datacube:class_source_test                                             PASSED in 7.3s
+//datacube:column_editor_test                                            PASSED in 3.6s
+//datacube:column_kind_test                                              PASSED in 1.5s
+//datacube:config_test                                                   PASSED in 0.9s
+//datacube:cube_open_test                                                PASSED in 8.1s
+//datacube:cube_page_shell_test                                          PASSED in 50.0s
+//datacube:cypher_spike_test                                             PASSED in 2.7s
+//datacube:dist_imports_test                                             PASSED in 0.7s
+//datacube:drill_test                                                    PASSED in 0.9s
+//datacube:escaping_test                                                 PASSED in 1.2s
+//datacube:examples_test                                                 PASSED in 2.3s
+//datacube:filter_editor_test                                            PASSED in 0.9s
+//datacube:fuzz_test                                                     PASSED in 1.6s
+//datacube:group_derived_test                                            PASSED in 2.2s
+//datacube:headless_test                                                 PASSED in 29.2s
+//datacube:infer_test                                                    PASSED in 2.0s
+//datacube:join_open_test                                                PASSED in 45.4s
+//datacube:json_read_test                                                PASSED in 10.2s
+//datacube:json_shape_test                                               PASSED in 1.0s
+//datacube:live_snap_test                                                PASSED in 10.2s
+//datacube:model_join_test                                               PASSED in 3.3s
+//datacube:model_route_test                                              PASSED in 1.8s
+//datacube:offer_facts_test                                              PASSED in 2.0s
+//datacube:one_api_gestures_test                                         PASSED in 39.1s
+//datacube:package_test                                                  PASSED in 1.6s
+//datacube:parity_screen_test                                            PASSED in 16.7s
+//datacube:pivot_rows_test                                               PASSED in 9.0s
+//datacube:pivot_total_test                                              PASSED in 0.8s
+//datacube:plane_test                                                    PASSED in 4.5s
+//datacube:pure_library_spike_test                                       PASSED in 7.1s
+//datacube:query_test                                                    PASSED in 1.6s
+//datacube:remote_test                                                   PASSED in 0.8s
+//datacube:run_stress_test                                               PASSED in 18.6s
+//datacube:sample_trades_test                                            PASSED in 8.8s
+//datacube:saved_pages_server_test                                       PASSED in 0.7s
+//datacube:saved_queries_test                                            PASSED in 29.0s
+//datacube:sorting_test                                                  PASSED in 2.4s
+//datacube:stress_markets_test                                           PASSED in 110.4s
+//datacube:table_output_test                                             PASSED in 3.3s
+//datacube:timeseries_builder_test                                       PASSED in 1.6s
+//datacube:timeseries_code_test                                          PASSED in 2.4s
+//datacube:timeseries_queries_test                                       PASSED in 142.0s
+//datacube:timeseries_ts_parity_test                                     PASSED in 79.9s
+//datacube:timeseries_view_dom_test                                      PASSED in 50.1s
+//datacube:treeview_test                                                 PASSED in 2.4s
+//datacube:two_column_aggregates_test                                    PASSED in 3.8s
+//datacube:type_columns_test                                             PASSED in 0.9s
+//datacube:typed_values_new_york_test                                    PASSED in 10.2s
+//datacube:typed_values_test                                             PASSED in 10.0s
+//datacube:typed_values_tokyo_test                                       PASSED in 9.8s
+//datacube:upload_test                                                   PASSED in 6.6s
+//datacube:value_filter_test                                             PASSED in 1.3s
+//datacube:verify_charts_test                                            PASSED in 118.5s
+//datacube:verify_class_test                                             PASSED in 38.3s
+//datacube:verify_cubes_test                                             PASSED in 277.4s
+//datacube:verify_flow_test                                              PASSED in 430.8s
+//datacube:verify_join_test                                              PASSED in 32.4s
+//datacube:verify_layout_test                                            PASSED in 18.7s
+//datacube:verify_page_test                                              PASSED in 8.7s
+//datacube:verify_upload_test                                            PASSED in 8.7s
+//datacube:verify_wasm_browser_test                                      PASSED in 4.2s
+//datacube:wasm_differential_test                                        PASSED in 5.1s
+//datacube:window_columns_test                                           PASSED in 0.7s
+//depot-client:server_test                                               PASSED in 4.0s
+//depot-client:wasm_test                                                 PASSED in 2.2s
+//engine-client:engine_module_test                                       PASSED in 2.0s
+//engine-client:lite_api_server_test                                     PASSED in 4.1s
+//engine-client:model_data_test                                          PASSED in 9.0s
+//engine-client:plan_runner_test                                         PASSED in 22.6s
+//engine-client:snap_test                                                PASSED in 4.2s
+//pct:pct_channel_b_essential                                            PASSED in 47.1s
+//pct:pct_channel_b_grammar                                              PASSED in 32.2s
+//pct:pct_channel_b_host_essential                                       PASSED in 24.5s
+//pct:pct_channel_b_host_grammar                                         PASSED in 20.0s
+//pct:pct_channel_b_host_h2_relation                                     PASSED in 23.5s
+//pct:pct_channel_b_host_relation                                        PASSED in 38.1s
+//pct:pct_channel_b_host_standard                                        PASSED in 22.7s
+//pct:pct_channel_b_host_unclassified                                    PASSED in 10.6s
+//pct:pct_channel_b_ledger_test                                          PASSED in 2.3s
+//pct:pct_channel_b_relation                                             PASSED in 63.4s
+//pct:pct_channel_b_standard                                             PASSED in 38.5s
+//pct:pct_channel_b_twice_guard_test                                     PASSED in 1.2s
+//pct:pct_channel_b_unclassified                                         PASSED in 13.6s
+//pct:pct_duckdb_essential                                               PASSED in 94.0s
+//pct:pct_duckdb_grammar                                                 PASSED in 61.4s
+//pct:pct_duckdb_relation                                                PASSED in 138.2s
+//pct:pct_duckdb_standard                                                PASSED in 79.9s
+//pct:pct_duckdb_unclassified                                            PASSED in 41.6s
+//pct:pct_h2                                                             PASSED in 103.2s
+//projects:cash-core_test                                                PASSED in 3.8s
+//projects:client-core_test                                              PASSED in 3.9s
+//projects:client-portal_test                                            PASSED in 4.3s
+//projects:client-reporting_test                                         PASSED in 3.2s
+//projects:collateral-core_test                                          PASSED in 4.9s
+//projects:collateral-mgmt_test                                          PASSED in 4.0s
+//projects:collateral-opt_test                                           PASSED in 3.6s
+//projects:core-account_test                                             PASSED in 3.2s
+//projects:core-book_test                                                PASSED in 3.6s
+//projects:core-calendar_test                                            PASSED in 3.4s
+//projects:core-fx_test                                                  PASSED in 3.5s
+//projects:core-geo_test                                                 PASSED in 3.7s
+//projects:core-instrument_test                                          PASSED in 3.5s
+//projects:core-party_test                                               PASSED in 3.5s
+//projects:core-price_test                                               PASSED in 3.5s
+//projects:core-ratings_test                                             PASSED in 3.1s
+//projects:core-tenor_test                                               PASSED in 3.7s
+//projects:core-types_test                                               PASSED in 3.8s
+//projects:core-units_test                                               PASSED in 3.6s
+//projects:credit-core_test                                              PASSED in 3.4s
+//projects:credit-limits_test                                            PASSED in 4.7s
+//projects:custody-core_test                                             PASSED in 3.1s
+//projects:custody-recon_test                                            PASSED in 3.6s
+//projects:event-core_test                                               PASSED in 3.4s
+//projects:every_project_test                                            PASSED in 7.2s
+//projects:exposure-agg_test                                             PASSED in 4.0s
+//projects:fee-billing_test                                              PASSED in 3.9s
+//projects:fee-core_test                                                 PASSED in 3.2s
+//projects:firm-balance-sheet_test                                       PASSED in 4.3s
+//projects:funding-core_test                                             PASSED in 3.9s
+//projects:graph_test                                                    PASSED in 3.5s
+//projects:index-core_test                                               PASSED in 3.9s
+//projects:legal-core_test                                               PASSED in 2.9s
+//projects:legal-netting_test                                            PASSED in 4.1s
+//projects:limit-core_test                                               PASSED in 3.0s
+//projects:liquidity-view_test                                           PASSED in 4.1s
+//projects:margin-calc_test                                              PASSED in 3.4s
+//projects:ops-control_test                                              PASSED in 5.1s
+//projects:order-core_test                                               PASSED in 3.3s
+//projects:order-execution_test                                          PASSED in 3.0s
+//projects:pnl-attribution_test                                          PASSED in 3.2s
+//projects:position-keeping_test                                         PASSED in 4.0s
+//projects:product-catalogue_test                                        PASSED in 3.8s
+//projects:product-core_test                                             PASSED in 3.0s
+//projects:product-pricing_test                                          PASSED in 4.0s
+//projects:reference-data_test                                           PASSED in 3.2s
+//projects:regulatory-capital_test                                       PASSED in 4.3s
+//projects:regulatory-extract_test                                       PASSED in 4.0s
+//projects:risk-core_test                                                PASSED in 3.6s
+//projects:risk-dashboard_test                                           PASSED in 4.3s
+//projects:settlement-core_test                                          PASSED in 3.5s
+//projects:settlement-flow_test                                          PASSED in 3.1s
+//projects:static-core_test                                              PASSED in 3.3s
+//projects:static-distribution_test                                      PASSED in 3.9s
+//projects:timeseries_test                                               PASSED in 4.3s
+//projects:trade-capture_test                                            PASSED in 4.6s
+//projects:trade-lifecycle_test                                          PASSED in 4.0s
+//projects:trade-surveillance_test                                       PASSED in 4.7s
+//projects:valuation-core_test                                           PASSED in 3.7s
+//pure-protocol:twins_test                                               PASSED in 2.1s
+//python:headless_test                                                   PASSED in 66.4s
+//python:planned_test                                                    PASSED in 2.9s
+//query:build_test                                                       PASSED in 2.5s
+//query:load_test                                                        PASSED in 0.9s
+//query:saved_queries_test                                               PASSED in 0.9s
+//query:verify_test                                                      PASSED in 124.1s
+//query-store:lite_test                                                  PASSED in 1.0s
+//sdlc-client:server_test                                                PASSED in 4.5s
+//sdlc-client:wasm_test                                                  PASSED in 9.2s
+//sdlc-server:git_repository_test                                        PASSED in 6.7s
+//site:verify_test                                                       PASSED in 67.4s
+//spec:corpus_h2_verdict                                                 PASSED in 1.5s
+//spec:lean_sql_corpus_duckdb                                            PASSED in 145.1s
+//spec:lean_sql_corpus_h2                                                PASSED in 168.9s
+//spec:spec_tests                                                        PASSED in 33.0s
+//studio:demo_test                                                       PASSED in 5.1s
+//studio:engine_test                                                     PASSED in 5.2s
+//studio:query_builder_test                                              PASSED in 0.9s
+//studio:rename_test                                                     PASSED in 1.6s
+//studio:run_test                                                        PASSED in 0.5s
+//studio:split_test                                                      PASSED in 0.8s
+//studio:verify_test                                                     PASSED in 54.0s
+//studio:workspace_test                                                  PASSED in 2.0s
+//tools/browser:revision_test                                            PASSED in 0.2s
+//tools/deps:edge_separation_closure_test                                PASSED in 1.5s
+//tools/deps:wasm_planner_closure_test                                   PASSED in 1.5s
+//tools/engine-runner:smoke_test                                         PASSED in 36.7s
+//tools/guards:host_sql_test                                             PASSED in 3.1s
+//tools/guards:inventory_test                                            PASSED in 1.5s
+//tools/guards:planned_sql_test                                          PASSED in 14.8s
+//tools/guards:shrink_only_check                                         PASSED in 1.5s
+//wasm:differential_test                                                 PASSED in 3.0s
+//wasm:engine_routes_test                                                PASSED in 2.4s
+//wasm:product_module_test                                               PASSED in 1.9s
+//wasm:zone_test                                                         PASSED in 0.7s
+//core:cypher_parity_postgres_test                                       FAILED in 2.4s
+//core:data_delivery_matrix_postgres_test                                FAILED in 1.5s
+//core:guardrails_edge                                                   FAILED in 228.0s
+//core:iq_parity_postgres_test                                           FAILED in 2.7s
+//core:is_numeric_probe_test                                             FAILED in 5.4s
+//core:postgres_arm_test                                                 FAILED in 1.5s
+//core:relation_to_one_postgres_test                                     FAILED in 1.9s
+//core:sql_island_postgres_test                                          FAILED in 1.4s
+//core:sql_parity_postgres_test                                          FAILED in 1.8s
+//core:store_writes_postgres_test                                        FAILED in 2.0s
+//core:ts_documents_postgres_test                                        FAILED in 15.0s
+//core:ts_island_postgres_test                                           FAILED in 32.1s
+//datacube:verify_app_test                                               FAILED in 1.4s
+//spec:corpus_duckdb_verdict                                             FAILED in 1.7s
+//spec:update_rcorpus_duckdb_0_test                                      FAILED in 0.2s
+//spec:update_rcorpus_duckdb_2_test                                      FAILED in 0.2s
+//spec:update_rcorpus_h2_0_test                                          FAILED in 0.1s
+//spec:update_rcorpus_h2_2_test                                          FAILED in 0.1s
+//datacube:verify_remote_test                                            PASSED in 7.7s
+//datacube:verify_features_test                                          PASSED in 167.7s
+//datacube:verify_smoke_test                                             PASSED in 34.9s

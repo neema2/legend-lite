@@ -1,0 +1,93 @@
+commit 34b1bd98ad36e0531870661430b14a75e37910c5
+Author: Claude <noreply@anthropic.com>
+Date:   Thu Nov 19 15:20:28 2026 +0000
+
+    XK PROTOTYPE (scratch, local only, never merges): the cross-kind rule scoped; ###Relational = and != keep the database's comparison; each disjoint site logged by category
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_0195rQEn5jsUCYS6QSWLrxgF
+
+diff --git a/core/src/main/java/com/legend/lowering/Scalars.java b/core/src/main/java/com/legend/lowering/Scalars.java
+index cbe81037..c3be40a4 100644
+--- a/core/src/main/java/com/legend/lowering/Scalars.java
++++ b/core/src/main/java/com/legend/lowering/Scalars.java
+@@ -152,7 +152,7 @@ final class Scalars {
+                     }
+                     // two primitives of disjoint kinds are never equal (`'x' != -1` is true), as legend-pure's equal
+                     SqlExpr disjoint = MixedEncoding.disjointEquality(n.args().get(0), args.get(0), n.args().get(1), args.get(1));
+-                    if (disjoint != null) {
++                    if (disjoint != null && XkScope.applies(n)) {
+                         return disjoint;
+                     }
+                     Integer p0 = partialPrecision(n.args().get(0));
+diff --git a/core/src/main/java/com/legend/lowering/XkScope.java b/core/src/main/java/com/legend/lowering/XkScope.java
+new file mode 100644
+index 00000000..d2d69f60
+--- /dev/null
++++ b/core/src/main/java/com/legend/lowering/XkScope.java
+@@ -0,0 +1,38 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.lowering;
++
++import com.legend.compiler.spec.typed.TypedNativeCall;
++
++/**
++ * XK PROTOTYPE (scratch, never merges): which disjoint-kinds equalities the rule answers. A call is RELOP (a
++ * ###Relational = or !=, marked by the normalizer), PROGRAM (a call with the program's own source position) or LITE (a
++ * call lite built, no position). {@code -Dxk.scope}: all, relop (every one but RELOP; the default), program (PROGRAM
++ * only). Each distinct site is logged once: {@code [XK] <category> <applied|kept> <type>/<type> at <source>}.
++ */
++final class XkScope {
++
++    private static final String SCOPE = System.getProperty("xk.scope", "relop");
++    private static final java.util.Set<String> SEEN = java.util.concurrent.ConcurrentHashMap.newKeySet();
++
++    private XkScope() {
++    }
++
++    static boolean applies(TypedNativeCall n) {
++        com.legend.protocol.SourceInfo p = n.pos();
++        String cat = p == null ? "LITE" : "xk:relop".equals(p.sourceId()) ? "RELOP" : "PROGRAM";
++        boolean applied = switch (SCOPE) {
++            case "all" -> true;
++            case "program" -> cat.equals("PROGRAM");
++            default -> !cat.equals("RELOP");
++        };
++        String where = p == null ? "-" : p.sourceId() + ":" + p.startLine() + ":" + p.startColumn();
++        String line = "[XK] " + cat + " " + (applied ? "applied" : "kept") + " "
++                + n.args().get(0).info().type() + "/" + n.args().get(1).info().type() + " at " + where;
++        if (SEEN.add(line)) {
++            System.err.println(line);
++        }
++        return applied;
++    }
++}
+diff --git a/core/src/main/java/com/legend/normalizer/RelOpTranslator.java b/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
+index bb5c6954..f9f32b44 100644
+--- a/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
++++ b/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
+@@ -40,6 +40,9 @@ import java.util.Set;
+  */
+ final class RelOpTranslator {
+ 
++    /** XK PROTOTYPE: the marker position of a ###Relational equality. */
++    static final com.legend.protocol.SourceInfo XK_RELOP = new com.legend.protocol.SourceInfo("xk:relop", 0, 0, 0, 0);
++
+     private RelOpTranslator() {
+     }
+ 
+@@ -576,6 +579,12 @@ final class RelOpTranslator {
+                         comparisonFn(cmp.op()),
+                         List.of(side.apply(cmp.left()),
+                                 side.apply(cmp.right())));
++                // XK PROTOTYPE (scratch, never merges): a ###Relational = or != is marked by a position whose source is
++                // xk:relop, so the lowering's disjoint-kinds rule can leave it the database's comparison
++                if (cmp.op() == ComparisonOp.EQ || cmp.op() == ComparisonOp.NEQ) {
++                    c = new AppliedFunction(c.function(), c.parameters(), c.referents(), XK_RELOP,
++                            c.propertyCall(), c.grouped(), c.infix());
++                }
+                 // NEQ emits not(equal(...)) — real pure has no notEqual.
+                 yield cmp.op() == ComparisonOp.NEQ
+                         ? Calls.platform("not", List.of(c)) : c;

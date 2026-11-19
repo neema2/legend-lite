@@ -1,0 +1,68 @@
+diff --git a/core/src/main/java/com/legend/lowering/Scalars.java b/core/src/main/java/com/legend/lowering/Scalars.java
+index cbe81037..c3be40a4 100644
+--- a/core/src/main/java/com/legend/lowering/Scalars.java
++++ b/core/src/main/java/com/legend/lowering/Scalars.java
+@@ -152,7 +152,7 @@ final class Scalars {
+                     }
+                     // two primitives of disjoint kinds are never equal (`'x' != -1` is true), as legend-pure's equal
+                     SqlExpr disjoint = MixedEncoding.disjointEquality(n.args().get(0), args.get(0), n.args().get(1), args.get(1));
+-                    if (disjoint != null) {
++                    if (disjoint != null && XkScope.applies(n)) {
+                         return disjoint;
+                     }
+                     Integer p0 = partialPrecision(n.args().get(0));
+diff --git a/core/src/main/java/com/legend/lowering/XkScope.java b/core/src/main/java/com/legend/lowering/XkScope.java
+new file mode 100644
+index 00000000..911cb778
+--- /dev/null
++++ b/core/src/main/java/com/legend/lowering/XkScope.java
+@@ -0,0 +1,22 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.lowering;
++
++import com.legend.compiler.spec.typed.TypedNativeCall;
++
++/**
++ * XK PROTOTYPE (scratch, never merges): a ###Relational = or != (the normalizer marks it with a position whose
++ * source is {@code xk:relop}) keeps the database's comparison; every other equality of two disjoint kinds is
++ * answered by legend-pure's kinds-first rule.
++ */
++final class XkScope {
++
++    private XkScope() {
++    }
++
++    static boolean applies(TypedNativeCall n) {
++        com.legend.protocol.SourceInfo p = n.pos();
++        return p == null || !"xk:relop".equals(p.sourceId());
++    }
++}
+diff --git a/core/src/main/java/com/legend/normalizer/RelOpTranslator.java b/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
+index bb5c6954..f9f32b44 100644
+--- a/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
++++ b/core/src/main/java/com/legend/normalizer/RelOpTranslator.java
+@@ -40,6 +40,9 @@ import java.util.Set;
+  */
+ final class RelOpTranslator {
+ 
++    /** XK PROTOTYPE: the marker position of a ###Relational equality. */
++    static final com.legend.protocol.SourceInfo XK_RELOP = new com.legend.protocol.SourceInfo("xk:relop", 0, 0, 0, 0);
++
+     private RelOpTranslator() {
+     }
+ 
+@@ -576,6 +579,12 @@ final class RelOpTranslator {
+                         comparisonFn(cmp.op()),
+                         List.of(side.apply(cmp.left()),
+                                 side.apply(cmp.right())));
++                // XK PROTOTYPE (scratch, never merges): a ###Relational = or != is marked by a position whose source is
++                // xk:relop, so the lowering's disjoint-kinds rule can leave it the database's comparison
++                if (cmp.op() == ComparisonOp.EQ || cmp.op() == ComparisonOp.NEQ) {
++                    c = new AppliedFunction(c.function(), c.parameters(), c.referents(), XK_RELOP,
++                            c.propertyCall(), c.grouped(), c.infix());
++                }
+                 // NEQ emits not(equal(...)) — real pure has no notEqual.
+                 yield cmp.op() == ComparisonOp.NEQ
+                         ? Calls.platform("not", List.of(c)) : c;

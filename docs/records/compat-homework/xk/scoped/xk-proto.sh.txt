@@ -1,0 +1,13 @@
+#!/bin/bash
+# XK prototype: corpus with scope=relop (default), then scope=program
+cd /home/user/legend-lite; export PATH=$HOME/.local/bin:$PATH
+S=/tmp/claude-0/-home-user-legend-lite/526fc126-acb4-5eeb-93dc-c56011c07428/scratchpad
+B=bazel-bin/spec
+for scope in relop program; do
+  sed -i "s/System.getProperty(\"xk.scope\", \"[a-z]*\")/System.getProperty(\"xk.scope\", \"$scope\")/" core/src/main/java/com/legend/lowering/XkScope.java
+  bazel build //spec:judge_host_h2 //spec:judge_host_duckdb > $S/xk-proto-$scope.log 2>&1; echo "EXIT $?" >> $S/xk-proto-$scope.log
+  mkdir -p $S/xk/$scope; for l in h2 duckdb; do cp $B/judge_host_$l/*.txt $B/judge_host_$l/host.log $S/xk/$scope/ 2>/dev/null; cp $B/judge_host_$l/host.log $S/xk/$scope/host-$l.log; done
+  echo "$scope DONE" >> $S/xk-proto.status
+done
+sed -i "s/System.getProperty(\"xk.scope\", \"[a-z]*\")/System.getProperty(\"xk.scope\", \"relop\")/" core/src/main/java/com/legend/lowering/XkScope.java
+echo "PROTO DONE" >> $S/xk-proto.status
