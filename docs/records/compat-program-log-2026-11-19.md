@@ -2015,3 +2015,9 @@ who confirms or changes phases 1-3.
   effect:** the window-in-list defect is hidden again (the text in SQL wraps the relation). **Built:** a 149-line
   `lowering/ProductRelationText` from product parts, called in place of the refusal. **Asked (17:15):** V2 (whole Float
   `2.0`), not yet run; and the abstract Date with one product text in two variants (lite's DateTime text; legend-pure's).
+- **~17:17 UTC, B1-R: PR #124's CI at `a7a2a5aa9` complete** (run 44557117163). Linux all 16 lanes and the guard pins
+  green (ui, product, corpus_h2 passed this time without the mirror); Windows all 16 green incl. edge_net; Linux arm
+  warehouse green; macOS 14 green incl. edge_net, pct_duckdb, pct_h2, core; macOS ui and warehouse cancelled after
+  54-57 min with no runner (capacity). The re-run needs the user (the integration answers 403). Times (Linux / Windows /
+  macOS): pct_duckdb 10.9 / 8.7 / 12.1; pct_h2 6.1 / 5.5 / 4.2; edge_net 11.6 / 14.4 / 15.5. Local gate: 558 pass, 1
+  skipped, 12 initdb-as-root (pass as ubuntu). `main` has no mirror yet; #124 holds.
