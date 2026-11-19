@@ -174,7 +174,12 @@ class NativeCatalogGovernanceTest {
         // 37 -> 38 (PR #118 fix round, 2026-11-18: N2, the in-body assert's default message chosen by the plan's style
         // at lowering; the user's word "raise it"): assertFailedText, which LambdaBodies writes for fail's message where
         // the assert gives none -- the product's lite sentence, the compatibility edge's legend-pure "Assert failed"
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 38,
+        // 38 -> 40 (2026-11-19, A3 of the compatibility program, piece 1; the user's word in the translator session,
+        // "Yes to phases 1 guard move", and in the compat owner's session, "Okay approved", ~20:50): sqlSubstring and
+        // sqlPosition, SQL's SUBSTRING and POSITION by name, which the #Cypher, #SQL and #IQ islands and the
+        // ###Relational dynaFunctions write so that Pure's substring and indexOf can take Pure's meaning (register
+        // S130, S134); each the database's function verbatim, no SQL moved
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 40,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
