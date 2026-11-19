@@ -498,7 +498,9 @@ public final class ChannelB {
      * differs, the database's error does not). */
     private static String first(@com.legend.base.Nullable String msg) {
         String m = flat(msg);
-        return m.length() <= 800 ? m : m.substring(0, 400) + "…" + m.substring(m.length() - 400);
+        // SPIKE (H14): -Dpct.channelb.unclipped=true prints the whole message (the measurement reads both texts)
+        return m.length() <= 800 || Boolean.getBoolean("pct.channelb.unclipped") ? m
+                : m.substring(0, 400) + "…" + m.substring(m.length() - 400);
     }
 
     /** The whole message, its newlines flattened as {@link #first}'s are: what a ledger row's text is matched in. */

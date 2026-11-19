@@ -4314,8 +4314,11 @@ public final class Lowerer {
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(styled(), tc, this::relation,
-                        nextAlias());
+                // SPIKE (H14, docs/records/compat-homework/H14-table-text-in-db.md): the database computes a
+                // relation's toString in the product, as every other function: legend-pure's #TDS layout, each cell
+                // the product's own value text (ProductRelationText); the product's refusal and the style's facet
+                // replaced
+                ProductRelationText.of(styled(), tc, this::relation, nextAlias());
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is

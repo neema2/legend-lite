@@ -1,0 +1,32 @@
+import sys, re, json, collections
+census = sys.argv[1]; d = sys.argv[2]
+tt = collections.defaultdict(set)
+for l in open(census).read().splitlines()[1:]:
+    p = l.split('\t')
+    if p[5] == 'toString' and p[4] == 'side1': tt[p[0]].add(p[1])
+forms = collections.Counter(); bysuite = collections.Counter(); floats = collections.Counter(); pairs = collections.Counter()
+dt_tests = collections.defaultdict(set)
+import os
+for s in ["relation", "standard"]:
+    if not os.path.exists(f"{d}/{s}/test.log"): continue
+    for l in open(f"{d}/{s}/test.log", errors="replace"):
+        mm = re.match(r"\[chB-[A-Za-z]+\] (FAIL|ERROR) (\S+) :: (.*)$", l.rstrip('\n'))
+        if not mm or mm.group(2) not in tt[s]: continue
+        msg = mm.group(3).split(" -- the ledger expects")[0]
+        m = re.match(r'AssertFailed: expected (".*"), got (".*")$', msg)
+        if not m: continue
+        e, g = json.loads(m.group(1)), json.loads(m.group(2))
+        cause = set()
+        for a, b in zip(e.split('\n'), g.split('\n')):
+            for x, y in zip(a.strip().split(','), b.strip().split(',')):
+                if x == y: continue
+                if re.match(r"^\d{4}-\d{2}-\d{2}T", x):
+                    f = re.sub(r"\d", "9", y); forms[f] += 1; pairs[(re.sub(r"\d", "9", x), f)] += 1; cause.add("dt")
+                else:
+                    floats[(x if len(x) < 12 else x[:12], y)] += 1; cause.add("float")
+        for c in cause: bysuite[(s, c)] += 1
+        if "dt" in cause: dt_tests[s].add(mm.group(2).split('::')[-2] + "::" + mm.group(2).split('::')[-1])
+print("by suite and cause (tests):", dict(bysuite))
+print("DateTime: PCT's form -> lite's form (cells):"); [print("   ", k, v) for k, v in pairs.most_common()]
+print("Float pairs (cells), top:", floats.most_common(12))
+print("DateTime tests:", {k: sorted(v)[:40] for k, v in dt_tests.items()})

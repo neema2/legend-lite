@@ -1,0 +1,77 @@
+"""H14: the relation-text tests' outcomes under LITE, base against spike, and every spike failure classed by cause.
+Usage: classify.py <base dir> <spike dir> <pct-judge.tsv> [suite ...]"""
+import sys, re, json, collections
+base, spike, census = sys.argv[1], sys.argv[2], sys.argv[3]
+suites = sys.argv[4:] or ["relation", "standard"]
+text_tests = collections.defaultdict(set)
+for l in open(census).read().splitlines()[1:]:
+    p = l.split('\t')
+    if p[5] == 'toString' and p[4] == 'side1':
+        text_tests[p[0]].add(p[1])
+def outcomes(d, s):
+    m = {}
+    for l in open(f"{d}/{s}/test.log", errors="replace"):
+        mm = re.match(r"\[chB-[A-Za-z]+\] (PASS|FAIL|ERROR) (\S+)(?: :: (.*))?$", l.rstrip('\n'))
+        if mm: m[mm.group(2)] = (mm.group(1), mm.group(3) or "")
+    return m
+FLOAT = re.compile(r"^-?\d+(\.\d+)?([eE][-+]?\d+)?$")
+ISO_PURE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?\+0000$")
+ISO_LITE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
+def cell_cause(e, g):
+    if ISO_PURE.match(e) and (ISO_LITE.match(g) or g != e): return "DateTime spelling"
+    if FLOAT.match(e) and FLOAT.match(g):
+        fe, fg = float(e), float(g)
+        if fe == fg:
+            if '.' in e and '.' not in g: return "Float: a whole Float without its .0"
+            if 'e' in e.lower() or 'e' in g.lower(): return "Float: exponent"
+            return "Float/Decimal: same value, other digits (trailing zeros)"
+        if abs(fe - fg) <= 5e-7 * max(1, abs(fe)): return "Float: six decimals (rounded)"
+        return "a different number"
+    if e == 'null' and g in ('', 'NULL'): return "empty cell"
+    return "other cell"
+def classify(exp, got):
+    el, gl = exp.split('\n'), got.split('\n')
+    if el == gl: return ["identical?"], []
+    if sorted(el) == sorted(gl): return ["row order"], []
+    if len(el) != len(gl): return ["row count"], [(None, None)]
+    causes, ex = [], []
+    for a, b in zip(el, gl):
+        if a == b: continue
+        ca, cb = a.strip().split(','), b.strip().split(',')
+        if len(ca) != len(cb):
+            causes.append("cell count (a comma in a cell, or a header)"); ex.append((a, b)); continue
+        for x, y in zip(ca, cb):
+            if x != y:
+                causes.append(cell_cause(x, y)); ex.append((a, b))
+    return sorted(set(causes)), ex
+total = collections.Counter(); byCause = collections.defaultdict(list); other = collections.Counter()
+for s in suites:
+    tt = text_tests[s]
+    b, sp = outcomes(base, s), outcomes(spike, s)
+    moved = collections.Counter()
+    for t in sorted(tt):
+        ob = b.get(t, ("MISSING", ""))[0]; os_ = sp.get(t, ("MISSING", ""))[0]
+        moved[(ob, os_)] += 1
+        if os_ == "PASS": continue
+        msg = sp.get(t, ("", ""))[1].split(" -- the ledger expects")[0]
+        m = re.match(r'AssertFailed: expected (".*"), got (".*")$', msg)
+        if not m:
+            key = re.sub(r"\d+", "N", msg)[:110]
+            byCause["NOT A TEXT COMPARE: " + key].append((s, t, msg[:200], ""))
+            continue
+        exp, got = json.loads(m.group(1)), json.loads(m.group(2))
+        causes, ex = classify(exp, got)
+        k = " + ".join(causes)
+        byCause[k].append((s, t, ex[0][0] if ex and ex[0][0] else exp[:150], ex[0][1] if ex and ex[0][1] else got[:150]))
+    print(f"== {s}: relation-text tests {len(tt)}")
+    for (x, y), n in sorted(moved.items()): print(f"   base {x:5s} -> spike {y:5s}: {n}")
+    # tests outside the text set that moved
+    for t in sorted(set(b) | set(sp)):
+        if t in tt: continue
+        if b.get(t, ("",))[0] != sp.get(t, ("",))[0]: other[(s, b.get(t, ("MISSING",))[0], sp.get(t, ("MISSING",))[0])] += 1
+print("== failures by cause (tests)")
+for k, v in sorted(byCause.items(), key=lambda x: -len(x[1])):
+    print(f"{len(v):4d}  {k}")
+    for s, t, e, g in v[:2]:
+        print(f"        {s} {t.split('::')[-2]}::{t.split('::')[-1]}\n          expected: {e!r}\n          lite:     {g!r}")
+print("== other tests that moved:", dict(other))

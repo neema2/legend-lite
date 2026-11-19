@@ -1,0 +1,18 @@
+import sys, collections
+census, d = sys.argv[1], sys.argv[2]
+suites = sys.argv[3:] or ["relation"]
+tt = collections.defaultdict(set)
+for l in open(census).read().splitlines()[1:]:
+    p = l.split('\t')
+    if p[5] == 'toString' and p[4] == 'side1': tt[p[0]].add(p[1])
+for s in suites:
+    agg = collections.Counter(); n = collections.Counter(); allagg = collections.Counter(); alln = collections.Counter()
+    for l in open(f"{d}/{s}/test.log", errors="replace"):
+        if not l.startswith("[sql-size] "): continue
+        _, size, test, origin = l.split()
+        allagg[origin] += int(size); alln[origin] += 1
+        if test in tt[s]:
+            agg[origin] += int(size); n[origin] += 1
+    tot = sum(v for k, v in agg.items() if k != "session"); totn = sum(v for k, v in n.items() if k != "session")
+    print(f"{d} {s}: relation-text tests {len(tt[s])}: by origin {dict(n)} chars {dict(agg)}; without session: {totn} statements, {tot} chars")
+    print(f"   whole suite without session: {sum(v for k,v in alln.items() if k!='session')} statements, {sum(v for k,v in allagg.items() if k!='session')} chars")

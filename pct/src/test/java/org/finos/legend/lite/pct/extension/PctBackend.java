@@ -70,7 +70,10 @@ public final class PctBackend {
     /** A session on this lane's database. */
     public static Connection connect() throws SQLException {
         // PCT runs on the edge's database (the audit's J22, 2026-11-17: H2's settings are the plan style's)
-        return backend().open(com.legend.edge.PureText.UPSTREAM);
+        // SPIKE (H14): under lite's own rules (-Dpct.channelb.rules=LITE) the session is the product's database (on H2,
+        // lite's settings: the plan's target declares them, and the edge's MODE=LEGACY session is refused)
+        return backend().open("LITE".equals(System.getProperty("pct.channelb.rules"))
+                ? com.legend.database.PlanStyle.PRODUCT : com.legend.edge.PureText.UPSTREAM);
     }
 
     /** Whether the lane's database's sessions are its connector's own, not JDBC's (MongoDB's,
