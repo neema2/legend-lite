@@ -163,3 +163,19 @@ who confirms or changes phases 1-3.
     included).
   - **The 36 combinations are defined** in `docs/records/e-java-shape-port-2026-11-17.md` on
     `claude/total-wall-e-shape-port` (`1bb0f3151`); their core coverage at `main` is being re-measured.
+- **~11:10 UTC, B1:**
+  - **F2 confirmed:** B1's F8 note was wrong. `TestDoor.java:141-155` plans the edge's records into
+    `TestPlan.extensionsByStep`, `TestPlanJson.java:121-123` writes them, and the run reads them back
+    (`TestRunner.java:431`, `:461`; `Appeals.java:112`).
+  - **0.2:** S0 (`14f6d1c33`) and the requests (`68ab589f2`) are cherry-picked onto `main`, and the CP-9 lane is
+    `e3bae6f3c`: `//gates:edge_net`, a lane in `//gates:lanes` and `gates-run.yml`. 41/41 green; no answer moved
+    (11 PCT goldens 0 moves; the corpus ledgers' columns 1-4 identical; pure/v1 0 moves, 2 escape-only lines and the
+    added `raise.toOneOfEmpty`). `//gates:local` was running.
+    - **The per-push lane is heavier than CP-9's estimate:** 568 s wall locally (4 cores), with a 503 s critical path
+      through the corpus's DuckDB host judge. It runs as its own parallel CI lane, so CI's wall time grows only if it
+      is the longest lane. Asked of B1: its CI time, and its parts' times.
+  - **0.4 (f):** of H2's 98 BARE print sites, **95 sit at the literal root**. The other 3 are in a relation column (an
+    extend over an enum; a projected StrictDate; one inside `toSQLString`, never executed), and none is in a map, a
+    Pair or `^C`, so 1.3 is the 4-day case. **0 of the 22 COMPOSED and FEEDS sites are over a Float, Decimal or
+    DateTime.** One finding: PCT's `testPairCollectionToString` composes a Pair's print (R5: a Pair's text differs by
+    audience), so 1.3 refuses it. It is the one known refusal.
