@@ -91,8 +91,11 @@ reverse). They are with the product track.
 written for H2. To run it on DuckDB, the door converts that setup SQL. Without it, all 2,452 DuckDB corpus tests fail at
 setup. That conversion stays, at the door.
 
-**Unchanged, checked:** Studio's "generate plan" keeps working. It is built from lite's own plan in legend-engine's
-plan envelope (`PureV1Routes.generatePlan`), and does not use the SQL-spelling code that step A2 deletes.
+**Being re-checked:** Studio's "generate plan" for an ordinary query is built from lite's own plan in legend-engine's
+plan envelope (`PureV1Routes.generatePlan`). That was read from the code. B2's check of the compiled code finds one path
+to the SQL-spelling code A2 deletes: a query that itself asks for SQL text (`toSQLString`, `planToString`, the DDL
+functions) sent through the legend-engine server. B2 is confirming it by a run, counting the recorded requests that
+take it, and naming what such a request answers after A2.
 
 **Not measured by anyone yet:** other legend-engine databases (Snowflake, Postgres, Databricks and the rest) for the
 rows above; real deployed legend-engine projects (legend-engine's six public showcase projects have 0 calls of the
@@ -177,13 +180,13 @@ exceptions to the rulebook.
   - 4 on DuckDB where legend-engine returns a value and Pure raises an error: an out-of-range `slice` (empty list),
     `rem` by zero (null), a `range` with step zero (empty list), a shift right by 63 or more bits (0);
   - 1 on the server route: `sqrt` of a negative on H2 (null);
-  - 2 Float sums and products, where legend-engine's exact decimals give `1.7` and lite's ordinary floating point
-    gives `1.7000000000000002`.
+  - 2 Float sums and products on DuckDB, and the same 2 on H2, where legend-engine's exact decimals give `1.7` and
+    lite's ordinary floating point gives `1.7000000000000002`.
 
   A user who wants legend-engine's answer can write it in the query: 5 of the 7 with an ordinary `if` guard, the 2
   Float ones by using Decimal. Removing gains 6 PCT tests on the legend-engine route (PCT expects the error) and 2
   corpus tests on H2, and loses none. 3 more errors keep their status and change only their words.
-  **Not yet counted:** H2's other four PCT suites on the legend-engine route, and other databases (B2 is running H2).
+  **H2 counted too:** 4 more PCT tests gain (they expect the error), and the only H2 answers that stop matching are the same 2 Float cases. Three H2 answers (`sqrt` of a negative giving NaN, bit shifts by 63 that wrap) are matched by neither lite nor any guard, today or after; they are lite H2 gaps on the product track. **Not counted:** other databases.
   **Recommendation: remove both.** It is what the goal's sentence says, and PCT, legend-pure's own test suite, agrees
   with Pure in all 6 error cases.
 

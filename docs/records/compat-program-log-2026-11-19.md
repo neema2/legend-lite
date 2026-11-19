@@ -1044,3 +1044,24 @@ who confirms or changes phases 1-3.
   `jars.bzl`'s `http_jar` and `rules_jvm_external` (better than a second URL in `_url`, which covers only the first),
   proven by forcing the first URL to fail. It lands on `main` on the user's word; #121, #123 and #124 then merge it or
   `main` to re-run.
+- **~13:12 UTC, B2's task (1): D2's probe on H2** (B1-R's lane widened in B2's worktree to H2 essential, grammar,
+  standard, unclassified and relation; baseline the same widened lane without the probe; H2 relation's baseline
+  byte-identical to B1-R's pin).
+  - **Verdicts:** 4 move, all BOTH_FAIL to LITE_FIXES (`rem`, `sqrt` in essential; `bitShiftLeft`/`bitShiftRight` by
+    63 in standard). No SAME test moves; grammar, unclassified and relation do not move.
+  - **Answers that match legend-engine on H2 and stop matching: 2, both S20** (`testFloatPlus`, `testFloatTimes`, as
+    on DuckDB; only a Decimal round trip reproduces them). The plain set changes no H2 answer that matched
+    legend-engine (`rem(5, 0)` raises on both; words only). **D2's total: 9 answers** (DuckDB: 4 plain set, 2 S20;
+    pure/v1: 1; H2: 2 S20).
+  - **3 legend-engine answers on H2 no guard reproduces, matched by lite neither today nor after:** `sqrt(-1.0)` NaN
+    (Pure has no NaN; lite raises), `1->bitShiftLeft(63)` wraps to -9223372036854775808, `1->bitShiftRight(63)` 0.
+    Lite's H2 dialect has no shift rendering (refused today). Outside D2; sent as evidence to the numbers worker's
+    `claude/h2-dialect-gaps`.
+  - **A correction in flight: `generatePlan` and the printers.** B2, by bytecode: under PURE_V1 every facet delegates
+    to UPSTREAM, so a pure/v1 query containing a plan-text native (`toSQLString`, `planToString`, the executionPlan
+    rows, the DDL natives) reaches `EnginePlans.ddlText` → `PureText.engineText` → `EngineStyleH2`
+    (`BodyPlanner.prepare:311` → `facet(UpstreamPlans).ddlText`). Ordinary queries do not. This session's earlier
+    "unchanged, checked" line (from reading `PureV1Routes.generatePlan`) is withdrawn to "being re-checked" in the
+    plain plan. Asked of B2 first (13:25): a planted run, the count of recorded pure/v1 requests that take the path,
+    whether an ordinary Studio generatePlan reaches it, and what such a request answers after A2. Expected: only a
+    query that itself asks for SQL text, the same promise as CP-4.
