@@ -2475,3 +2475,10 @@ who confirms or changes phases 1-3.
   the first form. New size about 1 to 1.5 days on the detector with `engine` on H2 alone; clones about half a day more.
   Still a door rewrite, so still the user's amendment. The detector at `0896f7d39`, its gate, edge net and batteries
   running.
+- **~19:47 UTC, the reviewer: piece 4 re-check 1** (record at `adcf56ee`): every reviewer item met at `c957c2b49`;
+  this session's two additions (firstDayOfWeek on the merged batch, `x / 0` read to the end) not yet in. The reviewer's
+  reading: once A2 removes the printer, H2's `testToSqlGenerationFirstDayOfWeek` is judged by its rows, lite (after A5's
+  fix) answers Monday against the golden's Sunday, so on the merged batch H2's class b would be 3 and H2's counts 148 and
+  151, the H2 fail roster carrying the test; the batch's H2 corpus lane settles it, and the page and the roster must
+  agree. O1's two remaining phrases in the final plan (the A3 row's default; §4a's "What it does") corrected here. Nit:
+  S386 cites `joinStrings.pure:18-21`, not `:23`.
