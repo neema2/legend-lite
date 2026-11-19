@@ -917,3 +917,22 @@ who confirms or changes phases 1-3.
   is not before stage B and inherits it); it updates `PureV1ApiTest`'s two expectations (lines 731-737) itself, checks
   against #123's head and tells B1; any edge-net golden line that moves is named to this session and B1 first; it
   confirms that `/api/pure/v1/nope` on the legend-engine route still gets legend-engine's envelope.
+- **~13:02 UTC, B2's (j.3)** (`claude/census-b2` at `7082dd21f`): pure/v1's plain-set answers per database, from the
+  golden net's two requests through execute and plan. legend-engine's answers are B1-R's oracle's; DuckDB's own were
+  checked on DuckDB 1.5.6.
+  | request | H2: legend-engine / lite without the plain set | DuckDB: legend-engine / lite without the plain set |
+  |---|---|---|
+  | `year / 0` | 500 (the database's error) / 500, words differ | 200 null / 500; the guard `if($d == 0, \|[], \|$x / $d)` gives null |
+  | `sqrt(-2.0)` | 200 null / 500; the guard `if($x < 0, \|[], \|sqrt($x))` gives null | raises (Out of Range) / raises |
+  - **Each guard is needed on one database and wrong on the other**, so a rewrite that copied legend-engine would have
+    to be per target.
+  - **DuckDB 1.5.6 answers the unchecked `/ 0` with Infinity**, so the plain set does not match legend-engine on
+    DuckDB today either. The plain set matches legend-engine in fewer cases than its name suggests.
+- **~13:03 UTC, B1-R's coverage question, and this session's call:** the ENGINE lane classifies DuckDB's five suites
+  but only H2's relation suite. **Decided: add H2's essential and standard suites to the lane in PR #124** (two
+  actions of about 45 s each). H2 is legend-engine's primary test database and A3's meaning change lands in those two
+  suites. The three H2 actions go in the H2 PCT gate job if it has headroom, so `pct_duckdb` does not grow; the gate
+  list's move is named in the PR body for the user's word. B2 runs its D2 probe on those lanes when they are on
+  B1-R's branch (its task 1, amended 13:15: no private lane extension). Two limits recorded by B1-R, no code change:
+  a tolerant float assert hides a moved answer (`testFloatPlus` stays SAME); the oracle's pure/v1 answers differ by
+  database, and the batteries pin each database separately.
