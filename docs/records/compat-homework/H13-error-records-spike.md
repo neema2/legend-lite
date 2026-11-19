@@ -78,7 +78,8 @@ after the run; upstream words never enter a plan. It is a measuring instrument. 
 ## 4. The hosts (the tab, Python)
 
 **Checked by running each host's own reader over the shared fixture** (`engine-client/test/fixtures/raise-envelopes.json`,
-11 cases), with typed operands added to its four sites. The scripts are in section 10.
+11 cases), with typed operands added to its four sites. The two scripts are filed as `H13/hosts-check.py.txt` and
+`H13/hosts-check.mjs.txt`.
 
 | Host | Reader | Result |
 |---|---|---|
@@ -332,16 +333,29 @@ Run: every PCT lane of the net (DuckDB 5 suites, SQLite 5 suites, H2 Relation, c
 |---|---|---|---|
 | DuckDB channel A answers (5 suites) | 2,710 | 8 | the 6 Essential tests of section 6; 2 Relation lines' quoted SQL |
 | DuckDB channel A outcomes (5 suites) | 1,165 | 6 | the same 6 tests |
-| SQLite channel A answers (5 suites) | 2,808 | 8 | **the same 6 tests**, the same 2 SQL lines |
+| SQLite channel A answers (5 suites) | 2,702 | 8 | **the same 6 tests**, the same 2 SQL lines |
 | SQLite channel A outcomes (5 suites) | 1,165 | 6 | the same 6 tests |
 | H2 channel A answers and outcomes (Relation) | 880 | **0** | |
 | DuckDB channel B outcomes (5 suites) | 1,249 | 10 | the same 6 tests; **4 Relation tests, a new cause (below)** |
 | pure/v1's answers | 28 | **0** | every body byte-identical, the error bodies included |
 
-**pure/v1's error bodies.** The golden holds 9 error answers (status 500): 1 unprobed-serialization refusal, 2 of
-the database's own errors (`raise.divideByZero`, `raise.parseInteger`: legend-engine writes no guard there, so no
-site), and 6 compile refusals worded through `PureMessages.compile`. All 9 are byte-identical. None is a site
-raise, so pure/v1's golden does not exercise the raise formatter; the planning-failure record is what it checks.
+**pure/v1's error bodies.** The golden holds 9 error answers (status 500) with 5 distinct bodies:
+
+| Body | Answers | What it is |
+|---|---|---|
+| `execute: a SCALAR result's serialization is unprobed` | 1 | a compile refusal with no kind |
+| `LIST_FILTER reached a dialect without a list encoding` | 4 | a compile refusal with no kind |
+| `LIST_GET reached a dialect without a list encoding` | 2 | a compile refusal with no kind |
+| `JdbcSQLDataException: Division by zero: ...` | 1 | H2's own error: legend-engine writes no guard there, so no site |
+| `JdbcSQLDataException: Data conversion error converting "abc" ...` | 1 | H2's own error, the same |
+
+- All 9 are byte-identical.
+- **The golden exercises neither half of this slice.** None of the 5 bodies is a site raise, and none holds a
+  kinded compile error. It proves only that the routes' plain messages still pass through unchanged.
+- The kinded and wrapped compile sentences are checked by the core edge tests instead (`PlanStyleFacetsTest`,
+  `ReferenceIntegrityTest`, `DecimalKindsTest`, `PureV1ApiTest`, `TestDataPlannerTest`); section 10 has their result.
+- **A gap in the net, for the orchestrator:** pure/v1's golden has no request that raises a site with a literal
+  operand and none that raises a kinded compile error. One of each would make it a check of this slice.
 
 **The 4 new channel B differences: the compatibility DATABASE judge.**
 
@@ -384,3 +398,62 @@ Decimal or a DateTime literal in a printed position does not occur in PCT.
 | `testSquareRootError` | `SQRT_OF_NEGATIVE` | DuckDB, SQLite | A, B | no: `sqrt(-1.0)` (sqrt.pure:54) |
 
 **6 tests. 0 of them raise over a value known only at run time.** H2's Relation lane has none.
+
+## 10. Lite's own plan: what the operands add (the orchestrator's item 1)
+
+**The plan's check said "the product plan's JSON byte-identical but its version". It is not**, and the orchestrator
+has amended the done-when (2026-11-19 ~13:10 UTC): a LITE plan carrying the operands is the design, since both
+audiences word from the record. `RaiseSite.operands()` is the same under every dialect, so a product plan's sites
+carry the same operands an edge plan's do.
+
+**Measured with the product's own gauge**, `//core:lean_sql_baseline_test` (`core/src/test/resources/lean-sql/baseline.tsv`:
+3,777 keys, each a set, a database and a family of queries, planned in LITE's style):
+
+| Measure | Baseline | After | Change |
+|---|---|---|---|
+| SQL characters, all keys | 14,200,461 | 14,200,461 | **0** (no key moved: the product already raises the token) |
+| Plan JSON characters, all keys | 147,464,602 | 147,555,033 | **+90,431 (+0.061%)** |
+| Keys whose plan JSON moved | | | 281 of 3,777 (7.4%), in 45 families |
+
+By set:
+
+| Set | Keys | Plan JSON before | Growth |
+|---|---|---|---|
+| `channel_a` (PCT's queries, 11 databases) | 3,421 | 112,935,654 | +84,186 |
+| `core` | 356 | 34,528,948 | +6,245 |
+
+By database (the keys that moved):
+
+| Database | Keys moved | Growth | Of those keys' plan JSON |
+|---|---|---|---|
+| SQLite | 39 | +24,931 | +0.39% |
+| ClickHouse | 25 | +15,567 | +0.49% |
+| MariaDB | 27 | +11,429 | +0.34% |
+| MySQL | 27 | +11,243 | +0.33% |
+| DuckDB | 42 | +8,182 | +0.05% |
+| Databricks | 22 | +3,573 | +0.49% |
+| BigQuery | 22 | +3,571 | +0.48% |
+| Postgres | 22 | +3,571 | +0.46% |
+| Snowflake | 21 | +3,442 | +0.45% |
+| Trino | 21 | +3,442 | +0.48% |
+| H2 | 13 | +1,480 | +0.09% |
+
+The largest growth, by family (summed over its databases) and by single key:
+
+| Family | Growth | Databases | Note |
+|---|---|---|---|
+| `date::adjust(Date, Integer, DurationUnit)` | +26,719 | 4 | the largest single key: ClickHouse, 210,588 to 220,213 (+4.6%) |
+| `TypedExtendWindow` | +10,634 | 4 | SQLite alone: 1,846,860 to 1,856,956 (+0.5%) |
+| `math::covarSample` | +7,240 | 10 | largest case `[1, 3.0, 6.0]->covarSample([10, -20, 30])` |
+| `math::covarPopulation` | +5,859 | 11 | |
+| `math::corr` | +5,511 | 11 | |
+| `date::dateDiff` | +4,858 | 4 | |
+| `string::parseFloat` | +2,966 | 12 | |
+| `math::rem` | +2,454 | 11 | largest case `5.5->rem(-1.5)` |
+| `collection::at` | +1,845 | 11 | |
+| `math::sqrt` | +1,395 | 12 | largest case `sqrt(-1.0)` |
+
+- The largest relative growth of one key is +5.7% (SQLite `math::acos` and `math::asin`, 6,839 to 7,231): small
+  plans whose guards are placed raises (`VALUE_NOT_HELD`).
+- **The gauge is a guard.** `LeanSqlBaselineTest` is shrink-only (G3) and goes red on any growth. The real slice
+  re-records `baseline.tsv`'s plan column, with the orchestrator's amended done-when as its dated reason.
