@@ -443,3 +443,29 @@ who confirms or changes phases 1-3.
   compatibility program keeps HOSTS-9's pilot, CP-7's part, the ENGINE host pieces, DC1 and F4. The edge file in its
   list (`edge/_pure_v1.py`'s stale ERR reader) is given to it as the same fix, reader only; any other edge file needs
   a message first.
+- **~12:30 UTC, the owner's own review, asked by the user** ("does the goal make sense? is the design right? is the
+  plan tractable? do we have a detailed plan in plain English? anything else to research? are you happy with it?").
+  Re-read: the plan as it stands, the log, the checkpoint, H5's and H6's records, and two code checks. The honest
+  findings:
+  - **The plan document is not the plan.** Its §0 is stale (translator, 64 days, 5 to 6 weeks, phase 5), and it was
+    amended about twenty times by patches. A banner now says so. A clean, short, plain-English final plan has to be
+    written.
+  - **The design's name is out of date.** After phase 0 the input side is nearly empty. The real design is: one
+    meaning in the core (Pure's); formatters after the run; the legend-pure-style checker and the SQL-text appeal at
+    the edge; and a handful of typed door rewrites (mostly of the corpus's test bodies).
+  - **Three joints of the design are unproven** (no prototype has run them):
+    1. **the appeal's move** (2.2b) onto three call sites with verdict records: mapped by H6, never built. It is now
+       the riskiest slice;
+    2. **legend-pure's relation text in Java:** no Java printer exists (`edge/Presenter.java` and `PurePrint.java`
+       print values, not relations). The 791-line SQL builder would be replaced by new code that 423 PCT tests depend
+       on. H3 (c) proved legend-engine's TDS envelope, a different thing;
+    3. **error records through three hosts** (1.2, plan v59 and v60): scoped by B1, unbuilt.
+  - **One feared unknown looks fine:** the edge already uses `SpecCompiler` at 55 places in several files, so typed
+    door rewrites from the edge are within today's rules (the specific entry still to be confirmed).
+  - **The goal has quietly changed** and should be said once, plainly: no longer "match legend-engine exactly", but
+    "lite follows Pure; legend-engine's formats and its answers are matched where they agree with Pure, and the rest
+    is recorded". AGENTS.md's upstream-fidelity tenet and the goals of record say otherwise today; amending them is
+    the user's word.
+  - **Sequencing risk:** five product tracks are changing the same judge, number and host files now. The product's
+    judges track must land before 2.1 and 2.2a.
+  - **Nothing has run on CI on every OS yet** (the first PR is not up).

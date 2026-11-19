@@ -1,5 +1,17 @@
 # The compatibility program: the re-cut plan (2026-11-19)
 
+> **READ THIS FIRST (the owner's own review, 2026-11-19 ~12:30 UTC).** This file is a WORKING DRAFT, amended about
+> twenty times in one day, and it is not yet the final plan.
+> - **§0 below is STALE.** It still says "a translator on the way in", 64 session-days, 5 to 6 weeks, and phase 5
+>   included. Since then: the translator has shrunk to almost nothing (H5: no translator costs 4 corpus tests per
+>   lane); phase 5 is deferred (CP-13); the LITE-host drift went to the product track; the calendar was restated at 7
+>   to 9 weeks before those cuts.
+> - **The truth today** is in three places: the rulings and findings in `compat-program-log-2026-11-19.md`; the
+>   answers so far in `compat-phase0-checkpoint-2026-11-19.md`; and the slices of §4 as amended.
+> - **The final plan** is written fresh, short and in plain English, once CP-12 and CP-5 are ruled and three checks
+>   are done (the log, ~12:30 UTC: the appeal's move, legend-pure's relation text in Java, and the product tracks'
+>   order).
+
 **Status: r7, RATIFIED to start (phase 0) on 2026-11-19 ~10:45 UTC; phases 1-3 are confirmed at the phase-0 checkpoint. r6 and r7 fold in the independent review (`session_0195rQEnCA5MRQEk6iGfgDnb`, verdict: sound with changes; its record `docs/records/compat-independent-review-2026-11-19.md` on `claude/compat-review` at `838e280c`).**
 - **r1** (`71aa0fc7`) was reviewed by B1's lead (2026-11-19 ~04:08 UTC).
 - **r2** recorded the user's first rulings and revised CP-5.
