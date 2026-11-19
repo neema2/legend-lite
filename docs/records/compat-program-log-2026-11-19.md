@@ -179,3 +179,25 @@ who confirms or changes phases 1-3.
     Pair or `^C`, so 1.3 is the 4-day case. **0 of the 22 COMPOSED and FEEDS sites are over a Float, Decimal or
     DateTime.** One finding: PCT's `testPairCollectionToString` composes a Pair's print (R5: a Pair's text differs by
     audience), so 1.3 refuses it. It is the one known refusal.
+- **~11:12 UTC, B1-R's H7 early counts, slice 0.3** (the ENGINE PCT lane, report-only). PCT channel A ran as
+  legend-engine's audience (the pure/v1 route's style, no feature flag, no expected failures). Each outcome is keyed by
+  the test's full name; the edge net's short names collide, 345 tests on 341 lines. Each was joined with legend-engine
+  4.145.0's manifests and classified by status and class, never by words; every manifest row joined a test.
+  - **DuckDB, 5 suites, 1,249 tests:**
+    - legend-engine passes 1,005, REFUSES 59 ("No SQL translation", 23 signatures), and fails by its own defect 185
+      (51 unsupported, 47 wrong answers, 44 planner faults, 21 database errors, 17 runtime faults, 5 error-text
+      mismatches);
+    - **lite as legend-engine's audience passes 1,212;**
+    - the verdicts: SAME 1,004; LITE_ANSWERS 55 of the 59 refusals; LITE_FIXES 153; BOTH_FAIL 36; LITE_BEHIND 1
+      (`testBigFloatAbs`, a 20-digit Float literal carried as a double, S120);
+    - where legend-engine refuses, lite answers PCT's expected value 55 of 59. The 4 misses: sort-with-key twice
+      (substring keys), `date(y, m)` once, 3-argument `indexOf` once.
+  - **H2, relation, 469 tests:** legend-engine passes 411, refuses 0, fails by defect 58; **lite passes 448** (SAME
+    411, LITE_FIXES 37, BOTH_FAIL 21, LITE_BEHIND 0). lite's 21 failures are 17 of its own refusals ("reached a
+    dialect without a list encoding") and 4 database errors (H2 has no LATERAL).
+  - **What it means:** on legend-engine's own PCT, lite's legend-engine route already answers more than legend-engine
+    does (1,212 against 1,005 on DuckDB; 448 against 411 on H2), and is behind it once. That is strong evidence for
+    E-R2.
+  - Built: `//pct:engine_lane_<db>_<suite>`, the pinned tables in `pct/engine_lane/`, `//pct:update_engine_lane`,
+    `//pct:engine_lane_test`. Commits on `claude/compat-engine-lane`, NOT yet pushed: `28f6d56c3` (the `jars_table`
+    entry, dated), `4381eb8f6` (a merge of `claude/presentation-r`), `f5da0b965` (the lane).
