@@ -2144,3 +2144,25 @@ who confirms or changes phases 1-3.
   width), then the literal `+0000` once the value has minutes. ISO 8601-shaped, but not strictly ISO or RFC 3339: the
   `+0000` offset is ISO's basic form glued to the extended date, and RFC 3339 requires `Z` or `+00:00`. Lite's
   `2000-10-25T06:30:00.000000Z` is valid ISO 8601 and RFC 3339.
+- **~17:44 UTC, H14 D2** (on V2: an abstract Date in a timestamp slot printed as legend-pure's TDS text,
+  `yyyy-MM-ddTHH:mm:ss.SSS+0000`, composed in SQL). PCT's 423: **DuckDB 423 of 423**; Postgres 421 (2 Variant keys in
+  jsonb's order, failing on `main` too); SQLite 412 (11 of SQLite's own refusals); H2 relation 330 of 365 (35 H2
+  refusals). The 33 Date tests pass on all four. DuckDB's other suites unchanged. **Summary on DuckDB:** V1 363, V2
+  (Float `2.0`) 390, V2 + D1 (lite's DateTime text) 390, V2 + D2 (legend-pure's) 423. **Per-cell SQL of an abstract
+  Date** (today's cast / D1 / D2): DuckDB 18 / 36 / 89; SQLite 15 / 166 / 206; Postgres 18 / 53 / 108; H2 18 / 76 / 134.
+  Commits on `claude/compat-table-text-db-spike`: `46354194` V1, `487f3e40` V2, `9bcbd165` D1, `ca95a8be` D2,
+  `b6a850d6` the sizes and the compatibility note.
+- **H14's compatibility note:** the spike sends every style's table text through the product lowering (a shortcut).
+  At V2 + D2 the compatibility rules' host-judge PCT relation 469/469 and standard 205/205 are as on `main`, but lite's
+  edge test `FloatTextTest.anEdgeRelationsTextPrintsAFloatCellAsLegendPure` moves (`1e-05`, `1e+20` where legend-pure
+  prints `0.00001`, `100000000000000000000.0`). A real slice keeps compatibility untouched only by (a) `RelationTexts`
+  becoming a two-form kind (a `TWO_FORMS` row `HookRulingTest` pins, a guard row for the user's word, no new hook) or (b)
+  landing with or after B2 (the edge prints tables in Java from typed rows, H11).
+- **Read:** the product's DateTime text is ISO 8601 in UTC, six fraction digits and `Z`, the user's ruling of
+  2026-11-10 (`SqlFn.DATETIME_TO_TEXT`, `dialect/DateTimeText.java`). D1 follows that ruling; D2 would print dates two
+  ways in the product.
+- **~17:47 UTC, the reviewer: the combination CLEAN** (record at `435777ca`): the diff against `main` is exactly the
+  union of the four pieces (105 files, each byte-identical to its piece's), the pieces' files disjoint, no guard file
+  edited by two pieces; #124's new fetches get the mirror too (619 runner files with a sha256). Remaining: the combined
+  run 44580527071 green per OS. **B1-R** and the **CI-health worker** watch it, neither pushes without word. **B1**
+  (#123's builder) idle; told #124's body names #123's guarded entries.
