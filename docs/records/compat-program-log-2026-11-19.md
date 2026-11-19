@@ -282,3 +282,26 @@ who confirms or changes phases 1-3.
 - **~11:33 UTC:** S373 (a list aggregate's empty pivot cell on DuckDB) is scheduled in the product's hosts-and-planner
   track, after the cross-kind `!=` fix: confirm it by test, read Pure's answer, fix it to lite's meaning, and bring any
   difference from legend-engine back to the user.
+- **~11:33 UTC, B2's H8 (a.3), (d), (k)** (`claude/census-b2` at `536e2e030`):
+  - **(a.3) the Feature-flag strand:**
+    - `LEGACY_SQL_NULL_UNSAFE_EQUALS` switches equality at 6 lowering sites;
+    - `CORRECT_SQL_SUBSTRING_INDEXING` swaps in `CORRECTED_SUBSTRING`;
+    - `PUSH_DOWN_ENUM_TRANSFORM` is a no-op in the product;
+    - the flags reach the product with no style at all (the query's options, the body, the runner's defaults, the
+      product's doors). Ratchet start: 20 classes name `Feature`;
+    - **PCT A and PCT B set `CORRECT_SQL_SUBSTRING_INDEXING` on every query**, so PCT already runs Pure's `substring`.
+      7 corpus tests set a flag;
+  - **(d) the doors per strand** (a hook recorder, 21 JVM runs):
+    - **pure/v1 is the only door that reaches the plain set and `siteWords`.** The plain set gave 6 answers there
+      (DIVIDE_BY_ZERO 3, SQRT_OF_NEGATIVE 3);
+    - only PCT B reaches `errorWords`, `VerdictNumbers`, `DateLiteralTexts`, `CrossKindNumbers` and most of
+      `PureOnlyTexts`;
+    - only the corpus reaches the EngineShape text forms, the engine-text printers, `UpstreamPlans`,
+      `ResultEnvelopes`, `ActivityTexts`, `ExecutedValues`, `RoutedQueries`, `traceCell`, the graph keys and `raw`;
+    - **reached by no door run:** two-forms `JsonGrammar`, `RenderedTextRule`, `GoldenNullWord`;
+      `LoweringForms.assertFailed`; the Postgres, Databricks, Trino, SQLite and MongoDB dialect passes. These are
+      deletion candidates, unless a lane not run here reaches them;
+  - **(k) E-R2 against the corpus:** no runnable corpus test asserts an error (`assertError` = 0 over 2,613), so E-R2
+    changes no runnable corpus verdict. Of the 148 tests legend-engine excludes (ExcludeAlloy 96, ToFix 52), lite on H2
+    agrees with Pure's expected value in 44 and with the authors' value in 13, contradicts the test in 25, and refuses
+    56. The 4 H2-only contradictions are a Float printed `100000` against `100000.0` (S20's class).
