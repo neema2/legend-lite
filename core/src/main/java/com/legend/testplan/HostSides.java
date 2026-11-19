@@ -134,7 +134,30 @@ public final class HostSides {
                 }
             }
         }
+        shapeCensus(name, planned, env);
         return new Planned(planned, base, on != null ? on : any);
+    }
+
+    /** H6 PROTOTYPE (claude/compat-judges-homework, MEASUREMENT ONLY, never to merge; the port of
+     *  claude/total-wall-e-measure's d252748b/d8438c80 to main): under -Dlegend.measure.shapes=stdout, one line per
+     *  planned assert, its name and each side's kind and shape, for the 36 combinations' re-measure. */
+    private static void shapeCensus(String name, List<JudgePlans.PlannedSide> planned, BodyDriver.ExecEnv env) {
+        if (!"stdout".equals(System.getProperty("legend.measure.shapes"))) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder(name);
+        for (JudgePlans.PlannedSide p : planned) {
+            String shape;
+            try {
+                var sh = JudgePlans.shapeOf(p, env.plan().style());
+                shape = sh.kind() + (sh.scalar() ? "/one" : "/many") + ":" + sh.typeName();
+            } catch (RuntimeException e) {
+                shape = "?";
+            }
+            sb.append('\t').append(p.kind()).append('|').append(shape);
+        }
+        System.out.println("[shape]\t" + (env.plan().style() == com.legend.database.PlanStyle.PRODUCT ? "LITE" : "COMPAT")
+                + "\t" + System.getProperty("legend.test.current", "") + "\t" + sb);
     }
 
 }

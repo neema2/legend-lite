@@ -219,7 +219,11 @@ public final class ChannelB {
             if (scopePrefixes.stream().noneMatch(src::startsWith)) {
                 continue;
             }
-            out.add(runOne(fd, module, ctx));
+            Outcome o1 = runOne(fd, module, ctx);
+            out.add(o1);
+            // H6 PROTOTYPE (claude/compat-judges-homework, measurement only): one line per outcome, whatever the lane's pins
+            System.out.println("[chB-h6]\t" + o1.status() + "\t" + o1.testFqn() + "\t"
+                    + o1.detail().replace('\n', ' ').replace('\t', ' '));
         }
         return out;
     }
@@ -279,7 +283,7 @@ public final class ChannelB {
                 judgeSql(ctx, resolved);
             }
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, com.legend.edge.AppealRun.with(null),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, REFEREE,
                     OPTIONS);
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
@@ -384,7 +388,7 @@ public final class ChannelB {
 
     /** Channel B's options: the corpus's runtime features, the judge {@code -Dpct.channelb.judge} names, compatibility
      *  mode and upstream's spellings. */
-    private static final com.legend.ExecuteOptions OPTIONS = com.legend.ExecuteOptions.recording(
+    private static final com.legend.ExecuteOptions COMPAT_OPTIONS = com.legend.ExecuteOptions.recording(
                     // the compatibility rules' runs carry the compatibility edge, which names its rules (census C1,
                     // the orchestrator's ruling of 2026-11-17), never the product's NoEdge with a style
                     new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
@@ -399,6 +403,25 @@ public final class ChannelB {
                     System.getProperty("pct.channelb.judge", "BOTH")))
             // legend-pure's texts, spelled by the edge (phase D's D1.0)
             .withStyle(com.legend.edge.PureText.UPSTREAM);
+
+    /** H6 PROTOTYPE (claude/compat-judges-homework, measurement only, never for merge): -Dpct.channelb.rules=LITE runs
+     *  the bodies under LITE's own rules -- the product's edge hook ({@code NoEdge.NONE}), the product's style
+     *  ({@code PlanStyle.PRODUCT}), no referee ({@code NoEdgeRun.NONE}), the product's default features (R4 not
+     *  applied); LITE_R4 adds the corrected substring indexing the PCT lanes run with, standing in for R4. */
+    private static final String RULES = System.getProperty("pct.channelb.rules", "COMPAT");
+
+    private static final com.legend.ExecuteOptions LITE_OPTIONS = com.legend.ExecuteOptions.NONE
+            .withFeatures(RULES.equals("LITE_R4")
+                    ? java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING)
+                    : java.util.Set.of())
+            .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
+            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
+                    System.getProperty("pct.channelb.judge", "BOTH")));
+
+    private static final com.legend.ExecuteOptions OPTIONS = RULES.equals("COMPAT") ? COMPAT_OPTIONS : LITE_OPTIONS;
+
+    private static final com.legend.testexec.EdgeRun REFEREE = RULES.equals("COMPAT")
+            ? com.legend.edge.AppealRun.with(null) : com.legend.testexec.NoEdgeRun.NONE;
 
     /**
      * G10'S GUARD FOR A TEST BODY (O5's term, the user's ruling of 2026-11-13: "a body planned and run twice answers the
@@ -443,7 +466,7 @@ public final class ChannelB {
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME,
-                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, com.legend.edge.AppealRun.with(null),
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, REFEREE,
                     OPTIONS);
             told.add("ended: pass");
         } catch (java.sql.SQLException | RuntimeException e) {
