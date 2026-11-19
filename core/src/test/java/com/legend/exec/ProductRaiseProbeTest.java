@@ -376,7 +376,10 @@ class ProductRaiseProbeTest {
                 } catch (java.sql.SQLException failed) {
                     got = "SQLException: " + failed.getMessage();
                 }
-                String want = com.legend.result.CellText.carriedFloat(d);
+                // Postgres's float8 output leaves out a rounding boundary (//core:numbers_probe_test's BOUNDARY_TEXTS):
+                // 1e23's double is 9.999999999999999e+22 there, Java's 1.0E23; both read back
+                String want = backend.name().equals("postgres") && d == 1e23 ? "99999999999999990000000.0"
+                        : com.legend.result.CellText.carriedFloat(d);
                 System.out.println("[product raise probe] " + backend.name() + " the canonical text of " + d
                         + ", answered: " + got);
                 if (!want.equals(got)) {
