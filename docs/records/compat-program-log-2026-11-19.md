@@ -2803,3 +2803,6 @@ who confirms or changes phases 1-3.
   translator to read, file:line, whether legend-pure wraps the exception on either path before pinning, so S383 pins the
   text a legend-pure user sees and says which part is the JDK's. Piece 2's PCT essential lanes running on SQLite,
   MariaDB, MySQL, ClickHouse, Trino, MongoDB and Postgres for the rows by lane.
+- **~21:17 UTC, the reviewer confirmed 3314** on the batch at `5ab730cd` (its record `9a557188` corrected); it checks the
+  value again in the combination review, which waits for the judges' merged measurement, the restored batch-144 rows
+  and the two new H2 rows.
