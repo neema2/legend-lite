@@ -2704,3 +2704,10 @@ who confirms or changes phases 1-3.
   (down ones noted by the ~20:45 ruling, applied by the judges on the batch branch) and builds A2 PR 2 (the plan-text
   family's spelling-only code) for the batch. The judges: A4's down moves noted; the batch branch at `90588a767` (S1-S3,
   A2's PureV1SqlTextTest merge fix, the six accepted rows), the rosters re-measuring.
+- **~20:46 UTC, the reviewer corrected D-S1** (record `ca8ea4a5`): `substringAsGiven` stays lite-internal (agreed:
+  a user-callable per-database SUBSTRING breaks G10); but `EdgeOnlyDataTest` cannot hold it (Scalars naming
+  `SqlFn.SUBSTRING_AS_GIVEN` is a real product use, so the exact test would fail). The honest record: `native-claims.tsv`
+  (claimers: the edge's rewrite and Scalars); INTERNAL_DESUGAR +1 (41) with its comment amended for this one door
+  producer; SqlFnSortedTest's PRODUCT +1; optional, for the user: a new pin that the row has no product claimer but
+  Scalars. B1 told; the user asked. B1-R confirmed #124 green 55 of 55 and is on the detector's review fixes. B2's docs
+  branch at `46805b9ef` (the H2 counts corrected).
