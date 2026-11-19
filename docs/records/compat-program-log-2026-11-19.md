@@ -1717,3 +1717,11 @@ who confirms or changes phases 1-3.
   reads the query's types at planning); D2 (Pure's checks as SQL); the corpus door's rewrites (planning). Put to the
   user (15:15): the corrected principles, the one design question they hinge on, and whether A1-A3 go ahead while the
   rest is redesigned.
+- **~14:35 UTC, B1: the macOS overlay pushed** (#123 head `7b7ee6ea3`). From #124's run 44531926654 (macOS edge_net
+  finished there; the same 4 diff tests red): 31 value lines, each exactly 1 ulp, 16 distinct facts (acos, asin, cot 3
+  on DuckDB and SQLite essential; cbrt 1 on DuckDB essential; sinh, cosh 12 on both standard suites); no order, locale,
+  path or line ending moved; where both OSes move a fact, the values agree. `overlay_macos.tsv` 16 rows covers all 31
+  lines. **A defect the second file exposed, fixed:** with one pass, Windows' row found macOS's value on macOS; the
+  overlay now applies the current OS's rows first, then checks the others' (a new plant covers both orders on all three
+  OSes and fails with the one-pass order). Local: 48 pass, 1 skipped. Both overlay files named in the PR body as new
+  pinned files for the user's word; the README updated. Next: the new run on every OS.
