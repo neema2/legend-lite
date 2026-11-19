@@ -104,7 +104,9 @@ final class RelationTextArm {
         if (held) {
             return com.legend.testexecutionplan.Verdicts.ok();
         }
-        return com.legend.testexecutionplan.Verdicts.fail("\nexpected: '" + expected + "'\nactual:   '" + actual + "'");
+        // legend-pure's words of a failed assertEquals ('\nexpected: %r\nactual:   %r'), each text its %r
+        return com.legend.testexecutionplan.Verdicts.fail("\nexpected: " + RelationText.representation(expected)
+                + "\nactual:   " + RelationText.representation(actual));
     }
 
     /** How many comparisons the arm judged in this JVM (the spike's count). */

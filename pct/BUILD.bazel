@@ -84,6 +84,7 @@ legend_java_library(
             "src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java",
             # SPIKE (H11): :h11_relation_text_test's alone
             "src/test/java/com/legend/edge/RelationTextSpikeTest.java",
+            "src/test/java/com/legend/edge/RelationTextRootSpikeTest.java",
         ],
     ),
     resources = glob(["src/test/resources/**"]),
@@ -177,6 +178,24 @@ junit_test(
     deps = [
         "//core",
         "//core:edge",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# SPIKE (H11): a query whose ROOT is a relation's text, answered as its rows (the product's own style) and presented
+junit_test(
+    name = "h11_relation_text_root_test",
+    memory_mb = 768,
+    srcs = ["src/test/java/com/legend/edge/RelationTextRootSpikeTest.java"],
+    select = ["--select-class=com.legend.edge.RelationTextRootSpikeTest"],
+    runtime_deps = [
+        "//core:drivers",
+        "@h2//jar",
+    ],
+    deps = [
+        "//core",
+        "//core:edge",
+        "//core:test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
