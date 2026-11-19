@@ -1610,3 +1610,45 @@ who confirms or changes phases 1-3.
   both arities; DuckDB `substring(s, 0)` only; any other database flagged, not measured); A5's lane's 7 R4 rows added to
   A3's moves, conditional on A5's PR landing first. The cross-kind fix's local run is going on local
   `claude/compat-cross-kind-ne` (`main` + `63421e0a`, cherry-picked clean as `c650d959`).
+- **~14:19 UTC, H13 continued: tasks 1 to 7 done** (`H13-error-records-spike.md` §11-22 at `3bb9a2bd`).
+  - **The whole net, run twice:** channel A outcomes 0 differ on every lane; channel B 0 of 1,249; pure/v1 0 of 28;
+    channel A answers only the 2 known Relation lines per database. The 62 raises worded after the run: 62 exact, 0
+    withheld. **The corpus, both lanes: rosters unchanged (10 of 10).** All 51 `core_tests_*` targets pass under the
+    host judge, `judge_both` and `judge_database`; `core_edge_tests` 12 fail (was 20), all SIZE_NOT_MULTIPLICITY.
+  - **Lite's plan:** JSON +48,052 (+0.033%), SQL -1,680 (on `main`, `at`'s count was read twice, so `LetBinding`
+    hoisted it; now once). Channel B ratchets: 6 values in 3 suites (judge SQL shrinks; judge plan -9,130, +629,
+    +1,716); statement counts unchanged.
+  - **A pre-existing pure/v1 defect:** the envelope prints the `DataError`'s cause, so a raised site answers its bare
+    kind (`main`: "Raised: DATE_COMPONENT_INVALID" for `date(2017, 13, 1)`). Fixed at the edge in 6 lines
+    (`PureMessages.compile` words a raised site through `RaisedWords.wordsOf`): "Raised: Invalid month: 13". Golden
+    28/28 unchanged. H13 §4's "Java's pure/v1 route is not affected" corrected. **Lands with B1.**
+  - **Task 5, legend-engine ASKED** (the engine runner, 4.145.0; probe `H13/ErrorBodyProbe.java.txt`):
+    `raise.datePartAbsent` (`%2017->hour()`): legend-engine 500 PureAssertFailException "Ensure the target system
+    understands Year or Year-month semantic."; lite "Raised: Cannot get hour for 2017". `compile.windowFrameInverted`
+    (`rows(4, 2)`): legend-engine 500, no errorType, an assert-failure sentence with its resource position; lite
+    COMPILATION with legend-pure's sentence alone. Exact bodies in §17; not added to the golden.
+  - **An adjacent divergence:** `#>{nope::DB...}#` answers lite's "Can't find database 'nope::DB'" (a comment claims
+    legend-engine's words), where legend-engine answers "The store 'nope::DB' can't be found." (its MISSING_STORE
+    sentence). **This session's call:** the legend-engine presenter words it, in B1.
+  - **The defect cell:** 0 in PCT and pure/v1; 12 planned in the DuckDB corpus, 0 on H2; 0 answers carry one. 1 corpus
+    test expects the sentence (`testCheckedWithCircularConstraints`), failing on both lanes for legend-engine's own
+    `isDistinct` defect. The words are legend-engine's (`javaPlatformBinding` `constraints.pure:171`): the ENGINE
+    presenter words it, about 120 lines, 1 to 1.5 days, in B2 (caution: `WriterCarriageGuardTest`, the wording in the
+    presenter, not a writer). Also found: the checked graph's default violation message is legend-engine's sentence in
+    the product (`resolver/GraphEmission.java:653`), for B2 and the census.
+  - **Size words:** the one-operand placed site (kind plus bound); reach 0; adopted by the judges (B3).
+  - **The three notes:** the date print moves legend-pure's audience only; `CheckedOne.statedSize` about 10 sites, 30
+    lines, 0.5 day, fixing 3 of the 12 `toOne` tests (the other 9 are true run-time sizes A3 withholds, which need the
+    withheld-spelling register row); `Operand.Date`: keep `Operand.Text` typed by the kind's contract, held by a unit
+    test (a MIR date literal would add a variant for a value the product never prints).
+  - **The host-parity worker's `lite_wire`:** agreed; `raise` stays the wire name, `operands` a sibling key.
+  - **B1's H9 credited;** neither of its two forms was needed (no cast read; the size from the multiplicity).
+  - **Guarded files** (§19): `PlanStyleSurfaceTest`, `EdgeOnlyDataTest` (CP-7's row, 8 pieces), `EdgeOnlyMembersTest`,
+    `PlatformNamesGuardrailTest`, `CodeShapeGuardrailTest` (none), `baseline.tsv`, `ratchets.tsv`, `TestPlanJson` v34,
+    `PlanJson` v59 or v60, the hosts' fixture, the register rows. Slice 1.6 (lite's sentence leaving the plan) breaks
+    only §4's known host set.
+  - **Size of the real slice (§20): about +1,450 / -880 lines including S1, 6.5 to 7 days.** No hook built; no pin,
+    golden, ledger or allowlist moved.
+  - **Folded into the final plan (14:50):** B1's row (the prototype complete, the two defects it lands); B2's row (the
+    defect cell and the default violation message); stage B's size, honestly, about 4 to 5 weeks with B1 and B3 side by
+    side (6 weeks of one builder's work).
