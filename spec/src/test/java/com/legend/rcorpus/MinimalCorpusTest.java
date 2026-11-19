@@ -109,7 +109,12 @@ public class MinimalCorpusTest {
     /** ACCEPTED DIVERGENCES (batch 144, USER-decided 2026-09-08): one row per
      * lane and test — {@code fqn ||| bucket ||| witness}; the failure must
      * carry the witness or the row is an ordinary FAIL (the divergence
-     * changed: re-decide); a row that stops failing is GAINED (trim it). */
+     * changed: re-decide); a row that stops failing is GAINED (trim it).
+     * Six sqlstring rows restored/added by the user's ruling of 2026-11-19 ~20:35, under batch 144 of 2026-09-08 (the
+     * stage-A batch, A2 + A5 + A4): rung 2a's (7dfbdf601) four removed rows back verbatim -- DuckDB's testHashFunctions,
+     * testToSQLStringForTDSStringJoin and testToSqlGenerationFirstDayOfWeek, H2's testToSQLStringForTDSStringJoin --
+     * and H2's testHashFunctions and testToSqlGenerationFirstDayOfWeek new, their witnesses read from the H2 lane's own
+     * failure text (each a golden-only cell: legend-engine's text a defect, its rows the referee's). */
     private static final String ACCEPTED = "accepted-roster";
     /** The ORDER-LENIENCY registers (Phase 0.5): "ordered-keys-unmappable
      * <test>" per ORDERED row verdict that fell back to the multiset compare
