@@ -217,6 +217,45 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     assert.deepEqual(await inRun('a test', () => asTest(engine).exclusive((held) => held.rows(unplanned('SELECT 1'), []))), [[1]]);
   });
 
+  it("a COMMIT that fails rolls its transaction back: the table as it was, the session outside any transaction (HOSTS-2)", async () => {
+    // the audit's HOSTS-2 (2026-11-18): `transacted` sent the commit after its try, so a refused COMMIT (DuckDB's
+    // "Failed to commit" on a conflict) left the held session in its transaction, and the next plan on it failed
+    // every row deleted: committed, T would be empty; rolled back, it is as it was
+    const plan = planned(fn('delete', target(), lambda(['r'], lit.boolean(true))));
+    const sent: string[] = [];
+    await assert.rejects(() => engine.exclusive(async (held) => runPlan(unplannedPlan(plan), {
+      databaseType: engine.databaseType,
+      run: async (sql, params) => {
+        sent.push(sql);
+        if (sql.toUpperCase().startsWith('COMMIT')) throw new Error('the commit was refused');
+        return held.rows(sql, params);
+      },
+    })), /^Error: the commit was refused$/);
+    assert.ok(sent.some((s) => s.toUpperCase().startsWith('ROLLBACK')), `a rollback was sent after the refused commit: ${sent.join(' | ')}`);
+    assert.equal(await rows(), '1:a:15 2:b:25', 'as it was');
+    // the session is outside any transaction: a new one opens on it (left open, DuckDB refuses a transaction within one)
+    assert.deepEqual(await inRun('a test', () => asTest(engine).exclusive(async (held) => {
+      await held.rows(unplanned('BEGIN TRANSACTION'), []);
+      await held.rows(unplanned('ROLLBACK'), []);
+      return held.rows(unplanned('SELECT 1'), []);
+    })), [[1]]);
+  });
+
+  it('a COMMIT and its ROLLBACK that both fail are said together, never swallowed (HOSTS-2)', async () => {
+    const seen: string[] = [];
+    await assert.rejects(() => transacted({ begin: [unplanned('BEGIN')], commit: [unplanned('COMMIT')], rollback: [unplanned('ROLLBACK')] },
+      async (sql) => {
+        seen.push(sql);
+        if (sql === 'COMMIT') throw new Error('the commit was refused');
+        if (sql === 'ROLLBACK') throw new Error('the rollback was refused');
+        return [];
+      }, async () => 'done'),
+    (e: unknown) => e instanceof Error
+      && e.message === 'the commit was refused -- and rolling its transaction back failed: the rollback was refused'
+      && e.cause instanceof Error && e.cause.message === 'the commit was refused');
+    assert.deepEqual(seen, ['BEGIN', 'COMMIT', 'ROLLBACK']);
+  });
+
   it('answers a value the program wrote with nothing sent for it: the constant node', async () => {
     // the program's last statement a String literal: the plan's own value (the test-is-the-product plan's M2), the
     // writes before it run in the one transaction
