@@ -2944,6 +2944,13 @@ final class Scalars {
             throw new com.legend.error.NotImplementedException(
                     "toString over " + t + " is not modeled");
         }
+        // SPIKE (H14 D1): an ABSTRACT Date the database holds as a timestamp has a time: one product text on every
+        // database, a DateTime's (the style's; the product's DATETIME_TO_TEXT), never the database's own VARCHAR cast
+        if (t == Type.Primitive.DATE && x.type() instanceof com.legend.sql.TypeFact.Typed dt
+                && (dt.type() == com.legend.sql.SqlType.Scalar.TIMESTAMP
+                        || dt.type() == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ)) {
+            return styled.dateTimes().dateTimeText(x, null);
+        }
         // boolean text is a SEMANTIC node (P7): the reference prints
         // 'true'/'false', H2's VARCHAR cast prints 'TRUE' — the arg
         // type is known HERE, the spelling is each dialect's.
