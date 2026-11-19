@@ -23,6 +23,7 @@ import type { LitePlanner } from '../src/lite-planner.ts';
 import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
 import { seriesQuery, statsQuery, type TsInputs, type TsQuery } from '../src/timeseries-query.ts';
 import { readSeriesTexts } from '../src/timeseries-text.ts';
+import { asTest } from '../../engine-client/test/unplanned.ts';
 
 const RUNS = 5;
 const DAYS = 1560;
@@ -160,11 +161,12 @@ for (const q of QUERIES) {
     const extra = (c: string): number => ((counts.get(c) ?? 1) - 1) * c.length;
     for (const c of counts.keys()) if (extra(c) > extra(top)) top = c;
     const copies = counts.get(top) ?? 0;
-    await engine.execute(plan, 0);
+    // the measure's own runs, each inside a run (C5-T, 2026-11-15: on Node a statement is sent inside a run)
+    await asTest(engine).execute(plan, 0);
     const times: number[] = [];
     for (let i = 0; i < RUNS; i++) {
       const t0 = performance.now();
-      const t = await engine.execute(plan, 0);
+      const t = await asTest(engine).execute(plan, 0);
       times.push(performance.now() - t0);
       assert.ok(t.columns.length > 0, `${q.name} answers`);
     }

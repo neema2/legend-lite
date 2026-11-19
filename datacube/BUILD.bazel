@@ -1098,6 +1098,9 @@ node_test(
         "test/catalog-builder.ts",
         "test/host/node.ts",
         "test/lite-compiler.ts",
+        # the measure's own statements, sent in a run of their own (asTest; C5-T step 6 refused a send outside a run,
+        # 2026-11-15, and this manual target, in no lane, was missed: found 2026-11-19)
+        "//engine-client:unplanned",
     ],
     entry_point = "test/timeseries-sql.measure.ts",
     wasm = True,
@@ -1121,6 +1124,9 @@ node_test(
         "test/catalog-builder.ts",
         "test/host/node.ts",
         "test/lite-compiler.ts",
+        # the measure's own statements, sent in a run of their own (asTest; C5-T step 6 refused a send outside a run,
+        # 2026-11-15, and this manual target, in no lane, was missed: found 2026-11-19)
+        "//engine-client:unplanned",
     ],
     env = {
         "DEMO_CONFIG": "$(rlocationpath demo/config.json)",

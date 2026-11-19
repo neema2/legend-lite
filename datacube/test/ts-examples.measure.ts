@@ -21,6 +21,7 @@ import type { TimeGrain } from '../src/chart-spec.ts';
 import type { TimeseriesSpec, TsSource } from '../src/timeseries-spec.ts';
 import { plannerFor, readText } from './catalog-builder.ts';
 import { readSeriesTexts } from '../src/timeseries-text.ts';
+import { asTest } from '../../engine-client/test/unplanned.ts';
 
 const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8')) as {
   projects: { groupId: string; artifactId: string; versionId: string; models: string[] }[];
@@ -109,7 +110,8 @@ before(async () => {
   planner = plannerFor(PROJECT, 'stress::RT');
   engine = new DuckDbEngine((await openDatabase()).connection);
   const project = await planner.projectData(PROJECT, engine.databaseType);
-  for (const sql of [...project.open, ...project.use]) await engine.run(sql, 0);
+  // the measure's own statements, each in its own run (C5-T, 2026-11-15: on Node a statement is sent inside a run)
+  for (const sql of [...project.open, ...project.use]) await asTest(engine).run(sql, 0);
   // its rows: the plan's ONCE load, run by the hosts' runner (main's #95, B3)
   if (project.load !== undefined) await runLoad(project.load, (sql) => engine.run(sql, 0));
   // each source the page's grid: its saved query, the class projected to a relation through stress::AllMapping
@@ -140,7 +142,7 @@ it('the examples, each planned and answered over the markets project', async () 
     await readSeriesTexts(spec.series, readText);
     for (const [i, s] of ex.series.entries()) {
       const q = seriesQuery(inputs, spec, spec.series[i]!);
-      const t = await engine.execute(await planner.plan(q.query), 0);
+      const t = await asTest(engine).execute(await planner.plan(q.query), 0);
       const col = (n: string): unknown[] => (t.columns.find((c) => c.name === n)?.values ?? []) as unknown[];
       const dates = col(TS_DATE);
       const values = col(TS_VALUE);
