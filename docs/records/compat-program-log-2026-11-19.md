@@ -32,6 +32,8 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~15:10 | "We have the completely wrong design and plan if you are allowing things to not be pushed to database - legend lite tenet is java orchestrates and database does the work, upstream is not our implementation guide" | The design and plan are to be redone from lite's execution tenet: the database computes every value, text and verdict; Java orchestrates; legend-pure and legend-engine define the answers, never the implementation. Every piece that moves work from the database to Java (stage B's Java formatters, error records worded in Java, verdict presenters, A4 as written) is withdrawn |
 
+| ~15:20 | "Yes to your rule / The host judge is the only exception bc I want to keep that in java for the product and it gets reused in compatibility mode as the only judge / Isn't this all the handoff/getting started? Have we lost that context? I thought we had this decided as part of the plan already / I'm worried we keep relitigating / Maybe we need to write these down in a consolidated way/doc? / Database calculates everything (there is some compiler fold rules for constant string and boolean) including format and tostring / Presentation is thin layer - in product it does not get to do anything but just serialize values correctly / Presentation is compatibility does all the pure or engine fixes in java it's allowed to do those in java to match pure/engine upstream but only from output of typed values from lite / Host judge is only judge in compatibility, database and host both in product with carve out that host is allowed to compare / This really isn't in the handoff doc? Or written as the goal/plan?" | **The four rules of record**, written in `docs/records/compat-rules-of-record-2026-11-19.md`: the database computes everything (folds for constant String and Boolean only), format and toString included; product presentation only serializes; compatibility presentation fixes upstream's output in Java from lite's typed values only; the host judge is the only judge in compatibility, both judges in the product. Every brief and review checks against it first |
+
 **Superseded ~13:25:** **Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
 each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
 being built by the product's judges track (C3).
@@ -1739,3 +1741,15 @@ who confirms or changes phases 1-3.
   query, an error message a test checks) is a value, the database. So the H11 Java printer computed program values in
   Java (withdrawn); option (a) keeps legend-pure's text in SQL as lite's own, with no mode. Raised: lite's Java-side test
   judge compares rows in Java, which the rule questions (the user's call, now or later). Four decisions put.
+- **~15:20 UTC, THE USER set the four rules of record** (recorded in §1) and asked whether they were already in the
+  handoff. **This session's answer, checked in the documents:** mostly yes, in pieces: the host judge in Java (goals of
+  record G2 and the 2026-11-07 ruling), typed values on the product path with text at the edge (G3), Java at the edges
+  for compatibility (G6, the 2026-11-07 ruling), "fix up later in Java" (the presentation program's goal of 2026-11-18,
+  and "Presentation at a root or a side is always Java"), Java orchestrates and the database executes (AGENTS.md). Not
+  written before: the host judge as the ONLY judge in compatibility; folds for constant String and Boolean only;
+  `format()` and `toString()` the database's in the product; compatibility's Java from lite's typed output only.
+  **This session relitigated settled rules:** at ~15:10 it withdrew the design's Java formatters and A4 by misreading
+  the correction; both are restored. The one real breach (the AdjustBy date literal as a constant) stays reversed.
+  **Written now:** `compat-rules-of-record-2026-11-19.md` (one page: the rules verbatim, what they mean for the product
+  and for compatibility, where each was already on record, how the plan stands against them). The final plan's banner
+  now points to it. Every session is told to check against it first (~15:30).

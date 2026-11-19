@@ -1,10 +1,11 @@
 # The compatibility program: the final plan (2026-11-19)
 
-> **WITHDRAWN IN PART, 2026-11-19 ~15:10 UTC, by the user:** "We have the completely wrong design and plan if you are
-> allowing things to not be pushed to database - legend lite tenet is java orchestrates and database does the work,
-> upstream is not our implementation guide". The design's part 3 (formatters after the run, in Java), the Java wording
-> of error and verdict records (B1, B2, B3's presenters) and A4 as written are withdrawn. The design and plan are being
-> redone from the execution tenet; see the log's ~15:10 entry. A1 to A3 move no work out of the database.
+> **Governed by `compat-rules-of-record-2026-11-19.md`** (the user's four rules of ~15:20 UTC: the database computes
+> everything, compiler folds for constant String and Boolean only; product presentation only serializes; compatibility
+> presentation fixes upstream's output in Java from lite's typed values only; the host judge is the only judge in
+> compatibility, both judges in the product). Checked against them at ~15:25: every step below holds. The ~15:10
+> withdrawal of part 3 and of A4 was this session's misreading and is undone; the one rule-breaking call (the AdjustBy
+> date literal as a constant) stays reversed.
 
 Written fresh after phase 0, once the user had ruled the goal, D1 and D2 (~13:25 UTC: "Okay agree with all"). It
 replaces the working plan (`compat-program-plan-2026-11-19.md`, history now) as the thing to build from.
