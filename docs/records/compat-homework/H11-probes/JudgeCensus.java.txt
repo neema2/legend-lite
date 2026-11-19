@@ -1,0 +1,411 @@
+import com.legend.door.ModelFromText;
+import com.legend.model.*;
+import com.legend.parser.GrammarLevel;
+import com.legend.protocol.spec.*;
+
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.*;
+
+/**
+ * H11's JUDGE-SIDE print census (2026-11-19, scratch; measurement only): every print (toString, toCSV, a TDS's csv,
+ * toRepresentation, format, formatDate, makeString) that sits on an ASSERT's side, outside the query, and the chain
+ * of functions between the assert's argument and the print. Lets are followed; a user helper a test calls is inlined
+ * (its parameters bound to the call's arguments), so an assert inside a helper counts once per test that reaches it.
+ * A query lambda (execute's, eval($f, ...)'s, toSQLString's, ...) is never entered: a print there is query-side
+ * (H2's and B1's census). Parses with lite's own parser (ModelFromText), as H2's TextCensus does.
+ */
+public class JudgeCensus {
+
+    static final Set<String> PRINT = Set.of("toString", "toCSV", "toRepresentation", "format", "formatDate",
+            "makeString");
+
+    /** the asserts, and which argument positions are compared SIDES (the rest is a failure message) */
+    static final Map<String, Integer> ASSERT_SIDES = new HashMap<>();
+    static {
+        for (String a : List.of("assertEquals", "assertNotEquals", "assertSameElements", "assertEq", "assertNotEq",
+                "assertJsonStringsEqual", "assertContains", "assertNotContains", "assertIs", "assertNotIs",
+                "assertEqWithinTolerance", "assertEqualsWithTolerance", "assertCollectionsEqualIgnoreOrder",
+                "assertCollectionsEqual", "assertDeepEquals", "assertStartsWith", "assertEqualsIgnoreWhitespaces",
+                "assertJsonEquals", "assertLambdaEquals", "assertLambdaJSONEquals", "assertInstanceOf")) {
+            ASSERT_SIDES.put(a, 2);
+        }
+        ASSERT_SIDES.put("assertEqualsH2Compatible", 3);
+        ASSERT_SIDES.put("assertTdsEquivalent", 2);
+        for (String a : List.of("assert", "assertTrue", "assertFalse", "assertEmpty", "assertNotEmpty", "assertSize",
+                "fail")) {
+            ASSERT_SIDES.put(a, a.equals("assertSize") ? 2 : 1);
+        }
+        ASSERT_SIDES.put("assertSameSQL", 2);
+    }
+
+    /** content-independent wrappers: a print under them is still at the side's root */
+    static final Set<String> PASS = Set.of("toOne", "toOneMany", "at", "first", "cast", "[]", "toMany", "list");
+
+    /** functions that read a text's content without returning it (a print under one FEEDS it) */
+    static final Set<String> CONSUME = Set.of("equal", "eq", "contains", "startsWith", "endsWith", "indexOf",
+            "length", "matches", "parseInteger", "parseFloat", "parseJSON", "notEqual", "greaterThan", "lessThan",
+            "isEmpty", "isNotEmpty", "size", "in", "containsIgnoreCase", "equalIgnoreCase");
+
+    static Set<String> queryFns = Set.of();
+    static String queryParam;
+
+    static String simple(String n) {
+        int i = n.lastIndexOf("::");
+        return i < 0 ? n : n.substring(i + 2);
+    }
+
+    static boolean hasStereo(List<StereotypeApplication> st, String profile, String name) {
+        if (st == null) return false;
+        for (StereotypeApplication a : st) {
+            if (a.stereotypeName().equals(name) && simple(a.profileName()).equals(profile)) return true;
+        }
+        return false;
+    }
+
+    record Site(String suite, String test, String helper, String assertFn, String role, String print, String shape,
+                String cls, String file, int line, String snippet, String recv, String sideShape) {
+    }
+
+    final List<Site> sites = new ArrayList<>();
+    final Map<String, List<FunctionDefinition>> userFns = new HashMap<>();
+    final Map<String, String> fnFile = new HashMap<>();
+    final Map<String, List<String>> texts = new HashMap<>();
+    final List<String> walls = new ArrayList<>();
+
+    List<Path> pureFiles(Path root) throws Exception {
+        try (var s = Files.walk(root)) {
+            return s.filter(p -> p.toString().endsWith(".pure") && Files.isRegularFile(p)).sorted().toList();
+        }
+    }
+
+    ParsedModel parse(Path p) {
+        try {
+            String t = Files.readString(p);
+            texts.put(p.toString(), List.of(t.split("\n", -1)));
+            return ModelFromText.parse(t, GrammarLevel.LEGEND_PLATFORM);
+        } catch (Throwable e) {
+            walls.add(p + ": " + String.valueOf(e.getMessage()).split("\n")[0]);
+            return null;
+        }
+    }
+
+    // ---- the walk ------------------------------------------------------------------------------------------------
+
+    final class Walk {
+        final String suite, test, file;
+        String helper = "";
+        int depth;
+        final Deque<String> inlining = new ArrayDeque<>();
+
+        Walk(String suite, String test, String file) {
+            this.suite = suite; this.test = test; this.file = file;
+        }
+
+        /** a body's statements in order, lets bound as they come */
+        void body(List<ValueSpecification> stmts, Map<String, ValueSpecification> env0) {
+            Map<String, ValueSpecification> env = new HashMap<>(env0);
+            for (ValueSpecification s : stmts) {
+                if (s instanceof AppliedFunction af && simple(af.function()).equals("letFunction")
+                        && af.parameters().size() == 2 && af.parameters().get(0) instanceof CString n) {
+                    stmt(af.parameters().get(1), env);
+                    env.put(n.value(), af.parameters().get(1));
+                } else {
+                    stmt(s, env);
+                }
+            }
+        }
+
+        /** finds the asserts (and helper calls) in a statement; never enters a query lambda */
+        void stmt(ValueSpecification v, Map<String, ValueSpecification> env) {
+            if (v instanceof AppliedFunction af) {
+                String fn = simple(af.function());
+                if (ASSERT_SIDES.containsKey(fn)) {
+                    int sides = ASSERT_SIDES.get(fn);
+                    for (int i = 0; i < af.parameters().size(); i++) {
+                        curSide = canon(af.parameters().get(i), env, 0);
+                        side(af.parameters().get(i), env, fn, i < sides ? "side" + i : "message",
+                                new ArrayList<>(), new HashSet<>());
+                    }
+                    return;
+                }
+                if (isQuery(af)) {
+                    for (int i = 1; i < af.parameters().size(); i++) stmt(af.parameters().get(i), env);
+                    return;
+                }
+                List<FunctionDefinition> defs = userFns.get(fn);
+                if (defs != null && depth < 5 && testHelper(defs, af.parameters().size())) {
+                    FunctionDefinition d = pick(defs, af.parameters().size());
+                    if (d != null && !inlining.contains(d.qualifiedName())) {
+                        Map<String, ValueSpecification> bound = new HashMap<>();
+                        for (int i = 0; i < d.parameters().size() && i < af.parameters().size(); i++) {
+                            bound.put(d.parameters().get(i).name(), resolve(af.parameters().get(i), env, new HashSet<>()));
+                        }
+                        String h = helper;
+                        helper = helper.isEmpty() ? d.qualifiedName() : helper + ">" + d.qualifiedName();
+                        inlining.push(d.qualifiedName());
+                        depth++;
+                        String f0 = curFile;
+                        curFile = fnFile.get(d.qualifiedName());
+                        body(d.body(), bound);
+                        curFile = f0;
+                        depth--;
+                        inlining.pop();
+                        helper = h;
+                    }
+                }
+                for (ValueSpecification c : af.parameters()) stmt(c, env);
+                return;
+            }
+            if (v instanceof LambdaFunction l) {
+                Map<String, ValueSpecification> inner = new HashMap<>(env);
+                for (var p : l.parameters()) inner.remove(p.name());
+                body(l.body(), inner);
+                return;
+            }
+            for (ValueSpecification c : v.children()) stmt(c, env);
+        }
+
+        String curFile;
+        String curSide = "";
+
+        /** an assert side's canonical shape: functions and structure, literals and names abstracted, lets followed,
+         *  a query call one token */
+        String canon(ValueSpecification v, Map<String, ValueSpecification> env, int d) {
+            if (d > 40) return "…";
+            return switch (v) {
+                case AppliedFunction af when isQuery(af) -> "Q";
+                case AppliedFunction af when simple(af.function()).equals("letFunction") -> "let";
+                case AppliedFunction af -> simple(af.function()) + "(" + af.parameters().stream()
+                        .map(x -> canon(x, env, d + 1)).collect(Collectors.joining(",")) + ")";
+                case AppliedProperty ap -> canon(ap.receiver(), env, d + 1) + "."
+                        + (Set.of("rows", "values", "columns", "name", "csv").contains(ap.property()) ? ap.property() : "p");
+                case Variable var when env.containsKey(var.name()) -> canon(env.get(var.name()), withoutVar(env, var.name()), d + 1);
+                case Variable var -> "$";
+                case LambdaFunction l -> "{|" + l.body().stream().map(x -> canon(x, env, d + 1)).collect(Collectors.joining(";")) + "}";
+                case CString c -> "'s'";
+                case PureCollection c -> "[" + c.values().stream().map(x -> canon(x, env, d + 1)).collect(Collectors.joining(",")) + "]";
+                default -> v.getClass().getSimpleName().replaceFirst("^C", "#");
+            };
+        }
+
+        Map<String, ValueSpecification> withoutVar(Map<String, ValueSpecification> env, String n) {
+            Map<String, ValueSpecification> m = new HashMap<>(env);
+            m.remove(n);
+            return m;
+        }
+
+        ValueSpecification resolve(ValueSpecification v, Map<String, ValueSpecification> env, Set<String> seen) {
+            while (v instanceof Variable var && env.containsKey(var.name()) && seen.add(var.name())) {
+                v = env.get(var.name());
+            }
+            return v;
+        }
+
+        /** an assert's argument walked for prints, the path the frames between it and the print */
+        void side(ValueSpecification v0, Map<String, ValueSpecification> env, String assertFn, String role,
+                List<String> path, Set<String> seen) {
+            ValueSpecification v = v0;
+            if (v instanceof Variable var && env.containsKey(var.name())) {
+                if (!seen.add(var.name())) return;
+                side(env.get(var.name()), env, assertFn, role, path, seen);
+                seen.remove(var.name());
+                return;
+            }
+            switch (v) {
+                case AppliedFunction af -> {
+                    String fn = simple(af.function());
+                    if (isQuery(af)) {
+                        return;   // the query's own prints are query-side
+                    }
+                    if (PRINT.contains(fn)) {
+                        record(assertFn, role, fn, path, af);
+                    }
+                    if (fn.equals("letFunction")) return;
+                    path.add(fn);
+                    for (ValueSpecification c : af.parameters()) side(c, env, assertFn, role, path, seen);
+                    path.remove(path.size() - 1);
+                }
+                case AppliedProperty ap -> {
+                    if (ap.property().equals("csv")) {
+                        record(assertFn, role, ".csv", path, ap);
+                    }
+                    path.add("." + ap.property());
+                    side(ap.receiver(), env, assertFn, role, path, seen);
+                    path.remove(path.size() - 1);
+                }
+                case LambdaFunction l -> {
+                    Map<String, ValueSpecification> inner = new HashMap<>(env);
+                    for (var p : l.parameters()) inner.remove(p.name());
+                    path.add("λ");
+                    Map<String, ValueSpecification> e2 = new HashMap<>(inner);
+                    for (ValueSpecification s : l.body()) {
+                        if (s instanceof AppliedFunction af && simple(af.function()).equals("letFunction")
+                                && af.parameters().size() == 2 && af.parameters().get(0) instanceof CString n) {
+                            e2.put(n.value(), af.parameters().get(1));
+                        } else {
+                            side(s, e2, assertFn, role, path, seen);
+                        }
+                    }
+                    path.remove(path.size() - 1);
+                }
+                case PureCollection c -> {
+                    path.add("[]");
+                    for (ValueSpecification x : c.values()) side(x, env, assertFn, role, path, seen);
+                    path.remove(path.size() - 1);
+                }
+                default -> {
+                    for (ValueSpecification c : v.children()) side(c, env, assertFn, role, path, seen);
+                }
+            }
+        }
+
+        void record(String assertFn, String role, String print, List<String> path, ValueSpecification node) {
+            // the frames from the print upward, the content-independent wrappers dropped
+            List<String> up = new ArrayList<>();
+            for (int i = path.size() - 1; i >= 0; i--) {
+                if (!PASS.contains(path.get(i))) up.add(path.get(i));
+            }
+            String shape = String.join(">", up);
+            String cls;
+            if (role.equals("message")) cls = "MESSAGE";
+            else if (up.isEmpty()) cls = "BARE";
+            else if (up.stream().anyMatch(CONSUME::contains)) cls = "FEEDS";
+            else cls = "COMPOSED";
+            int line = -1;
+            String snip = "";
+            com.legend.protocol.SourceInfo pos = switch (node) {
+                case AppliedFunction af -> af.pos();
+                case AppliedProperty ap -> ap.pos();
+                default -> null;
+            };
+            String f = curFile == null ? file : curFile;
+            if (pos != null) {
+                line = pos.startLine();
+                List<String> lines = texts.get(f);
+                if (lines != null && line - 1 < lines.size() && line >= 1) snip = lines.get(line - 1).trim();
+            }
+            String recv = "";
+            if (node instanceof AppliedFunction af && !af.parameters().isEmpty()) recv = describe(af.parameters().get(0), 0);
+            if (node instanceof AppliedProperty ap) recv = describe(ap.receiver(), 0);
+            sites.add(new Site(suite, test, helper, assertFn, role, print, shape, cls, f, line,
+                    snip.length() > 220 ? snip.substring(0, 220) + "..." : snip, recv, curSide));
+        }
+    }
+
+    /** a TEST helper (inlined): a function under a tests or test package, or in a tests directory; a library
+     *  function's own asserts are not a test's judge side */
+    boolean testHelper(List<FunctionDefinition> defs, int arity) {
+        FunctionDefinition d = pick(defs, arity);
+        if (d == null) return false;
+        String q = d.qualifiedName();
+        String f = fnFile.getOrDefault(q, "");
+        return q.contains("::tests::") || q.contains("::test::") || f.contains("/tests/") || f.contains("/test/");
+    }
+
+    /** a receiver's outline: its node kind and name, two levels down */
+    static String describe(ValueSpecification v, int d) {
+        String here = switch (v) {
+            case AppliedFunction af -> simple(af.function()) + "()";
+            case AppliedProperty ap -> "." + ap.property();
+            case Variable var -> "$" + var.name();
+            case LambdaFunction l -> "lambda";
+            default -> v.getClass().getSimpleName();
+        };
+        if (d >= 2) return here;
+        ValueSpecification inner = switch (v) {
+            case AppliedFunction af -> af.parameters().isEmpty() ? null : af.parameters().get(0);
+            case AppliedProperty ap -> ap.receiver();
+            default -> null;
+        };
+        return inner == null ? here : here + "<" + describe(inner, d + 1);
+    }
+
+    static FunctionDefinition pick(List<FunctionDefinition> defs, int arity) {
+        for (FunctionDefinition d : defs) if (d.parameters().size() == arity) return d;
+        return null;
+    }
+
+    static boolean isQuery(AppliedFunction af) {
+        String fn = simple(af.function());
+        if (queryFns.contains(fn) && !af.parameters().isEmpty() && af.parameters().get(0) instanceof LambdaFunction) {
+            return true;
+        }
+        return fn.equals("eval") && queryParam != null && !af.parameters().isEmpty()
+                && af.parameters().get(0) instanceof Variable fv && fv.name().equals(queryParam);
+    }
+
+    // ---- the populations ---------------------------------------------------------------------------------------
+
+    /** args: <out> <libraryRoot>... -- <suite>=<scopeDir>... ; mode pct (PCT.test) or corpus (test.Test) */
+    void run(String mode, String[] args) throws Exception {
+        int sep = Arrays.asList(args).indexOf("--");
+        List<Path> roots = Arrays.stream(args, 0, sep).map(Path::of).toList();
+        Map<Path, ParsedModel> parsed = new LinkedHashMap<>();
+        for (Path r : roots) {
+            for (Path f : pureFiles(r)) {
+                ParsedModel m = parse(f);
+                if (m == null) continue;
+                parsed.put(f, m);
+                for (var el : m.elements()) {
+                    if (el instanceof FunctionDefinition fd && !fd.qualifiedName().startsWith("meta::pure::functions::")) {
+                        userFns.computeIfAbsent(simple(fd.qualifiedName()), k -> new ArrayList<>()).add(fd);
+                        fnFile.put(fd.qualifiedName(), f.toString());
+                    }
+                }
+            }
+        }
+        if (mode.equals("corpus")) {
+            queryFns = Set.of("execute", "executeInDb", "toSQLString", "toSQLStringPretty", "executionPlan",
+                    "generatePlan", "plan", "executeWithDebug", "toSQL", "sqlQueryToString", "executeLegacy",
+                    "toSQLStringWithDebug", "buildSQLQuery", "executeRelationalTDS", "toSqlString", "executeDirect",
+                    "executeQuery", "executeFunction", "executeRuntime", "doExecute", "toRelationalPlan",
+                    "toSqlStringWithOutFormat", "getSQL", "executeInMemory", "toSQLStringNoTrans",
+                    "executeInDbWithDebug", "executeInDbToTDS", "executionPlanWithParamsAndRouting");
+        }
+        for (int i = sep + 1; i < args.length; i++) {
+            String[] kv = args[i].split("=", 2);
+            Path scope = Path.of(kv[1]);
+            int tests = 0;
+            for (var e : parsed.entrySet()) {
+                if (!e.getKey().startsWith(scope)) continue;
+                for (var el : e.getValue().elements()) {
+                    if (!(el instanceof FunctionDefinition fd)) continue;
+                    boolean isTest = mode.equals("pct") ? hasStereo(fd.stereotypes(), "PCT", "test")
+                            : hasStereo(fd.stereotypes(), "test", "Test");
+                    if (!isTest) continue;
+                    tests++;
+                    queryParam = mode.equals("pct") && fd.parameters().size() == 1 ? fd.parameters().get(0).name() : null;
+                    Walk w = new Walk(kv[0], fd.qualifiedName(), e.getKey().toString());
+                    w.curFile = e.getKey().toString();
+                    w.inlining.push(fd.qualifiedName());
+                    w.body(fd.body(), new HashMap<>());
+                }
+            }
+            System.err.println("suite " + kv[0] + " tests=" + tests);
+        }
+        System.err.println("walls=" + walls.size());
+        walls.forEach(x -> System.err.println("  WALL " + x));
+    }
+
+    public static void main(String[] args) throws Exception {
+        JudgeCensus c = new JudgeCensus();
+        c.run(args[0], Arrays.copyOfRange(args, 2, args.length));
+        // one site per (test, file, line, print, role, assert) -- a helper reached twice by one test counts once
+        LinkedHashMap<String, Site> uniq = new LinkedHashMap<>();
+        for (Site s : c.sites) {
+            uniq.putIfAbsent(s.test + "|" + s.file + "|" + s.line + "|" + s.print + "|" + s.role + "|" + s.assertFn
+                    + "|" + s.shape, s);
+        }
+        StringBuilder b = new StringBuilder("suite\ttest\thelper\tassert\trole\tprint\tshape\tclass\tfile\tline\tsnippet\trecv\tsideShape\n");
+        for (Site s : uniq.values()) {
+            String file = s.file.replaceAll(".*/(legend-(engine|pure)-[^/]*)/", "$1/");
+            b.append(String.join("\t", s.suite, s.test, s.helper, s.assertFn, s.role, s.print, s.shape, s.cls, file,
+                    String.valueOf(s.line), s.snippet.replace('\t', ' '), s.recv, s.sideShape)).append('\n');
+        }
+        Files.writeString(Path.of(args[1]), b.toString());
+        Map<String, Integer> byCls = new TreeMap<>();
+        for (Site s : uniq.values()) byCls.merge(s.suite + " " + s.print + " " + s.cls, 1, Integer::sum);
+        byCls.forEach((k, v) -> System.err.println(k + " " + v));
+    }
+}

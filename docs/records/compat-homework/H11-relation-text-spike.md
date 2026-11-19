@@ -448,3 +448,61 @@ and the lanes.
   targets added to `pct/BUILD.bazel`).
 - **The source censuses** (`census.py`, `census_csv.py`, scratch): §4.4 and §8 P4 state their rules.
 - Every run's log was kept in the session's scratch folder; none is committed.
+
+## 13. The corpus half (second session, `session_0195rQEnceykGKzTfRUo7XWp`, from 13:15 UTC)
+
+The orchestrator's four asks of 12:47 UTC: (1) the relational corpus on H2 and DuckDB with the Java printers and the
+SQL builder off, the rosters and the verdict ledger against `main`'s; (2) the 41 calendar tests as a presenter FORM;
+(3) the judge-side COMPOSED prints in the corpus and PCT, by shape; (4) the abstract-Date-at-midnight `toCSV` question.
+The first session's unpushed corpus work was lost; this one started from `5c62ee85`.
+
+### 13.1 Where every judge-side print stands (ask 3): the census
+
+**Method.** `H11-probes/JudgeCensus.java.txt` parses every `.pure` file with lite's own parser (`ModelFromText`, as
+H2's `TextCensus` does, compiled standalone with `javac`), walks each test's body with its lets bound and its TEST
+helpers inlined (a function under a `tests` package or directory, its parameters bound to the call's arguments), and
+records every print (`toString`, `toCSV`, a TDS's `csv`, `toRepresentation`, `format`, `formatDate`, `makeString`) on
+an ASSERT's argument, never inside a query lambda (`execute`'s, `eval($f, ...)`'s, `toSQLString`'s and 25 more: those
+are query-side, H2's and B1's census). Each print is classed by the frames between the assert's argument and it,
+content-independent wrappers (`toOne`, `at`, a list literal) dropped: BARE (at the side's root), COMPOSED, FEEDS (a
+content reader above it), MESSAGE (a failure message). `families.py.txt` groups the sides by their canonical shape.
+The data: `H11-data/corpus-judge.tsv`, `H11-data/pct-judge.tsv`, one row per site. About 15 s per run.
+
+**PCT (1,249 tests, five suites): 431 judge-side prints, all a relation's `toString` at an assert side's root**
+(relation 373, standard 58). **0 composed, 0 feeding.** This is §4.4's number, reached by a second, independent census.
+B1's one composed PCT print (`testPairCollectionToString`) is QUERY-side: inside the `eval` lambda.
+
+**The corpus (2,761 tests): 980 assert sides in 828 tests hold a judge-side print** (4 more are failure messages).
+
+| Family | Sides | Tests | What it is | Whose |
+|---|---|---|---|---|
+| A1 a relation's `toString` at the side's root | 253 | 127 | `#TDS...#->toString()` expected (125) against `$result.values->at(0)->sort(...)->toString()` (128) | the relation printer |
+| A2 `toCSV` at the side's root | 160 | 145 | `assertEquals` 138 (15 with the CSV the FIRST argument), `assertSameElements` 22 | the relation printer |
+| **A3 `toCSV(...)->replace('\n', sep)`** | **41** | **41** | the calendar family, all in `testCalendarFunctions.pure` | **the relation printer, a FORM (CSVJOIN)** |
+| A4 a TDS's `csv` | 1 | 1 | `testEnumInRelation` | the relation printer |
+| B1 each row's cells joined | 316 | 315 | `$result.values.rows->map(r\|$r.values->makeString(s1))`, then `->makeString(s2)` or `->sort()` | cell VALUES (makeString's per-cell `toString`) |
+| B2 a row's text the test writes | 72 | 72 | `rows->map(r\|$r.getString('a') + ' ' + $r.getInteger('b')->toString())` | cell VALUES, user code |
+| B3 every cell flattened and joined | 50 | 50 | `makeString(sort(map(rows, r\|$r.values)), s)` | cell VALUES |
+| B5 one value's `toString` | 46 | 46 | `[min(dates)->toString(), max(dates)->toString()]` (calendar date ranges: StrictDate) | a VALUE |
+| B6 the column names joined | 4 | 4 | `columns->map(c\|$c.name)->makeString(s)` | Strings (identity) |
+| B7 other | 37 | 37 | property values joined (`makeString($result.values.name)`: Strings), 3 tests that build INPUT text (`'student_' + toString($i)`, Integers), 1 `dataTypeToSqlText` | mostly Strings |
+
+**So, for the relation printer (slice 1.3's relation half):**
+- **Judge-side COMPOSED relation prints: 41 in the corpus (A3, one shape), 0 in PCT.** That is the reconciliation
+  with B1's 0.4 (f): B1 counted QUERY-side prints, where the corpus has 2 and none is a relation's text; the 41 are
+  JUDGE-side, where B1's census did not look. No relation print FEEDS anything (no `contains`, no `==`, no `length`
+  over one), and none is composed by `+` or `joinStrings`.
+- **The one composed shape is covered by a presenter form:** `CSVJOIN:<sep>`, "the CSV with every newline written as
+  `<sep>`" (Pure's `replace` replaces every occurrence, a cell's own quoted newline included; the Java form does the
+  same, `String.replace`). It needs no refusal.
+- **455 relation-text sides in all (A1-A4), every one at an assert side's root.** 22 of them sit under
+  `assertSameElements`, which today's edge hook does not reach (§13.3).
+
+**For slice 1.3's VALUE half (not this spike's printer):** 525 sides (B1-B7) print CELL VALUES that the test's own
+code composes on the judge side. They are not relation texts: the product lowers them today (its `makeString`, `plus`,
+`toString`), each cell printed by the product's value text (a Float by `LiteralSpelling.floatPrint`) or, for a few
+kinds, by the plan style's (a DateTime's text, a list's, legend-pure-only texts). Which of them reach an EDGE text, and
+so move when 1.3 deletes the edge's value texts, is measured by the run (§13.4). B1 (316) and B3 (50) are regular
+enough to be presenter forms ("each row's cells joined by s1, the rows joined by s2, optionally sorted"); B2 (72) is
+arbitrary user code in a lambda (getters and `+`), no form: it can only stay a lowered query with the product's text,
+or be refused where a printed type's text differs by audience.

@@ -1,0 +1,28 @@
+import collections,sys
+rows=[l.rstrip('\n').split('\t') for l in open(sys.argv[1])][1:]
+# one record per assert SIDE: (test, file, assert, role, sideShape) -> set of prints
+sides=collections.defaultdict(set)
+for r in rows:
+    suite,test,helper,a,role,pr,shape,cls,f,line,snip,recv,side=r
+    if role=='message': continue
+    sides[(test,a,role,side)].add((pr,cls,shape))
+def fam(key,prints):
+    test,a,role,side=key
+    ps={p for p,_,_ in prints}
+    if side.startswith('replace(toCSV('): return 'A3 toCSV->replace(\\n, sep) [CSVJOIN form]'
+    if side.startswith('toCSV(') or (side.startswith('[') and 'toCSV' in side and side.count('(')<12): return 'A2 toCSV at the side root'
+    if side.startswith('toString(') and ('TdsLiteral' in side or 'sort(' in side or 'at(Q.values' in side or side.startswith('toString(Q')) and 'map(' not in side: return 'A1 relation toString at the side root'
+    if '.csv' in side and ps=={'.csv'}: return 'A4 a TDS csv at the side root'
+    if 'toString(toOne(min(' in side or 'toString(toOne(max(' in side: return 'B5 one value toString (min/max of a date column)'
+    if 'makeString($.values' in side or 'joinStrings(map($.values' in side: return 'B1 each row its cells joined (rows->map(r|$r.values->makeString(s)) [->makeString|sort])'
+    if 'rows.values' in side or 'map(Q.values.rows,{|$.values})' in side or ('{|$.values}' in side): return 'B3 every cell flattened and joined'
+    if 'plus(' in side and '.rows' in side: return 'B2 a row text the test writes (getters and + in a map lambda)'
+    if '.rows' in side and 'toString(get' in side: return 'B2 a row text the test writes (getters and + in a map lambda)'
+    if 'columns' in side: return 'B6 the column names joined'
+    return 'B7 other: '+side[:90]
+c=collections.Counter(); t=collections.defaultdict(set); ex={}
+for k,v in sides.items():
+    f=fam(k,v); c[f]+=1; t[f].add(k[0]); ex.setdefault(f,k[3][:160])
+for f in sorted(c): print(f"{c[f]:4d} sides {len(t[f]):4d} tests  {f}\n           e.g. {ex[f]}")
+alltests=set(k[0] for k in sides)
+print('sides',len(sides),'tests',len(alltests))
