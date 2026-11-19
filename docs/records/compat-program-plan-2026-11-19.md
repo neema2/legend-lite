@@ -648,8 +648,12 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
 - **Deletes:** the shared rule.
 - **Check:** `CypherIslandIntegrationTest`, the DynaFunction property-mapping tests, the corpus's `propertyfunc` tests
   unchanged.
-- **Size:** 1.5 days.
-- **Depends on:** nothing (it is right under either R4 answer). **Owner:** the translator session (new).
+- **Size:** 2 to 2.5 days (H5: 47 call sites in 4 files, `CypherToPure` 21, `PostgresFunctions` 10, `IqFunctions` 14,
+  `IqAggregates` 2; without the split, Pure's meaning breaks about 1,240 of their parity cases), plus 0.5 day and one
+  `NativeCatalogGovernanceTest` ceiling move (the user's word) when 3.3's "a negative start raises" lands, since the
+  dynaFunction `substring(col, 0, n)` then needs its own verbatim rule.
+- **Depends on:** nothing (it is right under either R4 answer). **It must land before 3.3.** **Owner:** the
+  translator session.
 
 **The translator's rule, in order** (for each place where upstream's meaning differs from lite's):
 1. **the same meaning:** the code passes through untouched (most code);

@@ -333,3 +333,19 @@ who confirms or changes phases 1-3.
 - **~11:42 UTC, the re-check of PR #122: GOOD TO GO.** Its two nits (S63's stray bracket; S138's wording elsewhere,
   the database's value or its own error) were fixed in `f2025fae`, and the PR body was updated with the review. PR #122
   waits for the user's merge word.
+- **~11:48 UTC, the translator's H5 update** (`6fef76e0`; evidence `h5/corpus/`, `h5/parity/`; ledger draft
+  `H5-translator-ledger-draft.tsv`):
+  - **R4 cannot land before 3.1's frontend split.** Pure's meaning in the core alone breaks about 1,240 parity cases in
+    lite's OWN frontends: `//core:cypher_parity_test` 808, `//core:iq_parity_test` 402, `//core:sql_parity_test` 27,
+    and 2 in core's integration tests. The cause is 47 call sites in 4 files that write SQL-style
+    `substring`/`indexOf`: `CypherToPure` 21, `PostgresFunctions` 10, `IqFunctions` 14, `IqAggregates` 2. A mechanical
+    split (two shared helpers) is in the spike, its parity run going. 3.1 is 2 to 2.5 days, plus 0.5 day and one
+    `NativeCatalogGovernanceTest` ceiling move when 3.3's "a negative start raises" lands (the dynaFunction
+    `substring(col, 0, n)` then needs its own verbatim rule);
+  - **V2, no translator (the core change and 3.1's split only): H2 2,281/284, DuckDB 2,443/117. So the translator
+    wins exactly +4 tests per lane on the corpus, and nothing else moves** (for `substring`/`indexOf`);
+  - **V4, H3's rename over every definition: worse** by 4 (H2) and 6 (DuckDB). 6 failures are a TYPING break:
+    renaming legend-engine's LIST `indexOf` (`tdsExtension.pure:39`) to the compatibility overloads makes lite infer
+    the wrong type. So a translator would need TYPED retargeting, which raises a first hook question for 3.2;
+  - **V5, an identity pass-through** (all 1,029,638 records of the corpus world rebuilt, nothing renamed): rosters
+    identical to V2, in 1.1 to 1.3 s.
