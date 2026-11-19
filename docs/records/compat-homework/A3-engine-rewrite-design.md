@@ -45,17 +45,25 @@ The plant R1 (the whole body inlined at once) turns four tests red:
 
 One walk still decides both what is flagged and what is rewritten, so they agree by construction.
 
-**D-S1, the native is the door's vocabulary.** No product frontend writes `substringAsGiven`; only the `engine`
-rewrite produces it. The question goes to the user, through the compat owner (~20:45): register it as the door's in
-`EdgeOnlyDataTest` and `EdgeOnlyMembersTest`, and whether lite's own SQL substring (piece 1's `sqlSubstring`, clamped)
-and this native stay two. The build is as if registered door-only, with two natives, until told otherwise. Each
-native's javadoc says which meaning it carries.
+**D-S1, settled (the reviewer's addendum ca8ea4a5c, and the user's ~21:10 "Yes to all three for substring").** This
+replaces the paragraph that pointed at `EdgeOnlyDataTest`.
+- `meta::legend::lite::substringAsGiven` is lite-internal: not user-resolvable, in `Pure.COMPILER_OWN`, so a user who
+  writes it is refused by name. The rewrite writes typed nodes after name resolution, so it is unaffected.
+- `EdgeOnlyDataTest` cannot hold it, because `Scalars` names its `SqlFn`, a real product use. The honest record is
+  where producers are counted:
+  - its `native-claims.tsv` row, whose claimers are `Scalars` and the door's `EngineSubstitutes`, held by
+    ClaimRegistryTest's pin;
+  - `INTERNAL_DESUGAR` +1;
+  - `SqlFnSortedTest` PRODUCT +1.
+- Lite's own SQL substring (piece 1's `sqlSubstring`, clamped) and this native stay two natives, each javadoc saying
+  which meaning it carries.
 
 **D-S2, the substitute is typed as the typer would.** The replacement `TypedNativeCall`'s callee is the registry's
 function for the native's `FunctionId`, with its declared signature. It is never a hand-assembled signature or
-`ExprType`. B1 builds that construction once, `com.legend.edge.SubstringAsGivenCall.of(ctx, call)`: the callee is
-resolved the typer's way, and its `checked` refuses any callee or info that is not exactly the registry's (its test
-plants four wrong callees). The rewrite calls it through one seam, `PureMeaningRewrite.Substitute`, and builds no
+`ExprType`. B1 builds that construction once, in `com.legend.edge.EngineSubstitutes` (named `SubstringAsGivenCall` in
+earlier messages, 1e6d9c68c's among them): `substring(ctx, call)` and `indexOf(ctx, call)`. The callee is resolved the
+typer's way, and the shared `checked` refuses any callee or info that is not exactly the registry's (its test plants
+four wrong callees). The rewrite calls it through one seam, `PureMeaningRewrite.Substitute`, and builds no
 call of its own.
 
 **D-S3, H2's route.** legend-engine's H2 SELECTs go through its dialect translation
@@ -69,8 +77,9 @@ conclusion does not change: it is the raw call with the arguments as given, and 
 - the per-database facts are one record in `PureText`, `MEASURED` (`zeroStartAsPure`, `engineAnswers`), so
   `DialectBoundaryTest`'s pin stays at 2. H2 answers under `engine`. DuckDB stays refused until its batteries are
   measured with the native;
-- the three test-data routes re-type their query from the request, so under `engine` a flagged query there is refused
-  by name, not rewritten in half.
+- the three test-data routes re-type their seed's query from the request. Under `engine` that query, the one whose
+  meaning chooses the keys, is rewritten before it is lowered, so the routes answer and are not refused
+  (`PureMeaningEngineTest`).
 
 **The rewrite's plants (each a sabotage of `PureMeaningRewrite.java`, run, then restored; 12 tests):**
 
@@ -86,8 +95,10 @@ conclusion does not change: it is the raw call with the arguments as given, and 
 **The notes for the build:**
 - register rows S130, S134 and S383 name the `engine` value and what it does;
 - the differences page's item 1 names the operator's option beside the hand rewrite;
-- the guard moves, each for the user's word with a dated note: `INTERNAL_DESUGAR` +1, native-claims, the funnel
-  register +1, the two new pins, and the `EdgeOnlyDataTest` census answer from D-S1.
+- the guard moves, each with a dated note: `INTERNAL_DESUGAR` +1, native-claims and `SqlFnSortedTest` PRODUCT +1
+  (B1's, with `EngineSubstitutes`' funnel row); the funnel register +1 for `PureMeaningRewrite.java` and the two new
+  pins `agreement_engine_{h2,duckdb}.tsv` (B1-R's, ruled by the user ~22:20, "Yes to all three"). No `EdgeOnlyDataTest`
+  entry (D-S1).
 
 ## The decisions, on one page
 
@@ -175,8 +186,9 @@ and `inlineBody`, `TypedQuery.withBody`, `TypedQuery.plan`). On `PureMeaningChec
 
 **So the design is:**
 1. Under `engine`, after the detector has typed and checked the query, the edge inlines its body.
-2. It replaces each flagged native call, matched by position among the detector's sites, with a call of the new
-   native (or `sqlPosition`). Same arguments, same type, same position.
+2. It replaces each flagged native call with a call of the new native (or `sqlPosition`). Same arguments, same type,
+   same position. (Superseded by revision 2's D-M1: the calls are matched by identity, from one walk over each
+   store-bound root inlined on its own, never by position.)
 3. It plans `query.withBody(rewritten)`.
 
 **What this gives:**
@@ -244,7 +256,7 @@ The 3-argument `indexOf` stays legend-engine's refusal against lite's answer, as
 | part | who | what | days |
 |---|---|---|---|
 | the core native | B1, in parallel, from the reviewer's approval | the two signatures (`Pure.java`, verified as piece 1's are); one `Scalars` rule; `SqlFn.SUBSTRING_AS_GIVEN`; one label in each dialect's SUBSTRING case (about 13 files; no engine-style printer, A2 deletes them: D-S4); `SubstringAsGivenCall` (D-S2); the native's tests | about 1 |
-| the edge rewrite | B1-R | `PureMeaningRewrite` (the inline, the replacement by position, `withBody`, about 150 lines); `engine` in the setting's switch; `ENGINE_FACTS` in `PureText`; the refusals; `PureMeaningRewriteTest`; the batteries under `engine` and their two pins | about 1.5 |
+| the edge rewrite | B1-R | `PureMeaningRewrite` (the inline of each root, the replacement by identity, `withBody`, about 150 lines); `engine` in the setting's switch; `ENGINE_FACTS` in `PureText`; the refusals; `PureMeaningRewriteTest`; the batteries under `engine` and their two pins | about 1.5 |
 
 The two parts meet at the native's name alone, so B1-R builds against it from day one and rebases onto B1's commit.
 Both land in the batch after the core switch (piece 2), with piece 1 under them.
@@ -256,7 +268,7 @@ Both land in the batch after the core switch (piece 2), with piece 1 under them.
 | `NativeCatalogGovernanceTest`'s `INTERNAL_DESUGAR` ceiling | +1 (the new native's name; piece 1 moves it 38 to 40, so 41 after both) | B1 |
 | `native-claims.tsv` | regenerated | B1, and B1-R for the rewrite |
 | `SqlFnSortedTest` | none expected: the new value goes in its sorted place | B1 |
-| `EdgeOnlyDataTest`, the edge-only `SqlFn` census | **checked at build**. The native and its rule are product code, so its `SqlFn` is made by product code. If the census counts a function only edge-rewritten programs reach, that is a stop-and-say | B1 |
+| `EdgeOnlyDataTest`, the edge-only `SqlFn` census | **none**: it cannot hold a function `Scalars` names (the reviewer's addendum ca8ea4a5c). The producers are counted in `native-claims.tsv` (`Scalars` and `EngineSubstitutes`), `INTERNAL_DESUGAR` +1 and `SqlFnSortedTest` PRODUCT +1 | B1 |
 | `JavaEvalLedgerTest`'s funnel register | +1 row (`PureMeaningRewrite.java`) | B1-R |
 | `DialectBoundaryTest` | none: `PureText`'s line becomes the `ENGINE_FACTS` line, so the pin stays at 2 | B1-R |
 | new pins | `agreement_engine_{h2,duckdb}.tsv` (new files) | B1-R |
