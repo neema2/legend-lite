@@ -47,10 +47,10 @@ class PlanStyleFacetsTest {
     void theProductsErrorWordsAreItsOwnTheEdgesUpstreams() {
         RuntimeException frame = new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
                 com.legend.error.CompileKind.WINDOW_FRAME_INVERTED, List.of());
-        String product = PlanStyle.PRODUCT.errorWords(frame);
+        String product = frame.getMessage();
         assertTrue(product.equals(frame.getMessage()) && product.contains("window frame starts after it ends")
                 && !product.contains("Invalid window frame boundary"), product);
-        String edge = com.legend.edge.PureText.UPSTREAM.errorWords(frame);
+        String edge = com.legend.edge.PureMessages.compile(frame);
         assertTrue(edge.contains("Invalid window frame boundary - lower bound of window frame cannot be greater"), edge);
     }
 
@@ -65,10 +65,10 @@ class PlanStyleFacetsTest {
         RuntimeException refused = new com.legend.error.DataError(com.legend.error.ErrorKind.FILE_TOO_LARGE,
                 tooLarge.path(), tooLarge);
         org.junit.jupiter.api.Assertions.assertEquals("the file is larger than the load admits: /big.csv",
-                PlanStyle.PRODUCT.errorWords(refused));
+                refused.getMessage());
         org.junit.jupiter.api.Assertions.assertEquals("Unable to read the CSV file '/big.csv' Execution error at ??,"
                 + " \"File is too large, file was 1.00 Mb, limit is 1 Mb\"",
-                com.legend.edge.PureText.UPSTREAM.errorWords(refused));
+                com.legend.edge.PureMessages.compile(refused));
     }
 
     /** A parameter value its parameter does not take (J8 of the edge audit, 2026-11-17): the product's words are lite's
@@ -78,9 +78,9 @@ class PlanStyleFacetsTest {
         RuntimeException invalid = new com.legend.error.InvalidParameters(java.util.List.of(
                 "parameter 'p' (Integer[1]): not an Integer", "parameter 'q' (Date[1]): not a date"));
         org.junit.jupiter.api.Assertions.assertEquals("invalid value(s) for the parameter(s): parameter 'p' (Integer[1]):"
-                + " not an Integer; parameter 'q' (Date[1]): not a date", PlanStyle.PRODUCT.errorWords(invalid));
+                + " not an Integer; parameter 'q' (Date[1]): not a date", invalid.getMessage());
         org.junit.jupiter.api.Assertions.assertEquals("Invalid provided parameter(s): [parameter 'p' (Integer[1]): not an"
-                + " Integer; parameter 'q' (Date[1]): not a date]", com.legend.edge.PureText.UPSTREAM.errorWords(invalid));
+                + " Integer; parameter 'q' (Date[1]): not a date]", com.legend.edge.PureMessages.compile(invalid));
     }
 
     /** The model errors J10 of the edge audit (2026-11-17) made kinds: each the product's kind in lite's sentence, and
@@ -126,9 +126,9 @@ class PlanStyleFacetsTest {
             com.legend.error.ModelException e = assertThrows(com.legend.error.ModelException.class,
                     () -> Compiler.compileModel((String) c[0]));
             org.junit.jupiter.api.Assertions.assertEquals(c[1], e.kind(), e.getMessage());
-            String product = PlanStyle.PRODUCT.errorWords(e);
+            String product = e.getMessage();
             assertTrue(product.contains((String) c[2]) && !product.contains((String) c[3]), product);
-            String upstream = com.legend.edge.PureText.UPSTREAM.errorWords(e);
+            String upstream = com.legend.edge.PureMessages.compile(e);
             assertTrue(upstream.contains((String) c[3]) && !upstream.contains((String) c[2]), upstream);
         }
     }

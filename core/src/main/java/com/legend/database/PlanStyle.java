@@ -55,13 +55,6 @@ public interface PlanStyle {
      *  quoted (D1.2). */
     String graphKeyString(String value);
 
-    /** An error's message as the style's reader reads it, where a test plans it as data (an {@code assertError}'s f
-     *  failing while it is planned): the product's, its own message; the edge's, upstream's sentence of a compile
-     *  error's kind ({@code edge.PureMessages.compile}; the first stage-linux run's PCT regression, 2026-11-16: M4's
-     *  window-frame kinds reached PCT in lite's sentence). */
-    @com.legend.base.Nullable
-    String errorWords(RuntimeException e);
-
     /** A TEST-PLANNING FACET of the style (W9's judge half, the orchestrator's ruling of 2026-11-16): the one hook's
      *  typed accessor for the parts of a test's planning that are upstream's -- an engine-text assert's arm. The kinds
      *  are a CLOSED list, declared beside the test planner ({@code testplan.PlanStyleFacets.KINDS}: this layer cannot
@@ -88,11 +81,6 @@ public interface PlanStyle {
             return Databases.dialect(type);
         }
 
-
-        @Override
-        public @com.legend.base.Nullable String errorWords(RuntimeException e) {
-            return e.getMessage();
-        }
 
         @Override
         public boolean judgesEngineText() {

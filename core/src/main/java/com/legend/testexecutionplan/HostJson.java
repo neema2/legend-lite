@@ -159,6 +159,16 @@ final class HostJson {
         o.put("element", x.element() == null ? null : x.element());
         o.put("unjudgedReason", x.unjudgedReason() == null ? null : x.unjudgedReason());
         o.put("where", x.where());
+        if (x.compile() != null) {
+            // H13 spike: the kinded part and lite's wrapper, as data; omitted where the failure holds none
+            Map<String, Object> c = new LinkedHashMap<>();
+            c.put("prefix", x.compile().prefix());
+            c.put("kind", x.compile().kind().name());
+            c.put("operands", x.compile().operands());
+            c.put("position", x.compile().position());
+            c.put("suffix", x.compile().suffix());
+            o.put("compile", c);
+        }
         return o;
     }
 
@@ -169,7 +179,16 @@ final class HostJson {
         @Nullable String v_element = absent(o, "element", "Failure") ? null : str(o.get("element"));
         @Nullable String v_unjudgedReason = absent(o, "unjudgedReason", "Failure") ? null : str(o.get("unjudgedReason"));
         String v_where = str(field(o, "where", "Failure"));
-        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where);
+        Failure.@Nullable Compile v_compile = null;
+        if (o.getOr("compile", null) instanceof Json.Obj c) {
+            List<String> operands = new ArrayList<>();
+            for (Json.Node n : c.getArr("operands").items()) {
+                operands.add(str(n));
+            }
+            v_compile = new Failure.Compile(c.getString("prefix"), com.legend.error.CompileKind.valueOf(
+                    c.getString("kind")), operands, c.getStringOr("position", null), c.getString("suffix"));
+        }
+        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where, v_compile);
     }
 
     static Map<String, Object> wSideShape(SideShape x) {

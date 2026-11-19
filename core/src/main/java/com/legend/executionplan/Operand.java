@@ -66,6 +66,9 @@ public sealed interface Operand {
     /** The one {@link Computed}. */
     Operand COMPUTED = new Computed();
 
+    /** H13 measure switch: {@code /home/user/h13log/seeThroughCasts} exists. */
+    boolean LOOSE = java.nio.file.Files.exists(java.nio.file.Path.of("/home/user/h13log/seeThroughCasts"));
+
     /** {@code written}, an operand a render wrote into a raise site, as the plan's data: a literal typed, any other
      *  expression {@link #COMPUTED}. Nothing is evaluated, folded or looked through: a cast of a literal is computed
      *  (the measure's strict form; H13 counts what a looser rule would recover). */
@@ -78,6 +81,10 @@ public sealed interface Operand {
             case SqlExpr.BoolLit b -> new Bool(b.value());
             case SqlExpr.DateLit d -> new Day(d.iso());
             case SqlExpr.TimestampLit ts -> new Instant(ts.iso());
+            // H13 MEASURE ONLY (on where the marker file exists): a cast of a literal read as that literal. NOT a
+            // rule to land: a cast can change what a value prints as; the real fix is the lowering handing the raise
+            // the literal it was given.
+            case SqlExpr.Cast c when LOOSE && of(c.value()) != COMPUTED -> of(c.value());
             default -> COMPUTED;
         };
     }

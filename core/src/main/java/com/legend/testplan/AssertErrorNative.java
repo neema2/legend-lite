@@ -76,55 +76,12 @@ final class AssertErrorNative {
      *  arm's (a wall stays loud) and is null here. */
     static com.legend.testexecutionplan.@com.legend.base.Nullable Failure caught(RuntimeException e, String where,
             com.legend.database.PlanStyle style) {
-        // its message in the style's words: upstream's sentence on the edge (PCT's assertError compares it)
-        if (e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException) {
-            h13(e, style.errorWords(e));
-        }
+        // H13 spike: lite's own message, and the error's kinded part and wrapper as data (Failures.compileOf). No
+        // style is asked (PlanStyle.errorWords is gone): the audience's words are worded at the verdict's turn, from
+        // the record. {@code style} is kept only so the spike's callers do not move.
+        java.util.Objects.requireNonNull(style, "the plan's style");
         return e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException
-                ? com.legend.testexecutionplan.Failures.of(e, where, style.errorWords(e)) : null;
-    }
-
-    /** H13 SPIKE INSTRUMENTATION, scratch: where {@code -Dlegend.h13.planned=<file>} names a file, each planning
-     *  failure an assertError catches is appended -- whether the style's words differ from lite's message, the
-     *  exception chain's classes, the first kinded compile error's kind, operands and position, and both texts. */
-    private static void h13(RuntimeException e, @com.legend.base.Nullable String words) {
-        String file = System.getProperty("legend.h13.planned");
-        if (file == null) {
-            java.nio.file.Path dir = java.nio.file.Path.of("/home/user/h13log");
-            if (!java.nio.file.Files.isDirectory(dir)) {
-                return;
-            }
-            file = dir.resolve("planned.tsv").toString();
-        }
-        StringBuilder chain = new StringBuilder();
-        String kind = "-";
-        String operands = "-";
-        String position = "-";
-        String own = "-";
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            chain.append(chain.isEmpty() ? "" : " <- ").append(t.getClass().getName());
-            if (kind.equals("-") && t instanceof com.legend.error.LegendCompileException c && c.kind() != null) {
-                kind = c.kind().name();
-                operands = String.valueOf(c.operands());
-                position = String.valueOf(c.position());
-                own = String.valueOf(c.getMessage());
-            }
-        }
-        String line = (java.util.Objects.equals(words, e.getMessage()) ? "SAME" : "DIFFERS") + "\t" + chain + "\t" + kind
-                + "\t" + operands + "\t" + position + "\t" + esc(e.getMessage()) + "\t" + esc(own) + "\t" + esc(words)
-                + "\n";
-        synchronized (AssertErrorNative.class) {
-            try {
-                java.nio.file.Files.writeString(java.nio.file.Path.of(file), line,
-                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-            } catch (java.io.IOException io) {
-                throw new java.io.UncheckedIOException(io);
-            }
-        }
-    }
-
-    private static String esc(@com.legend.base.Nullable String text) {
-        return String.valueOf(text).replace("\n", "\\n").replace("\t", "\\t");
+                ? com.legend.testexecutionplan.Failures.of(e, where) : null;
     }
 
     /** {@code Integer[0..1]} argument: a literal, {@code []}, or absent

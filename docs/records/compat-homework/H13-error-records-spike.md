@@ -129,7 +129,79 @@ mechanism:
 | Count | Tests | Why |
 |---|---|---|
 | 6 | `AssertErrorNativeTest` | `[1,2]->at(3)`: legend-pure's sentence prints the collection's size, which the lowering computes even for a literal list. After: `... at offset 3 where the collection is of size <computed>` |
-| 11 | `MultiplicityStrictnessTest` (2), `RelationToOneGuardTest` (1), `OptionalCollectionNullDropTest` (2), `ToOneLaneTest` (6) | `toOne` over a collection of another size. The size is computed. These tests also call the door without the formatter (`RaisedWords.run`), which worked only while the sentence was in the SQL |
+| 12 | `MultiplicityStrictnessTest` (2), `RelationToOneGuardTest` (1), `OptionalCollectionNullDropTest` (2), `ToOneLaneTest` (7) | `toOne` over a collection of another size. The size is computed. These tests also call the door without the formatter (`RaisedWords.run`), which worked only while the sentence was in the SQL |
 | 1 | `InterimEdgeSitesTest` | the spike's own first draft of the measure (fixed) |
 | 1 | `PureV1ApiTest.m2_theHostsPureV1HalvesRaiseInPuresWords` | read S1's `extensions` on a site (adapted) |
-| 1 | counted in the 11 above | |
+
+## 6. THE CHECK, first run: PCT on DuckDB, channels A and B, all five suites
+
+Run: the net's own recordings (`//pct:edge_norm_duckdb_*`, `//pct:edge_norm_channel_b_duckdb_*`), 3 min 22 s, diffed
+against the goldens under `pct/src/test/resources/edge/`. Raise sites only (the planning-failure half was not in
+this run).
+
+| Golden | Lines | Differing lines |
+|---|---|---|
+| channel A answers, Essential | 847 | **6** |
+| channel A answers, Grammar | 554 | 0 |
+| channel A answers, Relation | 479 | **2** (SQL text only) |
+| channel A answers, Standard | 708 | 0 |
+| channel A answers, Unclassified | 122 | 0 |
+| channel A outcomes, all five suites | 1,165 | **6** (the same 6 tests) |
+| channel B outcomes, Essential | 345 | **6** (the same 6 tests) |
+| channel B outcomes, the other four suites | 904 | 0 |
+
+**The 6 tests whose message changes (A3: a computed operand's value is withheld).** All are in Essential. Each
+passes on `main` and fails after, on both channels:
+
+| Test | Before (the pinned line) | After | Why the operand is "computed" |
+|---|---|---|---|
+| `testAtError` | `The system is trying to get an element at offset 2 where the collection is of size 2` | `... of size <computed>` | the size is `LIST_LENGTH(...)` of the list, a call, even over a literal list |
+| `testDayOfMonthError` | `Cannot get day of month for 2017` | `Cannot get day of month for <computed>` | the date is `Cast(StringLit '2017', TEMPORAL_TEXT)`: a literal inside a cast |
+| `testHourError` | `Cannot get hour for 2017` | `Cannot get hour for <computed>` | the same |
+| `testMinuteError` | `Cannot get minute for 2017` | `Cannot get minute for <computed>` | the same |
+| `testSecondError` | `Cannot get second for 2017` | `Cannot get second for <computed>` | the same |
+| `testSquareRootError` | `Unable to compute sqrt of -1.0` | `Unable to compute sqrt of <computed>` | the operand is `Cast(FloatLit -1.0, DOUBLE)`: a literal inside a cast |
+
+- **In every one of the 6, the query wrote a literal.** The value is lost only because the lowering hands the raise
+  a wrapped expression, not the literal it was given. None is a true run-time value.
+- **So the true A3 cost on DuckDB's PCT is 0 tests, if the lowering states what it knows.** That is a change in
+  lite's own lowering (three raise sites: `sqrt`, the date-part reads, `at`), with no hook. Section 7 measures it.
+
+**The 2 Relation lines** (`testFlatten_LateralJoin_Nested_Extend`, `testVariantColumn_slice`) differ only in the SQL
+text the answer line quotes: `error(... concat('The system is trying to get an element at offset ', CAST(0 AS
+VARCHAR), ...))` became `error(... '\u001cLG#1' ...)`. Their rows are the same. This is the design's intent (no
+upstream sentence in a statement). B1's S0 takes the SQL out of the answer line; on `main` it is still in.
+
+**Every other pinned message is byte-identical**, including the raises worded after the run from literal operands.
+The formatter worded 40 raises in this run:
+
+| Kind | Raises | Exact | Example |
+|---|---|---|---|
+| `DATE_PART_ABSENT` | 12 | 0 | the 4 tests above, 3 runs each |
+| `DATE_COMPONENT_INVALID` | 7 | 7 | `Invalid day: 2016-12-32`, `Invalid month: 13`, `Invalid hour: 24` |
+| `SHIFT_OUT_OF_RANGE` | 6 | 6 | `Unsupported number of bits to shift - max bits allowed is 62` |
+| `SQRT_OF_NEGATIVE` | 3 | 0 | above |
+| `SLICE_BOUNDS_INVERTED` | 3 | 3 | `The low bound (3) can't be higher than the high bound (2) in a slice operation` |
+| `RANGE_STEP_ZERO` | 3 | 3 | `range step must not be 0` |
+| `INDEX_OUT_OF_BOUNDS` | 3 | 0 | above |
+| `DIVIDE_BY_ZERO` | 3 | 3 | `Cannot divide 5 by zero` |
+
+**The site census of the same run** (every site planned, fired or not; 438 sites, all in the edge's style):
+
+| Kind | Sites | Operand shapes |
+|---|---|---|
+| `RANGE_STEP_ZERO` | 157 | none |
+| `LIST_LENGTHS_DIFFER` | 56 | `StringLit` (placed) |
+| `DIVIDE_BY_ZERO` | 68 | none (14), `IntLit` (33), `FloatLit` (14), `DecimalLit` (7) |
+| `INDEX_OUT_OF_BOUNDS` | 33 | `IntLit, Column` (21), `IntLit, Call` (12) |
+| `SQRT_OF_NEGATIVE` | 30 | `Cast(FloatLit)` (16), `Cast(IntLit)` (14) |
+| `SIZE_NOT_MULTIPLICITY` | 25 | `StringLit` (placed) |
+| `DATE_PART_ABSENT` | 20 | `StringLit, Cast(StringLit)` |
+| `SLICE_BOUNDS_INVERTED` | 19 | `IntLit, IntLit` (12), `Call, Call` (7) |
+| `DATE_COMPONENT_INVALID` | 13 | `StringLit, IntLit` (9), `StringLit, IntLit, IntLit, IntLit` (4) |
+| `SHIFT_OUT_OF_RANGE` | 10 | none |
+| `INSERT_OUT_OF_BOUNDS` | 7 | none |
+
+- 91 of the 438 planned sites (21%) have a computed operand in a position legend-pure's sentence prints: 33
+  `INDEX_OUT_OF_BOUNDS`, 30 `SQRT_OF_NEGATIVE`, 20 `DATE_PART_ABSENT`, 7 `SLICE_BOUNDS_INVERTED` and (2-operand form)
+  0 `SIZE_NOT_MULTIPLICITY`. Only 18 raises of those sites fire in a test that reads the message (the 6 tests).

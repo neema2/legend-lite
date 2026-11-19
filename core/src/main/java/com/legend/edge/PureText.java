@@ -46,11 +46,6 @@ public final class PureText {
 
         /** The closed list's kinds ({@code testplan.PlanStyleFacets.KINDS}), each the edge's own; any other by name. */
         @Override
-        public String errorWords(RuntimeException e) {
-            return PureMessages.compile(e);
-        }
-
-        @Override
         public boolean judgesEngineText() {
             return true;
         }
@@ -229,10 +224,6 @@ public final class PureText {
             return UPSTREAM.graphKeyString(value);
         }
 
-        @Override
-        public @com.legend.base.Nullable String errorWords(RuntimeException e) {
-            return UPSTREAM.errorWords(e);
-        }
 
         @Override
         public <F> F facet(Class<F> kind) {

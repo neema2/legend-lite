@@ -229,6 +229,13 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
                 && r.site() != null) {
             return RaisedWords.wordsOf(r);
         }
+        // H13 spike: a planned failure rebuilt at its verdict's turn is worded from its record, here, after the run
+        // (until then the plan's style worded it at planning); any other error its own message
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.testexecutionplan.Failures.Planned) {
+                return PureMessages.compile(error);
+            }
+        }
         return String.valueOf(error.getMessage());
     }
 }

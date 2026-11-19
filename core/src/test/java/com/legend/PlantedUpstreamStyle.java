@@ -41,11 +41,6 @@ final class PlantedUpstreamStyle implements PlanStyle {
     }
 
     @Override
-    public String errorWords(RuntimeException e) {
-        return e.getMessage();
-    }
-
-    @Override
     public boolean judgesEngineText() {
         throw new UnsupportedOperationException("planted");
     }

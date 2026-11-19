@@ -1090,7 +1090,16 @@ public final class PlanMaker {
 
     private static String h13Shape(com.legend.sql.SqlExpr e) {
         String name = e.getClass().getSimpleName();
-        return e instanceof com.legend.sql.SqlExpr.Cast c ? name + "(" + h13Shape(c.value()) + ")" : name;
+        if (e instanceof com.legend.sql.SqlExpr.Cast c) {
+            return name + ":" + c.target() + ":" + c.reason() + "(" + h13Shape(c.value()) + ")";
+        }
+        if (e instanceof com.legend.sql.SqlExpr.Call c) {
+            return name + ":" + c.fn() + "(" + (c.args().isEmpty() ? "" : h13Shape(c.args().get(0))) + ")";
+        }
+        if (e instanceof com.legend.sql.SqlExpr.ArrayLit a) {
+            return name + "[" + a.elements().size() + "]";
+        }
+        return name;
     }
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database

@@ -43,11 +43,67 @@ public final class Failures {
         String element = e instanceof LegendCompileException c
                 && (kind == Failure.Kind.MODEL || kind == Failure.Kind.MAPPING_RESOLUTION) ? c.element() : null;
         String unjudged = e instanceof AssertFailed f ? f.unjudgedReason() : null;
-        return new Failure(kind, message, phase, element, unjudged, where);
+        return new Failure(kind, message, phase, element, unjudged, where,
+                java.util.Objects.equals(message, e.getMessage()) ? compileOf(e) : null);
+    }
+
+    /**
+     * {@code e}'s kinded compile error and lite's wrapper around it, as data (H13 spike, slice 1.2): the first error of
+     * {@code e}'s chain that has a {@link com.legend.error.CompileKind}, and what {@code e}'s message writes before
+     * and after that error's own message -- the body compiler's {@code "in function 'f': "}, the inliner's
+     * {@code " [inlined via ...]"}. Null where the chain holds no kinded error, or where {@code e}'s message does not
+     * contain the kinded error's (nothing to state). SPIKE: the wrapper is found by position, as the edge found it
+     * until now ({@code edge.PureMessages.compile}); the real slice has the two wrapping sites state their texts
+     * ({@code compiler.spec.SpecCompiler.compile}, {@code UserCallInliner}).
+     */
+    public static Failure.@Nullable Compile compileOf(Throwable e) {
+        String message = String.valueOf(e.getMessage());
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof LegendCompileException c && c.kind() != null) {
+                String own = String.valueOf(c.getMessage());
+                int at = message.lastIndexOf(own);
+                if (at >= 0) {
+                    return new Failure.Compile(message.substring(0, at), c.kind(), c.operands(), c.position(),
+                            message.substring(at + own.length()));
+                }
+            }
+        }
+        return null;
     }
 
     /** The exception {@code f} names, its message as planned: raised at the verdict's turn. */
     public static RuntimeException raised(Failure f) {
+        RuntimeException raised = rebuilt(f);
+        Failure.Compile compile = f.compile();
+        if (compile != null) {
+            // H13 spike: the kinded part and lite's wrapper ride the rebuilt exception as its cause, so the audience's
+            // words of a caught error (testexec.HostWords.caught, no new member) can word them
+            try {
+                raised.initCause(new Planned(compile));
+            } catch (IllegalStateException held) {
+                throw new IllegalStateException("a planned failure of kind " + f.kind() + " is rebuilt with a cause, so"
+                        + " its kinded part cannot ride it", held);
+            }
+        }
+        return raised;
+    }
+
+    /** A planned failure's kinded part and lite's wrapper, riding the exception {@link #raised} rebuilds (H13 spike).
+     *  Its message is lite's own sentence of the kinded part. */
+    public static final class Planned extends RuntimeException {
+        private final transient Failure.Compile compile;
+
+        Planned(Failure.Compile compile) {
+            super(compile.own());
+            this.compile = compile;
+        }
+
+        public Failure.Compile compile() {
+            return compile;
+        }
+    }
+
+    private static RuntimeException rebuilt(Failure f) {
         String m = f.message();
         return switch (f.kind()) {
             case NOT_IMPLEMENTED -> new com.legend.error.NotImplementedException(text(f));

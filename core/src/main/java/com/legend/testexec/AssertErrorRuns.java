@@ -42,7 +42,10 @@ final class AssertErrorRuns {
         if (planned != null) {
             // the error f raised while it was planned, as the plan's data: its message; no position (planning sends
             // no statement, so no database's raise carries one)
-            return judged(a.expected(), a.line(), a.column(), String.valueOf(planned.message()), null, run);
+            // H13 spike: worded at the verdict's turn by the run's words, as a caught error is, from the failure's
+            // record (until then the plan's style worded it at planning, PlanStyle.errorWords)
+            return judged(a.expected(), a.line(), a.column(),
+                    run.caughtMessage(com.legend.testexecutionplan.Failures.raised(planned)), null, run);
         }
         RuntimeException raised = null;
         try {
