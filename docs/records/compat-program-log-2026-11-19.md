@@ -2078,3 +2078,6 @@ who confirms or changes phases 1-3.
   `699331ffd`, not pushed). `//python:all` 18 of 18 green. `markets_test` 47.7 s alone on the container (`main`
   210.6 s), 78.3 s inside the full run beside `engine_test` (247.9 s); Windows' 300 s limit is what failed #125's
   `warehouse` job. It waits for the user's word in its session to push and open the PR.
+- **~17:32 UTC, PR #126 open** (the markets_test time, on the user's word in the CI-health session, "Push it"): head
+  `699331ffd`, `main` `b75d6c73a` plus two commits, the Python host only. The CI-health worker watches its CI and
+  #125's per OS; no merge. Sent to the independent reviewer (every assertion kept, no pin moved, the rules hold).
