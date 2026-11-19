@@ -164,14 +164,33 @@ class EngineRoutes:
     the GET of ``/api/server/v1/currentUser``; anything else is no call of theirs. Made by the door alone, ONE DOOR EACH
     (the PR #118 follow-up, 2026-11-19, R11(b), HOSTS-7: as Java's edge composes its server in one place): a caller
     composing an engine of its own with them is refused by name. The product cannot name this class (the layer rule),
-    so the door's key is checked here, where the routes are made."""
+    so the door's key is checked here, where the routes are made. Reusing the routes the door made on a second engine
+    (``Engine(frames, edge=edge.engine(f).edge)``) is allowed: they were composed at the door, the engine library
+    checked there (F8 of PR #121's review, 2026-11-19)."""
+
+    # F8 of PR #121's review (2026-11-19): the door's key alone was a marker -- a subclass skipping __init__, or an
+    # instance made by object.__new__, served the routes without it. Now no class extends this one, every route is
+    # served only by an instance the door made, and no module of the package but the door names the key or makes the
+    # routes (test_edge.TheEdgesDoor's source rule, over the package as shipped).
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        raise TypeError("legend-engine's routes are composed by the edge's door alone: EngineRoutes takes no subclass"
+                        " (an engine that serves them is legend_lite.edge.engine(frames))")
 
     def __init__(self, door: object = None) -> None:
         if door is not _DOOR:
             raise TypeError("legend-engine's routes are composed by the edge's door alone: an engine that serves them is"
                             " legend_lite.edge.engine(frames)")
+        self._door = door
+
+    def _by_door(self) -> None:
+        """Refused unless the door made this instance (an object.__new__ of the class never ran its __init__)."""
+        if self.__dict__.get('_door') is not _DOOR:
+            raise TypeError("legend-engine's routes are composed by the edge's door alone: these were not made by it"
+                            " (an engine that serves them is legend_lite.edge.engine(frames))")
 
     def serves(self, method: str, path: str) -> bool:
+        self._by_door()
         if _under(path, QUERIES):
             return True
         if method == 'GET' and path == CURRENT_USER:
@@ -179,6 +198,7 @@ class EngineRoutes:
         return method == 'POST' and path.startswith(API)
 
     def answer(self, engine: Engine, method: str, path: str, query: str, body: str | None) -> Answer:
+        self._by_door()
         from ..engine import Answer, _said
         if method == 'GET' and path == CURRENT_USER:
             # who a page's caller is: this user, whom the stores keep queries for (there is no sign-in)
