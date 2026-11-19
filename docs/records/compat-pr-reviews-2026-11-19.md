@@ -601,3 +601,76 @@ with a report of every such call when a project loads".
 
 I will review the detector PR against refuse-by-default, with no report: a planted request refused, `warn` marked,
 the option quiet for `substring` alone.
+
+### Re-check 1: B2's fixes at `c957c2b49` (reading copy `2d16f6d54`) and the owner's O1 (`2330eb98`, `1bae0174`)
+
+**Verdict: interim. Every item of mine is met at `c957c2b49`.** The verdict waits for B2's next commit, which carries
+the owner's two additions. That commit is not in `c957c2b49`:
+- **`firstDayOfWeek`, stated as on the merged batch.** The page's item 13 and S387 still say "lite on H2 still answers
+  legend-engine's Sunday", with a Gaps entry.
+- **legend-pure's `x / 0`, read to the end.** Item 3 still says "still to be read".
+
+**How this was checked:**
+- Both patches were applied to A2's head (`6551c2036`) and the two trees diffed.
+- The page copy is byte-identical to the patched file.
+- It now touches six files; the new sixth is `TOTAL_WALL_START_HERE`'s dated pointer.
+
+**Met:**
+- **M1:**
+  - AGENTS.md's tenet heading, G8, the page and the register's header now say "the goal the user ruled ~13:25 ...
+    'Okay agree with all'; the sentence is the program's wording".
+  - S130 and S134 say "D1, ruled by the user 2026-11-19 ~13:25 ("Okay agree with all"): Pure's way, loud, no
+    translator".
+  - S383's "(D1: Pure's way)" carries no quotation marks.
+- **M2:**
+  - item 2 splits the count: H2 139/6/2, DuckDB 143/6/3, matching `A2-roster.tsv`'s classes a1-a4, c and b;
+  - S380 says the same;
+  - two new entries, 12 (`joinStrings`, S386) and 13 (`firstDayOfWeek`, S387). The ids are the owner's allocation
+    (`09c58581`).
+- **The new rows' citations, read at the pins:**
+  - legend-engine `testToSQLString.pure:754-771`: the `concat(..., '|')` and `'[', ',', ']'` forms, as quoted;
+  - `dateExtension.pure:202-205`: `mostRecentDayOfWeek(DayOfWeek.Monday)`;
+  - legend-pure's `joinStrings` puts the separator between the strings;
+  - the GATES.md batch-139 entry exists.
+- **S1:**
+  - "What is the same" now says "after stage B", and that today a table is built in SQL;
+  - Studio's envelopes and H11's tables are separate sentences;
+  - item 14 records the nested table text, stage B, count pending. Its three quotes are the user's words (log
+    ~18:05, ~18:12, ~18:36), and its spellings match the rulings.
+- **S2:** the register's header carries a dated amendment, and `TOTAL_WALL_START_HERE:187` a dated pointer.
+- **S3:** the table is dated "before stage A", with the H2 Grammar (119/77) and Unclassified (73/82) rows marked
+  "measured once, not pinned", the 33 split as 6 + 27 (+10 Unclassified), and A3's 12 more.
+- **S4:** partly met. The first five rows are PCT's, and `x / 0` has no PCT test. legend-pure's answer is still "to be
+  read", which is the owner's second addition.
+- **S5:** "in range only", with the start-0 and past-the-end cases and the 2-argument form.
+- **S6:**
+  - `[CONVENTION until B5's guards]`;
+  - "the tests are questions a reviewer asks";
+  - "cite them as 'tenet N of the six', never as 'invariant N'". The new rows now say "tenet 1 of the six".
+- **N1-N5:** all met.
+
+**Nits:**
+- S386 cites `joinStrings.pure:23`, but at the pin the rule is the doc block at `:18-21`, and line 23 is
+  "**Parameters**".
+- S380 is A2's row, fixed here because piece 4 is cut from A2's head. Fine, provided A2 lands first.
+
+**For B2's next commit: `firstDayOfWeek` on the merged batch moves a count.** A5's `7cd59a57` makes H2 truncate to
+`iso_week`, so H2 answers Monday, as DuckDB does. It moved no corpus roster on its own, because the engine-text printer
+still judged the test by its text. Once A2 removes that printer, the H2 test `testToSqlGenerationFirstDayOfWeek` is
+judged by its rows. Lite answers Monday and the golden says Sunday, so the row compare diverges on H2 too, as it does on
+DuckDB.
+
+If that holds, then on the merged batch:
+- H2's class b is 3, not 2;
+- the H2 counts are 148 and 151, not 147 and 150;
+- the H2 fail roster carries that test;
+- item 13 and S387 read "both databases".
+
+This is my reading, not a run: the batch's H2 corpus lane settles it. Whichever way it comes out, the page's numbers
+and the batch's roster must agree.
+
+**O1:** mostly met.
+- `2330eb98` and `1bae0174` state refuse-by-default with no report in §4a's "When it is quiet", the report bullet
+  ("NOT BUILT ... history"), "Its tests", the A3 row's size cell and the plain plan's row 1. Two phrases remain:
+  - the A3 row's "user's words it needs" cell still ends "the detector's default (ruled: warn, with the report)";
+  - §4a's "What it does" still describes the warning as the default, and the refusal as `=refuse`'s.
