@@ -45,11 +45,11 @@ itself; H4: every host already runs Java, so one presenter per audience serves a
 | **0. Rulings and the net** | the user's rulings; B1's safety net lands; the measurements the later slices need; the legend-engine PCT lane | none | 4.5 | all |
 | **1. Formatters (output)** | one presenter per audience over typed results and the plan; error records as kind, place and literal operands; the hosts call the Java presenter | the SQL-built text and envelopes, about 2,000 edge lines; 3 facets and 4 two-form hooks | 19 | P (B1) and H (a host session) |
 | **2. Deletions that need no replacement** | compatibility judging becomes host-only; upstream's SQL shapes go, checked by answers | the compatibility database judge (51 of the census's 142 hits); the engine-style SQL printers, about 2,950 lines | 10 | J (new) and G (B2) |
-| **3. Translator (input)** | a model-level, target-aware rewrite at the edge's doors; the named capabilities, each one SQL node; legend-engine's refusals derived from its manifests | the lowering's two-form choices (`LoweringForms`, 17 members) and the remaining two-form hooks | 19 to 23 | A (one, then two new sessions) and O (B1-R) |
+| **3. Translator (input)** | a model-level, target-aware rewrite at the edge's doors, using only functions every lite user has; legend-engine's refusals derived from its manifests | the lowering's two-form choices (`LoweringForms`, 17 members) and the remaining two-form hooks | 15.5 | A (new) and O (B1-R) |
 | **4. Close-out** | the optimiser switches decided; `PlanStyle` deleted; the guards and the census blocking | `PlanStyle`, `PureText` and its 12 dialect subclasses | 5 | G (B2) |
 | **5. Portability** | export lite plans to legend-engine and import its plans, both checked by legend-engine running them | none | 6.5 | O (B1-R) |
 
-**In all: about 64 to 68 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
+**In all: about 60 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
 (phase 0, then the translator, then the close-out), with five or six sessions in parallel. The old three-mode design
 was 36 days. It did not include the translator's model-level rewrite, the hosts, the SQL-shape deletions or the
 judges' code; it also kept the modes, which this plan removes.
@@ -59,7 +59,7 @@ judges' code; it also kept the modes, which this plan removes.
 - **CP-2 (R4):** lite's own `substring` and `indexOf` follow Pure.
 - **CP-3 (E-R1):** the legend-engine audience refuses exactly what legend-engine refuses.
 - **CP-4:** upstream's SQL text is never promised.
-- **CP-5:** the named capabilities: each is a function with its own meaning, built only on measured demand.
+- **CP-5:** no special functions that only the translator calls (revised after the user's question, 2026-11-19).
 
 Five smaller ones (CP-6 to CP-10) take the recommendation unless the user objects. R-a stays with the previous
 orchestrator's PR #121.
@@ -110,7 +110,8 @@ The program is done when all six hold, each checked by a test that runs per push
 
 The program is a set of **strands**. Each strand is one behaviour the core changes today when it serves an upstream
 audience. Each strand gets a destination: a formatter (P), an input rewrite over what the core already has (R0), a
-rewrite calling a named capability (R1), a refusal by name (X), host-only judging (J), or deletion because only
+rewrite needing a function the core lacks (R1: under CP-5 none is built, so each R1 row becomes P, a Pure answer
+with a register row, or X), a refusal by name (X), host-only judging (J), or deletion because only
 upstream's SQL text or shape depended on it (S). When a strand's destination is built and its doors switched, its hook
 is deleted. **`PlanStyle` dies when the last strand closes (slice 4.3), not before.**
 
@@ -131,11 +132,11 @@ each row against the code and H1's TSV, and the confirmed map is the ratchet.
 | Strand (today's hook) | What it does today | Class (H1 rows) | Slice |
 |---|---|---|---|
 | facet `RelationTexts` | a relation's `toString`, `toCSV`, a TDS's `csv`, built in SQL (`RelationTextLowering`, 791 lines) | P at a root or side; X if it feeds | 1.3 |
-| facet `PureOnlyTexts` | `format`'s `%0Nd` and `%r`, `toRepresentation`, an instance's `@_` id (`EdgePureOnlyTexts`) | P; R0 for `%r` in a query (D04); K1 or K3 if it feeds | 1.3, 3.6 |
+| facet `PureOnlyTexts` | `format`'s `%0Nd` and `%r`, `toRepresentation`, an instance's `@_` id (`EdgePureOnlyTexts`) | P; R0 for `%r` in a query (D04); X if it feeds | 1.3, 3.6 |
 | facet `ResultEnvelopes` | legend-engine's `tdsBuilder`/`classBuilder` envelopes by the database's JSON (`EngineResultEnvelopes`) | P (H3 (c): byte-identical) | 1.4 |
 | facet `UpstreamPlans` | `toSQLString`, `planToString`, the engine-text asserts | S under CP-4: the SQL text goes; legend-engine's plan FORMAT stays as an ENGINE presenter | 2.3, 1.4 |
 | facet `EngineTestText` | the engine-text judge arm | J | 2.2 |
-| two-form `DateTimeTexts` | a DateTime's text in a message or a print | P; K2 if it feeds | 1.3, 3.6 |
+| two-form `DateTimeTexts` | a DateTime's text in a message or a print | P; X if it feeds | 1.3, 3.6 |
 | two-form `ListTexts` | a list's `[a, b]` vs the product's JSON array | P; R0 in a query (D06) | 1.3, 3.4 |
 | two-form `ExecutedValues` | legend-engine's json-builder `values` envelope | P | 1.4 |
 | two-form `JsonGrammar` | json-simple 1.1.1's grammar in the judge (S144) | J | 2.2 |
@@ -143,10 +144,10 @@ each row against the code and H1's TSV, and the confirmed map is the ratchet.
 | two-form `CrossKindNumbers` | compiled legend-pure's Integer/Decimal-by-text (S127) | J half 2.2; R0 half 3.4 | 2.2, 3.4 |
 | two-form `VerdictNumbers` | legend-pure's Float/Decimal comparison in the database judge (S15, S132, S139) | J | 2.2 |
 | two-form `RenderedTextRule`, `DateLiteralTexts`, `GoldenNullWord`, `VerdictWords` | the compatibility database judge's rules and words | J (deleted with that judge, C4) | 2.2 |
-| two-form `RoutedQueries`, `ActivityTexts` | legend-engine's routed-query print and activity SQL in an answer | S under CP-4 (activities carry lite's SQL); K19 only on measured demand | 2.3 |
-| two-form `TestDataPlanner.Printing` | the test-data generator's legend-engine CSV printing (S191, S306) | R1 K18, or kept in the edge as a presenter; 20:10-R2 keeps it "for now" | 3.7 |
+| two-form `RoutedQueries`, `ActivityTexts` | legend-engine's routed-query print and activity SQL in an answer | S under CP-4 (activities carry lite's SQL) | 2.3 |
+| two-form `TestDataPlanner.Printing` | the test-data generator's legend-engine CSV printing (S191, S306) | P, a presenter after the run; 20:10-R2's "for now" revisited there | 3.6 |
 | two-form `DatabaseSettingsForm` | H2's `MODE=LEGACY`, `DEFAULT_NULL_ORDERING=HIGH` (S368, D15) | R0: null placement by sort keys; the rest is version residue (CP-8) | 3.4 |
-| `LoweringForms.raise` | the plain set: no lite check where legend-engine plants none (B7; ENGINE raise class A) | R1 K6 (the unguarded operations) | 3.6 |
+| `LoweringForms.raise` | the plain set: no lite check where legend-engine plants none (B7; ENGINE raise class A) | a Pure answer with a register row (CP-3's defect rule, CP-5) | 3.6 |
 | `LoweringForms.executeValues` | the JsonBuilder cardinality fold (`oneBare`) | P | 1.4 |
 | `LoweringForms.assertFailed` | "Assert failed" vs lite's "expected true, got false" (20:10-R1, R10) | P | 1.2 |
 | `LoweringForms.objectReferenceConnection` | a protocol constant inside an object reference (C1 row) | P, with the fact "this cell is an object reference" (S362) | 1.4 |
@@ -216,7 +217,8 @@ slice 2.2 need only CP-1 and CP-7. **Size:** 0. **Owner:** the user, with this s
 - (b) **CP-4's cost:** how many corpus tests pass today only through legend-engine's SQL text (`toSQLString`,
   `assertSqlEquals`, `planToString` and the test-data generator's `sqls`). Measured by running the corpus with the
   engine-text printers made to refuse.
-- (c) **K6's family:** the guarded natives that would need an unguarded twin for legend-engine's raise class A.
+- (c) **legend-engine's unchecked operations:** which of lite's checked natives legend-engine leaves unchecked (its
+  raise class A), so 3.6 can count the register rows CP-5 creates.
 - (d) **The strands' doors:** which door reaches each strand (pure/v1, the corpus, PCT A, PCT B, the hosts' edge
   routes, the test-data generator).
 - **Deletes:** nothing. **Check:** each number reproducible from a committed probe.
@@ -286,8 +288,7 @@ error record the translator's refusals are worded through.
     over typed rows;
   - the edge's door rewrites a root `toString` (or `toCSV`) into "answer the value; present it as text";
   - a judge side's print is the compatibility host judge's (rule 9);
-  - a print that FEEDS a further computation inside the query is refused by name until its capability exists
-    (phase 3). H2 counted it: 0 upstream sites over Float, Decimal or dates; 14 over Integer or an enum, which R0
+  - a print that FEEDS a further computation inside the query is refused by name (CP-5). H2 counted it: 0 upstream sites over Float, Decimal or dates; 14 over Integer or an enum, which R0
     covers;
   - a Pair is its JSON object in LITE and `<a, b>` in PURE and ENGINE (R5). The prelude's print bodies stay (the
     2026-11-19 ruling); 1.3 checks whether LITE ever reaches one.
@@ -417,7 +418,7 @@ error record the translator's refusals are worded through.
     `PlanVariables`; its plan FORMAT stays as 1.4's presenter);
   - `LoweringForms.view`, `wireCast`, `unionFrame` (C1), `existsJoin` (C2);
   - `PlanStyle.traceCell`;
-  - two-forms `ActivityTexts`, `RoutedQueries` (unless CP-5's measured demand keeps K19);
+  - two-forms `ActivityTexts`, `RoutedQueries`;
   - facet `UpstreamPlans`' SQL half.
 - **Check:**
   - the corpus on H2 and DuckDB: every test that passed by answer still passes;
@@ -428,13 +429,14 @@ error record the translator's refusals are worded through.
 - **Size:** 4 days.
 - **Depends on:** CP-4, 0.4 (b), 1.4. **Owner:** B2, or the judges session after 2.2.
 
-### Phase 3: the translator on the way in (about 19 to 23 days; tracks A and O)
+### Phase 3: the translator on the way in (about 15.5 days; tracks A and O)
 
 H3 (a) and (b) proved the pattern and found three conditions, which shape this phase:
 - **the rewrite must know the target database** (legend-engine's meaning is its database's: target-blind, DuckDB
   scored 17 of 25; target-aware, 24 of 25);
 - **the ENGINE audience is whole models**, not request lambdas (the corpus's 15 newly failing tests);
-- **a capability must be one SQL node** each dialect writes once (as a lowering tree it cost 350 times the SQL).
+- **a capability must be one SQL node** each dialect writes once (as a lowering tree it cost 350 times the SQL). Under
+  CP-5's revised recommendation no capability is built, so this condition holds by having none.
 
 **3.1 The product's own two dependencies on today's meaning, split first** (H3 items 5, 6).
 - **Changes:**
@@ -526,41 +528,30 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
 - **Size:** 1.5 days.
 - **Depends on:** CP-3, 0.3, 3.2. **Owner:** the translator session.
 
-**3.6 The capabilities, tier 1** (CP-5).
-- **Changes:** each is a Pure-callable native with its own meaning, lowered as ONE MIR node with one render arm per
-  dialect (no `default ->`), called only by the translator:
-  - **K1** `pureFloatText`: legend-pure's print of a Float (H3 (b): H2 26 of 26, DuckDB 25 of 26);
-  - **K2** `pureDateTimeText(x, precision)`;
-  - **K4** `databaseCast(x, relationalType)`: legend-engine's `cast(%s as varchar)`, `as integer`, `as float`;
-  - **K5** `bareNumericLiteral`: already built for S20; re-homed as a native, the style's `floatLiteralKind` deleted;
-  - **K6**, the unguarded operations: legend-engine's raise class A, so pure/v1's `sqrt(-2.0)` answers as
-    legend-engine does (H3 (c)); its family is sized by 0.4 (c).
-- **Deletes:** `LoweringForms.raise`'s plain set; `PureText`'s `floatToText`, `floatLiteralKind` and the print
-  spelling passes; the K-rows' current edge hooks.
-- **Check:**
-  - K1 and K2 against legend-pure's own jar (H3's `PurePrint` probe, permanent) and PCT's `toString` tests;
-  - K4 and K6 against the oracle on H2 and DuckDB;
-  - each capability's SQL size measured: no answer's SQL grows past 2 times for one call (G3).
-- **Guards:**
-  - each native listed in a new verified set, `COMPAT_CAPABILITIES`, in `NativeCatalogGovernanceTest` (a ceiling
-    move: the user's word, CP-5);
-  - an ArchUnit and census rule: no product code path emits a call to a compatibility capability; only the
-    translator's library does;
-  - a planted product caller must fail.
-- **Size:** 5 days.
-- **Depends on:** CP-5, 3.2, 0.4 (c). **Owner:** the translator session.
+**3.6 No special functions: the R1 rows decided without them** (CP-5, recommendation revised 2026-11-19 after the
+user's question "is this a sneaky way to have two sql paths").
+- **Changes:** the translator uses only functions every lite user has. H1's 24 R1 rows are re-classed in three ways:
+  - a print at the end of a query is the presenter's (P), in Java after the run. This covers PCT's `toString` and
+    `format` tests (H2: 84 of PCT essential's 95 query-side sites return the text as it is);
+  - legend-engine computing differently from Pure's own definition is answered Pure's way, as a register row (E-R1's
+    defect rule, CP-3). Examples: Float arithmetic as exact decimals on H2 and DuckDB (S9, S20), and unchecked
+    `sqrt` or `divide` answering null (D08);
+  - text built inside a query and then used, over a type whose text differs, is refused by name (X). H2 counted 0
+    such sites over Float, Decimal or dates in PCT and the corpus.
+- **Deletes:** the special-purpose machinery these rows have today:
+  - S20's bare-DECIMAL literal (`SqlDialect.floatLiteralKind`'s edge use, `PureText.floatLiteralKind`);
+  - `LoweringForms.raise`'s plain set (B7);
+  - `PureText.floatToText` and the print spelling passes;
+  - two-form `TestDataPlanner.Printing` and `ExecuteOptions.withEngineCompat`, moved to a presenter. 20:10-R2's
+    "for now" spellings are revisited there.
+- **Check:** every lane change listed with its reason; the PURE lanes may move only toward PCT's expected values,
+  except the listed refusals; the ENGINE lane's new register rows counted from the manifests and the oracle.
+- **Guards:** `NativeCatalogGovernanceTest`'s verified sets do not grow. A future special function needs the user's
+  word, case by case, with its measured gain.
+- **Size:** 1.5 days.
+- **Depends on:** CP-5, 1.3, 3.5. **Owner:** the translator session.
 
-**3.7 The capabilities, tier 2, on measured demand only.**
-- **Changes:** K3 (`format`'s `%.Nf`), K8 (`splitPart` by character set), K9 (a column as stored), K14 (Decimal
-  equality by scale), K17 (the strict Integer cell), K18 (legend-engine's test-data printing, today a mode behind
-  `withEngineCompat`), K19 (the routed set). Each is built only if a PCT lane, the corpus or the oracle shows a case it
-  fixes. Otherwise it is a refusal by name with a register row.
-- **Deletes:** two-form `TestDataPlanner.Printing` (K18 built, or refused) and `ExecuteOptions.withEngineCompat`.
-- **Check:** as 3.6, per capability.
-- **Size:** 0 to 4 days, by the demand found.
-- **Depends on:** 3.6. **Owner:** the translator session.
-
-**3.8 PURE's direct entry** (the user's 2026-11-18 19:45 ruling "planning mode/direct entry for now").
+**3.7 PURE's direct entry** (the user's 2026-11-18 19:45 ruling "planning mode/direct entry for now").
 - **Changes:** one Java door, `edge.PureEntry`, that runs the PURE translator and the PURE presenter over a model and
   a lambda.
 - **Check:** PURE tests on DuckDB, H2 and SQLite.
@@ -569,17 +560,16 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
 
 ### Phase 4: the close-out (about 5 days; track G)
 
-**4.1 The optimiser switches** (K7, K10, K12, K13, K15, K16, CP-5's tier 3).
+**4.1 The optimiser switches** (H1's K7, K10, K12, K13, K16; CP-5).
 - **Changes:**
   - the product's key fold (S147), pruning (D18), let splice (S129), savepoint behaviour (S135) and scan order
     (S14, now J) stay as the product's meaning;
   - the upstream audience is refused by name where it would observe the difference, with a register row each;
-  - K15 (H2 2.1.214's division scale) is not in the pinned trees, so its row is X.
 - **Deletes:** `LoweringForms.keyedCounts`, `computedPruning`.
 - **Check:** the corpus and PCT lanes: every newly refused case listed; the expected count is small (the corpus's
   `KeyedCounts` cases, measured in 0.4).
 - **Size:** 1.5 days.
-- **Depends on:** CP-5, phase 3's tier-2 decisions. **Owner:** B2.
+- **Depends on:** CP-5, 3.6. **Owner:** B2.
 
 **4.2 `PlanStyle` deleted; the census blocking.**
 - **Changes:**
@@ -634,6 +624,18 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
 Each ruling below gives the question, the options, the recommendation and what moves under it. The first five need
 the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
 
+**The rulings record.**
+- **2026-11-19 ~04:02 UTC, the user's words:** "1-3 yes", "Explain 4 clearly, what's the alternative? Is this a
+  sneaky way to have two sql paths", "Let's not worry or even support older database versions".
+- **The numbers are read against this session's first note to the user,** whose list was:
+  1. R4: Pure;
+  2. E-R1;
+  3. tests that compare legend-engine's SQL text: never promised;
+  4. the special functions;
+  5. the per-push lanes and the database versions.
+- **So:** CP-2, CP-3 and CP-4 are RULED (option A each), and CP-8 is RULED (not supported). CP-5's recommendation was
+  revised in answer to the question, and is with the user. CP-1 is confirmed with the plan's ratification.
+
 **CP-1. Translator in, formatters out, instead of three modes.** *Gates every phase.*
 - **The question:** replace the three modes (ruled 2026-11-18 19:45) with this design? The core has one meaning; an
   upstream program is translated on the way in, and its answer formatted on the way out.
@@ -642,7 +644,8 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
 - **What moves:** B1's `Mode` records and S1's words-in-the-plan are withdrawn (§2). The rulings about meaning and
   words stand.
 
-**CP-2. R4: lite's own `substring` and `indexOf`.** *Gates 3.3.*
+**CP-2. R4: lite's own `substring` and `indexOf`.** *Gates 3.3.* **RULED: option A, Pure** (the user, 2026-11-19 ~04:02 UTC,
+"1-3 yes", item 1 of this session's first note).
 - **Option A, Pure (recommended).** `'abcdef'->substring(1, 3)` is `'bc'`, and `indexOf` is 0-based with -1 on a
   miss, the same on every database. Legend-engine's answers come from its translator.
   - **For:** it follows the principle already applied in S365, S366 and S370 (Pure's definition in the product,
@@ -655,7 +658,8 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
   - **Against:** the product keeps a meaning that differs by database and from Pure; the DuckDB clamp answers
     neither database's way.
 
-**CP-3. (e′) E-R1: what the legend-engine audience refuses.** *Gates 3.5.*
+**CP-3. (e′) E-R1: what the legend-engine audience refuses.** *Gates 3.5.* **RULED: option A, E-R1** (the same words,
+item 2).
 - **Option A, E-R1 (recommended).** It refuses exactly what legend-engine refuses at planning ("No SQL translation
   exists"), per database, from a table derived from legend-engine's manifests, in its words. Where legend-engine
   fails by its own defect, lite answers correctly, with a register row.
@@ -667,7 +671,8 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
   - **For:** less work.
   - **Against:** a large "better than legend-engine" ledger, and answers legend-engine never gives.
 
-**CP-4. Upstream's SQL text is never promised.** *Gates 1.4 and 2.3.*
+**CP-4. Upstream's SQL text is never promised.** *Gates 1.4 and 2.3.* **RULED: option A, never promised** (the same
+words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to the user before 2.3 lands.
 - **The question:** legend-engine's own suite calls `toSQLString` 588 times in 64 files (H1); its test-data
   generator's `sqls` are pinned by 45 asserts (S193); its answers carry SQL in `activities` and `sqlQuery`.
 - **Option A, never promised (recommended).**
@@ -684,20 +689,28 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
   - **Against:** a second SQL printer and upstream's SQL shapes stay in the planner for good, and it is text, not
     answers.
 
-**CP-5. The named capabilities.** *Gates 3.6, 3.7 and 4.1.*
-- **The question:** some upstream answers need a small function the core does not have, such as "print a Float the
-  way legend-pure does" (H1 named 18, plus K7).
-- **Recommendation:**
-  - each capability is a Pure-callable native with its own meaning, written as ONE SQL node, called only by the
-    translator, and listed in a new pinned set `COMPAT_CAPABILITIES` (moving `NativeCatalogGovernanceTest`'s verified
-    sets needs the user's word);
-  - **tier 1 is built** (K1, K2, K4, K5, K6): PCT and pure/v1 need them today;
-  - **tier 2 only on measured demand** (K3, K8, K9, K14, K17, K18, K19);
-  - **tier 3 is never built:** the four that switch a product optimisation off (K10 pruning, K12 let splice, K16 key
-    fold, K7 scan order), plus K11, K13 and K15 (whose rule is not in the pinned trees). The upstream audience is
-    refused by name there, with a register row each.
-- **Why:** H2 found upstream programs almost never build text inside a query and use it (0 Float, Decimal or date
-  sites); the demand is PCT's unit tests. A switch built as "turn the optimiser off" would be a mode by another name.
+**CP-5. Special functions only the translator calls.** *Gates 3.6 and 4.1.* **Recommendation revised
+2026-11-19.**
+- **The question:** H1 found 24 upstream answers that the core cannot compute with what it has, such as legend-pure's
+  exact print of a Float inside a query, or legend-engine's unchecked `sqrt`. Should the core gain special functions
+  (H1's K1 to K19) that only the translator calls?
+- **Option A, none (recommended now).** The translator uses only functions every lite user has:
+  - a print at the end of a query is the formatter's job (Java, after the run);
+  - where legend-engine computes differently from Pure's own definition, lite gives Pure's answer and records it
+    (CP-3's defect rule);
+  - the rest is refused by name.
+  - **For:** one vocabulary and one SQL path, with nothing in the core that exists only for upstream. H2 says real
+    upstream programs essentially never need these: 0 sites print a Float, Decimal or date and then compute with the
+    text. The demand came from PCT's unit tests, which the formatter covers.
+  - **Against:** a few legend-engine quirks are not matched (Float arithmetic as exact decimals on H2 and DuckDB;
+    `sqrt(-2.0)` answering null where lite raises), each a register row. S20's bare-DECIMAL literal (built
+    2026-11-17) is deleted.
+- **Option B, a short pinned list.** Each special function is one SQL node and one meaning, called only by the
+  translator, approved one by one.
+  - **For:** those quirks are matched exactly.
+  - **Against:** it is a second vocabulary that exists only for upstream: the user's "two SQL paths" by the back
+    door, and a list that tends to grow.
+- **Either way:** the four that would switch a product optimisation off (K7, K10, K12, K16) are never built.
 
 **CP-6. The typed facts the result must carry.** *Gates 1.1.*
 - **Carry, because they are lite's own meaning:**
@@ -716,11 +729,15 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
   then it stays, as K1 ruled.
 - **Why:** architecture rule 2, and H4's finding that a rule held in two places drifts.
 
-**CP-8. legend-engine's database versions are recorded, not chased.**
+**CP-8. legend-engine's database versions: not supported.** **RULED by the user, 2026-11-19 ~04:02 UTC:** "Let's not
+worry or even support older database versions".
 - legend-engine runs a patched H2 2.1.214 (`MODE=LEGACY`) and DuckDB 1.3.0; lite runs H2 2.5.252 and DuckDB 1.5.6.
-- **Recommendation:** where an answer differs only for that reason (`cell.float`'s 8 digits, O5; a Decimal division's
-  scale, S141; legend-engine's H2 UDFs), it is one family of register rows. The oracle measures a case when one is
-  reported. Lite does not emulate old database versions.
+- **What it means:**
+  - lite never emulates them, and an answer that differs only for that reason is not chased (`cell.float`'s 8
+    digits, O5; a Decimal division's scale, S141, whose K15 is dropped; legend-engine's H2 UDFs);
+  - one blanket register row records the ruling, so the upstream-fidelity tenet holds without a row per case;
+  - `DatabaseSettingsForm`'s `MODE=LEGACY` half is deleted (3.4). Null placement (S368) is a sort rule, not a
+    version, so it stays an R0 rewrite.
 
 **CP-9. (d′) The per-push lanes.**
 - **Add to every push:** the edge net, the ENGINE PCT lane (DuckDB's 5 suites and H2's relation suite), the SQLite
@@ -753,7 +770,7 @@ answer, when ruled, becomes a translator rewrite or a refusal in phase 3.
 | The presenter rule (a presenter reaches only records, never exec, the planner or JDBC) | rule 3: presentation after the run | 1.1 | 1.1 |
 | The host meaning lens, the cross-host byte-parity suite, one differential per export (H4 §8) | done-when 4 | 1.5, 1.6 | 1.6 |
 | The translator rule (public doors only; rewrites, never evaluation; its library refused by the product loader) | rule 5: the core never knows | 3.2 | 3.2 |
-| `COMPAT_CAPABILITIES` + "no product caller of a capability" (with a planted caller) | a capability never becomes a mode | 3.6 | 3.6 |
+| `NativeCatalogGovernanceTest`'s verified sets do not grow (CP-5) | no second vocabulary for upstream | today | today |
 | G7, the computed-operand count (ENGINE at 0) | A3 | 1.2 | 1.2 |
 | The per-audience lanes, each moving only toward its oracle | done-when 5 | 0.2, 0.3 | CP-9 |
 
@@ -766,14 +783,14 @@ Every guard ships with a planted violator it must catch. No guard depends on a c
 | Risk | What it would look like | How it is caught |
 |---|---|---|
 | **The translator grows into a second compiler** | it starts typing, evaluating or planning on its own | it reaches the core only through the public doors; it rewrites and refuses, never evaluates (3.2's guard); a case with no exact rewrite is refused by name, not approximated |
-| **A capability becomes a mode** | a native that means "switch the optimiser off for this subtree" | CP-5's tiers (no switch is built); one SQL node each; the no-product-caller rule; the pinned list |
+| **A second vocabulary creeps in** | a function that exists only for upstream, or one that means "switch the optimiser off for this subtree" | CP-5: none is built; the native catalog's verified sets do not grow without the user's word |
 | **An answer moves silently while a hook moves** | an upstream audience loses an answer it had | the net (0.2), the oracle, the per-audience lanes; each slice proves its lanes moved only toward their oracle, every move listed |
-| **SQL size** (G3) | a capability as a lowering tree (H3: 350 times the SQL) | one MIR node per capability; the lean-SQL baseline only shrinks; a 2-times ceiling per call in 3.6's check |
+| **SQL size** (G3) | a rewrite that expands into a large lowering tree (H3: 350 times the SQL for one print) | prints at the end are the formatter's, not SQL; the lean-SQL baseline only shrinks |
 | **legend-engine's database versions** | answers differ because legend-engine runs H2 2.1.214 LEGACY and DuckDB 1.3.0 | CP-8: one family of register rows, measured by the oracle on demand, not emulated |
 | **The corpus's SQL-text tests** | CP-4 turns many passes into "not promised" | 0.4 (b) counts them before 2.3 lands, and the number goes to the user |
 | **Host cost** | rows crossing into Java cost the tab about 5 µs a row (H4); the tab's module doubled since September | presenters ride the modules each host already loads; Arrow answers cross no rows (C2); module size reported per host slice |
 | **Rulings arrive late** | slices wait | phase 1 and 2.1-2.2 need only CP-1 and CP-7; the translator's skeleton (3.1, 3.2) needs only CP-1 |
-| **Collision with the previous orchestrator's tracks** | the judges (A5: Q3, Q3b, J1-J4) or Float literals (Q1, beside K5) change under a slice | §9: a message before either side builds |
+| **Collision with the previous orchestrator's tracks** | the judges (A5: Q3, Q3b, J1-J4) or Float literals (Q1, beside S20's literal) change under a slice | §9: a message before either side builds |
 | **Merge latency** | about 20 PRs each waiting for the user's word | slices grouped into about 12 PRs (§8); each PR summarised in plain words for the merge decision |
 
 ---
@@ -785,14 +802,14 @@ Every guard ships with a planted violator it must catch. No guard depends on a c
 | P, formatters | B1 (`session_0195rQEnAa5CYXHygAxEFh3Y`) | 0.2, 1.1-1.4 | weeks 1-3 |
 | H, hosts | new host session (xhigh) | 1.5-1.7 | weeks 2-4 |
 | J, judges | new judges session (xhigh) | 2.1, 2.2 (then 2.3 if B2 is busy) | weeks 1-2 |
-| A, translator | new translator session (xhigh); a second one from 3.3, so the rewrites (3.3, 3.4) and the capabilities and refusals (3.5-3.7) run in parallel | 3.1-3.8 | weeks 1-5 |
+| A, translator | new translator session (xhigh); a second one from 3.3, so the rewrites (3.3, 3.4) and the refusals and R1 decisions (3.5, 3.6) run in parallel | 3.1-3.7 | weeks 1-5 |
 | O, oracle | B1-R (`session_0195rQEkcevkNQ66fixkk4FF`) | 0.3, the batteries for phase 3, 5.1, 5.2 | weeks 1-6 |
 | G, guards and close-out | B2 (`session_0195rQEjuF2imym274M9Qvva`) | 0.4, 2.3, 4.1, 4.2; B3's items as they fall into slices | weeks 1-6 |
 | orchestration | this session | rulings, shape notes, reviews, PRs, the user | throughout |
 
 **The critical path:** phase 0 (about 2.5 days, its slices in parallel), then 3.1 and 3.2 (4.5), then the longer of
-the two translator lanes (3.3 + 3.4, 7.5; 3.5 + 3.6, 6.5), then 3.7 (0 to 4), then 4.1 and 4.2 (5). That is about
-20 to 24 session-days, so about 5 to 6 weeks of calendar time with lane rounds, reviews and merge waits.
+the two translator lanes (3.3 + 3.4, 7.5; 3.5 + 3.6, 3), then 4.1 and 4.2 (5). That is about
+19 session-days, so about 5 to 6 weeks of calendar time with lane rounds, reviews and merge waits.
 
 **B3** (the separation close-out, not started) is not a separate track. Its items fall into slices:
 - C1, C2 into 2.3;
@@ -816,7 +833,7 @@ the two translator lanes (3.3 + 3.4, 7.5; 3.5 + 3.6, 6.5), then 3.7 (0 to 4), th
 | 9 | 2.1 + 2.2 |
 | 10 | 2.3 |
 | 11 | 3.1 + 3.2 + 3.3 |
-| 12+ | 3.4-3.8 in two or three PRs; then 4.1 + 4.2; then 5.1 + 5.2 |
+| 12+ | 3.4-3.7 in two or three PRs; then 4.1 + 4.2; then 5.1 + 5.2 |
 
 Each PR:
 - runs CI on every OS;
@@ -833,7 +850,7 @@ There is no force push. A pin, a ceiling, a ledger or an allowlist moves only wi
 |---|---|---|
 | PR #121 (Q8, Q9, R11(b)) and R-a | Q9's Python error answers (1.6 builds on them); R-a's ENGINE answer (phase 3) | 1.6 starts after #121 merges; R-a's ruling relayed here |
 | A5, judge parity (Q3b fixed, J3 pending a pin, Q3's design) | 2.1 and 2.2 change the same judges | a message before 2.1's shape note; whoever lands second rebases |
-| Q1, Float literals and Decimal scale on five databases | K5 (`bareNumericLiteral`, S20) | K5's re-homing in 3.6 waits for Q1's shape |
+| Q1, Float literals and Decimal scale on five databases | S20's bare-DECIMAL literal, deleted in 3.6 | 3.6 waits for Q1's shape |
 | Q2, the warehouse binds | none | none |
 | main's CI | every PR here | a red `main` pauses this program's merges |
 
