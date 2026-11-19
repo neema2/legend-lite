@@ -511,7 +511,10 @@ error record the translator's refusals are worded through.
     (BOTH), so parity (G2) is proven in the product without PCT's database judge;
   - **a LITE-PCT lane:** PCT runs under LITE's rules with BOTH judges, with its own known-failure ledger (where LITE's
     exact rules differ from the S15/S131/S132 leniencies). G2's guard therefore stays on PCT (the independent review;
-    §12 I5). Its cost is measured in phase 0 by the judges session.
+    §12 I5). Measured (H6): about 75 s for channel B, plus channel A under LITE (129 s) as the relation tests' value
+    check. **Built by the product's judges track as its C3** (`session_0195rQEn49s2BEcy7BVaoAL4`, from H6's prototype
+    at `df5a1a37`), agreed with the product orchestrator 2026-11-19 ~11:21 UTC. So 2.1 ports the 30 remaining
+    combinations.
 - **Deletes:** nothing yet.
 - **Check:** core's isolated BOTH green on the ported shapes.
 - **Size:** 2.5 days. Measured by the judges session: none of the 36 is covered by core at `main`; 6 are judged by

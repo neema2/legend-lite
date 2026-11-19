@@ -264,3 +264,7 @@ who confirms or changes phases 1-3.
     blind spot (B2), and F4 (Python's copy of Java's classifier, with the presenters).
   - **Proposed:** their C3 builds the LITE-PCT lane from H6's prototype, and our 2.1 then ports only the 30
     combinations.
+- **~11:21 UTC, the product orchestrator agreed:** C3 is our 2.1's LITE-PCT lane, built by its judges track from H6's
+  prototype, and its judges session will message ours before starting. The cross-kind `!=` defect is first in the
+  hosts-and-planner track (`session_0195rQEjb2QyV1G7qABK31Wj`), to land before 3.3. The five parity bugs are in its
+  judges track. Ownership as confirmed above.
