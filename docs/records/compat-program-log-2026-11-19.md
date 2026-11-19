@@ -2385,3 +2385,23 @@ who confirms or changes phases 1-3.
   existing ones only shrink, an addition needs the user's word); `LiteSqlText.java` computes no value (it asks lite's
   dialect for the plan's SQL text) and the list shrinks net (four printers, about 3,000 lines, out; one 95-line file
   in). Recommended yes.
+- **~19:24 UTC, B1-R: H16, the engine-answer opt-in sized** (`compat-homework/H16-engine-answer-opt-in.md` at
+  `73a3331b8` on `claude/compat-a3-detector`; nothing built, no pin moved). **(1) The batteries:** with H5's typed
+  use-site rewrite and two DuckDB rules added (a negative length counts backwards; a String literal's negative start
+  through a literal twin), lite reproduces **every answer legend-engine gives: 46 of 46 on H2, 47 of 47 on DuckDB**
+  (Pure's core alone 16 and 10; today's lite 46 and 31); what remains are legend-engine's own refusals (the
+  3-argument `indexOf`; a list `indexOf` on H2 both sides fail). **(2) The corpus:** the rewrite equals the core flag on
+  answers (the gap is 4 SQL-text-only tests that A2 removes anyway and 1 host-side DuckDB test only the old meaning made
+  vacuous). **(3) Cost:** zero unless the setting is `engine` and the request is flagged; then about 1-2 ms for the
+  rewrite plus 5-7 ms for one more typing; the model with the library built once per (model, target) and held, 3.4-4.1
+  s on the corpus world (with no load-time report, the first such request waits for it; no fallback). **(4) Size on
+  the detector:** about 2 to 2.5 days: 300-350 lines of edge code, about 85 Pure lines of library as edge resources,
+  about 250 lines of tests, one funnel-register row, **no core hook**; refused by name under `engine` in its first
+  form: qualified properties, mapping transforms, databases other than DuckDB and H2. **(5) Rules:** holds rules 1-4
+  and tenets 1, 2, 5, 6, but it is a translator at the door that changes answers on purpose: it reverses D1's "Pure's
+  way, loud, no translator" and the final plan's §2 part 2 for requests that opt in, and fails tenet 3's test, so it
+  stops at the user (the note drafts the amendment). **Also settled by asking legend-engine:** a store-free
+  `'abcdef'->substring(1, 3)` in a `let` plans host-side (SQL `where region = 'bc'`), so it is not flagged; a literal
+  `substring` inside the routed lambda goes to SQL and is flagged. M2M transforms reach SQL only for a TDS query over a
+  chain; constraints are checked in Java except in the validation helpers; a Relation class mapping's expressions go
+  to SQL. The detector's guard moves named exactly: the getenv allowlist +1 and funnel-register rows.
