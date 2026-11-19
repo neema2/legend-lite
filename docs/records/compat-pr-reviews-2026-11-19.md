@@ -118,3 +118,57 @@ This run carries #123's head, so on completion it also covers the macOS lanes #1
    answer. Each is a pin move for the user's word, listed in A3's PR.
 3. **"Report-only" means the lane never fails on lite's own failures.** It does fail when a row's class moves. That is
    right, and the body should say it in those words.
+
+## PR #125: CI's Maven downloads fall through to Google's mirror, head `ca523848d`
+
+**Verdict: the code is APPROVED. CI is pending.** Run 44573295984 started at 17:05 UTC; "every 404 gone" is answered
+below once it completes.
+
+**What I checked myself:**
+
+1. **CI-only.** The diff is 3 files and 20 lines:
+   - `.bazelrc`: two `common:ci` lines;
+   - `tools/ci/downloader.cfg`: new;
+   - `tools/ci/BUILD.bazel`: `exports_files`.
+
+   The `ci` config is the gate jobs' own: `tools/ci/lane-flags.sh:16`, `flags=(--config=ci ...)`, used by every
+   `bazel build` and `bazel test` in `gates-run.yml`. `diagnostics.yml` and `engine-verdict.yml` pass `--config=ci` too.
+   A desk or cloud session without `--config=ci` is unchanged. No product code, pin, lock, `MODULE.bazel` entry or jar
+   version moves.
+
+2. **The sha256 checks are unchanged for every fetch.** The rewrite changes URLs only, and every fetch that names
+   `repo1.maven.org` carries a pin. Counted on the tree:
+   - `tools/deps/jars.bzl`'s `http_jar`s: all 16 entries of `jars_table.bzl` carry a `sha256`, passed as
+     `sha256 = jar.sha256`;
+   - the six rules_jvm_external pools (`maven_test`, `maven_tools`, `maven_teavm`, `maven_native`, `maven_upstream`,
+     `maven_runner`): every one has `lock_file` and `fail_if_repin_required = True`. Their lock files hold a sha256 for
+     every file: 22, 10, 29, 2, 402 and 619 files, 0 without;
+   - **one more the PR body does not name:** `tools/postgres/postgres.bzl` downloads the embedded Postgres binaries from
+     `repo1.maven.org` with an `integrity` pin per platform. The rule covers it too, safely.
+
+   No pool resolves unpinned in CI, so no Coursier fetch bypasses Bazel's downloader.
+
+3. **The rewrite touches only `repo1.maven.org/maven2`, with Central first.**
+   - Rule 1 is the identity and rule 2 is the mirror (`maven-central.storage-download.googleapis.com/maven2`). Matching
+     URLs try Central, then the mirror, in order.
+   - There is no `allow` or `block` directive, so every other host passes unchanged: the BCR, GitHub archives,
+     BuildBuddy.
+
+4. **Nothing can change what a build fetches beyond the URL.**
+   - A file from either host must match its pinned digest, or Bazel refuses it.
+   - The repository cache is keyed by that digest, so a mirror fetch fills the same cache entry.
+   - The proof in the body forced the first rule to a 404 path, and both an `http_jar` (h2 2.1.214, at its pinned
+     `d623cdc0...`) and a pool jar came from the mirror.
+   - A 429 is not forced. It takes the same next-URL path, and this PR's CI is the live check.
+
+**Nits (none blocks):**
+- `exports_files(["downloader.cfg"])` is public by default. `--downloader_config` reads the path directly and needs no
+  target. If a guard (`inventory`) needs the file owned, give it the package's narrow visibility
+  (`//tools/guards:__pkg__`).
+- `--experimental_repository_downloader_retries=3` is an experimental flag. Bazel 9.2 parses it, and this run proves it
+  on all three OSes.
+- The body's list of fetches should name `postgres.bzl` as covered.
+
+**The rules of record:** not engaged. This is CI configuration only, with no core hook, switch or mode.
+
+**CI: every 404 gone?** Pending run 44573295984. To be filled in when it completes.
