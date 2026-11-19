@@ -80,7 +80,11 @@ legend_java_library(
     # PctDisciplineTest is :pct_discipline's alone (a source scan with no PCT runtime)
     srcs = glob(
         ["src/test/java/**/*.java"],
-        exclude = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
+        exclude = [
+            "src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java",
+            # SPIKE (H11): :h11_relation_text_test's alone
+            "src/test/java/com/legend/edge/RelationTextSpikeTest.java",
+        ],
     ),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = [
@@ -158,6 +162,21 @@ junit_test(
     select = ["--select-class=org.finos.legend.lite.pct.PctDisciplineTest"],
     deps = [
         "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# SPIKE (H11, docs/records/compat-homework/H11-relation-text-spike.md; never proposed for merge as is): the Java
+# printer of legend-pure's relation texts over the cases PCT does not reach (EDGE-1, EDGE-2, EDGE-3 and more)
+junit_test(
+    name = "h11_relation_text_test",
+    memory_mb = 512,
+    size = "small",
+    srcs = ["src/test/java/com/legend/edge/RelationTextSpikeTest.java"],
+    select = ["--select-class=com.legend.edge.RelationTextSpikeTest"],
+    deps = [
+        "//core",
+        "//core:edge",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )

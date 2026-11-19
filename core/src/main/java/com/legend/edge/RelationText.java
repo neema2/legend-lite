@@ -82,6 +82,74 @@ final class RelationText {
         return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'";
     }
 
+    // ---- toCSV (legend-engine's helperFunctions.pure:198-250) and a TDS's csv ---------------------------------------
+
+    /** {@code meta::relational::tests::csv::toCSV(tds, renderTdsNull)} (helperFunctions.pure:208-212): the names, each
+     *  through the cell's escape, joined {@code ,} and a newline; then the rows, each its cells joined {@code ,},
+     *  {@code joinStrings('', '\n', '\n')}: a newline between rows and one after the last (no rows: the one). */
+    static String csv(List<Col> cols, List<? extends List<?>> rows, boolean renderTdsNull) {
+        return csv(cols, rows, renderTdsNull, ",", true);
+    }
+
+    /** A TDS's {@code csv} property (legend-pure's tds.pure:19) as the relational corpus's one golden spells it
+     *  (testEnumerationMapping.pure:162-166, {@code testEnumInRelation}): names joined {@code ", "}, an empty cell
+     *  {@code TDSNull}, the rows joined by a newline and none after the last. */
+    static String tdsCsvProperty(List<Col> cols, List<? extends List<?>> rows) {
+        return csv(cols, rows, true, ", ", false);
+    }
+
+    private static String csv(List<Col> cols, List<? extends List<?>> rows, boolean renderTdsNull, String headerSep,
+            boolean trailingNewline) {
+        StringBuilder b = new StringBuilder(64 + rows.size() * 32);
+        for (int i = 0; i < cols.size(); i++) {
+            b.append(i == 0 ? "" : headerSep).append(escapeCsv(cols.get(i).name()));
+        }
+        b.append('\n');
+        for (int r = 0; r < rows.size(); r++) {
+            List<?> row = rows.get(r);
+            if (row.size() != cols.size()) {
+                throw new IllegalArgumentException("a row of " + row.size() + " cells under " + cols.size() + " columns");
+            }
+            b.append(r == 0 ? "" : "\n");
+            for (int i = 0; i < cols.size(); i++) {
+                b.append(i == 0 ? "" : ",").append(csvCell(row.get(i), cols.get(i).type(), renderTdsNull));
+            }
+        }
+        return trailingNewline ? b.append('\n').toString() : b.toString();
+    }
+
+    /** A cell, legend-engine's {@code toCSVString} (helperFunctions.pure:229-243): an empty one nothing, or
+     *  {@code TDSNull} when asked; a date with a time of day ({@code hasHour}) as {@code %t{yyyy-MM-dd HH:mm:ss}},
+     *  escaped, one without as {@code %t{yyyy-MM-dd}}; anything else its {@code toString()}, escaped. */
+    static String csvCell(@com.legend.base.Nullable Object v, String type, boolean renderTdsNull) {
+        if (v == null) {
+            return renderTdsNull ? Presenter.TDS_NULL : "";
+        }
+        if (v instanceof PureDateLiteral d) {
+            if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR)) {
+                return d.canonicalText();
+            }
+            // SimpleDateTimeFormat (dateExtension.pure:384-387): seconds, a space for the T, no fraction, no zone
+            return escapeCsv(d.toNineDigits().substring(0, d.toNineDigits().length() - 10).replace('T', ' '));
+        }
+        return escapeCsv(value(v, type));
+    }
+
+    /** {@code escapeCSVString} (helperFunctions.pure:245-250): quoted when the text holds a comma, a quote, a line feed
+     *  or a carriage return, its quotes doubled. */
+    static String escapeCsv(String s) {
+        return s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")
+                ? "\"" + s.replace("\"", "\"\"") + "\"" : s;
+    }
+
+    // ---- format's %r of a String (legend-pure's toRepresentation.pure:43) -----------------------------------------
+
+    /** legend-pure's {@code toRepresentation} of a String: quoted, {@code \}, {@code '} and a NEWLINE escaped (the
+     *  audit's EDGE-3: the SQL form leaves the newline raw). */
+    static String representation(String s) {
+        return "'" + s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n") + "'";
+    }
+
     // ---- a value's toString, as legend-pure prints the value a TDS holds ----------------------------------------
 
     /**
