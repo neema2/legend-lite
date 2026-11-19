@@ -228,14 +228,17 @@ public final class PureMeaningCheck {
                 lets.put(let.name(), let.value());
             }
         }
-        // a host-side let bound to a lambda that store-bound code names is store-bound code too (to a fixpoint)
+        // a host-side let bound to a lambda that store-bound code names is store-bound code too (to a fixpoint). Only a
+        // let whose value IS a lambda: a let whose value is computed with one (['ax']->map(s|$s->indexOf('x'))) is a
+        // store-free value legend-engine computes on the host before the query, Pure's meaning (asked of 4.145.0, E-M1:
+        // `qty in (1, 1)` in its SQL)
         Set<String> walkedLets = new HashSet<>();
         boolean grew = true;
         while (grew) {
             grew = false;
             for (TypedSpec stmt : hostSide) {
                 if (stmt instanceof TypedLet let && w.named.contains(let.name()) && walkedLets.add(let.name())
-                        && holdsALambda(let.value())) {
+                        && let.value() instanceof TypedLambda) {
                     w.node(let.value(), features, "the query");
                     grew = true;
                 }
@@ -265,18 +268,6 @@ public final class PureMeaningCheck {
             }
         });
         return types.size() == 1 ? types.iterator().next() : null;
-    }
-
-    private static boolean holdsALambda(TypedSpec n) {
-        if (n instanceof TypedLambda) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (holdsALambda(c)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** One check's walk: what it met, and what it has already followed. */

@@ -365,6 +365,7 @@ answers under `engine` and `warn`.
 | a graphFetch, then `->toOne().desk->substring(1, 3)` | `Cre` | in the SQL |
 | a graphFetch tree reading a qualified property (`deskPart()`, a `substring`; `deskAt()`, an `indexOf`) | `Cre`, `3` | in the SQL |
 | `{\|let d = ...->toOne().desk; $d->substring(1, 3);}` | `re` | **on the host**, Pure's meaning |
+| `{\|let n = ['ax', 'bx']->map(s\|$s->indexOf('x')); ...->filter(r\|$r.qty->in($n))...}` | `qty in (1, 1)` in its SQL | **on the host**, Pure's meaning |
 | `serialize(...)->substring(...)`, a TDS `.rows->at(0).getString(...)` | refused | n/a |
 
 So every shape legend-engine answers past the store's result is computed in the database, which is what the `engine`
@@ -384,4 +385,17 @@ answered it with Pure's meaning, silently.
   reaches (added to the mapping reach).
 - A property it cannot find is `unverified`.
 - Test `aQualifiedPropertyAGraphFetchReadsIsFollowed`, with its partner. Plant P8 (the tree not walked) turns it red.
+
+**A second gap, from the reviewer's E-S1, fixed here.** The detector walked a let named by store-bound code whenever its
+value *held* a lambda anywhere. That includes a value computed with one, such as
+`let n = ['ax', 'bx']->map(s|$s->indexOf('x'))`.
+
+legend-engine computes such a store-free let on the host before the query, with Pure's meaning: its SQL reads
+`qty in (1, 1)`. The consequences of the old rule:
+- under `refuse`, an over-refusal;
+- under `engine`, if the value still held a lambda after inlining, the database's meaning where legend-engine gives
+  Pure's.
+
+The walk now takes a let only when its value IS a lambda. Test `aLetComputedWithALambdaIsHostSide_notStoreBound`,
+against `aLetBoundLambdaTheQueryNamesIsStoreBound`. Plant P9 (a computed let walked again) turns three tests red.
 
