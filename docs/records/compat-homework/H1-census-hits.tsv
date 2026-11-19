@@ -57,70 +57,70 @@ M1	NAME	python/legend_lite/_plans.py:29	relationalType	C21	P	edge-host
 M2	NAME	com/legend/sql/dialect/H2.java	ENGINE_LEXICON	C09	R0	target
 M2	NAME	com/legend/sql/dialect/H2.java	FREED_BY_THE_ENGINE	C09	R0	target
 M2	NAME	com/legend/sql/dialect/H2.java	freedByTheEngine	C09	R0	target
-M2	NAME	com/legend/database/PlanStyle.java	judgesEngineText	C03	P	-
-M2	NAME	com/legend/database/PlanStyle.java	judgesEngineText	C03	P	-
+M2	NAME	com/legend/database/PlanStyle.java	judgesEngineText	C03	J	COMPAT
+M2	NAME	com/legend/database/PlanStyle.java	judgesEngineText	C03	J	COMPAT
 M2	NAME	com/legend/planner/UpstreamPlans.java	UpstreamPlans	C12	P	export
 M2	NAME	com/legend/planner/UpstreamPlans.java	engineSeedSql	C12	P	export
 M2	NAME	com/legend/planner/UpstreamPlans.java	engineSeedSqlFromRecords	C12	P	export
-M2	NAME	com/legend/testplan/EngineTextGates.java	EngineTextGates	C03	P	-
-M2	NAME	com/legend/testplan/EngineTextGates.java	reachesUpstreamText	C03	P	-
+M2	NAME	com/legend/testplan/EngineTextGates.java	EngineTextGates	C03	J	COMPAT
+M2	NAME	com/legend/testplan/EngineTextGates.java	reachesUpstreamText	C03	J	COMPAT
 M2	NAME	com/legend/test/PureTests.java	excludedByEngine	C18	P	harness
 M2	NAME	com/legend/test/PureTests.java	engineSuiteOrder	C18	P	harness
-M3	ANSWER	com/legend/database/PlanStyle.java:117	PlanStyle#judgesEngineText()	C03	P	-
+M3	ANSWER	com/legend/database/PlanStyle.java:117	PlanStyle#judgesEngineText()	C03	J	COMPAT
 M3	UNUSED	com/legend/lowering/Styled.java:34	DateTimeTexts#dateTimeText(SqlExpr, String)	C22	R1	-
 M3	UNUSED	com/legend/lowering/ProductLoweringForms.java:91	LoweringForms#existsJoin(SqlSelect, ExistsSites)	C23	S	rep
 M3	ANSWER	com/legend/lowering/ProductLoweringForms.java:112	LoweringForms#unionFrame()	C06	S	rep
 M3	UNUSED	com/legend/lowering/ProductLoweringForms.java:32	LoweringForms#view(SqlSelect, Supplier, String)	C24	S	rep
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:89	VerdictWords#elementText(Type, SqlExpr, Styled)	C01	P	judge
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
-M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:82	VerdictWords#notInstanceOf(SqlExpr, boolean, String, String)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:89	VerdictWords#elementText(Type, SqlExpr, Styled)	C01	J	COMPAT
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:82	VerdictWords#notInstanceOf(SqlExpr, boolean, String, String)	C01	J	COMPAT
 M3	UNUSED	com/legend/lowering/ProductLoweringForms.java:128	WhereZones#merge(SqlExpr, SqlExpr, Stamp)	C25	S	rep
 M3	UNUSED	com/legend/result/CellText.java:70	CellText$Forms#structure(Object, String, Column)	C26	P	-
-M3	UNUSED	com/legend/testexec/LiteHostWords.java:222	HostWords#caught(RuntimeException, EdgeHearing)	C01	P	judge
-M3	UNUSED	com/legend/testexec/LiteHostWords.java:58	HostWords#cellMultisetDiffers(String, List, List, HostRules)	C01	P	judge
-M3	UNUSED	com/legend/testexec/LiteHostWords.java:58	HostWords#cellMultisetDiffers(String, List, List, HostRules)	C01	P	judge
-M3	UNUSED	com/legend/testexec/LiteHostWords.java:187	HostWords#jsonDiffers(String, String, boolean, String)	C01	P	judge
-M3	UNUSED	com/legend/testexec/LiteHostWords.java:64	HostWords#notEquivalent(Tabular, Tabular, double, String)	C01	P	judge
-M3	UNUSED	com/legend/testexec/LiteHostWords.java:151	HostWords#notInstanceOf(Object, String, String)	C01	P	judge
-M3	UNUSED	com/legend/testexec/LiteHostWords.java:39	HostWords#rowValuesDiffer(List, List, List, List, boolean)	C01	P	judge
-M3	UNUSED	com/legend/testexec/LiteHostWords.java:39	HostWords#rowValuesDiffer(List, List, List, List, boolean)	C01	P	judge
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:222	HostWords#caught(RuntimeException, EdgeHearing)	C01	J	COMPAT
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:58	HostWords#cellMultisetDiffers(String, List, List, HostRules)	C01	J	COMPAT
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:58	HostWords#cellMultisetDiffers(String, List, List, HostRules)	C01	J	COMPAT
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:187	HostWords#jsonDiffers(String, String, boolean, String)	C01	J	COMPAT
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:64	HostWords#notEquivalent(Tabular, Tabular, double, String)	C01	J	COMPAT
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:151	HostWords#notInstanceOf(Object, String, String)	C01	J	COMPAT
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:39	HostWords#rowValuesDiffer(List, List, List, List, boolean)	C01	J	COMPAT
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:39	HostWords#rowValuesDiffer(List, List, List, List, boolean)	C01	J	COMPAT
 M3	BRANCH	com/legend/sql/dialect/SQLite.java:1597	com.legend.sql.dialect.SQLite#call	C27	X	no-exact-rewrite
-M3	BRANCH	com/legend/compiler/spec/VerdictQueries.java:795	com.legend.compiler.spec.VerdictQueries#parseRendered	C01	P	judge
-M3	BRANCH	com/legend/compiler/spec/VerdictQueries.java:977	com.legend.compiler.spec.VerdictQueries#tdsCellText	C01	P	judge
+M3	BRANCH	com/legend/compiler/spec/VerdictQueries.java:795	com.legend.compiler.spec.VerdictQueries#parseRendered	C01	J	COMPAT
+M3	BRANCH	com/legend/compiler/spec/VerdictQueries.java:977	com.legend.compiler.spec.VerdictQueries#tdsCellText	C01	J	COMPAT
 M3	BRANCH	com/legend/lowering/Fold.java:1661	com.legend.lowering.Fold#tryProjectAll	C06	S	rep
 M3	BRANCH	com/legend/lowering/Lowerer.java:3028	com.legend.lowering.Lowerer#unionFrame	C06	S	rep
-M3	BRANCH	com/legend/lowering/VerdictSql.java:234	com.legend.lowering.VerdictSql#equality	C01	P	judge
-M3	BRANCH	com/legend/lowering/VerdictSql.java:343	com.legend.lowering.VerdictSql#gridRows	C01	P	judge
-M3	BRANCH	com/legend/lowering/VerdictSql.java:375	com.legend.lowering.VerdictSql#gridCells	C01	P	judge
-M3	BRANCH	com/legend/lowering/VerdictSql.java:574	com.legend.lowering.VerdictSql#contains	C01	P	judge
-M3	BRANCH	com/legend/lowering/VerdictSql.java:698	com.legend.lowering.VerdictSql#perElement	C01	P	judge
-M3	BRANCH	com/legend/lowering/VerdictSql.java:895	com.legend.lowering.VerdictSql#gridTolerance	C01	P	judge
-M3	BRANCH	com/legend/lowering/VerdictSql.java:1286	com.legend.lowering.VerdictSql#gridPair	C01	P	judge
-M3	BRANCH	com/legend/testexec/Equality.java:206	com.legend.testexec.Equality#same	C01	P	judge
-M3	BRANCH	com/legend/testexec/Equality.java:234	com.legend.testexec.Equality#ordered	C01	P	judge
-M3	BRANCH	com/legend/testexec/Equality.java:251	com.legend.testexec.Equality#contains	C01	P	judge
-M3	BRANCH	com/legend/testexec/HostJudgments.java:571	com.legend.testexec.HostJudgments#eqOf	C01	P	judge
-M3	BRANCH	com/legend/testexec/HostJudgments.java:890	com.legend.testexec.HostJudgments#renderedOf	C01	P	judge
-M3	BRANCH	com/legend/testexec/IsolatedRun.java:154	com.legend.testexec.IsolatedRun#difference	C28	P	judge
-M3	BRANCH	com/legend/testplan/AssertVerdicts.java:1872	com.legend.testplan.AssertVerdicts#textFirst	C01	P	judge
-M3	BRANCH	com/legend/testplan/DatabaseJudge.java:337	com.legend.testplan.DatabaseJudge#lite	C01	P	judge
-M3	BRANCH	com/legend/testplan/DatabaseJudge.java:367	com.legend.testplan.DatabaseJudge#crossNumberKinds	C01	P	judge
-M3	BRANCH	com/legend/testplan/EngineTextGates.java:26	com.legend.testplan.EngineTextGates#facet	C03	P	-
-M3	BRANCH	com/legend/testplan/EngineTextGates.java:94	com.legend.testplan.EngineTextGates#planningCall	C03	P	-
-M3	BRANCH	com/legend/testplan/EngineTextGates.java:101	com.legend.testplan.EngineTextGates#siteWords	C03	P	-
-M3	BRANCH	com/legend/testplan/EngineTextGates.java:107	com.legend.testplan.EngineTextGates#sizeWords	C03	P	-
-M3	REFUSED	com/legend/lowering/VerdictSql.java:701	VerdictNumbers#floatsWithin(SqlExpr, SqlExpr)	C01	P	judge
-M3	REFUSED	com/legend/lowering/VerdictSql.java:3067	VerdictNumbers#floatsWithin(SqlExpr, SqlExpr)	C01	P	judge
-M3	REFUSED	com/legend/testplan/EngineTextGates.java:26	PlanStyle#facet(Class)	C03	P	-
-M3	REFUSED	com/legend/testplan/EngineTextGates.java:94	PlanStyle#facet(Class)	C03	P	-
-M3	REFUSED	com/legend/testplan/EngineTextGates.java:101	PlanStyle#facet(Class)	C03	P	-
-M3	REFUSED	com/legend/testplan/EngineTextGates.java:107	PlanStyle#facet(Class)	C03	P	-
+M3	BRANCH	com/legend/lowering/VerdictSql.java:234	com.legend.lowering.VerdictSql#equality	C01	J	COMPAT
+M3	BRANCH	com/legend/lowering/VerdictSql.java:343	com.legend.lowering.VerdictSql#gridRows	C01	J	COMPAT
+M3	BRANCH	com/legend/lowering/VerdictSql.java:375	com.legend.lowering.VerdictSql#gridCells	C01	J	COMPAT
+M3	BRANCH	com/legend/lowering/VerdictSql.java:574	com.legend.lowering.VerdictSql#contains	C01	J	COMPAT
+M3	BRANCH	com/legend/lowering/VerdictSql.java:698	com.legend.lowering.VerdictSql#perElement	C01	J	COMPAT
+M3	BRANCH	com/legend/lowering/VerdictSql.java:895	com.legend.lowering.VerdictSql#gridTolerance	C01	J	COMPAT
+M3	BRANCH	com/legend/lowering/VerdictSql.java:1286	com.legend.lowering.VerdictSql#gridPair	C01	J	COMPAT
+M3	BRANCH	com/legend/testexec/Equality.java:206	com.legend.testexec.Equality#same	C01	J	COMPAT
+M3	BRANCH	com/legend/testexec/Equality.java:234	com.legend.testexec.Equality#ordered	C01	J	COMPAT
+M3	BRANCH	com/legend/testexec/Equality.java:251	com.legend.testexec.Equality#contains	C01	J	COMPAT
+M3	BRANCH	com/legend/testexec/HostJudgments.java:571	com.legend.testexec.HostJudgments#eqOf	C01	J	COMPAT
+M3	BRANCH	com/legend/testexec/HostJudgments.java:890	com.legend.testexec.HostJudgments#renderedOf	C01	J	COMPAT
+M3	BRANCH	com/legend/testexec/IsolatedRun.java:154	com.legend.testexec.IsolatedRun#difference	C28	J	LITE
+M3	BRANCH	com/legend/testplan/AssertVerdicts.java:1872	com.legend.testplan.AssertVerdicts#textFirst	C01	J	COMPAT
+M3	BRANCH	com/legend/testplan/DatabaseJudge.java:337	com.legend.testplan.DatabaseJudge#lite	C01	J	COMPAT
+M3	BRANCH	com/legend/testplan/DatabaseJudge.java:367	com.legend.testplan.DatabaseJudge#crossNumberKinds	C01	J	COMPAT
+M3	BRANCH	com/legend/testplan/EngineTextGates.java:26	com.legend.testplan.EngineTextGates#facet	C03	J	COMPAT
+M3	BRANCH	com/legend/testplan/EngineTextGates.java:94	com.legend.testplan.EngineTextGates#planningCall	C03	J	COMPAT
+M3	BRANCH	com/legend/testplan/EngineTextGates.java:101	com.legend.testplan.EngineTextGates#siteWords	C03	J	COMPAT
+M3	BRANCH	com/legend/testplan/EngineTextGates.java:107	com.legend.testplan.EngineTextGates#sizeWords	C03	J	COMPAT
+M3	REFUSED	com/legend/lowering/VerdictSql.java:701	VerdictNumbers#floatsWithin(SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	REFUSED	com/legend/lowering/VerdictSql.java:3067	VerdictNumbers#floatsWithin(SqlExpr, SqlExpr)	C01	J	COMPAT
+M3	REFUSED	com/legend/testplan/EngineTextGates.java:26	PlanStyle#facet(Class)	C03	J	COMPAT
+M3	REFUSED	com/legend/testplan/EngineTextGates.java:94	PlanStyle#facet(Class)	C03	J	COMPAT
+M3	REFUSED	com/legend/testplan/EngineTextGates.java:101	PlanStyle#facet(Class)	C03	J	COMPAT
+M3	REFUSED	com/legend/testplan/EngineTextGates.java:107	PlanStyle#facet(Class)	C03	J	COMPAT
 M3	EDGE_LIVE	com.legend.lowering.SubselectPrune:75	SubselectPrune#prune(SqlQuery, boolean, String)	C06	S	rep
 M3	EDGE_LIVE	com.legend.resolver.RelationalRootForm:45	RelationalRootForm#apply(List, ModelContext, String)	C29	S	rep
 M5	COMMENT	core/src/main/java/com/legend/lowering/Lowerer.java:3004	(engine model)	C06	S	rep
@@ -128,8 +128,8 @@ M5	COMMENT	core/src/main/java/com/legend/queries/SavedQueries.java:31	as the eng
 M5	COMMENT	core/src/main/java/com/legend/queries/SavedQueries.java:230	as legend-engine answers	C08	P	-
 M5	COMMENT	core/src/main/java/com/legend/sql/SqlSource.java:44	as upstream prints	C30	P	-
 M5	COMMENT	core/src/main/java/com/legend/sql/dialect/H2.java:35	replayed here reads as it did in the engine	C09	R0	target
-M5	COMMENT	core/src/main/java/com/legend/testplan/DatabaseJudge.java:230	as upstream writes	C01	P	judge
-M5	COMMENT	core/src/main/java/com/legend/testplan/TestPlanner.java:224	as upstream does	C01	P	judge
+M5	COMMENT	core/src/main/java/com/legend/testplan/DatabaseJudge.java:230	as upstream writes	C01	J	COMPAT
+M5	COMMENT	core/src/main/java/com/legend/testplan/TestPlanner.java:224	as upstream does	C01	J	COMPAT
 M6	EXPORT	engine-client/src/planned-sql.ts:28	fromPlan	C04	P	edge-host
 M6	EXPORT	engine-client/src/values.ts:112	timestampFromText	C04	P	edge-host
 M6	EXPORT	python/legend_lite/_home.py:100	locked	C07	S	placement
