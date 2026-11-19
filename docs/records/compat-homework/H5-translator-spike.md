@@ -120,7 +120,11 @@ legend-engine today and would stop matching, each with its ordinary-function rew
 
 Against PCT's expected values these are the other side of the same coin: the ENGINE lane's 6 plain-set rows move from
 FAIL to PASS when the plain set is off (H12), and PCT passes the two S20 cases either way. 3 more keep their status and
-change only their words (DuckDB `sqrt` and `<<`, pure/v1's divide by zero).
+change only their words (DuckDB `sqrt` and `<<`, pure/v1's divide by zero). B2's ENGINE-lane run (H8 §(j.1)-(j.3),
+`claude/census-b2` at `7082dd21f`; S20 and the plain set off together) agrees: 6 DuckDB error tests move from BOTH_FAIL
+to LITE_FIXES, no SAME test moves. One per-target fact it adds: on DuckDB, legend-engine answers a division by zero
+with null, while an UNCHECKED divide on lite's DuckDB 1.5.6 answers Infinity, so the plain set does not reproduce
+legend-engine there either; only a guard (`if($d == 0, |[], |...)`) does.
 
 **What it says:**
 - **Beyond `substring`/`indexOf`, no strand loses more than 2 corpus tests on a lane, and two strands WIN tests when
