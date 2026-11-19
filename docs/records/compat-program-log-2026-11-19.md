@@ -2301,3 +2301,16 @@ who confirms or changes phases 1-3.
   keeps one meaning; tenet 6 allows the door), to be measured against #124's 49 pinned batteries per database first.
   B2's takeover needs no planner flag: the legend-pure door hands the planner the program without its last
   `toString()` (or rewrites the assert side), lite's route hands it whole. Offered the door-rewrite measurement.
+- **~19:03 UTC, A3's honest status (the translator): none of its four pieces built yet**; today went to the spike, the
+  notes and the cross-kind homework. Estimates: piece 1 (the frontends' `sqlSubstring`/`sqlPosition`, 47 + 3 sites,
+  7 goldens) 1 to 1.5 days; piece 2 (the core switch, the raise, 9 pins, 63 PCT rows, 9 edge lines, the corpus lines,
+  the PCT adapter's option off) about 1.5 days; piece 3 (the detector on 5 routes and the load-time report) about 3
+  days; piece 4 (the differences page, the register rows, the rulebook amendment) 0.5 to 1 day. About 6 to 7 working
+  days in one session: stage A's critical path. **Split across idle sessions:** the translator pieces 1 then 2 (piece
+  2 on A2's pushed branch, not `main`); **B1-R piece 3** (the detector, branch `claude/compat-a3-detector` from A1's
+  branch, a shape note first, no core hook); **B2 piece 4** after A2's push (branch `claude/compat-a3-docs`, docs only).
+  With the split, A3 is about 3 days. The translator hands each its sections, spike commits and drafts. The user also
+  asked whether lite should offer legend-engine's answer for `indexOf`/`substring` to production users who depend on
+  it; answered with the measured options (the core flag 2,289 / 2,452; the typed door translator 2,285 / 2,447;
+  nothing 2,281 / 2,443) and why a flag in the core is the wrong place; offered an opt-in at the door after A3, sized
+  first.
