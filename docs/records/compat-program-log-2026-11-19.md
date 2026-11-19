@@ -2462,3 +2462,16 @@ who confirms or changes phases 1-3.
   and best on the corpus, but wrong for legend-engine's host-side constants and spread through every layer that
   touches `substring`); a simplification being measured by B1-R (swap each flagged call for A3's `sqlSubstring` /
   `sqlPosition`, the database's own functions, so no Pure library and no second model).
+- **~19:45 UTC, B1-R: the swap measured** (H16's addendum at `f981e9d8e`). A3 piece 1's natives lower to exactly
+  today's SQL (`sqlSubstring` is `SqlFn.SUBSTRING` with the arguments as given, `sqlPosition` is `SqlFn.STRPOS`), so
+  the pinned batteries already give the swap's result: **H2 all 46 of legend-engine's answers; DuckDB 31 of 47.** The 16
+  DuckDB misses are every start of 0 or below and every negative length: `sql/dialect/SubstringClamp` raises a start
+  below 1 to 1 in the DuckDB, Postgres, Snowflake, Trino, MariaDB, SQLite, BigQuery, Databricks and ClickHouse
+  dialects, and legend-engine sends DuckDB its SQL unclamped (e.g. `'Credit'->substring(0, 2)`: legend-engine `C`, the
+  swap `Cr`). `indexOf` exact everywhere. Exact on every database needs a SUBSTRING the dialects leave unclamped: a new
+  MIR variant (or a flag) only the edge's rewrite would produce, a core addition for the user (stopped there). The swap
+  removes the 85-line library and the extended model (the rewritten lambda types against the request's own held
+  model); user-function clones stay (one held rebuild per model and clone set) or such a request is refused by name in
+  the first form. New size about 1 to 1.5 days on the detector with `engine` on H2 alone; clones about half a day more.
+  Still a door rewrite, so still the user's amendment. The detector at `0896f7d39`, its gate, edge net and batteries
+  running.
