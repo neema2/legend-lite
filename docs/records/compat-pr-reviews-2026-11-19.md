@@ -1058,3 +1058,100 @@ the report". No result is recorded on the branch. Show:
 - `//core:core_edge_tests` with the 22, and later 25, tests green;
 - `PureV1EdgeGoldenTest` with its goldens untouched (shape note §4 item 15);
 - the batteries under `warn`.
+
+## Design review: the `engine` rewrite (`docs/records/compat-homework/A3-engine-rewrite-design.md`, `origin/claude/compat-a3-detector` at `1dcc4259`, B1-R; nothing built)
+
+**Verdict: APPROVED TO BUILD, WITH 1 MUST-FIX TO THE DESIGN (how the sites are matched) and 4 should-fixes.**
+
+The raw SUBSTRING is the right thing to do, in the user's ~20:05 sense, and the design follows the door-only switch
+rule. I see no shortcut the user would not want: every unmeasured or unreachable case is refused by name, not
+approximated.
+
+Checked against:
+- the rules of record, including the switch rule ruled ~20:35 ("only door switches... nothing in the core reads a
+  switch"), which I read in `compat-rules-of-record-2026-11-19.md`;
+- the user's ~20:05 ruling, read in the owner's log §1. Its words include "let's not take shortcuts on the rewrite part
+  just bc I asked, let's do the right design" and "raw substring only if it's the right thing to do";
+- legend-engine 4.145.0 at the pin.
+
+### What holds
+- **The operation is the right one.** `processSubstring` (`pureToSQLQuery.pure:4660-4665`, read) is
+  `processDynaFunction('substring', ...)` with Pure's arguments as given, unless `correctSubstringIndexing` is set.
+  Each extension writes the plain call, and I read every cited line:
+  - H2 `:262`;
+  - DuckDB `:277`;
+  - Postgres `:248`;
+  - Snowflake `:379`.
+
+  So legend-engine's answer is, by definition, the database's own SUBSTRING over those arguments. A native that hands
+  the database exactly that call keeps rule 1: the database computes it, and nothing imitates it.
+- **Both alternatives are rejected for the right reasons.** The Pure library imitates each database's SUBSTRING, which
+  tenet 4 forbids. The swap to piece 1's `sqlSubstring` passes through `SubstringClamp` (`GREATEST(start, 1)`, the
+  DuckDB execution clamp), and that clamp alters the answer: 16 misses on DuckDB, measured.
+- **The switch rule holds.**
+  - The setting is still read once, at `EdgeServer.UPSTREAM`.
+  - Under `engine` the door rewrites the typed program, after the detector and before the planner sees it.
+  - The core gains a function with its own meaning and reads no switch.
+  - The plan is lowered from the rewritten body and carries nothing about the rewrite.
+- **No shortcut:**
+  - `engine` is enabled per database from a measured fact (`ENGINE_FACTS` in `PureText`, beside the literal-0 table).
+    DuckDB is enabled only if its batteries reach 47 of 47 at build; otherwise it is refused by name.
+  - Every other database is refused by name.
+  - M2M chain transforms and `~func` mappings are refused by name. They are reached in phase H, after the body exists,
+    so a body rewrite cannot honestly reach them.
+  - Unverified sites, and a site left inside a call after inlining, are refused.
+- **The helpers are handled without clones and without a second model.** `UserCallInliner` is public and is the
+  product planner's own step. Calling it at the door and planning `withBody` was measured byte-identical on four
+  probes, and the planner's G½ then finds nothing to inline.
+- **No error can name the substitute.** The rewrite runs after typing, same arguments, same type. Under `engine`,
+  Pure's out-of-range raise (S383) is gone by design: the database answers, as legend-engine's does.
+
+### MUST-FIX (design)
+**D-M1. "Matched by position among the detector's sites" cannot meet the design's own plant.** The plant (§6) is "a
+user function called both host-side and store-side is rewritten at the store-side use only". Position matching cannot
+do that, for two reasons:
+- After `inlineBody`, every copy of a helper's call carries the helper's own source position. A host-side copy and a
+  store-side copy are indistinguishable by position.
+- The detector reports a helper's sites once: `Walk.followed` dedups by function and corrected state. So one site can
+  stand for several store-side copies.
+
+**Fix:** run the detector's walk on the inlined body, and rewrite exactly the nodes it flags, by identity. One walk
+then decides both what is flagged and what is rewritten, so they agree by construction. Assert that the rewrite count
+equals the flagged count, and refuse on a mismatch. The §6 plant then tests the real mechanism.
+
+### SHOULD-FIX
+**D-S1. The new native is the door's vocabulary, so name it that way.** No product frontend writes
+`substringAsGiven`; only the edge's `engine` rewrite produces it. That is not "ordinary product vocabulary". It is core
+vocabulary only the door reaches, which is what `EdgeOnlyDataTest` and `EdgeOnlyMembersTest` exist to name. Register it
+there as the door's, by the user's word. That is the honest form of "the core still computes it".
+
+Alternatively, legend-engine's `###Relational` dynaFunction `substring` on DuckDB is the same raw call. If piece 1's
+islands and dynaFunctions should be raw too, one native serves both and is truly product vocabulary. If piece 1 keeps
+the clamp (lite's uniform SQL meaning), two "SQL substrings" exist with different meanings, and each native's javadoc
+must say which is which. Settle that before B1 builds.
+
+**D-S2. Type the substitute as the typer would.** The replacement `TypedNativeCall`'s callee must be the registry's
+function for the native's `FunctionId`, with its declared signature, never a hand-assembled signature or `ExprType`.
+Invariant 1 says the frontend does all typing. Add this to the first-hour check beside the `UserCallInliner` one, and
+plant a wrong callee to show it is caught.
+
+**D-S3. H2 is cited on the wrong route.** legend-engine's H2 SELECTs go through its dialect translation
+(`relationalMappingExecution.pure:440-443`). There, `'substring'` is `functionCall('substring')`
+(`toPostgresModel.pure:418`) and `'indexOf'` is `functionCall('strpos')` (`:381`). The H2 extension's `:262`/`:231`
+are not on that route. This is the same correction as `firstDayOfWeek`. The conclusion does not change: it is the raw
+call with the arguments as given, and the batteries measured 46 of 46. Cite the route that runs.
+
+**D-S4. The native's part lists "the edge's three engine-style printers".** A2 deletes them, so on the merged batch
+there are none. Drop them.
+
+### Notes for the build
+- **The register and the page.** Under `engine` lite answers legend-engine's meaning, so no new difference row is
+  needed. But S130, S134 and S383 should name the `engine` value and what it does. The differences page's item 1 ("To
+  get legend-engine's answer") should name the operator's option beside the hand rewrite.
+- **The guard moves the design expects** are each for the user's word, with a dated note:
+  - `INTERNAL_DESUGAR` +1 (41 after piece 1);
+  - native-claims;
+  - the funnel register +1;
+  - the two new pins.
+
+  The `EdgeOnlyDataTest` census answer is D-S1's.
