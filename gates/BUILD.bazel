@@ -237,23 +237,28 @@ test_suite(
 )
 
 # PCT on DuckDB (gate 6): the five suites, one target each (P3-09). With them, per push (CP-9 of
-# docs/records/compat-program-plan-2026-11-19.md, RULED by the user 2026-11-19 ~10:45 UTC; H7): the ENGINE lane, PCT
-# channel A as legend-engine's audience on DuckDB's five suites and H2's relation suite, classified against
-# legend-engine's manifests and pinned; and the oracle's batteries' per-push half, lite's answers against
-# legend-engine's pinned ones (no legend-engine JVM)
+# docs/records/compat-program-plan-2026-11-19.md, RULED by the user 2026-11-19 ~10:45 UTC; H7): the ENGINE lane on
+# DuckDB, PCT channel A as legend-engine's audience on DuckDB's five suites, classified against legend-engine's
+# manifests and pinned; and the oracle's batteries' per-push half, lite's answers against legend-engine's pinned ones
+# (no legend-engine JVM)
 test_suite(
     name = "pct_duckdb",
     tests = [
         "//pct:batteries_test",
-        "//pct:engine_lane_test",
+        "//pct:engine_lane_duckdb_test",
         "//pct:pct_duckdb",
     ],
 )
 
-# PCT on H2 (gate 7)
+# PCT on H2 (gate 7). With it, per push (CP-9, as above; H7): the ENGINE lane on H2, its essential, relation and
+# standard suites (the essential and standard added by the compatibility program's owner, 2026-11-19), here beside H2's
+# own PCT rather than in pct_duckdb, whose job they would lengthen
 test_suite(
     name = "pct_h2",
-    tests = ["//pct:pct_h2"],
+    tests = [
+        "//pct:engine_lane_h2_test",
+        "//pct:pct_h2",
+    ],
 )
 
 # PCT on Postgres 16 (gate 7P): the five suites

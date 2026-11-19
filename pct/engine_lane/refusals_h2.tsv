@@ -1,0 +1,31 @@
+# legend-engine's planning refusals by database, from its manifests: by signature ("No SQL translation exists for the PURE function"), or by the words matched (REFUSES_OTHER); lite's outcome on those tests as legend-engine's audience (bazel run //pct:update_engine_lane)
+database	refusal	tests	lite_pass	lite_fail
+h2	REFUSES_OTHER: couldn't find dynafunction	86	46	40
+h2	REFUSES_OTHER: does not support	25	11	14
+h2	REFUSES_OTHER: ensure the target system understands	8	4	4
+h2	REFUSES_OTHER: is supported only	4	2	2
+h2	REFUSES_OTHER: isn't a literal	2	0	2
+h2	REFUSES_OTHER: no matched function in function registry	16	0	16
+h2	REFUSES_OTHER: not implemented	20	20	0
+h2	REFUSES_OTHER: not managed yet	3	1	2
+h2	REFUSES_OTHER: not supported	4	2	2
+h2	REFUSES_OTHER: only supports	1	1	0
+h2	add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	0	1
+h2	date_Integer_1__Date_1_	1	1	0
+h2	date_Integer_1__Integer_1__Date_1_	2	1	1
+h2	date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	1	1	0
+h2	date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	1	1	0
+h2	forAll_T_MANY__Function_1__Boolean_1_	3	0	3
+h2	format_String_1__Any_MANY__String_1_	11	6	5
+h2	hasDay_Date_1__Boolean_1_	1	1	0
+h2	hasHour_Date_1__Boolean_1_	1	1	0
+h2	hasMinute_Date_1__Boolean_1_	1	1	0
+h2	hasMonth_Date_1__Boolean_1_	1	1	0
+h2	hasSecond_Date_1__Boolean_1_	1	1	0
+h2	hasSubsecondWithAtLeastPrecision_Date_1__Integer_1__Boolean_1_	1	1	0
+h2	hasSubsecond_Date_1__Boolean_1_	1	1	0
+h2	indexOf_String_1__String_1__Integer_1__Integer_1_	1	0	1
+h2	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	2	2	0
+h2	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	4	1	3
+h2	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	4	0	4
+h2	zip_T_MANY__U_MANY__Pair_MANY_	6	6	0

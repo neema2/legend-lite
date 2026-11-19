@@ -76,10 +76,14 @@ public final class EngineLaneTable {
 
     /** legend-engine's planning refusals in other words than {@link #NO_SQL}'s, lower-cased, matched in this order
      *  (measured on DuckDB's and H2's manifests, 2026-11-19: 51 rows on DuckDB, 36 on H2's relation suite, each a
-     *  refusal by legend-engine's planner or its dialect before any SQL runs). */
+     *  refusal by legend-engine's planner or its dialect before any SQL runs). The last two added 2026-11-19 with H2's
+     *  essential and standard lanes (the compatibility program's owner's ruling): H2's dialect's "Ensure the target
+     *  system understands Year or Year-month semantic." (DuckDB's says "doesn't support YEAR and YEAR-MONTH") and the
+     *  SQL function registry's "No matched function in function registry for - max(...)", 24 rows, all read. */
     static final List<String> REFUSAL_WORDS = List.of("not supported", "does not support", "doesn't support",
             "unsupported", "not managed yet", "couldn't find dynafunction", "is supported only", "are only supported",
-            "only supports", "isn't supported", "not implemented", "isn't a literal", "no relational processor matched");
+            "only supports", "isn't supported", "not implemented", "isn't a literal", "no relational processor matched",
+            "ensure the target system understands", "no matched function in function registry");
 
     /** The class of a refusal in other words: the words it matched. */
     static final String REFUSES_OTHER = "REFUSES_OTHER: ";

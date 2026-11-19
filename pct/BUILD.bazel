@@ -877,10 +877,18 @@ test_suite(
 
 # THE ENGINE LANE (H7, slice 0.3 of docs/records/compat-program-plan-2026-11-19.md; report-only): PCT channel A as
 # legend-engine's audience (-Dpct.audience=engine: the pure/v1 route's style, no feature flag, as legend-engine's own
-# PCT adapters run a case), with no expected failures, on DuckDB's five suites and H2's relation suite; each test's
-# outcome by its full name (JUnitMain's -Dlegend.junit.outcomes.full). tools/enginelane joins them with legend-engine's
-# manifests into the lane's classification table, pinned below.
-_ENGINE_LANES = [("duckdb", "", s) for s in _SUITES] + [("h2", "h2", "Relation")]
+# PCT adapters run a case), with no expected failures, on DuckDB's five suites and H2's essential, relation and
+# standard suites (H2's two added 2026-11-19 by the compatibility program's owner: H2 is legend-engine's own primary
+# test database, and stage A's substring/indexOf move lands in those suites); each test's outcome by its full name
+# (JUnitMain's -Dlegend.junit.outcomes.full). tools/enginelane joins them with legend-engine's manifests into the lane's
+# classification table, pinned below, one pin and one test suite per database: //pct:engine_lane_duckdb_test in
+# //gates:pct_duckdb, //pct:engine_lane_h2_test in //gates:pct_h2.
+_ENGINE_LANE_DBS = {
+    "duckdb": _SUITES,
+    "h2": ["Essential", "Relation", "Standard"],
+}
+
+_ENGINE_LANES = [(db, "" if db == "duckdb" else db, s) for db in _ENGINE_LANE_DBS for s in _ENGINE_LANE_DBS[db]]
 
 [java_run(
     name = "engine_lane_%s_%s" % (lane, s.lower()),
@@ -941,42 +949,56 @@ _ENGINE_LANE_MANIFEST = {
     deps = ["//tools/engine-runner:enginelane"],
 ) for (lane, backend, s) in _ENGINE_LANES]
 
-_ENGINE_LANE_TABLES = ["engine_lane_table/%s_%s.tsv" % (lane, s.lower()) for (lane, backend, s) in _ENGINE_LANES]
+# per database: its lanes' tables, its counts and its refusals
+_ENGINE_LANE_TABLES = {
+    db: ["engine_lane_table/%s_%s.tsv" % (db, s.lower()) for s in _ENGINE_LANE_DBS[db]]
+    for db in _ENGINE_LANE_DBS
+}
 
-java_run(
-    name = "engine_lane_summary",
+[java_run(
+    name = "engine_lane_summary_" + db,
     testonly = True,
-    srcs = [":" + t for t in _ENGINE_LANE_TABLES],
+    srcs = [":" + t for t in _ENGINE_LANE_TABLES[db]],
     outs = [
-        "engine_lane_table/summary.tsv",
-        "engine_lane_table/refusals.tsv",
+        "engine_lane_table/summary_%s.tsv" % db,
+        "engine_lane_table/refusals_%s.tsv" % db,
     ],
     arguments = [
         "summary",
-        "--out={OUT_DIR}/summary.tsv",
-        "--refusals-out={OUT_DIR}/refusals.tsv",
-    ] + ["$(execpath :%s)" % t for t in _ENGINE_LANE_TABLES],
+        "--out={OUT_DIR}/summary_%s.tsv" % db,
+        "--refusals-out={OUT_DIR}/refusals_%s.tsv" % db,
+    ] + ["$(execpath :%s)" % t for t in _ENGINE_LANE_TABLES[db]],
     main_class = "com.legend.tools.enginelane.EngineLaneTable",
     mnemonic = "EngineLaneTable",
     deps = ["//tools/engine-runner:enginelane"],
-)
+) for db in _ENGINE_LANE_DBS]
 
 # THE PIN (report-only: it moves when a class moves, toward legend-engine's manifest or away from it, and the commit
-# says which): bazel run //pct:update_engine_lane
-write_source_files(
-    name = "update_engine_lane",
+# says which), one per database, so each gate job builds its own database's lanes alone: bazel run
+# //pct:update_engine_lane (both)
+[write_source_files(
+    name = "update_engine_lane_" + db,
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe ENGINE lane moved (PCT channel A as legend-engine's audience, classified against legend-engine's manifests; H7, slice 0.3): in the diff, < is this tree (generated) and > the pin; a move is a fact to report -- bazel run //pct:update_engine_lane, and say in the commit which way each row moved",
     files = {
         "engine_lane/%s" % t.split("/")[-1]: ":" + t
-        for t in _ENGINE_LANE_TABLES + ["engine_lane_table/summary.tsv", "engine_lane_table/refusals.tsv"]
+        for t in _ENGINE_LANE_TABLES[db] + [
+            "engine_lane_table/summary_%s.tsv" % db,
+            "engine_lane_table/refusals_%s.tsv" % db,
+        ]
     },
+) for db in _ENGINE_LANE_DBS]
+
+write_source_files(
+    name = "update_engine_lane",
+    testonly = True,
+    additional_update_targets = [":update_engine_lane_" + db for db in _ENGINE_LANE_DBS],
 )
 
-test_suite(
-    name = "engine_lane_test",
-    tests = [":update_engine_lane_tests"],
-)
+[test_suite(
+    name = "engine_lane_%s_test" % db,
+    tests = [":update_engine_lane_%s_tests" % db],
+) for db in _ENGINE_LANE_DBS]
 
 # THE BATTERIES' PER-PUSH HALF (H7; CP-9 of docs/records/compat-program-plan-2026-11-19.md): each battery answered by
 # lite as legend-engine's audience (pure/v1's execute route as the edge ships it), compared with legend-engine's pinned

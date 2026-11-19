@@ -32,7 +32,3 @@ duckdb	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	2	2	0
 duckdb	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	4	4	0
 duckdb	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	4	2	2
 duckdb	zip_T_MANY__U_MANY__Pair_MANY_	6	6	0
-h2	REFUSES_OTHER: couldn't find dynafunction	11	3	8
-h2	REFUSES_OTHER: does not support	4	4	0
-h2	REFUSES_OTHER: not implemented	20	20	0
-h2	REFUSES_OTHER: not supported	1	1	0

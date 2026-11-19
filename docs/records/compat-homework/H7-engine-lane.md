@@ -72,9 +72,42 @@ on H2.** The 11 DuckDB refusals lite fails:
   - `match::testMatchWithMixedReturnType`, which lite refuses too;
   - `toString::testComplexClassToString`, a wrong answer.
 
-The 8 on H2 are the variant-array functions legend-engine finds no DynaFunction for (`testVariantArrayColumn_joinStrings`,
+The 8 on H2's relation suite are the variant-array functions legend-engine finds no DynaFunction for (`testVariantArrayColumn_joinStrings`,
 `_reverse`, `_sort`, `testVariantColumn_contains`, `_distinct_removeDuplicates`, `_indexOf`, `_slice`,
 `testVariantMapColumn_keys_LateralFlatten`). lite refuses them too: "reached a dialect without a list encoding".
+
+**H2, the essential and standard suites** (added 2026-11-19 by the compatibility program's owner: H2 is legend-engine's
+own primary test database, and stage A's substring/indexOf move lands in these suites' functions):
+
+| | essential (345) | standard (205) |
+|---|---|---|
+| legend-engine passes (the manifest's expectation) | 131 | 134 |
+| legend-engine's planning refuses | 139: 44 "No SQL translation", 95 in other words | 38, all in other words |
+| legend-engine fails by its own defect | 75 | 33 |
+| lite passes | 252 | 113 |
+| SAME | 125 | 107 |
+| LITE_ANSWERS | 85 | 0 |
+| LITE_FIXES | 42 | 6 |
+| BOTH_FAIL | 87 | 65 |
+| **LITE_BEHIND** | **6** | **27** |
+
+Two refusal phrases were added to the listed words with these lanes, each read in all its rows: H2's dialect's "Ensure
+the target system understands Year or Year-month semantic." (8 rows; DuckDB's dialect says "doesn't support YEAR and
+YEAR-MONTH") and the SQL function registry's "No matched function in function registry for - max(...)" (16). With
+them no message of the eight lanes is unclassified, and no DuckDB or battery row moved.
+
+**The 33 LITE_BEHIND rows** (legend-engine's H2 manifest lists none, so it is expected to pass; lite fails each). Every
+one is a gap in lite's H2 dialect, and none is a wrong answer to a question lite plans:
+- standard, 27, lite's own refusals:
+  - `greatest` 7, `least` 7, `mode` 2 (Float, Integer), `max`/`min` of dates 2: "LIST_MAX / LIST_MIN / LIST_MODE /
+    LIST_POSITION reached a dialect without a list encoding";
+  - `bitAnd` 2, `bitOr` 2, `bitXor` 2, `bitShiftRight_UpTo62Bits`: "BIT_* reached a dialect without bit-op support";
+  - `bitNot` 2: "bitNot reached H2, which has no xor()";
+- essential, 6:
+  - `testSplit`, `testSplitWithNoSplit`, `testExistsInSelect`: "UNNEST reached a dialect without an unnest placement";
+  - `testCubeRoot`, `testReverseString`: lite's H2 SQL names `CBRT` and `REVERSE`, which H2 2.5.252 does not have
+    ("Function ... not found"); legend-engine runs its own patched 2.1.214;
+  - `testBigFloatAbs`: register S120, as on DuckDB.
 
 **The oracle sample:** 11 of 11 DuckDB rows and 10 of 10 H2 rows agree with the manifest's claim when asked of
 legend-engine itself (§2).
@@ -94,8 +127,13 @@ legend-engine itself (§2).
   handed the run). After the last case, `Test_LegendLite_Engine_PCT.AudienceCheck` asserts every case was planned as
   legend-engine's audience, and at least one. Its line is in the lane's outcomes like a case's, and the table refuses a
   lane whose check is missing or failed. All six lanes' checks pass.
-- Six build actions, `//pct:engine_lane_<db>_<suite>`: DuckDB's five suites and H2's relation suite. They follow the
-  edge golden net's pattern (`JUnitAction`: a failing test is a recorded fact, not a build error).
+- Eight build actions, `//pct:engine_lane_<db>_<suite>`: DuckDB's five suites, and H2's essential, relation and
+  standard suites. They follow the edge golden net's pattern (`JUnitAction`: a failing test is a recorded fact, not a
+  build error).
+- **Placement.** The DuckDB lanes and their pins are `//pct:engine_lane_duckdb_test`, in `//gates:pct_duckdb`; the
+  H2 lanes and theirs are `//pct:engine_lane_h2_test`, in `//gates:pct_h2`, beside H2's own PCT, so each gate job
+  builds its own database's lanes alone (the owner's ruling: `pct_duckdb` was 9.9 minutes on CI's first run, `pct_h2`
+  5.6). `bazel run //pct:update_engine_lane` re-pins both.
 
 **Each outcome by its full name.**
 - `JUnitMain` gains `-Dlegend.junit.outcomes.full`: one line per test, keyed by its parent's display name and its
@@ -128,12 +166,12 @@ legend-engine's manifest for the same database and suite, with the manifest's te
 
 **The pin.**
 - `pct/engine_lane/` holds:
-  - the six tables (`<db>_<suite>.tsv`, one line per test);
-  - the counts (`summary.tsv`);
+  - the eight tables (`<db>_<suite>.tsv`, one line per test);
+  - the counts, per database (`summary_<db>.tsv`);
   - legend-engine's planning refusals by database, by signature or by the words matched, with lite's outcome on each
-    (`refusals.tsv`, the E-R1 table, now a classification under E-R2).
-- Regenerate them with `bazel run //pct:update_engine_lane`; check them with `bazel test //pct:engine_lane_test`
-  (8 diff tests).
+    (`refusals_<db>.tsv`, the E-R1 table, now a classification under E-R2).
+- Regenerate them with `bazel run //pct:update_engine_lane`; check them with `bazel test //pct:engine_lane_duckdb_test
+  //pct:engine_lane_h2_test` (7 and 5 diff tests).
 - The pins sit outside `pct/src/test/resources` on purpose. That directory is the PCT library's resources, and a pin
   inside it would make every re-pin rerun the lanes themselves (measured: 3m20s).
 
@@ -272,7 +310,7 @@ one job at a time. These are action times, not test times.
 
 | target | when | its own time | what it pulls |
 |---|---|---|---|
-| `//pct:engine_lane_test`, the pinned compare | per push | 8 diff tests, about 0.1 s each | the 6 lane actions (272.7 s serial) and the 7 table actions (under 1 s), when their inputs move |
+| `//pct:engine_lane_duckdb_test` and `//pct:engine_lane_h2_test`, the pinned compare | per push, in `pct_duckdb` and `pct_h2` | 7 and 5 diff tests, about 0.1 s each | their database's lane actions (DuckDB's five 213.3 s serial, H2 relation 59.5 s; H2 essential and standard first measured on CI, below) and table actions (under 1 s), when their inputs move |
 | `bazel run //pct:update_engine_lane`, the update | by hand, on a re-pin | 4.3 s with its actions cached (copying 8 files) | the same actions |
 | `//pct:batteries_test` | per push | 2 diff tests, about 0.1 s each | 8 s of actions: `lite_battery_seed`, `lite_battery_model`, `battery_lite_{h2,duckdb}`, `battery_compare_{h2,duckdb}` |
 | `bazel run //pct:update_batteries` | by hand | 1.5 s cached | the same |
@@ -291,6 +329,8 @@ The ENGINE lane is about half that: it runs the same PCT suites once more, under
     (`memory_mb = 4096`, as the edge net's lanes do).
   - So on a 16 GB Linux runner, about 3 at once: roughly 1.5-2 minutes. On CI's 7 GB macOS runner, one at a time:
     the full 4.5 minutes.
+- **H2's essential and standard lanes** (added after these measurements) are two more actions, in `pct_h2`'s job, not
+  `pct_duckdb`'s; here they took 55 s of wall time run side by side (the action times on CI are in the PR's report).
 - **The lever:** the lane's live heap peak is 1.6-1.8 GB per suite (each run's log), so `memory_mb = 2560` would let
   more run at once. Not changed here: it is the user's per-push budget to rule (CP-9), and the edge net's lanes hold
   4096 too.
@@ -325,6 +365,14 @@ The 2 that check less than a value are the only places where lite could answer s
 
 Checking them needs lite's answer beside legend-pure's own. That was not done here.
 
+**The lane's limits** (B2's probe on this lane, H8 section (j) on `claude/census-b2` at `7082dd21f`):
+- The verdict reads PCT's assert, not the answer's exact value, so a tolerant assert hides a moved answer: switching
+  off S20's bare DECIMAL moves `testFloatPlus` from 1.7 to 1.7000000000000002 and `testFloatTimes` from 2.1 to its
+  double, and both stay SAME. Only the edge net's recorded answers show such a move.
+- The oracle's pure/v1 answers differ by database: on H2 `raise.divideByZero` answers 500 and `raise.sqrtOfNegative`
+  null; on DuckDB the other way round (and DuckDB 1.5.6, lite's, answers the unchecked divide with Infinity). The
+  batteries pin each database's answers separately, so nothing mixes them.
+
 ## 6. The local gate, and what it caught
 
 **The result:** `bazel test --lockfile_mode=error //gates:local` at the final code gives 558 passed, 12 failed and 1
@@ -354,8 +402,8 @@ skipped.
 | `tools/engine-runner/src/main/java/com/legend/tools/enginelane/Batteries.java` | the batteries' answer form, comparison, the file check, the seed and the model's connection swap |
 | `tools/engine-runner/src/main/java/planoracle/SeedDuckDbMain.java` | `--statements-out`: the seed statements legend-engine's parser read, for the per-push half |
 | `pct/src/test/java/org/finos/legend/lite/pct/batteries/LiteBatteries.java` | the batteries' per-push half: lite's answers through pure/v1's route; its own library, `//pct:pct_batteries`, so no lane's classpath holds the oracle's tooling |
-| `pct/BUILD.bazel`, `tools/engine-runner/BUILD.bazel` | the actions, the pins, `//pct:engine_lane_test`, `//pct:batteries_test`, `//tools/engine-runner:batteries_oracle_test` |
-| `gates/BUILD.bazel` | the two per-push checks in `pct_duckdb`; the heavy half in `heavy` |
+| `pct/BUILD.bazel`, `tools/engine-runner/BUILD.bazel` | the actions, the pins, `//pct:engine_lane_duckdb_test`, `//pct:engine_lane_h2_test`, `//pct:batteries_test`, `//tools/engine-runner:batteries_oracle_test` |
+| `gates/BUILD.bazel` | the DuckDB lane and the batteries in `pct_duckdb`, the H2 lane in `pct_h2`; the heavy half in `heavy` |
 | `tools/deps/jars_table.bzl` | `tools/engine-runner` as a `duckdb_jdbc` user (CP-9, the user's ruling, dated) |
 | `core/BUILD.bazel` | the trades model's export gains `//pct` (its own `exports_files` block): a Bazel visibility, not a guard file |
 | `pct/engine_lane/`, `pct/batteries/`, `tools/engine-runner/src/test/resources/batteries/` | the pins |
