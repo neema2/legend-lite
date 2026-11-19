@@ -455,6 +455,14 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
 - **Size:** 1.5 days.
 - **Depends on:** nothing (it is right under either R4 answer). **Owner:** the translator session (new).
 
+**The translator's rule, in order** (for each place where upstream's meaning differs from lite's):
+1. **the same meaning:** the code passes through untouched (most code);
+2. **a different meaning that lite's ordinary functions can compute:** the code is rewritten to compute upstream's
+   answer (R0), for the target database;
+3. **upstream itself refuses it:** refused, in upstream's words (E-R1);
+4. **otherwise:** lite gives Pure's answer and records it as a register row, or refuses by name where Pure's answer
+   would mislead.
+
 **3.2 The translator's skeleton: model-level and target-aware.**
 - **Changes:**
   - **one translator per upstream audience** at the edge's doors: pure/v1, the corpus, PCT channel A (ENGINE and
@@ -538,9 +546,11 @@ user's question "is this a sneaky way to have two sql paths").
 - **Changes:** the translator uses only functions every lite user has. H1's 24 R1 rows are re-classed in three ways:
   - a print at the end of a query is the presenter's (P), in Java after the run. This covers PCT's `toString` and
     `format` tests (H2: 84 of PCT essential's 95 query-side sites return the text as it is);
-  - legend-engine computing differently from Pure's own definition is answered Pure's way, as a register row (E-R1's
-    defect rule, CP-3). Examples: Float arithmetic as exact decimals on H2 and DuckDB (S9, S20), and unchecked
-    `sqrt` or `divide` answering null (D08);
+  - where lite's ordinary functions can compute legend-engine's answer, it is an R0 rewrite, per target. For
+    example, legend-engine's unchecked `sqrt` of a negative answers null on H2: `if($x < 0, |[], |sqrt($x))` (D08,
+    K6's cases, one by one);
+  - where they cannot, lite answers Pure's way, as a register row (E-R1's defect rule, CP-3). Example: Float
+    arithmetic as exact decimals on H2 and DuckDB (S9, S20);
   - text built inside a query and then used, over a type whose text differs, is refused by name (X). H2 counted 0
     such sites over Float, Decimal or dates in PCT and the corpus.
 - **Deletes:** the special-purpose machinery these rows have today:
@@ -707,8 +717,9 @@ words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to
   - **For:** one vocabulary and one SQL path, with nothing in the core that exists only for upstream. H2 says real
     upstream programs essentially never need these: 0 sites print a Float, Decimal or date and then compute with the
     text. The demand came from PCT's unit tests, which the formatter covers.
-  - **Against:** a few legend-engine quirks are not matched (Float arithmetic as exact decimals on H2 and DuckDB;
-    `sqrt(-2.0)` answering null where lite raises), each a register row. S20's bare-DECIMAL literal (built
+  - **Against:** the quirks that ordinary functions cannot reproduce are not matched (Float arithmetic as exact
+    decimals on H2 and DuckDB), each a register row. Many others can be (`sqrt(-2.0)` answering null is
+    `if($x < 0, |[], |sqrt($x))`). S20's bare-DECIMAL literal (built
     2026-11-17) is deleted.
 - **Option B, a short pinned list.** Each special function is one SQL node and one meaning, called only by the
   translator, approved one by one.
