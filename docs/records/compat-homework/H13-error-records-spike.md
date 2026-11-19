@@ -7,7 +7,7 @@ after the run; upstream words never enter a plan. It is a measuring instrument. 
 - **Branch:** `claude/compat-error-records-spike`, from `main` `b75d6c73a`.
 - **Session:** `session_0195rQEoAgK9WB7AM5Cowp2f`. **Orchestrator:** `session_0195rQEoSpv1FxC3WndEk5ZH`.
 - **Rules kept:** no PR, no force push, `main` untouched. No golden, ceiling, ledger or allowlist is moved by this
-  session (section 9 says exactly which guard files the branch differs in, and why).
+  session (section 19 says exactly which guard files the real slice would move, and why).
 - **Order:** findings are appended as they are found. The newest is last.
 
 ## 1. The base: B1's S1 applies to `main` almost cleanly
@@ -101,7 +101,8 @@ after the run; upstream words never enter a plan. It is a measuring instrument. 
   for every raise the edge words at planning (its words sit in a `siteWords` table beside the plan that no host
   reads). On `main` only the computed-operand raises say legend-pure's words on a host, because their sentence is
   in the SQL. After this slice every raise on a host's ENGINE route says lite's sentence, until slice 1.6 moves the
-  ENGINE error half into Java. Java's own pure/v1 route is not affected.
+  ENGINE error half into Java. Java's own pure/v1 route is not affected. **(Corrected in section 17: it is, for every
+  site whose operands were literals, already on `main`.)**
 
 **Would lite's own sentence leaving the plan later (slice 1.6, plan v60) break anything?** Yes, in a small, known
 set of places, all of which that slice must change together:
@@ -778,3 +779,92 @@ its kind's bare name. Measured:
 legend-engine's words (`HelperRelationalBuilder.getDatabase`)", `TableReferenceChecker.java:112-115`), but legend-engine
 4.145.0 answers `The store 'nope::DB' can't be found.` (`COMPILATION`, with a `sourceInformation`): the edge's own
 `MISSING_STORE` sentence. The kind chosen at that site does not match what legend-engine says there.
+
+## 18. Lite's own plan and SQL, re-measured with this session's changes (section 10's gauge)
+
+`//core:update_lean_sql_baseline` run locally over the spike's head (the regenerated `baseline.tsv` compared with
+`main`'s and restored, never committed):
+
+| Measure | `main` | Section 10 | Now | Change from `main` |
+|---|---|---|---|---|
+| SQL characters, 3,777 keys | 14,200,461 | 14,200,461 | 14,198,781 | **-1,680** |
+| plan JSON characters | 147,464,602 | 147,555,033 | 147,512,654 | **+48,052 (+0.033%)** |
+| keys whose plan JSON moved | | 281 | 281: 214 grew, 67 shrank | |
+
+- **The plan JSON grows less than in section 10** (+48,052 against +90,431): the families whose operand became a literal
+  shrink (`collection::at` -24,142, `math::sqrt` -6,637, `date::hour` -1,507, `minute` and `second` -1,485 each,
+  `dayOfMonth` -1,419), since `{"computed":true}` is replaced by a literal and, for `at`, a subselect goes (next point).
+- **Lite's SQL SHRINKS, in one family only:** `collection::at`, 11 keys (10 databases' channel A and core's DuckDB),
+  -144 to -168 characters and one subselect fewer per case (3 fewer per key), the 3 cases being PCT's
+  `testAtOtherScenario` (`$collection->map(x | $x + 'z')->at(i)`). One of them rendered on `main` and on the spike (a
+  scratch probe, removed):
+
+  ```
+  main:  SELECT CASE WHEN 1 >= __lets.__l0 OR 1 < 0 THEN error(...'LG#1'...) ELSE list_extract(..., 2) END AS value
+         FROM (SELECT len(list_filter(list_transform(['a', 'b', 'c'], x -> concat(x, 'z')), x -> x IS NOT NULL)) AS __l0) AS __lets
+  spike: SELECT CASE WHEN 1 >= len(list_filter(list_transform(['a', 'b', 'c'], ...), x -> x IS NOT NULL)) OR 1 < 0
+         THEN error(...'LG#1'...) ELSE list_extract(..., 2) END AS value
+  ```
+
+  On `main` the count was read twice, by the guard and by the raise's operand, so the let binding (`LetBinding`, E3)
+  computed it once in a `__lets` subselect. **The second read was the message's operand, a value lite's product never
+  prints.** With the size stated from the multiplicity, the count is read once and stays inline.
+- **So the amended done-when holds, and better:** lite's plan changes only by the sites' operands; its SQL does not grow
+  anywhere and shrinks where a raise's unprinted operand had shaped it.
+
+## 19. The guarded files the real slice would touch (task 6)
+
+**Measured** (section 13's run and the ratchets, `//pct:ratchets`, run here) **or read**, beyond what S1
+(`70592a5bb`) already carries with its own reasons (`ArchitectureTest`, `HookLambdasTest`, `HookRulingTest`,
+`JavaEvalLedgerTest`, `OpenClassMembersTest`, `PlanStyleSurfaceTest`, `PlanTypesAreDataTest`, `ServiceLoaderSitesTest`,
+`PlanJson.VERSION` 58 to 59 and the hosts' `PLAN_VERSION`, `TestPlanJson.VERSION` 32 to 33):
+
+| File | Moves how | The dated reason it would carry |
+|---|---|---|
+| `core/src/test/java/com/legend/PlanStyleSurfaceTest.java` | `errorWords` leaves the pinned surface (3 tests) | "`PlanStyle.errorWords` deleted (B1, slice 1.2): a planned failure is worded after the run from its record (H13 §8), the user's CP-7 of 2026-11-19" |
+| `core/src/test/java/com/legend/EdgeOnlyDataTest.java` | 8 pieces ruled "by the edge": `ExecutionPlan.Site#operands` and the 7 operand values | "CP-7's one ruled row (the user, 2026-11-19 ~12:10): a site's literal operands are the formatters' data; lite's own sentence reads the kind and the where" |
+| `core/src/test/java/com/legend/EdgeOnlyMembersTest.java` | pin `Failures$Planned#compile()`; delete the pins of `RaisedErrors$Raised#statement()` and `PlanJson#sitesOf(ExecutionPlan, String)`; S1's codec overloads `PlanJson#write(plan, codec)` and `sitesOf(plan, statement, codec)` are DELETED, not pinned | "B1: the planning-failure record is the presenter's input (H13 §8); the codec overloads have no use once the operands are product data (H13 §4)" |
+| `core/src/test/java/com/legend/PlatformNamesGuardrailTest.java` | the bare-name switch ceiling (188): **no move if** `PlanJson`'s operand reader is a table keyed by `Operand`'s JSON key rather than an 8-arm switch; else +8 | if moved: "B1: the operand's one-key JSON (H13 §2), 8 kinds" |
+| `core/src/test/java/com/legend/CodeShapeGuardrailTest.java` | **no move**: `Operand.COMPUTED` becomes the `Computed` record's own singleton (not an interface field), and `Operand.LOOSE` (the spike's measuring switch) goes | |
+| `core/src/test/resources/lean-sql/baseline.tsv` (`LeanSqlBaselineTest`, shrink-only, G3) | re-recorded: 214 keys' plan JSON grows (+84,727 chars over those keys), 67 shrink, SQL -1,680 (section 18) | "the orchestrator's amended done-when of 2026-11-19 ~13:10 UTC: the product plan's JSON changes only by the sites' operands; SQL shrinks" |
+| `pct/src/test/resources/org/finos/legend/lite/pct/channelb/ratchets.tsv` (exact pins, gate 9) | 6 values in 3 suites (measured): essential `judge.chars` 1,717,207 to 1,709,612, `judge.plan` 28,684,638 to 28,675,508; relation 2,006,804 to 2,004,587 and 34,502,872 to 34,503,501; standard 1,647,537 to 1,647,153 and 24,542,270 to 24,543,986. `judge.statements` and `discovered` unchanged; grammar and unclassified unchanged | "B1: the judges' SQL no longer writes upstream's sentence (a site's token instead), and their plans carry the operands and the planning-failure record" |
+| `TestPlanJson.VERSION` 33 to 34 (and `TestPlanJsonRoundTripTest`) | `Failure` gains `compile` | "B1: the planning-failure record (H13 §8)" |
+| `PlanJson.VERSION` | stays 59 if S1 and the operands land together; 60 if S1 lands first (and CP-7's later step, lite's sentence leaving the plan, the next number) | the same |
+| `engine-client/test/fixtures/raise-envelopes.json` (the hosts' shared fixture, `raise_envelope_conformance_test`) | its sites gain `operands`, so both hosts' readers and Java's are held to the record's shape | "B1: the site's typed operands (H13 §2, §4)" |
+| `docs/SEMANTICS_REGISTER.md` | rows the user rules first: the withheld operand's spelling (`<computed>` is the spike's placeholder, never ruled; 0 tests reach it in PCT, the corpus or pure/v1 today); pure/v1's site raises now in legend-pure's words where `main` said the kind's name (section 17) | per row |
+| `core/src/test/resources/edge/pure_v1_answers.tsv` (pure/v1's golden) | **no move** today (28 of 28 identical); the two requests of section 17, if the user adds them, are new lines | "the net's gap (H13 §9): a site raise and a kinded compile error on pure/v1" |
+
+- **No move needed** (checked by section 13's run): `RaiseTextGuardTest`, `HookRulingTest`, `HookRulingsAgreeTest`,
+  `GuardNamesExistTest`, `OpenClassMembersTest`, `ArchitectureTest` (its one failure, `thePlannerWritesNoFile`, is the
+  spike's census writer, which the real slice does not have), `CompatSpellingGuardTest` (its one failure was this
+  session's scratch log, reverted).
+- **Tests of the mechanism to adapt** (not guards): `SiteWordsTest`, `RaiseTextTest`, `InterimEdgeSitesTest`,
+  `PureV1ApiTest`, `TestDataPlannerTest`, `PlanStyleFacetsTest`, `PlanJsonTest`; and the 12 `toOne` tests of section
+  13, which pass unchanged if `CheckedOne` carries the stated size (section 11), else change their expected words.
+
+**Does lite's own sentence leaving the plan later (slice 1.6, to a table generated from Java) break a host?** Section
+4's answer stands: yes, in a known, contained set (`_raised.py`'s `_sites_of`, `raised_words` and `declare_sites`;
+`raised.ts`'s `failure`; `declared-raises.ts`'s `declareSites`; `PlanJson.readSites`; `RaisedErrors.dataErrorOf` and
+`dataError`; the shared fixture; `HostAnswers`; 4 hand-built test plans), all through two functions per host. One
+correction from this session: section 4 said Java's own pure/v1 route was not affected by the hosts' gap; it was
+(section 17), and after the fix it words every site from the record, so it does not read `message` at all and is not
+broken by 1.6. Nothing in the operands design blocks 1.6.
+
+## 20. The real slice's size (task 6, this session's estimate)
+
+| Piece | Lines (main code) | Days |
+|---|---|---|
+| S1 re-done on `main` without S0 or S1m (section 1: 3 trivial conflicts) | +374 / -591 (as measured) | 0.5 |
+| the record: `Operand`, `Site.operands`, `PlanMaker.sites`, `PlanJson` (a keyed reader, no switch) | about +200 | 1 |
+| the formatter: `PureMessages.worded` and the date printer; the 12 dialects' one choice deleted; `PureMessages.compile`'s site arm (section 17) | about +250 / -200 | 1 |
+| the lowering: the 3 sites (section 11, 33 lines) and `CheckedOne`'s stated size (a MIR field, its lowering, one dialect arm) | about +70 | 0.5 |
+| the planning-failure record: `Failure.Compile`, its words, the 2 wrapping sites stating their texts (section 8) | about +150 / -80 | 1 |
+| the database judge's binding (section 12), unless 2.2a lands first | +15 / -4 | 0.25 |
+| tests: the record's round trip, each kind's words, the date print cases, the planning failure, the 2 pure/v1 requests if added; the tests of the mechanism adapted | about +400 | 1.5 |
+| the guard files of section 19, the baseline and ratchets re-recorded, the hosts' fixture | | 0.5 |
+| the checks: the net (5 min here), the corpus (2 lanes), the core suites, the hosts' fixture, CI on every OS | | 0.5 to 1 |
+| **Total** | **about +1,450 / -880 including S1** | **about 6.5 to 7 days, one session** |
+
+**Not in it** (each elsewhere, sized above): the defect cell (B2, 1 to 1.5 days, section 15); the size words (with the
+judges' `Hearing`, section 16); lite's sentence leaving the plan (slice 1.6); `EngineStyleH2.raiseMessage`, the SQL
+sentence's last caller (A2, section 3).
