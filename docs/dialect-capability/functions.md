@@ -147,7 +147,7 @@ Database types planned with it: H2.
 | `DATE_TRUNC_DAY` | emulated | `castAs: DATE` |  | 4 |
 | `MAKE_DATE` | spelled | `make_date` |  | 2 |
 | `MAKE_TIMESTAMP` | refused | `a date-time constructor reached H2, which has no make_timestamp()` |  | 10 |
-| `DATE_TRUNC` | emulated | `dateTruncDateGrained` |  | 0 |
+| `DATE_TRUNC` | emulated | `dateTruncDateGrained: iso_week` |  | 0 |
 | `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiffArm` |  | 53 |
 | `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` |  | 109 |
