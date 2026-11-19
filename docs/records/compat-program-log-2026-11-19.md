@@ -793,3 +793,11 @@ who confirms or changes phases 1-3.
     pins are re-baselined when legend-engine moves past 4.145.0; the edge net's CI time.
   - **F1-F13:** answered F1, F2, F7, F11, F13; mostly F12; measured with a decision pending F5; measured but not yet
     planned F6 (now in B5); partly F3, F4, F8, F9; open F10 (who lists version-caused differences).
+- **~12:55 UTC, the product orchestrator's register map** (a note, nothing asked):
+  - The `currentUser` 405 row is **S377**, not S378. It is built in `4452313a` on `claude/hosts-followups`.
+  - **S372-S376 and S378 are unused.** The pivot count case keeps **S379**, if the user rules a row.
+  - A fraction under an Integer property answers the same on both roads: 422, data `castImpossible`
+    ("Decimal to Integer"), converted in SQL by the planner. S371 is amended to say so.
+  - **What this means here:** the register corrections that were in the closed PR #122 (S63, S138, and the new rows)
+    have no ids reserved. Each takes the next free id when the code change it belongs to lands, and this log's earlier
+    S372-S377 mapping (lines near "new rows are S372-S377") is void.
