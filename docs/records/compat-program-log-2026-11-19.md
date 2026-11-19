@@ -1753,3 +1753,7 @@ who confirms or changes phases 1-3.
   **Written now:** `compat-rules-of-record-2026-11-19.md` (one page: the rules verbatim, what they mean for the product
   and for compatibility, where each was already on record, how the plan stands against them). The final plan's banner
   now points to it. Every session is told to check against it first (~15:30).
+- **~14:48 UTC, B1 checked PR #123 (`7b7ee6ea3`) against the rules of record:** nothing breaks them (no `src/main`
+  file moves; the net records answers and judges no verdict). The per-OS overlays keep rule 1 on purpose: the digits
+  are the database's own maths, and the overlay lets the database's answer stand, telling only the test which
+  last-place values to expect on that OS; computing them in Java or rounding them would break rule 1.
