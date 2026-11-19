@@ -308,9 +308,11 @@ public final class ChannelB {
 
     /** Whether this run sums its judge SQL: asked ({@code -Dpct.channelb.judgeSql}, the ratchet's generator), or the
      *  reference lane under lite's own rules and BOTH, the pin's own mode, outside the G10 twice lanes. The pins moved
-     *  to the LITE-PCT lane with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge is the only judge in
-     *  compatibility, so the compatibility lanes plan no database-judge statement and the measure would read none --
-     *  the database judge's SQL is the product's alone, and lite's rules under both judges are where it is planned. */
+     *  to the LITE-PCT lane with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host
+     *  judge is the only judge in compatibility, so the compatibility lanes plan no database-judge statement and the
+     *  measure would read none -- the database judge's SQL is the product's alone, and lite's rules under both judges
+     *  are where it is planned (the user's ruling of 2026-11-19 ~20:05, "Keep judge yes and rebase": kept, re-based at
+     *  the merged batch's numbers, shrink-only from here). */
     static boolean measuresJudgeSql() {
         return Boolean.getBoolean("pct.channelb.judgeSql") || ChannelBLane.isReference() && lite()
                 && OPTIONS.planning().judgeMode() == com.legend.testplan.PlanningOptions.JudgeMode.BOTH

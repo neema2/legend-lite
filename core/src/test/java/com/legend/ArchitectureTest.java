@@ -252,6 +252,7 @@ final class ArchitectureTest {
     // never promised). What prints SQL text on the compatibility routes now is the edge's package-private LiteSqlText
     // over the edge's own dialect, which no class outside com.legend.edge can name; the edge rule
     // (PRODUCT_REACHES_NO_EDGE) still holds every product class off the edge.
+    // (a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
 
     /**
      * Sub-rule of Invariant 4 the top-level slices can't see: the typed HIR
@@ -1182,7 +1183,8 @@ final class ArchitectureTest {
             // is a row here, by its full signature and callers; OpenClassMembersTest pins the facade's whole member set
             // (active, defer, planSide, scalarRow, both textEquals, verdictBatch and why: the edge's engine-text rows
             // under the database judge, deleted with its appeal path -- A4 of the compatibility program, stage A
-            // ratified by the user 2026-11-19)
+            // ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move
+            // guards down"))
             "testplan.EngineTextPlanning#appeal(com.legend.testplan.BodyDriver$ExecEnv, "
                     + "java.util.function.IntFunction)",
             "com.legend.edge.SqlTextVerdicts",
@@ -1274,7 +1276,8 @@ final class ArchitectureTest {
             "com.legend.edge.SqlTextVerdicts",
             // (J41, 2026-11-18: the database judge's gate, DatabaseGate#PLANS, #UNPLANNED and #appealed(boolean), the
             // engine-text hook's answer -- deleted with EngineTestText.gate, A4 of the compatibility program, stage A
-            // ratified by the user 2026-11-19)
+            // ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move
+            // guards down"))
             // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
             // 2026-11-16): data, a list of classes
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
@@ -1314,7 +1317,9 @@ final class ArchitectureTest {
             "com.legend.edge.EdgePureOnlyTexts",
             // EdgeLoweringForms builds the edge's Styled from the plan style's own date-time texts (2026-11-18, J40, the
             // orchestrator's ruling (7), E-SQL's c0093e9749: one forms source; LoweringShape's entries went with it)
-            // EdgeLoweringForms left the callers 2026-11-19 (A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
+            // EdgeLoweringForms left the callers 2026-11-19 (A2 of the compatibility program, stage A ratified by the
+            // user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4) (a guard
+            // moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
             // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
             // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
@@ -1325,8 +1330,9 @@ final class ArchitectureTest {
             "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             // (VerdictWords$Reads#CANONS until 2026-11-18, then VerdictReads#CANONS -- the enum left the two-form kind
             // for its own type, the GUARD stream's re-cut on train 15 1931d419b1 -- deleted with legend-pure's canon
-            // reading in A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge
-            // reads no compatibility audience's canons, the host judge being the only judge in compatibility)
+            // reading in A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the
+            // user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"): the database judge reads no
+            // compatibility audience's canons, the host judge being the only judge in compatibility)
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words (its
             // PlanStyle parameter 2026-11-15, phase D's D1.0, merged with main's #101 in ca5c4338f9; dated 2026-11-17 by
             // the GUARD stream's C.13-CI, which found the row changed with no note)
@@ -1376,7 +1382,9 @@ final class ArchitectureTest {
             // orchestrator's ruling (7), E-SQL's c0093e9749)
             "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler com.legend.edge.EnginePlans",
             // (lowering.Styled#<init>, legend-engine's statement shape as the edge's Styled since 2026-11-18, J40, left
-            // 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
+            // 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's
+            // statement shape, EngineShape, deleted with its SQL text, CP-4) (a guard moving down only: approved by the
+            // user 2026-11-19 ~20:45 ("Approved to move guards down"))
             // the product's building blocks the edge's forms compose with (2026-11-18, the lens audit's item 1 and the
             // orchestrator's ruling on L6: a two-form kind holds types only, the product hands its statement and sites,
             // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the subselect
@@ -1387,8 +1395,10 @@ final class ArchitectureTest {
             "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
             "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean)", "com.legend.edge.EdgeLoweringForms",
             // (SubselectPrune#prune(SqlQuery, boolean, String), the engine shape's union-frame pruning since L10,
-            // 2026-11-18, and Styled#forms(), #lists() and #pureOnly(), the shape's reads of the plan style's Styled, left
-            // 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
+            // 2026-11-18, and Styled#forms(), #lists() and #pureOnly(), the shape's reads of the plan style's Styled,
+            // left 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19:
+            // legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4) (a guard moving down only:
+            // approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
             // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
             // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
@@ -4627,10 +4637,11 @@ final class ArchitectureTest {
             "com.legend.lowering.Scalars",
             // a model CSV cell matched against its ISO shape first
             "com.legend.setup.RowLoad",
-            // (com.legend.edge.EngineSeedText, the engine-text seed, left 2026-11-19 -- A2 of the compatibility program,
-            // stage A ratified by the user 2026-11-19: with legend-engine's printer gone, the seed writes a date's and a
-            // timestamp's cell as a string the dialect escapes, as legend-engine's text quoted it, and makes no temporal
-            // literal; a TIME cell stays refused by name)
+            // (com.legend.edge.EngineSeedText, the engine-text seed, left 2026-11-19 -- A2 of the compatibility
+            // program, stage A ratified by the user 2026-11-19: with legend-engine's printer gone, the seed writes a
+            // date's and a timestamp's cell as a string the dialect escapes, as legend-engine's text quoted it, and
+            // makes no temporal literal; a TIME cell stays refused by name) (a guard moving down only: approved by the
+            // user 2026-11-19 ~20:45 ("Approved to move guards down"))
             // a milestoning date: a date literal the lexer parsed (TestDataGenerationNatives.dateField)
             "com.legend.testdatagen.TestDataGenerator",
             // a row identifier's value checked against its column type's ISO shape first (iso: digits, separators and
@@ -5023,8 +5034,9 @@ final class ArchitectureTest {
         for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
             // and each test-planning facet's implementer (W9's judge half, 2026-11-16: the facets are the edge's)
             boolean facet = com.legend.testplan.PlanStyleFacets.KINDS.stream().anyMatch(c::isAssignableTo);
-            // (its EngineTextDialect clause went 2026-11-19 with the interface: A2 of the compatibility program, stage A
-            // ratified by the user 2026-11-19, CP-4)
+            // (its EngineTextDialect clause went 2026-11-19 with the interface: A2 of the compatibility program, stage
+            // A ratified by the user 2026-11-19, CP-4) (a guard moving down only: approved by the user 2026-11-19
+            // ~20:45 ("Approved to move guards down"))
             if (c.isInterface() || !(c.isAssignableTo(com.legend.database.PlanStyle.class) || facet)) {
                 continue;
             }

@@ -88,11 +88,13 @@ class OpenClassMembersTest {
                     "public abstract boolean reachesUpstreamText(java.lang.String, boolean, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler)",
                     // (tryArm, tryArmDualGolden, tryArmSameSql and batchTexts, the database judge's asks: deleted,
                     // NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A ratified by the user
-                    // 2026-11-19)
+                    // 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards
+                    // down"))
                     "public abstract com.legend.testplan.TextPlanned plan(com.legend.testplan.TextAsk)",
                     // (J41's gate(Extension, Supplier), the edge's engine-text arm answering its own database gate:
                     // deleted, NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A ratified by
-                    // the user 2026-11-19)
+                    // the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move
+                    // guards down"))
                     "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)",
                     // K10b of the edge audit (the orchestrator's ruling (A) of 2026-11-17; host train, pinned 2026-11-18
                     // for train 19): a fresh recorder of one body's planning call, the test door's one read of its
@@ -104,8 +106,10 @@ class OpenClassMembersTest {
                     "public abstract java.util.Map<java.lang.String, java.util.Map<java.lang.Integer, java.lang.String>> siteWords(com.legend.database.PlanStyle)",
                     "public abstract java.lang.String sizeWords(java.lang.String)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
-            // (EngineTextPlanning's active, defer, planSide, scalarRow, both textEquals, verdictBatch and why: the edge's
-            // engine-text rows under the database judge, deleted with its appeal path -- A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+            // (EngineTextPlanning's active, defer, planSide, scalarRow, both textEquals, verdictBatch and why: the
+            // edge's engine-text rows under the database judge, deleted with its appeal path -- A4 of the compatibility
+            // program, stage A ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45
+            // ("Approved to move guards down"))
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(
                     // judgingRules replaced by style 2026-11-18 (E-Java's c732a61c4, train 18: the appeal asked of the
                     // style, the judging rules deleted whole, 070c4ea3e)

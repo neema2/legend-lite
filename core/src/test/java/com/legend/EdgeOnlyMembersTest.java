@@ -111,7 +111,8 @@ class EdgeOnlyMembersTest {
             // verdict builder in lite's terms; what the texts are (a golden SQL text and ours) is the edge's SqlTextVerdicts'
             // -- J40.VerdictSql closes
             // (VerdictSql#constantTextsEqual, 2026-11-18: deleted with its one composer, the edge's SQL-text rows under
-            // the database judge -- A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+            // the database judge -- A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved
+            // down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
             // (ExistsSites#alias and #zones, E-SQL's 612b194708: filed HOOK_ENTRIES, not READ_API, 2026-11-18 by the GUARD
             // stream on the orchestrator's ruling for the ResultEnvelopes parts -- a hook's argument type beside it,
             // LoweringForms.existsJoin's; HookRulingTest)

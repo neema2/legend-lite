@@ -71,9 +71,10 @@ class HookLambdasTest {
             // the database judge's six callers of legend-pure's comparison rules -- a JSON golden's grammar (S144), two
             // number kinds (S127), the rendered golden's null word, the rendered-text rule, a date literal's text, two
             // numbers' equality -- went with their kinds (A4 of the compatibility program, stage A ratified by the user
-            // 2026-11-19: the host judge is the only judge in compatibility, so the database judge asks no style for a
-            // rule; the host judge keeps legend-pure's rules until stage B). The database judge's JSON grammar is
-            // strict JSON, read directly (JudgeJson.STRICT)
+            // 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"): the
+            // host judge is the only judge in compatibility, so the database judge asks no style for a rule; the host
+            // judge keeps legend-pure's rules until stage B). The database judge's JSON grammar is strict JSON, read
+            // directly (JudgeJson.STRICT)
             // the failure words the judges write (C1 item 4, 3120418b2a, train 8: legendPureWords retired -- one choice
             // per run, the style's FailureWords two-form kind; measured 2026-11-18 on d-int8 fdf001bee); census J29
             // (E-Java's 21a9734475, train 14) renamed the kind VerdictWords (lowering) and DatabaseJudge#lite #words --
@@ -112,7 +113,7 @@ class HookLambdasTest {
             // (JudgeJson -> JsonGrammar: no hook type's implementer now -- JsonGrammar is no two-form kind since the
             // database judge reads strict JSON directly, and the host judge's grammar is the edge hearing's to answer;
             // and LiteCrossKindNumbers deleted with its kind: A4 of the compatibility program, stage A ratified by the
-            // user 2026-11-19)
+            // user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
             // trains 5 and 6 (2026-11-17): the lowering forms' product answer, an anonymous class in the kind (K5,
             // fd1df9928, a criterion (a) exception); the test-data printing's product form, its own class (K12, a095d0b56)
             Map.entry("com.legend.lowering.ProductLoweringForms", Set.of("com.legend.lowering.LoweringForms")),
@@ -121,7 +122,8 @@ class HookLambdasTest {
             // 21a9734475) renamed it LiteVerdictWords, of the VerdictWords kind (re-measured 2026-11-18 on 1931d419b1)
             Map.entry("com.legend.lowering.LiteVerdictWords", Set.of("com.legend.lowering.VerdictWords")),
             // (two numbers' equality's product form, LiteVerdictNumbers, deleted with its kind: A4 of the compatibility
-            // program, stage A ratified by the user 2026-11-19)
+            // program, stage A ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45
+            // ("Approved to move guards down"))
             // a serialized root's string-entry value's product form: refused, by today's sentence, at planning (E-Java's
             // train-17 item 2, VALUES half, b70d85ab9, train 18, 2026-11-18; the edge's form EngineExecutedValues)
             Map.entry("com.legend.planner.RefusedExecutedValues", Set.of("com.legend.planner.ExecutedValues")),
@@ -136,7 +138,7 @@ class HookLambdasTest {
             Map.entry("com.legend.testexec.LiteRenderedTexts", Set.of("com.legend.testexec.RenderedTexts")),
             // (D's train 4's three product forms -- a rendered golden's null word, a date literal's message text, the
             // rendered-text rule -- deleted with their kinds: A4 of the compatibility program, stage A ratified by the
-            // user 2026-11-19)
+            // user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
             // the product's style, PlanStyle.PRODUCT (PlanStyleSurfaceTest's OVERRIDERS)
             Map.entry("com.legend.database.PlanStyle$1", Set.of("com.legend.database.PlanStyle")),
             // the ruled hooks' product answers, each refusing by name (census C1, C2; HookRulingsAgreeTest's
@@ -234,7 +236,8 @@ class HookLambdasTest {
 
     /** The facet hooks: the facet kinds, and the hook only the engine-text facet's answers hand out (the collector,
      *  HookRulingTest.RULED's; the database judge's batch, BatchTexts, was the second until A4 of the compatibility
-     *  program, stage A ratified by the user 2026-11-19). */
+     *  program, stage A ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45
+     *  ("Approved to move guards down")). */
     static Set<String> facetHooks() {
         Set<String> out = new TreeSet<>();
         com.legend.testplan.PlanStyleFacets.KINDS.forEach(c -> out.add(c.getName()));

@@ -49,6 +49,7 @@ class DialectOwnerExclusivityTest {
             // (2026-10-15, registered as measured: the engine-H2 text's crossing, EngineStyleH2.java naming DuckDB on 9
             // lines for ten DuckDB-only functions spelled DuckDB's way, left 2026-11-19 with its file -- A2 of the
             // compatibility program, stage A ratified by the user 2026-11-19, legend-engine's SQL text deleted, CP-4.)
+            // (a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             // (2026-10-18, the dialect program's Phase 7: the warehouse's two crossings, its Postgres catalog tests
             // naming DuckDB, left this list: the warehouse is a host owner, its engine DuckDB (DatabaseOwners).)
             // 2026-10-18 (registered as measured, the dialect program's Phase 7, when the guards first read testing/):

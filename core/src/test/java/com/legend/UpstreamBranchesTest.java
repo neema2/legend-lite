@@ -291,9 +291,9 @@ class UpstreamBranchesTest {
         assertEquals(true, code.contains("\"unionAlias\""), "the shape literal survives the comment strip");
         // a two-form kind's answer of the same name is the hook's, not the rules': left out; the rules' read beside it,
         // and the same name on another receiver, still found (the GUARD stream, 2026-11-18, train 17). The planted kind
-        // is LoweringForms since A4 of the compatibility program (stage A ratified by the user 2026-11-19):
-        // VerdictNumbers, the kind it named until then, left the two-form list with the database judge's compatibility
-        // arms
+        // is LoweringForms since A4 of the compatibility program (stage A ratified by the user 2026-11-19; moved down
+        // by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down")): VerdictNumbers, the kind it
+        // named until then, left the two-form list with the database judge's compatibility arms
         String hooked = blankLiterals(stripComments("class H { boolean f(LoweringForms numbers, JudgingRules rules,"
                 + " Other other) { if (numbers.floatTolerance()) { return true; }"
                 + " return rules.floatTolerance() && other.floatUlps() > 0 && numbers.floatTolerance() ? true : false; } }"));

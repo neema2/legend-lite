@@ -104,6 +104,7 @@ class PreQuotedNamesTest {
     /** One line per dialect, place and ordinary name: what the golden holds. */
     static List<String> ordinaryLines() {
         // (legend-engine's text printers' rows, 192, went with them: A2 of the compatibility program, 2026-11-19)
+        // (a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
         List<SqlDialect> all = new ArrayList<>(dialects().keySet());
         List<String> out = new ArrayList<>();
         for (SqlDialect dialect : all) {

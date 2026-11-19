@@ -52,8 +52,9 @@ class HookRulingsAgreeTest {
             "com.legend.testexec.EdgeRun", "C2 HOOK-RULED 2026-11-17 (NoEdgeRun, the product's refusal)",
             "com.legend.testexec.EdgeHearing", "C2 HOOK-RULED 2026-11-17 (NoEdgeRun.Hearing, the product's refusal)",
             "com.legend.testplan.TextCollector", "C4 HOOK-RULED 2026-11-17 (handed out by EngineTestText alone)",
-            // (testplan.BatchTexts, C4 HOOK-RULED 2026-11-17: the hook deleted, NARROWS A HOOK THE USER RULED --
-            // A4 of the compatibility program, stage A ratified by the user 2026-11-19)
+            // (testplan.BatchTexts, C4 HOOK-RULED 2026-11-17: the hook deleted, NARROWS A HOOK THE USER RULED -- A4 of
+            // the compatibility program, stage A ratified by the user 2026-11-19; moved down by the user's ruling of
+            // 2026-11-19 ~20:45 ("Approved to move guards down"))
             // ruled after this list was first written (2026-11-17, merged from D's d-int3): the ledger's recorder typed
             // (census C1) -- refused by the product (testexec.PureWords, C5 step B's hearing member, left 2026-11-18 on
             // train 15 1931d419b1: deleted by J29, E-Java's 21a9734475, train 14)

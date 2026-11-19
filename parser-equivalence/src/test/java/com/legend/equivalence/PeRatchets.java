@@ -127,9 +127,9 @@ public final class PeRatchets {
                     + " 3302); a floor rising, UP)",
             "own_corpus.matched 3309 -> 3310 (2026-11-18, PR #118 fix round: one more own-corpus model, added by the"
                     + " batch's tests, matches the reference grammar; UP)",
-            "own_corpus.matched 3310 -> 3311 (2026-11-19, A2 of the compatibility program: PureV1SqlTextTest's model, the"
-                    + " net's trades model with an empty mapping, matches the reference grammar; LegacyTextTest's left with"
-                    + " the printers; UP)");
+            "own_corpus.matched 3310 -> 3309 (2026-11-19, A2 of the compatibility program: PureV1SqlTextTest's model"
+                    + " joins, LegacyTextTest's models leave with the printers; net -1, measured; DOWN -- the line's"
+                    + " '3310 -> 3311 ... UP' corrected on the stage-A batch by census B2's classification, c2269b7b4)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

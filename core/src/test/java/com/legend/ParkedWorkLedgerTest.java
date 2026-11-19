@@ -142,6 +142,7 @@ class ParkedWorkLedgerTest {
             // its session's dialect writes; ReservedNamesGenerationTest is its acceptance
             // PARK-18 closed 2026-11-19 (A2 of the compatibility program, stage A ratified by the user 2026-11-19): the
             // legacy printer it parked was deleted with legend-engine's SQL text (CP-4: that text is never promised)
+            // (a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             // PARK-20 (2026-10-09, step 2's landing 2 slice (e)): DuckDB's driver makes a decimal array of
             // scale 3, and a Date's or Number's list has no one element type
             Map.entry("PARK-20 a list of decimals, Dates or Numbers is not bound as a parameter",

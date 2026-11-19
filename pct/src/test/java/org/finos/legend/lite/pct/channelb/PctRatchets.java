@@ -35,9 +35,11 @@ public final class PctRatchets {
         }
         Map<String, Integer> out = new LinkedHashMap<>();
         // E-5d: each suite's judge statements and characters under BOTH, planned as the suite runs -- under lite's own
-        // rules, the LITE-PCT lane's (since A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge is the only
-        // judge in compatibility, so the compatibility rules plan no database-judge statement to measure). Set before
-        // ChannelB is first read: its rules are read once, at its class's initialisation
+        // rules, the LITE-PCT lane's (since A4 of the compatibility program, stage A ratified by the user 2026-11-19:
+        // the host judge is the only judge in compatibility, so the compatibility rules plan no database-judge
+        // statement to measure); the user's ruling of 2026-11-19 ~20:05, "Keep judge yes and rebase": kept, re-based at
+        // the merged batch's numbers, shrink-only from here). Set before ChannelB is first read: its rules are read
+        // once, at its class's initialisation
         System.setProperty("pct.channelb.rules", "LITE");
         System.setProperty("pct.channelb.judgeSql", "true");
         out.put("channel_b.essential.discovered", ChannelBEssentialTest.runSuite(new ArrayList<>()).size());
