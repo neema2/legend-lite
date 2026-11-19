@@ -2696,3 +2696,11 @@ who confirms or changes phases 1-3.
   dynaFunctions too; D-S2: the substitute's callee from the registry; D-S3: cite H2's real route (the dialect
   translation); D-S4: no engine-style printers. B1-R and B1 told to build (B1 on the translator's piece 2 branch once
   pushed); D-S1 to the user.
+- **~20:46 UTC, #124 MERGED to `main`** (`8eea8fa13`, a merge commit), on the user's word of ~20:35 ("I'm rerunning
+  the failed 124 jobs then we merge"), after run 44580527071 went green on every OS on attempt 2 (54 of 54; the re-run
+  macOS `corpus_duckdb` and `checks` passed; no 404 or 429 in any lane; Windows `warehouse` green with markets_test at
+  64-99 s). **Stage A's A1 is on `main`** (#123, #124, #125, #126). The judges merge `main` into the batch branch once.
+  B2 pushed `claude/compat-a3-docs` at `caca6a69b` on the user's word in its session; it classifies A2's guard moves
+  (down ones noted by the ~20:45 ruling, applied by the judges on the batch branch) and builds A2 PR 2 (the plan-text
+  family's spelling-only code) for the batch. The judges: A4's down moves noted; the batch branch at `90588a767` (S1-S3,
+  A2's PureV1SqlTextTest merge fix, the six accepted rows), the rosters re-measuring.
