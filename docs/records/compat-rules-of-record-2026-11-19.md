@@ -48,6 +48,28 @@ Each has a test, so it cannot quietly erode.
   and later the database's typed values) is lite's typed output, so compatibility may word upstream's sentence in Java
   from it (tenet 3).
 
+## The switch rule (the user, 2026-11-19 ~20:35: "Agree with the decision 2 and 3"; tenet 6 made precise)
+
+The user's words that started it (~19:20): "I still like the FLAG concept for very narrow use cases - it like feature
+flags that we are going to want anyway for turning on/off features / We would have to very tightly guard how many
+flags so doesn't become a mess". Ruled in its strict, door-only form:
+
+- **Only door switches.** A switch is read in exactly one place, the door a request comes in through, and becomes a
+  rewrite of the request's program or a refusal before the planner sees anything. **Nothing in the core reads a
+  switch:** not the compiler, the planner, the lowering, the SQL writers, exec or the judges.
+- **One registry, a closed list:** each switch's name, values, default, owner, the one place that reads it, why it
+  exists, and when it goes away.
+- **A ceiling** on how many switches exist, starting at 5, moved only on the user's word with a dated note.
+- **The guards:** an architecture test fails the build if anything but a switch's registered reader reads it; every
+  switch is tested in every position; a switch past its removal date fails the build until it is removed or the user
+  re-dates it.
+- **No speed-only switches inside the core** until a real need is brought to the user.
+- **The first entry:** `LEGEND_LITE_PURE_MEANING` (`refuse` the default, `warn`, `engine`), read at the legend-engine
+  door.
+- **Today's exception, to be removed:** legend-engine's own feature flags that lite's core still reads (the members of
+  `platform.Feature` consumed in the lowering) move to the door or are deleted in B5; the registry and its guards are
+  B5's lasting guard.
+
 ## What they mean, concretely
 
 | Rule | In the product (lite's own route) | In compatibility (the legend-pure and legend-engine routes) |
