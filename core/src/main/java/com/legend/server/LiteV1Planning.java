@@ -134,21 +134,14 @@ public final class LiteV1Planning {
         java.io.ByteArrayOutputStream arrow = new java.io.ByteArrayOutputStream();
         boolean[] asArrow = {false};
         Answer answered = LiteV1Api.answer(() -> {
-            Json.Obj request = LiteV1Api.read(body, "a query/run request", Set.of("params"),
-                    "model", "query", "runtime", "format");
-            Json.Obj queryJson = LiteV1Api.object(request, "query");
-            com.legend.protocol.spec.LambdaFunction query = ProtocolReader.lambda(queryJson);
-            String runtime = LiteV1Api.text(request, "runtime");
-            Map<String, Object> values = values(queryJson,
-                    request.has("params") ? LiteV1Api.object(request, "params") : new Json.Obj(new java.util.LinkedHashMap<>()));
-            asArrow[0] = spelled(Format.class, LiteV1Api.text(request, "format"), "a query runs in the format json or arrow")
-                    == Format.ARROW;
-            return models.with(LiteV1Api.text(request, "model"), ctx -> {
-                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, query);
+            QueryRunRequest request = queryRunRequest(body);
+            asArrow[0] = request.arrow();
+            return models.with(request.model(), ctx -> {
+                com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, request.query());
                 Answered rows = new Answered();
                 com.legend.result.ResultSink sink = asArrow[0] ? new ShapedArrow(arrow) : rows;
                 try {
-                    runner.run(typed, runtime, values, new com.legend.result.Output.Rows(sink));
+                    runner.run(typed, request.runtime(), request.values(), new com.legend.result.Output.Rows(sink));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }
@@ -157,6 +150,104 @@ public final class LiteV1Planning {
         });
         return answered.status() == 200 && asArrow[0]
                 ? Answer.bytes(200, arrow.toByteArray(), ARROW, Map.of()) : answered;
+    }
+
+    /**
+     * {@code query/run}'s request as every binding reads it (spec §2, §4; H4's P4, the user's CP-13 of 2026-11-19: until
+     * then Python closed it by words of its own, which named every unknown key and dropped "(it holds ...)"): the closed
+     * request {@code {model, query, runtime, format, params?}} ({@link LiteV1Api#read}), its query's tree read as the
+     * protocol's lambda, its parameters' values read by their declared types ({@link #values}: a value of a JSON kind its
+     * type is not refused, kind {@code parameters}), its format the caller's word ({@code json} or {@code arrow}, any
+     * other refused by name, kind {@code request}) -- refused in that order, the first refusal answered. The server's
+     * route runs it ({@link #queryRun}); a host that runs the plan itself reads it so ({@link #queryRunRequestJson}).
+     */
+    public static QueryRunRequest queryRunRequest(String body) {
+        Json.Obj request = LiteV1Api.read(body, "a query/run request", Set.of("params"),
+                "model", "query", "runtime", "format");
+        Json.Obj queryJson = LiteV1Api.object(request, "query");
+        com.legend.protocol.spec.LambdaFunction query = ProtocolReader.lambda(queryJson);
+        String runtime = LiteV1Api.text(request, "runtime");
+        Json.Obj params = request.has("params") ? LiteV1Api.object(request, "params")
+                : new Json.Obj(new java.util.LinkedHashMap<>());
+        Map<String, Object> values = values(queryJson, params);
+        boolean arrow = spelled(Format.class, LiteV1Api.text(request, "format"), "a query runs in the format json or arrow")
+                == Format.ARROW;
+        return new QueryRunRequest(LiteV1Api.text(request, "model"), queryJson, query, runtime, arrow, params, values);
+    }
+
+    /**
+     * {@code query/run}'s request read as {@link #queryRunRequest} reads it, answered for a host that plans and runs it
+     * itself (Python's: its native entry {@code lite_query_run_request}): {@code {model, query, runtime, format, params}}
+     * -- the query's tree as given, its numbers as written, the format its word, the parameters as given ({@code {}}
+     * when none) -- or the refusal, as the server's route answers it.
+     */
+    public static String queryRunRequestJson(String body) {
+        QueryRunRequest r = queryRunRequest(body);
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("model", r.model());
+        out.put("query", r.queryJson());
+        out.put("runtime", r.runtime());
+        out.put("format", (r.arrow() ? Format.ARROW : Format.JSON).name().toLowerCase(java.util.Locale.ROOT));
+        out.put("params", r.params());
+        return Json.toCompact(out);
+    }
+
+    /**
+     * {@code query/run}'s JSON ANSWER FOR A HOST THAT RAN THE PLAN ITSELF (Python's; H4's P5, the user's CP-13 of
+     * 2026-11-19: until then Python wrote it by rules of its own, {@code _lite_cell}): {@code plan} the query's plan
+     * ({@code query/plan}'s, PlanJson's), {@code rows} the rows the host's database answered its statement with
+     * ({@link com.legend.result.HostRows}' wire), decoded by the plan's columns and written by the server's own writer
+     * ({@link Answered}) -- so the host's answer is the server's text. A plan whose root is not one statement's typed
+     * result is refused by name.
+     */
+    public static String hostRunJson(String plan, String rows) {
+        com.legend.executionplan.ExecutionPlan.TdsResult result = typedResult(plan);
+        Answered answered = new Answered();
+        answered.answers(result.shape());
+        try {
+            com.legend.result.HostRows.stream(rows, result.columns(), answered);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return answered.json();
+    }
+
+    /**
+     * {@code query/run}'s ARROW FACTS FOR A HOST THAT RAN THE PLAN ITSELF (Python's; H4's P5, C2, 2026-11-19): what the
+     * server's Arrow answer ({@link ShapedArrow}) says beside the values -- the stream's metadata ({@code legend.shape})
+     * and each field's ({@code result.ArrowWriter}'s facts: its Pure type, its multiplicity, its slot and precision where
+     * the plan has them), by the plan's columns in order: {@code {schema: {key: value}, fields: [{name, metadata}]}}. The
+     * host attaches them to its database's own batches, converting no value (G6).
+     */
+    public static String hostRunArrowFacts(String plan) {
+        com.legend.executionplan.ExecutionPlan.TdsResult result = typedResult(plan);
+        List<Map<String, Object>> fields = new java.util.ArrayList<>();
+        for (com.legend.executionplan.ExecutionPlan.Column c : result.columns()) {
+            Map<String, Object> field = new java.util.LinkedHashMap<>();
+            field.put("name", c.name());
+            field.put("metadata", com.legend.result.ArrowWriter.facts(c));
+            fields.add(field);
+        }
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("schema", Map.of(ShapedArrow.SHAPE, result.shape().name()));
+        out.put("fields", fields);
+        return Json.toCompact(out);
+    }
+
+    /** {@code plan}'s root, one statement's typed result; any other refused by name. */
+    private static com.legend.executionplan.ExecutionPlan.TdsResult typedResult(String plan) {
+        com.legend.executionplan.ExecutionPlan read = com.legend.executionplan.PlanJson.read(plan, Map.of());
+        if (read.root() instanceof com.legend.executionplan.ExecutionPlan.TdsResult result) {
+            return result;
+        }
+        throw new IllegalArgumentException("a query's plan answers a host's rows as one statement's typed result, not a "
+                + read.root().getClass().getSimpleName());
+    }
+
+    /** {@code query/run}'s request, read ({@link #queryRunRequest}): its model's text, its query's tree and the lambda
+     *  it reads as, its runtime, whether it is answered in Arrow, its parameters as given and their values. */
+    public record QueryRunRequest(String model, Json.Obj queryJson, com.legend.protocol.spec.LambdaFunction query,
+            String runtime, boolean arrow, Json.Obj params, Map<String, Object> values) {
     }
 
     /**
@@ -276,13 +367,15 @@ public final class LiteV1Planning {
      * answer says as {@code shape}. A receiver of the run's; it decides nothing.
      */
     static final class ShapedArrow implements com.legend.result.ResultSink {
+        /** The stream's metadata key of the answer's shape. */
+        static final String SHAPE = "legend.shape";
         /** The stream's metadata, its shape once the run tells it. */
         private final Map<String, String> told = new java.util.LinkedHashMap<>();
         private final com.legend.result.ArrowWriter writer;
 
         ShapedArrow(java.io.OutputStream out) {
             this.writer = new com.legend.result.ArrowWriter(out, columns -> {
-                if (!told.containsKey("legend.shape")) {
+                if (!told.containsKey(SHAPE)) {
                     throw new IllegalStateException("the run told its columns before its answer's shape");
                 }
                 return told;
@@ -291,7 +384,7 @@ public final class LiteV1Planning {
 
         @Override
         public void answers(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape) {
-            told.put("legend.shape", shape.name());
+            told.put(SHAPE, shape.name());
         }
 
         @Override

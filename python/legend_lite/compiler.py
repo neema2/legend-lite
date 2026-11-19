@@ -140,34 +140,42 @@ OPERATIONS = {
 def user(request: dict[str, Any] | None = None) -> dict[str, str]:
     """``user`` (the spec's §2, a host's own operation): who the store keeps saved queries for -- this user, as Python's
     stores name the caller (_home.THIS_USER; there is no sign-in), ``{"user": <name>}``. Its request holds no key: one
-    that does is refused by name (kind ``request``), as the server's route refuses it."""
+    that does is refused by name (kind ``request``), in the server's words (``lite_route``: H4's P4, 2026-11-19)."""
+    status, said = lite_route(_USER, '' if request is None else _json.dumps(request))
+    answer = _json.loads(said)
+    if status != 200:
+        raise LegendError(answer['message'], answer['kind'], answer.get('where'), answer.get('raise'))
+    return answer
+
+
+# lite's user operation's route (the spec's §2; LiteV1Api.USER)
+_USER = '/api/lite/v1/user'
+
+
+def lite_route(path: str, body: str, method: str = 'POST') -> tuple[int, str]:
+    """LITE'S OWN API, v1, AS A ROUTE (the spec's §2, §3, §5; the host train, 2026-11-17): a call of
+    ``/api/lite/v1/<operation>`` -- its method, path and request JSON -- answered as the server's routes answer it, by
+    the product's router through one native entry (``lite_route``: ``Boundary.liteRoute``, H4's P4, 2026-11-19): 200 and
+    the answer's JSON, or §3's error ``{kind, message, where?, raise?}`` with its kind's status -- its words, its kind
+    and its status Java's, never Python's (until then an unknown path's and a malformed request's words were Python's,
+    and a GET was answered 404 in text). ``user`` answers this user (_home.THIS_USER). query/run is the host's own,
+    answered before this (Engine._query_run). The one rule Python's server and DataCube's code in this process
+    (_headless) answer by."""
     from ._home import THIS_USER
-    if request:
-        raise LegendError(f'a user request holds no key (it holds {", ".join(sorted(request))})', error_kind('REQUEST'))
-    return {'user': THIS_USER}
+    status, _, said = answered_http(library().call('lite_route', method, path, body, THIS_USER))
+    return status, said
 
 
-def lite_route(path: str, body: str) -> tuple[int, str]:
-    """LITE'S OWN API, v1, AS A ROUTE (the spec's §2, §3, §5; the host train, 2026-11-17): ``/api/lite/v1/<operation>``
-    with its request JSON, answered by the operation's native entry (``operation``) -- 200 and the answer's JSON, or
-    §3's error ``{kind, message, where?, raise?}`` with its kind's status, the product's (``refusal_status``). Any other
-    path is refused in lite's shape: the old route names went in one step (ruled 5). The one rule Python's server and
-    DataCube's code in this process (_headless) answer by."""
-    prefix = '/api/lite/v1/'
-    op = path[len(prefix):] if path.startswith(prefix) else None
-    if op not in OPERATIONS and op != 'user':
-        return refused_route(LegendError(f'no such legend-lite API: {path}', error_kind('REQUEST')))
-    try:
-        # the user operation's request may be empty, as the server's route reads it
-        asked = {} if op == 'user' and not body.strip() else _json.loads(body)
-    except ValueError:
-        asked = None
-    if not isinstance(asked, dict):
-        return refused_route(LegendError(f'{op}: the request is no JSON object', error_kind('REQUEST')))
-    try:
-        return 200, _json.dumps(operation(op, asked))
-    except LegendError as refused:
-        return refused_route(refused)
+def answered_http(text: str) -> tuple[int, str, str]:
+    """A native entry's answer folded as an HTTP answer (``planner.Folded.http``: ``OK``, its status, its media type
+    and its body), its status, media type and body; a refusal folded in its place (``ERR`` and lite's error: the call
+    failed outside the route's own answer) raised as ``LegendError`` (``_answer``)."""
+    rest = _answer(text)
+    status, _, rest = rest.partition('\n')
+    media, _, body = rest.partition('\n')
+    if not status.isascii() or not status.isdigit() or not media:
+        raise OSError(f'the native library answered no HTTP answer: {text[:120]!r}')
+    return int(status), media, body
 
 
 def refused_route(refused: LegendError) -> tuple[int, str]:

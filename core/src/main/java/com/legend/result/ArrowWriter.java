@@ -102,8 +102,10 @@ public final class ArrowWriter implements ResultSink {
         out.flush();
     }
 
-    /** The plan's facts of a column as its field's metadata. */
-    static Map<String, String> facts(ExecutionPlan.Column c) {
+    /** The plan's facts of a column as its field's metadata -- also what a host that writes its own database's
+     *  batches attaches to each field (lite's query/run on Python: {@code server.LiteV1Planning.hostRunArrowFacts}, H4's
+     *  P5, 2026-11-19), so the facts are this one rule's on every host. */
+    public static Map<String, String> facts(ExecutionPlan.Column c) {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("legend.type", c.type());
         m.put("legend.multiplicity", pureMultiplicity(c.multiplicity()));

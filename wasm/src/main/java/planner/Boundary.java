@@ -165,6 +165,54 @@ public final class Boundary {
         return operate("ts/statement", request);
     }
 
+    /**
+     * {@code query/run}'s request read as the server's route reads it ({@code LiteV1Planning.queryRunRequest}: closed,
+     * its query read, its parameters' values read by their declared types, its format the caller's word): {@code {model,
+     * query, runtime, format, params}}, or the refusal -- for a host that plans and runs it itself (Python's), so its
+     * request is refused in the server's words, never its own (H4's P4, the user's CP-13 of 2026-11-19).
+     */
+    public static String queryRunRequest(String request) {
+        return com.legend.server.LiteV1Planning.queryRunRequestJson(request);
+    }
+
+    /**
+     * {@code query/run}'s JSON answer for a host that ran the plan on its own database ({@code
+     * LiteV1Planning.hostRunJson}; H4's P5, 2026-11-19): {@code plan} the query's plan (query/plan's), {@code rows} the
+     * host's rows ({@code result.HostRows}' wire), written by the server's own writer -- the host's answer the server's
+     * text, never a writer of the host's own.
+     */
+    public static String queryRunJson(String plan, String rows) {
+        return com.legend.server.LiteV1Planning.hostRunJson(plan, rows);
+    }
+
+    /**
+     * {@code query/run}'s Arrow facts for a host that ran the plan on its own database ({@code
+     * LiteV1Planning.hostRunArrowFacts}; H4's P5, C2, 2026-11-19): the stream's metadata and each field's, by the plan's
+     * columns, which the host attaches to its database's own batches.
+     */
+    public static String queryRunArrowFacts(String plan) {
+        return com.legend.server.LiteV1Planning.hostRunArrowFacts(plan);
+    }
+
+    /**
+     * LITE'S ROUTES ON A HOST THAT SERVES THEM OVER HTTP ITSELF (Python's server; H4's P4, 2026-11-19): a call of
+     * {@code /api/lite/v1/<operation>} by its method, path and body, answered -- its status and JSON -- as the server's
+     * routes answer it: {@code user} the host's own caller ({@code user}), another method than POST refused, every other
+     * path the one road's ({@link #operate}'s operations, an unknown one refused by name), its failure the one
+     * classifier's. {@code query/run} runs on the host, which answers it before this (its request read by
+     * {@link #queryRunRequest}); asked here, it is refused as the one road refuses it.
+     */
+    public static com.legend.server.LiteV1Api.Answer liteRoute(String method, String path, String body, String user) {
+        if (path.equals(com.legend.server.LiteV1Api.USER)) {
+            return com.legend.server.LiteV1Api.user(method, path, body, user);
+        }
+        if (!"POST".equals(method)) {
+            return com.legend.server.LiteV1Api.notPosted(method, path);
+        }
+        return com.legend.server.LiteV1Api.answer(() -> com.legend.server.LiteV1Api.operate(path, body, HELD,
+                com.legend.TypedQuery::executionPlan));
+    }
+
     /** Lite's refusal kinds as every binding writes them, each with the HTTP status a refusal of it is answered with
      *  ({@code {NAME: {wire, status}}}, {@link com.legend.server.LiteV1Api.Kind}): what a host's decoder reads a
      *  refusal's {@code kind} against, and what its routes answer it with -- never a status table of the host's own

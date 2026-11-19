@@ -358,6 +358,63 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** {@code query/run}'s request read as the server's route reads it ({@code Boundary.queryRunRequest}: H4's P4,
+     *  2026-11-19): the request JSON in, {@code {model, query, runtime, format, params}} or its refusal out. */
+    @CEntryPoint(name = "lite_query_run_request")
+    static CCharPointer queryRunRequest(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.queryRunRequest(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** {@code query/run}'s JSON answer from the rows Python's database answered the plan with ({@code
+     *  Boundary.queryRunJson}: H4's P5, 2026-11-19): the plan and the rows in, the server's answer text out. */
+    @CEntryPoint(name = "lite_query_run_json")
+    static CCharPointer queryRunJson(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
+        String a;
+        try {
+            String p = text(plan), r = text(rows);
+            a = Folded.of(() -> Boundary.queryRunJson(p, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** {@code query/run}'s Arrow facts for the plan Python's database ran ({@code Boundary.queryRunArrowFacts}: H4's P5,
+     *  2026-11-19): the plan in, the stream's and each field's metadata out. */
+    @CEntryPoint(name = "lite_query_run_arrow_facts")
+    static CCharPointer queryRunArrowFacts(IsolateThread thread, CCharPointer plan) {
+        String a;
+        try {
+            String p = text(plan);
+            a = Folded.of(() -> Boundary.queryRunArrowFacts(p));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** Lite's routes as Python's server answers them ({@code Boundary.liteRoute}: H4's P4, 2026-11-19): a call's method,
+     *  path, body and the host's user in, its status, media type and body out ({@code Folded.http}). */
+    @CEntryPoint(name = "lite_route")
+    static CCharPointer liteRoute(IsolateThread thread, CCharPointer method, CCharPointer path, CCharPointer body,
+            CCharPointer user) {
+        String a;
+        try {
+            String m = text(method), p = text(path), b = text(body), u = text(user);
+            a = Folded.http(() -> Boundary.liteRoute(m, p, b, u));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     // ---- LITE'S OWN API, v1 (docs/records/lite-api-v1-2026-11-17.md §2, §5, §7; the host train, 2026-11-17): one
     // ---- native entry per operation, named by the spec's one rule (operation a/b -> lite_a_b), each the operation's
     // ---- request JSON in and its answer out, over the product Boundary member of the same operation. No query/run:

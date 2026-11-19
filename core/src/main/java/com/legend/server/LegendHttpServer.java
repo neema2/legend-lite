@@ -408,8 +408,7 @@ public class LegendHttpServer {
             String path = exchange.getRequestURI().getPath();
             LiteV1Api.Answer answer = "POST".equals(exchange.getRequestMethod())
                     ? LiteV1Api.route(path, body, runner, LiteV1Api.Models.COMPILED)
-                    : LiteV1Api.refuse(LiteV1Api.Kind.REQUEST, "lite's operations take POST, not "
-                            + exchange.getRequestMethod() + ": " + path);
+                    : LiteV1Api.notPosted(exchange.getRequestMethod(), path);
             // a binary answer (query/run's Arrow): its bytes under its media type
             answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
             sendResponse(exchange, answer.status(), answer.body(), answer.contentType());
@@ -422,23 +421,14 @@ public class LegendHttpServer {
     static final Routes USER = new Routes() {
         @Override
         public String prefix() {
-            return "/api/lite/v1/user";
+            return LiteV1Api.USER;
         }
 
         @Override
         public LiteV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
                 String body) {
-            if (!"POST".equals(method) || !path.equals(prefix())) {
-                return LiteV1Api.refuse(LiteV1Api.Kind.REQUEST, "lite's user operation is POST " + prefix() + ", not "
-                        + method + " " + path);
-            }
-            return LiteV1Api.answer(() -> {
-                // strip().isEmpty(), not isBlank(): text the tab writes alike (ArchitectureTest's portable-text rule)
-                if (!body.strip().isEmpty()) {
-                    LiteV1Api.read(body, "a user request", java.util.Set.of());
-                }
-                return Json.toCompact(java.util.Map.of("user", SavedQueries.ANONYMOUS));
-            });
+            // every binding's one answer (H4's P4, 2026-11-19), its user the server's
+            return LiteV1Api.user(method, path, body, SavedQueries.ANONYMOUS);
         }
     };
 

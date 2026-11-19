@@ -360,6 +360,77 @@ class LiteV1PlanningTest {
     }
 
     @Test
+    @DisplayName("query/run's request read for a host that runs it itself: the server's reading, its words its refusals")
+    void queryRunRequestIsTheServersReading() {
+        // H4's P4 (the user's CP-13, 2026-11-19): Python reads its query/run request by this, never by words of its own
+        String asked = Json.toCompact(request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "format", "arrow", "params", request("since", "2022-01-01")));
+        Json.Obj read = Json.parseObject(LiteV1Planning.queryRunRequestJson(asked));
+        assertEquals(List.of("model", "query", "runtime", "format", "params"), List.copyOf(read.fields().keySet()));
+        assertEquals(PARTY, read.getString("model"));
+        assertEquals(Json.toCompact(lambdaOf(SINCE)), Json.toCompact(read.get("query")));
+        assertEquals("arrow", read.getString("format"));
+        assertEquals("{\"since\":\"2022-01-01\"}", Json.toCompact(read.get("params")));
+        // no params: an empty object, as the server reads none
+        assertEquals("{}", Json.toCompact(Json.parseObject(LiteV1Planning.queryRunRequestJson(Json.toCompact(request(
+                "model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME, "format", "json")))).get("params")));
+        // each refusal the route's own, word for word
+        for (Map<String, Object> wrong : List.of(
+                request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME),
+                request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME, "format", "csv"),
+                request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME, "format", "json", "extra", 1),
+                request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME, "format", "json",
+                        "params", request("since", 20220101)))) {
+            LiteV1Api.Answer route = run("query/run", wrong);
+            LiteV1Api.Refusal refusal = LiteV1Api.refusal(assertThrows(RuntimeException.class,
+                    () -> LiteV1Planning.queryRunRequestJson(Json.toCompact(wrong))));
+            assertEquals(route.status(), refusal.kind().status(), route.json());
+            assertEquals(route.json(), refusal.json());
+        }
+    }
+
+    @Test
+    @DisplayName("query/run's answer from a host's own rows is the server's text: JSON by its writer, Arrow by its facts")
+    void aHostsRowsAnswerAsTheServerWritesThem() {
+        // H4's P5 (the user's CP-13, 2026-11-19): Python's answer, until then written by rules of its own (_lite_cell)
+        Map<String, Object> asked = request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "format", "json", "params", request("since", "2020-01-01"));
+        LiteV1Api.Answer server = run("query/run", asked);
+        assertEquals(200, server.status(), server.json());
+        String plan = com.legend.executionplan.PlanJson.write(com.legend.Compiler.query(com.legend.Compiler.compileModel(
+                PARTY), com.legend.protocol.ProtocolReader.lambda(com.legend.door.Parse.lambdaJson(SINCE, false)))
+                .executionPlan(RUNTIME));
+        // the host's rows as its driver read them (result.HostRows' wire): a whole number's digits, a date's text
+        String rows = "[{\"id\":1,\"name\":\"Meridian Capital\",\"joined\":\"2021-03-04\"},"
+                + "{\"id\":9223372036854775807,\"name\":\"Halberd Securities\",\"joined\":\"2022-05-06\"}]";
+        assertEquals(server.json(), LiteV1Planning.hostRunJson(plan, rows));
+        // Arrow: the stream's shape and each field's facts, the server's writer's (result.ArrowWriter.facts)
+        assertEquals("{\"schema\":{\"legend.shape\":\"RELATION\"},\"fields\":["
+                + "{\"name\":\"id\",\"metadata\":{\"legend.type\":\"Integer\",\"legend.multiplicity\":\"[1]\","
+                + "\"legend.slot\":\"BIGINT\"}},"
+                + "{\"name\":\"name\",\"metadata\":{\"legend.type\":\"String\",\"legend.multiplicity\":\"[1]\","
+                + "\"legend.slot\":\"VARCHAR\"}},"
+                + "{\"name\":\"joined\",\"metadata\":{\"legend.type\":\"StrictDate\",\"legend.multiplicity\":\"[1]\","
+                + "\"legend.slot\":\"DATE\"}}]}", LiteV1Planning.hostRunArrowFacts(plan));
+        // a plan whose root is no one statement's typed result is refused by name
+        assertThrows(IllegalArgumentException.class, () -> LiteV1Planning.hostRunJson("{}", "[]"));
+    }
+
+    @Test
+    @DisplayName("user and a call by another method than POST: one answer each, the words every binding says")
+    void userAndNotPostedAreOneAnswerEach() {
+        // H4's P4 (the user's CP-13, 2026-11-19): Python's and the server's routes say these, never words of their own
+        assertEquals("{\"user\":\"someone\"}", LiteV1Api.user("POST", LiteV1Api.USER, "", "someone").json());
+        assertEquals("{\"user\":\"someone\"}", LiteV1Api.user("POST", LiteV1Api.USER, " {} ", "someone").json());
+        refused(LiteV1Api.user("POST", LiteV1Api.USER, "{\"x\":1}", "someone"), "request", 400,
+                "a user request has no key x (it holds none)");
+        refused(LiteV1Api.user("GET", LiteV1Api.USER, "", "someone"), "request", 400,
+                "lite's user operation is POST /api/lite/v1/user, not GET /api/lite/v1/user");
+        refused(LiteV1Api.notPosted("GET", LiteV1Planning.API + "model/check"), "request", 400,
+                "lite's operations take POST, not GET: /api/lite/v1/model/check");
+    }
+
+    @Test
     @DisplayName("lite's server mounts its operations: query/run over HTTP; a GET refused; user from the store")
     void theServerMountsThem() throws Exception {
         LegendHttpServer server = new LegendHttpServer(0);

@@ -383,6 +383,37 @@ public final class LiteV1Api {
         return new Refusal(kind, message, null, null).answer();
     }
 
+    /** The route of lite's {@code user} operation (spec §2): a host's own. */
+    public static final String USER = "/api/lite/v1/user";
+
+    /**
+     * A call of lite's routes in another method than POST, refused by name, kind {@code request} -- every binding's
+     * answer (H4's P4, the user's CP-13 of 2026-11-19: until then a GET was 400 lite JSON on the server and 404 text in
+     * Python).
+     */
+    public static Answer notPosted(String method, String path) {
+        return refuse(Kind.REQUEST, "lite's operations take POST, not " + method + ": " + path);
+    }
+
+    /**
+     * LITE'S {@code user} OPERATION (spec §2; the orchestrator's Q-b ruling of 2026-11-17): {@code {user}}, who the store
+     * keeps saved queries for -- {@code who}, the host's own caller (the server's {@code SavedQueries.ANONYMOUS},
+     * Python's local user). POST, its request none: an empty body, or an empty object; any other request refused by
+     * name, kind {@code request} -- every binding's answer, so their words cannot differ (H4's P4, 2026-11-19).
+     */
+    public static Answer user(String method, String path, String body, String who) {
+        if (!"POST".equals(method) || !path.equals(USER)) {
+            return refuse(Kind.REQUEST, "lite's user operation is POST " + USER + ", not " + method + " " + path);
+        }
+        return answer(() -> {
+            // strip().isEmpty(), not isBlank(): text the tab writes alike (ArchitectureTest's portable-text rule)
+            if (!body.strip().isEmpty()) {
+                read(body, "a user request", java.util.Set.of());
+            }
+            return Json.toCompact(java.util.Map.of("user", who));
+        });
+    }
+
     /**
      * {@code e} as lite's refusal -- THE one classifier, which every binding reads (the server's routes, and the browser
      * and Python bindings' folds): the text does not parse ({@code parse}); the model or the query does not compile

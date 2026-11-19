@@ -45,6 +45,10 @@ _ARITY = {
     'lite_model_check': 1, 'lite_model_elements': 1, 'lite_query_parse': 1, 'lite_query_print': 1, 'lite_query_type': 1,
     'lite_query_plan': 1, 'lite_model_create_class': 1, 'lite_model_create_association': 1,
     'lite_model_create_data_space': 1, 'lite_ts_item': 1, 'lite_ts_statement': 1,
+    # lite's routes as the server answers them, and query/run's request as it reads it (H4's P4, 2026-11-19)
+    'lite_route': 4, 'lite_query_run_request': 1,
+    # query/run's answer from this host's rows, the server's writer's (H4's P5, 2026-11-19)
+    'lite_query_run_json': 2, 'lite_query_run_arrow_facts': 1,
     # the planner's warm (C2)
     'lite_warm_model': 1,
     # the site's media types, the one table every host serving a site answers with (C4)
