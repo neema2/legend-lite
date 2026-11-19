@@ -1815,6 +1815,12 @@ class JavaEvalLedgerTest {
                     // UTF-8, a date's epoch days); nothing computed, a carrier an encoder cannot lay down refused
                     // by name; its carriage register is WriterCarriageGuardTest's ArrowWriter.java rows
                     "ArrowWriter.java",
+                    // lite's Arrow metadata keys, ONE SOURCE (H4's P10, the user's CP-13, 2026-11-19; the orchestrator's
+                    // approval of ~13:34 UTC that day, under the user's delegation): the string constants every product
+                    // Arrow answer's schema and field metadata are keyed by (legend.shape, .type, .multiplicity, .slot,
+                    // .precision, .kind, .plan, .receipt) and their list for the generator (TypeFacts) -- constants
+                    // only; nothing computed, nothing carried
+                    "ArrowKeys.java",
                     // a tagged column's cell as a decoder hands it to the batch (track F, 2026-10-29; D57 (5)): the
                     // slot index and the slot's carrier, a record of two fields and nothing computed
                     "TaggedCell.java",
