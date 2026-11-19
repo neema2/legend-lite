@@ -2276,3 +2276,7 @@ who confirms or changes phases 1-3.
   `compat-batch-register-rows-2026-11-19.md`. Reach: zero test plans run on a DuckDB the test declares as a file (seven
   core files declare one; one only parses it, six run product plans); none has two failing parts in different
   pipelines. #127's CI (run 44587411059): 6 of 55 checks done, all green.
+- **~18:34 UTC, H14's shape note updated** (`31a919a5`): every cell of a relation's product text under
+  `Styled.PRODUCT`, the Lowerer arm passing no style (no read of the plan style, tenet 6), pinned by a product test; the
+  slice's prerequisites named (the whole value's `.0` on Snowflake, MySQL and MongoDB; B2's presenter claiming every
+  last-step toString on the edge's routes, proven on a route; until then the edge's toString SQL stays). H14 stopped.
