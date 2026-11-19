@@ -414,3 +414,19 @@ who confirms or changes phases 1-3.
     decide a verdict is `assertError`'s match (`BodyRun.java:39` → `HostWords.caught`).
   - The decoded-plan guard round-trips the edge's records (`TestPlanJson.java:121-124`, `:270-271`), so the planning
     interface stays data.
+- **~12:07 UTC, the translator's H5 done** (`c3befded`; the one-page answer at the top of `H5-translator-spike.md`;
+  ledger draft `H5-translator-ledger-draft.tsv`; evidence `h5/corpus/` V0 and V2-V6, `h5/parity/`):
+  - **3.1's frontend split works:** Pure's core plus the dynaFunction and frontend splits regress no parity answer.
+    Cypher 4,267/0 (3,540/321/406 errors without the split), IQ 5,984/19 (its ledger test green), Postgres SQL 1,651/0.
+    17 tests still fail, all listed: 9 pin the old meaning, and 8 are goldens of the frontends' generated text. 3.1 is
+    about 2 days, plus 0.5 day and one ceiling move when 3.3's negative-start raise lands;
+  - **typed retargeting from public classes only** (`ModelContext.findFunction` and `SpecCompiler.compile`; it renames
+    only the calls that resolved to the String overloads): V6 is the best variant, H2 2,285/280 and DuckDB 2,448/112.
+    Every one of V4's typing breaks is gone; it costs 7.1 s on the corpus world. The open check for 3.2 is whether
+    `ArchitectureTest`'s entry rule admits an edge caller of `SpecCompiler`;
+  - **the 0.6 ledger's first draft:** 130 rows, 52 flagged unclear. The main open groups are CP-5's cost rows, E-R2
+    against H1's X rows, text read inside a query, the generator's in-body text, and upstream's vacuous or
+    non-deterministic answers;
+  - **still open:** the no-translator count for the other meaning strands (`isNumeric`, `parsedDecimal`, `parsedJson`,
+    SQLite's Decimal arithmetic, `CrossKindNumbers`, `raw`, `LEGACY_SQL_NULL_UNSAFE_EQUALS`), asked of the translator
+    session at ~12:08. B2's (j) covers S20 and the plain set.
