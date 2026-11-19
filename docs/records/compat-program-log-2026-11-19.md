@@ -2221,3 +2221,8 @@ who confirms or changes phases 1-3.
   (NaN, S119). Separate findings: H2 echoes the statement in its error text (4 COMPAT channel-B rows); the compiler's
   Integer folds (`NormalizeFolds.fold`, `StaticFold`) sit inside the user's fold ruling; MariaDB and MySQL channel-B
   lanes red on `main` already (Q3, Q3b).
+- **~17:59 UTC, A5 final at `3cb787902`** (pushed; green locally: `//pct:pct_channel_b` 18 of 18, COMPAT channel B on
+  SQLite, H2 relation and Postgres green, MariaDB and MySQL red as on `main`, channel A LITE ×5 green). #127 kept open
+  for its one CI run (A5 goes first and changes every DuckDB test plan's session: an early per-OS signal on A5 alone);
+  no more pushes; it closes pointing at the batch. The judges' session given A5's head and its files to watch; it waits
+  for A2's head, then merges A2 then A5.
