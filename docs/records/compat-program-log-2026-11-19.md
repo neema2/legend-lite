@@ -279,3 +279,6 @@ who confirms or changes phases 1-3.
     row), S376 (the prelude and the parser stay).
   - Each upstream citation was re-read at the pins, from blob-less clones of the release tags.
   - The independent reviewer checks the rows. The PR waits for the user's merge word.
+- **~11:33 UTC:** S373 (a list aggregate's empty pivot cell on DuckDB) is scheduled in the product's hosts-and-planner
+  track, after the cross-kind `!=` fix: confirm it by test, read Pure's answer, fix it to lite's meaning, and bring any
+  difference from legend-engine back to the user.
