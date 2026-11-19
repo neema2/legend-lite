@@ -292,7 +292,7 @@ class WarehouseJdbcParametersTest {
                 "SELECT $1 AS a, $1 AS again, $2 AS b",
                 "SELECT x FROM (VALUES (1), (2)) t(x) WHERE x IN (?, ?)",
                 // the exec seam's load of a file (JdbcStatements.readsFile): one value, the admitted path
-                "SELECT * FROM read_csv(?, header = true, delim = ',', quote = '"', escape = '"', auto_detect = false,"
+                "SELECT * FROM read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"', auto_detect = false,"
                         + " strict_mode = true, nullstr = '', columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR'})"}) {
             try (PreparedStatement r = remote.prepareStatement(sql); PreparedStatement l = local.prepareStatement(sql)) {
                 assertEquals(l.getParameterMetaData().getParameterCount(), r.getParameterMetaData().getParameterCount(),
@@ -329,7 +329,7 @@ class WarehouseJdbcParametersTest {
         try (Connection c = connect(); Statement s = c.createStatement()) {
             s.execute("CREATE TABLE loaded (id BIGINT, name VARCHAR)");
             try (PreparedStatement p = c.prepareStatement("INSERT INTO loaded SELECT * FROM read_csv(?, header = true,"
-                    + " delim = ',', quote = '"', escape = '"', auto_detect = false, strict_mode = true, nullstr = '',"
+                    + " delim = ',', quote = '\"', escape = '\"', auto_detect = false, strict_mode = true, nullstr = '',"
                     + " columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR'})")) {
                 assertEquals(1, p.getParameterMetaData().getParameterCount());
                 p.setString(1, csv.toString());
