@@ -107,7 +107,7 @@ final class SqlTextVerdicts {
      *  APPEAL that decides a failed text -- the plan's {@code Appeal} record (step 8b), heard at the step on a failed
      *  text alone and decided after the run. Planning's record alone: the plan carries its data ({@code EngineText}). */
     record Collected(String name, @com.legend.base.Nullable String golden, @com.legend.base.Nullable String ours,
-            boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal,
+            boolean textEqual, @com.legend.base.Nullable String decline, com.legend.executionplan.Extension appeal,
             @com.legend.base.Nullable String oursOrigin) {
     }
 
@@ -131,7 +131,7 @@ final class SqlTextVerdicts {
 
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal, BodyDriver.ExecEnv env) {
+                @com.legend.base.Nullable String decline, com.legend.executionplan.Extension appeal, BodyDriver.ExecEnv env) {
             boolean deferredText = ours == token;
             if (deferredText != (deferred != null)) {
                 throw new IllegalStateException(name + ": " + (deferredText
@@ -207,7 +207,7 @@ final class SqlTextVerdicts {
 
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal, BodyDriver.ExecEnv env) {
+                @com.legend.base.Nullable String decline, com.legend.executionplan.Extension appeal, BodyDriver.ExecEnv env) {
             throw new IllegalStateException(name + ": the database judge's texts are rows of its batch, never collected");
         }
 

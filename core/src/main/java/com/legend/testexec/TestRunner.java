@@ -428,7 +428,7 @@ public final class TestRunner {
             if (!e.records()) {
                 return;   // lite's own rules: nothing planned for the edge, no ledger
             }
-            List<com.legend.testexecutionplan.Extension> texts = planned.extensionsByStep().get(step);
+            List<com.legend.executionplan.Extension> texts = planned.extensionsByStep().get(step);
             if (texts == null && systemStore(step)) {
                 // the graph's system store's seeds are no body's: the walk's ledger recorded none of them
                 return;
@@ -458,7 +458,7 @@ public final class TestRunner {
             }
             com.legend.testexecutionplan.Edge e = edge;
             if (e.records()) {
-                List<com.legend.testexecutionplan.Extension> texts = planned.extensionsByStep().get(step);
+                List<com.legend.executionplan.Extension> texts = planned.extensionsByStep().get(step);
                 if (texts == null) {
                     throw new IllegalStateException("effect step " + step + " of a moved body ran with no ledger texts"
                             + " planned at it");

@@ -4,7 +4,7 @@
 package com.legend.edge;
 
 import com.legend.base.Nullable;
-import com.legend.testexecutionplan.Extension;
+import com.legend.executionplan.Extension;
 
 /**
  * AN ENGINE-TEXT ASSERT'S COMPARISON, THE EDGE'S RECORD IN THE PLAN (census C3, 2026-11-17, the orchestrator's ruling:

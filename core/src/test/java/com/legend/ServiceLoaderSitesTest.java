@@ -48,9 +48,12 @@ class ServiceLoaderSitesTest {
             // the parser's section grammars
             Map.entry("com.legend.parser.SectionGrammarRegistry#build()", Set.of("com.legend.spi.SectionGrammar",
                     "(loader reaches 2)")),
-            // the test plan's extension codecs: the edge's seam (EdgeCodec, in the edge's jar alone)
-            Map.entry("com.legend.testexecutionplan.TestPlanJson$Codecs#load()",
-                    Set.of("com.legend.testexecutionplan.ExtensionCodec", "(loader reaches 2)")),
+            // the plans' extension codecs: the edge's seam (EdgeCodec, in the edge's jar alone); moved with the seam from
+            // the test plan's codec (TestPlanJson$Codecs) to the product plan's, which both plan types read them by, and
+            // the SPI with it from com.legend.testexecutionplan (S1 of the presentation program, 2026-11-19: a raise
+            // site's words are an edge record in a product plan too; one site still, one type)
+            Map.entry("com.legend.executionplan.PlanJson$Codecs#load()",
+                    Set.of("com.legend.executionplan.ExtensionCodec", "(loader reaches 2)")),
             // K2's server half (E-P5's 0c78ae0e00, train 17, 2026-11-18; the user's ruling "Product root, edge opt-in"):
             // the shipped server loads the mount --engine names, a MountProvider (HookRulingTest.RULED); the product
             // ships none, the edge server's jar the one (PROVIDERS)
@@ -61,8 +64,9 @@ class ServiceLoaderSitesTest {
     static final Map<String, Set<String>> PROVIDERS = Map.ofEntries(
             Map.entry("libduckdb_cells.jar!/META-INF/services/com.legend.exec.DriverCells",
                     Set.of("com.legend.exec.DuckDbCells")),
-            // the edge's one provider, in the edge's jar: the plan's extension codec (census C2's seam)
-            Map.entry("libedge.jar!/META-INF/services/com.legend.testexecutionplan.ExtensionCodec",
+            // the edge's one provider, in the edge's jar: the plan's extension codec (census C2's seam; its SPI's
+            // package com.legend.executionplan since S1 of the presentation program, 2026-11-19)
+            Map.entry("libedge.jar!/META-INF/services/com.legend.executionplan.ExtensionCodec",
                     Set.of("com.legend.edge.EdgeCodec")),
             // the edge server's one provider, in the opt-in module's jar: legend-engine's mount (K2's server half,
             // E-P5's 0c78ae0e00, train 17, 2026-11-18)

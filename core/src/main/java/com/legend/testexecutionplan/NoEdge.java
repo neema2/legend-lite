@@ -4,6 +4,7 @@
 package com.legend.testexecutionplan;
 
 import com.legend.error.NotImplementedException;
+import com.legend.executionplan.Extension;
 
 import java.util.List;
 
@@ -34,11 +35,6 @@ public enum NoEdge implements Edge {
     public List<Extension> seed(List<com.legend.executionplan.ExecutionPlan.LoadStep> steps,
             java.util.Map<String, String> content) {
         throw new NotImplementedException("a seed's referee's copy" + WHY);
-    }
-
-    @Override
-    public List<Extension> siteWords(int at, java.util.Map<Integer, String> words) {
-        throw new NotImplementedException("legend-pure's words of a statement's raise sites" + WHY);
     }
 
     @Override

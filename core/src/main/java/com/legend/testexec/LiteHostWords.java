@@ -218,7 +218,7 @@ public final class LiteHostWords implements HostWords {
 
     /** Lite's words of a caught error: its own message (K10). */
     @Override
-    public String caught(RuntimeException error, EdgeHearing hearing) {
+    public String caught(RuntimeException error) {
         return String.valueOf(error.getMessage());
     }
 }

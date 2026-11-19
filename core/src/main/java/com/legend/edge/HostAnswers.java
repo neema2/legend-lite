@@ -149,21 +149,6 @@ public final class HostAnswers {
         return PureV1Writer.ColumnType.spelled(tds, relational);
     }
 
-    /** THE EDGE'S TABLE OF LEGEND-PURE'S WORDS of the raise sites {@code statement} declares, kept beside the plan it
-     *  answers (K10b of the edge audit, 2026-11-17: the product plan's sites carry the product's message alone): each
-     *  site's {@code n} and its {@code words}, in order; none where the statement declares none or the planning call
-     *  worded none of its sites. */
-    private static List<Map<String, Object>> siteWordsOf(Map<String, Map<Integer, String>> words, String statement) {
-        List<Map<String, Object>> out = new java.util.ArrayList<>();
-        words.getOrDefault(statement, Map.of()).forEach((n, w) -> {
-            Map<String, Object> o = new LinkedHashMap<>();
-            o.put("n", n);
-            o.put("words", w);
-            out.add(o);
-        });
-        return out;
-    }
-
     /**
      * E8 in upstream's Arrow format ({@code ?serializationFormat=ARROW_IPC}), its plan half, for a host that runs
      * the SQL itself (Python's engine, over duckdb-python): the {@code ExecuteInput} read and planned as
@@ -180,11 +165,8 @@ public final class HostAnswers {
             com.legend.database.PlanStyle style) {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
-            // the plan made in a fresh recorder of the style, read once after it (K10b, 2026-11-17): the raise sites'
-            // words, the edge's table kept beside the plan
-            SiteWordsRecorder recording = PureText.recording(style);
-            QueryPlan plan = hosted.query().plan(hosted.runtime(), recording);
-            Map<String, Map<Integer, String>> words = recording.read();
+            // the plan made in the style, each raise site carrying its words (K1, S1, 2026-11-19)
+            QueryPlan plan = hosted.query().plan(hosted.runtime(), style);
             String refused = plan.beyondItsText();
             if (refused != null) {
                 throw new com.legend.error.NotImplementedException("a host runs a plan's statement itself, and this"
@@ -208,12 +190,12 @@ public final class HostAnswers {
             // the raises the text can send, by kind, to their sentences (PlanJson.raises; phase D's option (D), 2026-11-15)
             out.put("raises", com.legend.executionplan.PlanJson.raises(plan.plan()));
             // the raise sites its text declares (v56): a token it raises read through them (phase D's Phase 2)
-            out.put("sites", com.legend.executionplan.PlanJson.sitesOf(plan.plan(), plan.sql()));
-            out.put("siteWords", siteWordsOf(words, plan.sql()));
+            out.put("sites", com.legend.executionplan.PlanJson.sitesOf(plan.plan(), plan.sql(), EdgeCodec.INSTANCE));
             out.put("metadata", metadata);
             if (!plan.textAlone()) {
-                // what runs the text: the execution plan it renders from (B3, 2026-11-11), its target's loads
-                out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan.plan())));
+                // what runs the text: the execution plan it renders from (B3, 2026-11-11), its target's loads; its sites'
+                // words written by the edge's own codec (WebAssembly's loader finds none: S1, 2026-11-19)
+                out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan.plan(), EdgeCodec.INSTANCE)));
             }
             return Json.toCompact(out);
         });
@@ -235,11 +217,9 @@ public final class HostAnswers {
             com.legend.database.PlanStyle style) {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
-            // the plan made in a fresh recorder of the style, read once after it (K10b, 2026-11-17)
-            SiteWordsRecorder recording = PureText.recording(style);
+            // the plan made in the style, each raise site carrying its words (K1, S1, 2026-11-19)
             com.legend.executionplan.ExecutionPlan plan = hosted.query().executionPlan(hosted.runtime(),
-                    java.util.Set.of(), recording);
-            Map<String, Map<Integer, String>> words = recording.read();
+                    java.util.Set.of(), style);
             if (plan.answerShape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
                 // as the server's execute refuses it (Output.Engine): a value's answer is not one the engine was
                 // measured on
@@ -275,11 +255,11 @@ public final class HostAnswers {
             // the raises `run` can send, by kind, to their sentences (PlanJson.raises; phase D's option (D), 2026-11-15)
             out.put("raises", com.legend.executionplan.PlanJson.raises(plan));
             // the raise sites `run` declares (v56): a token it raises read through them (phase D's Phase 2)
-            out.put("sites", com.legend.executionplan.PlanJson.sitesOf(plan, statement));
-            out.put("siteWords", siteWordsOf(words, statement));
+            out.put("sites", com.legend.executionplan.PlanJson.sitesOf(plan, statement, EdgeCodec.INSTANCE));
             if (!result.sql().slots().isEmpty()) {
-                // what the host binds to `run`'s `?`s: the plan, its payloads its statement's content by digest
-                out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan)));
+                // what the host binds to `run`'s `?`s: the plan, its payloads its statement's content by digest; its sites'
+                // words written by the edge's own codec (WebAssembly's loader finds none: S1, 2026-11-19)
+                out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan, EdgeCodec.INSTANCE)));
             }
             out.put("shape", result.shape().name());
             out.put("resultColumns", Json.parse(com.legend.executionplan.PlanJson.writeColumns(result.columns())));

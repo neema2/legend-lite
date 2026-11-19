@@ -5,8 +5,8 @@ package com.legend.edge;
 
 import com.legend.base.Nullable;
 import com.legend.json.Json;
-import com.legend.testexecutionplan.Extension;
-import com.legend.testexecutionplan.ExtensionCodec;
+import com.legend.executionplan.Extension;
+import com.legend.executionplan.ExtensionCodec;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -14,10 +14,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The JSON of the compatibility edge's records (docs/PLAN_AS_DATA_2026_11_07.md 2.7), registered for the test plan's
- * format through {@code META-INF/services}: each record an object tagged by its kind.
+ * The JSON of the compatibility edge's records (docs/PLAN_AS_DATA_2026_11_07.md 2.7), registered for the plans' formats
+ * (the test plan's, and a product plan's raise sites since S1 of the presentation program, 2026-11-19) through
+ * {@code META-INF/services}: each record an object tagged by its kind.
  */
 public final class EdgeCodec implements ExtensionCodec {
+
+    /** The codec the edge hands a plan's writer where the classpath's loader finds none (WebAssembly's: the host
+     *  halves' plans carry their sites' words; S1 of the presentation program, 2026-11-19). */
+    static final EdgeCodec INSTANCE = new EdgeCodec();
 
     private static final String TAG = "_type";
 
@@ -60,11 +65,8 @@ public final class EdgeCodec implements ExtensionCodec {
                 o.putAll(AppealJson.wEngineTextJudgment(j));
             }
             case SiteWords w -> {
-                // legend-pure's words of a raise site, planned (K10b, 2026-11-17): the hearing's lookup by the step's
-                // sent text at index `at` and the site's n (the K10 trim, 2026-11-18: no statement's text copied)
+                // an upstream mode's words of a raise site, planned, the site's own record (K1, S1, 2026-11-19)
                 o.put(TAG, Tag.siteWords.name());
-                o.put("at", w.at());
-                o.put("n", w.n());
                 o.put("words", w.words());
             }
             default -> {
@@ -104,7 +106,7 @@ public final class EdgeCodec implements ExtensionCodec {
             }
             case appeal -> AppealJson.rAppeal(o);
             case engineText -> AppealJson.rEngineTextJudgment(o);
-            case siteWords -> new SiteWords(o.getInt("at"), o.getInt("n"), o.getString("words"));
+            case siteWords -> new SiteWords(o.getString("words"));
         };
     }
 }

@@ -167,8 +167,12 @@ public final class PlanJson {
      *  decimal's digits data, its {@code decimal: {precision, scale}} (absent for any other type: omitted when null, read back as null -- a codec form, not a format change, 2026-11-18, the orchestrator's ruling (A) after the host train's gate pass found {@code "decimal":null} on every column against lean SQL's shrink-only G3) -- a v56 plan, whose types may carry arguments, is
      *  refused by its version. 58 since 2026-11-18 (K10 of the edge audit, riding the host train after 57): a site carries no
      *  {@code upstream} -- legend-pure's words of a site are the compatibility edge's records, never the product plan's
-     *  -- a v57 plan, whose edge sites carry them, is refused by its version. */
-    public static final int VERSION = 58;
+     *  -- a v57 plan, whose edge sites carry them, is refused by its version. 59 since 2026-11-19 (K1 of the
+     *  presentation program, S1): a raise site may carry {@code extensions}, the compatibility edge's data of it
+     *  ({@link Extension}: an upstream mode's words of the site), each written by the codec that knows it, tagged;
+     *  omitted where there is none, so lite's own plan is a v58 plan's JSON but its version -- a v58 plan, whose edge
+     *  words were kept beside it, is refused by its version. */
+    public static final int VERSION = 59;
 
     private PlanJson() {
     }
@@ -227,15 +231,23 @@ public final class PlanJson {
     // ---- write ------------------------------------------------------------------------------------------------------
 
     public static String write(ExecutionPlan plan) {
-        return Json.toCompact(tree(plan));
+        return Json.toCompact(tree(plan, registeredCodecs()));
     }
 
-    private static Map<String, Object> tree(ExecutionPlan plan) {
+    /** {@code plan}'s JSON, its extensions written by {@code codec}: the compatibility edge's writer where the
+     *  classpath's loader finds no codec (WebAssembly's returns none: wasm/README.md), its host halves' plans carrying
+     *  its words (S1 of the presentation program, 2026-11-19). An extension {@code codec} does not write is refused by
+     *  name. */
+    public static String write(ExecutionPlan plan, ExtensionCodec codec) {
+        return Json.toCompact(tree(plan, List.of(java.util.Objects.requireNonNull(codec, "the edge's codec"))));
+    }
+
+    private static Map<String, Object> tree(ExecutionPlan plan, List<ExtensionCodec> codecs) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("format", FORMAT);
         out.put("version", VERSION);
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
-        out.put("root", node(plan.root()));
+        out.put("root", node(plan.root(), codecs));
         out.put("writes", plan.writes());
         out.put("loads", hoistLoads(out));
         out.put("raises", raises(plan));
@@ -330,7 +342,7 @@ public final class PlanJson {
      *  largest blobs moved beside it first. */
     @SuppressWarnings("unchecked")
     public static Bundle writeBundle(ExecutionPlan plan) {
-        Map<String, Object> out = tree(plan);
+        Map<String, Object> out = tree(plan, registeredCodecs());
         // every holder of a bundle: a load's, and a statement's payloads (the JSON pass, 2026-11-11: one mechanism)
         List<Map<String, Object>> loads = new ArrayList<>();
         collectBundles(out, loads);
@@ -586,25 +598,25 @@ public final class PlanJson {
 
     /** A product node as JSON: the test plan's format writes each product step so. */
     public static Map<String, Object> nodeJson(Node n) {
-        return node(n);
+        return node(n, registeredCodecs());
     }
 
-    private static Map<String, Object> node(Node n) {
+    private static Map<String, Object> node(Node n, List<ExtensionCodec> codecs) {
         Map<String, Object> o = new LinkedHashMap<>();
         switch (n) {
             case Sequence s -> {
                 o.put("_type", NodeTag.sequence.name());
-                o.put("steps", s.steps().stream().map(PlanJson::node).toList());
+                o.put("steps", s.steps().stream().map(step -> node(step, codecs)).toList());
             }
             case TdsResult t -> {
                 o.put("_type", NodeTag.tdsResult.name());
                 o.put("shape", t.shape().name());
                 o.put("columns", columns(t.columns()));
-                o.put("sql", sql(t.sql()));
+                o.put("sql", sql(t.sql(), codecs));
             }
             case ExecutionPlan.Keyed k -> {
                 o.put("_type", NodeTag.keyed.name());
-                o.put("keys", sql(k.keys()));
+                o.put("keys", sql(k.keys(), codecs));
                 o.put("keysOf", k.keysOf().name());
                 o.put("admitted", new ArrayList<Object>(k.admitted()));
                 o.put("keyFields", new ArrayList<Object>(k.keyFields()));
@@ -626,25 +638,25 @@ public final class PlanJson {
                 }
                 o.put("outputs", outputs);
                 o.put("perKeyAt", k.perKeyAt());
-                o.put("body", sql(k.body()));
+                o.put("body", sql(k.body(), codecs));
                 o.put("snapshot", k.snapshot().name());
                 o.put("maxColumns", k.maxColumns());
                 o.put("shape", k.shape().name());
             }
             case ExecutionPlan.Update u -> {
                 o.put("_type", NodeTag.update.name());
-                o.put("sql", sql(u.sql()));
+                o.put("sql", sql(u.sql(), codecs));
                 if (u.count() != null) {
                     o.put("count", u.count());
                 }
             }
             case ExecutionPlan.Check k -> {
                 o.put("_type", NodeTag.check.name());
-                o.put("sql", sql(k.sql()));
+                o.put("sql", sql(k.sql(), codecs));
             }
             case ExecutionPlan.Effect e -> {
                 o.put("_type", NodeTag.effect.name());
-                o.put("sql", sql(e.sql()));
+                o.put("sql", sql(e.sql(), codecs));
                 if (e.script() != null) {
                     Map<String, Object> so = new LinkedHashMap<>();
                     so.put("statements", new ArrayList<Object>(e.script().statements()));
@@ -659,10 +671,10 @@ public final class PlanJson {
                 o.put("cadence", u.cadence().name());
                 List<Object> steps = new ArrayList<>();
                 for (LoadStep step : u.steps()) {
-                    steps.add(setupStep(step));
+                    steps.add(setupStep(step, codecs));
                 }
                 o.put("steps", steps);
-                o.put("target", target(u.target()));
+                o.put("target", target(u.target(), codecs));
                 if (!u.content().isEmpty()) {
                     // the bundle inline (a plan written whole); writeBundle moves each text to a blob of its own
                     o.put(CONTENT, new LinkedHashMap<String, Object>(u.content()));
@@ -723,7 +735,7 @@ public final class PlanJson {
         return cols;
     }
 
-    private static Map<String, Object> sql(Sql s) {
+    private static Map<String, Object> sql(Sql s, List<ExtensionCodec> codecs) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("statement", s.statement());
         List<Object> slots = new ArrayList<>();
@@ -750,10 +762,10 @@ public final class PlanJson {
             }
             o.put("regions", regions);
         }
-        o.put("target", target(s.target()));
+        o.put("target", target(s.target(), codecs));
         if (!s.sites().isEmpty()) {
             // the raise sites its text can send, as the renderer numbered them (typed at render, never read from the text)
-            o.put("sites", sitesJson(s.sites()));
+            o.put("sites", sitesJson(s.sites(), codecs));
         }
         if (s.stamp() != null) {
             o.put("stamp", s.stamp());
@@ -806,7 +818,7 @@ public final class PlanJson {
      *  database by it, decision A). */
     public static String writeTarget(Target target) {
         // the target as a plan writes it: its loads by identity (a key names what a target holds by its digests)
-        Map<String, Object> t = target(target);
+        Map<String, Object> t = target(target, registeredCodecs());
         hoistLoads(t);
         return Json.toCompact(t);
     }
@@ -822,7 +834,7 @@ public final class PlanJson {
 
     /** {@code t} as a JSON object (the test plan's format writes an appeal's replay target so: step 8b). */
     public static Map<String, Object> targetJson(Target t) {
-        return target(t);
+        return target(t, registeredCodecs());
     }
 
     /** {@link #targetJson}'s inverse. */
@@ -830,12 +842,12 @@ public final class PlanJson {
         return readTarget(t);
     }
 
-    private static Map<String, Object> target(Target t) {
+    private static Map<String, Object> target(Target t, List<ExtensionCodec> codecs) {
         Map<String, Object> to = new LinkedHashMap<>();
         to.put("database", database(t.database()));
         to.put("session", t.session());
         // inline here; the plan's writer moves each to its load section once (hoistLoads)
-        to.put("loads", t.loads().stream().map(PlanJson::node).toList());
+        to.put("loads", t.loads().stream().map(load -> node(load, codecs)).toList());
         // the error read-back the target declares (C2, 2026-11-12: MariaDB's and MySQL's), written where there is one
         if (t.raiseReadBack() != null) {
             Map<String, Object> readBack = new LinkedHashMap<>();
@@ -929,7 +941,7 @@ public final class PlanJson {
      *  writes its steps so (B2b, 2026-11-11). A PRODUCT API, stated (J40 of the edge audit, 2026-11-18): the lite plan
      *  format's own spelling of a load step; the edge's records reuse it rather than spell the format a second time. */
     public static Map<String, Object> loadStepJson(LoadStep step) {
-        return setupStep(step);
+        return setupStep(step, registeredCodecs());
     }
 
     /** A load step read from {@link #loadStepJson}'s JSON. */
@@ -953,7 +965,7 @@ public final class PlanJson {
         return content;
     }
 
-    private static Map<String, Object> setupStep(LoadStep step) {
+    private static Map<String, Object> setupStep(LoadStep step, List<ExtensionCodec> codecs) {
         Map<String, Object> o = new LinkedHashMap<>();
         switch (step) {
             case LoadStep.Statement s -> {
@@ -976,7 +988,7 @@ public final class PlanJson {
                         delivery.put("statements", r.statements());
                         delivery.put("after", r.after());
                         if (!r.sites().isEmpty()) {
-                            delivery.put("sites", sitesJson(r.sites()));
+                            delivery.put("sites", sitesJson(r.sites(), codecs));
                         }
                     }
                 }
@@ -1022,6 +1034,75 @@ public final class PlanJson {
             }
         }
         return o;
+    }
+
+    // ---- the edge's records (K1 of the presentation program, S1, 2026-11-19) ---------------------------------------
+
+    /** The codecs the classpath registers (the edge's, through the {@code ServiceLoader} seam), loaded once: none
+     *  under a run that hands no edge, whose plans hold no record of the edge's (K2), and none in WebAssembly, whose
+     *  loader returns none ({@link #write(ExecutionPlan, ExtensionCodec)}). Both plan types read and write their
+     *  extensions by them (moved here from the test plan's codec with {@link Extension}). */
+    public static List<ExtensionCodec> registeredCodecs() {
+        return Codecs.ALL;
+    }
+
+    /** The registered codecs, loaded once (the slice 2 audit, 2026-11-08: each write and read loaded them again). */
+    private static final class Codecs {
+        static final List<ExtensionCodec> ALL = load();
+
+        private static List<ExtensionCodec> load() {
+            List<ExtensionCodec> out = new ArrayList<>();
+            for (ExtensionCodec c : java.util.ServiceLoader.load(ExtensionCodec.class,
+                    ExtensionCodec.class.getClassLoader())) {
+                out.add(c);
+            }
+            return List.copyOf(out);
+        }
+    }
+
+    /** One extension record as the first of {@code codecs} that writes it writes it, tagged; refused by name where none
+     *  does (census C3, 2026-11-17: a test plan's verdict judgment's record is written so too). */
+    public static Map<String, Object> extensionJson(Extension e, List<ExtensionCodec> codecs) {
+        for (ExtensionCodec c : codecs) {
+            Map<String, Object> o = c.write(e);
+            if (o != null) {
+                return o;
+            }
+        }
+        throw new IllegalStateException("a plan's extension no codec writes: " + e.getClass().getSimpleName());
+    }
+
+    /** One extension record read by the first of {@code codecs} that knows its tag; refused by name where none does. */
+    public static Extension extensionOf(Json.Obj o, List<ExtensionCodec> codecs) {
+        String tag = o.getString("_type");
+        for (ExtensionCodec c : codecs) {
+            Extension read = c.read(tag, o);
+            if (read != null) {
+                return read;
+            }
+        }
+        throw new IllegalArgumentException("a plan's extension tagged '" + tag + "' no codec reads");
+    }
+
+    private static List<Object> extensionsJson(List<Extension> records, List<ExtensionCodec> codecs) {
+        List<Object> out = new ArrayList<>(records.size());
+        for (Extension e : records) {
+            out.add(extensionJson(e, codecs));
+        }
+        return out;
+    }
+
+    /** {@code holder}'s extensions (v59: a raise site's), read by the registered codecs; none where it carries none. */
+    private static List<Extension> readExtensions(Json.Obj holder) {
+        Json.Node records = holder.getOr("extensions", null);
+        if (records == null) {
+            return List.of();
+        }
+        List<Extension> out = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) records).items()) {
+            out.add(extensionOf((Json.Obj) n, registeredCodecs()));
+        }
+        return out;
     }
 
     // ---- read -------------------------------------------------------------------------------------------------------
@@ -1360,8 +1441,17 @@ public final class PlanJson {
 
     /** THE SITES OF {@code statement}, one of {@code plan}'s statements, as JSON (v56): what a host that runs that text
      *  alone (a text plan's {@code sql}) reads a token it raises through. None where the statement declares none; a text
-     *  that raises a token and is none of the plan's statements refused by name; two statements of the text declaring different sites refused by name. */
-    public static List<Map<String, Object>> sitesOf(ExecutionPlan plan, String statement) {
+     *  that raises a token and is none of the plan's statements refused by name; two statements of the text declaring
+     *  different sites refused by name. Each site written as the plan writes it, its extensions by {@code codec} (S1 of
+     *  the presentation program, 2026-11-19: the compatibility edge's host halves, the one caller, hand theirs; a host
+     *  declares a statement's sites from this view and from the plan carried beside it alike, and refuses two that
+     *  differ, so the view is written as {@link #write(ExecutionPlan, ExtensionCodec)} writes that plan). */
+    public static List<Map<String, Object>> sitesOf(ExecutionPlan plan, String statement, ExtensionCodec codec) {
+        return sitesOf(plan, statement, List.of(java.util.Objects.requireNonNull(codec, "the edge's codec")));
+    }
+
+    private static List<Map<String, Object>> sitesOf(ExecutionPlan plan, String statement,
+            List<ExtensionCodec> codecs) {
         List<List<ExecutionPlan.Site>> found = new ArrayList<>();
         statementsOf(plan.root(), statement, found);
         java.util.Set<List<ExecutionPlan.Site>> distinct = new java.util.LinkedHashSet<>(found);
@@ -1372,7 +1462,7 @@ public final class PlanJson {
             throw new IllegalStateException("a text that raises a site's token is none of its plan's statements, so no"
                     + " site table declares its tokens: " + statement);
         }
-        return distinct.isEmpty() ? List.of() : sitesJson(distinct.iterator().next());
+        return distinct.isEmpty() ? List.of() : sitesJson(distinct.iterator().next(), codecs);
     }
 
     private static void statementsOf(ExecutionPlan.Node node, String statement, List<List<ExecutionPlan.Site>> into) {
@@ -1400,9 +1490,9 @@ public final class PlanJson {
         }
     }
 
-    /** A statement's raise sites as JSON (v57): each {@code n}, {@code kind}, its {@code where} where it has one, and its
-     *  {@code message}. */
-    private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites) {
+    /** A statement's raise sites as JSON (v57): each {@code n}, {@code kind}, its {@code where} where it has one, its
+     *  {@code message}, and the edge's data of it where it has some (v59, {@code extensions}, each by {@code codecs}). */
+    private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites, List<ExtensionCodec> codecs) {
         List<Map<String, Object>> out = new ArrayList<>(sites.size());
         for (ExecutionPlan.Site site : sites) {
             Map<String, Object> so = new LinkedHashMap<>();
@@ -1412,6 +1502,9 @@ public final class PlanJson {
                 so.put("where", site.where());
             }
             so.put("message", site.message());
+            if (!site.extensions().isEmpty()) {
+                so.put("extensions", extensionsJson(site.extensions(), codecs));
+            }
             out.add(so);
         }
         return out;
@@ -1427,9 +1520,10 @@ public final class PlanJson {
         List<ExecutionPlan.Site> out = new ArrayList<>();
         for (Json.Node n : ((Json.Arr) ss).items()) {
             Json.Obj so = (Json.Obj) n;
-            only(so, "a raise site", "n", "kind", "where", "message");
+            only(so, "a raise site", "n", "kind", "where", "message", "extensions");
             ExecutionPlan.Site site = new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
-                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"));
+                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"),
+                    readExtensions(so));
             String sentence = ExecutionPlan.Site.sentence(site.kind(), site.where());
             if (!sentence.equals(site.message())) {
                 throw new IllegalArgumentException("raise site " + site.n() + " of " + site.kind() + " says '"

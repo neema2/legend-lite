@@ -4,6 +4,7 @@
 package com.legend.testexecutionplan;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.Extension;
 import com.legend.executionplan.PlanJson;
 import com.legend.json.Json;
 
@@ -56,8 +57,11 @@ public final class TestPlanJson {
      *  rules as their data ({@code floatUlps}, {@code decimalScale}); 31 (2026-11-18, census J29): the words' name in
      *  {@code upstreamWords}' place ({@code words}: {@code lite}, or the edge's); 32 (2026-11-18, train 17, the
      *  orchestrator's ruling): no judging rules -- a Float's tolerance and a Decimal's scale are the two-form kinds'
-     *  (the style's VerdictNumbers, the run hook's HostForms), and census C1's "the rules are data" is superseded. */
-    public static final int VERSION = 32;
+     *  (the style's VerdictNumbers, the run hook's HostForms), and census C1's "the rules are data" is superseded; 33
+     *  (2026-11-19, K1 of the presentation program, S1): the product's version 59 -- an upstream mode's words of a raise
+     *  site are the edge's record the site carries ({@code ExecutionPlan.Site#extensions}), no longer one by step keyed
+     *  by the statement's index and the site's number ({@code siteWords} with its {@code at} and {@code n}). */
+    public static final int VERSION = 33;
 
     private TestPlanJson() {
     }
@@ -280,26 +284,6 @@ public final class TestPlanJson {
 
     // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------
 
-    /** The codecs the classpath registers (the edge's, through the {@code ServiceLoader} seam): none under a run that
-     *  hands no edge, whose plan holds no record of the edge's. */
-    private static List<ExtensionCodec> codecs() {
-        return Codecs.ALL;
-    }
-
-    /** The registered codecs, loaded once (the slice 2 audit, 2026-11-08: each write and read loaded them again). */
-    private static final class Codecs {
-        static final List<ExtensionCodec> ALL = load();
-
-        private static List<ExtensionCodec> load() {
-            List<ExtensionCodec> out = new ArrayList<>();
-            for (ExtensionCodec c : java.util.ServiceLoader.load(ExtensionCodec.class,
-                    ExtensionCodec.class.getClassLoader())) {
-                out.add(c);
-            }
-            return List.copyOf(out);
-        }
-    }
-
     private static Map<String, Object> extensions(Map<Integer, List<Extension>> byKey) {
         Map<String, Object> out = new LinkedHashMap<>();
         byKey.forEach((key, records) -> {
@@ -315,25 +299,12 @@ public final class TestPlanJson {
     /** One extension record as its codec writes it, tagged; refused by name where no codec writes it (census C3,
      *  2026-11-17: an edge-judged comparison's record, held by its verdict's judgment, written so too). */
     static Map<String, Object> extension(Extension e) {
-        for (ExtensionCodec c : codecs()) {
-            Map<String, Object> o = c.write(e);
-            if (o != null) {
-                return o;
-            }
-        }
-        throw new IllegalStateException("a test plan's extension no codec writes: " + e.getClass().getSimpleName());
+        return PlanJson.extensionJson(e, PlanJson.registeredCodecs());
     }
 
     /** One extension record read by the codec that knows its tag; refused by name where none does. */
     static Extension readExtension(Json.Obj o) {
-        String tag = o.getString("_type");
-        for (ExtensionCodec c : codecs()) {
-            Extension read = c.read(tag, o);
-            if (read != null) {
-                return read;
-            }
-        }
-        throw new IllegalArgumentException("a test plan's extension tagged '" + tag + "' no codec reads");
+        return PlanJson.extensionOf(o, PlanJson.registeredCodecs());
     }
 
     private static Map<Integer, List<Extension>> readExtensions(Json.Obj byKey) {

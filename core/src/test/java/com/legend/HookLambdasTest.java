@@ -49,7 +49,10 @@ class HookLambdasTest {
             // its product form the class LitePrinting); a routed query's activity, the product's (J5, fb8c299b9e)
             // an execute's activity SQL, lite's own (J40.PlanStyle, 2026-11-18: PlanAllocations.LITE_ACTIVITY)
             Map.entry("com.legend.planner.PlanAllocations", Map.of("com.legend.planner.RoutedQueries", 1,
-                    "com.legend.planner.ActivityTexts", 1)));
+                    "com.legend.planner.ActivityTexts", 1)),
+            // a raise site's upstream words, none in the product (K1 of the presentation program, S1, 2026-11-19:
+            // PlanMaker.NO_SITE_FACTS, the two-form SiteFacts' product form)
+            Map.entry("com.legend.planner.PlanMaker", Map.of("com.legend.planner.SiteFacts", 1)));
 
     /** "caller#method(params)" -> the class objects named beside its twoForm call, and its number of reaches (calls and
      *  references). Measured 2026-11-17. */
@@ -116,7 +119,11 @@ class HookLambdasTest {
                             "(twoForm reaches 1)")),
             Map.entry("com.legend.testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String,"
                     + " com.legend.testplan.PlanningOptions)", Set.of("com.legend.testdatagen.TestDataPlanner$Printing",
-                    "(twoForm reaches 1)")));
+                    "(twoForm reaches 1)")),
+            // each raise site's upstream words, planned with it (K1 of the presentation program, S1, 2026-11-19: until
+            // then PlanMaker.sites offered each statement to PlanStyle.siteWords)
+            Map.entry("com.legend.planner.PlanMaker#sites(java.util.List, com.legend.database.PlanStyle)",
+                    Set.of("com.legend.planner.SiteFacts", "(twoForm reaches 1)")));
 
     /** Product or host class -> the hook types it implements or extends as a class (the ruled hooks', the facet kinds'
      *  and the styles' implementers are HookRulingTest's and PlanStyleSurfaceTest's too; the two-form kinds' product
@@ -215,13 +222,9 @@ class HookLambdasTest {
             Map.entry("com.legend.testplan.EngineTextGates#facet(com.legend.testplan.BodyDriver$ExecEnv)",
                     Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
             // K10b of the edge audit (the orchestrator's ruling (A) of 2026-11-17; host train, pinned 2026-11-18 for train
-            // 19): the same facet, asked only where the style judges engine text -- a body's planning call's recorder,
-            // the test door's one read of its raise-site words, and a required side's no-rows words (the product's
-            // own sentence otherwise)
-            Map.entry("com.legend.testplan.EngineTextGates#planningCall(com.legend.database.PlanStyle)",
-                    Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
-            Map.entry("com.legend.testplan.EngineTextGates#siteWords(com.legend.database.PlanStyle)",
-                    Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
+            // 19): the same facet, asked only where the style judges engine text -- a required side's no-rows words
+            // (the product's own sentence otherwise). (planningCall and siteWords, a body's recorder and the test
+            // door's one read of it: gone 2026-11-19 with S1 of the presentation program, K1)
             Map.entry("com.legend.testplan.EngineTextGates#sizeWords(com.legend.database.PlanStyle, java.lang.String)",
                     Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
             // legend-engine's seed SQL from records or from CSV, a seed text a body asserts

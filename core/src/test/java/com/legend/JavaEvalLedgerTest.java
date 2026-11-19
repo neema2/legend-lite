@@ -1873,9 +1873,10 @@ class JavaEvalLedgerTest {
                             // DISTINCT-key subselect's zone order, from sql.ExistsJoins); its own order, nothing evaluated
                             "EngineWhereZones.java",
                             // 2026-11-17 (K10b, the orchestrator's ruling (A)): legend-pure's words of a planned raise
-                            // site (its record) and one planning call's recorder of them -- words of literal operands at
-                            // planning, the edge's data; nothing evaluated, no connection
-                            "SiteWords.java", "SiteWordsRecorder.java",
+                            // site (its record) -- words of literal operands at planning, the edge's data; nothing
+                            // evaluated, no connection (its recorder, SiteWordsRecorder.java, gone 2026-11-19 with S1 of
+                            // the presentation program: the words are the site's own record, planned by SiteWords)
+                            "SiteWords.java",
                             // 2026-11-18, J40's only-edge-callers census: the bound context of legend-engine's test natives'
                             // runtime argument, moved from planner.BodyPlanner; a typed read, nothing evaluated
                             "RuntimeContexts.java",

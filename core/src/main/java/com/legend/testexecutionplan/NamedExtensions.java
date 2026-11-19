@@ -3,6 +3,8 @@
 
 package com.legend.testexecutionplan;
 
+import com.legend.executionplan.Extension;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

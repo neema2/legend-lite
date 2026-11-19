@@ -216,23 +216,24 @@ class PlanJsonTest {
         // every cast's and case's reason; 54 since 2026-11-15: a plan's raises, each kind its statements can send to its
         // sentence (phase D's option (D), its number after E's); 55 since 2026-11-16: each statement's raises (S1); 56 since 2026-11-16: each statement's raise
         // sites, a raise a bare token (phase D's Phase 2); 57 since 2026-11-17: a decimal column's digits (the host train); 58 since 2026-11-18: a site carries no upstream
-        // words (K10)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":58,"), json);
+        // words (K10); 59 since 2026-11-19: a site may carry the edge's records (K1 of the presentation program, S1)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":59,"), json);
     }
 
     /** A v55 plan (each statement's raises a kind's name in its text) is refused by its version, never read as a v56
      *  one whose statements declare no site (the P2 checkpoint audit's S1, 2026-11-16; phase D's Phase 2, the same
-     *  day); a v56 plan (an edge site's upstream words in it) likewise, never read as a v58 one (K10, 2026-11-18). */
+     *  day); a v56 plan (an edge site's upstream words in it) likewise, never read as a v58 one (K10, 2026-11-18); a v58
+     *  plan (an edge's words kept beside it) likewise, never read as a v59 one (K1, S1, 2026-11-19). */
     @Test
     void aV55PlanIsRefusedByItsVersion() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        for (int old : List.of(55, 56, 57)) {
-            String older = json.replace("\"version\":58,", "\"version\":" + old + ",");
+        for (int old : List.of(55, 56, 57, 58)) {
+            String older = json.replace("\"version\":59,", "\"version\":" + old + ",");
             assertTrue(!older.equals(json), json);
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(older));
-            assertTrue(refused.getMessage().contains("not a legend-lite-plan v58 plan (format legend-lite-plan, version "
+            assertTrue(refused.getMessage().contains("not a legend-lite-plan v59 plan (format legend-lite-plan, version "
                     + old + ")"), refused.getMessage());
         }
     }
@@ -254,7 +255,7 @@ class PlanJsonTest {
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v58 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v59 plan"), refused.getMessage());
     }
 
     /**

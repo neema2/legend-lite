@@ -3,7 +3,7 @@
 
 package com.legend.testplan;
 
-import com.legend.testexecutionplan.Extension;
+import com.legend.executionplan.Extension;
 import com.legend.testexecutionplan.TestPlan;
 
 import java.util.ArrayList;

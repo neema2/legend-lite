@@ -123,7 +123,8 @@ class SentStatementsAreThePlansTest {
             reading++;
             ExecutionPlan.LoadStep.File file = new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE,
                     "people.csv", DataStores.sha256(csv), csv.length, DataRef.Csv.DEFAULT),
-                    com.legend.setup.LoadSteps.reads(reads, com.legend.database.PlanStyle.PRODUCT::siteWords), 500);
+                    com.legend.setup.LoadSteps.reads(reads, written -> com.legend.planner.PlanMaker.sites(written,
+                            com.legend.database.PlanStyle.PRODUCT)), 500);
             String create = "CREATE TABLE sent_people (NAME VARCHAR(20), AGE INTEGER)";
             ExecutionPlan.Load load = LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
                     List.of(new ExecutionPlan.LoadStep.Statement(create), file), target);

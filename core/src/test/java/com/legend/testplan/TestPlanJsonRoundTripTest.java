@@ -12,7 +12,7 @@ import com.legend.executionplan.DatabaseType;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.edge.Appeal;
 import com.legend.testexecutionplan.Assertion;
-import com.legend.testexecutionplan.Extension;
+import com.legend.executionplan.Extension;
 import com.legend.testexecutionplan.Failure;
 import com.legend.testexecutionplan.HostJudgment;
 import com.legend.testexecutionplan.KeyTree;

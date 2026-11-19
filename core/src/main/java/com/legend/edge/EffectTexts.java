@@ -3,7 +3,7 @@
 
 package com.legend.edge;
 
-import com.legend.testexecutionplan.Extension;
+import com.legend.executionplan.Extension;
 
 import java.util.List;
 import java.util.Objects;
