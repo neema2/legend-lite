@@ -3087,3 +3087,6 @@ who confirms or changes phases 1-3.
   R8); the let shapes pinned (class-collection let read later clean; a value let holding the call flagged; relation lets
   refused by legend-engine); the javadoc fixed; probes pushed. Its S388 question answered again (ruled). The judges
   merge the detector's head; the reviewer checks.
+- **~23:32 UTC, B1-R: nothing pending** (heads detector `afcb77770`, engine `d92b73a51`, review `a6830f2db`; a doc commit
+  recording the S388 call in shape note §11; all ten let probe rows on the detector branch). Next: the wiring lands by an
+  ordinary merge of the batch head once B1's native is in the batch.
