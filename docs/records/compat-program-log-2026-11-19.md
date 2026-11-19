@@ -10,6 +10,7 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | When (UTC) | Words | What it rules |
 |---|---|---|
+| 2026-11-19, before 03:50 (relayed to B2; the words as recorded in `docs/records/census-b2-inventory-2026-11-19.md` §6.2 on `claude/census-b2`) | "we're not going to change prelude or parser" | the prelude's and the parser's upstream bodies and words stay (the census's N-PRELUDE, N-PARSER and COMPLETENESS-7 are (b)); register row S376 |
 | 2026-11-19 ~04:02 | "1-3 yes" | R4: lite's `substring`/`indexOf` follow Pure (CP-2); E-R1 (CP-3, later switched); upstream's SQL text never promised (CP-4) |
 | ~04:02 | "Explain 4 clearly, what's the alternative? Is this a sneaky way to have two sql paths" | led to CP-5's revision: no special functions, pending the count (0.4 (j)) |
 | ~04:02 | "Let's not worry or even support older database versions" | CP-8: legend-engine's H2 2.1.214 LEGACY and DuckDB 1.3.0 are neither emulated nor chased; one blanket register row |
@@ -320,3 +321,12 @@ who confirms or changes phases 1-3.
     on a 16 GB Linux runner (3 at once) and 4.5 minutes on the 7 GB macOS runner; each action asks 4 GB but peaks at
     1.6-1.8 GB. The batteries' per-push half is 7.7 s; the heavy half 34 s;
   - a visibility change only: core's trades model export gains `//pct`. `EDGE_TEST_SRCS` is untouched.
+- **~11:40 UTC, the independent review of PR #122: HOLD FOR CORRECTIONS.** Every cited upstream file and line holds at
+  the pins, but:
+  - S372 misread legend-engine's `joinStrings`: the separator is appended ONCE at the end, with the elements
+    concatenated with nothing between them;
+  - S373 is S110's residual, already recorded;
+  - two quotations were not verbatim in this log (S371, S376);
+  - S374 and S375 read plan text and CP-12 into their rulings;
+  - S138 was inconsistent with H8 §(c).
+  All corrected in `1faa54da`. S376's ruling is now in §1, citing the census record as the source of its words.
