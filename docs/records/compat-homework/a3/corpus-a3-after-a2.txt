@@ -1,0 +1,31 @@
+# A3 after A2, measured 2026-11-19 on claude/compat-translator-spike (corpus lanes //spec:judge_host_{h2,duckdb})
+# Y = A2 alone: main's Scalars.java and RelOpTranslator.java, -Dh5.off=sqltext (B2's lite-text probe); X = A2+A3: this branch's core, -Dh5.off=sqltext
+# fail rosters: Y H2 423, DuckDB 260 (B2's counts); X H2 430, DuckDB 267
+## h2-fail-roster: A2 alone 423 -> A2+A3 430
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone
+> meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction
+## h2-skipped-roster: A2 alone 7 -> A2+A3 7
+## h2-unordered-register: A2 alone 1329 -> A2+A3 1326
+< unordered-chain meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+< unordered-chain meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+< unordered-chain meta::relational::tests::query::function::testFilterUsingSubstringFunction
+## h2-engine-order-register: A2 alone 0 -> A2+A3 0
+## duckdb-fail-roster: A2 alone 260 -> A2+A3 267
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone
+> meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction
+## duckdb-skipped-roster: A2 alone 7 -> A2+A3 7
+## duckdb-unordered-register: A2 alone 1348 -> A2+A3 1345
+< unordered-chain meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+< unordered-chain meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+< unordered-chain meta::relational::tests::query::function::testFilterUsingSubstringFunction
+## duckdb-engine-order-register: A2 alone 976 -> A2+A3 976

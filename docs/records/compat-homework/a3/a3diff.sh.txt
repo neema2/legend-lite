@@ -1,0 +1,10 @@
+#!/bin/bash
+S=/tmp/claude-0/-home-user-legend-lite/526fc126-acb4-5eeb-93dc-c56011c07428/scratchpad
+for l in h2 duckdb; do
+  for f in fail-roster skipped-roster unordered-register engine-order-register ord-register; do
+    X=$S/h12/a3x/judge_host_$l/$l-$f.txt; Y=$S/h12/a2y/judge_host_$l/$l-$f.txt
+    [ -f $X ] || continue
+    echo "## $l-$f: A2 alone $(grep -vc '^#' $Y) -> A2+A3 $(grep -vc '^#' $X)"
+    diff <(grep -v '^#' $Y | sort) <(grep -v '^#' $X | sort) | grep '^[<>]'
+  done
+done

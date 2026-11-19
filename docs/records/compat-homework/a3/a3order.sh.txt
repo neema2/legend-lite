@@ -1,0 +1,11 @@
+#!/bin/bash
+# A3 after A2: X = A2+A3 (branch, sqltext only), Y = A2 alone (main's Scalars and RelOpTranslator, sqltext only)
+cd /home/user/legend-lite
+S=/tmp/claude-0/-home-user-legend-lite/526fc126-acb4-5eeb-93dc-c56011c07428/scratchpad
+T="//spec:judge_host_h2 //spec:judge_host_duckdb"
+bash $S/h12.sh a3x sqltext $T
+git show origin/main:core/src/main/java/com/legend/lowering/Scalars.java > core/src/main/java/com/legend/lowering/Scalars.java
+git show origin/main:core/src/main/java/com/legend/normalizer/RelOpTranslator.java > core/src/main/java/com/legend/normalizer/RelOpTranslator.java
+bash $S/h12.sh a2y sqltext $T
+git checkout -- spec/BUILD.bazel pct/BUILD.bazel core/BUILD.bazel core/src/main/java/com/legend/lowering/Scalars.java core/src/main/java/com/legend/normalizer/RelOpTranslator.java
+echo "A3ORDER DONE" >> $S/h12-summary.txt
