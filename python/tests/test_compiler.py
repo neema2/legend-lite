@@ -182,8 +182,11 @@ class TheProductsKinds(unittest.TestCase):
         from legend_lite import compiler
         status, said = compiler.refused_route(ll.LegendError('no such query', compiler.error_kind('NOT_FOUND')))
         self.assertEqual((status, json.loads(said)), (404, {'kind': 'notFound', 'message': 'no such query'}))
-        self.assertEqual({compiler.refusal_status(wire) for wire in compiler.refusal_kinds().values()} - {400, 404, 422, 500},
-                         set())
+        self.assertEqual({compiler.refusal_status(wire) for wire in compiler.refusal_kinds().values()}
+                         - {400, 404, 405, 422, 500}, set())
+        # a 405's Allow, the kind's own header (the orchestrator's ruling of 2026-11-19)
+        self.assertEqual(compiler.refusal_headers(compiler.error_kind('METHOD_NOT_ALLOWED')), {'Allow': 'POST'})
+        self.assertEqual(compiler.refusal_headers(compiler.error_kind('NOT_FOUND')), {})
         with self.assertRaises(ll.LegendError) as unknown:
             compiler.refusal_status('guessed')
         self.assertEqual(unknown.exception.kind, compiler.error_kind('INTERNAL'))

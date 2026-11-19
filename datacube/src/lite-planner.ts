@@ -952,5 +952,5 @@ function decode(answer: string, subject: Lambda | string): string {
   const read = readFolded(answer);
   if ('answer' in read) return read.answer;
   if ('refusal' in read) throw new PlanError(read.refusal.message, subject, read.refusal);
-  throw new PlannerUnavailableError(`the planner module: ${read.malformed}`);
+  throw new PlannerUnavailableError(read.malformed);
 }

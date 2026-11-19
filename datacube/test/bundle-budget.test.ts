@@ -810,8 +810,11 @@ const BUDGET = 439_800;
  *  426,250 -> 426,450 (2026-11-19, the orchestrator's approval of ~12:59 UTC under the user's delegation of small
  *  explained steps; the user's CP-13, H4's P3: the page reads the planner's answers by the tab's ONE folded reader,
  *  engine-client's folded.ts, lite's closed refusal check included -- "one reader is worth 0.05%; do not keep a second,
- *  weaker one"). Measured 426,035 before P3, 426,414 with it, 426,442 with P10's generated keys, on Linux. */
-const ENGINE_BUDGET = 426_450;
+ *  weaker one"). Measured 426,035 before P3, 426,414 with it, 426,442 with P10's generated keys, on Linux.
+ *  426,450 -> 426,500 (2026-11-19, the orchestrator's approval of ~13:14 UTC under the user's delegation: the merge of
+ *  claude/hosts-followups into claude/host-parity, its F1 -- the tab's typedByPlan reads by position -- and HOSTS-2 --
+ *  transacted commits inside its try). Measured 426,492 after the merge, on Linux. */
+const ENGINE_BUDGET = 426_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1336,8 +1339,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  454,150 -> 454,600 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 454,563 on Linux.
  *  454,600 -> 454,850 (2026-11-19, the orchestrator's approval of ~12:59 UTC under the user's delegation of small
  *  explained steps; the user's CP-13, H4's P3: the tab's one folded reader, as the engine page's note). Measured
- *  454,417 before P3, 454,804 with it, 454,833 with P10's generated keys, on Linux. */
-const WIDGET_BUDGET = 454_850;
+ *  454,417 before P3, 454,804 with it, 454,833 with P10's generated keys, on Linux.
+ *  454,850 -> 454,900 (2026-11-19, the orchestrator's approval of ~13:14 UTC: the merge of claude/hosts-followups, F1
+ *  and HOSTS-2, as the engine page's note). Measured 454,883 after the merge, on Linux. */
+const WIDGET_BUDGET = 454_900;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

@@ -1449,10 +1449,15 @@ class AppsServed(unittest.TestCase):
         # a refusal is lite's one error shape, its status its kind's
         status, _, body = self.call('POST', '/api/lite/v1/query/parse', self.cookie(), json.dumps({'text': '|1 +'}))
         self.assertEqual((status, json.loads(body)['kind']), (400, ll.compiler.error_kind('PARSE')))
-        # the old route names are gone in one step (ruled 5), refused as a malformed request
+        # the old route names are gone in one step (ruled 5), refused as no such route: notFound, 404 (the orchestrator's
+        # ruling of 2026-11-19; until then a malformed request, 400)
         for gone in ('/api/lite/v1/compilation/compile', '/api/lite/v1/nope'):
             status, _, body = self.call('POST', gone, self.cookie(), '{}')
-            self.assertEqual((status, json.loads(body)['kind']), (400, ll.compiler.error_kind('REQUEST')), gone)
+            self.assertEqual((status, json.loads(body)['kind']), (404, ll.compiler.error_kind('NOT_FOUND')), gone)
+        # a known route by another method: 405, its kind's Allow header (the same ruling: until then 404 in text)
+        status, headers, body = self.call('GET', '/api/lite/v1/query/parse', self.cookie())
+        self.assertEqual((status, json.loads(body)['kind'], headers['Allow']),
+                         (405, ll.compiler.error_kind('METHOD_NOT_ALLOWED'), 'POST'), body)
 
     def test_ll_query_and_ll_studio_give_the_apps_links(self):
         from legend_lite import datacube
