@@ -3067,3 +3067,6 @@ who confirms or changes phases 1-3.
   (following to a relation let only flags what legend-engine refuses; to a class let would be wrong). Next: the
   class-let shape pinned clean, R2-S1 (unverified, a plant), R2-S2 narrowed to lambda lets (probing that shape too),
   the javadoc. Sent to the reviewer.
+- **~23:18 UTC, the reviewer APPROVED the detector at `0490d059a`** (record `7856da438`); agrees no silent miss; asks
+  for the relation-let and class-let probe rows to be pushed (to B1-R), and that S388 be posted to the user and ruled
+  before it lands (the upstream-fidelity tenet). Posted to the user now, not at the batch PR.
