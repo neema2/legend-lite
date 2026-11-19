@@ -1745,3 +1745,30 @@ that must be answered before `engine` is offered to an operator (E-M1) and three
 
 **The batch is at `f4525a31e`,** waiting on the translator's two pieces (the user's word in that session). The
 combination review starts on the judges' merged measurement.
+
+**The probe, answered (the compat owner, ~23:17, from B1-R's legend-engine 4.145.0 runs on H2 2.1.214 and DuckDB
+v1.3.0). NOT a silent miss.**
+- **What legend-engine answers:**
+  - A relation let read by a later statement is refused by legend-engine in every form, with `from` inside or after
+    the let, and in R2-S2's shape.
+  - A class-collection let read by a later `map(p|$p.desk->substring(1, 3))` answers `["re"]`, Pure's meaning, on the
+    host.
+  - So `reaches` not following a variable is right. Following one to a class let would be wrong.
+- **What I could read:** on `claude/compat-a3-detector` at `0490d059a`, `a3-engine-probes/` holds `let.then.sub3`
+  (`"re"`) and `let.map.host` but not yet the relation-let or class-let rows. I take those as reported until they are
+  pushed, and the conclusion stands on them.
+- **To follow (B1-R):**
+  - R2-S1;
+  - R2-S2 narrowed to lambda lets;
+  - the class-let shape pinned clean beside its flagged one-statement partner;
+  - the seed test's javadoc.
+- **`0490d059a` answers my notes on a9e827e2e: APPROVED.**
+  - The host-side shape is pinned with its partner: one statement is flagged, the separate statement is clean.
+  - The serialize-only property was probed. legend-engine serializes `deskPart()` as null and fails `deskAt()` with an
+    NPE, so it never computes a substring or an indexOf, and the detector need not walk the serialize tree.
+  - The shape note records the refusal under `engine`.
+  - The model's new `firstC()` moves no parser-equivalence count, as reported.
+- **The serialize-only difference is a register row, PROPOSED S388 (drafted by B2):** lite computes the property;
+  legend-engine answers null or fails. The owner's call that it is a recorded difference, not a refusal, is consistent
+  with "lite follows Pure". By the upstream-fidelity tenet, though, the row must be posted to the user and ruled before
+  it lands: a row the user did not rule is a defect.
