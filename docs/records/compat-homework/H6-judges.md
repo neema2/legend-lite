@@ -1,6 +1,6 @@
 # H6: the judges' homework for slices 2.1 and 2.2, and the I5 measurement (2026-11-19)
 
-**Status:** complete for the four tasks, written as each finding landed (the user, 2026-11-19 ~10:45 UTC: "write
+**Status:** complete for the four tasks and plan r6's follow-ups (§6), written as each finding landed (the user, 2026-11-19 ~10:45 UTC: "write
 down all the learning/outcomes/details immediately"). Homework only: no product change for merge, no pin, ceiling,
 ledger, roster or allowlist moved. The prototypes named below live on this branch alone and are marked MEASUREMENT
 ONLY in the code.
@@ -30,6 +30,15 @@ ONLY in the code.
   **Recommendation: yes, add a LITE PCT lane to 2.1**: about 75 s per push, its own exact ledger, 786 tests of parity
   evidence with messages compared.
 - **Coordination (task 4, §4).** Told the previous orchestrator at the start; sent it the 5 parity findings.
+- **Plan r6's follow-ups (§6).** Where legend-pure's leniencies change a verdict, measured by switching each off:
+  **0 tests on every PCT lane** (channel B DuckDB, H2 relation, SQLite; channel A runs no lite judge), but **69 tests
+  of the DuckDB corpus and 29 of the H2 corpus** (S131 33/4, S137 21/21, S132 14/3, S15 2/0, S144 2/2); S127 and S139
+  change nothing anywhere. So CP-14's (iii) holds for PCT and fails for the corpus unless the translator takes four
+  input rewrites (S137, S144, S131's typed half, S15), leaving only the rendered-text comparison (26 DuckDB tests, 3 H2)
+  as the edge judge's own. S131's multiset is live in LITE today (its narrowing, ruled 2026-11-05, is unbuilt), and
+  turning it off moves no PCT verdict. 2.2a: 3.5 days; 2.2b: 5.5 under (ii), 7 under (iii). The referee replays on the
+  body's own session (H2's, with the edge's LEGACY settings): it needs a session of its own before CP-8. The
+  decoded-plan guard keeps seeing the `Edge` records.
 
 **Context.**
 - **Branch:** `claude/compat-judges-homework`, from `main` `b75d6c73a`.
@@ -474,6 +483,7 @@ answers under its own rules are the ones legend-pure expects. Channel A under LI
 exactly the tests channel B's LITE run cannot judge, and costs 129 s on this container (four 4 GB JVMs fit 15 GB three
 at a time).
 
+
 ---
 
 ## 4. Coordination (task 4)
@@ -525,3 +535,202 @@ scale) are not touched: DuckDB only. Any judge-parity bug found goes to it befor
   shape-port record's.
 - Any database but DuckDB (Q3, Q3b untouched).
 - LITE's run of the 36 themselves: porting them is 2.1's work, not homework.
+
+---
+
+## 6. Plan r6's follow-ups (the orchestrator's messages of 2026-11-19 ~11:05-11:15 UTC)
+
+### 6.1 Where each leniency changes a verdict (CP-14's measurement)
+
+**The probe** (`com.legend.diagnostics.LeniencyProbe`, MEASUREMENT ONLY, §5.1): each leniency's decision site logs a
+`[lenient]` line, with the running test, wherever the leniency's answer differs from lite's exact rule, and
+`-Dlegend.measure.leniency.off=<ids>|ALL` makes the site answer lite's rule. The sites, at `main`'s lines:
+
+| Id | What | Site | Today in LITE too? |
+|---|---|---|---|
+| S15 (S132's scalar half) | two Floats within 2 ULP equal | `edge/CompiledPureHostForms.java` `equalFloatsApart` (host) | no (`LiteHostForms.equalFloatsApart` false) |
+| S132 | a rendered text's Float cell within 2 ULP | `edge/UpstreamRenderedTexts.java` `cellEquals` (host) | no |
+| S131 | an unsorted (incidental-order) actual compared as a multiset | the PRODUCT's host judge: `testexec/HostJudgments.java:128-135` (the row-multiset fallback), `:819-821` (`equalsOf`), `:868-871` (a JSON root array); `testexec/TdsCompare.java:76`; and the edge's rendered texts (`UpstreamRenderedTexts.renderedTextVerdict`, unsorted) | **yes**: the narrowing to compatibility alone (the register's S131, ruled 2026-11-05) is "build pending"; the database judge has its own (`VerdictSql`'s `multiset` arguments) |
+| S144, S366 | json-simple 1.1.1's grammar | `edge/JsonSimpleGrammar.java` `read` (host) | no (`JudgeJson.STRICT`) |
+| S137 | a relation counted as one value | `edge/UpstreamRelationCounting.java` `counted` (planning) | no (refused by name) |
+| S127 | an Integer and a Decimal equal by their texts (a rule, not a leniency; measured with them) | `CompiledPureHostForms.equalAcrossNumberKinds` | no |
+| S139 | a Decimal's scale part of its value (stricter than lite) | `CompiledPureHostForms.equalDecimals` | no |
+
+The database judge's own copies (`CompiledPureVerdictNumbers`, its multiset and json-simple reads) are not probed:
+2.2a deletes the compatibility database judge, so only the host's matter for CP-14.
+
+**Channel A runs no lite judge** (legend-pure's interpreter judges, §3.1): no leniency of lite's can change a channel A
+verdict, on any database, by construction.
+
+**The counts, by lane** (the compatibility rules, the HOST judge, which is where compatibility judging is going; each
+lane run twice, the probe logging, then every leniency off):
+
+| Lane | Tests | Pass (leniencies on) | Decisions a leniency changed | Pass (all off) | Verdicts changed |
+|---|---|---|---|---|---|
+| channel B DuckDB, 5 suites | 1,249 | 1,240 | **0** | 1,240 | **0** |
+| channel B H2, relation | 469 | 432 | **0** | 432 | **0** |
+| channel B SQLite, 5 suites | 1,249 | 1,222 | **0** | 1,222 | **0** |
+| channel B DuckDB under LITE (S131 is live there today), then S131 off | 1,249 | 787 | **0** | 787 | **0** |
+| **the corpus, DuckDB** (host pass `//spec:judge_host_duckdb`) | 5,786 asserts | fail roster 108 | **77** (S131 38, S137 21, S132 14, S15 2, S144 2) | fail roster **177** | **69 tests** (159 asserts) |
+| **the corpus, H2** (`//spec:judge_host_h2`) | 5,533 asserts | fail roster 276 | **30** (S137 21, S131 4, S132 3, S144 2) | fail roster **305** | **29 tests** (80 asserts) |
+
+(Every logging run is the lane's normal answer: channel B's H2 and SQLite lanes PASSED their own ledgers, and both corpus
+passes' measured rosters, fail, skipped, unordered and engine-order, equal the committed ones byte for byte. So the probe
+is inert when only logging, and the corpus is its positive control: the same hooks that log nothing on PCT log 107
+decisions there.)
+
+**The corpus, by leniency** (each newly failing test attributed to the leniencies its logging run recorded for it):
+
+| Leniency | Corpus DuckDB: tests it decides | of which it alone | Corpus H2 | PCT (every lane) |
+|---|---|---|---|---|
+| S131, an unsorted actual as a multiset | **33** (typed values 14, a grid's rows 7, a rendered text's lines 12, a JSON root array 1; one, `mapping::union::testUnionViewJoins`, logged nothing and failed with it off: an unordered UNION whose rows DuckDB returned in another order on the second run) | 30 | **4** (values 3, a JSON root 1) | 0 |
+| S137, a relation counted as one value | **21** (`query::routing::*` 13, `groupBy::*` 4, and 4 more) | 18 | **21** (20 now fail; 1, `mapping::dataType::testSimpleTypeMappingProject`, is refused instead) | 0 |
+| S132, a rendered Float cell within 2 ULP | **14** (all `functions::pureToSqlQuery::calendarAggregations::*`, a CSV join of a TDS) | 14 | **3** (the same family) | 0 |
+| S15, a scalar Float within 2 ULP | **2** (`mapping::sqlFunction::log::testFilter`, `testProject`: `0.09531017980432492 ~ ...493`) | 2 | 0 | 0 |
+| S144/S366, json-simple | **2** (`graphFetch::...::testMilestonedRootAndMilestonedProperty`, twice: the golden is not JSON, strict refuses it) | 2 | **2** (the same) | 0 |
+| S127, cross-kind numbers by text | 0 | | 0 | 0 |
+| S139, a Decimal's scale | 0 | | 0 | 0 |
+
+3 DuckDB tests need both S131 and S137 (`query::routing::testCompositionIn{GroupBy,Join,Union}`). Nothing passes with
+the leniencies off that failed with them on. The corpus pass takes 541 s on DuckDB and 167 s on H2 here (565 s and
+174 s with them off).
+
+**The minimum each lane needs:**
+- **PCT, every lane** (channel B on DuckDB, H2 and SQLite; channel A by construction): **none**.
+- **The corpus on DuckDB:** S131, S137, S132, S15, S144 (69 of the lane's 2,517 judged tests, 2.7%).
+- **The corpus on H2:** S137, S131, S132, S144 (29 of 2,404, 1.2%); not S15.
+- **S127 and S139:** no lane.
+
+**What it means for CP-14.** Option (iii)'s condition ("the leniencies change no verdict on any lane") holds for PCT and
+fails for the corpus, by 69 tests on DuckDB and 29 on H2. Not all of them need the host judge, though, because three
+of the five are about the test's INPUT, which the translator (phase 3, CP-1) rewrites at the door with functions
+every lite user has:
+- **S137** (21 tests): a body rewrite already (`UpstreamRelationCounting` runs at planning, `TestPlanner.java:227`):
+  the translator's by nature, not a judging rule;
+- **S144** (2 tests): the golden literal is not JSON; reading it with json-simple's grammar at the door (re-writing the
+  literal as the JSON json-simple reads) leaves the judge strict;
+- **S131's typed half** (values 14, a grid's rows 7, a JSON root 1 on DuckDB; 4 on H2): `assertEquals` over an
+  actual whose order is incidental (`OrderView.INCIDENTAL`, a planning fact) rewrites to `assertSameElements`, which
+  is a multiset by its own meaning;
+- **S15** (2 tests): `assertEquals` of two Floats rewrites to `assertEqWithinTolerance` with legend-pure's 2 ULP of
+  the expected value, a lite function.
+What is left needs a comparison rule after the results: **a rendered text's rows as a multiset (S131, 12 DuckDB tests)
+and its Float cells within 2 ULP (S132, 14 DuckDB and 3 H2)**, both inside `UpstreamRenderedTexts`, the edge's ruled
+comparison of a golden text against a rendered TDS. So (iii) holds for the host judge if (a) the translator takes S137,
+S144, S131's typed half and S15, and (b) the rendered-text comparison stays the edge's own small presenter-side
+judge (241 lines today), or its 26 DuckDB tests (12 + 14, 3 on H2) become "not promised", listed. Either way the
+product's host judge needs no rules parameter. (iii) as first conditioned, with no translator help, fails.
+
+### 6.2 The planning half stays data: `testexecutionplan.Edge`
+
+Plan r6 keeps `testexecutionplan.Edge` (`records`, `effect`, `seed`; `testexecutionplan/Edge.java:16`) as the planning
+interface: the edge plans its effect and seed records into the test plan's typed extension point
+(`testplan/TestDoor.java:141-149`, `TestPlan.extensionsByStep`, `testexecutionplan/Extension.java`). The map's §2.4
+row changes accordingly: `effect` and `seed` are PLAN and STAY, `records` stays, `seeded` and `effectRan` move into
+the run interface, `siteWords` is 1.2's; §2.9's MIR hand-over for the referee's copies is not needed (the product's
+`EffectPlanner` keeps writing the referee's spelling, `:60-63`, `:252-254`) and its 0.5 day leaves the size.
+
+**The decoded-plan guard still sees the records.** The corpus's DuckDB lane runs with `-Dlegend.diagnostics=decoded-plan`
+(`spec/BUILD.bazel:193`): `TestPlanner.plan` writes the plan to JSON and reads it back (`testplan/TestPlanner.java:195-199`,
+after `TestPlanJson.requireRoundTrip`, `:194`), and `TestPlanJson` writes and reads both `extensionsByStep` and
+`extensionsByVerdict` through the edge's `ExtensionCodec`, found by `ServiceLoader`
+(`testexecutionplan/TestPlanJson.java:121-124`, `:270-271`, `:285-339`). The records `Edge.effect`/`seed` plan are in
+that JSON, so the guard reads them whichever interface writes them. Nothing in r6's design changes that path.
+
+The per-assert claim (§2.9 item 1) is the other planning seam; r6 keeps it as the reshaped `EngineTestText` (one
+claim). It writes `extensionsByVerdict` records the same way (`TestPlanner.java:186-193`, `PlannedAppeals`).
+
+### 6.3 Where the referee gets its session today
+
+The referee has no session of its own. It replays a golden on the session of the target its appeal names
+(`edge/SqlTextRuns.java:188-190`: `referee.verify(sessions.apply(r.on()), ...)`), and that target is the body's own,
+planned with the assert (`edge/SqlTextVerdicts.java:1467-1472`: `EngineTextPlanning.target(appealOn(env) ?? env)`).
+The run hands the appeals its sessions after the body (`testexec/TestRunner.java:132`, `EdgeHearing.decide`), mapped
+by `sessionsByTarget` (`:143-151`): the graph's system database for a system target, else the body's session. Only a
+golden whose database is H2 is replayed (`database/Databases.java:31`, `REPLAY_REFEREE = H2`;
+`edge/SqlTextVerdicts.java:588-595`: any other is "foreign-dialect", text the contract).
+
+So on the H2 lanes the replay runs on the body's H2 session, which the plan's target opens with the edge's settings,
+legend-engine's `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` (`exec/H2Connector.java:15-19`; the two-form
+`DatabaseSettingsForm`, J22, S368). Removing the edge's H2 settings (CP-8) would change the session the referee replays
+legend-engine's goldens on. The independent review's point holds: the referee needs a session of its own, a
+legend-engine H2 LEGACY session declared as the referee's target, before the edge's H2 settings go. That is a new
+target the appeal plans (data), not a new hook.
+
+### 6.4 Option (iii): how far the host judge's words are already separable
+
+- **The verdict comes first, the words only after, by construction.** `HostJudgments.finish`
+  (`testexec/HostJudgments.java:58-84` at `main`) decides `hostHeld == wantEqual` and asks the words' supplier only on a
+  failure; "a method words a failure, it never decides one" (`testexec/HostWords.java:9-15`).
+- **Each wording call is already a kind with operands**: the `HostWords` method is the kind, its arguments the facts
+  the verdict decided. The 29 sites at `main`: `HostJudgments.java:142` `rowValuesDiffer`, `:144` `notEqual`, `:159`
+  `cellMultisetDiffers`, `:390`/`:395` `notEquivalent`, `:413` `grids`, `:443` `size`, `:457` `notContained`, `:476`
+  `notWithin`, `:521` `negated`, `:529` `condition`, `:560` `emptiness`, `:572` `notEq`, `:594`
+  `notInstanceOfClass`, `:598` `notInstanceOf`, `:605` `notSameInstance`, `:669`/`:731` `atIndex`, `:729`
+  `rowNotEqual`, `:831` `sidesNotEqual`, `:832` `notEqual`, `:839` `sameElements`, `:873` `jsonDiffers`;
+  `AssertErrorRuns.java:64` `noError`, `:74` `errorDiffers`, `:93` `lineDiffers`, `:96` `columnDiffers`;
+  `DatabaseVerdicts.java:36` `unjudged`; `BodyRun.java:39` `caught`.
+- **What is missing for (iii):** a record type. Today each supplier returns a String at the verdict step
+  (`Verdicts.fail(String)`), so `TypedSide`, the listener and `AssertFailed` carry text. (iii) makes `fail` carry a
+  record (the method's name and arguments), and lite's `LiteHostWords` and legend-pure's `EdgeHostWords` become its two
+  presenters, called by the door's audience after the verdict.
+- **Two places where the words feed a decision**, which (iii) must handle:
+  - `assertError` matches the test's expected text against the raise's words (`BodyRun.caughtMessage`, `:36-40`, into
+    `HostWords.caught`; under compatibility the raise site's legend-pure words from the plan's records,
+    `EdgeHearing.raisedWords`). Under (iii) the compatibility judge presents the raise record in legend-pure's words
+    and then compares: a presenter called inside judging, at that one site;
+  - the isolated BOTH comparison compares messages under LITE (`IsolatedRun.java:147-182`); with records it compares
+    the records (stronger: no wording drift can hide a difference), and lite's presenter for the database judge's SQL
+    words stays parity's question.
+- `cellMultisetDiffers` takes `HostRules` (`:159`): a rules read inside wording, removed with the rules.
+
+### 6.5 2.2a and 2.2b sized separately
+
+| Part | Work | Days |
+|---|---|---|
+| **2.2a** delete the compatibility database judge's half; PCT host-only | the 8 two-forms' database halves and `VerdictSql`'s compatibility arms (§2.1, §2.6) | 1.5 |
+| | the database judge's appeal paths (§2.9 item 3) | 0.5 |
+| | PCT's compatibility runs HOST-only on every lane; `IsolatedRun`'s `!messages` branch (JUDGES-3) once no compatibility run is isolated; the channel B judge-SQL pins (`ratchets.tsv`'s `judge.*`, the reference lane under BOTH) re-pinned with the user's word | 0.5 |
+| | the residue pins (`DatabaseJudge` 852 at `main`, `HostJudgments`, `BodyDriver`, `EngineTextPlanning`) and the guard lists, with the user's word | 0.5 |
+| | checks: channel B HOST unchanged on every lane, core BOTH, the corpus (already host-only) unchanged | 0.5 |
+| | **2.2a** (precondition: 2.1's LITE-PCT lane) | **3.5** |
+| **2.2b** the appeal's run seams | one run interface for `EdgeRun`/`EdgeHearing`/`NoEdgeRun` (open, listener, judged, seeded, effectRan, writing, decide, afterFailure), routed through `TestRunner` and `BodyRun`; the door's choice of judge for `ExecuteOptions.recording` and its 7 callers | 2 |
+| | the planning claim: `EngineTestText`'s 13 methods into one, `EngineTextGates` and `judgesEngineText` deleted | 1 |
+| | the words: **(ii)** a typed rules-and-words parameter, 1; **(iii)** verdict records and two presenters, 2.5 (1.5 if 1.2's error records land first and are reused) | 1 / 2.5 |
+| | the leniency code: **(ii)** into the edge's rules form, 0.5; **(iii)** S127 and S139 deleted (unused everywhere, §6.1); the rendered-text comparison (S131/S132 over a rendered text) kept as the edge judge's own decision for the `Rendered` judgment kind, a whole-kind override, not a per-decision seam, 0.5 | 0.5 |
+| | checks and the guard lists | 1 |
+| | **2.2b**: **(ii) 5.5, (iii) 7** (6 with 1.2's records) | |
+| **2.2 in all** | **(ii) 9 days, (iii) 10.5 (9.5 with 1.2's records)** against my earlier 8.5 under (ii): the split's second landing and re-checks add about 0.5, the dropped MIR hand-over (§6.2) takes 0.5 away, and the claim's day, inside "the appeal's move" before, is now its own line | |
+
+(iii) is not cheaper in days than (ii): it trades the rules parameter for the records. It is the smaller END STATE
+(no rules in the product at all, words a presenter like every other upstream word), which is why the architecture
+prefers it. After §6.1 it also needs the translator (phase 3) to take four input rewrites the corpus depends on: S137
+(moved, it is a body rewrite today), S144 (the golden literal read by json-simple at the door), S131's typed half
+(`assertEquals` over an incidental order to `assertSameElements`) and S15 (`assertEquals` of Floats to
+`assertEqWithinTolerance`): about 1.5 days in phase 3, not 2.2's. Until they land, the corpus's 69 (DuckDB) and 29
+(H2) tests need the leniencies where they are.
+
+### 6.6 The LITE-PCT lane's numbers, as r6 asks them
+
+- **Counts** (DuckDB, the five suites): 786 pass, 463 fail, 5 judges-disagree (§3.2); essential alone: 312 pass, 33
+  fail, 5 disagree.
+- **Failures from LITE's exact rules where S15, S131, S132 apply today: 0 on PCT.** Measured directly (§6.1): S15 and
+  S132 are exact in LITE already and change no compatibility verdict on any channel B lane; S131, still live in LITE,
+  was turned off under LITE and moved no verdict. The 463 are presentation (450), R4 (7), parity (5) and pre-existing
+  (2). The lane's known-failure ledger therefore needs no leniency row. (The corpus is another matter, §6.1, but the
+  LITE-PCT lane does not run the corpus.)
+- **Run time:** about 75 s for the five suites (§3.5); essential 57 s.
+
+### 6.7 How §6 was measured
+
+- The probe: `core/.../diagnostics/LeniencyProbe.java` and the hooks named in §6.1's table (commit `5fa0464e`, MEASUREMENT
+  ONLY). Channel B: `tools`' `len.sh` runs, `--jvmopt=-Dpct.channelb.judge=HOST --jvmopt=-Dlegend.measure.leniency.log=1
+  [--jvmopt=-Dlegend.measure.leniency.off=ALL]`, outcomes from the `[chB-h6]` lines, decisions from the `[lenient]`
+  lines. LITE's S131: the same with `-Dpct.channelb.rules=LITE` and `off=S131`.
+- The corpus: its host pass is a build action with a fixed environment, so the two flags were added to
+  `spec/BUILD.bazel`'s `corpus_duckdb` and `corpus_h2` `jvm_flags` for the two runs and then restored to `main`'s lines;
+  `bazel build //spec:judge_host_{duckdb,h2}`; outcomes from each pass's `judge-host.tsv` and measured rosters,
+  decisions from `host.log`.
+- Attribution: a newly failing test is credited to the leniencies its logging run recorded for it. One DuckDB test
+  logged none and is S131's by its failure (rows in another order). A per-leniency OFF run for each id was not made;
+  the attribution's only ambiguity is the 3 DuckDB tests that log both S131 and S137.
