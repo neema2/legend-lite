@@ -1,0 +1,95 @@
+# the ENGINE lane, duckdb Unclassified: 93 tests (bazel run //pct:update_engine_lane)
+test	engine	engine_class	lite	lite_class	verdict
+meta::pure::functions::flow::test::coalesce::coalesce2_AllEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce2_DefaultNotEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce2_FirstNotEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce2_FirstNotEmpty_AllOthersEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce2_SecondNotEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce2_SecondNotEmpty_AllOthersEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce3_AllEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce3_DefaultNotEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce3_FirstNotEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce3_FirstNotEmpty_AllOthersEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce3_SecondNotEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce3_ThirdNotEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce_AllEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce_FirstEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce_NotEmpty	PASS		PASS		SAME
+meta::pure::functions::flow::test::coalesce::coalesce_NotEmpty_DefaultEmpty	PASS		PASS		SAME
+meta::pure::functions::hash::tests::testMD5Hash	PASS		PASS		SAME
+meta::pure::functions::hash::tests::testSHA1Hash	PASS		PASS		SAME
+meta::pure::functions::hash::tests::testSHA256Hash	PASS		PASS		SAME
+meta::pure::functions::runtime::currentUserId::testCurrentUserId	PASS		PASS		SAME
+meta::pure::functions::string::tests::ascii::testAsciiDigit	PASS		PASS		SAME
+meta::pure::functions::string::tests::ascii::testAsciiEmptyChar	PASS		PASS		SAME
+meta::pure::functions::string::tests::ascii::testAsciiLower	PASS		PASS		SAME
+meta::pure::functions::string::tests::ascii::testAsciiMultiCharString	PASS		PASS		SAME
+meta::pure::functions::string::tests::ascii::testAsciiNewline	PASS		PASS		SAME
+meta::pure::functions::string::tests::ascii::testAsciiUpper	PASS		PASS		SAME
+meta::pure::functions::string::tests::ascii::testAsciiWhitespace	PASS		PASS		SAME
+meta::pure::functions::string::tests::base64::testDecodeBase64	PASS		PASS		SAME
+meta::pure::functions::string::tests::base64::testDecodeBase64NoPadding	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::string::tests::base64::testDecodeBase64RoundTrip	PASS		PASS		SAME
+meta::pure::functions::string::tests::base64::testEncodeBase64	PASS		PASS		SAME
+meta::pure::functions::string::tests::base64::testEncodeBase64RoundTrip	PASS		PASS		SAME
+meta::pure::functions::string::tests::char::testCharDigits	PASS		PASS		SAME
+meta::pure::functions::string::tests::char::testCharLower	PASS		PASS		SAME
+meta::pure::functions::string::tests::char::testCharUpper	PASS		PASS		SAME
+meta::pure::functions::string::tests::char::testEmptyChar	PASS		PASS		SAME
+meta::pure::functions::string::tests::char::testNewline	PASS		PASS		SAME
+meta::pure::functions::string::tests::char::testSpace	PASS		PASS		SAME
+meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityEqual	PASS		PASS		SAME
+meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual	PASS		PASS		SAME
+meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceEqual	PASS		PASS		SAME
+meta::pure::functions::string::tests::levenshteinDistance::testLevenshteinDistanceNotEqual	PASS		PASS		SAME
+meta::pure::functions::string::tests::lpad::testLpad	PASS		PASS		SAME
+meta::pure::functions::string::tests::lpad::testLpadDefaultCharacter	PASS		PASS		SAME
+meta::pure::functions::string::tests::lpad::testLpadEmptyChar	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::string::tests::lpad::testLpadEmptyString	PASS		PASS		SAME
+meta::pure::functions::string::tests::lpad::testLpadStringLongerThanLength	PASS		PASS		SAME
+meta::pure::functions::string::tests::matches::testMatches	PASS		PASS		SAME
+meta::pure::functions::string::tests::matches::testMatchesAlternation	PASS		PASS		SAME
+meta::pure::functions::string::tests::matches::testMatchesNoMatch	PASS		PASS		SAME
+meta::pure::functions::string::tests::matches::testMatchesUnanchoredIsFullMatch	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpCount::testRegexpCount	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpCount::testRegexpCount_CaseInsensitive	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpExtract::testRegexpExtract	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpExtract::testRegexpExtractAll	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpIndexOf::testRegexpIndexOf	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpIndexOf::testRegexpIndexOf_GroupNumber	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpIndexOf::testRegexpIndexOf_NoMatch	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpLike::testRegexpLike	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpLike::testRegexpLike_CaseInsensitive	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpLike::testRegexpLike_CaseInsensitive_Multiline	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::regexpLike::testRegexpLike_CaseInsensitive_Multiline_NonNewlineSensitive	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::regexpLike::testRegexpLike_CaseInsensitive_NonNewlineSensitive	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpLike::testRegexpLike_CaseSensitive	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpLike::testRegexpLike_Multiline	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::regexpLike::testRegexpLike_Multiline_NonNewlineSensitive	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::regexpLike::testRegexpLike_NonNewlineSensitive	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpReplace::testregexpReplace	PASS		PASS		SAME
+meta::pure::functions::string::tests::regexpReplace::testregexpReplaceAll	PASS		PASS		SAME
+meta::pure::functions::string::tests::repeatstring::testRepeatString	PASS		PASS		SAME
+meta::pure::functions::string::tests::repeatstring::testRepeatStringEmptyString	PASS		PASS		SAME
+meta::pure::functions::string::tests::repeatstring::testRepeatStringNoString	PASS		PASS		SAME
+meta::pure::functions::string::tests::rpad::testRpad	PASS		PASS		SAME
+meta::pure::functions::string::tests::rpad::testRpadDefaultCharacter	PASS		PASS		SAME
+meta::pure::functions::string::tests::rpad::testRpadEmptyChar	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::string::tests::rpad::testRpadEmptyString	PASS		PASS		SAME
+meta::pure::functions::string::tests::rpad::testRpadMultiChar	PASS		PASS		SAME
+meta::pure::functions::string::tests::rpad::testRpadStringLongerThanLength	PASS		PASS		SAME
+meta::pure::functions::string::tests::splitPart::testSplitPart	PASS		PASS		SAME
+meta::pure::functions::string::tests::splitPart::testSplitPartEmptyString	PASS		PASS		SAME
+meta::pure::functions::string::tests::splitPart::testSplitPartEmptyToken	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::splitPart::testSplitPartTypicalToken	PASS		PASS		SAME
+meta::pure::functions::string::tests::splitPart::testSplitPartWithNoSplit	PASS		PASS		SAME
+meta::pure::functions::string::tests::tolowerfirstcharacter::TestToLowerFirstCharacter	PASS		PASS		SAME
+meta::pure::functions::string::tests::tolowerfirstcharacter::TestToLowerFirstCharacterAlreadyLower	PASS		PASS		SAME
+meta::pure::functions::string::tests::tolowerfirstcharacter::TestToLowerFirstCharacterEmptyString	PASS		PASS		SAME
+meta::pure::functions::string::tests::tolowerfirstcharacter::TestToLowerFirstCharacterNumber	PASS		PASS		SAME
+meta::pure::functions::string::tests::tolowerfirstcharacter::TestToLowerFirstCharacterSingleCharacter	PASS		PASS		SAME
+meta::pure::functions::string::tests::toupperfirstcharacter::TestToUpperFirstCharacter	PASS		PASS		SAME
+meta::pure::functions::string::tests::toupperfirstcharacter::TestToUpperFirstCharacterAlreadyLower	PASS		PASS		SAME
+meta::pure::functions::string::tests::toupperfirstcharacter::TestToUpperFirstCharacterEmptyString	PASS		PASS		SAME
+meta::pure::functions::string::tests::toupperfirstcharacter::TestToUpperFirstCharacterNumber	PASS		PASS		SAME
+meta::pure::functions::string::tests::toupperfirstcharacter::TestToUpperFirstCharacterSingleCharacter	PASS		PASS		SAME

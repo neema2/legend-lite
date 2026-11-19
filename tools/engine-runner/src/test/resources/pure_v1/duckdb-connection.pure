@@ -1,0 +1,15 @@
+// THE SHARED DUCKDB's connection (slice R, 2026-11-18; planoracle.SeedDuckDbMain): the pure/v1 goldens' H2 connection
+// (core/src/test/resources/upstream-api/trades-h2.pure, trades::h2::Conn) replaced by this one, so the same requests
+// run on the DuckDB file seeded from that model's seed. ${DUCKDB_PATH} is the path of the reader's copy of the file.
+
+###Connection
+RelationalDatabaseConnection trades::h2::Conn
+{
+    store: trades::h2::DB;
+    type: DuckDB;
+    specification: DuckDB
+    {
+        path: '${DUCKDB_PATH}';
+    };
+    auth: Test;
+}

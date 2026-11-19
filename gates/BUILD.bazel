@@ -227,25 +227,47 @@ test_suite(
 # the relational corpus on DuckDB (gates 4 and 11): the host and database passes, their verdict, the roster diff tests
 test_suite(
     name = "corpus_duckdb",
-    tests = ["//spec:corpus_duckdb"],
+    tests = [
+        "//spec:corpus_duckdb",
+        # the edge golden net's DuckDB corpus ledgers, beside the host pass they read (2026-11-19, the compatibility
+        # program's slice 0.2: out of //gates:edge_net, whose critical path that pass was)
+        "//spec:update_edge_corpus_duckdb_tests",
+    ],
 )
 
 # the relational corpus on H2 (gate 5)
 test_suite(
     name = "corpus_h2",
-    tests = ["//spec:corpus_h2"],
+    tests = [
+        "//spec:corpus_h2",
+        # the edge golden net's H2 corpus ledgers, beside the host pass they read (2026-11-19, slice 0.2)
+        "//spec:update_edge_corpus_h2_tests",
+    ],
 )
 
-# PCT on DuckDB (gate 6): the five suites, one target each (P3-09)
+# PCT on DuckDB (gate 6): the five suites, one target each (P3-09). With them, per push (CP-9 of
+# docs/records/compat-program-plan-2026-11-19.md, RULED by the user 2026-11-19 ~10:45 UTC; H7): the ENGINE lane on
+# DuckDB, PCT channel A as legend-engine's audience on DuckDB's five suites, classified against legend-engine's
+# manifests and pinned; and the oracle's batteries' per-push half, lite's answers against legend-engine's pinned ones
+# (no legend-engine JVM)
 test_suite(
     name = "pct_duckdb",
-    tests = ["//pct:pct_duckdb"],
+    tests = [
+        "//pct:batteries_test",
+        "//pct:engine_lane_duckdb_test",
+        "//pct:pct_duckdb",
+    ],
 )
 
-# PCT on H2 (gate 7)
+# PCT on H2 (gate 7). With it, per push (CP-9, as above; H7): the ENGINE lane on H2, its essential, relation and
+# standard suites (the essential and standard added by the compatibility program's owner, 2026-11-19), here beside H2's
+# own PCT rather than in pct_duckdb, whose job they would lengthen
 test_suite(
     name = "pct_h2",
-    tests = ["//pct:pct_h2"],
+    tests = [
+        "//pct:engine_lane_h2_test",
+        "//pct:pct_h2",
+    ],
 )
 
 # PCT on Postgres 16 (gate 7P): the five suites
@@ -405,6 +427,16 @@ test_suite(
     ],
 )
 
+# THE EDGE GOLDEN NET (the compatibility program's slice 0.2, CP-9 RULED by the user 2026-11-19: "per-push
+# compatibility checks"): every edge recording in-process on DuckDB, H2 and SQLite (PCT channels A and B, pure/v1, the
+# missing cases) diffed against its golden, and the net's planted-change proof; a lane of its own, in parallel with the
+# others (docs/records/compat-program-plan-2026-11-19.md, slice 0.2). The corpus's ledgers, the net's fourth part, run
+# in corpus_duckdb and corpus_h2 beside the host passes they read (the owner's call, 2026-11-19)
+test_suite(
+    name = "edge_net",
+    tests = ["//pct:edge_net"],
+)
+
 # EVERY LANE: what the product job's guard compares the repository's tests against (not `all`: that name is also
 # Bazel's wildcard for a package)
 test_suite(
@@ -418,6 +450,7 @@ test_suite(
         ":pct_h2",
         ":pct_postgres",
         ":pct_channel_b",
+        ":edge_net",
         ":parser_equivalence",
         ":stress",
         ":warehouse",
@@ -498,10 +531,16 @@ test_suite(
         "//pct:pct_bc_date_probe_sqlite",
         "//core:answer_snapshot",
         "//pct:update_ratchets_test",
-        # the edge golden net's updaters (2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md Phase 0): the
-        # 36 diff tests of //pct:edge_contract_test (PCT's 27, the corpus's 8, pure/v1's 1), run by hand on every push
-        # of the edge program and on a re-record; found in no lane by stage-linux run 17, 2026-11-16
-        "//pct:edge_contract_test",
+        # (//pct:edge_contract_test, the edge golden net's updaters: a per-push lane of its own since 2026-11-19,
+        # //gates:edge_net -- the compatibility program's slice 0.2, CP-9 ruled by the user)
+        # the plan oracle (slice R of the presentation program, 2026-11-18; docs/records/engine-oracle-pure-v1-2026-11-18.md):
+        # the pure/v1 golden requests planned and run by legend-engine 4.145.0, its answers and how each golden differs
+        # from them pinned; about 16 s of actions once the runner's jars are fetched (980 MB, fetched already for the
+        # runner's smoke test). Here beside the net it reads (the orchestrator, 2026-11-18)
+        "//tools/engine-runner:pure_v1_oracle_test",
+        # the oracle's batteries' heavy half (H7, 2026-11-19; CP-9): each battery re-asked of legend-engine, one JVM per
+        # database, failing on drift from the answers //pct:batteries_test compares lite with per push
+        "//tools/engine-runner:batteries_oracle_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an
         # account's credentials (its §4, never in the repository; a CI workflow for them is not built), and the SQLite

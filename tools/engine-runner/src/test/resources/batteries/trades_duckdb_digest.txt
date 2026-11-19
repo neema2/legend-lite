@@ -1,0 +1,1 @@
+rows 128, sum(qty) 509, md5 dde1989bb8f40ad8dd633acc978eb030

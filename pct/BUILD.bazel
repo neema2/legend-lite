@@ -77,10 +77,14 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    # PctDisciplineTest is :pct_discipline's alone (a source scan with no PCT runtime)
+    # PctDisciplineTest is :pct_discipline's alone (a source scan with no PCT runtime); the batteries' runner is
+    # :pct_batteries' (H7), so no lane's classpath holds the oracle's tooling
     srcs = glob(
         ["src/test/java/**/*.java"],
-        exclude = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
+        exclude = [
+            "src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java",
+            "src/test/java/org/finos/legend/lite/pct/batteries/*.java",
+        ],
     ),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = [
@@ -698,6 +702,19 @@ junit_test(
     runtime_deps = [":pct_tests_lib"],
 )
 
+# THE EDGE GOLDEN NET's PROOF, the recorder's half (S0 of the presentation program, 2026-11-18,
+# docs/records/presentation-program-design-2026-11-18.md §4 (d)): planted changes through the recorder -- an SQL-only
+# change moves no line; a Float's 17th digit and a message change each move it; the mask hides an id, never a value;
+# the root ORDER BY's keys as the recorder writes them. The normalizer's half is //tools/guards:edge_normalize_test
+# (the review of PR #123, 2026-11-19: this module depends on no tool that sorts, PctDisciplineTest)
+junit_test(
+    name = "pct_edge_net_planted_test",
+    memory_mb = 512,
+    size = "small",
+    select = ["--select-class=org.finos.legend.lite.pct.extension.EdgeNetPlantedTest"],
+    runtime_deps = [":pct_tests_lib"],
+)
+
 # the guard's own planted violators (ChannelBTwiceTest): it names two differing plans and two differing runs
 junit_test(
     name = "pct_channel_b_twice_guard_test",
@@ -774,12 +791,19 @@ _EDGE_CLASS = {
         "edge/%s_%s/run.log" % (lane, s.lower()),
         "edge/%s_%s/outcomes.tsv" % (lane, s.lower()),
         "edge/%s_%s/answers.tsv" % (lane, s.lower()),
+        # a relation's activities, lite's own SQL: informational, read by no diff test (S0 of the presentation program,
+        # 2026-11-18), so an SQL-only change moves no golden
+        "edge/%s_%s/activities.tsv" % (lane, s.lower()),
+        # G3, report-only (S0): each case's statements under the edge's style and the product's compared
+        "edge/%s_%s/one_plan.tsv" % (lane, s.lower()),
     ],
     arguments = [
         "{OUT_DIR}/verdict.txt",
         "{OUT_DIR}/run.log",
         "{OUT_DIR}/outcomes.tsv",
         "{OUT_DIR}/answers.tsv",
+        "{OUT_DIR}/activities.tsv",
+        "{OUT_DIR}/one_plan.tsv",
         "--",
         "--select-class=org.finos.legend.lite.pct." + (_EDGE_CLASS[lane] % s),
     ],
@@ -787,6 +811,8 @@ _EDGE_CLASS = {
     jvm_flags = [
         "-Dlegend.junit.outcomes={OUT_DIR}/outcomes.tsv",
         "-Dlegend.edge.answers={OUT_DIR}/answers.tsv",
+        "-Dlegend.edge.activities={OUT_DIR}/activities.tsv",
+        "-Dlegend.edge.oneplan={OUT_DIR}/one_plan.tsv",
     ],
     main_class = "com.legend.tools.junit.JUnitAction",
     memory_mb = 4096,
@@ -833,6 +859,44 @@ _EDGE_CLASS = {
     ],
 ) for s in _SUITES]
 
+# channel B on H2 and SQLite in the net too (S0 of the presentation program, 2026-11-18,
+# docs/records/presentation-program-design-2026-11-18.md §4 (d): until then DuckDB's alone), every outcome as
+# ChannelBLane writes it, each lane judged by its own ledger class and, where legend-engine publishes one, its manifest
+_EDGE_CHANNEL_B_LANES = ["h2", "sqlite"]
+
+[java_run(
+    name = "edge_channel_b_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    srcs = UPSTREAM_TREES + [_LANE_LEDGER % (cls, s)] + [_LANE_MANIFEST % (d, d, d, s) for d in ([] if db == None else [db])],
+    outs = [
+        "edge/channel_b_%s_%s/verdict.txt" % (lane, s.lower()),
+        "edge/channel_b_%s_%s/run.log" % (lane, s.lower()),
+        "edge/channel_b_%s_%s/outcomes.tsv" % (lane, s.lower()),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s,
+    ],
+    env = {"LEGENDLITE_PCT_BACKEND": lane},
+    jvm_flags = program_jvm_flags("pct") + [
+        "-Dpct.suite.%s=$(execpath %s)" % (s, _LANE_LEDGER % (cls, s)),
+    ] + ["-Dpct.oracle.%s=$(execpath %s)" % (s, _LANE_MANIFEST % (d, d, d, s)) for d in ([] if db == None else [db])] + [
+        "-Dlegend.edge.channelb={OUT_DIR}/outcomes.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 2048,
+    mnemonic = "EdgeContractB",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ] + (["@h2//jar"] if lane == "h2" else []),
+) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items()
+    if lane in _EDGE_CHANNEL_B_LANES for s in suites]
+
 # each recording, normalized outside this module (tools/edgenet: a relation's rows and the file's lines sorted; the PCT
 # module holds no ordering machinery, PctDisciplineTest), is what the net compares with its golden
 _EDGE_RECORDED = {
@@ -842,14 +906,31 @@ _EDGE_RECORDED = {
 } | {
     "src/test/resources/edge/channel_b_duckdb_%s_outcomes.tsv" % s.lower(): "edge/channel_b_%s/outcomes.tsv" % s.lower()
     for s in _SUITES
+} | {
+    "src/test/resources/edge/channel_b_%s_%s_outcomes.tsv" % (lane, s.lower()): "edge/channel_b_%s_%s/outcomes.tsv" % (lane, s.lower())
+    for lane, (_, suites, _, _, _, _, _, _, _) in _CHANNEL_B_LANES.items()
+    if lane in _EDGE_CHANNEL_B_LANES
+    for s in suites
 }
+
+# THE PLATFORM OVERLAYS (the compatibility program's slice 0.2, 2026-11-19, the program owner's call on PR #123's first
+# Windows and macOS runs): the goldens are Linux's, every digit pinned; DuckDB and SQLite take acos, asin, cot, sinh,
+# cosh, tanh, cbrt and pow from the platform's C maths library, whose last place differs on Windows and on macOS. Each
+# overlay row names one such value (suite, test, case, databases, function, the Linux value, that OS's value); the
+# normalizer applies an OS's rows on that OS only, fails on a row that finds no line (stale) or a line holding another
+# value, and on every other OS checks the row's Linux value against the recording -- so an overlay cannot drift from
+# the golden (tools/edgenet's PlatformOverlay; tools/edgenet/README.md). New pinned files, for the user's word.
+_EDGE_OVERLAYS = [
+    "src/test/resources/edge/overlay_macos.tsv",
+    "src/test/resources/edge/overlay_windows.tsv",
+]
 
 [java_run(
     name = "edge_norm_" + golden.split("/")[-1].removesuffix(".tsv"),
     testonly = True,
-    srcs = [":" + recorded],
+    srcs = [":" + recorded] + _EDGE_OVERLAYS,
     outs = ["edge_norm/" + golden.split("/")[-1]],
-    arguments = ["$(execpath :%s)" % recorded, "{OUT}"],
+    arguments = ["$(execpath :%s)" % recorded, "{OUT}"] + ["$(execpath %s)" % o for o in _EDGE_OVERLAYS],
     main_class = "com.legend.tools.edgenet.EdgeNormalize",
     mnemonic = "EdgeNormalize",
     deps = ["//tools/edgenet"],
@@ -866,7 +947,252 @@ test_suite(
     name = "edge_contract_test",
     tests = [
         ":update_edge_contract_tests",
-        "//spec:update_edge_corpus_tests",
+        "//spec:update_edge_corpus_duckdb_tests",
+        "//spec:update_edge_corpus_h2_tests",
         "//core:update_edge_pure_v1_tests",
+        # the missing cases and the net's own proof (S0 of the presentation program, 2026-11-18): the recorder's half
+        # here, the normalizer's in //tools/guards (the review of PR #123, 2026-11-19)
+        "//core:update_edge_cases_tests",
+        ":pct_edge_net_planted_test",
+        "//tools/guards:edge_normalize_test",
+    ],
+)
+
+# THE ENGINE LANE (H7, slice 0.3 of docs/records/compat-program-plan-2026-11-19.md; report-only): PCT channel A as
+# legend-engine's audience (-Dpct.audience=engine: the pure/v1 route's style, no feature flag, as legend-engine's own
+# PCT adapters run a case), with no expected failures, on DuckDB's five suites and H2's essential, relation and
+# standard suites (H2's two added 2026-11-19 by the compatibility program's owner: H2 is legend-engine's own primary
+# test database, and stage A's substring/indexOf move lands in those suites); each test's outcome by its full name
+# (JUnitMain's -Dlegend.junit.outcomes.full). tools/enginelane joins them with legend-engine's manifests into the lane's
+# classification table, pinned below, one pin and one test suite per database: //pct:engine_lane_duckdb_test in
+# //gates:pct_duckdb, //pct:engine_lane_h2_test in //gates:pct_h2.
+_ENGINE_LANE_DBS = {
+    "duckdb": _SUITES,
+    "h2": ["Essential", "Relation", "Standard"],
+}
+
+_ENGINE_LANES = [(db, "" if db == "duckdb" else db, s) for db in _ENGINE_LANE_DBS for s in _ENGINE_LANE_DBS[db]]
+
+[java_run(
+    name = "engine_lane_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    outs = [
+        "engine_lane/%s_%s/verdict.txt" % (lane, s.lower()),
+        "engine_lane/%s_%s/run.log" % (lane, s.lower()),
+        "engine_lane/%s_%s/outcomes.tsv" % (lane, s.lower()),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct.Test_LegendLite_Engine_PCT",
+    ],
+    env = {"LEGENDLITE_PCT_BACKEND": backend} if backend else {},
+    jvm_flags = [
+        "-Dpct.audience=engine",
+        "-Dpct.engine.suite=" + s,
+        "-Dlegend.junit.outcomes.full={OUT_DIR}/outcomes.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 4096,
+    mnemonic = "EngineLane",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ] + (["@h2//jar"] if lane == "h2" else []),
+) for (lane, backend, s) in _ENGINE_LANES]
+
+# each lane's outcomes joined with legend-engine's manifest for the same database and suite, classified
+# (tools/engine-runner's EngineLaneTable: statuses and classes, never words)
+_ENGINE_LANE_MANIFEST = {
+    "duckdb": _ENGINE_MANIFEST,
+    "h2": _LANE_MANIFEST.replace("%s", "h2", 3),
+}
+
+[java_run(
+    name = "engine_lane_table_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    srcs = [
+        ":engine_lane/%s_%s/outcomes.tsv" % (lane, s.lower()),
+        _ENGINE_LANE_MANIFEST[lane] % s,
+    ],
+    outs = ["engine_lane_table/%s_%s.tsv" % (lane, s.lower())],
+    arguments = [
+        "table",
+        "--db=" + lane,
+        "--suite=" + s,
+        "--manifest=$(execpath %s)" % (_ENGINE_LANE_MANIFEST[lane] % s),
+        "--outcomes=$(execpath :engine_lane/%s_%s/outcomes.tsv)" % (lane, s.lower()),
+        "--out={OUT}",
+    ],
+    main_class = "com.legend.tools.enginelane.EngineLaneTable",
+    mnemonic = "EngineLaneTable",
+    deps = ["//tools/engine-runner:enginelane"],
+) for (lane, backend, s) in _ENGINE_LANES]
+
+# per database: its lanes' tables, its counts and its refusals
+_ENGINE_LANE_TABLES = {
+    db: ["engine_lane_table/%s_%s.tsv" % (db, s.lower()) for s in _ENGINE_LANE_DBS[db]]
+    for db in _ENGINE_LANE_DBS
+}
+
+[java_run(
+    name = "engine_lane_summary_" + db,
+    testonly = True,
+    srcs = [":" + t for t in _ENGINE_LANE_TABLES[db]],
+    outs = [
+        "engine_lane_table/summary_%s.tsv" % db,
+        "engine_lane_table/refusals_%s.tsv" % db,
+    ],
+    arguments = [
+        "summary",
+        "--out={OUT_DIR}/summary_%s.tsv" % db,
+        "--refusals-out={OUT_DIR}/refusals_%s.tsv" % db,
+    ] + ["$(execpath :%s)" % t for t in _ENGINE_LANE_TABLES[db]],
+    main_class = "com.legend.tools.enginelane.EngineLaneTable",
+    mnemonic = "EngineLaneTable",
+    deps = ["//tools/engine-runner:enginelane"],
+) for db in _ENGINE_LANE_DBS]
+
+# THE PIN (report-only: it moves when a class moves, toward legend-engine's manifest or away from it, and the commit
+# says which), one per database, so each gate job builds its own database's lanes alone: bazel run
+# //pct:update_engine_lane (both)
+[write_source_files(
+    name = "update_engine_lane_" + db,
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe ENGINE lane moved (PCT channel A as legend-engine's audience, classified against legend-engine's manifests; H7, slice 0.3): in the diff, < is this tree (generated) and > the pin; a move is a fact to report -- bazel run //pct:update_engine_lane, and say in the commit which way each row moved",
+    files = {
+        "engine_lane/%s" % t.split("/")[-1]: ":" + t
+        for t in _ENGINE_LANE_TABLES[db] + [
+            "engine_lane_table/summary_%s.tsv" % db,
+            "engine_lane_table/refusals_%s.tsv" % db,
+        ]
+    },
+) for db in _ENGINE_LANE_DBS]
+
+write_source_files(
+    name = "update_engine_lane",
+    testonly = True,
+    additional_update_targets = [":update_engine_lane_" + db for db in _ENGINE_LANE_DBS],
+)
+
+[test_suite(
+    name = "engine_lane_%s_test" % db,
+    tests = [":update_engine_lane_%s_tests" % db],
+) for db in _ENGINE_LANE_DBS]
+
+# THE BATTERIES' PER-PUSH HALF (H7; CP-9 of docs/records/compat-program-plan-2026-11-19.md): each battery answered by
+# lite as legend-engine's audience (pure/v1's execute route as the edge ships it), compared with legend-engine's pinned
+# answers (//tools/engine-runner:update_batteries, the heavy half); no legend-engine JVM runs. DuckDB answers from a
+# file seeded with lite's own driver from the statements legend-engine's file is seeded from (the oracle's package,
+# //tools/engine-runner:lite_battery_seed), refused if its rows differ from that file's (trades_duckdb_digest.txt).
+_BATTERY_REQUESTS = "//tools/engine-runner:src/test/resources/batteries/substring_indexof.tsv"
+
+_TRADES_H2 = "//core:src/test/resources/upstream-api/trades-h2.pure"
+
+# the model each battery runs over: the goldens' own on H2; on DuckDB the same with its connection replaced, and the
+# file lite seeded (//tools/engine-runner:lite_battery_seed and lite_battery_model)
+_BATTERY_MODEL = {
+    "h2": _TRADES_H2,
+    "duckdb": "//tools/engine-runner:batteries/lite/trades-duckdb.pure",
+}
+
+# THE BATTERIES' RUNNER (H7): lite's answers written in the oracle's answer form
+# (//tools/engine-runner:enginelane), through pure/v1's route as the edge ships it (EdgeServer.runner). Its own
+# library, beside the PCT's: no lane's classpath holds the oracle's tooling, so an edit to it reruns no lane
+legend_java_library(
+    name = "pct_batteries",
+    testonly = True,
+    srcs = glob(["src/test/java/org/finos/legend/lite/pct/batteries/*.java"]),
+    deps = [
+        "//core",
+        "//core:edge",
+        "//core:edge_server",
+        "//tools/engine-runner:enginelane",
+    ],
+)
+
+[java_run(
+    name = "battery_lite_" + db,
+    testonly = True,
+    srcs = [
+        _BATTERY_REQUESTS,
+        _BATTERY_MODEL[db],
+    ] + (["//tools/engine-runner:batteries/lite/trades.duckdb"] if db == "duckdb" else []),
+    outs = ["battery_run/%s/lite.tsv" % db],
+    arguments = [
+        "run",
+        "--model=$(execpath %s)" % _BATTERY_MODEL[db],
+        "--requests=$(execpath %s)" % _BATTERY_REQUESTS,
+        "--out={OUT}",
+    ] + ([
+        "--database-file=$(execpath //tools/engine-runner:batteries/lite/trades.duckdb)",
+        "--file-token=${DUCKDB_PATH}",
+    ] if db == "duckdb" else []),
+    main_class = "org.finos.legend.lite.pct.batteries.LiteBatteries",
+    memory_mb = 2048,
+    mnemonic = "LiteBatteries",
+    deps = [
+        ":pct_batteries",
+        "//core:drivers",
+    ] + (["@h2//jar"] if db == "h2" else []),
+) for db in ["h2", "duckdb"]]
+
+[java_run(
+    name = "battery_compare_" + db,
+    testonly = True,
+    srcs = [
+        ":battery_run/%s/lite.tsv" % db,
+        "//tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv" % db,
+    ] + ([
+        "//tools/engine-runner:batteries/lite/trades_duckdb_digest.txt",
+        "//tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt",
+    ] if db == "duckdb" else []),
+    outs = ["battery_run/%s/agreement.tsv" % db],
+    arguments = [
+        "compare",
+        "--db=" + db,
+        "--engine=$(execpath //tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv)" % db,
+        "--lite=$(execpath :battery_run/%s/lite.tsv)" % db,
+        "--out={OUT}",
+    ] + ([
+        "--engine-digest=$(execpath //tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt)",
+        "--lite-digest=$(execpath //tools/engine-runner:batteries/lite/trades_duckdb_digest.txt)",
+    ] if db == "duckdb" else []),
+    main_class = "com.legend.tools.enginelane.Batteries",
+    mnemonic = "LiteBatteries",
+    deps = ["//tools/engine-runner:enginelane"],
+) for db in ["h2", "duckdb"]]
+
+# THE PIN (report-only: it moves when a request's agreement moves, and the commit says which way): bazel run
+# //pct:update_batteries
+write_source_files(
+    name = "update_batteries",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA battery request's agreement with legend-engine moved (H7): in the diff, < is this tree (generated) and > the pin; bazel run //pct:update_batteries, and say in the commit which way each row moved",
+    files = {"batteries/agreement_%s.tsv" % db: ":battery_run/%s/agreement.tsv" % db for db in ["h2", "duckdb"]},
+)
+
+test_suite(
+    name = "batteries_test",
+    tests = [":update_batteries_tests"],
+)
+
+# THE EDGE NET PER PUSH (S0 of the presentation program, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
+# §4 (d); a lane of its own, //gates:edge_net, the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19):
+# every recording above, in-process on DuckDB, H2 and SQLite, and the net's proof -- all of edge_contract_test but the
+# corpus ledgers' four diff tests, which run in the corpus lanes beside the host passes they read (the owner's call on
+# the per-push cost, 2026-11-19: the DuckDB pass was the net's whole critical path). edge_contract_test stays the
+# whole net, for a hand run.
+test_suite(
+    name = "edge_net",
+    tests = [
+        ":update_edge_contract_tests",
+        "//core:update_edge_pure_v1_tests",
+        "//core:update_edge_cases_tests",
+        ":pct_edge_net_planted_test",
+        "//tools/guards:edge_normalize_test",
     ],
 )

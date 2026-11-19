@@ -28,11 +28,48 @@ final class PctPlanRoute {
     private PctPlanRoute() {
     }
 
+    /** {@code -Dpct.audience}'s value for legend-engine's audience (the ENGINE lane, H7). */
+    static final String ENGINE_AUDIENCE = "engine";
+
     /** A case's answer: what the plan answers ({@code shape}), its typed rows, the query's result type, which a
      *  value's elements are built by, and for a relation the engine's JSON answer the server writes ({@code
-     *  engineJson}; null for a value). */
+     *  engineJson}; null for a value). {@code order}: the output columns the answering statement's root ORDER BY
+     *  sorts on, in its order, {@code "?"} for a key that names no output column; null when the root does not sort.
+     *  The edge golden net's recorder writes it, so its normalizer keeps the rows' order across distinct keys
+     *  (S0 of the presentation program, docs/records/presentation-program-design-2026-11-18.md §4 (d)); it is a fact
+     *  of the plan, read here, never an ordering this module does. */
     record Answer(ExecutionPlan.TdsResult.Shape shape, PlanRunner.Rows rows, ExprType resultType,
-            @com.legend.base.Nullable String engineJson) {
+            @com.legend.base.Nullable String engineJson, java.util.@com.legend.base.Nullable List<String> order) {
+    }
+
+    /** The root ORDER BY's output columns of a plan's answering statement ({@link Answer#order}): a key by its output
+     *  name where the sort names one, else the projection whose expression it is, else {@code "?"}; null when the
+     *  plan sends no answering statement or its root does not sort. */
+    static java.util.@com.legend.base.Nullable List<String> rootOrder(ExecutionPlan plan) {
+        if (!plan.sendsTheAnswer()) {
+            return null;
+        }
+        com.legend.sql.SqlQuery tree = plan.answerSql().tree();
+        while (tree instanceof com.legend.sql.SqlWith w) {
+            tree = w.body();
+        }
+        if (!(tree instanceof com.legend.sql.SqlSelect select) || select.orderBy().isEmpty()) {
+            return null;
+        }
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        for (com.legend.sql.SqlSelect.SortKey k : select.orderBy()) {
+            keys.add(k.outputName() != null ? k.outputName() : projected(select, k.expr()));
+        }
+        return keys;
+    }
+
+    private static String projected(com.legend.sql.SqlSelect select, com.legend.sql.SqlExpr expr) {
+        for (com.legend.sql.SqlSelect.Projection p : select.projections()) {
+            if (p.expr().equals(expr)) {
+                return p.alias() != null ? p.alias() : p.out() != null ? p.out().name() : "?";
+            }
+        }
+        return "?";
     }
 
     static Answer execute(String model, String expression) throws IOException {
@@ -42,12 +79,21 @@ final class PctPlanRoute {
                 .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
-        java.util.Set<com.legend.platform.Feature> features =
-                java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
+        // THE AUDIENCE (H7, slice 0.3 of docs/records/compat-program-plan-2026-11-19.md): by default legend-pure's,
+        // the PCT's own (the edge's UPSTREAM style, under the substring flag: S130); under -Dpct.audience=engine
+        // legend-engine's, as its own PCT adapters run a case (the pure/v1 route's style, no feature flag: they set
+        // none, S130), for the ENGINE lane that compares each outcome with legend-engine's manifests
+        boolean engineAudience = ENGINE_AUDIENCE.equals(System.getProperty("pct.audience"));
+        java.util.Set<com.legend.platform.Feature> features = engineAudience ? java.util.Set.of()
+                : java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
+        com.legend.database.PlanStyle text = engineAudience ? com.legend.edge.PureText.PURE_V1
+                : com.legend.edge.PureText.UPSTREAM;
+        // counted as chosen here, the text and the flags the run is handed, for the ENGINE lane's check (RouteAudience)
+        RouteAudience.planned(text == com.legend.edge.PureText.PURE_V1 && features.isEmpty());
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        ExecutionPlan plan = com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, style ->
+        ExecutionPlan plan = com.legend.edge.RaisedWords.run(text, style ->
                 com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)
@@ -73,7 +119,63 @@ final class PctPlanRoute {
             }
             batcher.end();
         }
+        PctCaseRecorder.onePlan(() -> onePlan(query, features));
         return new Answer(plan.answerShape(), new PlanRunner.Rows(c.columns(), c.rows()), query.resultType(),
-                relation ? json.toString() : null);
+                relation ? json.toString() : null, relation ? rootOrder(plan) : null);
+    }
+
+    /** G3 OF THE PRESENTATION PROGRAM, REPORT-ONLY (S0, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
+     *  §6): the case planned under the edge's style and under the product's, after its run (never inside it), and
+     *  their statements compared, in order: {@code IDENTICAL}, {@code DIFFERS <n of m>} (the statements that differ),
+     *  {@code PRODUCT_REFUSES <its class>}, or {@code EDGE_REPLAN_REFUSES <its class>} (a plan the measurement cannot
+     *  remake outside the run, reported, never failing the case). Recorded beside the case when the net asks
+     *  ({@code -Dlegend.edge.oneplan}). */
+    static String onePlan(TypedQuery query, java.util.Set<com.legend.platform.Feature> features) {
+        java.util.List<String> edge;
+        try {
+            edge = statements(query.executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME, features,
+                    com.legend.edge.PureText.UPSTREAM));
+        } catch (RuntimeException e) {
+            // the measurement never fails the case it measures: a plan it cannot remake is reported by its class
+            return "EDGE_REPLAN_REFUSES\t" + e.getClass().getSimpleName();
+        }
+        java.util.List<String> product;
+        try {
+            product = statements(query.executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME, features,
+                    com.legend.database.PlanStyle.PRODUCT));
+        } catch (RuntimeException e) {
+            return "PRODUCT_REFUSES\t" + e.getClass().getSimpleName();
+        }
+        if (edge.equals(product)) {
+            return "IDENTICAL\t" + edge.size();
+        }
+        int differ = Math.abs(edge.size() - product.size());
+        for (int i = 0; i < Math.min(edge.size(), product.size()); i++) {
+            differ += edge.get(i).equals(product.get(i)) ? 0 : 1;
+        }
+        return "DIFFERS\t" + differ + " of " + Math.max(edge.size(), product.size());
+    }
+
+    /** Every statement a plan sends, in the order its JSON holds them. */
+    private static java.util.List<String> statements(ExecutionPlan plan) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        statements(com.legend.json.Json.parse(com.legend.executionplan.PlanJson.write(plan)), out);
+        return out;
+    }
+
+    private static void statements(com.legend.json.Json.Node n, java.util.List<String> out) {
+        if (n instanceof com.legend.json.Json.Obj o) {
+            for (java.util.Map.Entry<String, com.legend.json.Json.Node> e : o.fields().entrySet()) {
+                if (e.getKey().equals("statement") && e.getValue() instanceof com.legend.json.Json.Str s) {
+                    out.add(s.value());
+                } else {
+                    statements(e.getValue(), out);
+                }
+            }
+        } else if (n instanceof com.legend.json.Json.Arr a) {
+            for (com.legend.json.Json.Node item : a.items()) {
+                statements(item, out);
+            }
+        }
     }
 }
