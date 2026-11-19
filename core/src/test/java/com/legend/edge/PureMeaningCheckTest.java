@@ -145,7 +145,7 @@ class PureMeaningCheckTest {
     }
 
     @Test
-    void aLiteralZeroStartIsExemptOnH2_inBothForms() {
+    void aLiteralZeroStartIsExemptInBothForms_whereMeasuredEqualSo() {
         PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
                 + " b: r|$r.NAME->toOne()->substring(0)])->from(t::RT)");
         assertTrue(r.clean(), r.header());
@@ -155,21 +155,21 @@ class PureMeaningCheckTest {
     }
 
     @Test
-    void aLiteralZeroStartIsExemptOnDuckDb_onlyInTheTwoArgumentForm() {
-        String duck = MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+    void aLiteralZeroStartIsExemptInTheTwoArgumentFormAlone_whereMeasuredSo() {
+        String twoArgumentOnly = MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
                 "type: DuckDB; specification: DuckDB { }; auth: Test;");
-        PureMeaningCheck.Result r = check(duck, "|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
+        PureMeaningCheck.Result r = check(twoArgumentOnly, "|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
                 + " b: r|$r.NAME->toOne()->substring(0)])->from(t::RT)");
         assertEquals("substring/3=1", r.header());
     }
 
     @Test
-    void aLiteralZeroStartIsFlaggedOnADatabaseNotMeasured() {
-        String pg = MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+    void aLiteralZeroStartIsFlaggedOnATargetNotMeasured() {
+        String unmeasured = MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
                 "type: Postgres; specification: Static { name: 'x'; host: 'h'; port: 5432; };"
                         + " auth: UserNamePassword { baseVaultReference: 'v'; userNameVaultReference: 'u';"
                         + " passwordVaultReference: 'p'; };");
-        PureMeaningCheck.Result r = check(pg, "|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
+        PureMeaningCheck.Result r = check(unmeasured, "|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
                 + " b: r|$r.NAME->toOne()->substring(0)])->from(t::RT)");
         assertEquals("substring/2=1, substring/3=1", r.header());
     }
