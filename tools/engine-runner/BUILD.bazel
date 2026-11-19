@@ -165,6 +165,16 @@ legend_java_library(
     deps = ["//json"],
 )
 
+# THE ENGINE LANE's table (H7, slice 0.3): each PCT test the lane ran as legend-engine's audience joined with
+# legend-engine's manifest and classified; //pct:engine_lane_* runs it (the PCT module holds no comparison machinery)
+legend_java_library(
+    name = "enginelane",
+    srcs = glob(["src/main/java/planoracle/enginelane/*.java"]),
+    testonly = True,
+    visibility = ["//pct:__pkg__"],
+    deps = ["//json"],
+)
+
 # legend-engine's Arrow memory reads java.nio's internals
 _ORACLE_JVM = ["--add-opens=java.base/java.nio=ALL-UNNAMED"]
 

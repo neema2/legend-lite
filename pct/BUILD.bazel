@@ -870,3 +870,106 @@ test_suite(
         "//core:update_edge_pure_v1_tests",
     ],
 )
+
+# THE ENGINE LANE (H7, slice 0.3 of docs/records/compat-program-plan-2026-11-19.md; report-only): PCT channel A as
+# legend-engine's audience (-Dpct.audience=engine: the pure/v1 route's style, no feature flag, as legend-engine's own
+# PCT adapters run a case), with no expected failures, on DuckDB's five suites and H2's relation suite; each test's
+# outcome by its full name (JUnitMain's -Dlegend.junit.outcomes.full). tools/enginelane joins them with legend-engine's
+# manifests into the lane's classification table, pinned below.
+_ENGINE_LANES = [("duckdb", "", s) for s in _SUITES] + [("h2", "h2", "Relation")]
+
+[java_run(
+    name = "engine_lane_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    outs = [
+        "engine_lane/%s_%s/verdict.txt" % (lane, s.lower()),
+        "engine_lane/%s_%s/run.log" % (lane, s.lower()),
+        "engine_lane/%s_%s/outcomes.tsv" % (lane, s.lower()),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct.Test_LegendLite_Engine_PCT",
+    ],
+    env = {"LEGENDLITE_PCT_BACKEND": backend} if backend else {},
+    jvm_flags = [
+        "-Dpct.audience=engine",
+        "-Dpct.engine.suite=" + s,
+        "-Dlegend.junit.outcomes.full={OUT_DIR}/outcomes.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 4096,
+    mnemonic = "EngineLane",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ] + (["@h2//jar"] if lane == "h2" else []),
+) for (lane, backend, s) in _ENGINE_LANES]
+
+# each lane's outcomes joined with legend-engine's manifest for the same database and suite, classified
+# (tools/engine-runner's EngineLaneTable: statuses and classes, never words)
+_ENGINE_LANE_MANIFEST = {
+    "duckdb": _ENGINE_MANIFEST,
+    "h2": _LANE_MANIFEST.replace("%s", "h2", 3),
+}
+
+[java_run(
+    name = "engine_lane_table_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    srcs = [
+        ":engine_lane/%s_%s/outcomes.tsv" % (lane, s.lower()),
+        _ENGINE_LANE_MANIFEST[lane] % s,
+    ],
+    outs = ["engine_lane_table/%s_%s.tsv" % (lane, s.lower())],
+    arguments = [
+        "table",
+        "--db=" + lane,
+        "--suite=" + s,
+        "--manifest=$(execpath %s)" % (_ENGINE_LANE_MANIFEST[lane] % s),
+        "--outcomes=$(execpath :engine_lane/%s_%s/outcomes.tsv)" % (lane, s.lower()),
+        "--out={OUT}",
+    ],
+    main_class = "planoracle.enginelane.EngineLaneTable",
+    mnemonic = "EngineLaneTable",
+    deps = ["//tools/engine-runner:enginelane"],
+) for (lane, backend, s) in _ENGINE_LANES]
+
+_ENGINE_LANE_TABLES = ["engine_lane_table/%s_%s.tsv" % (lane, s.lower()) for (lane, backend, s) in _ENGINE_LANES]
+
+java_run(
+    name = "engine_lane_summary",
+    testonly = True,
+    srcs = [":" + t for t in _ENGINE_LANE_TABLES],
+    outs = [
+        "engine_lane_table/summary.tsv",
+        "engine_lane_table/refusals.tsv",
+    ],
+    arguments = [
+        "summary",
+        "--out={OUT_DIR}/summary.tsv",
+        "--refusals-out={OUT_DIR}/refusals.tsv",
+    ] + ["$(execpath :%s)" % t for t in _ENGINE_LANE_TABLES],
+    main_class = "planoracle.enginelane.EngineLaneTable",
+    mnemonic = "EngineLaneTable",
+    deps = ["//tools/engine-runner:enginelane"],
+)
+
+# THE PIN (report-only: it moves when a class moves, toward legend-engine's manifest or away from it, and the commit
+# says which): bazel run //pct:update_engine_lane
+write_source_files(
+    name = "update_engine_lane",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe ENGINE lane moved (PCT channel A as legend-engine's audience, classified against legend-engine's manifests; H7, slice 0.3): in the diff, < is this tree (generated) and > the pin; a move is a fact to report -- bazel run //pct:update_engine_lane, and say in the commit which way each row moved",
+    files = {
+        "engine_lane/%s" % t.split("/")[-1]: ":" + t
+        for t in _ENGINE_LANE_TABLES + ["engine_lane_table/summary.tsv", "engine_lane_table/refusals.tsv"]
+    },
+)
+
+test_suite(
+    name = "engine_lane_test",
+    tests = [":update_engine_lane_tests"],
+)
