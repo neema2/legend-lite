@@ -987,17 +987,6 @@ public final class VerdictSql {
 
     private static final String P = "__p";
 
-    /** A verdict row over two constant texts: {@code expected} and {@code actual} string-equal (J40, 2026-11-18: the
-     *  product's builder in lite's terms; what the texts are -- a golden SQL text and ours -- is the edge's
-     *  SqlTextVerdicts', which composed VerdictSql#textEquals(String, String) here until then). */
-    public static SqlQuery constantTextsEqual(String expected, String actual) {
-        OneRow e = constantOf("e", new SqlExpr.StringLit(expected), "__t", SqlType.Scalar.VARCHAR);
-        OneRow a = constantOf("a", new SqlExpr.StringLit(actual), "__t", SqlType.Scalar.VARCHAR);
-        return predicateOver(List.of(), List.of(e, a),
-                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, e.col("__t"), a.col("__t")),
-                e.col("__t"), a.col("__t"), new SqlExpr.NullLit());
-    }
-
     /** A TEXT assert's verdict row whose OUR text is a side the database computes (2026-11-04, the core program): the
      *  golden a constant, ours the side's one-row relation ({@code oursRow}: {@link #scalarRow}'s {@code value}), string
      *  equality; the ACTUAL column carries our text back to the appeal of a failed row. */
@@ -1615,39 +1604,6 @@ public final class VerdictSql {
             }
             return s;
         }
-    }
-
-    /**
-     * A GENERIC verdict row and its RULED one as ONE row (2026-11-06, the user's "okay": compatibility mode's rendered
-     * text): the generic comparison first (two texts as strings), the ruled one where it does not hold (the rows, an
-     * unsorted query's as a multiset, S131, a Float within 2 ULP, S132) -- computed in the same statement, so the
-     * statements sent do not depend on whether the texts happened to match (a union's row order decided that, one run
-     * to the next, when the ruled row was a statement of its own sent after a failed text). Every column is the
-     * generic row's where it holds, else the ruled row's: {@code CASE WHEN g.__holds THEN g.c ELSE r.c END}. Both rows
-     * self-contained ({@link #selfContained}); their CTEs hoisted under per-row names as a fused batch hoists them
-     * ({@link #batch}), each body a derived table read once.
-     */
-    public static SqlQuery either(SqlQuery generic, SqlQuery ruled) {
-        SqlQuery fused = batch(List.of(generic, ruled), java.util.Map.of());
-        List<SqlWith.Cte> ctes = fused instanceof SqlWith w ? w.ctes() : List.of();
-        SqlQuery union = fused instanceof SqlWith w ? w.body() : fused;
-        if (!(union instanceof SqlUnion u) || u.branches().size() != 2) {
-            throw new IllegalStateException("two verdict rows fuse into a union of two branches, not " + union);
-        }
-        List<OutputCol> outs = batchOutputs();
-        SqlSource g = new SqlSource.Subselect(u.branches().get(0), "__g", null);
-        SqlSource r = new SqlSource.Subselect(u.branches().get(1), "__r", null);
-        SqlExpr holds = SqlExpr.Column.of("__g", outs.stream().filter(o -> HOLDS.equals(o.name())).findFirst()
-                .orElseThrow());
-        List<SqlSelect.Projection> ps = new ArrayList<>(outs.size() - 1);
-        List<OutputCol> rowOuts = outs.subList(1, outs.size());
-        for (OutputCol o : rowOuts) {
-            ps.add(new SqlSelect.Projection(new SqlExpr.Case(List.of(new SqlExpr.Case.When(holds,
-                    SqlExpr.Column.of("__g", o))), SqlExpr.Column.of("__r", o), SqlExpr.Reason.JUDGE), o.name(), o));
-        }
-        SqlSelect row = new SqlSelect(ps, false, new SqlSource.Join(g, r, SqlSource.Join.Kind.CROSS, null), null,
-                List.of(), null, null, List.of(), null, null, rowOuts);
-        return ctes.isEmpty() ? row : new SqlWith(ctes, row);
     }
 
     /** {@code side}'s rows in their branches' order where it is a UNION ALL (directly or under pass-through selects),

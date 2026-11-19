@@ -62,8 +62,8 @@ class TestPlanJsonRoundTripTest {
             id++;
         }
         RootLoop roots = new RootLoop(List.of(
-                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, null, FAILURE, 1, "foreign-dialect:DB2"),
-                        new RootLoop.Row("refused", RootLoop.NO_VERDICT, FAILURE, null, RootLoop.NO_APPEAL, null)),
+                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, null),
+                        new RootLoop.Row("refused", RootLoop.NO_VERDICT, FAILURE)),
                         new RootLoop.Message(constant(), null, true)),
                 new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
                         new RootLoop.Message(null, FAILURE, false))),
@@ -74,8 +74,8 @@ class TestPlanJsonRoundTripTest {
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),
                 new EffectTexts.Statement("select", true))), refereeLoad()));
         Map<Integer, List<Extension>> byVerdict = new LinkedHashMap<>();
-        byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
-                new Appeal.Batched("golden", null, false), 1)));
+        byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words",
+                null)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
                 byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
                 "the answer's planned size words", TestPlan.LITE_WORDS);
@@ -140,7 +140,7 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.InListSeed("String", List.of("a")),
                 anyTarget(),
                 new Appeal.Enums(List.of("my::E"), Map.of("my::E", Map.of("1", "A")), Map.of("kind", "my::E")));
-        return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows, null, RootLoop.NO_APPEAL);
+        return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows);
     }
 
     private static TestPlan.Side constant() {

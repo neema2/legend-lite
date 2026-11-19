@@ -77,17 +77,16 @@ public final class AssertVerdicts {
             bare = helper;
         }
         DatabaseGate gate = databaseGate(bare, letPrefix, specs, env, rawHook);
-        if (gate.kind() == DatabaseGate.Kind.UNPLANNED) {
+        if (gate == DatabaseGate.UNPLANNED) {
             return DatabasePlan.UNPLANNED;
         }
-        // a side the verdict row computes: the arm runs under the style's text collector, which plans it as a side of
-        // the verdict row -- nothing read at planning
-        BatchTexts texts = gate.collects() ? EngineTextGates.batchTexts(env) : null;
-        BodyDriver.ExecEnv at = texts != null ? texts.under(env) : env;
+        // (the style's text collector, BatchTexts, under which the edge's engine-text arm planned a side of the verdict
+        // row: deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19 --
+        // the host judge is the only judge in compatibility, so the database judge plans no engine text)
         batch.open(listenerName(bare));
         TypedSide v;
         try {
-            v = adjudicate(bare, letPrefix, specs, at, rawHook);
+            v = adjudicate(bare, letPrefix, specs, env, rawHook);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             batch.resolve(com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planDatabase: the arm decided at planning"));
             batch.close();
@@ -98,11 +97,6 @@ public final class AssertVerdicts {
             batch.wall(com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planDatabase: the arm left through a wall"));
             batch.close();
             return DatabasePlan.WALLED;
-        } finally {
-            if (texts != null) {
-                // planned: the appeal the arm built runs at the flush in the same environment and reads its sides then
-                texts.endPlanning();
-            }
         }
         if (v == null) {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", listenerName(bare), "the database arm: "
@@ -112,11 +106,6 @@ public final class AssertVerdicts {
         }
         batch.close();
         return DatabasePlan.PLANNED;
-    }
-
-    /** Whether the host checks planned {@code a} as an edge-judged comparison. */
-    private static boolean edgeJudged(HostAssert a) {
-        return HostJudgment.core(a.check().judgment()) instanceof HostJudgment.EdgeJudged;
     }
 
     /** {@link #databasePlansWithoutReading}'s answer in three (M10b: a raise at planning told apart, so the static pass
@@ -146,7 +135,6 @@ public final class AssertVerdicts {
             if (qp instanceof VectorPlan) {
                 return DatabaseGate.PLANS;
             }
-            DatabaseGate all = DatabaseGate.PLANS;
             boolean first = true;
             for (Unrolled u : ((UnrollPlan) qp).elements()) {
                 // a NESTED quantification (the engine's guard idiom, DE5: testDataGeneration's createTableRowIdentifiers):
@@ -156,19 +144,13 @@ public final class AssertVerdicts {
                         ? databaseGate(u.root(), u.before(), specs, env, rawHook)
                         : gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
                 // an unplanned element keeps the body off the database; a raise decides only as the first element's
-                if (g.kind() == DatabaseGate.Kind.UNPLANNED || g.kind() == DatabaseGate.Kind.RAISES && first) {
+                if (g == DatabaseGate.UNPLANNED || g == DatabaseGate.RAISES && first) {
                     return g;
                 }
-                if (g.kind() == DatabaseGate.Kind.PLANS) {
-                    // an element the edge's arm judges is appealed as the quantified whole's: never decided equal by
-                    // its own texts (as the walk deletion's rule kept it, 2026-11-06); a nested quantification's
-                    // elements are marked by its own gate
-                    all = all.and(quantifiedForm(u.root()) == null && edgeJudged(u.assertion())
-                            ? DatabaseGate.appealed(g.collects()) : g);
-                }
+                // (an element the edge's arm judged was appealed as the quantified whole's until A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge hears no appeal now)
                 first = false;
             }
-            return all;
+            return DatabaseGate.PLANS;
         }
         HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
         if (shape == null) {
@@ -185,9 +167,13 @@ public final class AssertVerdicts {
         if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.Raise) {
             return DatabaseGate.RAISES;
         }
-        if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EdgeJudged e) {
-            // the edge's arm answers its own gate (J41, 2026-11-18)
-            return EngineTextGates.gate(env, e, () -> shapeOf(bare));
+        if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EdgeJudged) {
+            // the edge's arm answered its own gate here (J41, 2026-11-18) until A4 of the compatibility program, stage A ratified by the user 2026-11-19: the
+            // host judge is the only judge in compatibility, and the product's style plans no edge-judged comparison,
+            // so one met here is a planning defect, refused by name
+            throw new IllegalStateException("an edge-judged comparison gated for the database judge: the host judge is"
+                    + " the only judge in compatibility (rule 4 of the compatibility program's rules of record): "
+                    + shapeOf(bare));
         }
         NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
         if (fn == null && bare instanceof TypedUserCall dual && dual.args().size() == 3
@@ -392,27 +378,10 @@ public final class AssertVerdicts {
         // cleanup move 2b (2026-09-21): the run's judge mode names the arm ONCE; every
         // family below classifies, then hands the sides to it
         VerdictArm arm = arm(env);
-        // SQLTEXT charter §8.3b — the assertSameSQL ROOT arm: the
-        // statement root arrives PRE-inline, so SqlTextVerdicts owns
-        // the whole golden-vs-executed-frame shape (rows judge, text
-        // is the emission census). Null = not the simple shape — the
-        // generic path (inline + fold) keeps it exactly as today.
-        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
-                && bare instanceof TypedUserCall sroot && EngineTextGates.facet(env) instanceof EngineTestText ett) {
-            TypedSide sv = ett.tryArmSameSql(sroot,
-                    letPrefix, specs, env, hook);
-            if (sv != null) {
-                return sv;
-            }
-        }
-        // §8.3d — the dual-golden sibling (same root-arm discipline)
+        // (the engine-text ROOT arms -- assertSameSQL's and the dual golden's, SQLTEXT charter §8.3b/d -- asked of the
+        // style's facet: deleted from the database judge with its appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19; the host judge plans them, SqlTextVerdicts.plan)
         if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
                 && bare instanceof TypedUserCall hroot) {
-            TypedSide hv = EngineTextGates.facet(env) instanceof EngineTestText ett ? ett.tryArmDualGolden(hroot,
-                    letPrefix, specs, env, hook) : null;
-            if (hv != null) {
-                return hv;
-            }
             // the arm is TOTAL: where no text arm applies, the function's own
             // meaning on our H2 (h2Extension.pure:29 picks the upgraded
             // golden on every version but 1.4.200) IS assertEquals(upgraded,
@@ -488,17 +457,8 @@ public final class AssertVerdicts {
                     yield null;
                 }
                 boolean wantEqual = fn == NativeFn.Verdict.ASSERT_EQUALS;
-                // SQLTEXT charter slice 3a — the SQL-TEXT arm: a
-                // toSQLString producer in an argument tree judges on
-                // ROWS (SqlTextVerdicts; text is a census number).
-                // Shapes outside the exact cohort yield null here.
-                // the arm is upstream's: asked of the plan style's facet where the sides reach upstream's text
-                TypedSide sv = !EngineTextGates.reachesUpstreamText(env, name, wantEqual, args, letPrefix, specs) ? null
-                        : java.util.Objects.requireNonNull(EngineTextGates.facet(env)).tryArm(name, wantEqual, args, letPrefix, specs, env, hook);
-                if (sv != null) {
-                    com.legend.diagnostics.VerdictCensus.sqlRoute(name, "sql-text");
-                    yield sv;
-                }
+                // (the SQL-TEXT arm, SQLTEXT charter slice 3a, asked of the style's facet: deleted from the database
+                // judge with its appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
                 // DB-rendered grid text (toCSV/toString/replace/join
                 // spellings), the peer a string value. The DATABASE

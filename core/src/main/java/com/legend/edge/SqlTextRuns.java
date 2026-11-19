@@ -85,13 +85,6 @@ final class SqlTextRuns {
         return textEqual ? ok() : run.hold(e.name(), appeal, e.golden(), o, textEqual, messaged);
     }
 
-    /** The ACTUAL text of a failed verdict row (its column by position, {@code RootLoop.ACTUAL_COLUMN}): our text as
-     *  the database computed it, or null. */
-    private static @com.legend.base.Nullable String actualText(List<Object> row) {
-        Object actual = row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN);
-        return actual == null ? null : String.valueOf(actual);
-    }
-
     /**
      * AN APPEAL DECIDED AFTER THE BODY'S RUN, FROM THE PLAN'S DATA (the plan-as-data design's step 8b, 2026-11-08):
      * {@code a} heard over the texts the run recorded -- a contract's failure, or the rows leg: the stores' fixtures provided by the harness, our rows read through the edge's reader (each a plan of
@@ -110,21 +103,8 @@ final class SqlTextRuns {
         };
     }
 
-    /** The database judge's failed row's appeal heard (step 8b): the texts its row compared, ours read from the row's
-     *  actual cell where the plan reads it, recorded for the decision after the run. */
-    static TypedSide rowAppealed(Appeal a, List<Object> row, Appeals run, boolean messaged) {
-        Appeal.Batched b = java.util.Objects.requireNonNull(a.batched(), "a row appeal with no row's texts");
-        String ours = b.ours() != null ? b.ours() : actualText(row);
-        if (ours == null) {
-            return fail(a.name() + " (sql-text): our text side, a String to one, read no string at the verdict step");
-        }
-        // a second hearing of an appeal another half holds (the agreement judge's database half, A1): joined to it,
-        // never decided twice
-        return a.joins() != com.legend.testexecutionplan.RootLoop.NO_APPEAL
-                ? run.join(a.name(), a.joins(), b.golden(), ours)
-                : run.hold(a.name(), a.number(), b.golden(), ours,
-                        b.ours() != null ? b.textEqual() : b.golden().equals(ours), messaged);
-    }
+    // (rowAppealed, the database judge's failed row's appeal heard (step 8b), and actualText, its row's actual cell:
+    // deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
 
     /** The rows leg itself, from the plan's data: OUR rows as planned, the golden replayed via the referee, judged. */
     private static TypedSide rowsLegNow(Appeal a, String golden, String ours, boolean textEqual,

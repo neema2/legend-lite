@@ -23,26 +23,9 @@ import java.util.List;
      *  test planner's generic path continues). */
     @com.legend.base.Nullable TextPlanned plan(TextAsk ask);
 
-    /** The equality arm over an assert's sides, as the walk's adjudication runs it: its verdict, or null where it
-     *  declines (the generic path continues). Asked only where {@link #reachesUpstreamText} holds. */
-    com.legend.testexecutionplan.@com.legend.base.Nullable TypedSide tryArm(String name, boolean wantEqual,
-            List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook);
-
-    /** The {@code assertSameSQL} root arm: its verdict, or null where it declines. */
-    com.legend.testexecutionplan.@com.legend.base.Nullable TypedSide tryArmSameSql(
-            com.legend.compiler.spec.typed.TypedUserCall root, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook);
-
-    /** The dual-golden root arm: its verdict, or null where it declines. */
-    com.legend.testexecutionplan.@com.legend.base.Nullable TypedSide tryArmDualGolden(
-            com.legend.compiler.spec.typed.TypedUserCall root, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook);
-
-    /** The database judge's text collector for an engine-text assert whose OUR text a side computes: planned as a
-     *  side of the verdict row, nothing read at planning. */
-    BatchTexts batchTexts();
-
+    // (tryArm, tryArmSameSql, tryArmDualGolden and batchTexts -- the arms and the text collector the DATABASE judge
+    // asked of this facet -- deleted with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host
+    // judge is the only judge in compatibility, and it reaches the arms through plan(TextAsk) alone)
 
     /** Whether {@code fqn} is a ROOT arm's helper: {@code assertSameSQL} or the dual golden. */
     boolean isRoot(String fqn);
@@ -58,10 +41,7 @@ import java.util.List;
     /** The side a {@link #notAConstant} check names: its kind and planned root. */
     String why(HostSides.@com.legend.base.Nullable Check check);
 
-    /** The database judge's gate for the edge's comparison {@code judgment} (J41, 2026-11-18; census C3 until then
-     *  answered how the plan holds its two texts, and the product mapped that to two constants of its own):
-     *  {@code shape} names the assert where the gate declines it. */
-    DatabaseGate gate(com.legend.testexecutionplan.Extension judgment, java.util.function.Supplier<String> shape);
+    // (gate, the database judge's gate for the edge's comparison, J41 of 2026-11-18: deleted with the same path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
 
     /** A FRESH RECORDER of one test body's planning call over {@code template} (K10b of the edge audit, the
      *  orchestrator's ruling (A) of 2026-11-17): the style that body is planned in, recording legend-pure's words of

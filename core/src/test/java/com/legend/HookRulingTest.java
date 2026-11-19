@@ -48,7 +48,8 @@ class HookRulingTest {
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), false),
-                    () -> productHearing().rowAppealed(0, List.of(), false),
+                    // (rowAppealed, the database judge's row appeal: the member deleted with its path, NARROWS A HOOK
+                    // THE USER RULED -- A4 of the compatibility program, stage A ratified by the user 2026-11-19)
                     // K10b, 2026-11-17 (the orchestrator's ruling (A)): legend-pure's words of a planned raise site, looked
                     // up in the plan's edge records -- the hearing's member, refused by the product's by name
                     () -> productHearing().raisedWords("SELECT 1", 1))),
@@ -78,13 +79,12 @@ class HookRulingTest {
             // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
             Map.entry(com.legend.lowering.RelationTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class))),
-            // census C4, 2026-11-17: the engine-text assert's arm, and the two hooks only its answers hand out (the
-            // collector and the database judge's batch): each reached through the facet the product refuses
+            // census C4, 2026-11-17: the engine-text assert's arm, and the hook only its answers hand out (the
+            // collector): each reached through the facet the product refuses. (The database judge's batch, BatchTexts,
+            // the second such hook: deleted, NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A ratified by the user 2026-11-19)
             Map.entry(com.legend.testplan.EngineTestText.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
             Map.entry(com.legend.testplan.TextCollector.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
-            Map.entry(com.legend.testplan.BatchTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))));
 
     /** C4's CAPABILITY (the orchestrator's ruling of 2026-11-17): the product's style does not judge legend-engine's
@@ -463,19 +463,19 @@ class HookRulingTest {
     }
 
     /** The hooks' capabilities decide, never a null or the rules (census C1, the orchestrator's ruling of 2026-11-17):
-     *  the product's edge hook records no ledger and the edge's does; the product's run hook compares both isolated
-     *  judges' words (lite's sentences), the edge's the verdicts alone (the words upstream's, the host's). */
+     *  the product's edge hook records no ledger and the edge's does. */
     @Test
     void theHooksCapabilitiesAreTheProductsAndTheEdges() {
         assertFalse(com.legend.testexecutionplan.NoEdge.NONE.records(), "the product records no ledger");
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
-        assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");
+        // (EdgeRun.wordsAlike, whose two answers -- lite's judges alike, the edge's words the host's alone -- were
+        // asserted here: deleted, NARROWS A HOOK THE USER RULED, A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge
+        // is the only judge in compatibility, so no compatibility body runs both judges isolated)
         assertTrue(productHearing().renderedTexts() == com.legend.testexec.LiteRenderedTexts.STRINGS,
                 "lite's runs hold two differing strings as differing");
         assertTrue(productHearing().hostForms() == com.legend.testexec.LiteHostForms.STRICT,
                 "lite's runs never equal two number kinds");
-        assertFalse(com.legend.edge.AppealRun.with(null).wordsAlike(), "the edge's words are the host's alone");
         assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
                 "the product's options carry the product's edge hook, never a null");
     }

@@ -146,12 +146,6 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
         return words;
     }
 
-    @Override
-    public TypedSide rowAppealed(int number, List<Object> row, boolean messaged) {
-        return SqlTextRuns.rowAppealed(PlannedAppeals.of(planned, number), row, this,
-                messaged);
-    }
-
     /** How each held appeal is decided after the run: from the plan's data by its number, by the referee. */
     private Decider decider() {
         return (n, golden, ours, textEqual, l, reader, sessions) -> SqlTextRuns.decideAppeal(
@@ -166,22 +160,8 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
         return com.legend.testexecutionplan.Verdicts.ok();
     }
 
-    /** A second hearing of appeal {@code number}, held earlier in this run by the assert's other half (the agreement
-     *  judge's database half, A1): joined to it -- decided once, told once. The appeal must be held, on the same
-     *  texts; anything else is refused by name. */
-    TypedSide join(String name, int number, String golden, String ours) {
-        for (Held h : held) {
-            if (h.number() == number) {
-                if (!h.golden().equals(golden) || !h.ours().equals(ours)) {
-                    throw new IllegalStateException(name + " (sql-text): the agreement judge's two halves heard one"
-                            + " appeal on different texts");
-                }
-                return com.legend.testexecutionplan.Verdicts.ok();
-            }
-        }
-        throw new IllegalStateException(name + " (sql-text): a second hearing of appeal " + number + ", which no half"
-                + " holds");
-    }
+    // (join, the agreement judge's database half's second hearing of an appeal, A1 of 2026-11-08: deleted with the
+    // database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
 
     /** The compatibility rules' JSON grammar: upstream's json-simple 1.1.1 (register S144; census C1, 2026-11-17). */
     @Override

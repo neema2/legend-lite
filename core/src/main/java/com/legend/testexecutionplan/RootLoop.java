@@ -28,7 +28,8 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
     /** No verdict: a row the dialect cannot spell, planned with no statement. */
     public static final int NO_VERDICT = -1;
 
-    /** No appeal: a row whose failure is the assert's. */
+    /** No appeal: a host engine-text comparison's failure is the assert's ({@code HostJudgment.EdgeJudged}; a database
+     *  row names none since A4 of the compatibility program, stage A ratified by the user 2026-11-19). */
     public static final int NO_APPEAL = 0;
 
     /** The verdict row's columns, by position, as the verdict statement selects them ({@code VerdictSql.schema}:
@@ -98,16 +99,14 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      * @param verdict the id of the plan's verdict whose row this is; {@link #NO_VERDICT} where the dialect cannot spell
      *                the row's statement, planned with none
      * @param refusal the dialect's refusal of the row's statement, raised at its place (nothing sent); null where spelled
-     * @param orElse  the row's RULED comparison as decided at planning (the dialect's refusal of it, or a failure its
-     *                planning raised), raised where the generic row fails; null where none
-     * @param appeal  the number of the appeal a failed row is heard by (compatibility mode's rows), {@link #NO_APPEAL}
-     *                where the row's failure is the assert's
-     * @param decline the reason the arm decided before its texts were compared (a foreign dialect, unbindable plan
-     *                parameters), reported to the listener at the row's turn, before the row is judged; null where
-     *                none (hole 5, 2026-11-08: until then it was reported while the assert was planned)
+     *
+     * <p>(Three fields went with A4 of the compatibility program, stage A ratified by the user 2026-11-19, the test plan's version 33: {@code orElse},
+     * the row's ruled comparison -- the rendered-text rule's rows fallback, compatibility mode's S131/S132 --;
+     * {@code appeal}, the appeal a failed row was heard by; and {@code decline}, the engine-text arm's reason decided
+     * before its texts were compared. The host judge is the only judge in compatibility, so no database row carries
+     * any of them.)
      */
-    public record Row(String name, int verdict, @Nullable Failure refusal, @Nullable Failure orElse, int appeal,
-            @Nullable String decline) implements Step {
+    public record Row(String name, int verdict, @Nullable Failure refusal) implements Step {
         public Row {
             Objects.requireNonNull(name, "name");
             if ((verdict == NO_VERDICT) != (refusal != null)) {

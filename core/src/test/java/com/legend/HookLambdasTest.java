@@ -220,9 +220,7 @@ class HookLambdasTest {
                     "com.legend.lowering.ResultEnvelopes"),
             // the environment's accessor for the collector the engine-text facet handed out (none on the product's style)
             Map.entry("com.legend.testplan.BodyDriver$ExecEnv#engineText()", "com.legend.testplan.TextCollector"),
-            // the database judge's batch, from the engine-text facet, asked only where a gate read an engine-text side
-            Map.entry("com.legend.testplan.EngineTextGates#batchTexts(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "com.legend.testplan.BatchTexts"),
+            // (the database judge's batch, EngineTextGates#batchTexts -> BatchTexts: deleted with the hook, A4 of the compatibility program, stage A ratified by the user 2026-11-19)
             // the engine-text facet itself, asked only where the style judges engine text
             Map.entry("com.legend.testplan.EngineTextGates#facet(com.legend.testplan.BodyDriver$ExecEnv)",
                     "com.legend.testplan.EngineTestText"),
@@ -230,13 +228,12 @@ class HookLambdasTest {
             Map.entry("com.legend.testplan.EngineTextPlanning#collector(com.legend.testplan.BodyDriver$ExecEnv)",
                     "com.legend.testplan.TextCollector"));
 
-    /** The facet hooks: the facet kinds, and the two hooks only the engine-text facet's answers hand out (the collector
-     *  and the database judge's batch, HookRulingTest.RULED's). */
+    /** The facet hooks: the facet kinds, and the hook only the engine-text facet's answers hand out (the collector,
+     *  HookRulingTest.RULED's; the database judge's batch, BatchTexts, was the second until A4 of the compatibility program, stage A ratified by the user 2026-11-19). */
     static Set<String> facetHooks() {
         Set<String> out = new TreeSet<>();
         com.legend.testplan.PlanStyleFacets.KINDS.forEach(c -> out.add(c.getName()));
         out.add(com.legend.testplan.TextCollector.class.getName());
-        out.add(com.legend.testplan.BatchTexts.class.getName());
         return out;
     }
 

@@ -50,11 +50,6 @@ final class BodyRun {
         return () -> messaged--;
     }
 
-    /** Whether a messaged assert is being judged. */
-    boolean judgingMessaged() {
-        return messaged > 0;
-    }
-
     /** An edge-judged comparison at its verdict step ({@link EdgeHearing#judged}). */
     TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged e, java.util.List<TypedSide> sides) {
         return hearing.judged(e, sides, messaged > 0);

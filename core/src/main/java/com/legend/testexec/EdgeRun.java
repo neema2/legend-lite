@@ -19,8 +19,7 @@ public interface EdgeRun {
      *  {@code execution}. A plan naming an appeal this run cannot hear is refused by name. */
     EdgeHearing open(TestPlan plan, @Nullable AssertListener callers, java.util.UUID execution);
 
-    /** Whether both judges of an isolated run write the same words, so their messages are compared beside their
-     *  verdicts (census C1, the orchestrator's ruling of 2026-11-17: the run hook decides, never the rules): lite's
-     *  runs do, both judges writing lite's sentences; the edge's words are the host's alone, the verdicts compared. */
-    boolean wordsAlike();
+    // (wordsAlike -- whether both judges of an isolated run write the same words, census C1 of 2026-11-17 -- deleted
+    // with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge is the only judge in compatibility, so only lite's runs
+    // run both judges isolated, and both write lite's sentences)
 }

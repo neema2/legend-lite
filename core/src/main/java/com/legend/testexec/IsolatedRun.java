@@ -92,25 +92,25 @@ final class IsolatedRun {
         void run(TestPlan plan, Sessions.Session session, AssertListener listener, @Nullable Output answer);
     }
 
-    /** {@code pair} run on {@code sessions} by {@code runner}: each plan alone, then compared -- their messages too
-     *  where the run hook's judges write alike ({@code EdgeRun.wordsAlike}). */
+    /** {@code pair} run on {@code sessions} by {@code runner}: each plan alone, then compared, their messages too
+     *  (both judges write lite's sentences: the run hook's {@code wordsAlike} decided it until A4 of the compatibility program, stage A ratified by the user 2026-11-19,
+     *  when the host judge became the only judge in compatibility). */
     static void run(TestPlan.Isolated pair, SessionSource sessions, Runner runner, @Nullable AssertListener callers,
-            @Nullable Output answer, boolean wordsAlike) {
+            @Nullable Output answer) {
         if (sessions instanceof SessionSource.Given && (pair.host().writes() || pair.database().writes())) {
             throw new IllegalArgumentException(NEEDS_A_SESSION_PER_JUDGE);
         }
         Recording host = runAlone(pair.host(), sessions, runner, answer);
         // the database judge's run answers nobody: the host's answer is the body's
         Recording database = runAlone(pair.database(), sessions, runner, null);
-        conclude(host, database, wordsAlike, callers);
+        conclude(host, database, callers);
     }
 
-    /** The two recorded runs concluded ({@code messages}: whether the messages are compared too -- lite's own rules,
-     *  where both judges write lite's sentences; under the compatibility rules the words are the host's alone and the
-     *  VERDICTS are compared): the caller hears the host's reports; then {@link JudgesDisagree} where the runs differ,
-     *  else the host's failure rethrown, else the body passed. A recorded failure is never swallowed. */
-    static void conclude(Recording host, Recording database, boolean messages, @Nullable AssertListener callers) {
-        @Nullable String difference = difference(host, database, messages);
+    /** The two recorded runs concluded, their verdicts and messages compared: the caller hears the host's reports; then
+     *  {@link JudgesDisagree} where the runs differ, else the host's failure rethrown, else the body passed. A recorded
+     *  failure is never swallowed. */
+    static void conclude(Recording host, Recording database, @Nullable AssertListener callers) {
+        @Nullable String difference = difference(host, database);
         if (callers != null) {
             for (Heard h : host.verdicts) {
                 switch (h.report()) {
@@ -140,50 +140,30 @@ final class IsolatedRun {
         return recording;
     }
 
-    /** The first difference between the two runs, both texts quoted, or null where they agree: on every verdict and
-     *  how the run ended, and under lite's own rules ({@code messages}) on every message and the ending's text too. An
-     *  assert one judge declined or left unjudged is not compared under the compatibility rules (the host's verdict
-     *  stands, as it did in the fused agreement); under lite's own rules both judge every assert. */
-    static @Nullable String difference(Recording host, Recording database, boolean messages) {
+    /** The first difference between the two runs, both texts quoted, or null where they agree: on every verdict, its
+     *  message, and the run's ending's text; both judge every assert. (The compatibility rules' comparison -- the
+     *  verdicts alone, an assert one judge declined not compared -- went with A4 of the compatibility program, stage A ratified by the user 2026-11-19.) */
+    static @Nullable String difference(Recording host, Recording database) {
         List<Heard> hs = host.compared();
         List<Heard> ds = database.compared();
         int n = Math.max(hs.size(), ds.size());
         for (int i = 0; i < n; i++) {
             Heard h = i < hs.size() ? hs.get(i) : null;
             Heard d = i < ds.size() ? ds.get(i) : null;
-            if (!messages && h != null && d != null
-                    && (h.report() != Report.VERDICT || d.report() != Report.VERDICT)) {
-                continue;
-            }
-            if (!messages && (d == null && database.failure != null && !held(h)
-                    || h == null && host.failure != null && !held(d))) {
-                // a run its own error stopped before this assert, the other failing it: under the compatibility rules
-                // both FAIL the body (the fused agreement raised the database's error here; the words are the host's)
-                break;
-            }
             // the verdict (and its message): the name each planner gives an assert (a helper's, or the assert inside
             // it) is how it is reported, not what it decides
             if (h == null || d == null || h.report() != d.report() || h.pass() != d.pass()
-                    || messages && !Objects.equals(h.detail(), d.detail())) {
+                    || !Objects.equals(h.detail(), d.detail())) {
                 return "the judges disagree at assert " + i + ": host " + describe(h) + "; database " + describe(d)
                         + (h == null ? " (host's run " + quote(host.ending()) + ")" : "")
                         + (d == null ? " (database's run " + quote(database.ending()) + ")" : "");
             }
         }
-        @Nullable RuntimeException hf = host.failure;
-        @Nullable RuntimeException df = database.failure;
-        // under the compatibility rules the verdict alone: both runs passed, or both failed
-        boolean endsAlike = messages ? host.ending().equals(database.ending()) : (hf == null) == (df == null);
-        if (!endsAlike) {
+        if (!host.ending().equals(database.ending())) {
             return "the judges' runs ended differently: host " + quote(host.ending()) + "; database "
                     + quote(database.ending());
         }
         return null;
-    }
-
-    /** Whether {@code h} is a verdict that held. */
-    private static boolean held(@Nullable Heard h) {
-        return h != null && h.report() == Report.VERDICT && h.pass();
     }
 
     private static String describe(@Nullable Heard h) {

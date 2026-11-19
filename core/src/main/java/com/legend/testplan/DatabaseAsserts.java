@@ -104,7 +104,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the body reaches a lineage scan");
             return null;
         }
-        if (!everyAssertPlansStatically(typed, runtime, env, systemRouted && bodyEnv == null, lets)) {
+        if (!everyAssertPlansStatically(typed, runtime, env, lets)) {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the static pass");
             return null;
         }
@@ -469,7 +469,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      * statement's). A gate that raises is left to the arm, which raises the same at its turn (a planned wall).
      */
     private static boolean everyAssertPlansStatically(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
-            boolean systemRouted, List<TypedSpec> lets) {
+            List<TypedSpec> lets) {
         SpecCompiler specs = typed.specs();
         BodyDriver.ExecEnv pre = env.withPlan(com.legend.planner.PlanEnv.of(env.ctx(), env.runtimeFqn(),
                 env.dialect(), env.plan().style(), env.plan().features(), env.plan().generatorPlanText()).withOptions(env.plan().options()));
@@ -556,18 +556,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             }
             try {
                 DatabaseGate gate = AssertVerdicts.databaseGate(bare, letPrefix, specs, at, hook);
-                if (gate.kind() == DatabaseGate.Kind.UNPLANNED) {
+                if (gate == DatabaseGate.UNPLANNED) {
                     com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
                             "the gate: " + AssertVerdicts.shapeOf(bare));
                     return false;
                 }
-                if (gate.appealed() && systemRouted) {
-                    // an assert appealed at its step in a system-routed body: its appeal reads the user store on the
-                    // body's session, not this program's (M10b; the gate the arm's own, J41)
-                    com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
-                            "an appealed assert in a system-routed body");
-                    return false;
-                }
+                // (an assert appealed at its step in a system-routed body was refused here until A4 of the compatibility program, stage A ratified by the user 2026-11-19: the database judge hears no appeal now)
                 // an arm that raises at planning with no row before it in its segment: the segment's batch holds the
                 // wall alone, decided at planning, and close carries it as a step with no statement whose root loop
                 // raises it at its turn (2026-11-03; until then close gave such a segment back to the walk, so this
