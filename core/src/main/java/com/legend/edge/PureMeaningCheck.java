@@ -245,6 +245,14 @@ public final class PureMeaningCheck {
             }
         }
         w.mappingReach(features);
+        // a variable the query evaluates, bound by a let the walk did not take: the typer substitutes a literal lambda
+        // let into its uses, so this let's value is a function computed some other way ([{s|...}]->toOne(), a
+        // function's answer, a cast), whose body the walk never reads: unverified, never clean (the reviewer's R2-S1)
+        for (String v : w.evaluated) {
+            if (lets.containsKey(v) && !(walkedLets.contains(v) && lets.get(v) instanceof TypedLambda)) {
+                w.sites.add(new Site(Code.UNVERIFIED, "the query (the function value of let '" + v + "')", null));
+            }
+        }
         return new Result(w.sites);
     }
 
@@ -285,6 +293,10 @@ public final class PureMeaningCheck {
         final Set<String> mappings = new LinkedHashSet<>();
         boolean chained;
         boolean graphFetch;
+        /** how deep the walk is in bodies it followed (a function's, a mapping's): 0 in the query's own tree */
+        int following;
+        /** the variables the query's own tree evaluates as functions ({@code $f->eval(...)}) */
+        final Set<String> evaluated = new LinkedHashSet<>();
         final Map<FunctionId, Boolean> storeMemo = new HashMap<>();
 
         Walk(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable DatabaseType target) {
@@ -344,7 +356,9 @@ public final class PureMeaningCheck {
                     }
                 }
                 case TypedEval e -> {
-                    if (!(e.fn() instanceof TypedLambda || e.fn() instanceof TypedVariable
+                    if (e.fn() instanceof TypedVariable v && following == 0) {
+                        evaluated.add(v.name());
+                    } else if (!(e.fn() instanceof TypedLambda || e.fn() instanceof TypedVariable
                             || e.fn() instanceof TypedPackageableRef)) {
                         sites.add(new Site(Code.UNVERIFIED, where + " (a function value)", null));
                     }
@@ -436,8 +450,13 @@ public final class PureMeaningCheck {
                 sites.add(new Site(Code.UNVERIFIED, fn.qualifiedName() + " (its body does not type)", pos));
                 return;
             }
-            for (TypedSpec s : body) {
-                node(s, features, fn.qualifiedName());
+            following++;
+            try {
+                for (TypedSpec s : body) {
+                    node(s, features, fn.qualifiedName());
+                }
+            } finally {
+                following--;
             }
         }
 
