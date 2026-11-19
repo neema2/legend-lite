@@ -3043,3 +3043,10 @@ who confirms or changes phases 1-3.
   realistic shared-let query end to end). E-S2: a DuckDB seed test pins W2. E-S3: the note's stale lines fixed. A
   graph-fetch tree's qualified property is refused under `engine`. The batteries question answered again (crossed
   messages); the reviewer's three nits relayed; the judges merge the detector's head; the reviewer checks all three.
+- **~23:05 UTC, the reviewer APPROVED B1-R's round** (record `7b70932b3`): E-S1..S3 met; the seed test pins W2 by the
+  planned SQL; the graph-fetch refusal under `engine` pinned. New for B1-R: **a probe that may show a silent miss** (a
+  statement reading a relation-valued store-bound let through a variable, with no store read of its own, is host-side
+  to the detector; if legend-engine writes it into the let's SQL, refuse and warn miss it today; the fix would follow a
+  variable to a relation-valued let); R2-S1 (an eval of a variable whose let the walk no longer takes reads clean:
+  make it unverified, a plant); R2-S2 (refuseSharedLetRoots is wider than its reason for a value let; narrow it unless
+  the probe says otherwise); a javadoc nit. Relayed, the probe first.
