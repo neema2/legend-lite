@@ -3636,6 +3636,27 @@ java_run(
     ],
 )
 
+# the net's pure/v1 requests, its model and its golden, read by the plan oracle (slice R of the presentation program,
+# 2026-11-18): the same requests sent to legend-engine 4.145.0, each golden set against its answer
+# (//tools/engine-runner:pure_v1_oracle_test)
+exports_files(
+    [
+        "src/test/resources/edge/pure_v1_answers.tsv",
+        "src/test/resources/edge/pure_v1_requests.tsv",
+    ],
+    visibility = ["//tools/engine-runner:__pkg__"],
+)
+
+# the net's model, the oracle's seed: read by the oracle and by its batteries' per-push half (//pct:batteries_test,
+# H7, 2026-11-19), which answers the same requests on the same rows
+exports_files(
+    ["src/test/resources/upstream-api/trades-h2.pure"],
+    visibility = [
+        "//pct:__pkg__",
+        "//tools/engine-runner:__pkg__",
+    ],
+)
+
 write_source_files(
     name = "update_edge_pure_v1",
     testonly = True,

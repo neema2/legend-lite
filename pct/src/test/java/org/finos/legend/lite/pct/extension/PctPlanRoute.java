@@ -28,6 +28,9 @@ final class PctPlanRoute {
     private PctPlanRoute() {
     }
 
+    /** {@code -Dpct.audience}'s value for legend-engine's audience (the ENGINE lane, H7). */
+    static final String ENGINE_AUDIENCE = "engine";
+
     /** A case's answer: what the plan answers ({@code shape}), its typed rows, the query's result type, which a
      *  value's elements are built by, and for a relation the engine's JSON answer the server writes ({@code
      *  engineJson}; null for a value). */
@@ -42,12 +45,18 @@ final class PctPlanRoute {
                 .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
-        java.util.Set<com.legend.platform.Feature> features =
-                java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
+        // THE AUDIENCE (H7, slice 0.3 of docs/records/compat-program-plan-2026-11-19.md): by default legend-pure's,
+        // the PCT's own (the edge's UPSTREAM style, under the substring flag: S130); under -Dpct.audience=engine
+        // legend-engine's, as its own PCT adapters run a case (the pure/v1 route's style, no feature flag: they set
+        // none, S130), for the ENGINE lane that compares each outcome with legend-engine's manifests
+        boolean engineAudience = ENGINE_AUDIENCE.equals(System.getProperty("pct.audience"));
+        java.util.Set<com.legend.platform.Feature> features = engineAudience ? java.util.Set.of()
+                : java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        ExecutionPlan plan = com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, style ->
+        ExecutionPlan plan = com.legend.edge.RaisedWords.run(
+                engineAudience ? com.legend.edge.PureText.PURE_V1 : com.legend.edge.PureText.UPSTREAM, style ->
                 com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)

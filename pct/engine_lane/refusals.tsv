@@ -1,0 +1,25 @@
+# legend-engine's refusals ("No SQL translation exists for the PURE function") by database and signature, from its manifests; lite's outcome on those tests as legend-engine's audience (bazel run //pct:update_engine_lane)
+database	signature	tests	lite_pass	lite_fail
+duckdb	add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	1	0
+duckdb	at_T_MANY__Integer_1__T_1_	1	1	0
+duckdb	compare_T_1__T_1__Integer_1_	8	8	0
+duckdb	date_Integer_1__Date_1_	1	1	0
+duckdb	date_Integer_1__Integer_1__Date_1_	2	1	1
+duckdb	date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	1	1	0
+duckdb	date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	1	1	0
+duckdb	forAll_T_MANY__Function_1__Boolean_1_	3	3	0
+duckdb	format_String_1__Any_MANY__String_1_	11	11	0
+duckdb	genericType_Any_MANY__GenericType_1_	2	2	0
+duckdb	hasDay_Date_1__Boolean_1_	1	1	0
+duckdb	hasHour_Date_1__Boolean_1_	1	1	0
+duckdb	hasMinute_Date_1__Boolean_1_	1	1	0
+duckdb	hasMonth_Date_1__Boolean_1_	1	1	0
+duckdb	hasSecond_Date_1__Boolean_1_	1	1	0
+duckdb	hasSubsecondWithAtLeastPrecision_Date_1__Integer_1__Boolean_1_	1	1	0
+duckdb	hasSubsecond_Date_1__Boolean_1_	1	1	0
+duckdb	indexOf_String_1__String_1__Integer_1__Integer_1_	1	0	1
+duckdb	letFunction_String_1__T_m__T_m_	4	4	0
+duckdb	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	2	2	0
+duckdb	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	4	4	0
+duckdb	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	4	2	2
+duckdb	zip_T_MANY__U_MANY__Pair_MANY_	6	6	0
