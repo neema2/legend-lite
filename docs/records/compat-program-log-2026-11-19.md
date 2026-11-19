@@ -680,3 +680,18 @@ who confirms or changes phases 1-3.
     `parseDecimal`, 1 on DuckDB for `parseJson`, and gains 3 PCT tests and up to 3 H2 corpus tests. No model-level
     translator is worth building. Note: CP-14 (iii)'s four test-body rewrites and CP-11's SQLite rule are small typed
     rewrites at the door, so a short, fixed list of door rewrites exists either way.
+- **~12:42 UTC, the independent review of PR #124: HOLD, for small fixes.** No answer and no product or edge main code
+  moves; slice R holds the reference-checkout tenet (all targets testonly; the per-push half loads no legend-engine
+  jar).
+  - **A correction to numbers already given to the user:** the lane's classifier undercounts legend-engine's
+    refusals. Planning refusals worded other than "No SQL translation" were classed as defects ("unsupported"):
+    DuckDB 51, H2 relation 36. So legend-engine refuses at planning about **110** tests on DuckDB (not 59) and **36**
+    on H2 (not 0), and "LITE_FIXES" shrinks by the same counts (DuckDB 153 → about 102). **Pass and fail totals are
+    unchanged** (lite 1,212 against 1,005; 448 against 411).
+  - **To fix (sent to B1-R):**
+    - a Windows path bug in `//pct:batteries_test` (a backslash path inside a model literal);
+    - the merge order with #123 (#123 first; #124 then learns its format and re-pins the oracle);
+    - a plant that the lane really runs the ENGINE audience;
+    - every guarded file named (`release.MODULE.bazel`, `maven_runner_install.json`, `json` and `core` BUILD
+      visibility, `JUnitMain`, the gates' lists, `pct_tests_lib`'s deps);
+    - the cause of `parser_equivalence` red on its CI run.
