@@ -456,7 +456,7 @@ error record the translator's refusals are worded through.
 - **Size:** 3 days.
 - **Depends on:** 1.1, 2.2, CP-4. **Owner:** B1.
 
-**1.5 The hosts' pilot and tables** (H4 steps 1 and 2; track H).
+**1.5 The hosts' pilot and tables** (H4 steps 1 and 2; track H). Under CP-13 the compatibility program keeps HOSTS-9's pilot; the generated kinds, statuses and `PLAN_VERSION` (lite's own drift) move to the product track.
 - **Changes:**
   - **the pilot, HOSTS-9 (R11(a)):** `SavedQueries` and `SavedCubes` answer lite's `{kind, message}` and status
     inside the Java call each host already makes (H4's C1);
@@ -472,7 +472,7 @@ error record the translator's refusals are worded through.
 - **Size:** 2.5 days.
 - **Depends on:** 1.1 for the seam's names only. **Owner:** a host session (new, or B1 once 1.4 is done).
 
-**1.6 The hosts word through Java** (H4 steps 3, 4 and 6).
+**1.6 The hosts word through Java** (H4 steps 3, 4 and 6). Under CP-13 the compatibility program keeps CP-7's part (lite's raise sentence leaves the plan) and the ENGINE host pieces (B1-R's); Python's lite `query/run` writer and exec's own readers (P3, P6, P7, P9) move to the product track.
 - **Changes:**
   - Python's lite `query/run` answer: JSON through a native entry over `HostRows`; Arrow by Java's metadata,
     attached by pyarrow (H4's C2);
@@ -816,7 +816,7 @@ savepoints (S135) and scan order (S14, now J) have no hook to delete. They are r
 - **Size:** 3.5 days.
 - **Depends on:** every strand closed. **Owner:** B2, with this session.
 
-### Phase 5: portability (about 6.5 days; track O)
+### Phase 5: portability (about 6.5 days; track O). DEFERRED by CP-13 (the user, 2026-11-19 ~12:10 UTC)
 
 **5.1 Export.**
 - **Changes:** `edge.PlanExport` writes a lite plan as legend-engine's `SingleExecutionPlan`, carrying lite's own
