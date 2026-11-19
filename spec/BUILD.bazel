@@ -181,7 +181,7 @@ junit_test(
 H5_TRANSLATOR = "-Dcompat.translator=off"
 
 # H5 SPIKE, task 0: the edge meaning strands switched to the product's (base/src/main/java/com/legend/base/H5Off.java)
-H5_OFF = "-Dh5.off=none"
+H5_OFF = "-Dh5.off=sqltext,s20,plain,isnumeric,parseddecimal,parsedjson,nullunsafe,settings"
 
 # H5 SPIKE: measurement (c), source positions after the rewrite (prints its findings)
 junit_test(
