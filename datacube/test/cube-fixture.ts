@@ -136,6 +136,18 @@ export async function shown<E extends Element>(root: ParentNode, selector: strin
   throw new Error(`${selector} did not appear`);
 }
 
+/** Once `root`'s text says `words`: what the app says after a part it fetches when first wanted has arrived (Create ▸
+ *  Timeseries' first-tile rule comes with the timeseries viewer, cube-page.ts addTimeseries' dynamic import), waited for
+ *  as shown() waits for an element, bounded, never a fixed delay (2026-11-19: a 50 ms wait for that refusal failed on
+ *  Windows' CI, cube-page-shell.test.ts). */
+export async function said(root: Node, words: RegExp): Promise<void> {
+  for (let i = 0; i < 250; i += 1) {
+    if (words.test(root.textContent ?? '')) return;
+    await settle();
+  }
+  throw new Error(`${words} was not said`);
+}
+
 /** The other half of setUp, from each test file's afterEach (Bazel workplan P3-10): the process's own
  *  unhandledRejection listeners come back, and a rejection nobody handled during the test fails it. */
 export async function tearDown(): Promise<void> {

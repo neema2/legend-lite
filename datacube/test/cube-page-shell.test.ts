@@ -31,7 +31,7 @@ import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { getInstanceByDom } from 'echarts/core';
 
 import * as cube from './cube-fixture.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, said, settle, shown, plus } from './cube-fixture.ts';
 import { theirs } from './theirs.ts';
 import { differing, sameButIds } from './page-same.ts';
 import { bandsOf } from './bands-of.ts';
@@ -754,11 +754,11 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     assert.equal(view?.kind === 'chart' ? view.cube : undefined, a, 'of the grid the chart reads');
     // Create ▸ Timeseries: a timeseries of the grid it reads, by DataCube's first-tile rule -- refused in its words
     // here, the fixture's grid having no date (main's tile Create ▸ and the timeseries tile, merged 2026-10-26)
+    assert.doesNotMatch(host.textContent ?? '', /has no date column/, 'nothing refused yet');
     shown().entry('Timeseries').click();
-    await settle();
-    await new Promise((r) => setTimeout(r, 50));
+    // the rule comes with the timeseries viewer, fetched when first wanted: its words waited for, never a fixed delay
+    await said(host, /has no date column/);
     assert.ok(!pg().views().views.some((v) => v.kind === 'timeseries'), 'no tile of a grid with no date');
-    assert.match(host.textContent ?? '', /has no date column/, 'refused in the first-tile rule\'s words');
     const grids = pg().grids.length;
     shown().entry('Copy of This Grid').click();
     await settle();
