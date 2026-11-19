@@ -270,3 +270,12 @@ who confirms or changes phases 1-3.
   prototype, and its judges session will message ours before starting. The cross-kind `!=` defect is first in the
   hosts-and-planner track (`session_0195rQEjb2QyV1G7qABK31Wj`), to land before 3.3. The five parity bugs are in its
   judges track. Ownership as confirmed above.
+- **~11:40 UTC, slice 0.5 done by this session: PR #122** (`claude/compat-register`, `a56fd0ca`, documentation only).
+  - Corrected: S63 (the live refusal is `pureToSQLQuery.pure:10056`) and S138 (compiled legend-pure raises,
+    `CoreHelper.java:141-148`).
+  - Added: S371 (legend-engine's H2 `parseJson` UDF, a JSON object only, re-serialised; `LegendH2Extensions.java:116-135`),
+    S372 (`joinStrings`' separator, upstream's defect), S373 (pending: a list aggregate's empty pivot cell on DuckDB,
+    a suspected lite defect, handed to the product orchestrator), S374 (CP-8's blanket row), S375 (E-R2's blanket
+    row), S376 (the prelude and the parser stay).
+  - Each upstream citation was re-read at the pins, from blob-less clones of the release tags.
+  - The independent reviewer checks the rows. The PR waits for the user's merge word.
