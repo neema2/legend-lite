@@ -263,11 +263,11 @@ quirks included; S8's comparison is where each such case is classified.
 
 ## 7. What this slice changed outside the runner, for review
 
-- **The net's request list stays where it is.** B1's lead owns `PureV1EdgeGoldenTest` and moves its list into
-  `core/src/test/resources/edge/pure_v1_requests.tsv` in a commit of its own, which this branch merges (the
-  orchestrator, 2026-11-18). Until then the oracle reads a copy, `tools/engine-runner/src/test/resources/pure_v1/requests.tsv`.
-  A name that drifts shows in `engine_h2_differences.tsv` as a `missing` or an `extra` line.
-- **Core exports two test files** to `//tools/engine-runner`: the model and the golden.
+- **The net's request list is one file.** B1's lead moved `PureV1EdgeGoldenTest.REQUESTS` into
+  `core/src/test/resources/edge/pure_v1_requests.tsv` in a commit of its own (`b7ec3649c`, the orchestrator's
+  arrangement of 2026-11-18). This branch merged that commit alone, and the oracle reads the same file, so the two
+  cannot drift. Its 14 rows are the oracle's earlier copy byte for byte, so no oracle line moved.
+- **Core exports three test files** to `//tools/engine-runner`: the requests, the model and the golden.
 - **`release.MODULE.bazel` declares ten artifacts** the oracle names directly: Jackson core and databind, Eclipse
   Collections' API, and legend-engine's execution, identity, compiled core, core extension, store platform, mapping
   and m3. Every one was already in the runner pool's closure.

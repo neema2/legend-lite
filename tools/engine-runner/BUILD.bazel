@@ -211,19 +211,18 @@ java_run(
     deps = [":planoracle"],
 )
 
-# the pure/v1 golden requests (the net's list; a copy in src/test/resources/pure_v1/requests.tsv until B1's move of
-# PureV1EdgeGoldenTest's list into core's resources is merged) through legend-engine: planned, the plan's JSON run, on
-# the goldens' H2 model and on the shared DuckDB
+# the pure/v1 golden requests (the net's own list, core's edge/pure_v1_requests.tsv, which PureV1EdgeGoldenTest reads
+# too) through legend-engine: planned, the plan's JSON run, on the goldens' H2 model and on the shared DuckDB
 java_run(
     name = "engine_pure_v1_h2",
     testonly = True,
     srcs = [
-        "src/test/resources/pure_v1/requests.tsv",
+        "//core:src/test/resources/edge/pure_v1_requests.tsv",
         "//core:src/test/resources/upstream-api/trades-h2.pure",
     ],
     outs = ["pure_v1/h2/engine.jsonl"],
     arguments = [
-        "--requests=$(execpath src/test/resources/pure_v1/requests.tsv)",
+        "--requests=$(execpath //core:src/test/resources/edge/pure_v1_requests.tsv)",
         "--model=$(execpath //core:src/test/resources/upstream-api/trades-h2.pure)",
         "--out={OUT}",
     ],
@@ -239,13 +238,13 @@ java_run(
     name = "engine_pure_v1_duckdb",
     testonly = True,
     srcs = [
-        "src/test/resources/pure_v1/requests.tsv",
+        "//core:src/test/resources/edge/pure_v1_requests.tsv",
         ":pure_v1/trades-duckdb.pure",
         ":pure_v1/trades.duckdb",
     ],
     outs = ["pure_v1/duckdb/engine.jsonl"],
     arguments = [
-        "--requests=$(execpath src/test/resources/pure_v1/requests.tsv)",
+        "--requests=$(execpath //core:src/test/resources/edge/pure_v1_requests.tsv)",
         "--model=$(execpath :pure_v1/trades-duckdb.pure)",
         "--duckdb=$(execpath :pure_v1/trades.duckdb)",
         "--out={OUT}",
