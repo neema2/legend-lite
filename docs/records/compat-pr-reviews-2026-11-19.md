@@ -1504,3 +1504,138 @@ product code, guard, pool, `MODULE.bazel` or lock file moves.
 - **The proof**, taken as reported: `//tools/engine-runner/...` (`smoke_test`, `update_vocab_test`),
   `//tools/guards:markdown_inputs_test`, `//scripts/corpus:tools_build_test` and `:quarantine_test` pass, with
   `--lockfile_mode=error`.
+
+## A3's `engine` rewrite: the mechanism, the wiring and the batteries
+
+**What was reviewed:**
+- **Landing:** `origin/claude/compat-a3-engine` at `1e6d9c68c`: the detector's section fix `8a2af5770`, then the
+  mechanism with design note rev 2.
+- **Review only:** `origin/claude/compat-a3-engine-review` at `2dec438b0`: B1's native merged (`d60f6f929`), the
+  wiring `a182f30a3`, and the batteries' `engine` half `2dec438b0`.
+
+**Verdict: D-M1 is MET, and the mechanism is APPROVED. The wiring and the batteries are APPROVED, with one finding
+that must be answered before `engine` is offered to an operator (E-M1) and three shoulds.**
+
+**Nothing lands without the user's word on:**
+- the funnel row for `PureMeaningRewrite.java`;
+- the two new pin files `pct/batteries/agreement_engine_{h2,duckdb}.tsv`;
+- B1's S1 (its three moves), which the wiring sits on.
+
+### D-M1, checked in `PureMeaningRewrite`
+- **One walk decides both what is flagged and what is rewritten:**
+  - the first walk (`PureMeaningCheck.of`) names the roots: each store-bound statement, and each let-bound lambda's
+    let that store-bound code names, in body order;
+  - each root is inlined on its own (`UserCallInliner.inlineBody` over a list of one; a let's value with the let
+    kept);
+  - every other statement is left as written;
+  - the second walk over that body records each flagged call by identity (`Site.node`). The call is recorded only when
+    `following == 0`, that is, met in a root's own tree.
+  - `follow` raises `following` for every body it enters: a user function, a function reference, and `mappingReach`'s
+    bindings and association predicates. So a call met in any of those has no node and is refused by name ("cannot
+    be rewritten at this door").
+- **The rewrite:**
+  - it rebuilds bottom-up through `mapChildren`, replacing a node when the original node's identity is in the map;
+  - it walks the second walk's roots alone and leaves the other statements as they are;
+  - the count check (`replaced`, an identity set, against `nodes`) refuses a half rewrite. A node shared by identity
+    is counted once on both sides.
+  - The model is immutable, so a function's or a class's body is never changed for its other callers.
+- **The refusals run before anything is rewritten:** unverified, an unmeasured target or a runtime with no single
+  database, and a call that cannot be reached.
+- **The plants R1-R6 are each pinned to the tests they turn red.** I took the runs as reported. The tests cover:
+  - the D-M1 plant (a function called both host-side and store-side, rewritten at the store-side use alone);
+  - a host-side let kept as written beside a store-side rewrite (`assertSame` on the let);
+  - a qualified property;
+  - a let-bound lambda;
+  - a store-bound let;
+  - the corrected-indexing feature;
+  - the refusals of an M2M chain, an unverified call and an unmeasured database.
+- **`PureText.MEASURED`:** one line, a pair per database, so `DialectBoundaryTest`'s pin stays at 2. A literal-0
+  start that is exempt on a database is not flagged, so it is not rewritten. Its answer was measured equal to Pure's
+  there.
+
+### The wiring (`a182f30a3`)
+- **`Mode.ENGINE`:**
+  - it is parsed by the enum's own lower-case names, so there is no new string switch;
+  - an empty value is REFUSE;
+  - any other value stops the server's start;
+  - it is read once at the door (`EdgeServer.UPSTREAM`).
+- **`checkMeaning` returns the query the route plans and runs:**
+  - a clean query is returned as it is;
+  - under refuse, a flagged query is refused;
+  - under warn, it is returned as it is;
+  - under engine, it is rewritten.
+  - `generatePlan`, execute and the Arrow execute each take the returned query. These are the only callers: the
+    detector and the rewrite have no other main-code callers.
+  - The header reads `engine <codes>` on a 200.
+- **The test-data routes:**
+  - `doored` still runs the check, so an unmeasured database, an unverified call or an unreachable call is refused
+    there;
+  - the seed's query, typed from the planner-derived `q`, is rewritten before it is lowered;
+  - `TestDataPlanner.plan` reads the request's query through `ScanRelations.relTree` alone (tables and columns, no
+    computed value), so the seed is the one place the query's meaning chooses anything. That means the seed rewrite
+    is the whole rewrite there, not half of one.
+- **The switch rule (~20:35, door-only):** the core reads no switch. The seed's rewrite runs inside the edge's own
+  lowering function, which the test-data planner calls back. That is within the rule's letter. I'm noting it so B5's
+  row can name it (a callback the edge already supplied, not a core reader).
+
+### The batteries (`2dec438b0`): my S2 is answered
+- **The comparison:** the `engine` half is compared with the engine runner's pins (legend-engine 4.145.0, H2 2.1.214,
+  DuckDB v1.3.0; lite ran H2 2.5.252 and DuckDB 1.5.6).
+- **Read row by row against the `warn` pins:**
+  - DuckDB moves exactly 16 rows from DIFFER to AGREE: `col.i07`, `col.s01`, `s06`, `s07`, `s11`, `s14`, `s15`,
+    `s18`, `lit.s01`, `s06`, `s11`-`s15` and `s18`;
+  - H2 moves none;
+  - the `warn` pin files are unchanged.
+- **What is left:** on both databases, `col.i04` and `lit.i04` (the 3-argument indexOf: legend-engine refuses, lite
+  answers; E-R2, ruled). H2 also has one BOTH_FAIL.
+- **I read the bar as you do:** every answer legend-engine gives is agreed, so DuckDB is enabled by the design's rule.
+  The refusal tests now plant Postgres.
+
+### E-M1 (must answer before `engine` is offered): a flagged call past the store's result
+- **The gap:**
+  - the detector treats a whole statement as store-bound once it reads a store (`readsAStore`), and the rewrite
+    rewrites every flagged call in it;
+  - the batteries measure one shape only: a call inside a relation's column function, where legend-engine sends it to
+    the database;
+  - a call applied to the store's result after a step legend-engine may run on the host (its router's platform
+    cluster) is rewritten too. Example: a class query's terminal `->toOne().name->substring(0, 2)`.
+  - If legend-engine computes that on the host with Pure's meaning, `engine` silently answers the database's instead.
+    On DuckDB at a start of 0, that is `C` where legend-engine says `Cr`.
+- **Why it only matters now:** under refuse and warn, an over-flag is a refusal or a warning. Under engine, it is a
+  wrong answer.
+- **What to do:** do not recall upstream. Ask the engine runner, one probe per shape (a class query's `toOne()` tail;
+  any scalar tail lite plans past a relation), on DuckDB. Where legend-engine answers on the host, refuse that
+  position by name under `engine`, or narrow the roots to the store-pushed part. Where it answers in the database,
+  add the probe to the batteries as measured.
+
+### Shoulds
+- **E-S1: a let-bound lambda that stays a root is rewritten in place, for every use of the let.**
+  - **When it happens:** in the tests the inliner β-reduces the store-side `$f->eval(...)`, so the let is no longer a
+    root in the second walk. But if a store-side use is one the inliner does not reduce, the let stays a root and its
+    lambda is rewritten.
+  - **The harm:** a host-side statement that also evaluates `$f` then gets the database's meaning, where legend-engine
+    computes Pure's on the host.
+  - **The fix:** a cheap guard and a plant. Refuse by name when a rewritten let root is also named by a non-root
+    statement.
+- **E-S2: the seed rewrite (W2) has no test that bites on this tree.** DuckDB is now enabled, and there a 3-argument
+  start of 0 differs between the two meanings today. A DuckDB seed test would pin W2 now rather than waiting for
+  piece 2.
+- **E-S3: design note rev 2 contradicts the build and the rulings in places:**
+  - D-S1's paragraph (`EdgeOnlyDataTest`/`EdgeOnlyMembersTest`, "the build is as if registered door-only") is stale.
+    It is superseded by my corrected D-S1 (`ca8ea4a5`) and the user's ~21:10: `COMPILER_OWN`, the `ClaimRegistryTest`
+    pin, SqlFn PRODUCT, not `EdgeOnlyDataTest`.
+  - `SubstringAsGivenCall.of` is now `EngineSubstitutes`.
+  - "the three test-data routes ... refused by name, not rewritten in half" is contradicted by the wiring, which
+    rewrites the seed.
+  - The guard list's "the `EdgeOnlyDataTest` census answer" is stale.
+  - The build table's "the replacement by position" is stale.
+  - `1e6d9c68c`'s javadoc and message also name `SubstringAsGivenCall`.
+
+### The detector's section fix (`8a2af5770`): APPROVED
+- **The headers:** six model literals gain their `###` headers, and `parser_parity` is green as reported.
+- **The replaced test model:** the function-typed class is lite's own dialect, which the reference grammar refuses. It
+  is replaced by a lambda read out of a collection, which reaches the same `TypedEval` UNVERIFIED site, so P3 still
+  bites.
+- **The guard move:** `own_corpus.matched` 3315 → 3321 (+6) under ~20:10, with a dated note in both `PeRatchets` and
+  `ratchets.tsv`.
+- **For the combination review:** the merged tree's 3314, plus these 6, gives 3320 expected, to be regenerated there.
