@@ -2021,3 +2021,17 @@ who confirms or changes phases 1-3.
   54-57 min with no runner (capacity). The re-run needs the user (the integration answers 403). Times (Linux / Windows /
   macOS): pct_duckdb 10.9 / 8.7 / 12.1; pct_h2 6.1 / 5.5 / 4.2; edge_net 11.6 / 14.4 / 15.5. Local gate: 558 pass, 1
   skipped, 12 initdb-as-root (pass as ubuntu). `main` has no mirror yet; #124 holds.
+- **~17:18 UTC, the judges session: A4 step 2 green** (`claude/compat-a4-host-only` at `61653394d`): legend-pure's
+  comparison rules have left the database judge. 25 files, +103 / -1,202; 16 main files and 1 test file deleted; six
+  two-form kinds deleted (CrossKindNumbers S127; VerdictNumbers S15/S132/S139 and the edge's 2-ULP tolerance;
+  RenderedTextRule S131/S132 with the rows fallback and the golden parser; DateLiteralTexts; GoldenNullWord;
+  JsonGrammar's planning read); `VerdictReads.CANONS` and the compatibility message branches deleted; the verdict row's
+  LENIENT column planned false (removing the column later, a row-schema change). The host judge keeps every rule.
+  Guard moves in 7 test files with dated notes (HookLambdasTest, HookRulingTest, SqlFnSortedTest, ArchitectureTest
+  PLANNER_ENTRIES, UpstreamBranchesTest, JavaEvalLedgerTest AssertVerdicts 1465 → 1394 and DatabaseJudge 852 → 808).
+  Green: the guardrails, the census, `core_edge_tests`, all 26 product database/both judge targets. PCT channel B, the
+  edge integration and lean SQL running. **Step 3 sized:** the database judge's appeal path, about 350-450 lines deleted
+  (the engine-text arms stay, the host's), three ruled hooks narrowed (EngineTestText 5 of 12 members,
+  EdgeHearing.rowAppealed, EdgeRun.wordsAlike), the test plan JSON's `appeal` field leaving `RootLoop.Row`. **This
+  session's call (17:25): in A4**, the hook narrowing marked plainly for the user's word in the PR body. The PR is
+  asked of the user in the judges session.
