@@ -63,10 +63,10 @@ more than legend-engine does: 1,212 against 1,005 on DuckDB, 448 against 411 on 
 | # | What changes | Who notices | How big |
 |---|---|---|---|
 | 1 | **`substring` and `indexOf` inside a query sent to the database follow Pure**, not legend-engine's database-flavoured meaning. `'abcdef'->substring(1, 3)` is `'bc'` in Pure and `'abc'` under legend-engine on H2. **The answer changes silently; there is no error** | a legend-engine project whose queries call these with positions | legend-engine's whole test corpus has 5 such calls (4 tests per database). Lite's own 62 projects have 0. legend-engine itself treats its behaviour as a mistake, corrected by a flag that PCT always sets |
-| 2 | **The SQL lite shows is lite's own**, not legend-engine's spelling (in "show SQL", plans and `toSQLString`) | anyone reading or comparing SQL text | 143 of 2,761 corpus tests (5%) check only that text and stop counting. Every other SQL-text test still passes by its answer |
+| 2 | **The SQL lite shows is lite's own**, not legend-engine's spelling (in "show SQL", plans and `toSQLString`) | anyone reading or comparing SQL text | 143 of 2,761 corpus tests (5%) check only that text and stop counting; 3 more join them once `indexOf` follows Pure (their text check was always true before), so 142 on H2 and 146 on DuckDB. Every other SQL-text test still passes by its answer |
 | 3 | **legend-engine's old H2 "legacy mode" is gone** | a model that relies on it | 1 corpus test (it compares a yes/no column with the number 1) |
-| 4 | **Maths that legend-engine leaves unchecked raises lite's clear error** instead of returning null or the database's own error (square root of a negative, division by zero) | a query that relied on getting null | measured: 1 answer on the server route (square root of a negative); 0 corpus tests; 16 PCT test cells on 8 databases by legend-engine's own results (lite's PCT count is running). **Depends on decision D2** |
-| 5 | **Float literals are ordinary floating-point numbers**, not exact decimals (`0.1 + 0.2` is `0.30000000000000004`, where legend-engine on H2 and DuckDB gives `0.3`) | results with literal arithmetic | measured: 0 corpus tests lost and 2 GAINED on H2 (the decimal printed `52` where legend-engine's expected value is `52.0`); 0 answers on the server route. The PCT count is running. **Depends on decision D2** |
+| 4 | **Maths that legend-engine leaves unchecked raises lite's clear error** instead of returning null or the database's own error (square root of a negative, division by zero) | a query that relied on getting null | measured: 1 answer on the server route (square root of a negative: an error where legend-engine gives null); 0 corpus tests; on legend-engine's PCT route, 6 tests move and all 6 move from failing to PCT's expected answer (legend-engine itself fails or refuses each). **Depends on decision D2** |
+| 5 | **Float literals are ordinary floating-point numbers**, not exact decimals (`0.1 + 0.2` is `0.30000000000000004`, where legend-engine on H2 and DuckDB gives `0.3`) | results with literal arithmetic | measured: 0 corpus tests lost and 2 GAINED on H2 (the decimal printed `52` where legend-engine's expected value is `52.0`); 0 answers on the server route (only the SQL text shown changes); 0 PCT tests move. **Depends on decision D2** |
 | 6 | **legend-engine's quirks in `isNumeric`, `parseDecimal` and `parseJson`** are answered Pure's way | queries using those on odd input | measured on the corpus: `isNumeric` 0 tests; `parseDecimal` 2 per database (legend-engine cuts to two decimal places); `parseJson` 1 lost on DuckDB and 1 GAINED on H2 (today's copy of the quirk is itself broken on H2). **Depends on decision D1** |
 | 7 | **Plans cannot yet be handed to legend-engine to run, or taken from it** (export and import are deferred) | no one today: it does not exist yet | a deferred goal, not a loss |
 | 8 | **On SQLite, legend-pure programs' Decimal maths**: kept in floating point by one small rule at the door (ruled), or refused | PCT on SQLite | 5 tests if the rule were dropped |
@@ -89,8 +89,9 @@ affected functions); Studio end to end; very large results through the Java form
 **What does not work today and still will not:** legend-engine's mapping test suites and service tests, cross-store
 queries, external formats, and databases lite has no dialect for (DB2, Oracle, SQL Server and others).
 
-**What gets better:** where legend-engine refuses or answers wrongly, lite answers correctly (153 fixes and 55 of 59
-refusals answered on DuckDB's PCT, each checked against legend-pure's expected value).
+**What gets better:** where legend-engine refuses or answers wrongly, lite answers correctly: on DuckDB's PCT, about
+102 wrong answers fixed and about 110 refusals answered (245 such tests were read; all but 2 check exact values).
+Stage A adds 13 more on the legend-engine route (7 from `substring`/`indexOf`, 6 from the unchecked maths).
 
 ## 5. The plan
 
@@ -104,9 +105,23 @@ The order: A1; then A2 and A3 in either order; then A4.
 | Step | What | How we know it worked |
 |---|---|---|
 | A1 | **The safety nets.** A recorded snapshot of every answer on the legend-engine and legend-pure routes; a check against legend-engine's own published test results; PCT as lite's own test suite under both of lite's judges | PR #123 (up), the legend-engine check (built), the PCT suite (the product track is building it). Each net is first shown to catch a planted mistake |
-| A2 | **Delete the code that copies legend-engine's SQL spelling** (the three printers, about 3,000 lines, and the plan-printout code used only by the corpus, about 3,500 more) | the corpus: every test that passed by its answer still passes; exactly the 143 text-only tests and the 6 plan-structure tests move, listed by name; asking for legend-engine's SQL on a database lite has no dialect for is refused by name; lite's SQL size only shrinks |
+| A2 | **Delete the code that copies legend-engine's SQL spelling** (the three printers, about 3,000 lines, and the plan-printout code used only by the corpus, about 3,500 more) | the corpus: every test that passed by its answer still passes; exactly the text-only tests (142 on H2, 146 on DuckDB once A3 is in) and the 6 plan-structure tests move, listed by name; asking for legend-engine's SQL on a database lite has no dialect for is refused by name; lite's SQL size only shrinks |
 | A3 | **Fix lite's own Cypher, SQL and IQ frontends** (47 places write `substring`/`indexOf` the old way), **then switch the core to Pure's meaning.** First: the product track's fix for comparing text with a number. Needs the user's word on: the negative-start error, one guard ceiling, 17 of lite's own tests that pin the old meaning, and PCT's 3 known-failure rows | lite's frontend checks unchanged (prototyped: Cypher 4,267, IQ 5,984, SQL 1,651 cases, none regress); PCT's 3 known `indexOf` failures pass; the corpus loses the 4 tests of row 1 |
 | A4 | **Take legend-pure-style checking out of lite's database judge only.** legend-pure's comparison rules stay in the Java-side check until stage B (the corpus needs them: 69 tests on DuckDB, 29 on H2). Lite's two judges keep lite's own rules | PCT unchanged (measured: legend-pure's special comparison rules change 0 PCT verdicts); lite's judges agree on the new PCT suite |
+
+**Stage A has been run as a dry run, all its changes together, on the real suites** (2026-11-19, the record is
+`H12-combined-dry-run.md` on `claude/compat-translator-spike`):
+
+| Suite | Today | With all of stage A | What moved |
+|---|---|---|---|
+| legend-engine's corpus on H2 | 2,289 pass | 2,135 pass | 157 stop passing: 146 are SQL-text and plan-printout checks (not promised), 8 are `substring`/`indexOf` (4 of them also text checks), 3 are the small quirks and the legacy mode. 3 start passing |
+| legend-engine's corpus on DuckDB | 2,452 pass | 2,290 pass | 162 stop passing: 150 SQL-text and plan-printout checks, 9 `substring`/`indexOf` (5 of them also text checks), 3 quirks. None start passing |
+| PCT on DuckDB, all five suites, both ways of judging | as recorded | unchanged, but 3 known failures now pass | the 3 are `indexOf` tests |
+| legend-engine's PCT route (DuckDB five suites, H2 one) | as pinned | 13 more pass | every one moves to PCT's expected answer |
+| the server route's 28 recorded answers | as recorded | 8 lines move | 1 answer (square root of a negative), 1 error's words, 6 lines of SQL text |
+
+Every moved test was predicted from the single measurements, except 3 per corpus database: SQL-text tests whose check
+was always true under the old `indexOf`. Nothing that was predicted to fail passed, and nothing else moved.
 
 **Stop. Review the results before stage B.**
 
@@ -146,7 +161,9 @@ exceptions to the rulebook.
 - **D2. Keep the two shortcuts that copy legend-engine's number behaviour?** (Rows 4 and 5.) Removing them is cleaner;
   keeping them matches legend-engine in those cases.
 
-**Two prototypes, about a day each, running now:** B2's table printer in Java, and B3's move of the fallback.
+**Stage B's three prototypes:** B2's table printer in Java has passed (four databases). B3's move of the fallback
+has passed its first check (PCT and the H2 corpus identical; one design question open, where the four small rewrites
+of corpus test code are applied). B1's error records is running.
 
 **One sequencing constraint:** the product track is fixing bugs in the same judge and number code. Its judge fixes land
 before A4.

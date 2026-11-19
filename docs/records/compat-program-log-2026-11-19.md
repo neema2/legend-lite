@@ -801,3 +801,33 @@ who confirms or changes phases 1-3.
   - **What this means here:** the register corrections that were in the closed PR #122 (S63, S138, and the new rows)
     have no ids reserved. Each takes the next free id when the code change it belongs to lands, and this log's earlier
     S372-S377 mapping (lines near "new rows are S372-S377") is void.
+- **~13:05 UTC, H12, the combined stage-A dry run, is in** (the translator session;
+  `docs/records/compat-homework/H12-combined-dry-run.md` and `h12/` on `claude/compat-translator-spike` at
+  `1339c6fc`; read from the record). Applied at once: (1) Pure's `substring`/`indexOf` with 3.1's splits and no
+  translator; (2) B2's lite-text probe (every engine-text and plan-text printer answers lite's own SQL); (3) every
+  meaning strand to the product's, `PureText.raw` kept; (4) H2's product settings, the referee keeping its own.
+  | lane | `main` | combined | moved |
+  |---|---|---|---|
+  | corpus H2 | 2,289 pass, 276 fail | 2,135 pass, 430 fail | +157 fail: (2) 142, (1)+(2) 4, (1) 4, (3/4) 3, (2)+(3/4) 1, INTERACTION 3; +3 pass (S20 2, `parsedJson` 1) |
+  | corpus DuckDB | 2,452 pass, 108 fail | 2,290 pass, 270 fail | +162 fail: (2) 146, (1)+(2) 5, (1) 4, (3/4) 3, (2)+(3/4) 1, INTERACTION 3; no new pass |
+  | PCT channel A, DuckDB, 5 suites | as ledgered | Essential: 3 ledger moves; the rest unchanged | S134's 3 `indexOf` known failures pass |
+  | PCT channel B, DuckDB, 5 suites, HOST judge | as ledgered | the same 3 | (1) |
+  | ENGINE lane (DuckDB 5 suites, H2 relation) | pinned | 13 rows, every one lite FAIL to PASS against PCT's expected value | (1) 7; (3) the plain set 6; H2 relation 0 |
+  | pure/v1 net (28 lines) | the golden | 8 lines | `raise.sqrtOfNegative` 200 null to 500 (an answer); `raise.divideByZero` (words); S20's SQL text in 6 lines |
+  - **Predicted 427 (H2) and 267 (DuckDB) failing; measured 430 and 270.** The difference is the one interaction:
+    `testPlanForDateTimeConstantParameter{NoTimeZone,GMTTimeZone,ESTTimeZone}` assert
+    `$planAsString->indexOf(...) != -1`, vacuous under the old `indexOf` (0 on a miss). Only with BOTH Pure's `indexOf`
+    and lite's own text is the assert real and false. **So CP-4's count is 142 on H2 and 146 on DuckDB once R4 lands**
+    (B2's probe could not see these three).
+  - **Nothing predicted to fail passes; no interaction outside the corpus.**
+  - **For D2:** with the plain set and S20 off, the ENGINE lane's PCT gains 6 rows (`testSliceError`, `testRemError`,
+    `testSquareRootError`, `testRangeStepError`, `testBitShiftLeft_MoreThan62Bits`, `testBitShiftRight_MoreThan62Bits`),
+    each BOTH_FAIL to lite passing; legend-engine's manifest calls every one a defect or a refusal. No row moves the
+    other way. S20 off moves no PCT row and no pure/v1 answer (SQL text only), and gains 2 H2 corpus tests. The one
+    legend-engine answer that stops matching is pure/v1's `sqrt` of a negative (null there, an error in lite). B2's
+    (j) is the independent count.
+  - **Words needed when A3 lands:** PCT's 3 known-failure ledger rows (S134) leave the ledger; they move only with
+    the user's word.
+  - Run time: about 15 minutes for everything on a 4-core container (DuckDB corpus 547 s, H2 156 s).
+  - Folded into the plain plan: row 2, rows 4 and 5, "what gets better" (the corrected counts), A2's proof, and a
+    dry-run table under stage A.
