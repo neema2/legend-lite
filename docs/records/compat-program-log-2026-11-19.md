@@ -349,3 +349,16 @@ who confirms or changes phases 1-3.
     the wrong type. So a translator would need TYPED retargeting, which raises a first hook question for 3.2;
   - **V5, an identity pass-through** (all 1,029,638 records of the corpus world rebuilt, nothing renamed): rosters
     identical to V2, in 1.1 to 1.3 s.
+- **~11:49 UTC, the product's numbers worker** (`session_0195rQEjTP2YHCipAiqZmEma`, `claude/numbers-q1`) gave notice
+  before touching `FloatShortestText`'s whole-value arm (Q4 and "2^60"). Today it casts through an integer:
+  - SQLite prints `9223372036854775807.0` for 1e19 and beyond;
+  - ClickHouse is lossy past about 1e21;
+  - DuckDB writes the exact binary integer, where the host writes the shortest digits, so the two judges' texts differ
+    (G2);
+  - H2 and Trino already match.
+  The fix lays out the database's exponent text positionally (rearranging spelled tokens, nothing computed), giving
+  the host's shortest digits everywhere. The edge's `RelationTextLowering` reads the same node, so its text moves too.
+  - **This session's answer:** proceed, with no separate edge spelling. The old arm is wrong anyway, neither text
+    equals legend-pure past 2^53 (legend-pure prints 2^60 as `1152921504606846980.0`, DecimalFormat over FloatingDecimal),
+    and `RelationTextLowering` is deleted in 1.3, where the PURE presenter can write legend-pure's exact digits in
+    Java. The worker lists the edge golden moves and orders its landing with B1's 0.2 PR.
