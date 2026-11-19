@@ -2054,3 +2054,15 @@ who confirms or changes phases 1-3.
   integration on H2 and SQLite passes; lean SQL DuckDB and H2 pass against the re-pinned baseline (`cfa6a634`). Step 3
   building: `RootLoop.Row` loses `decline` as well as `appeal`; the test plan JSON 32 → 33 with a note; both corpus
   rosters at A4's final head.
+- **~17:26 UTC, B2: A2 PR 1's local counts** (`claude/compat-a2-printers`, 4 local commits; nothing pushed). **Corpus
+  fail rosters exact:** H2 276 → 423 (+147), DuckDB 108 → 260 (+152), every added test on `A2-roster.tsv`, 0 extra, 0
+  missing. **Registers moved more than the shape note said:** unordered H2 899 → 1,329 (+434 / −4), DuckDB 913 → 1,348
+  (+440 / −5) (tests that passed by text, now judged by their rows through the appeal); DuckDB engine-order −2 / +1; ord
+  +4 / +5 (`ordered-keys-unmappable`). **Edge nets:** the pure/v1 net and all 27 PCT edge-net files unchanged (the
+  pure/v1 activities' SQL was already lite's); the corpus net's judge ledgers move only on the roster's tests plus 9 (H2)
+  and 8 (DuckDB) already failing at `main`. Lean SQL passes. **Planted pure/v1 requests:** the net's `tds` request
+  byte-identical; a DDL native's plan is the edge's H2 dialect's DDL (lite's own writer, "Create Table ... NULL"); an
+  activity's SQL is lite's H2 text. **Guard moves:** 8 guard tests and the 192-row pre-quoted-names fixture; the
+  dialect-construction ratchet 17 → 12 (not 14); the JavaEvalLedger edge list GAINS `LiteSqlText.java` (flagged). The
+  CP-4 register row was drafted as S371, which is taken: **told to use S380**, provisional until landing. No rule
+  broken. `//gates:local` running; then it asks the user in its session.
