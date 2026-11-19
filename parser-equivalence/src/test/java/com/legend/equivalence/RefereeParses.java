@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * LEGEND-ENGINE'S PARSE OF A TEXT, ONCE PER JVM (2026-11-19, //parser-equivalence:parser_parity's time): the referee's
@@ -52,16 +53,25 @@ final class RefereeParses {
     private static final ObjectMapper MAPPER =
             ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
 
-    private static final Map<Key, SoftReference<Answer>> HELD = new HashMap<>();
+    /** The run's memo, the one every parity class asks: the referee above, as each class called it. */
+    private static final RefereeParses RUN = new RefereeParses(key -> key.sourceInformation()
+            ? REFEREE.parseModel(key.text())
+            : REFEREE.parseModel(key.text(), "", 0, 0, false));
 
-    private static int parsed;
-    private static int reused;
-    private static int keptWhole;
+    private final Function<Key, PureModelContextData> referee;
+    private final Map<Key, SoftReference<Answer>> held = new HashMap<>();
 
-    private RefereeParses() {
+    private int parsed;
+    private int reused;
+    private int keptWhole;
+
+    /** A memo over {@code referee}: the run's ({@link #RUN}), or a test's with a referee it plants. */
+    RefereeParses(Function<Key, PureModelContextData> referee) {
+        this.referee = referee;
     }
 
-    private record Key(String text, boolean sourceInformation) {
+    /** A text and the options it is parsed with. */
+    record Key(String text, boolean sourceInformation) {
     }
 
     /** What the referee answered: its parse as text, or its refusal or StackOverflowError (never both). */
@@ -113,25 +123,31 @@ final class RefereeParses {
 
     /** The engine's {@code parseModel(text)}, once per text in a run; its refusal thrown again as it was thrown. */
     static Parse withSourceInformation(String text) {
-        return answer(new Key(text, true));
+        return RUN.answer(new Key(text, true));
     }
 
     /** The engine's {@code parseModel(text, "", 0, 0, false)}, once per text in a run; its refusal thrown again. */
     static Parse withoutSourceInformation(String text) {
-        return answer(new Key(text, false));
+        return RUN.answer(new Key(text, false));
     }
 
-    /** How many texts were parsed and how many answers were handed out again, for the run's log. */
-    static synchronized String counts() {
+    /** How many texts the run parsed and how many answers it handed out again, for the run's log. */
+    static String counts() {
+        return RUN.tally();
+    }
+
+    synchronized String tally() {
         return "referee parses: " + parsed + " parsed, " + reused + " reused, " + keptWhole + " kept whole";
     }
 
-    private static synchronized Parse answer(Key key) {
-        SoftReference<Answer> held = HELD.get(key);
-        Answer answer = held == null ? null : held.get();
+    /** The referee's answer for {@code key}: kept from an earlier ask, or parsed now (and kept, unless it is an Error
+     *  other than a StackOverflowError, which is thrown on). */
+    synchronized Parse answer(Key key) {
+        SoftReference<Answer> kept = held.get(key);
+        Answer answer = kept == null ? null : kept.get();
         if (answer == null) {
             answer = parse(key);
-            HELD.put(key, new SoftReference<>(answer));
+            held.put(key, new SoftReference<>(answer));
             parsed++;
         } else {
             reused++;
@@ -145,12 +161,10 @@ final class RefereeParses {
         return answer.parse();
     }
 
-    private static Answer parse(Key key) {
+    private Answer parse(Key key) {
         PureModelContextData model;
         try {
-            model = key.sourceInformation()
-                    ? REFEREE.parseModel(key.text())
-                    : REFEREE.parseModel(key.text(), "", 0, 0, false);
+            model = referee.apply(key);
         } catch (RuntimeException | StackOverflowError t) {
             // what the referee answers for this text, kept as thrown: a refusal (parseModel declares no checked
             // exception), or a stack too deep for this text, the same every time. Any other Error -- an
