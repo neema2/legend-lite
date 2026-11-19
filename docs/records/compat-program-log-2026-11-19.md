@@ -1211,3 +1211,7 @@ who confirms or changes phases 1-3.
   - **Slices: two PRs, about 5 days** (PR 1, 2 to 3 days: the printers out and an adapter in, every ruled move; PR 2,
     about 2: the family's spelling-only code, nothing further moving). Accepted (13:45); the final plan's A2 row
     rewritten from it.
+- **~13:33 UTC, B1-R on the Maven 404:** also from the `rules_jvm_external` pools (`rhino-1.7.15.jar` from
+  @maven_teavm on `fa8294cca`'s linux/product; #121's `httpcore-4.4.13.jar` from @maven_runner), not only `jars.bzl`.
+  #124's lanes hit: parser_equivalence, core, stress, corpus_h2, product. Already covered by the CI-health session's
+  downloader config (both kinds of fetch); told B1-R.
