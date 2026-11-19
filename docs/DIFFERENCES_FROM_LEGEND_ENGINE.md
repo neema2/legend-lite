@@ -200,7 +200,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   tree names a qualified property the fetch tree lacks.
   - legend-engine writes that property as `null`, or fails partway through the response.
   - lite computes the property from its definition, as for any qualified property.
-  - This is on main today; A3 found it. Register: S388 (provisional).
+  - This is on main today; A3 found it.
+  - Ruled by the user on 2026-11-19 (~23:20, "Yes to A"): recorded as a difference, not refused.
+  - Register: S388 (provisional id).
 - **Register:** S385 (provisional).
 
 ### 11. The last digit of some maths on Windows and macOS
