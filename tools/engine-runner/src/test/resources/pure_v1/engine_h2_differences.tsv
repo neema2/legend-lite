@@ -1,0 +1,28 @@
+tds	differs	$.builder.columns[0].type, $.builder.columns[1].type, $.activities[0].sql
+plan.tds	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].type, $.rootExecutionNode.resultType.tdsColumns[1].type
+value	differs	status 500/200, -$.code, -$.errorType, -$.message, -$.status, +$.builder, +$.activities, +$.result
+plan.value	differs	$.rootExecutionNode._type, $.rootExecutionNode.executionNodes[0].resultColumns[0].label, $.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType._type, -$.rootExecutionNode.resultType.tdsColumns, +$.rootExecutionNode.resultType.dataType, +$.rootExecutionNode.resultSizeRange
+raise.divideByZero	differs	$.message, +$.trace
+plan.raise.divideByZero	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+raise.atOutOfBounds	differs	-$.errorType, $.message, +$.trace
+plan.raise.atOutOfBounds	differs	-$.errorType, $.message, +$.trace
+raise.toOneOverMany	differs	-$.errorType, $.message, +$.trace
+plan.raise.toOneOverMany	differs	-$.errorType, $.message, +$.trace
+raise.sqrtOfNegative	differs	$.activities[0].sql
+plan.raise.sqrtOfNegative	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+raise.parseInteger	differs	$.message, +$.trace
+plan.raise.parseInteger	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
+cell.dateTimeCoarse	differs	$.activities[0].sql
+plan.cell.dateTimeCoarse	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+cell.dateTimeSubMicro	differs	$.activities[0].sql
+plan.cell.dateTimeSubMicro	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+cell.float	differs	$.activities[0].sql, $.result.rows[0].values[0]
+plan.cell.float	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+cell.floatWhole	differs	$.activities[0].sql
+plan.cell.floatWhole	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+cell.empty	differs	-$.errorType, $.message, +$.trace
+plan.cell.empty	differs	-$.errorType, $.message, +$.trace
+cell.emptyIf	differs	$.builder.columns[0].relationalType, $.activities[0].sql
+plan.cell.emptyIf	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
+cell.strictDate	differs	$.activities[0].sql
+plan.cell.strictDate	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
