@@ -83,7 +83,7 @@ you need legend-engine's answer.
   - **answers the text had hidden** (items 12 and 13) are not among them. The user ruled them legend-engine defects
     before (2026-09-05 and 2026-09-08), so they are accepted divergences again (the user, 2026-11-19 ~20:35). Four
     of batch 144's rows go back on the accepted rosters, and two H2 rows are new. The accepted rosters go H2 41 to
-    43 and DuckDB 46 to 49, also settled by the merged batch.
+    44 and DuckDB 46 to 49, also settled by the merged batch.
 - That becomes 148 and 152 once item 1 lands: three more text tests that the old `indexOf` hid.
 - Every other SQL-text test passes by its answer.
 - Studio's "generate plan" for an ordinary query answers byte for byte as before.
