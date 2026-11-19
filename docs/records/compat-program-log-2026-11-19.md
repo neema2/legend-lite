@@ -864,3 +864,56 @@ who confirms or changes phases 1-3.
      - **Size (estimated):** about 150 lines in the edge plus its tests, 1 to 2 days, inside A3. One register row.
      - **To settle if the user picks it:** whether the default is "warn" or "refuse"; what legend-engine's clients do
        with an unknown response header (Studio must be shown to ignore it).
+- **~13:00 UTC, the translator's H12 message** (the counts as logged above from the record). One more point, recorded
+  in H5 at this session's request: `ArchitectureTest`'s `PLANNER_ENTRIES_ONLY` covers only `planner`, `testplan` and
+  `lowering` (`ArchitectureTest.java:1638`), so it admits an edge caller of `SpecCompiler` and `ModelContext`; no
+  other rule bars it, and the reflection ban holds outside the edge only. A typed walk at the door (D1's detector, or
+  a typed retarget) needs no new core entry.
+- **~13:00 UTC, B2's (j), D2's count** (`claude/census-b2` at `ed70d8b18`, H8 §(j)). With it B2's 0.4 items are all
+  done: (a), (a.3), (c), (d), (e), (h), (j), (k). The probe: S20's bare DECIMAL off (the 5 `PureText`
+  `floatLiteralKind` overrides return super) and the plain set emptied, on B1-R's ENGINE lane at `815690a57` in a
+  local worktree; with PCT A's edge golden net, pure/v1's golden net and both corpus lanes.
+  - **PCT ENGINE lane (verdicts):** 6 tests move, all BOTH_FAIL to LITE_FIXES; 0 SAME tests move. All 6 are DuckDB
+    error tests: slice, rem, range, sqrt, bitShiftLeft, bitShiftRight.
+  - **PCT A, default audience (answers):** 0 outcomes move. 2 values move, both S20: `testFloatPlus` 1.7 to
+    1.7000000000000002 and `testFloatTimes` 2.1 to its double; PCT passes either way. 9 cases change only SQL text.
+  - **pure/v1:** `raise.sqrtOfNegative` 200 `[null]` (legend-engine's answer) to 500; `raise.divideByZero` stays 500,
+    words change; the two Float cells keep their values.
+  - **Corpus:** 0 pass to fail; H2 2 fail to pass (S20 makes H2 answer 52 where the test expects 52.0); 4 per lane
+    move from DIFFERENTIAL to LITERAL.
+  - **Answers that match legend-engine today and would stop matching: 7.** 4 PCT DuckDB values where legend-engine
+    answers a value and Pure raises (slice `[]`, rem null, range `[]`, `>> 63` 0; each checked against DuckDB 1.5.6
+    itself; each reproduced by an ordinary guard, e.g. `if($d == 0, |[], |$x->rem($d))`; for `>>` a negative operand
+    needs -1); 1 pure/v1 answer (`sqrt(-2.0)` null on H2; `if($x < 0, |[], |sqrt($x))`); 2 PCT Float answers from S20,
+    reproducible only through Decimal (`toDecimal` on each literal, then `toFloat`). So 5 by a guard, 2 by Decimal.
+  - **3 more keep their status and change only words:** PCT sqrt and bitShiftLeft on DuckDB, pure/v1's divide.
+  - **Not measured:** H2's essential and standard suites (which hold (c)'s H2 value cells), the other databases.
+  - **This session's call:** D2 goes to the user with "remove both" recommended. B2's next work, sent 13:10: (1) the
+    same probe on H2's other four PCT suites through the legend-engine route; (2) A2's shape note (the exact deletion
+    list with every caller and guard, what each caller answers afterwards, the moved tests by name reconciled with
+    H12, a slice plan); (3) B5's ratchet as a prototype test (shrink-only pins on B2's bytecode counts, shown to fail
+    on a plant; not turned on).
+- **~13:00 UTC, B1-R: PR #124's review fixes are pushed** (head `c9665ad7e`); the merge with #123 waits on B1 (30 to
+  60 minutes).
+  - Windows path fixed (`ff84dfa69`). The audience plant is in (`AudienceCheck`: every case planned as
+    legend-engine's audience, at least one; the table refuses a lane without it). The guarded files are named in the
+    PR body. `pct_tests_lib` gains no dependency (`LiteBatteries` moved to `//pct:pct_batteries`).
+  - **The classifier is fixed, and the counts that replace the ones given to the user earlier:**
+    | | tests | legend-engine refuses | DEFECT | LITE_ANSWERS | LITE_FIXES | SAME | BOTH_FAIL | LITE_BEHIND |
+    |---|---|---|---|---|---|---|---|---|
+    | DuckDB, 5 suites | 1,249 | 110 (59 "No SQL translation", 51 in other words) | 134 | 99 | 109 | 1,004 | 36 | 1 |
+    | H2 relation | 469 | 36 | 22 | 28 | 9 | 411 | 21 | 0 |
+    Lite answers 99 of the 110 refusals on DuckDB. CP-12's 245 tests are the same. Every class is computed from
+    words by a listed pattern set (`EngineLaneTable.REFUSAL_WORDS`), and the record says so.
+  - **CI on the first run:** `linux / pct_duckdb` was the PR's own fault (a read-only seeded DuckDB file copied with
+    its mode; invisible as root in the container; fixed). `parser_equivalence` and `core` were Maven Central's 404
+    for `h2-2.1.214.jar` again (twice). Green: pct_h2, pct_channel_b, corpus_h2, linux-arm warehouse, diagnostics,
+    guard pins.
+  - **Per-push cost, measured on CI:** the ENGINE lane's six actions took about 3.5 minutes of an 8.4-minute
+    `pct_duckdb` job on Linux (remote cache on); the batteries a few seconds.
+- **~13:01 UTC, the host-parity worker's 404/405 note** (the product orchestrator's ruling: on every host an unknown
+  `/api/lite/v1/*` path answers 404 `notFound`, a known path with a wrong method 405 `methodNotAllowed`). Answered
+  13:10: it moves `no_such_route` from MALFORMED_REQUEST to MISSING in the four HOSTS-9 adapters now (the store pilot
+  is not before stage B and inherits it); it updates `PureV1ApiTest`'s two expectations (lines 731-737) itself, checks
+  against #123's head and tells B1; any edge-net golden line that moves is named to this session and B1 first; it
+  confirms that `/api/pure/v1/nope` on the legend-engine route still gets legend-engine's envelope.

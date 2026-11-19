@@ -72,7 +72,7 @@ more than legend-engine does: 1,212 against 1,005 on DuckDB, 448 against 411 on 
 | 8 | **On SQLite, legend-pure programs' Decimal maths**: kept in floating point by one small rule at the door (ruled), or refused | PCT on SQLite | 5 tests if the rule were dropped |
 | 9 | **legend-engine's feature flags in a request** (its "corrected substring" and "legacy null equality" options) stop switching lite's core. They are read at the door: the first is now always on; the second is refused by name | a request that sets the legacy flag | 7 corpus tests set a flag; 1 depends on the legacy one, and it checks SQL text only |
 | 10 | **Error text**: where legend-engine's message is its database's own error over legend-engine's SQL, lite gives its own clear message in legend-engine's envelope. Lite's errors on these routes carry no source position today, and still will not | a client that reads error text; Studio's underlining | unchanged from today, stated for honesty |
-| 11 | **A program written against lite's legend-engine route may not run on legend-engine itself**, because lite answers where legend-engine refuses (about 110 PCT tests on DuckDB) | someone moving back to legend-engine | by the ruling |
+| 11 | **A program written against lite's legend-engine route may not run on legend-engine itself**, because lite answers where legend-engine refuses (99 of its 110 refused PCT tests on DuckDB, 28 of 36 on H2) | someone moving back to legend-engine | by the ruling |
 | 12 | **For lite's own users, `substring` with a negative start raises** (Pure's rule), and a saved query or cube using `substring`/`indexOf` changes its answer | lite users with such saved queries | lite's own 62 projects: 0 uses; deployed stores cannot be counted from here |
 
 **One thing the door must keep doing** (measured, not a loss): legend-engine's corpus sets up its test data with SQL
@@ -89,8 +89,9 @@ affected functions); Studio end to end; very large results through the Java form
 **What does not work today and still will not:** legend-engine's mapping test suites and service tests, cross-store
 queries, external formats, and databases lite has no dialect for (DB2, Oracle, SQL Server and others).
 
-**What gets better:** where legend-engine refuses or answers wrongly, lite answers correctly: on DuckDB's PCT, about
-102 wrong answers fixed and about 110 refusals answered (245 such tests were read; all but 2 check exact values).
+**What gets better:** where legend-engine refuses or answers wrongly, lite answers correctly: on DuckDB's PCT, 109
+wrong answers fixed and 99 of legend-engine's 110 refusals answered; on H2's relation suite, 9 and 28 of 36 (245 such
+tests were read; all but 2 check exact values).
 Stage A adds 13 more on the legend-engine route (7 from `substring`/`indexOf`, 6 from the unchecked maths).
 
 ## 5. The plan
@@ -158,8 +159,20 @@ exceptions to the rulebook.
   `indexOf` in a query sent to the database. The legend-engine door can detect that case (it does not rewrite it) and
   warn, or refuse by a switch, when the request has not set legend-engine's own "corrected" option. A start position
   of 0 on H2 is unaffected, which is the commonest use.
-- **D2. Keep the two shortcuts that copy legend-engine's number behaviour?** (Rows 4 and 5.) Removing them is cleaner;
-  keeping them matches legend-engine in those cases.
+- **D2. Keep the two shortcuts that copy legend-engine's number behaviour?** (Rows 4 and 5.) **The count is in**
+  (B2's (j) and the combined dry run agree). Removing both changes **7 answers that match legend-engine today**:
+  - 4 on DuckDB where legend-engine returns a value and Pure raises an error: an out-of-range `slice` (empty list),
+    `rem` by zero (null), a `range` with step zero (empty list), a shift right by 63 or more bits (0);
+  - 1 on the server route: `sqrt` of a negative on H2 (null);
+  - 2 Float sums and products, where legend-engine's exact decimals give `1.7` and lite's ordinary floating point
+    gives `1.7000000000000002`.
+
+  A user who wants legend-engine's answer can write it in the query: 5 of the 7 with an ordinary `if` guard, the 2
+  Float ones by using Decimal. Removing gains 6 PCT tests on the legend-engine route (PCT expects the error) and 2
+  corpus tests on H2, and loses none. 3 more errors keep their status and change only their words.
+  **Not yet counted:** H2's other four PCT suites on the legend-engine route, and other databases (B2 is running H2).
+  **Recommendation: remove both.** It is what the goal's sentence says, and PCT, legend-pure's own test suite, agrees
+  with Pure in all 6 error cases.
 
 **Stage B's three prototypes:** B2's table printer in Java has passed (four databases). B3's move of the fallback
 has passed its first check (PCT and the H2 corpus identical; one design question open, where the four small rewrites
