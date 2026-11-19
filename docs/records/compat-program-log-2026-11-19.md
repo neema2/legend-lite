@@ -3072,3 +3072,9 @@ who confirms or changes phases 1-3.
   for the relation-let and class-let probe rows to be pushed (to B1-R), and that S388 be posted to the user and ruled
   before it lands (the upstream-fidelity tenet). Posted to the user now, not at the batch PR.
 - **~23:20 UTC, S388 ruled A by the user** (§1's row); B2 told to mark the row RULED with the date and the words.
+- **~23:22 UTC, a correction to S388's posting (this session's error):** I told the user "legend-pure computes it" and
+  "lite computes it as legend-pure does". That was recalled, not read: B2 found no legend-pure serialize to read
+  (legend-engine's `serialize` has no Pure definition, `core/pure/graphFetch/graphFetch.pure:69-73`
+  `fail('Not implemented!')`; its plan's Java writes it). What the sources support: a qualified property's meaning is its
+  own Pure body, which lite computes. Corrected to the user, with the offer to re-rule; B2's row says only what it read
+  (`72c277048`), and its page pointer from item 10 kept.
