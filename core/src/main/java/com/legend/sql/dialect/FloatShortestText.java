@@ -180,8 +180,11 @@ final class FloatShortestText {
                 text("."), text(""));
         SqlExpr sign = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)), text("-"))), text(""), SqlExpr.Reason.PRINT);
-        return SqlExpr.Call.of(SqlFn.CONCAT, sign, SqlExpr.Call.of(SqlFn.RPAD, digits,
-                SqlExpr.Call.of(SqlFn.PLUS, exponent, new SqlExpr.IntLit(1)), text("0")), text(".0"));
+        // the width a 32-bit integer, as every database's rpad takes it (Postgres has no bigint overload:
+        // StringCountsAsInt), stated here so each road writes the one cast
+        SqlExpr width = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.PLUS, exponent, new SqlExpr.IntLit(1)),
+                SqlType.Scalar.INTEGER, SqlExpr.Reason.PRINT);
+        return SqlExpr.Call.of(SqlFn.CONCAT, sign, SqlExpr.Call.of(SqlFn.RPAD, digits, width, text("0")), text(".0"));
     }
 
     /** {@code x} where {@code guard} holds, else NULL. */
