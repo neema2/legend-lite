@@ -2091,3 +2091,10 @@ who confirms or changes phases 1-3.
   PCT targets on 4 CPUs, about 8 min per variant; PCT alone is about 3 min. H14 told: V2 finishes as started; D1 and D2
   run only the PCT targets holding the 423, each count sent as it lands; lite's suites run once at the end, on the
   user's variant.
+- **~17:34 UTC, the independent reviewer: #126 APPROVED** (record at `7e515130`). Every assertion kept (markets_test's
+  file and BUILD target untouched; `test_headless.py` gains `ModelTexts` cases); no pin moved (3 files, +168 / −1); the
+  memos are sound (each answer a function of its key alone; failures never kept; holds released at close); the rules
+  hold (no value computed in Python; host orchestration, not presentation; no mode; relies on G10's ruled determinism).
+  Notes, sent to the CI-health worker to fold in: a plant for the hold memo's eviction at `_HELD_KEPT=2`; the memory cost
+  in the body (up to 2 extra compiled copies of a large model per host); named as a product change in lite's Python
+  package (the tab and the server get no memos: a speed difference, never an answer difference).
