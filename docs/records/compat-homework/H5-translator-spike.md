@@ -126,7 +126,7 @@ new hook" is checked by javac.
 - `normalizer/RelOpTranslator.java`, +49 / -5: 3.1's split for the dynaFunctions (§3), no new native.
 
 **The runs** (each both lanes, `bazel build //spec:judge_host_h2 //spec:judge_host_duckdb`, outputs saved under
-`h5/runs/`):
+`h5/corpus/`):
 
 | variant | core | translator |
 |---|---|---|
