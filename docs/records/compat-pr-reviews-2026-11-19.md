@@ -1473,3 +1473,34 @@ fill it.
 - **A2 PR 2's should:** the judges add the planted conditional-refusal test on the batch branch. I'll check it in the
   combination review.
 - **D-M1's refinement:** to be pushed to `claude/compat-a3-engine`, with design note rev 2.
+
+## The engine runner runs storeless tests, `origin/claude/compat-engine-runner-storeless` at `b648c377b` (one commit on `main` `8eea8fa13`; the CI-health worker's)
+
+**Verdict: APPROVED.** The change is confined to `tools/engine-runner`, the oracle tool, which is spec input. No
+product code, guard, pool, `MODULE.bazel` or lock file moves.
+- **The fix:** `perf.AbsoluteClassPath.install()` runs first in `TestableMain.main`. It rewrites each
+  `java.class.path` entry as `Paths.get(entry).toAbsolutePath()`, against the JVM's starting directory.
+  - It does not normalize, so `../x` becomes `/abs/_main/../x`. The commit measured ClassGraph keeping exactly that
+    form.
+  - An absolute entry and an empty entry are kept as they are.
+  - The JVM's class loader is untouched, so only readers of the property see the change.
+- **Why the corpus verdicts cannot move:**
+  - **Off Windows:** `scripts/corpus/run.py` passes `--classpath_limit=0` (F94), so the class path is one absolute
+    manifest jar and the call does nothing.
+  - **On Windows:** the launcher always writes a manifest jar (`run.py:166-171`), so the by-hand engine-verdict
+    workflow's Windows platform does not change either.
+  - **The other runners:** the planoracle mains and the other mains do not call it.
+- **`--dump`:** it now also writes a test error's whole text, `<testable>.<id>.error.txt`, with every character
+  outside `[A-Za-z0-9_.-]` written as `_`. The README says so.
+- **The test:** `RunnerSmokeTest.testableRunsFunctionsThatReadNoStore` runs two storeless testables, which give a pass,
+  a fail and a raise. It asserts the three report lines (with the millis cut) and the dumped error's JDK text,
+  `Range [7, 6) out of bounds for length 6`. The plant is taken as reported: without the call, it fails with the
+  probe's "package ... store.shared does not exist".
+- **Upstream's answer is asked, not recalled.** The probe's result (legend-engine computes a storeless `substring` in
+  its plan's Java and raises "Failed in node: root" with the JDK's text as the cause) is the engine runner's own
+  answer at the pins. It is an input to S383 (B2's docs, `393cb62ff`), not reviewed here.
+- **Nit:** the dump name's character rewrite could make two testables collide (`a::b` and `a__b`). That is
+  theoretical for real names.
+- **The proof**, taken as reported: `//tools/engine-runner/...` (`smoke_test`, `update_vocab_test`),
+  `//tools/guards:markdown_inputs_test`, `//scripts/corpus:tools_build_test` and `:quarantine_test` pass, with
+  `--lockfile_mode=error`.
