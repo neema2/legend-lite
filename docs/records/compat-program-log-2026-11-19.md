@@ -2999,3 +2999,8 @@ who confirms or changes phases 1-3.
   edge-net ledgers and rosters, A4's four narrowed ruled hooks, TestPlanJson 32 → 33, the `RootLoops.rejected`
   allowlist entry, and own_corpus.matched's +5 from InCollectionSpliceRefusalTest. (LiteSqlText's closed-list entry
   left the list with A2 PR 2; the `engine` opt-in's moves were ruled at ~22:20.)
+- **~22:23 UTC, B1's native final:** `claude/compat-a3-raw-substring` at `b622e54f15`, the three moves made on the
+  ~22:20 word (Intrinsic 735 → 740 regenerated, carrying piece 1's +3; NOT_UPSTREAM_MAX 73 → 78, carrying piece 1's
+  73 → 76; the EngineSubstitutes funnel row). census, guardrails_edge, spec_tests green; guardrails red only on piece
+  1's own FUNCTION_FQN_LITERALS_MAX 346 → 347, green once piece 1 is in the batch. The judges merge it after the
+  translator's pieces.
