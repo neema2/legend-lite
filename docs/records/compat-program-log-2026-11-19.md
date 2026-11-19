@@ -2453,3 +2453,12 @@ who confirms or changes phases 1-3.
   TOTAL_WALL_START_HERE's pointer; date the PCT table; divide-by-zero's source; the recipe's range; AGENTS.md's
   [CONVENTION] mark and tenet-vs-invariant numbering) and 5 nits. Sent to B2. **O1, this program's own plan:** §4a,
   the A3 row and the plain plan's row 1 still said "warn" and "with the report": corrected here to the ~19:20 ruling.
+- **~19:43 UTC, B2: piece 4's review fixes in one commit** (`c957c2b49`, local; reading copy `2d16f6d54`): M1 (no
+  program wording quoted as the user's; D1 named as ruled ~13:25, "Okay agree with all"), M2 (item 2 split H2
+  139/2/6, DuckDB 143/3/6; new items 12, joinStrings with a separator, S386, and 13, firstDayOfWeek, S387), S1-S6 and the
+  nits. Two more sent: firstDayOfWeek stated as on the merged batch (A5's H2 fix makes both databases answer Monday, so
+  no H2 Gaps entry); legend-pure's `x / 0` read to the end. Then B2 sends it to the reviewer directly. The user also
+  asked whether the door rewrite is really better than a compiler flag; answered with the trade (the flag is smaller
+  and best on the corpus, but wrong for legend-engine's host-side constants and spread through every layer that
+  touches `substring`); a simplification being measured by B1-R (swap each flagged call for A3's `sqlSubstring` /
+  `sqlPosition`, the database's own functions, so no Pure library and no second model).
