@@ -2568,3 +2568,9 @@ who confirms or changes phases 1-3.
   347; spec `ratchets.tsv` Intrinsic 735 → 738; `CatalogUpstreamDiffTest` NOT_UPSTREAM_MAX → 76; 9 text goldens
   (CypherToPureTest ×4, IqFunctionsTest, IqToPureTest, PostgresToPureTest ×2, the Cypher showcase). The translator asks
   the user in its session for these and its push.
+- **~20:03 UTC, B2: A3 piece 4 final** (`claude/compat-a3-docs` at `3780307f1`, local; reading copy `38728c10a`;
+  `//gates:checks` 197 pass): `x / 0` one statement; item 13 dated with this batch; the H2 week defect in the Gaps. Two
+  wordings corrected at the source: legend-pure's interpreter fails on Integer / 0 with a Java NumberFormatException,
+  never answering Infinity; **the product server `//core:server` pins no locale** (only the test launchers pin en_US),
+  so even `bazel run //core:server` answers `weekOfYear` and WEEKS durations by its machine's locale. B2 asks the user
+  in its session for the push (a new branch, no PR).
