@@ -31,8 +31,7 @@ class PureMeaningCheckTest {
     /** A relational model over H2: a table, a class mapped to it, a qualified property, a user function, a constraint
      *  and a runtime. */
     static final String MODEL = String.join("\n",
-            "###Relational",
-            "Database t::DB ( Table PERSON ( ID INTEGER PRIMARY KEY, NAME VARCHAR(32), CODE VARCHAR(8) ) )",
+            "###Relational\nDatabase t::DB ( Table PERSON ( ID INTEGER PRIMARY KEY, NAME VARCHAR(32), CODE VARCHAR(8) ) )",
             "###Pure",
             "Class t::Person",
             "[ shortName: $this.name->substring(1, 2)->length() == 1 ]",
@@ -45,16 +44,13 @@ class PureMeaningCheckTest {
             "Class t::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}",
             "function t::firstThree(s: String[1]): String[1] { $s->substring(1, 3) }",
             "function t::position(s: String[1]): Integer[1] { $s->indexOf('a') }",
-            "###Mapping",
-            "Mapping t::M ( t::Person: Relational { ~mainTable [t::DB]PERSON name: [t::DB]PERSON.NAME,"
+            "###Mapping\nMapping t::M ( t::Person: Relational { ~mainTable [t::DB]PERSON name: [t::DB]PERSON.NAME,"
                     + " code: [t::DB]PERSON.CODE } )",
-            "Mapping t::M2 ( t::Out: Pure { ~src t::Person short: $src.name->substring(1, 2) } )",
-            "###Connection",
-            "RelationalDatabaseConnection t::Conn { store: t::DB; type: H2; specification: LocalH2 { };"
+            "###Mapping\nMapping t::M2 ( t::Out: Pure { ~src t::Person short: $src.name->substring(1, 2) } )",
+            "###Connection\nRelationalDatabaseConnection t::Conn { store: t::DB; type: H2; specification: LocalH2 { };"
                     + " auth: DefaultH2; }",
-            "###Runtime",
-            "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c1: t::Conn ] ]; }",
-            "Runtime t::JsonRT { mappings: [t::M2]; connections: [ ModelStore: [ json: #{ JsonModelConnection {"
+            "###Runtime\nRuntime t::RT { mappings: [t::M]; connections: [ t::DB: [ c1: t::Conn ] ]; }",
+            "###Runtime\nRuntime t::JsonRT { mappings: [t::M2]; connections: [ ModelStore: [ json: #{ JsonModelConnection {"
                     + " class: t::Person; url: 'data:application/json,[]'; } }# ] ]; }",
             "");
 
@@ -196,24 +192,23 @@ class PureMeaningCheckTest {
 
     // ---- unverified ----------------------------------------------------------------------------------------------
 
-    /** The model with what the check cannot follow: a class holding a function value, and a function whose body does
-     *  not type. Kept out of {@link #MODEL}: lite plans no class with a function-typed property. */
+    /** The model with a function whose body does not type, which the check cannot follow. Kept out of
+     *  {@link #MODEL}: compile reports it. */
     static final String UNFOLLOWABLE = MODEL + String.join("\n",
             "###Pure",
-            "Class t::Holder { f: Function<{String[1]->Integer[1]}>[1]; }",
             "function t::untyped(s: String[1]): Integer[1] { $s->substring(1, 2) }",
             "");
 
-    /** A lambda read from an instance's property is a function value the check does not hold: reported unverified,
-     *  never clean, and refused under refuse. */
+    /** A function value the check does not hold (a lambda read out of a collection, which legend-engine's grammar
+     *  writes; a class property of a function type is lite's own dialect, which no legend-engine client sends):
+     *  reported unverified, never clean, and refused under refuse. */
     @Test
-    void aLambdaReadFromAnInstancesPropertyIsUnverified_andRefused() {
-        String query = "{|let h = ^t::Holder(f = {s: String[1]|$s->length()}); " + TABLE
-                + "->extend(~i: r|$h.f->eval($r.NAME->toOne()))->from(t::RT);}";
-        PureMeaningCheck.Result r = check(UNFOLLOWABLE, query);
+    void aFunctionValueTheCheckDoesNotHoldIsUnverified_andRefused() {
+        String query = "|" + TABLE + "->extend(~i: r|[{s: String[1]|$s->length()}]->at(0)->eval($r.NAME->toOne()))"
+                + "->from(t::RT)";
+        PureMeaningCheck.Result r = check(query);
         assertEquals("unverified=1", r.header());
-        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(UNFOLLOWABLE, query),
-                NO_RUN);
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(query), NO_RUN);
         assertEquals(500, a.status(), a.json());
         assertTrue(a.json().contains("unverified"), a.json());
         assertEquals("unverified=1", a.headers().get(PureMeaningCheck.HEADER));

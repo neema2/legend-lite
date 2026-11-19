@@ -137,7 +137,15 @@ public final class PeRatchets {
                     + " declarations (an M2M target class, an auth class, a class holding a function value, a function"
                     + " whose body does not type) are new own-corpus candidates, and the measured count of elements"
                     + " matching the reference grammar rises by three, 3312 + 3 = 3315; on the merged batch with A2's"
-                    + " move (3310 -> 3311), 3310 + 2 + 3 + 1 = 3316 expected, regenerated on the merged tree; UP)");
+                    + " move (3310 -> 3311), 3310 + 2 + 3 + 1 = 3316 expected, regenerated on the merged tree; UP)",
+            "own_corpus.matched 3315 -> 3321 (2026-11-19, A3 piece 3's section fix (the judges' fast loop on the batch:"
+                    + " parser_parity found six of PureMeaningCheckTest's model literals without their ###Section"
+                    + " headers), under the user's ruling of 2026-11-19 ~20:10 (the ratchet regenerated for the"
+                    + " detector's test models): each non-Pure element's literal now carries its own header, so the six"
+                    + " elements (a Database, two Mappings, a Connection, two Runtimes) parse on the reference grammar"
+                    + " and match, 3315 + 6 = 3321; the class holding a function value (lite's own dialect, which"
+                    + " the reference grammar refuses) is replaced by a lambda read from a collection; the merged value"
+                    + " is regenerated on the merged tree; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
