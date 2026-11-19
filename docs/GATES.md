@@ -22485,33 +22485,58 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
   static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.
 
-## 2026-11-19 — Q2: the warehouse JDBC driver binds what exec sends; the warehouse lane 40 of 41, one case refused by name (S371)
+## 2026-11-19 — Q2: the warehouse JDBC driver binds what exec sends; the warehouse lane green, one case an expected refusal (S372)
 
 Track Q2 of PR #118's follow-up (branch `claude/warehouse-binds-q2`, the orchestrator's words of 2026-11-19 on parts
-A, B, B' and option (2)). The defect, on main and #118 alike: the warehouse's JDBC client refused every bound parameter,
-so `//spec:corpus_warehouse_verdict` (manual) lost 41 relational-corpus cases.
+A, B, B', option (2) and items 1 to 5). The defect, on main and #118 alike: the warehouse's JDBC client refused every
+bound parameter, so `//spec:corpus_warehouse_verdict` (manual) lost 41 relational-corpus cases.
 
 - **A, the client:** `WhStatement` carries a prepared statement's values (`setString`, `setObject`, `setNull`,
-  `clearParameters`) as the SQL API's `parameters`, bound by the server, never written into the text. The five values
-  the warehouse binds, each as DuckDB's own driver binds the same Java value; any other class, a non-finite double and an
-  unset index refused by name. `ApiJson` wrote a whole double as its digits (2.0 as 2), which bound as BIGINT: it writes
-  a double's own token now.
-- **B, B', the describe:** a describe reports the statement's parameter count (`duckdb_nparams`; written only when
-  set, so no recorded exchange changes) for `getParameterMetaData`; DuckDB's placeholder column (C-API type 0, a result
-  typed only once its values are bound) is named `UNKNOWN` and admitted by the describe's encoder alone, reported as
-  DuckDB's own driver does (`Carriers.signed` named the unsigned types: UNKNOWN is signed). The native image's metadata
-  is unchanged (no new call shape).
-- **Option (2), the load:** exec's file load binds the runner's copy's path, which the warehouse's DuckDB (locked to its
-  own import folder) cannot read: `JdbcStatements.readsFile` refuses it by name on a session another driver of DuckDB
-  reaches (`DatabaseConnector.readsRunnerFiles`, by the driver's name). Row S371 (upstream loads over the connection);
-  an H2 server is its named residual.
-- **Measured:** `//warehouse:tests` green (17 driver-level parameter cases, differential against DuckDB's own driver);
-  the warehouse lane 40 of 41 recovered, `meta::relational::tests::loadCsv::testLoadCsv` LOST by the S371 refusal --
-  the lane stays red on it until the user rules its expected failure (the lane has no roster of its own, spec/corpus.bzl
-  `golden = False`). The lane's wall clock on a 4-core container: 589 s, 555 s and 524 s (the native image built once,
-  about 2 minutes); its heap peaks at about 1 GB before a collection with 233 to 446 MB live, at `memory_mb` 1024 and at
-  2048 alike, so 1024 holds.
-- **`//gates:local` on the merged tree (b75d6c73a merged in):** 557 pass; `//core:census` red on one line, the fixture
-  write census's pin for `WarehouseJdbcParametersTest.java` (6) and its ceiling 951 -> 957, waiting for the user's word;
-  the twelve Postgres targets refuse root in this container (`initdb refuses root`) and pass under
-  `tools/postgres/as_unprivileged.sh` on the same tree; `//spec:corpus_warehouse_verdict` LOST 1 as above.
+  `clearParameters`) as the SQL API's `parameters`, bound by the server, never written into the text. It binds the five
+  values the warehouse takes, each as DuckDB's own driver binds the same Java value. Any other class, a non-finite
+  double and an unset index are refused by name. `ApiJson` wrote a whole double as its digits (2.0 as 2), which bound
+  as BIGINT: it writes a double's own token now.
+- **B, B', the describe:** a describe reports the statement's parameter count (`duckdb_nparams`) for
+  `getParameterMetaData`. It is written only when set, so no recorded exchange changes. DuckDB's placeholder column is
+  C-API type 0, a result typed only once its values are bound. It is named `UNKNOWN`, admitted by the describe's
+  encoder alone, and reported as DuckDB's own driver does (`Carriers.signed` names the unsigned types, so UNKNOWN is
+  signed). The native image's metadata is unchanged (no new call shape).
+- **Item 1, the census:** the fixture-write census pins `WarehouseJdbcParametersTest.java` (6); its ceiling moved 951 ->
+  957, with a dated note (approved by the orchestrator under the user's delegation).
+- **Items 2 and 3, the load (row S372, proposed 2026-11-19 by the orchestrator, the user's ruling pending):** a file
+  load's database reads the runner's copy (`Delivery.Reads`, its path bound). A database on a server reads its own
+  machine's files, so the load is refused by name at both ends, nothing sent:
+  - **At planning,** for a run whose target the caller says runs on a server (`ExecuteOptions.withTargetOnAServer`,
+    `PlanningOptions.targetReadsRunnerFiles`, set by the warehouse lane's backend in `MinimalCorpus.targetOf`).
+  - **At the run,** on a session made as a server's (`Sessions.Reach`, said where the session is made; never read off
+    its driver). Option (2)'s first cut read the driver's name; that is deleted, and an H2 server, its named residual,
+    is now refused like any other server.
+  - The upload that would reach a server waits on the user's rulings in `docs/records/warehouse-upload-design-2026-11-19.md`
+    (U4, U3, U1).
+- **The guards that moved with it (approved by the orchestrator under the user's delegation, 2026-11-19, dated notes):**
+  - ArchitectureTest's `PLANNER_ENTRIES_ONLY`: the `PlanningOptions` constructor row gains its `boolean`, and
+    `PlanningOptions#withTargetOnAServer()` is a new row, called by `ExecuteOptions`.
+  - PlannerSurfaceTest's root-door map gains `ExecuteOptions#withTargetOnAServer()`.
+  - `PRODUCT_BORROWS_NO_CONNECTION` names `Sessions.borrowed(Connection, Reach)` by its signature, with its planted
+    reference, so the guard keeps seeing.
+- **Item 4, the TypeScript client:** it bound a whole Float as `2`. Now an Integer is a bigint (as Java's Long) and a
+  Float is a number, and the warehouse encoder writes a number parameter as a double's token. The sqlapi corpus's
+  scenario 15 (`[2.0, -0.0, 7]`) is replayed green by the Java binding, the TS driver and Python's driver.
+- **Measured:** `//warehouse:tests` and `//warehouse:tests_native` are green (17 driver-level parameter cases,
+  differential against DuckDB's own driver). `//spec:corpus_warehouse_verdict` is GREEN:
+  - The 40 cases are recovered.
+  - `meta::relational::tests::loadCsv::testLoadCsv` is the lane's one expected refusal,
+    `rcorpus/warehouse-accepted-roster.txt` (bucket `by-design:a-server-reads-no-runner-file(S372)`), which
+    `MinimalCorpusTest.ownAccepted` reads beside DuckDB's accepted rows. 47 are accepted.
+  - The lane's wall clock on a 4-core container is 524 to 589 s, and 768 s with its rebuilds. Its heap peaks at about
+    1 GB before a collection, with 233 to 446 MB live, at `memory_mb` 1024 and at 2048 alike, so 1024 holds.
+- **Item 5, the lane per push: NOT added; the minutes are for the user.** The warehouse lane on main's #118 run takes:
+  - Linux 9.3 minutes (native images 5.1 + tests 4.0), Linux arm 10.7, Windows 13.6, macOS 14.8.
+  - On a cache miss (any core change), the corpus pass adds 7.5 to 8.5 minutes, plus core and spec building in a lane
+    that does not build spec today. That takes Linux from about 9 to about 17 minutes, so it does not fit with margin.
+- **`//gates:local` on 4103e3308:** 558 pass, 1 skipped (`//tools/guards:classpath_test`, arm64 only), 12 fail. The
+  12 are the Postgres targets (eleven in `//core`, plus `//datacube:verify_app_test`), each on `initdb refuses root` in
+  this root container. `//core:census`, `//core:census_edge`, `//core:guardrails` and `//core:guardrails_edge` pass.
+  The Postgres rerun under `tools/postgres/as_unprivileged.sh` was stopped by the pause of 2026-11-19 (~13:40 UTC, the
+  user's word relayed by the orchestrator) before it reported, so it is still to run on this tree. Those targets
+  passed under the wrapper on the item-3 code.
