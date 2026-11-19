@@ -2748,3 +2748,5 @@ who confirms or changes phases 1-3.
   PureV1SqlTextTest merge (fixed) and the H2 roster's firstDayOfWeek (now accepted). Now running: the fast loop and the
   touched lanes; then one full measurement on the head. B1-R corrected its ratchet note (elements, not models). B2 sent
   the merged numbers.
+- **~21:02 UTC, the parser memo at `6c4509e0c`** (the planted OOM test; parser_parity 164.0 s, 47 testcases): sent to
+  the reviewer for a quick re-check; the judges merge the new head into the batch before the full measurement.
