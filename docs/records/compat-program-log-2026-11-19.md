@@ -704,3 +704,13 @@ who confirms or changes phases 1-3.
   3. Lite's Arrow metadata keys have one source (`com.legend.result.ArrowKeys`), product keys only. The edge's keys
      (`legend.builder`, `legend.activities`, `legend.columns`) are left to this program: an edge-side holder with its
      own generated output, a note for B1-R's ENGINE host pieces.
+- **~12:46 UTC, two deep pieces started** (the user: "Anything we need to do deeply in next 15 min before token
+  reset?"):
+  - **the independent reviewer's checkpoint re-check:** the plain-English design and plan, the checkpoint, and every
+    phase-0 record (H5 to H8, H11), judged against its own F1-F13: what is still open, what the "what we lose" table
+    misses, each stage-A step's proof, and the strongest case against D1 and D2;
+  - **H13, a new session** (`session_0195rQEoAgK9WB7AM5Cowp2f`, `claude/compat-error-records-spike`): the third
+    unproven joint, error records (kind, place, literal operands) worded after the run, through the three hosts. The
+    check: PCT's and pure/v1's pinned messages byte-identical or listed.
+  - With H10 (the appeal's move), H11 (relation text, passed its interim) and H12 (the combined stage-A dry run),
+    every unproven joint of the design now has a prototype or a measurement running.
