@@ -700,3 +700,51 @@ report it before the setups). It meets no lane: no corpus FAIL line carries the 
 are all `assertSize`/`assertNotEmpty`.
 
 `RelationCountAsserts.REFUSED` stays, called directly by the test planner, as lite's own refusal.
+
+### 9.10 Under the user's rules of record (2026-11-19 ~15:20, `docs/records/compat-rules-of-record-2026-11-19.md` on `claude/compat-program`)
+
+Rule 4: "Host judge is only judge in compatibility, database and host both in product with carve out that host is
+allowed to compare."
+
+**2.2a is rule 4's deletion,** the plan's A4, and its pieces stand as H6 §7.3 lists them:
+- the database halves of the judge two-forms and their edge forms;
+- `VerdictSql`'s and `DatabaseJudge`'s compatibility arms;
+- `AssertVerdicts.textFirst`'s ruled branch and `VerdictQueries`' null-word parameter;
+- the database judge's appeal paths;
+- `IsolatedRun`'s `messages` flag;
+- PCT's compatibility runs set to HOST on every lane.
+
+Its size is unchanged: **3.5 days**.
+
+**Where H10's designs assumed a compatibility database judge, and what changes:**
+
+1. **`JudgeRun.wordsAlike()` and `Hearing.rowAppealed`** were kept on the spike "by sequence" (§1 stub 6). Under
+   rule 4 neither exists in the end state:
+   - `wordsAlike` only differed for a compatibility run judged by both;
+   - `rowAppealed` is the compatibility database judge's appeal.
+
+   2.2a deletes them, as before. The end-state `Hearing` is `listener`, `present`, `caughtMessage`, `judged`, `json`,
+   `renderedTexts`, `print` (B2's `Printed`, §9.6), `writing`, `decide`, `afterFailure`, and `wordsName` until 1.2.
+2. **The edge presenter's `Unjudged` case** (`EdgeHostWords.unjudged`) goes. An UNJUDGED verdict row is the database
+   judge's (`DatabaseVerdicts.verdictOf`), and no database judge runs in compatibility. Lite's presenter keeps it: the
+   product runs both judges.
+3. **The database judge's word sites,** `DatabaseVerdicts.verdictOf` and `AssertRuns.judgedRowAtItsStep`, are only
+   ever reached in the product. Their hearing is always the product's. They stay as built, since the one word
+   question costs nothing, but no compatibility presenter is reachable from them.
+4. **The check's settings:** COMPAT/BOTH stops being a configuration. 2.2b's check is COMPAT/HOST, plus LITE/HOST and
+   LITE/BOTH (the product's two judges), plus both corpus lanes (host-only already).
+5. **H13's database-judge binding** (§9.8's note, a planned failure's words bound at the verdict under the
+   compatibility database judge) is not needed.
+6. **§9.6's "1.3 needs 2.2a first"** now holds by rule, not only by measurement. The order 2.2a, 2.2b, 1.3 stands.
+7. **The size words (§9.4) and the corpus door (§9.8)** are host-side and unaffected.
+
+**Rules 1-3 against the designs.**
+- **`Printed`'s product answer** (§9.6: lite refuses a relation's `toString` by name) is the product gap the rules
+  name as not this program's.
+- **The edge's `print`** works from lite's typed rows, as rule 3 requires.
+- **The host judge's inline comparisons** (`Equality`, the records' facts) are rule 4's carve-out ("host is allowed
+  to compare").
+- **The door rewrites** are input rewrites into lite functions, which compute nothing.
+
+**Sizes:** 2.2a **3.5** (unchanged). 2.2b **≈ 4.25** (was ≈ 4.5): the edge's `Unjudged` wording and the COMPAT/BOTH
+check setting drop out. `rowAppealed` and `wordsAlike` were already 2.2a's.
