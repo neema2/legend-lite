@@ -1,0 +1,7 @@
+import json, sys
+sys.argv = ['x', sys.argv[1], sys.argv[2], sys.argv[3]]
+exec(open('native_answer_bench.py').read().split("out['per_n'] = {}")[0])
+for label, rows in [('ts 1', '[{"region":"E","desk":"d","notional":1}]'), ('py 1.0', '[{"region":"E","desk":"d","notional":1.0}]'),
+                    ('ts 1e-7', '[{"region":"E","desk":"d","notional":1e-7}]'), ('py 1e-07', '[{"region":"E","desk":"d","notional":1e-07}]')]:
+    a = engine.call('lite_execute_json_answer', plan_text, rows)
+    print(label, '->', a[a.index('"rows"'):][:80] if '"rows"' in a else a[:200])

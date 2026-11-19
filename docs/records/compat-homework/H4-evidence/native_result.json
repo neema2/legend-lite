@@ -1,0 +1,51 @@
+{
+ "sizes": {
+  "engine": 90443312,
+  "product": 83889712
+ },
+ "product_isolate_ms": 5.2,
+ "engine_isolate_ms": 3.1,
+ "first_plan_ms": 149.2,
+ "per_n": {
+  "100": {
+   "rows_text_bytes": 5219,
+   "answer_bytes": 4263,
+   "host_encode_ms": 0.04,
+   "java_present_ms": 0.42,
+   "py_present_ms": 0.05,
+   "java_per_row_us": 4.57,
+   "py_per_row_us": 0.55,
+   "answer_head": "OK\n200\napplication/json\n{\"builder\": {\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"re"
+  },
+  "1000": {
+   "rows_text_bytes": 54153,
+   "answer_bytes": 39697,
+   "host_encode_ms": 0.36,
+   "java_present_ms": 2.39,
+   "py_present_ms": 0.5,
+   "java_per_row_us": 2.75,
+   "py_per_row_us": 0.5,
+   "answer_head": "OK\n200\napplication/json\n{\"builder\": {\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"re"
+  },
+  "10000": {
+   "rows_text_bytes": 561487,
+   "answer_bytes": 412031,
+   "host_encode_ms": 3.71,
+   "java_present_ms": 28.06,
+   "py_present_ms": 5.56,
+   "java_per_row_us": 3.18,
+   "py_per_row_us": 0.56,
+   "answer_head": "OK\n200\napplication/json\n{\"builder\": {\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"re"
+  },
+  "100000": {
+   "rows_text_bytes": 5814821,
+   "answer_bytes": 4315365,
+   "host_encode_ms": 39.73,
+   "java_present_ms": 460.81,
+   "py_present_ms": 72.1,
+   "java_per_row_us": 5.01,
+   "py_per_row_us": 0.72,
+   "answer_head": "OK\n200\napplication/json\n{\"builder\": {\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"re"
+  }
+ }
+}

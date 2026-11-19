@@ -1,0 +1,61 @@
+{
+ "sizes": {
+  "engine_planner": {
+   "raw": 9336548,
+   "gzip": 3530280,
+   "runtimeJs": 34487
+  },
+  "planner": {
+   "raw": 8976670,
+   "gzip": 3382160,
+   "runtimeJs": 34487
+  }
+ },
+ "coldLoadMs": {
+  "planner": 198.64686400000005,
+  "engine_planner": 176.715242
+ },
+ "firstPlanMs": 388.73006900000007,
+ "perN": {
+  "100": {
+   "rowsTextBytes": 5219,
+   "answerBytes": 4263,
+   "hostEncodeMs": 0.01,
+   "javaPresentMs": 0.65,
+   "tsPresentMs": 0.02,
+   "javaPerRowUs": 6.62,
+   "tsPerRowUs": 0.2,
+   "answerHead": "OK\n200\napplication/json\n{\"builder\": {\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"re"
+  },
+  "1000": {
+   "rowsTextBytes": 54153,
+   "answerBytes": 39697,
+   "hostEncodeMs": 0.1,
+   "javaPresentMs": 4.51,
+   "tsPresentMs": 0.14,
+   "javaPerRowUs": 4.61,
+   "tsPerRowUs": 0.14,
+   "answerHead": "OK\n200\napplication/json\n{\"builder\": {\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"re"
+  },
+  "10000": {
+   "rowsTextBytes": 561487,
+   "answerBytes": 412031,
+   "hostEncodeMs": 1.47,
+   "javaPresentMs": 51.93,
+   "tsPresentMs": 1.67,
+   "javaPerRowUs": 5.34,
+   "tsPerRowUs": 0.17,
+   "answerHead": "OK\n200\napplication/json\n{\"builder\": {\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"re"
+  },
+  "100000": {
+   "rowsTextBytes": 5814821,
+   "answerBytes": 4315365,
+   "hostEncodeMs": 13.65,
+   "javaPresentMs": 577.88,
+   "tsPresentMs": 24.35,
+   "javaPerRowUs": 5.92,
+   "tsPerRowUs": 0.24,
+   "answerHead": "OK\n200\napplication/json\n{\"builder\": {\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"re"
+  }
+ }
+}

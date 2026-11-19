@@ -1,0 +1,31 @@
+"""H4: Python's own lite query/run JSON writer as it is (engine.py _lite_cell's str and float arms, the repo's
+pure-Python _json.dumps), per row, for the same three-column rows. Run: python3 -I py_lite_writer_bench.py <repo>"""
+import importlib.util, statistics, sys, time
+from decimal import Decimal
+spec = importlib.util.spec_from_file_location('_json', sys.argv[1] + '/python/legend_lite/_json.py')
+_json = importlib.util.module_from_spec(spec); spec.loader.exec_module(_json)
+
+def carried(value):  # engine.py _carried_float, verbatim in effect
+    shortest = repr(float(value)) if isinstance(value, float) else str(value)
+    if isinstance(value, float) and 'e' not in shortest and 'E' not in shortest:
+        return Decimal(shortest)
+    plain = format(Decimal(shortest).normalize(), 'f')
+    return Decimal(plain if '.' in plain else plain + '.0')
+
+def cell(c):  # engine.py _lite_cell's arms for these cells
+    if c is None or isinstance(c, (bool, str)):
+        return c
+    if isinstance(c, float):
+        return carried(c)
+    return c
+
+for n in (100, 1000, 10000, 100000):
+    rows = [['EMEA' if i % 2 else 'APAC', f'desk-{i}', 1.5 * (i + 1) + 0.25] for i in range(n)]
+    def write():
+        return _json.dumps({'shape': 'RELATION', 'columns': [{'name': 'region', 'type': 'String'}],
+                            'rows': [[cell(x) for x in r] for r in rows]})
+    write(); ts = []
+    for _ in range(5 if n >= 100000 else 11):
+        t0 = time.perf_counter(); write(); ts.append((time.perf_counter() - t0) * 1000)
+    m = statistics.median(ts)
+    print(n, round(m, 2), 'ms', round(m * 1000 / n, 2), 'us/row')

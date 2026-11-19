@@ -1,0 +1,89 @@
+"""H4 measurement: Python handing rows to Java (the native image) to present legend-engine's JSON answer, against
+Python writing the same envelope itself. Uses the engine library's existing answer half (lite_execute_json_answer
+over HostRows), the one Java presenter Python already calls after exec.
+Run: python3 -I native_answer_bench.py <libcompiler_engine.so> <libcompiler.so> <model.pure>"""
+import ctypes
+import json
+import os
+import statistics
+import sys
+import time
+
+engine_path, product_path, model_path = sys.argv[1:4]
+MODEL = open(model_path, encoding='utf-8').read()
+QUERY = "|#>{trades::DB.TRADES}#->select(~[region, desk, notional])"
+
+
+class Lib:
+    def __init__(self, path):
+        t0 = time.perf_counter()
+        self.lib = ctypes.CDLL(path)
+        lib = self.lib
+        lib.graal_create_isolate.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_void_p)]
+        lib.lite_free.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        lib.lite_free.restype = None
+        self.isolate, self.thread = ctypes.c_void_p(), ctypes.c_void_p()
+        assert lib.graal_create_isolate(None, ctypes.byref(self.isolate), ctypes.byref(self.thread)) == 0
+        self.load_ms = (time.perf_counter() - t0) * 1000
+
+    def call(self, name, *args):
+        f = getattr(self.lib, name)
+        f.argtypes = [ctypes.c_void_p] + [ctypes.c_char_p] * len(args)
+        f.restype = ctypes.c_void_p
+        p = f(self.thread, *[a.encode('utf-8') for a in args])
+        try:
+            return ctypes.string_at(p).decode('utf-8')
+        finally:
+            self.lib.lite_free(self.thread, p)
+
+
+def ok_body(folded):
+    assert folded.startswith('OK\n200\n'), folded[:400]
+    return folded[folded.index('\n', len('OK\n200\n')) + 1:]
+
+
+def median_ms(f, reps):
+    f()
+    ts = []
+    for _ in range(reps):
+        t0 = time.perf_counter()
+        f()
+        ts.append((time.perf_counter() - t0) * 1000)
+    return statistics.median(ts)
+
+
+out = {'sizes': {'engine': os.path.getsize(engine_path), 'product': os.path.getsize(product_path)}}
+product = Lib(product_path)
+out['product_isolate_ms'] = round(product.load_ms, 1)
+engine = Lib(engine_path)
+out['engine_isolate_ms'] = round(engine.load_ms, 1)
+t0 = time.perf_counter()
+lam = ok_body(engine.call('lite_pure_v1', '/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', QUERY))
+inp = json.dumps({'clientVersion': 'vX_X_X', 'context': {'_type': 'BaseExecutionContext'}, 'function': json.loads(lam),
+                  'model': {'_type': 'text', 'code': MODEL}, 'runtime': {'runtime': 'trades::RT'}})
+plan_text = ok_body(engine.call('lite_execute_json_plan', inp, json.dumps([MODEL])))
+out['first_plan_ms'] = round((time.perf_counter() - t0) * 1000, 1)
+plan = json.loads(plan_text)
+
+
+def py_tds(objs):
+    cols = ['region', 'desk', 'notional']
+    return json.dumps({'builder': plan.get('builder'), 'activities': [],
+                       'result': {'columns': cols, 'rows': [{'values': [r[c] for c in cols]} for r in objs]}},
+                      separators=(',', ':'))
+
+
+out['per_n'] = {}
+for n in (100, 1000, 10000, 100000):
+    objs = [{'region': 'EMEA' if i % 2 else 'APAC', 'desk': f'desk-{i}', 'notional': 1.5 * (i + 1) + 0.25} for i in range(n)]
+    reps = 5 if n >= 100000 else 11 if n >= 10000 else 31
+    enc = median_ms(lambda: json.dumps(objs, separators=(',', ':')), reps)
+    rows_text = json.dumps(objs, separators=(',', ':'))
+    java = median_ms(lambda: engine.call('lite_execute_json_answer', plan_text, rows_text), reps)
+    answer = engine.call('lite_execute_json_answer', plan_text, rows_text)
+    py = median_ms(lambda: py_tds(objs), reps)
+    out['per_n'][n] = {'rows_text_bytes': len(rows_text), 'answer_bytes': len(answer), 'host_encode_ms': round(enc, 2),
+                       'java_present_ms': round(java, 2), 'py_present_ms': round(py, 2),
+                       'java_per_row_us': round((java + enc) * 1000 / n, 2), 'py_per_row_us': round(py * 1000 / n, 2),
+                       'answer_head': answer[:80]}
+print(json.dumps(out, indent=1))

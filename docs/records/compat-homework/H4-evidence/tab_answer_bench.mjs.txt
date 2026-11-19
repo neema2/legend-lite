@@ -1,0 +1,95 @@
+// H4 measurement: what does it cost the tab to have Java (the TeaVM module) present an answer over rows the tab's
+// database read, against a TypeScript presenter writing the same envelope? Uses the engine module's existing answer
+// half (executeJsonAnswerOrError: legend-engine's TDS JSON over HostRows), the one Java presenter the tab already
+// calls after exec. Run: node --experimental-wasm-exnref tab_answer_bench.mjs <engine_planner dir> <planner dir>
+import { readFileSync, statSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
+import { performance } from 'node:perf_hooks';
+
+const [engineDir, plannerDir] = process.argv.slice(2);
+const MODEL = readFileSync(new URL('./model.pure', import.meta.url), 'utf8');
+const QUERY = "|#>{trades::DB.TRADES}#->select(~[region, desk, notional])";
+const CONTEXT = { clientVersion: 'vX_X_X', context: { _type: 'BaseExecutionContext' } };
+
+function sizes(dir) {
+  const bytes = readFileSync(`${dir}/classes.wasm`);
+  return { raw: bytes.length, gzip: gzipSync(bytes, { level: 9 }).length, runtimeJs: statSync(`${dir}/wasm-gc-module-runtime.js`).size };
+}
+
+async function load(dir) {
+  const t0 = performance.now();
+  const { load } = await import(`${dir}/wasm-gc-module-runtime.js`);
+  const teavm = await load(`${dir}/classes.wasm`, {
+    stackDeobfuscator: { enabled: false },
+    installImports(o) {
+      o.teavmConsole = o.teavmConsole || {};
+      o.teavmConsole.putcharStdout = () => {};
+      o.teavmConsole.putcharStderr = () => {};
+    },
+  });
+  return { teavm, ms: performance.now() - t0 };
+}
+
+const okBody = (folded) => {
+  if (!folded.startsWith('OK\n200\n')) throw new Error(folded.slice(0, 400));
+  return folded.slice(folded.indexOf('\n', 'OK\n200\n'.length) + 1);
+};
+
+const rows = (n) => Array.from({ length: n }, (_, i) => ({ region: i % 2 ? 'EMEA' : 'APAC', desk: `desk-${i}`, notional: 1.5 * (i + 1) + 0.25 }));
+
+// the same TDS envelope written in TypeScript (a per-language presenter's cost): builder + result.columns + rows as arrays
+function tsTds(plan, objs) {
+  const columns = ['region', 'desk', 'notional'];
+  return JSON.stringify({
+    builder: plan.builder,
+    activities: plan.activities ?? [],
+    result: { columns, rows: objs.map((r) => ({ values: columns.map((c) => r[c]) })) },
+  });
+}
+
+function time(f, reps) {
+  f(); // warm
+  const t = [];
+  for (let i = 0; i < reps; i++) {
+    const t0 = performance.now();
+    f();
+    t.push(performance.now() - t0);
+  }
+  t.sort((a, b) => a - b);
+  return t[Math.floor(t.length / 2)];
+}
+
+const out = { sizes: { engine_planner: sizes(engineDir), planner: sizes(plannerDir) } };
+const planner = await load(plannerDir);
+out.coldLoadMs = { planner: planner.ms };
+const engine = await load(engineDir);
+out.coldLoadMs.engine_planner = engine.ms;
+const ask = (e, ...a) => engine.teavm.exports[e](...a);
+
+const t0 = performance.now();
+const lambda = okBody(ask('pureV1OrError', '/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', QUERY));
+const input = JSON.stringify({ ...CONTEXT, function: JSON.parse(lambda), model: { _type: 'text', code: MODEL }, runtime: { runtime: 'trades::RT' } });
+const planText = okBody(ask('executeJsonPlanOrError', input, JSON.stringify([MODEL])));
+out.firstPlanMs = performance.now() - t0;
+const plan = JSON.parse(planText);
+
+out.perN = {};
+for (const n of [100, 1000, 10000, 100000]) {
+  const objs = rows(n);
+  const reps = n >= 100000 ? 5 : n >= 10000 ? 11 : 31;
+  // the host's half: its rows encoded as the JSON text the module reads (HostRows)
+  const encodeMs = time(() => JSON.stringify(objs), reps);
+  const rowsText = JSON.stringify(objs);
+  // A: Java presents (TeaVM): the rows text in, legend-engine's answer text out
+  const javaMs = time(() => ask('executeJsonAnswerOrError', planText, rowsText), reps);
+  const javaAnswer = ask('executeJsonAnswerOrError', planText, rowsText);
+  // B: TypeScript presents the same envelope from the rows it holds
+  const tsMs = time(() => tsTds(plan, objs), reps);
+  out.perN[n] = {
+    rowsTextBytes: rowsText.length, answerBytes: javaAnswer.length,
+    hostEncodeMs: +encodeMs.toFixed(2), javaPresentMs: +javaMs.toFixed(2), tsPresentMs: +tsMs.toFixed(2),
+    javaPerRowUs: +((javaMs + encodeMs) * 1000 / n).toFixed(2), tsPerRowUs: +(tsMs * 1000 / n).toFixed(2),
+    answerHead: javaAnswer.slice(0, 80),
+  };
+}
+console.log(JSON.stringify(out, null, 1));
