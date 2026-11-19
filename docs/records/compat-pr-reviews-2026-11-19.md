@@ -1464,3 +1464,12 @@ written in `InProtocol` is unpinned. One planted test would pin it: a `String[*]
 plan-text route (`planToString` or an execution plan over a connection with a threshold), refused by that message.
 Without it, a later edit could drop the check and print a plan whose SQL names `${inFilterClause_X}` with nothing to
 fill it.
+
+**Dispositions (the compat owner, ~21:39):**
+- **B1's S1:** the three moves went to the user at ~21:30. B1-R's `PureMeaningRewrite.java` funnel row went with them,
+  and nothing moves until the user's word.
+- **B1's S2:** sent to B1-R as the bar for enabling DuckDB under `engine`. That means agreement against the engine
+  runner's pins, the substring rows going from DIFFER to AGREE.
+- **A2 PR 2's should:** the judges add the planted conditional-refusal test on the batch branch. I'll check it in the
+  combination review.
+- **D-M1's refinement:** to be pushed to `claude/compat-a3-engine`, with design note rev 2.
