@@ -1,0 +1,109 @@
+import com.legend.tools.meaning.ClassFiles;
+import com.legend.tools.meaning.ClassFiles.ClassFile;
+import com.legend.tools.meaning.ClassFiles.Insn;
+import com.legend.tools.meaning.ClassFiles.Method;
+import com.legend.tools.meaning.ClassFiles.Ref;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+/**
+ * H8 (a), addendum (the independent review's strand, 2026-11-19): upstream's execution Feature flags inside the core,
+ * read from the bytecode of //core:product_jars (com/legend/edge/ counted apart, as the EDGE).
+ *
+ *   java -cp bazel-bin/tools/meaning/libcensus.jar H8a2_Features.java bazel-bin/core/product_jars.jars
+ *
+ * Counts: classes naming com/legend/platform/Feature; each member's loads (getstatic) and where; calls of the
+ * withFeatures setters, of FeatureRules.select / requireConsumed, and of a features() reader; reads of the Lowerer's
+ * legacyNullUnsafeEquals and features fields; generic signatures carrying Feature (Set<Feature> parameters, fields,
+ * returns: a class's distinct signature strings, so an upper bound on neither side).
+ */
+public class H8a2_Features {
+    static final String F = "com/legend/platform/Feature";
+
+    public static void main(String[] args) throws Exception {
+        List<Path> jars = new ArrayList<>();
+        for (String list : args) {
+            for (String l : Files.readAllLines(Path.of(list))) {
+                if (!l.isBlank()) {
+                    jars.add(Path.of("bazel-bin", l.strip().replaceFirst("^_main/", "")));
+                }
+            }
+        }
+        Map<String, ClassFile> all = ClassFiles.ofJars(jars);
+        for (boolean edge : new boolean[] {false, true}) {
+            System.out.println("== " + (edge ? "EDGE (com/legend/edge/)" : "PRODUCT (outside com/legend/edge/)"));
+            TreeSet<String> naming = new TreeSet<>();
+            TreeMap<String, TreeMap<String, Integer>> loads = new TreeMap<>();
+            TreeMap<String, Integer> calls = new TreeMap<>();
+            TreeMap<String, Integer> fieldReads = new TreeMap<>();
+            TreeMap<String, Integer> sigs = new TreeMap<>();
+            for (ClassFile c : all.values()) {
+                if (c.name().startsWith("com/legend/edge/") != edge || c.name().equals(F) || c.name().startsWith(F + "$")) {
+                    continue;
+                }
+                boolean names = false;
+                int sig = 0;
+                for (String s : c.utf8s()) {
+                    if (s.equals(F) || s.contains("L" + F + ";")) {
+                        names = true;
+                    }
+                    if (s.contains("<L" + F + ";>") || s.contains("<+L" + F + ";>")) {
+                        sig++;
+                    }
+                }
+                if (names) {
+                    naming.add(c.name());
+                }
+                if (sig > 0) {
+                    sigs.put(c.name(), sig);
+                }
+                for (Method m : c.methods()) {
+                    for (Insn in : m.code()) {
+                        if (in.op() == 0xb2) {
+                            Ref r = c.ref(in.operand());
+                            if (r.owner().equals(F)) {
+                                loads.computeIfAbsent(r.name(), k -> new TreeMap<>())
+                                        .merge(c.name() + "#" + m.name() + ":" + m.lineAt(in.pc()), 1, Integer::sum);
+                            }
+                        }
+                        if (in.op() == 0xb4) {
+                            Ref r = c.ref(in.operand());
+                            if (r.owner().equals("com/legend/lowering/Lowerer")
+                                    && (r.name().equals("legacyNullUnsafeEquals") || r.name().equals("features"))) {
+                                fieldReads.merge(r.name() + " in " + m.name() + ":" + m.lineAt(in.pc()), 1, Integer::sum);
+                            }
+                        }
+                        if (in.op() >= 0xb6 && in.op() <= 0xb9) {
+                            Ref r = c.ref(in.operand());
+                            boolean setter = r.name().equals("withFeatures");
+                            boolean rules = r.owner().equals("com/legend/lowering/FeatureRules");
+                            boolean reader = r.name().equals("features") || r.name().equals("featuresOf")
+                                    || r.name().equals("contextFeatures");
+                            if (setter || rules || reader) {
+                                calls.merge(r.owner().substring(r.owner().lastIndexOf('/') + 1) + "." + r.name(), 1,
+                                        Integer::sum);
+                            }
+                        }
+                    }
+                }
+            }
+            System.out.println("  classes naming Feature: " + naming.size());
+            System.out.println("  " + naming);
+            int nloads = loads.values().stream().mapToInt(m -> m.values().stream().mapToInt(Integer::intValue).sum()).sum();
+            System.out.println("  member loads: " + nloads);
+            loads.forEach((k, v) -> System.out.println("    " + k + " (" + v.values().stream().mapToInt(Integer::intValue).sum()
+                    + "): " + v.keySet()));
+            System.out.println("  calls (setters, readers, FeatureRules): "
+                    + calls.values().stream().mapToInt(Integer::intValue).sum() + " " + calls);
+            System.out.println("  Lowerer field reads: " + fieldReads.values().stream().mapToInt(Integer::intValue).sum()
+                    + " " + fieldReads.keySet());
+            System.out.println("  generic signatures carrying Feature: "
+                    + sigs.values().stream().mapToInt(Integer::intValue).sum() + " in " + sigs.size() + " classes " + sigs);
+        }
+    }
+}

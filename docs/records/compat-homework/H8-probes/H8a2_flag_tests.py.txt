@@ -1,0 +1,27 @@
+"""H8 (a) addendum, census B2, 2026-11-19: upstream's relational tests that turn on an execution Feature flag.
+
+For each .pure file under legend-engine's relational store that names a Feature member, list each <<test.Test>>
+function whose body names one, with the members it names. Run: python3 -I H8a2_flag_tests.py <engine root>
+"""
+import pathlib, re, sys
+
+root = pathlib.Path(sys.argv[1])
+members = ["LEGACY_SQL_NULL_UNSAFE_EQUALS", "CORRECT_SQL_SUBSTRING_INDEXING", "PUSH_DOWN_ENUM_TRANSFORM",
+           "USE_DB_NATIVE_IMPLICIT_NULL_ORDERING", "VARIANT_TYPE_AS_INPUT"]
+head = re.compile(r"function\s+(<<[^>]*>>\s*)?(\{[^}]*\}\s*)?([\w:]+)\s*\(")
+for p in sorted(root.rglob("*.pure")):
+    if "/target/" in str(p):
+        continue
+    text = p.read_text(errors="replace")
+    if not any("Feature." + m in text for m in members):
+        continue
+    pkg = None
+    # split into functions by their heads
+    heads = [(m.start(), m.group(1) or "", m.group(3)) for m in head.finditer(text)]
+    for i, (pos, stereo, name) in enumerate(heads):
+        end = heads[i + 1][0] if i + 1 < len(heads) else len(text)
+        body = text[pos:end]
+        named = [m for m in members if "Feature." + m in body]
+        if named:
+            kind = "TEST" if "test.Test" in stereo or "Test" in stereo else "fn"
+            print(f"{kind}\t{name}\t{','.join(named)}\t{p.relative_to(root)}")

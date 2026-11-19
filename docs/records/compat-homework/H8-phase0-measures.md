@@ -5,8 +5,9 @@ The compatibility program's slice 0.4 (plan r5, `docs/records/compat-program-pla
 probe in `H8-probes/`. The measurements are at `main` `b75d6c73a`, or at `claude/census-b2`, whose product equals it
 (the branch differs from main only in `tools/meaning`, `tools/guards`, `gates`, docs and visibility lines).
 
-Items: (a) the strand map, (c) legend-engine's unchecked operations, (d) the strands' doors, (e) CP-4's remaining cost,
-(h) H2 without `MODE=LEGACY`, (j) CP-5's cost. Item (b) is F1 (`docs/records/census-b2-sqltext-probe-2026-11-19.md`).
+Items: (a) the strand map (with (a.3), the `Feature` flags, plan r6), (c) legend-engine's unchecked operations, (d) the
+strands' doors, (e) CP-4's remaining cost, (h) H2 without `MODE=LEGACY`, (j) CP-5's cost, (k) E-R2 against the corpus
+(plan r6). Item (b) is F1 (`docs/records/census-b2-sqltext-probe-2026-11-19.md`).
 B1 takes (f), (g) and (i).
 
 No pin, ceiling, ledger or allowlist moves in this slice.
@@ -127,6 +128,72 @@ product equals `b75d6c73a`, with the user's rulings applied (record:
 Every other row's hook, its file and the behaviour §3 describes are confirmed. The classes and slices are the plan's
 own; the code supports each where it states a fact (S where the executed form already equals the product's; R0, P or
 J where it differs).
+
+### (a.3) A strand the map missed: upstream's `Feature` flags inside the core
+
+The independent review's addition (plan r6, `af6d5a9a`, §3's new row; class "a mode by another name", slice 3.2: the
+translator's input, or not supported, under CP-12). Probe: `H8a2_Features.java.txt` over `//core:product_jars` and
+`//core:edge`'s `libedge.jar` (output `H8a2-out.txt`); upstream's carriers by `H8a2_flag_tests.py.txt`
+(`H8a2-flag-tests.tsv`).
+
+**The strand.** `platform/Feature` mirrors legend-engine's `meta::pure::executionPlan::features::Feature` member for
+member (5 members; spec's `FeatureFlagParityTest` holds them equal). The core consumes it at lowering:
+- `Lowerer.withFeatures` (`lowering/Lowerer.java:230-236`) checks each flag has a consumer
+  (`FeatureRules.requireConsumed`) and keeps the set.
+- **`LEGACY_SQL_NULL_UNSAFE_EQUALS` switches the core's equality.** It sets `legacyNullUnsafeEquals`, which picks
+  `NullSemantics.verbatim` (plain `=` for `IS NOT DISTINCT FROM`) at the 6 scalar sites: `aroundReducer:2288`,
+  `overReducers:2312`, `windowScalar:3532`, `scalarValueTailArms:4339` and `:4347`, `formatted:4495`.
+- **`CORRECT_SQL_SUBSTRING_INDEXING` switches `substring`.** `FeatureRules.select` swaps in `CORRECTED_SUBSTRING`
+  (Pure's 0-based, end-exclusive indexes to SQL's 1-based start and length) for the `substring` overloads
+  (`FeatureRules.java:77`), through `Scalars.lower`'s `features` argument at the same 6 sites.
+- `PUSH_DOWN_ENUM_TRANSFORM` is a documented no-op in the product; its one consumer is the edge's plan text
+  (`EnginePlans.engineSql:190`, `planToString:402`, `pushDownEnums:1008`).
+- `VARIANT_TYPE_AS_INPUT` and `USE_DB_NATIVE_IMPLICIT_NULL_ORDERING` have no consumer. Either one, when set, is refused
+  by name ("feature flag ... is not implemented by the platform").
+
+**Its carriers, all in the product:**
+- an execute call's `ExecutionOptionContext` (`ExecutionContext.withOptions`, `ContextReading.contextFeatures`);
+- a `withFeatureFlags` call in the query body (`ExecutionContext.treeFeatures`);
+- a runner's defaults (`ExecuteOptions.withFeatures`, `PlanningOptions.withFeatures`);
+- the product's own doors: `TypedQuery.executionPlan(runtime, features)` (`TypedQuery.java:223`) and `Execution.run(...,
+  features, ...)` (`Execution.java:65`, `:77`).
+
+So unlike the `PlanStyle` strands, a product query reaches it with no style at all.
+
+**The ratchet's start** (bytecode, 2026-11-19, at the product of `b75d6c73a`):
+
+| Measure | Product (outside `com/legend/edge/`) | Edge |
+|---|---:|---:|
+| Classes naming `Feature` | 20 | 1 (`EnginePlans`) |
+| Loads of a member (`getstatic`) | 4: `LEGACY_SQL_NULL_UNSAFE_EQUALS` 2 (`FeatureRules.<clinit>:45`, `Lowerer.withFeatures:233`), `CORRECT_SQL_SUBSTRING_INDEXING` 1 (`FeatureRules.<clinit>:77`), `PUSH_DOWN_ENUM_TRANSFORM` 1 (`FeatureRules.<clinit>:45`) | 3, all `PUSH_DOWN_ENUM_TRANSFORM` |
+| Calls of the setters, readers and `FeatureRules` | 28: `ProgramState.features` 11, `PlanningOptions.features` 3, `BodyPlanner.featuresOf` 2, `Lowerer.withFeatures` 2, `PlanEnv.features` 2, and 1 each of `ContextReading.contextFeatures`, `ExecutionContext.features`, `ExecutionContext.withFeatures`, `FeatureRules.requireConsumed`, `FeatureRules.select`, `FeatureRules.under`, `PlanEnv.withFeatures`, `PlanningOptions.withFeatures` | 8 |
+| Reads of the Lowerer's two flag fields | 12: `legacyNullUnsafeEquals` 6, `features` 6 | 0 |
+| Generic signatures carrying `Feature` (`Set<Feature>` parameters, fields, returns; distinct strings per class) | 62 in 17 classes (`ProductStatements` 7; `ExecutionContext`, `PlanEnv`, `PlanMaker`, `TestDoor` 5 each; ...) | 1 |
+
+The probe's raw call total is 30; 2 of those are `RelationalConnectionComposer.features`, a same-named helper
+unrelated to flags, and are left out of the 28.
+
+**Who turns a flag on** (the strand's doors, beside item (d)):
+- **PCT A and PCT B, always:** `CORRECT_SQL_SUBSTRING_INDEXING` on every query (`pct/.../PctPlanRoute.java:46`,
+  `channelb/ChannelB.java:392`), as legend-engine's testable runner does.
+- **The corpus, per test.** The test's own carriers decide. Upstream's tree has 8 tests that set one; the 7 in the
+  corpus's root are:
+
+  | Test | Flag | H2 | DuckDB |
+  |---|---|---|---|
+  | `legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals` | `LEGACY_SQL_NULL_UNSAFE_EQUALS` | PASS | PASS |
+  | `legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector` | `LEGACY_SQL_NULL_UNSAFE_EQUALS` | FAIL | FAIL |
+  | `executionPlan::tests::testSubstringIndexingCorrectedByFeatureFlag` | `CORRECT_SQL_SUBSTRING_INDEXING` | PASS | PASS |
+  | `enumPushDown::testPushDownProject` | `PUSH_DOWN_ENUM_TRANSFORM` | PASS | PASS |
+  | `enumPushDown::testPushDownProjectWithParameter` | `PUSH_DOWN_ENUM_TRANSFORM` | FAIL | PASS |
+  | `sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionExeCtxFlag` and `...OrPrecedence` | `USE_DB_NATIVE_IMPLICIT_NULL_ORDERING` | FAIL (refused by name) | FAIL |
+
+  The eighth, Databricks' `testUseDbNativeImplicitNullOrderingWithFeatureFlagsAtQuerySurface`, is outside the
+  corpus's root. The verdicts are from the committed host ledgers (`spec/src/test/resources/edge/corpus_*_host_judge-host.tsv`).
+- **pure/v1 and the product's `Execution.run`:** whatever flags the query's own context carries.
+- **Inside legend-engine itself:** its SQL protocol's `queryToPure::getPlan` sets `LEGACY_SQL_NULL_UNSAFE_EQUALS`, and
+  its mapping-less `executionPlan` sets `PUSH_DOWN_ENUM_TRANSFORM` (`H8a2-flag-tests.tsv`'s `fn` rows). Lite's
+  `protocol/sql` sets no flag.
 
 ## (c) legend-engine's unchecked operations (its raise class A), per database
 

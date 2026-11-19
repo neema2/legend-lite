@@ -1,0 +1,18 @@
+== PRODUCT (outside com/legend/edge/)
+  classes naming Feature: 20
+  [com/legend/ExecuteOptions, com/legend/Execution, com/legend/TypedQuery, com/legend/compiler/element/type/PlatformTypes, com/legend/compiler/spec/typed/ContextReading, com/legend/compiler/spec/typed/ExecutionContext, com/legend/lowering/FeatureRules, com/legend/lowering/Lowerer, com/legend/lowering/RegistryKeys, com/legend/lowering/Scalars, com/legend/planner/BodyPlanner, com/legend/planner/PlanEnv, com/legend/planner/PlanMaker, com/legend/planner/ProductStatements, com/legend/planner/ProgramState, com/legend/platform/Implementation$Intrinsic, com/legend/platform/ImplementationTable, com/legend/platform/Registrations, com/legend/testplan/PlanningOptions, com/legend/testplan/TestDoor]
+  member loads: 4
+    CORRECT_SQL_SUBSTRING_INDEXING (1): [com/legend/lowering/FeatureRules#<clinit>:77]
+    LEGACY_SQL_NULL_UNSAFE_EQUALS (2): [com/legend/lowering/FeatureRules#<clinit>:45, com/legend/lowering/Lowerer#withFeatures:233]
+    PUSH_DOWN_ENUM_TRANSFORM (1): [com/legend/lowering/FeatureRules#<clinit>:45]
+  calls (setters, readers, FeatureRules): 30 {BodyPlanner.featuresOf=2, ContextReading.contextFeatures=1, ExecutionContext.features=1, ExecutionContext.withFeatures=1, FeatureRules.requireConsumed=1, FeatureRules.select=1, FeatureRules.under=1, Lowerer.withFeatures=2, PlanEnv.features=2, PlanEnv.withFeatures=1, PlanningOptions.features=3, PlanningOptions.withFeatures=1, ProgramState.features=11, RelationalConnectionComposer.features=2}
+  Lowerer field reads: 12 [features in aroundReducer:2288, features in formatted:4496, features in overReducers:2312, features in scalarValueTailArms:4341, features in scalarValueTailArms:4348, features in windowScalar:3532, legacyNullUnsafeEquals in aroundReducer:2288, legacyNullUnsafeEquals in formatted:4495, legacyNullUnsafeEquals in overReducers:2312, legacyNullUnsafeEquals in scalarValueTailArms:4339, legacyNullUnsafeEquals in scalarValueTailArms:4347, legacyNullUnsafeEquals in windowScalar:3532]
+  generic signatures carrying Feature: 62 in 17 classes {com/legend/ExecuteOptions=3, com/legend/Execution=3, com/legend/TypedQuery=4, com/legend/compiler/spec/typed/ContextReading=4, com/legend/compiler/spec/typed/ExecutionContext=5, com/legend/lowering/FeatureRules=3, com/legend/lowering/Lowerer=2, com/legend/lowering/Scalars=2, com/legend/planner/BodyPlanner=2, com/legend/planner/PlanEnv=5, com/legend/planner/PlanMaker=5, com/legend/planner/ProductStatements=7, com/legend/planner/ProgramState=3, com/legend/platform/Implementation$Intrinsic=3, com/legend/platform/ImplementationTable=2, com/legend/testplan/PlanningOptions=4, com/legend/testplan/TestDoor=5}
+== EDGE (com/legend/edge/)
+  classes naming Feature: 1
+  [com/legend/edge/EnginePlans]
+  member loads: 3
+    PUSH_DOWN_ENUM_TRANSFORM (3): [com/legend/edge/EnginePlans#engineSql:190, com/legend/edge/EnginePlans#planToString:402, com/legend/edge/EnginePlans#pushDownEnums:1008]
+  calls (setters, readers, FeatureRules): 8 {BodyPlanner.featuresOf=3, ExecutionContext.features=2, Lowerer.withFeatures=1, PlanEnv.features=1, PlanEnv.withFeatures=1}
+  Lowerer field reads: 0 []
+  generic signatures carrying Feature: 1 in 1 classes {com/legend/edge/EnginePlans=1}
