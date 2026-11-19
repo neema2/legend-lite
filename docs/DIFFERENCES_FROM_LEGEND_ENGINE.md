@@ -99,14 +99,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
 - **Why:** Pure defines these operations to raise. PCT, legend-pure's own suite, expects the error for the first five
   rows.
-- **For `x / 0`** PCT has no test, but legend-pure raises in both of its modes (legend-pure 5.99.0, read and run):
-  - **compiled**, the mode legend-engine runs Pure in, checks the divisor and raises "Cannot divide 0 by zero"
-    (`CompiledSupport.java:1481-1486`);
-  - **interpreted** has no check. An Integer divided by the Integer 0 is a double division, `Infinity`, and making
-    that a Pure Float fails with Java's `NumberFormatException` (`NumericAccumulator.java:1562-1565` and
-    `:1156-1161`, `ModelRepository.java:547-550`). With a Float or Decimal operand the division is a `BigDecimal`
-    one, and Java raises "Division by zero" (`NumericAccumulator.java:895`);
-  - lite raises its own division-by-zero error.
+- **For `x / 0`** PCT has no test, and legend-pure 5.99.0 raises for every zero divisor. Compiled legend-pure, the
+  mode legend-engine runs Pure in and the one compatibility follows (S127), raises "Cannot divide 0 by zero"
+  (`CompiledSupport.java:1481-1486`). The interpreter has no check of its own and fails on Java's arithmetic instead:
+  with a Float or Decimal operand, `BigDecimal` raises "Division by zero" (`NumericAccumulator.java:893-896`); an
+  Integer over the Integer 0 gives `Infinity` (`:1562-1565`, then `:1156-1161`), which `Divide.java:56` cannot make a
+  Pure Float (a `NumberFormatException`, `ModelRepository.java:547-550`). lite raises its own division-by-zero error.
 - **When:** stage B.
 - **Measured:** H8 (j), (j.3), (j.4). legend-engine's DuckDB divide answer is its own (B1-R's oracle); lite's DuckDB
   server route was not run. DuckDB 1.5.6 answers the unchecked divide with `Infinity`, so only the guard matches
@@ -224,8 +222,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **lite answers the Monday** on every database, whatever the locale.
 - **Ruled:** by the user on 2026-09-05, as a legend-engine defect ("quarantine/bucket those as engine bugs"), and the
   accepted divergence confirmed on 2026-09-08 (`docs/GATES.md`, batches 67b and 144).
-- **When:** today. From 2026-09-21 until A2 the corpus test passed on its SQL text alone. Since A2 its rows are
-  compared again.
+- **When:** with this batch (A5's H2 fix in #127; before it lite's H2 followed the locale too). From 2026-09-21 until
+  A2 the corpus test passed on its SQL text alone; since A2 its rows are compared again.
 - **Measured:**
   - The corpus's `testToSqlGenerationFirstDayOfWeek` on DuckDB (class b of `A2-roster.tsv`). Its rows were appealed
     against legend-engine's H2 under `en_US`: `2014-11-30` there, `2014-12-01` from lite.
@@ -259,6 +257,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - H2 also answers `sqrt(-1.0)` with NaN and wraps a 63-bit shift. Pure has no NaN, so no query can reproduce that,
     and lite does not write shifts on H2 at all.
   - **Measured:** B1-R's lane; H8 (j.4).
+- **`weekOfYear` and `dateDiff(..., DurationUnit.WEEKS)` on H2 follow the Java locale.** lite writes H2's
+  `extract(WEEK ...)` and `DATEDIFF(WEEK, ...)`, and H2 starts their week on the locale's first day: Sunday
+  2014-11-30 is week 49 under `en_US` and week 48 under `en_GB`.
+  - lite's tests pin `en_US` (`tools/junit/defs.bzl:52-54`). The product server (`//core:server`) pins no locale, so
+    it answers by its machine's.
+  - A defect, for the product track. Measured: `first-day-of-week-probe.md` (item 13).
 - **Not supported yet:**
   - legend-engine's mapping test suites and service tests;
   - cross-store queries;
