@@ -1239,3 +1239,6 @@ who confirms or changes phases 1-3.
   (the pivot count, "Pure's null, by the user's 13:25 ruling"); S373-S377 unused. **Asked (13:50):** the user's 13:25
   ruling here named the goal, D1 and D2, not the pivot count; if S379 is derived from the goal, it still goes to the
   user case by case.
+- **~13:35 UTC, the product orchestrator on S379:** the user had not ruled the pivot count case; it is now posted to
+  the user case by case (the expression; Pure's `applyPivot` null; legend-engine's database 0; lite's), recommending
+  (a). S379 reads "proposed, under the goal of ~13:25; the user's ruling of this case pending"; nothing lands before.
