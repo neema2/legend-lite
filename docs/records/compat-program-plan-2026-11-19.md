@@ -1,6 +1,6 @@
 # The compatibility program: the re-cut plan (2026-11-19)
 
-**Status: r5, RATIFIED to start (phase 0) on 2026-11-19 ~04:50 UTC; phases 1-3 are confirmed at the phase-0 checkpoint.**
+**Status: r5, RATIFIED to start (phase 0) on 2026-11-19 ~10:45 UTC; phases 1-3 are confirmed at the phase-0 checkpoint.**
 - **r1** (`71aa0fc7`) was reviewed by B1's lead (2026-11-19 ~04:08 UTC).
 - **r2** recorded the user's first rulings and revised CP-5.
 - **r3** folds in B1's review: the strand map corrected; the judges split before 1.3; 2.3 widened by the appeal stack and
@@ -799,7 +799,7 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
 - **~04:30 UTC:** "Switch e-r1", so CP-3 is E-R2. The user also ruled that the SQL-text appeal is kept: "We definitively
   should not delete the fallback that checks answers when SQL doesn't match right? That's one of the crown jewels of
   this project".
-- **~04:50 UTC:** "yes to 1-5 and the independent review, do as much homework, research, measurements right now up
+- **~10:45 UTC:** "yes to 1-5 and the independent review, do as much homework, research, measurements right now up
   front as possible and write down all the learning/outcomes/details immediately". The five were this session's start
   list, so these are RULED:
   1. CP-1, the architecture: translator in, formatters out, no modes in lite's core;
