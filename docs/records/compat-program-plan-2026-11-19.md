@@ -1,10 +1,12 @@
 # The compatibility program: the re-cut plan (2026-11-19)
 
-**Status: r3, for the user's ratification.**
+**Status: r4, for the user's ratification.**
 - **r1** (`71aa0fc7`) was reviewed by B1's lead (2026-11-19 ~04:08 UTC).
 - **r2** recorded the user's first rulings and revised CP-5.
 - **r3** folds in B1's review: the strand map corrected; the judges split before 1.3; 2.3 widened by the appeal stack and
-  executed DDL; sizes corrected. Owner: the compatibility session
+  executed DDL; sizes corrected.
+- **r4** folds in B1's review of r2: what "feeds" means; prints inside returned structures; Floats in
+  database-written JSON; CP-5's cost counted in 0.4 (j); the print passes deleted in 1.3. Owner: the compatibility session
 (`session_0195rQEoSpv1FxC3WndEk5ZH`), handed the program by the previous orchestrator
 (`docs/records/compat-program-handoff-2026-11-19.md` on `origin/claude/refactor-code-quality-review-9fqhug`). Branch
 `claude/compat-program`. Nothing here moves a pin, a ceiling, a ledger or an allowlist. Each guard move it names waits
@@ -258,8 +260,19 @@ cherry-picked; S1m is not carried, and S1's deletions are re-done in 1.2).
 - (e) **CP-4's cost, split three ways** (B1's review): tests that pass by ASSERTED legend-engine text; tests that pass
   through an APPEAL (the referee replaying the golden statement); and programs that EXECUTE generated text (`toDDL`,
   `setUpDataSQLs` passed to `executeInDb`). B2 is measuring (b) now.
-- (f) **Composed prints:** of H2's 8 COMPOSED and 14 FEEDS query-side sites in PCT and the corpus, which print a
-  Float, a Decimal or a DateTime. 1.3 refuses those under CP-5, so the count is listed before 1.3 lands.
+- (f) **The prints, by position and by use:**
+  - of H2's 98 BARE query-side sites, how many sit at the literal root (`x->toString()` returned) and how many inside
+    a returned structure (`map(x|$x->toString())`, `extend(~s: ...)`, a Pair, `^C(s = ...)`);
+  - of the 8 COMPOSED and 14 FEEDS sites, which print a Float, a Decimal or a DateTime and have their CONTENT read
+    (1.3's rule). Those are refused under CP-5, so the count is listed before 1.3 lands.
+- (i) **Floats inside database-written JSON:** whether each dialect's JSON writer (serialize, graph fetch) keeps a
+  Float's round-trip digits. If one rounds, no formatter can recover them, and the fix is a product correctness fix
+  (lite writes JSON floats round-trip), not a special function.
+- (j) **CP-5's honest cost** (B1's review): PCT channel A as ENGINE on H2 and DuckDB, plus pure/v1, run with S20's
+  bare-DECIMAL literal and `LoweringForms.raise`'s plain set switched off. The 3.4 guard rewrites
+  (`if($x < 0, |[], |sqrt($x))`) are counted where they apply. The result is "N answers that match legend-engine
+  today would stop matching", by case. It goes to the user before 3.6 deletes either. Today pure/v1's
+  `raise.sqrtOfNegative` answers 200 with a null, as legend-engine does, through that plain set.
 - (g) **G7 over the net:** the computed-operand raises PCT and the corpus reach. Deleting `PureMessages.sentence` in
   1.2 changes each one under A3. `InterimEdgeSitesTest` pins 4 in its own set: rem by a column, rem by 0, sqrt of a
   cast literal, at by a column.
@@ -351,21 +364,32 @@ error record the translator's refusals are worded through.
     over typed rows;
   - the edge's door rewrites a root `toString` (or `toCSV`) into "answer the value; present it as text";
   - a judge side's print is the compatibility host judge's (rule 9);
-  - a print that FEEDS a further computation inside the query, or is COMPOSED into a returned text (H2's
-    RETURNED-COMPOSED: no presenter can re-spell an inner value from the outer string), is refused by name where its
-    type's text differs (CP-5); 0.4 (f) lists them first; H2 counted it: 0 upstream sites over Float, Decimal or dates; 14 over Integer or an enum, which R0
+  - **the presented positions:** a print at the literal root, and a print inside a returned structure (a mapped
+    list's elements, an extended column, a Pair's side, a property of a new instance). The translator rewrites the
+    print to the value plus an instruction naming its position. The presenter prints there and changes that
+    position's declared type in the envelope (a TDS column's `Float` becomes `String`, and its `relationalType` with
+    it);
+  - **"feeds" means the text's CONTENT is read:**
+    - operations that read it: compare, concatenate, `joinStrings` or `makeString` over prints, `length`, sort, group,
+      `distinct`, join keys, filter;
+    - operations that only carry it do not feed: select, rename, limit, slice, drop, a `let` passed to the root, a
+      union of like prints;
+  - a print whose content is read, or which is COMPOSED into a returned text (no presenter can re-spell an inner
+    value from the outer string), is refused by name where its type's text differs (CP-5); 0.4 (f) lists them first; H2 counted it: 0 upstream sites over Float, Decimal or dates; 14 over Integer or an enum, which R0
     covers;
   - a Pair is its JSON object in LITE and `<a, b>` in PURE and ENGINE (R5). The prelude's print bodies stay (the
     2026-11-19 ruling); 1.3 checks whether LITE ever reaches one.
 - **Deletes:** `RelationTextLowering` (791), `EdgePureOnlyTexts` (136), `PureListTexts` (49), `PureDateTimePrint`
-  (43), `EdgeDateTimeTexts` (28), the print half of `PurePrintForms` (about 150 of 184); facets `RelationTexts`,
-  `PureOnlyTexts`; two-forms `DateTimeTexts`, `ListTexts`. Q5 (`toCSV`'s DateTime) and Q6 (`%r` and a newline) are
+  (43), `EdgeDateTimeTexts` (28), the print half of `PurePrintForms` (about 150 of 184), `PureText.floatToText`, the
+  print spelling passes and MongoDB's `dateTimeFormat`; facets `RelationTexts`, `PureOnlyTexts`; two-forms
+  `DateTimeTexts`, `ListTexts`. Their last other users are the compatibility database judge's messages, which 2.2
+  deletes first. Q5 (`toCSV`'s DateTime) and Q6 (`%r` and a newline) are
   fixed in Java as part of it.
 - **Check:** PCT channels A and B in PURE move only toward PCT's expected values; `EdgeCasesGoldenTest` (EDGE-1's
   Float values, EDGE-2, EDGE-3) re-pinned to upstream's answers; the corpus rosters unchanged; every refused feeding
   case listed (expected: none in PCT or the corpus beyond H2's 14 Integer and enum sites).
 - **Guards:** G1 (text-producing MIR built by the edge) shrinks; the census's M3 rows for these hooks leave (a).
-- **Size:** 4 days.
+- **Size:** 4 days if most BARE prints sit at the literal root; up to 6 if many are nested (0.4 (f) decides).
 - **Depends on:** 1.1, 2.2, 0.4 (f). **Owner:** B1.
 
 **1.4 Envelopes.**
@@ -643,12 +667,11 @@ user's question "is this a sneaky way to have two sql paths").
     K6's cases, one by one);
   - where they cannot, lite answers Pure's way, as a register row (E-R1's defect rule, CP-3). Example: Float
     arithmetic as exact decimals on H2 and DuckDB (S9, S20);
-  - text built inside a query and then used, over a type whose text differs, is refused by name (X). H2 counted 0
-    such sites over Float, Decimal or dates in PCT and the corpus.
+  - text built inside a query whose CONTENT is then read (1.3's rule), over a type whose text differs, is refused by
+    name (X). H2 counted 0 such sites over Float, Decimal or dates in PCT and the corpus.
 - **Deletes:** the special-purpose machinery these rows have today:
   - S20's bare-DECIMAL literal (`SqlDialect.floatLiteralKind`'s edge use, `PureText.floatLiteralKind`);
-  - `LoweringForms.raise`'s plain set (B7);
-  - `PureText.floatToText` and the print spelling passes;
+  - `LoweringForms.raise`'s plain set (B7), each class-A raise first given its 3.4 guard rewrite where one exists;
   - two-form `TestDataPlanner.Printing` and `ExecuteOptions.withEngineCompat`, moved to a presenter. 20:10-R2's
     "for now" spellings are revisited there.
 - **Check:** every lane change listed with its reason; the PURE lanes may move only toward PCT's expected values,
@@ -656,7 +679,7 @@ user's question "is this a sneaky way to have two sql paths").
 - **Guards:** `NativeCatalogGovernanceTest`'s verified sets do not grow. A future special function needs the user's
   word, case by case, with its measured gain.
 - **Size:** 1.5 days.
-- **Depends on:** CP-5, 1.3, 3.5. **Owner:** the translator session.
+- **Depends on:** CP-5, 0.4 (j), 1.3, 3.5. **Owner:** the translator session.
 
 **3.7 PURE's direct entry** (the user's 2026-11-18 19:45 ruling "planning mode/direct entry for now").
 - **Changes:** one Java door, `edge.PureEntry`, that runs the PURE translator and the PURE presenter over a model and
@@ -802,15 +825,18 @@ words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to
   - **For:** one vocabulary and one SQL path, with nothing in the core that exists only for upstream. H2 says real
     upstream programs essentially never need these: 0 sites print a Float, Decimal or date and then compute with the
     text. The demand came from PCT's unit tests, which the formatter covers.
-  - **Against:** the quirks that ordinary functions cannot reproduce are not matched (Float arithmetic as exact
-    decimals on H2 and DuckDB), each a register row. Many others can be (`sqrt(-2.0)` answering null is
-    `if($x < 0, |[], |sqrt($x))`). S20's bare-DECIMAL literal (built
+  - **Against:** answers that match legend-engine today through S20's bare-DECIMAL literal (Float arithmetic as
+    exact decimals on H2 and DuckDB) or the plain set (an unchecked operation answering null) stop matching where no
+    ordinary-function rewrite reproduces them. Each is a register row, and the lanes move away from legend-engine
+    there. **The count comes from 0.4 (j), by case, before anything is deleted.** Many can be rewritten
+    (`sqrt(-2.0)` answering null is `if($x < 0, |[], |sqrt($x))`). S20's bare-DECIMAL literal (built
     2026-11-17) is deleted.
 - **Option B, a short pinned list.** Each special function is one SQL node and one meaning, called only by the
   translator, approved one by one.
   - **For:** those quirks are matched exactly.
   - **Against:** it is a second vocabulary that exists only for upstream: the user's "two SQL paths" by the back
-    door, and a list that tends to grow.
+    door, and a list that tends to grow. S20's literal kind (a dialect property) and B7's plain set (a lowering
+    choice) are the same thing in another form.
 - **Either way:** the four that would switch a product optimisation off (K7, K10, K12, K16) are never built.
 
 **CP-6. The typed facts the result must carry.** *Gates 1.1.*
@@ -840,8 +866,9 @@ worry or even support older database versions".
   - lite never emulates them, and an answer that differs only for that reason is not chased (`cell.float`'s 8
     digits, O5; a Decimal division's scale, S141, whose K15 is dropped; legend-engine's H2 UDFs);
   - one blanket register row records the ruling, so the upstream-fidelity tenet holds without a row per case;
-  - `DatabaseSettingsForm`'s `MODE=LEGACY` half is deleted (3.4). Null placement (S368) is a sort rule, not a
-    version, so it stays an R0 rewrite.
+  - `DatabaseSettingsForm` is deleted (3.2). Lite's own sorts already stamp Pure's null placement, so S368 needs no
+    rewrite. `DEFAULT_NULL_ORDERING=HIGH` changes only raw `executeInDb` SQL a program authored, which no rewrite can
+    reach: a register row, unless 0.4 (h) shows material moves (then the target's settings become data, 3.2).
 
 **CP-9. (d′) The per-push lanes.**
 - **Add to every push:** the edge net, the ENGINE PCT lane (DuckDB's 5 suites and H2's relation suite), the SQLite
