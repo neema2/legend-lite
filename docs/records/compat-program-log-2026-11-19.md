@@ -2207,3 +2207,17 @@ who confirms or changes phases 1-3.
   comparison, legend-pure "never equal". PCT and `//gates:local` green but the moved guards (rosters, registers, the
   verdict ledger's appeal passes 990 → 985, the fix's `SqlFnSortedTest` pin); `//core:corpus_differential_test` green.
   For the meaning decision after stage A, with these numbers.
+- **~17:57 UTC, A5: PR #127 open** (`claude/compat-judges-parity` at `3cb787902`; it crossed this session's batch
+  message). Kept open as A5's review and CI evidence; it folds into stage A's batch PR and closes then. Lane times: the
+  DuckDB channel-B lanes 240.0 → 247.4 s with (b1) (+3.1%), the other 23 lanes 376.1 → 360.9 s; none past 10% beyond its
+  spread; Postgres ×5 green including `testAdjustByMinutesBigNumber`. Local gate at `f13e73c28`: 12 of its own failures
+  fixed and re-run, 14 the container's (green re-run). New moves for the user's word: the lean-SQL baseline (27 DuckDB
+  families' plan JSON +19 characters per statement, `SET threads TO 1`, +0.121%, statements and SQL unchanged) and one
+  allowlist entry (`CodeShapeGuardrailTest` gains `RootLoops.rejected`). **Why 462 of 1,249 fail under lite's rules**
+  (#127's section): a relation's `toString` 423 (refused by name today; the open table-text decision); legend-pure's
+  error words 16 (lite's own words; B1 words legend-pure's at the edge); the product's ruled Float and DateTime texts 7
+  (S311, S312); 1-based `indexOf`/`substring` 7 (R4, the product not yet Pure's way; A3); a date past DuckDB's range 4;
+  `format`'s `%r`/`%05d` and an instance's `toString` 3 (refused by name, the edge's); `acos`/`asin` out of domain 2
+  (NaN, S119). Separate findings: H2 echoes the statement in its error text (4 COMPAT channel-B rows); the compiler's
+  Integer folds (`NormalizeFolds.fold`, `StaticFold`) sit inside the user's fold ruling; MariaDB and MySQL channel-B
+  lanes red on `main` already (Q3, Q3b).
