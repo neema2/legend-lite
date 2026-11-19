@@ -42,7 +42,10 @@ legend_java_library(
     name = "runner",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
-    srcs = glob(["src/main/java/**/*.java"], exclude = ["src/main/java/perf/TokenDump.java"]),
+    srcs = glob(["src/main/java/**/*.java"], exclude = [
+        "src/main/java/perf/TokenDump.java",
+        "src/main/java/planoracle/**",
+    ]),
     # legend-engine's jars are testonly (MODULE.bazel), so this is: a test tool, never shipped; `bazel run` still works
     testonly = True,
     runtime_deps = _RUNNER_RUNTIME,
@@ -121,6 +124,384 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+)
+
+# THE PLAN ORACLE (slice R of the presentation program, 2026-11-18; docs/records/engine-oracle-pure-v1-2026-11-18.md):
+# legend-engine 4.145.0 asked for upstream's answers -- its generatePlan for a pure/v1 request (the plans S9's import
+# census reads) and its PlanExecutor over a GIVEN plan's JSON (the oracle S8's export is compared against) -- as its
+# server's routes answer them. TEST TOOLING: legend-engine only, not core, so a core change never reruns it.
+legend_java_library(
+    name = "planoracle",
+    srcs = glob(["src/main/java/planoracle/*.java"]),
+    testonly = True,
+    # the runner's whole jar set, core left out: test-runner-service is what brings DuckDB's grammar and Pure (a
+    # DuckDB connection does not parse without them)
+    runtime_deps = _RUNNER_RUNTIME + [d for d in _RUNNER_DEPS if d not in _RUNNER_RUNTIME],
+    deps = [
+        "@maven_runner//:com_fasterxml_jackson_core_jackson_core",
+        "@maven_runner//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven_runner//:org_eclipse_collections_eclipse_collections_api",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_executionPlan_execution",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_executionPlan_generation",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_identity_core",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_modelManager",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_protocol_pure",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_pure_code_compiled_core",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_pure_code_core_extension",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_pure_platform_dsl_store_java",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_shared_core",
+        "@maven_runner//:org_finos_legend_pure_legend_pure_m2_dsl_mapping_pure",
+        "@maven_runner//:org_finos_legend_pure_legend_pure_m3_core",
+    ],
+)
+
+# the oracle's comparison: legend-engine's answers written as the net writes lite's, by lite's own JSON library
+legend_java_library(
+    name = "planoracle_compare",
+    srcs = glob(["src/main/java/planoracle/compare/*.java"]),
+    testonly = True,
+    deps = ["//json"],
+)
+
+# THE ENGINE LANE's table (H7, slice 0.3): each PCT test the lane ran as legend-engine's audience joined with
+# legend-engine's manifest and classified; //pct:engine_lane_* runs it (the PCT module holds no comparison machinery)
+legend_java_library(
+    name = "enginelane",
+    srcs = glob(["src/main/java/com/legend/tools/enginelane/*.java"]),
+    testonly = True,
+    visibility = ["//pct:__pkg__"],
+    deps = ["//json"],
+)
+
+# legend-engine's Arrow memory reads java.nio's internals
+_ORACLE_JVM = ["--add-opens=java.base/java.nio=ALL-UNNAMED"]
+
+# bazel run //tools/engine-runner:plan -- <request.json> <out.json>: legend-engine's generatePlan answer for a pure/v1
+# request body; bazel run //tools/engine-runner:execute_plan -- <plan.json> <out> [<parameterValues.json>]: a given
+# plan's JSON run by legend-engine's PlanExecutor, the answer's bytes as pure/v1's execute route sends them
+[legend_java_binary(
+    name = name,
+    testonly = True,
+    # legend-engine's planning holds its compiled Pure: about 3 GB (docs/result-boundary-homework/README.md section 7)
+    jvm_flags = _ORACLE_JVM + ["-Xmx3g"],
+    main_class = "planoracle." + main,
+    runtime_deps = [":planoracle"],
+) for (name, main) in [
+    ("plan", "PlanMain"),
+    ("execute_plan", "ExecutePlanMain"),
+]]
+
+# THE SHARED DUCKDB: one file seeded once from the seed the pure/v1 goldens' H2 model carries (its LocalH2
+# testDataSetupSqls, read by legend-engine's parser), by legend-engine's DuckDB 1.3.0.0, the oldest of its readers; and
+# that model with its connection pointed at the file (${DUCKDB_PATH}, a reader's copy)
+java_run(
+    name = "trades_duckdb",
+    testonly = True,
+    srcs = [
+        "//core:src/test/resources/upstream-api/trades-h2.pure",
+        "src/test/resources/pure_v1/duckdb-connection.pure",
+    ],
+    outs = [
+        "pure_v1/trades.duckdb",
+        "pure_v1/trades-duckdb.pure",
+        "pure_v1/trades_seed.json",
+    ],
+    arguments = [
+        "--model=$(execpath //core:src/test/resources/upstream-api/trades-h2.pure)",
+        "--connection=$(execpath src/test/resources/pure_v1/duckdb-connection.pure)",
+        "--db={OUT_DIR}/trades.duckdb",
+        "--model-out={OUT_DIR}/trades-duckdb.pure",
+        "--statements-out={OUT_DIR}/trades_seed.json",
+    ],
+    jvm_flags = _ORACLE_JVM,
+    main_class = "planoracle.SeedDuckDbMain",
+    memory_mb = 4096,
+    mnemonic = "EngineOracleSeed",
+    tags = ["manual"],
+    deps = [":planoracle"],
+)
+
+# the pure/v1 golden requests (the net's own list, core's edge/pure_v1_requests.tsv, which PureV1EdgeGoldenTest reads
+# too) through legend-engine: planned, the plan's JSON run, on the goldens' H2 model and on the shared DuckDB
+java_run(
+    name = "engine_pure_v1_h2",
+    testonly = True,
+    srcs = [
+        "//core:src/test/resources/edge/pure_v1_requests.tsv",
+        "//core:src/test/resources/upstream-api/trades-h2.pure",
+    ],
+    outs = ["pure_v1/h2/engine.jsonl"],
+    arguments = [
+        "--requests=$(execpath //core:src/test/resources/edge/pure_v1_requests.tsv)",
+        "--model=$(execpath //core:src/test/resources/upstream-api/trades-h2.pure)",
+        "--out={OUT}",
+    ],
+    jvm_flags = _ORACLE_JVM,
+    main_class = "planoracle.GoldenRunMain",
+    memory_mb = 4096,
+    mnemonic = "EngineOracle",
+    tags = ["manual"],
+    deps = [":planoracle"],
+)
+
+java_run(
+    name = "engine_pure_v1_duckdb",
+    testonly = True,
+    srcs = [
+        "//core:src/test/resources/edge/pure_v1_requests.tsv",
+        ":pure_v1/trades-duckdb.pure",
+        ":pure_v1/trades.duckdb",
+    ],
+    outs = ["pure_v1/duckdb/engine.jsonl"],
+    arguments = [
+        "--requests=$(execpath //core:src/test/resources/edge/pure_v1_requests.tsv)",
+        "--model=$(execpath :pure_v1/trades-duckdb.pure)",
+        "--duckdb=$(execpath :pure_v1/trades.duckdb)",
+        "--out={OUT}",
+    ],
+    jvm_flags = _ORACLE_JVM,
+    main_class = "planoracle.GoldenRunMain",
+    memory_mb = 4096,
+    mnemonic = "EngineOracle",
+    tags = ["manual"],
+    deps = [":planoracle"],
+)
+
+# legend-engine's answers in the net's line form, its answers and its plan text apart as the net keeps lite's (#123);
+# on H2, each golden line of both files set against legend-engine's
+java_run(
+    name = "engine_pure_v1_h2_compare",
+    testonly = True,
+    srcs = [
+        ":pure_v1/h2/engine.jsonl",
+        "//core:src/test/resources/edge/pure_v1_answers.tsv",
+        "//core:src/test/resources/edge/pure_v1_plan_text.tsv",
+    ],
+    outs = [
+        "pure_v1/h2/answers.tsv",
+        "pure_v1/h2/plan_text.tsv",
+        "pure_v1/h2/differences.tsv",
+    ],
+    arguments = [
+        "--engine=$(execpath :pure_v1/h2/engine.jsonl)",
+        "--answers-out={OUT_DIR}/answers.tsv",
+        "--plan-text-out={OUT_DIR}/plan_text.tsv",
+        "--golden=$(execpath //core:src/test/resources/edge/pure_v1_answers.tsv)",
+        "--golden-plan-text=$(execpath //core:src/test/resources/edge/pure_v1_plan_text.tsv)",
+        "--differences-out={OUT_DIR}/differences.tsv",
+    ],
+    main_class = "planoracle.compare.GoldenCompareMain",
+    mnemonic = "EngineOracleCompare",
+    tags = ["manual"],
+    deps = [":planoracle_compare"],
+)
+
+java_run(
+    name = "engine_pure_v1_duckdb_compare",
+    testonly = True,
+    srcs = [":pure_v1/duckdb/engine.jsonl"],
+    outs = [
+        "pure_v1/duckdb/answers.tsv",
+        "pure_v1/duckdb/plan_text.tsv",
+    ],
+    arguments = [
+        "--engine=$(execpath :pure_v1/duckdb/engine.jsonl)",
+        "--answers-out={OUT_DIR}/answers.tsv",
+        "--plan-text-out={OUT_DIR}/plan_text.tsv",
+    ],
+    main_class = "planoracle.compare.GoldenCompareMain",
+    mnemonic = "EngineOracleCompare",
+    tags = ["manual"],
+    deps = [":planoracle_compare"],
+)
+
+# THE BATTERIES' HEAVY HALF (H7; CP-9 of docs/records/compat-program-plan-2026-11-19.md): each battery re-asked of
+# legend-engine, one oracle JVM per database, its answers pinned (bazel run //tools/engine-runner:update_batteries).
+# The per-push half (//pct:batteries_test) compares lite's answers with these pins and runs no legend-engine JVM.
+_BATTERIES = "src/test/resources/batteries/substring_indexof.tsv"
+
+exports_files(
+    [
+        _BATTERIES,
+        "src/test/resources/batteries/engine_h2_answers.tsv",
+        "src/test/resources/batteries/engine_duckdb_answers.tsv",
+        "src/test/resources/batteries/trades_duckdb_digest.txt",
+        "src/test/resources/pure_v1/duckdb-connection.pure",
+    ],
+    visibility = ["//pct:__pkg__"],
+)
+
+java_run(
+    name = "engine_batteries_h2",
+    testonly = True,
+    srcs = [
+        _BATTERIES,
+        "//core:src/test/resources/upstream-api/trades-h2.pure",
+    ],
+    outs = ["batteries/h2/engine.jsonl"],
+    arguments = [
+        "--requests=$(execpath %s)" % _BATTERIES,
+        "--model=$(execpath //core:src/test/resources/upstream-api/trades-h2.pure)",
+        "--out={OUT}",
+    ],
+    jvm_flags = _ORACLE_JVM,
+    main_class = "planoracle.GoldenRunMain",
+    memory_mb = 4096,
+    mnemonic = "EngineOracle",
+    tags = ["manual"],
+    deps = [":planoracle"],
+)
+
+java_run(
+    name = "engine_batteries_duckdb",
+    testonly = True,
+    srcs = [
+        _BATTERIES,
+        ":pure_v1/trades-duckdb.pure",
+        ":pure_v1/trades.duckdb",
+    ],
+    outs = ["batteries/duckdb/engine.jsonl"],
+    arguments = [
+        "--requests=$(execpath %s)" % _BATTERIES,
+        "--model=$(execpath :pure_v1/trades-duckdb.pure)",
+        "--duckdb=$(execpath :pure_v1/trades.duckdb)",
+        "--out={OUT}",
+    ],
+    jvm_flags = _ORACLE_JVM,
+    main_class = "planoracle.GoldenRunMain",
+    memory_mb = 4096,
+    mnemonic = "EngineOracle",
+    tags = ["manual"],
+    deps = [":planoracle"],
+)
+
+[java_run(
+    name = "engine_batteries_answers_" + db,
+    testonly = True,
+    srcs = [":batteries/%s/engine.jsonl" % db],
+    outs = ["batteries/%s/answers.tsv" % db],
+    arguments = [
+        "engine-answers",
+        "--in=$(execpath :batteries/%s/engine.jsonl)" % db,
+        "--out={OUT}",
+    ],
+    main_class = "com.legend.tools.enginelane.Batteries",
+    mnemonic = "EngineBatteries",
+    tags = ["manual"],
+    deps = [":enginelane"],
+) for db in ["h2", "duckdb"]]
+
+# the rows legend-engine's DuckDB file holds, read by lite's own DuckDB driver (the user's ruling of 2026-11-19 ~10:45
+# UTC, CP-9: tools/engine-runner is a duckdb_jdbc user for this): the per-push half seeds its own file with lite's
+# driver from the same statements and refuses to compare if its rows differ
+java_run(
+    name = "trades_duckdb_digest",
+    testonly = True,
+    srcs = [":pure_v1/trades.duckdb"],
+    outs = ["batteries/trades_duckdb_digest.txt"],
+    arguments = [
+        "digest",
+        "--duckdb=$(execpath :pure_v1/trades.duckdb)",
+        "--out={OUT}",
+    ],
+    main_class = "com.legend.tools.enginelane.Batteries",
+    mnemonic = "EngineBatteries",
+    tags = ["manual"],
+    deps = [
+        ":enginelane",
+        "@duckdb_jdbc//jar",
+    ],
+)
+
+write_source_files(
+    name = "update_batteries",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-engine's answer to a battery request moved (the oracle re-asked; H7): in the diff, < is this tree (generated) and > the pin; a legend-engine bump or a changed seed moves it -- bazel run //tools/engine-runner:update_batteries, then bazel run //pct:update_batteries, and say in the commit which way each row moved",
+    files = {
+        "src/test/resources/batteries/engine_h2_answers.tsv": ":batteries/h2/answers.tsv",
+        "src/test/resources/batteries/engine_duckdb_answers.tsv": ":batteries/duckdb/answers.tsv",
+        "src/test/resources/batteries/trades_duckdb_digest.txt": ":batteries/trades_duckdb_digest.txt",
+        "src/test/resources/batteries/trades_seed.json": ":pure_v1/trades_seed.json",
+    },
+    tags = ["manual"],
+)
+
+# the per-push half's file: a DuckDB file seeded with lite's own driver (the ruled jars_table entry) from the
+# statements legend-engine's parser read (pinned above), its rows held to legend-engine's file by //pct's compare; and
+# the model its requests run over, the goldens' model with the DuckDB connection in place of the H2 one, composed as
+# text (no legend-engine JVM: this half runs per push)
+java_run(
+    name = "lite_battery_seed",
+    testonly = True,
+    srcs = ["src/test/resources/batteries/trades_seed.json"],
+    outs = [
+        "batteries/lite/trades.duckdb",
+        "batteries/lite/trades_duckdb_digest.txt",
+    ],
+    arguments = [
+        "seed",
+        "--statements=$(execpath src/test/resources/batteries/trades_seed.json)",
+        "--duckdb={OUT_DIR}/trades.duckdb",
+        "--digest={OUT_DIR}/trades_duckdb_digest.txt",
+    ],
+    main_class = "com.legend.tools.enginelane.Batteries",
+    mnemonic = "LiteBatteries",
+    visibility = ["//pct:__pkg__"],
+    deps = [
+        ":enginelane",
+        "@duckdb_jdbc//jar",
+    ],
+)
+
+java_run(
+    name = "lite_battery_model",
+    testonly = True,
+    srcs = [
+        "//core:src/test/resources/upstream-api/trades-h2.pure",
+        "src/test/resources/pure_v1/duckdb-connection.pure",
+    ],
+    outs = ["batteries/lite/trades-duckdb.pure"],
+    arguments = [
+        "compose",
+        "--model=$(execpath //core:src/test/resources/upstream-api/trades-h2.pure)",
+        "--connection=$(execpath src/test/resources/pure_v1/duckdb-connection.pure)",
+        "--out={OUT}",
+    ],
+    main_class = "com.legend.tools.enginelane.Batteries",
+    mnemonic = "LiteBatteries",
+    visibility = ["//pct:__pkg__"],
+    deps = [":enginelane"],
+)
+
+test_suite(
+    name = "batteries_oracle_test",
+    tags = ["manual"],
+    tests = [":update_batteries_tests"],
+)
+
+# THE CHECK: legend-engine's answers and the per-line listing of how lite's pure/v1 goldens differ from them, pinned.
+# A golden that moves (bazel run //core:update_edge_pure_v1) moves its line here: bazel run
+# //tools/engine-runner:update_pure_v1_oracle in the same commit says whether it moved toward legend-engine or away.
+write_source_files(
+    name = "update_pure_v1_oracle",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-engine's answer to a pure/v1 golden request, or how a golden differs from it, moved (the plan oracle, docs/records/engine-oracle-pure-v1-2026-11-18.md): in the diff, < is this tree (generated) and > the record; after a golden's ruled move, or a legend-engine bump, bazel run //tools/engine-runner:update_pure_v1_oracle and say in the commit which way it moved",
+    files = {
+        "src/test/resources/pure_v1/engine_h2_answers.tsv": ":pure_v1/h2/answers.tsv",
+        "src/test/resources/pure_v1/engine_h2_plan_text.tsv": ":pure_v1/h2/plan_text.tsv",
+        "src/test/resources/pure_v1/engine_h2_differences.tsv": ":pure_v1/h2/differences.tsv",
+        "src/test/resources/pure_v1/engine_duckdb_answers.tsv": ":pure_v1/duckdb/answers.tsv",
+        "src/test/resources/pure_v1/engine_duckdb_plan_text.tsv": ":pure_v1/duckdb/plan_text.tsv",
+    },
+    tags = ["manual"],
+)
+
+test_suite(
+    name = "pure_v1_oracle_test",
+    tags = ["manual"],
+    tests = [":update_pure_v1_oracle_tests"],
 )
 
 guards_package()

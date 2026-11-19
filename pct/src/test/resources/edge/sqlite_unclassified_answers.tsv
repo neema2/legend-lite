@@ -56,7 +56,7 @@ testLpadDefaultCharacter	001	VALUE	type=ExprType[type=STRING, multiplicity=Bound
 testLpadEmptyChar	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:abcd;
 testLpadEmptyString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:???;
 testLpadStringLongerThanLength	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:abc;
-testMD5Hash	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:<id>;
+testMD5Hash	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:65a8e27d8879283831b664bd8b7f0ad4;
 testMatches	001	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testMatches	002	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
 testMatchesAlternation	001	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
@@ -105,8 +105,8 @@ testRpadEmptyChar	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lowe
 testRpadEmptyString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:???;
 testRpadMultiChar	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:ppxox;
 testRpadStringLongerThanLength	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:abc;
-testSHA1Hash	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:<id>;
-testSHA256Hash	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:<id>;
+testSHA1Hash	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:0a0a9f2a6772942557ab5355d76af442f8f65e01;
+testSHA256Hash	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f;
 testSpace	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String: ;
 testSplitPart	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=0, upper=1]] values=String:Hello;
 testSplitPart	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=0, upper=1]] values=String:World;

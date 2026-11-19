@@ -1,0 +1,17 @@
+suite	test	case	databases	function	linux	macos
+essential	testArcCosine	003	duckdb,sqlite	acos	1.0471975511965979	1.0471975511965976
+essential	testArcSine	003	duckdb,sqlite	asin	-0.5235987755982989	-0.5235987755982988
+essential	testCoTangent	001	duckdb,sqlite	cot	0.6420926159343306	0.6420926159343308
+essential	testCubeRoot	002	duckdb	cbrt	3.0000000000000004	3.0
+standard	testCosH_Eval	003	duckdb,sqlite	cosh	1.307528029695523	1.3075280296955227
+standard	testCosH_Eval	004	duckdb,sqlite	cosh	1.307528029695523	1.3075280296955227
+standard	testCosH_Floats	003	duckdb,sqlite	cosh	1.307528029695523	1.3075280296955227
+standard	testCosH_Floats	004	duckdb,sqlite	cosh	1.307528029695523	1.3075280296955227
+standard	testCosH_Identities	005	duckdb,sqlite	cosh	274.658517577606	274.65851757760606
+standard	testSinH_Eval	003	duckdb,sqlite	sinh	-0.8423951260776953	-0.8423951260776952
+standard	testSinH_Eval	004	duckdb,sqlite	sinh	0.8423951260776953	0.8423951260776952
+standard	testSinH_EvalFuncSig	002	duckdb,sqlite	sinh	3.626860407847019	3.6268604078470186
+standard	testSinH_Floats	003	duckdb,sqlite	sinh	-0.8423951260776953	-0.8423951260776952
+standard	testSinH_Floats	004	duckdb,sqlite	sinh	0.8423951260776953	0.8423951260776952
+standard	testSinH_Identities	005	duckdb,sqlite	sinh	273.658517577606	273.65851757760606
+standard	testSinH_Integers	002	duckdb,sqlite	sinh	-3.626860407847019	-3.6268604078470186
