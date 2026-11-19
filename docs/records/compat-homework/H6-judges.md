@@ -46,51 +46,86 @@ as one quantified verdict.
 
 The coverage columns are re-measured at `main` `b75d6c73a` (§1.3, method §5.1).
 
-| # | Assert | Side shapes | PCT | Corpus | Core LITE test under BOTH at main | What porting it takes |
+| # | Assert | Side shapes | PCT | Corpus | Covered at main (core LITE under BOTH; PCT under LITE BOTH, planned asserts) | What porting it takes |
 |---|---|---|---|---|---|---|
-| 1 | `quantified-assert` | VALUES/one, VALUES/one | 0 | 274 | pending | |
-| 2 | `assertFalse` | VALUES/one | 161 | 38 | pending | |
-| 3 | `assertSameElements` | VALUES/one, VALUES/many | 0 | 196 | pending | |
-| 4 | `assertEquals` | CONSTANT/many, VALUES/one | 0 | 92 | pending | |
-| 5 | `assertEmpty` | GRAPH/many | 0 | 28 | pending | |
-| 6 | `assertSameElements` | CONSTANT/many, VALUES/one | 0 | 26 | pending | |
-| 7 | `assertJsonStringsEqual` | CONSTANT/one, VALUES/one | 0 | 25 | pending | |
-| 8 | `assertSize` | CONSTANT/one, VALUES/one | 0 | 23 | pending | |
-| 9 | `assert` | VALUES/one, CONSTANT/one | 0 | 18 | pending | |
-| 10 | `assertEquals` | VALUES/many, VALUES/one | 0 | 16 | pending | |
-| 11 | `equal` | CONSTANT/one x4 | 0 | 14 | pending | |
-| 12 | `assertSameElements` | CONSTANT/one, VALUES/one | 0 | 12 | pending | |
-| 13 | `assertSameElements` | VALUES/one, TABULAR/many | 0 | 12 | pending | |
-| 14 | `assertIs` | VALUES/one | 0 | 8 | pending | |
-| 15 | `assertSameElements` | VALUES/one, VALUES/one | 0 | 8 | pending | |
-| 16 | `equal` | CONSTANT/one x6 | 0 | 6 | pending | |
-| 17 | `assert` | CONSTANT/many, VALUES/many, VALUES/one | 0 | 6 | pending | |
-| 18 | `assertTdsEquivalent` | TABULAR/many, TABULAR/many, CONSTANT/one, CONSTANT/one | 2 | 4 | pending | |
-| 19 | `assertSameElements` | CONSTANT/many, VALUES/many | 0 | 4 | pending | |
-| 20 | `assertConversion` | (none) | 0 | 4 | pending | |
-| 21 | `quantified-assert` | VALUES/one x6 | 0 | 4 | pending | |
-| 22 | `quantified-assert` | CONSTANT/one, CONSTANT/one | 0 | 4 | pending | |
-| 23 | `assertEqualsH2Compatible` | (none) | 0 | 4 | pending | |
-| 24 | `equal` | CONSTANT/one, CONSTANT/one | 0 | 4 | pending | |
-| 25 | `assertNotEmpty` | VALUES/one | 3 | 0 | pending | |
-| 26 | `assertError` | VALUES/many | 2 | 0 | pending | |
-| 27 | `assertEqWithinTolerance` | VALUES/many, TABULAR/many | 0 | 2 | pending | |
-| 28 | `assertSameElements` | VALUES/many, CONSTANT/many | 0 | 2 | pending | |
-| 29 | `assertEmpty` | CONSTANT/many, CONSTANT/one | 0 | 2 | pending | |
-| 30 | `quantified-assert` | CONSTANT/one x4 | 0 | 2 | pending | |
-| 31 | `assertNotEmpty` | GRAPH/many, CONSTANT/one | 0 | 2 | pending | |
-| 32 | `assertJsonStringsEqual` | VALUES/one, VALUES/one | 0 | 2 | pending | |
-| 33 | `forAll` | CONSTANT/one x4 | 0 | 2 | pending | |
-| 34 | `assertTdsEquivalent` | TABULAR/many, TABULAR/many, CONSTANT/one | 2 | 0 | pending | |
-| 35 | `assertEmpty` | VALUES/one | 2 | 0 | pending | |
-| 36 | `assertNotEmpty` | VALUES/many | 1 | 0 | pending | |
+| 1 | `quantified-assert` | VALUES/one, VALUES/one | 0 | 274 | none | a core body whose statement is a `map` asserting per element (`$xs->map(x \| assertEquals(...))`), both sides one computed value |
+| 2 | `assertFalse` | VALUES/one | 161 | 38 | none; PCT LITE BOTH: 161 (all pass) | `assertFalse` over a computed Boolean (one value); PCT's 161 pass under LITE BOTH (§3) |
+| 3 | `assertSameElements` | VALUES/one, VALUES/many | 0 | 196 | none | `assertSameElements` of a computed value against a computed collection |
+| 4 | `assertEquals` | CONSTANT/many, VALUES/one | 0 | 92 | none | `assertEquals` of a literal collection against one computed value |
+| 5 | `assertEmpty` | GRAPH/many | 0 | 28 | none | `assertEmpty` over a graph fetch (many) |
+| 6 | `assertSameElements` | CONSTANT/many, VALUES/one | 0 | 26 | none | `assertSameElements`, a literal collection against one computed value |
+| 7 | `assertJsonStringsEqual` | CONSTANT/one, VALUES/one | 0 | 25 | none | `assertJsonStringsEqual`, a literal text against a computed text (LITE's strict grammar) |
+| 8 | `assertSize` | CONSTANT/one, VALUES/one | 0 | 23 | none | `assertSize`, a literal count against one computed value |
+| 9 | `assert` | VALUES/one, CONSTANT/one | 0 | 18 | none | `assert` over a computed Boolean with a literal message |
+| 10 | `assertEquals` | VALUES/many, VALUES/one | 0 | 16 | none | `assertEquals`, a computed collection against one computed value |
+| 11 | `equal` | CONSTANT/one x4 | 0 | 14 | none | a body ending in `equal` over four literal sides (the corpus's boolean-returning bodies) |
+| 12 | `assertSameElements` | CONSTANT/one, VALUES/one | 0 | 12 | none | `assertSameElements`, one literal against one computed value |
+| 13 | `assertSameElements` | VALUES/one, TABULAR/many | 0 | 12 | none | `assertSameElements`, one computed value against a relation |
+| 14 | `assertIs` | VALUES/one | 0 | 8 | none | `assertIs` over one computed value (one side planned) |
+| 15 | `assertSameElements` | VALUES/one, VALUES/one | 0 | 8 | none | `assertSameElements`, two computed single values |
+| 16 | `equal` | CONSTANT/one x6 | 0 | 6 | none | as 11, six literal sides |
+| 17 | `assert` | CONSTANT/many, VALUES/many, VALUES/one | 0 | 6 | none | `assert` over a literal collection, a computed collection and one value (a helper's three asks) |
+| 18 | `assertTdsEquivalent` | TABULAR/many, TABULAR/many, CONSTANT/one, CONSTANT/one | 2 | 4 | none; PCT LITE BOTH: 2 (pass) | `assertTdsEquivalent`, two relations, two literal arguments; PCT's 2 pass under LITE BOTH |
+| 19 | `assertSameElements` | CONSTANT/many, VALUES/many | 0 | 4 | none | `assertSameElements`, a literal collection against a computed collection |
+| 20 | `assertConversion` | (none) | 0 | 4 | none | a helper root with no side planned (the corpus's `assertConversion`): port as a core user helper wrapping an assert, not the upstream helper |
+| 21 | `quantified-assert` | VALUES/one x6 | 0 | 4 | none | as 1, six one-value sides |
+| 22 | `quantified-assert` | CONSTANT/one, CONSTANT/one | 0 | 4 | none | as 1, two literal sides |
+| 23 | `assertEqualsH2Compatible` | (none) | 0 | 4 | none | as 20 (the corpus's `assertEqualsH2Compatible`) |
+| 24 | `equal` | CONSTANT/one, CONSTANT/one | 0 | 4 | none | as 11, two literal sides |
+| 25 | `assertNotEmpty` | VALUES/one | 3 | 0 | none; PCT LITE BOTH: 3 (pass) | `assertNotEmpty` over one computed value; PCT's 3 pass under LITE BOTH |
+| 26 | `assertError` | VALUES/many | 2 | 0 | none; PCT LITE BOTH: 4 (all fail: words) | `assertError` whose body reads a collection; PCT's only tests of it assert legend-pure's words, so they fail under LITE: port with lite's own words |
+| 27 | `assertEqWithinTolerance` | VALUES/many, TABULAR/many | 0 | 2 | none | `assertEqWithinTolerance`, a computed collection against a relation |
+| 28 | `assertSameElements` | VALUES/many, CONSTANT/many | 0 | 2 | none | `assertSameElements`, a computed collection against a literal collection |
+| 29 | `assertEmpty` | CONSTANT/many, CONSTANT/one | 0 | 2 | none | `assertEmpty`, a literal collection and a literal message |
+| 30 | `quantified-assert` | CONSTANT/one x4 | 0 | 2 | none | as 1, four literal sides |
+| 31 | `assertNotEmpty` | GRAPH/many, CONSTANT/one | 0 | 2 | none | `assertNotEmpty` over a graph fetch with a literal message |
+| 32 | `assertJsonStringsEqual` | VALUES/one, VALUES/one | 0 | 2 | none | `assertJsonStringsEqual`, two computed texts |
+| 33 | `forAll` | CONSTANT/one x4 | 0 | 2 | none | `forAll` over four literal sides |
+| 34 | `assertTdsEquivalent` | TABULAR/many, TABULAR/many, CONSTANT/one | 2 | 0 | none; PCT LITE BOTH: 2 (pass) | `assertTdsEquivalent`, two relations and one literal; PCT's 2 pass under LITE BOTH |
+| 35 | `assertEmpty` | VALUES/one | 2 | 0 | none; PCT LITE BOTH: 2 (pass) | `assertEmpty` over one computed value; PCT's 2 pass under LITE BOTH |
+| 36 | `assertNotEmpty` | VALUES/many | 1 | 0 | none; PCT LITE BOTH: 1 (pass) | `assertNotEmpty` over a computed collection; PCT's 1 passes under LITE BOTH |
 
 (Rows 11, 16, 21, 22, 30 and 33 are written "x N" for N equal sides; the source writes each side.)
 
 ### 1.3 Re-measured at `main`
 
-Pending: the shape census ported to `main` (`HostSides.shapeCensus`, measurement only) over core's judged packages
-under BOTH, split LITE (the product's style) from COMPAT (an edge style) per planned assert.
+The shape census ported to `main` (`HostSides.shapeCensus`, measurement only, §5.1), over core's 13 judged BOTH targets
+(`//core:core_tests_<package>_judge_both`, the 12 packages and the root; all 13 PASSED with the census on, 174 s wall)
+and PCT channel B's five DuckDB suites under COMPAT and LITE:
+
+| Source | Planned asserts recorded | Distinct assert x side-shape combinations |
+|---|---|---|
+| core, the 13 BOTH targets (every line LITE: no core product test plans in an edge style) | 922 | **46** |
+| PCT channel B, COMPAT BOTH | 5,466 (2,733 asserts: the reference lane plans each body twice under BOTH, once to sum its judge SQL, `ChannelB.measuresJudgeSql`) | 21 |
+| PCT channel B, LITE BOTH | 4,594 | 21 (19 in tests that pass) |
+
+**None of the 36 is covered by core at `main`**: no row closed since `1bb0f3151`, and core's 46 combinations hold none
+of them (matched on the assert's short name: the census writes `forAll` and `assertError` by their full names). The
+PCT counts, halved for the double planning, equal the shape-port record's (assertFalse 161, assertTdsEquivalent 2 and
+2, assertNotEmpty 3 and 1, assertEmpty 2), except `assertError` VALUES/many: 4 at `main` against the record's 2.
+
+Core's 46 at `main` (for the port's starting point): `assertEquals` over VALUES/one pairs is 549 of the 922; then
+`assertEquals` VALUES/one+many (59), `assertEq` (36), `assertEquals` VALUES/many pairs (29), `assertSize` over a graph
+(22), `assert` over a constant (17), and 40 smaller ones. The 2026-11-17 census counted 67 in core; the difference is
+what it ran (the host judge over the same packages then, the 13 BOTH targets now), not a loss of tests.
+
+**What porting takes.** Every row is a small core test in `testing.Program`'s style, so it runs under each judge
+target already (`core_tests_<package>_judge_{database,both}`); none needs a new mechanism. They group as:
+- **26 rows are an ordinary assert over a new side shape** (2-10, 12-15, 17-19, 25-29, 31-32, 34-36): one body each,
+  its sides a query the database computes (VALUES), a relation (TABULAR), a graph fetch (GRAPH) or a literal of the plan (CONSTANT), as the row says;
+- **4 rows are a `map` asserting per element** ("quantified-assert": the census's name for a statement root that is a
+  `TypedMap`, `AssertVerdicts.listenerName`, `:320-325`; rows 1, 21, 22, 30), and row 33 is `forAll` over four literals;
+- **3 rows end a body in `equal`** (11, 16, 24);
+- **2 rows are the corpus's helpers with no side planned** (20 `assertConversion`, 23 `assertEqualsH2Compatible`):
+  ported as a core user helper wrapping an assert, never the upstream helpers themselves.
+
+**If the LITE PCT lane of §3.5 is adopted**, 6 rows (2, 18, 25, 34, 35, 36; 171 planned asserts) are judged under
+LITE BOTH by PCT already, in tests that pass; 30 remain to port. Row 26's PCT tests assert legend-pure's words and so
+fail under LITE: it must be ported with lite's own words.
+
+**2.1 re-sized:** the plan's 2 days holds for the writing (36 bodies, or 30 with the LITE PCT lane). On the evidence of
+§3 (5 parity defects in 786 PCT tests on a first LITE run), expect the new shapes to surface some; each goes to A5's
+owner and is either fixed there or ledgered. Budget **2.5 days**, the half day for the defects' triage.
 
 ---
 
@@ -281,7 +316,9 @@ This is the user's to rule (it changes done-when 1's wording); (ii) is the small
 
 ### 2.10 Re-sizing 2.1 and 2.2
 
-- **2.1 (2 days in the plan):** pending the core census (§1.3).
+- **2.1 (2 days in the plan): 2.5 days** (§1.3): none of the 36 is covered at `main`; all are small core tests; the
+  half day is the defects they will surface (PCT's first LITE run found 5). With the LITE PCT lane (§3.5) adopted, 30
+  rows to port, not 36.
 - **2.2 (7.5 days: the judges 4, the appeal's move 3-4):**
   - the deletions are larger than the plan lists, and cheaper than moves: add the database judge's appeal paths
     (§2.9 item 3: `rowAppealed`, `RootLoops`' row appeals, `batchTexts`, the database gate) and `VerdictSql`'s
