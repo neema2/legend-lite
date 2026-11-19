@@ -101,7 +101,7 @@ every OS, an independent review and the user's word.
   answer's path, when Studio compiles the project, on the first query per model, or on demand; it types every body once,
   as Studio's compile already does (about 4 seconds on the largest model measured, legend-engine's whole corpus; it
   lists 48 calls and 83 bodies it cannot verify there); a log block and a read-only endpoint, no file; about 1.5 days.
-  **Ruled by the user (~14:55): warn by default**, with this report; refusal by the server setting.
+  ~~**Ruled by the user (~14:55): warn by default**, with this report; refusal by the server setting.~~ **Superseded (the user, ~19:20, "I think it has to be refuse then for now"): refuse by default; `warn` stays a value of the setting; the load-time report is not built now**, so no body is typed ahead of time.
 - **Its tests:** a planted request warned; the corrected option quiet for `substring` and NOT for `indexOf`; a mapping
   function not flagged; host-side code not flagged; the header's value bounded; Studio's and DataCube's clients shown to
   ignore the header.
