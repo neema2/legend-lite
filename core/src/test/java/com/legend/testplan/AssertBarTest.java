@@ -388,6 +388,43 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** An hour-precision DateTime ({@code date(y, m, d, h)} against its literal, legend-pure's testDateFromHour) under
+     *  lite's own rules (track A5, 2026-11-19, from the compatibility judges homework): the database judge's message
+     *  read the side's text carrier as a timestamp, which DuckDB refused at the hour alone ("invalid timestamp field
+     *  format"), so its run failed where the host's held. Now one outcome and one message under every judge, on each
+     *  in-process database: the hour written at its full text, as the host writes it. */
+    @Test
+    void anHourPrecisionDateTimeIsOneVerdictUnderEveryJudge() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 14))}", "pass");
+        want.put("{|assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))}", "pass");
+        want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 15))}",
+                "AssertFailed: expected 2015-04-16T14:00:00.000000Z, got 2015-04-16T15:00:00.000000Z");
+        want.put("{|assertEquals(%2015-04-16T14:30, date(2015, 4, 16, 14, 31))}",
+                "AssertFailed: expected 2015-04-16T14:30:00.000000Z, got 2015-04-16T14:31:00.000000Z");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try (Connection c = backend.open()) {
+                        Program.run(StorelessRuntime.with(MODEL, backend.type()), e.getKey(), StorelessRuntime.RUNTIME,
+                                c, ExecuteOptions.NONE.withJudgeMode(mode));
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!e.getValue().equals(got)) {
+                        wrong.add(backend.type() + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
      *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
      *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */

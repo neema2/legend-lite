@@ -20,6 +20,19 @@ final class LiteText {
     private LiteText() {
     }
 
+    /** A DateTime's text carrier written to at least its minute: an hour-precision text ({@code 2015-04-16T14}, as
+     *  {@code date(2015, 4, 16, 14)} and a written literal carry it) gains {@code :00}, which a database's timestamp
+     *  cast needs (DuckDB refused the hour alone: "invalid timestamp field format", and the database judge's run failed
+     *  where the host's held -- the compatibility judges homework's testDateFromHour under lite's rules, track A5,
+     *  2026-11-19); the host writes the hour's DateTime at its full text, {@code testexec.LiteWords.dateText}. A text
+     *  with a minute is as it is. */
+    private static SqlExpr toTheMinute(SqlExpr x) {
+        SqlExpr text = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL,
+                SqlExpr.Call.of(SqlFn.STRPOS, text, new SqlExpr.StringLit(":")), new SqlExpr.IntLit(0)),
+                Scalars.cat(text, new SqlExpr.StringLit(":00")))), text, SqlExpr.Reason.JUDGE);
+    }
+
     /** A value's text in an assert's message under LITE'S OWN RULES (the user's judge model, 2026-11-17: the host
      *  judge's {@code testexec.LiteWords.value} in SQL, the two judges one text): a String quoted JSON-style (a
      *  backslash, a quote, a newline, a tab and a carriage return escaped); a Float at full round-trip precision
@@ -41,7 +54,7 @@ final class LiteText {
             boolean timestamp = x.type() instanceof com.legend.sql.TypeFact.Typed ty
                     && (ty.type() == SqlType.Scalar.TIMESTAMP || ty.type() == SqlType.Scalar.TIMESTAMPTZ);
             return SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, timestamp ? x
-                    : new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE));
+                    : new SqlExpr.Cast(toTheMinute(x), SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE));
         }
         if (t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE) {
             return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
