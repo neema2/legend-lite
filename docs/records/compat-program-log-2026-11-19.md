@@ -1360,3 +1360,14 @@ who confirms or changes phases 1-3.
   (`UpstreamRelationCounting.java:71`): the harness raises it before `run(Prepared)` and reports the test's FAIL with
   the runner's own reason text (`"ModelException: " + PureTestRunner.whole(message)`). The one difference: it is
   reported before the package's setups run; no corpus FAIL line on either lane carries that text. H10 done.
+- **~13:42 UTC, the judges: H10 §9.8 rewritten as the builder's six conditions for the prepare/run split**
+  (`claude/compat-judges-homework`, after `91b93c5c`): (1) type once, one `TypedQuery` for facts and planning;
+  (2) setups typed once and carried in `Prepared` (`withSetup`), run through `runFixture` as today; (3) R-S15, then
+  R-S131 (R-S15 pairs by sort over an incidental actual), then R-S137 and R-S144; (4) **a correction:** the
+  `assertEmpty($rel)` refusal is carried as data on the prepared test (`Prepared.refusedBy(e)`) and raised by
+  `run(Prepared)` after the setups, where `planBody` would be, inside the same try, so the runner's same catch gives the
+  same Result and observer events (pinned by `RelationCountAssertsEdgeTest`; no lane meets it); (5) every edge-style
+  road applies the four in order (`MinimalCorpus` and `LeanSqlCorpusTest` via the split; ChannelB on its
+  `TypedQuery`; core's edge tests); (6) `RelationCounting` deleted in the same step, its guard rows
+  (`HookLambdasTest` TWO_FORM_CALLERS, `HookRulingTest`, `JavaEvalLedgerTest`, any `PlanStyleSurfaceTest` row) moved
+  with the user's word; `RelationCountAsserts.REFUSED` stays. H10 is done.
