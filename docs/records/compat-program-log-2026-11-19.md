@@ -2966,3 +2966,5 @@ who confirms or changes phases 1-3.
   assert's own message, a database's own error. Texts a client may read that would become lite's, each needing a word:
   the parameter-validation texts, the test-data route's assert texts, the compile errors' upstream sentences. Put to
   the user with the recommendation: option 1 with the cleanup, and the three texts under the same rule.
+- **~22:12 UTC, B2's docs at `07af5d5c2`** (DuckDB under `engine` stands in S130, S134, S383, item 1; evidence cites
+  `1e6d9c68c` and `2dec438b0`; the engine batteries marked pending the user's word as new pins). The judges told.
