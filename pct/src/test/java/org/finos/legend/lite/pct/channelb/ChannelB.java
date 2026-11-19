@@ -279,7 +279,7 @@ public final class ChannelB {
                 judgeSql(ctx, resolved);
             }
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, com.legend.edge.AppealRun.with(null),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, referee(),
                     OPTIONS);
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
@@ -309,7 +309,7 @@ public final class ChannelB {
     /** Whether this run sums its judge SQL: asked ({@code -Dpct.channelb.judgeSql}, the ratchet's generator), or the
      *  reference lane under BOTH, the pin's own mode, outside the G10 twice lanes. */
     static boolean measuresJudgeSql() {
-        return Boolean.getBoolean("pct.channelb.judgeSql") || ChannelBLane.isReference()
+        return Boolean.getBoolean("pct.channelb.judgeSql") || ChannelBLane.isReference() && !lite()
                 && OPTIONS.planning().judgeMode() == com.legend.testplan.PlanningOptions.JudgeMode.BOTH
                 && !Boolean.getBoolean("pct.channelb.twice");
     }
@@ -382,9 +382,31 @@ public final class ChannelB {
         JUDGE_SQL[1] += statement.length();
     }
 
-    /** Channel B's options: the corpus's runtime features, the judge {@code -Dpct.channelb.judge} names, compatibility
-     *  mode and upstream's spellings. */
-    private static final com.legend.ExecuteOptions OPTIONS = com.legend.ExecuteOptions.recording(
+    /** The rules the bodies run under ({@code -Dpct.channelb.rules}): COMPAT, the compatibility edge's (the lanes'
+     *  default), or LITE, lite's own (the LITE-PCT lane, the compatibility program's A4 gate: "lite's two judges agree
+     *  on the PCT", 2026-11-19). Any other value is refused by name. */
+    private static final String RULES = rules(System.getProperty("pct.channelb.rules", "COMPAT"));
+
+    private static String rules(String named) {
+        if (!named.equals("COMPAT") && !named.equals("LITE")) {
+            throw new IllegalArgumentException("-Dpct.channelb.rules=" + named + ": COMPAT or LITE");
+        }
+        return named;
+    }
+
+    /** Whether this run judges the bodies under lite's own rules ({@code -Dpct.channelb.rules=LITE}). */
+    static boolean lite() {
+        return RULES.equals("LITE");
+    }
+
+    /** The run hook: the compatibility edge's appeals (COMPAT), or none -- lite's own runs hear no appeal (LITE). */
+    private static com.legend.testexec.EdgeRun referee() {
+        return lite() ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(null);
+    }
+
+    /** Channel B's options under the compatibility rules: the corpus's runtime features, the judge
+     *  {@code -Dpct.channelb.judge} names, compatibility mode and upstream's spellings. */
+    private static final com.legend.ExecuteOptions COMPAT_OPTIONS = com.legend.ExecuteOptions.recording(
                     // the compatibility rules' runs carry the compatibility edge, which names its rules (census C1,
                     // the orchestrator's ruling of 2026-11-17), never the product's NoEdge with a style
                     new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
@@ -399,6 +421,16 @@ public final class ChannelB {
                     System.getProperty("pct.channelb.judge", "BOTH")))
             // legend-pure's texts, spelled by the edge (phase D's D1.0)
             .withStyle(com.legend.edge.PureText.UPSTREAM);
+
+    /** Channel B's options under lite's own rules (the compatibility judges homework's prototype, H6-judges.md 5.1):
+     *  the product's (no edge, the product's style and default features), as-of joins the same row on every database,
+     *  and the judge {@code -Dpct.channelb.judge} names, BOTH by default. */
+    private static final com.legend.ExecuteOptions LITE_OPTIONS = com.legend.ExecuteOptions.NONE
+            .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
+            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
+                    System.getProperty("pct.channelb.judge", "BOTH")));
+
+    private static final com.legend.ExecuteOptions OPTIONS = lite() ? LITE_OPTIONS : COMPAT_OPTIONS;
 
     /**
      * G10'S GUARD FOR A TEST BODY (O5's term, the user's ruling of 2026-11-13: "a body planned and run twice answers the
@@ -443,7 +475,7 @@ public final class ChannelB {
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME,
-                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, com.legend.edge.AppealRun.with(null),
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, referee(),
                     OPTIONS);
             told.add("ended: pass");
         } catch (java.sql.SQLException | RuntimeException e) {

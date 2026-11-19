@@ -468,11 +468,37 @@ _ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legen
     ],
 ) for s in _SUITES]
 
+# THE LITE-PCT LANE (the compatibility program's stage A, step A4's gate, 2026-11-19: "lite's two judges agree on the
+# PCT"): channel B on DuckDB under LITE's own rules (-Dpct.channelb.rules=LITE: the product's options, no edge, no
+# referee) with both of lite's judges, isolated (BOTH, the default), messages compared; judged by its own exact rows of
+# channelb/ledger.tsv (lane duckdb-lite). From the compatibility judges homework's prototype (H6-judges.md 3.5, 5.1).
+[junit_test(
+    name = "pct_channel_b_lite_" + s.lower(),
+    memory_mb = 768,
+    data = [
+        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
+        _ENGINE_MANIFEST % s,
+    ],
+    jvm_flags = [
+        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
+        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
+        "-Dpct.channelb.rules=LITE",
+    ],
+    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
+    upstream = True,
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+) for s in _SUITES]
+
 test_suite(
     name = "pct_channel_b",
     # with the HOST channel-B pass (O5, E-5c): DuckDB's suites and H2's relation suite under the host judge alone
     tests = [":pct_channel_b_" + s.lower() for s in _SUITES] + [":pct_channel_b_host_" + s.lower() for s in _SUITES] +
             [":pct_channel_b_host_h2_relation"] +
+            # the LITE-PCT lane (2026-11-19): lite's own rules under both judges
+            [":pct_channel_b_lite_" + s.lower() for s in _SUITES] +
             # the runner's own unit tests: the ledger matched on full text, the twice guard's planted violators
             # (2026-11-15, PR1's review: found in no lane)
             [":pct_channel_b_ledger_test", ":pct_channel_b_twice_guard_test"],

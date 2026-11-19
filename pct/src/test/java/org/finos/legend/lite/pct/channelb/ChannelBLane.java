@@ -62,7 +62,9 @@ final class ChannelBLane {
 
     /** Judge {@code suite}'s outcomes on this lane against its channel A ledger and engine manifest. */
     static void judge(String suite, String tag, List<ChannelB.Outcome> out) throws IOException {
-        String lane = PctBackend.name();
+        // the LITE-PCT lane (-Dpct.channelb.rules=LITE, 2026-11-19): lite's own rules on this database, its own rows
+        // (the reference lane's pins are the compatibility rules')
+        String lane = PctBackend.name() + (ChannelB.lite() ? "-lite" : "");
         String tagged = tag + "@" + lane;
         // the universe is the same on every lane: discovery is compilation, before any database
         assertEquals(PctRatchets.measured("channel_b." + suite.toLowerCase(java.util.Locale.ROOT) + ".discovered"),
