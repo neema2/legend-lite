@@ -118,9 +118,12 @@ model), against V3's use-site rename:
   (`columnValueDifferenceWithoutPrevalTest`).
 - **The shape a typed retarget needs:** type the program with upstream's names first, collect the calls whose resolved
   callee is the String overload (by source position: each call keeps its own `SourceInfo`), then rename exactly those.
-  Through the public doors that means a second compile or a door that exposes the typed bodies of a model's functions
-  (today `TypedQuery.body()` exposes a query's, not a model function's). Not built (time box); it is the first thing
-  3.2 must decide, and it may be the first core hook the translator asks for.
+  The pieces are public today: `ModelContext.findFunction` gives a model function's `TypedFunction`, and
+  `compiler.spec.SpecCompiler.compile(TypedFunction)` (`SpecCompiler.java:84`) types its body; a query's typed body is
+  `TypedQuery.body()`. So it looks reachable without a new hook, at the cost of typing every body that holds a candidate
+  call twice (once with upstream's names, once rewritten). Two things to check before 3.2 relies on it: whether
+  `ArchitectureTest`'s listed-entries rule admits an edge caller of `SpecCompiler`, and the eager typing's time on the
+  corpus world (`EagerCorpusCompileProbe` measures it). Not built (time box).
 
 ## 1. The spike's shape
 
@@ -211,7 +214,8 @@ the translator off and on:
 - **Time, the corpus world** (11,168 elements; 1,029,638 records): `buildModule` 3.4-4.1 s. The translator:
   - **26.1-26.8 s** as first built (V3: each record's components read and made accessible again at every node);
   - **1.1-1.3 s** with each record class's shape read once (V5, `identity`, which rebuilds EVERY record: the upper
-    bound of the walk). A real translator would be a typed visitor over the protocol records, not reflection, and
+    bound of the walk); **2.7 s** for the `queries` scope (V3 re-run, the same rosters), of which 1.4 s is the
+    helper fixpoint (a whole-model walk per round). A real translator would be a typed visitor over the protocol records, not reflection, and
     cheaper still.
 - **The pass-through check (3.2's first check) holds:** with every one of the 1,029,638 records rebuilt and nothing
   renamed (V5), all four rosters on both lanes are identical to the translator-off run (V2).
@@ -260,9 +264,22 @@ At main, these write `substring` with SQL's 1-based start and a length, and `ind
 (`CypherToPure.java:21544` writes Pure's `substr`, already Pure's meaning; `SqlParser.java:1423` builds a SQL AST node,
 not a Pure call; `IqFunctions.java:1774` infers a width. None moves.)
 
-- **The split, written for the spike:** two shared helpers in `protocol/sql/SqlToPure.java`, `sqlSubstring(s, start[,
-  length])` and `sqlIndexOf(s, t)`, the same rule as the dynaFunctions', and each call head retargeted to them. The
-  measurement of the parity lanes with and without it is below.
+- **Measured without the split** (Pure's meaning in the core, the frontends untouched; Run A, `bazel test` of the
+  three parity lanes and `//core:core_tests_integration`; all green at `main`, where they are in `//gates:local`):
+
+  | lane | at `main` | Pure's core, no frontend split |
+  |---|---|---|
+  | `//core:cypher_parity_test` (the openCypher TCK and lite's cases, against snapped answers) | green | **808 problems** (`everyCaseHasItsLedgerStatusOnThePlatform`; e.g. `Create3/[5]`: a node's properties read back through `substring` as `"{num":1}`, malformed JSON), and the pinned showcase SQL moved |
+  | `//core:iq_parity_test` (SAP IQ's answers) | green | **402 problems** (e.g. `a_substring_of_a_computed_length`: `expected 'ell' but got 'l'`) and the showcase SQL moved |
+  | `//core:sql_parity_test` (Postgres's answers) | green | **27 regressions** (e.g. `concat_ws`, `overlay`) |
+  | `//core:core_tests_integration` | green | 2 fail: `CypherIslandIntegrationTest.aMarkedListOfTemporalsReadsItsElementsBackOrIsReadWhole` and `ExtendCheckerTest$StringExtend.testIndexOf` (a pin of the old meaning) |
+
+  H3 saw only the Cypher integration test because it ran `//core:core_tests`, not the parity lanes. **R4 cannot land
+  before the frontends' split**: it would break about 1,240 parity cases.
+- **The split, written for the spike:** two shared helpers in `protocol/sql/SqlToPure.java` (+33), `sqlSubstring(s,
+  start[, length])` and `sqlIndexOf(s, t)`, the same rule as the dynaFunctions', and each of the 47 call heads
+  retargeted to them (`CypherToPure` 18 lines, `PostgresFunctions` 10, `IqFunctions` 13, `IqAggregates` 1). The parity
+  lanes with it: below (Run B).
 - **Size:** 1 to 1.5 days with the parity lanes (cypher, sql, iq, each against snapped answers), plus the same caveat
   as (i) once 3.3's raise lands (a frontend whose start can be 0 or below must keep SQL's rule there).
 
