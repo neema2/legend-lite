@@ -1,12 +1,14 @@
 # The compatibility program: the re-cut plan (2026-11-19)
 
-**Status: r4, for the user's ratification.**
+**Status: r5, for the user's ratification.**
 - **r1** (`71aa0fc7`) was reviewed by B1's lead (2026-11-19 ~04:08 UTC).
 - **r2** recorded the user's first rulings and revised CP-5.
 - **r3** folds in B1's review: the strand map corrected; the judges split before 1.3; 2.3 widened by the appeal stack and
   executed DDL; sizes corrected.
 - **r4** folds in B1's review of r2: what "feeds" means; prints inside returned structures; Floats in
-  database-written JSON; CP-5's cost counted in 0.4 (j); the print passes deleted in 1.3. Owner: the compatibility session
+  database-written JSON; CP-5's cost counted in 0.4 (j); the print passes deleted in 1.3.
+- **r5:** E-R2 (the user switched E-R1); the SQL-text appeal and referee KEPT (r3 wrongly deleted them; the user's
+  correction); §12, the implications to go through. Owner: the compatibility session
 (`session_0195rQEoSpv1FxC3WndEk5ZH`), handed the program by the previous orchestrator
 (`docs/records/compat-program-handoff-2026-11-19.md` on `origin/claude/refactor-code-quality-review-9fqhug`). Branch
 `claude/compat-program`. Nothing here moves a pin, a ceiling, a ledger or an allowlist. Each guard move it names waits
@@ -50,12 +52,12 @@ itself; H4: every host already runs Java, so one presenter per audience serves a
 |---|---|---|---|---|
 | **0. Rulings and the net** | the user's rulings; B1's safety net lands; the measurements the later slices need; the legend-engine PCT lane; the translator's ledger (every rewrite and refusal, before any is built) | none | 6.5 | all |
 | **1. Formatters (output)** | one presenter per audience over typed results and the plan; error records as kind, place and literal operands; the hosts call the Java presenter | the SQL-built text and envelopes, about 2,000 edge lines; 3 facets and 4 two-form hooks | 21 | P (B1) and H (a host session) |
-| **2. Deletions that need no replacement** | compatibility judging becomes host-only; upstream's SQL text, shapes and appeals go, checked by answers | the compatibility database judge (51 of the census's 142 hits); the engine-style SQL printers, about 2,950 lines; the engine-text appeal and referee stack, about 3,360 lines | 13 | J (new) and G (B2) |
-| **3. Translator (input)** | a model-level, target-aware rewrite at the edge's doors, using only functions every lite user has; legend-engine's refusals derived from its manifests | the lowering's two-form choices (`LoweringForms`, 17 members) and the remaining two-form hooks | 15.5 | A (new) and O (B1-R) |
+| **2. Deletions that need no replacement** | compatibility judging becomes host-only (the SQL-text appeal kept, now deciding every SQL-text assert by answer); upstream's SQL text and shapes go, checked by answers | the compatibility database judge (51 of the census's 142 hits); the engine-style SQL printers, about 2,950 lines | 13 | J (new) and G (B2) |
+| **3. Translator (input)** | a model-level, target-aware rewrite at the edge's doors, using only functions every lite user has; no copying of legend-engine's refusals (E-R2) | the lowering's two-form choices (`LoweringForms`, 17 members) and the remaining two-form hooks | 14.5 | A (new) and O (B1-R) |
 | **4. Close-out** | `PlanStyle` deleted; the guards and the census blocking | `PlanStyle`, `PureText` and its 12 dialect subclasses | 3.5 | G (B2) |
 | **5. Portability** | export lite plans to legend-engine and import its plans, both checked by legend-engine running them | none | 6.5 | O (B1-R) |
 
-**In all: about 63.5 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
+**In all: about 62.5 session-days of work.** That is about 5 to 6 weeks of calendar time on the critical path
 (phase 0, then the translator, then the close-out), with five or six sessions in parallel. Inside phase 1, the
 judges split (2.1, 2.2) runs first beside 1.1, 1.2 and 1.5, because 1.3 and 1.4 delete text the compatibility
 database judge still uses. The old three-mode design
@@ -65,7 +67,7 @@ judges' code; it also kept the modes, which this plan removes.
 **What the user rules (§5).** Five decisions need the user's call:
 - **CP-1:** translator in and formatters out replace the three modes.
 - **CP-2 (R4):** lite's own `substring` and `indexOf` follow Pure.
-- **CP-3 (E-R1):** the legend-engine audience refuses exactly what legend-engine refuses.
+- **CP-3 (E-R2, switched by the user):** the legend-engine audience answers everything lite can.
 - **CP-4:** upstream's SQL text is never promised.
 - **CP-5:** no special functions that only the translator calls (revised after the user's question, 2026-11-19).
 
@@ -184,8 +186,8 @@ and H1's TSV, and the confirmed map is the ratchet. Paths are under `core/src/ma
 | `PlanStyle.traceCell` | an ANSWER cell: the activity rows' comment, `-- "executionTraceID" : "<id>"`, wrapped around the execution id in a TDS cell (`planner/PlanEnv.java:173-177`, `Lowerer.withTraceText`) | P: the ENGINE presenter writes the comment around the activity's (lite's) SQL | 1.4 |
 | `PlanStyle.graphKeyDate`, `graphKeyString` | ANSWERS: the JSON key of a qualified property in graph-fetch output (`resolver/GraphEmission.java:1846`, `:2938`; `planner/BodyPlanner.java:72`), written by the database at planning | P: the presenter renames the keys from the typed graph tree, after the run (real work, budgeted in 1.4) | 1.4 |
 | `PlanStyle.judgesEngineText` (`EngineTextGates`) | "is this the edge" in the product test planner (JUDGES-6, 13 hits) | J: deleted | 2.2 |
-| the test runner's hooks: `testexec` `EdgeRun`, `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording` | per-decision seams by which the edge changes the product's judges and runner | J: the door hands the runner a whole judge (the product's, or the edge's compatibility host judge), never per-decision two-form seams inside the product's; the appeal paths go with the appeal stack | 2.2, 2.3 |
-| the engine-text appeal, referee and ledger stack (`edge/`: `SqlTextVerdicts` 1,675, `Appeals` 354, `AppealJson` 273, `SqlTextRuns` 291, `SqlTextReferee` 231, `Appeal` 191, `SqlReplayReferee` 173, `PlannedAppeals` 56, `AppealRun` 40, `RefereeLoad` 34, `EffectTexts` 28, `EngineTextJudgment` 18; about 3,360 lines; `CompatEdge`'s ledger half; `EffectPlanner`'s referee CSV copies) | turns an engine-text assert failure into a pass by replaying the golden statement against a referee database | S under CP-4: those tests become "not promised"; deleted, and possibly the test plan's `Extension` seam with it | 2.3 |
+| the test runner's hooks: `testexec` `EdgeRun`, `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording` | per-decision seams by which the edge changes the product's judges and runner | J: the door hands the runner a whole judge (the product's, or the edge's compatibility judge, appeal included), never per-decision two-form seams inside the product's | 2.2 |
+| the engine-text appeal, referee and ledger stack (`edge/`: `SqlTextVerdicts` 1,675, `Appeals` 354, `AppealJson` 273, `SqlTextRuns` 291, `SqlTextReferee` 231, `Appeal` 191, `SqlReplayReferee` 173, `PlannedAppeals` 56, `AppealRun` 40, `RefereeLoad` 34, `EffectTexts` 28, `EngineTextJudgment` 18; about 3,360 lines; `CompatEdge`'s ledger half; `EffectPlanner`'s referee CSV copies) | turns an engine-text assert failure into a pass by replaying the golden statement against a referee database | **KEPT** (G6, E3; the 2026-09-01 charter; the user, 2026-11-19: "one of the crown jewels"). Under CP-4 it decides every SQL-text assert by answer. Its seams into the product's runner move into the edge's whole judge (2.2) | 2.2 |
 | `PlanStyle.dialect(type)` = `PureText`'s 12 subclasses | the edge's dialect wrapper. Its passes: | per pass, below; then `dialect` is `Databases.dialect` | 4.1 |
 | … `spellingPasses` (`PurePrintForms.passes`, all 12), `floatToText` | legend-pure's Float and DateTime prints inside EXECUTED SQL | P at roots and sides; X where composed or feeding (CP-5) | 1.3 |
 | … `floatLiteralKind` (H2 `:406`, DuckDB `:318`, Postgres, Trino, Databricks) | DECIMAL literals, which change arithmetic (S20) | a Pure answer with a register row (CP-5), deleted | 3.6 |
@@ -257,9 +259,10 @@ cherry-picked; S1m is not carried, and S1's deletions are re-done in 1.2).
   raise class A), so 3.6 can count the register rows CP-5 creates.
 - (d) **The strands' doors:** which door reaches each strand (pure/v1, the corpus, PCT A, PCT B, the hosts' edge
   routes, the test-data generator).
-- (e) **CP-4's cost, split three ways** (B1's review): tests that pass by ASSERTED legend-engine text; tests that pass
-  through an APPEAL (the referee replaying the golden statement); and programs that EXECUTE generated text (`toDDL`,
-  `setUpDataSQLs` passed to `executeInDb`). B2 is measuring (b) now.
+- (e) **CP-4's cost, split three ways** (B1's review): tests that pass by ASSERTED legend-engine text the appeal
+  cannot decide (B2 measured 143); tests the appeal decides (they stay passing, by answer); programs that EXECUTE
+  generated text (`toDDL`, `setUpDataSQLs` passed to `executeInDb`). Also the corpus lanes' run time with every
+  SQL-text assert going to the appeal, against today's.
 - (f) **The prints, by position and by use:**
   - of H2's 98 BARE query-side sites, how many sit at the literal root (`x->toString()` returned) and how many inside
     a returned structure (`map(x|$x->toString())`, `extend(~s: ...)`, a Pair, `^C(s = ...)`);
@@ -283,7 +286,7 @@ cherry-picked; S1m is not carried, and S1's deletions are re-done in 1.2).
 
 **0.6 The translator's ledger: exactly what is rewritten and what is refused** (the user's question, 2026-11-19).
 - **Changes:** one checked table, `edge/translator-ledger.tsv`. Each row: the function or construct, the audience,
-  the database, its action (pass, rewrite, refuse in upstream's words, refuse by name, Pure's answer recorded), the
+  the database, its action (pass, rewrite, refuse by name, Pure's answer recorded, lite answers where upstream refuses), the
   rewrite's text or the refusal's words, its evidence (a pinned source line, a manifest entry, an oracle answer), and
   the test that proves it. It is built from:
   - H1's rows: today 35 rewrites, 48 refusals and the 24 rows that needed a special function, each decided under
@@ -502,8 +505,9 @@ error record the translator's refusals are worded through.
     (JUDGES-3: `IsolatedRun#difference`);
   - the door hands the test runner a WHOLE judge: the product's, or the edge's compatibility host judge. The
     per-decision seams by which the edge reaches into the product's judges and runner go (`testexec` `EdgeRun`,
-    `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`), except the appeal paths, which go
-    with the appeal stack in 2.3.
+    `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`). The SQL-text appeal and the
+    referee move with the edge's judge, whole and unchanged in behaviour: its referee loads, its ledger and its
+    planned appeal sides are the edge judge's, reached through that one door.
 - **Deletes:**
   - `VerdictSql`'s two-form branches (the census's N-JUDGE, 38 hits);
   - `UpstreamVerdictWords` (198), `CompiledPureVerdictNumbers` (54);
@@ -520,15 +524,20 @@ error record the translator's refusals are worded through.
   - the corpus rosters unchanged, except unordered-assert lines that now pass as multisets (listed);
   - core's BOTH green.
 - **Guards:** the census's 52 J hits leave (a); `JavaEvalLedgerTest`'s pins shrink.
-- **Size:** 5 days.
+- **Size:** 6 days.
 - **Depends on:** 2.1. **Owner:** the judges session.
 
 **2.3 Upstream's SQL text and shapes go, checked by answers** (rule 4, CP-4).
 - **Changes:**
   - lite's own SQL everywhere an answer carries SQL text (`toSQLString`, `planToString`, `activities[].sql`,
     generatePlan's `sqlQuery`, the test-data generator's `sqls`);
-  - corpus tests that judge upstream's SQL text, or pass through an appeal, form a listed "not promised" class:
-    counted, never silently dropped;
+  - **the SQL-text appeal and the referee STAY** (ruled: GOALS_OF_RECORD G6 and §2 E3, 2026-11-07; the charter
+    `docs/SQLTEXT_ROW_VERDICT_CHARTER.md`, 2026-09-01, and its 2026-09-21 ruling). Under CP-4 lite's text never equals
+    legend-engine's, so EVERY SQL-text assert goes to the appeal, which checks the answer: the golden statement
+    replayed on the referee against lite's rows. That is the charter's own first rule, "a SQL-text assert's verdict
+    is ALWAYS rows". The user, 2026-11-19 ~04:30 UTC: "one of the crown jewels of this project";
+  - corpus tests whose appeal cannot decide (B2: a golden the referee cannot replay, lite's rows underivable there, a
+    printed string compared with no appeal) form the listed "not promised" class: counted, never silently dropped;
   - **statements a program EXECUTES are not text** (B1's review): `toDDL`'s create and drop texts
     (`edge/EnginePlans.java:958-995`) and `setUpDataSQLs` (`:754`, `:767`) are written for H2 whatever the target, and
     other targets run them through `PureText.raw`'s translation. They become target-aware lite DDL in this slice, and
@@ -545,25 +554,20 @@ error record the translator's refusals are worded through.
     `unionFrame` (C1), `relations`, `keyedCounts` and `computedPruning`;
   - `LoweringForms.existsJoin` (C2) and `whereZones` (`EngineWhereZones`), which run in executed SQL: answer-equal by
     S367's measurement, but they set H2's row order for unordered results, so they go after 2.2's multiset compare;
-  - **the engine-text appeal, referee and ledger stack, about 3,360 lines:** `SqlTextVerdicts` (1,675), `Appeals`
-    (354), `AppealJson` (273), `SqlTextRuns` (291), `SqlTextReferee` (231), `Appeal` (191), `SqlReplayReferee` (173),
-    `PlannedAppeals` (56), `AppealRun` (40), `RefereeLoad` (34), `EffectTexts` (28), `EngineTextJudgment` (18);
-    `CompatEdge`'s ledger half, `EffectPlanner`'s referee CSV copies, the appeal paths of `EdgeRun` and
-    `EdgeHearing`, `ExecuteOptions.recording`; and the test plan's `Extension` seam with `EdgeCodec` and its
-    ServiceLoader site if nothing else uses it;
   - two-forms `ActivityTexts`, `RoutedQueries`;
-  - facet `UpstreamPlans`' SQL half, and facet `EngineTestText`.
+  - facet `UpstreamPlans`' SQL half.
 - **Check:**
   - the corpus on H2 and DuckDB: every test that passed by answer still passes;
-  - the "not promised" class equals 0.4 (e)'s count of asserted-text and appealed tests;
+  - the "not promised" class equals 0.4 (e)'s count of tests the appeal cannot decide (B2 measured 143);
+  - the appeal decides every other SQL-text assert, and none of them regresses;
   - programs that execute generated DDL seed the same data on every target (their answers unchanged);
   - pure/v1's net, with `activities[].sql` lite's own (moved lines listed);
   - the lean-SQL baseline (`lean-sql-baseline.tsv`) only shrinks.
 - **Guards:** the census's SQL-shape hits leave (a); `DialectLeakRatchetTest` and the edge's line count shrink.
-- **Size:** 6 days.
+- **Size:** 5 days.
 - **Depends on:** CP-4, 0.4 (e), 1.4, 2.2. **Owner:** B2, or the judges session after 2.2.
 
-### Phase 3: the translator on the way in (about 15.5 days; tracks A and O)
+### Phase 3: the translator on the way in (about 14.5 days; tracks A and O)
 
 H3 (a) and (b) proved the pattern and found three conditions, which shape this phase:
 - **the rewrite must know the target database** (legend-engine's meaning is its database's: target-blind, DuckDB
@@ -661,20 +665,20 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
 - **Size:** 4.5 days (2.5 + 2).
 - **Depends on:** 3.2. **Owner:** the translator session; B1-R writes each battery.
 
-**3.5 legend-engine's refusals** (E-R1, CP-3).
+**3.5 Where legend-engine refuses, lite answers** (E-R2, CP-3).
 - **Changes:**
-  - the ENGINE translator refuses exactly what legend-engine refuses at planning, per database, by 0.3's derived
-    table, worded in legend-engine's words by the presenter;
-  - where legend-engine fails by its own defect, lite answers correctly, and each case is a register row counted from
-    the manifests;
-  - the 17 "upstream-refuses" register rows and 4 ENGINE cells of H1 become refusals; S1 (whole-model compile) uses
-    `Compiler.compileErrors`.
-- **Deletes:** nothing.
-- **Check:** the ENGINE PCT lane: lite passes where legend-engine passes, refuses in its words where it refuses, and
-  answers its defects as ledgered rows.
-- **Guards:** the table regenerated by its diff test; growth only by the manifests.
-- **Size:** 1.5 days.
-- **Depends on:** CP-3, 0.3, 3.2. **Owner:** the translator session.
+  - the ENGINE lane's referee, where the manifest says legend-engine refuses ("No SQL translation exists"), is PCT's
+    expected value. 0.3's derived table now classifies the lane's cases; it no longer drives refusals;
+  - one blanket register row: "where legend-engine refuses at planning, lite answers";
+  - the translator refuses only what lite itself cannot do, by name;
+  - H1's 17 upstream-refuses rows and 4 ENGINE cells become S under that row. S1's whole-model compile failure is not
+    copied either.
+- **Deletes:** nothing; no refusal table is built into the translator.
+- **Check:** the ENGINE PCT lane. Where legend-engine passes, lite passes; where it refuses, lite's answer matches PCT's
+  expected value or is a listed row; where it fails by defect, lite answers correctly.
+- **Guards:** the derived classification table is regenerated by its diff test.
+- **Size:** 0.5 day.
+- **Depends on:** CP-3, 0.3. **Owner:** the translator session.
 
 **3.6 No special functions: the R1 rows decided without them** (CP-5, recommendation revised 2026-11-19 after the
 user's question "is this a sneaky way to have two sql paths").
@@ -800,8 +804,17 @@ the user's call; CP-6 to CP-10 take the recommendation unless the user objects.
   - **Against:** the product keeps a meaning that differs by database and from Pure; the DuckDB clamp answers
     neither database's way.
 
-**CP-3. (e′) E-R1: what the legend-engine audience refuses.** *Gates 3.5.* **RULED: option A, E-R1** (the same words,
-item 2).
+**CP-3. (e′) What the legend-engine audience refuses.** *Gates 3.5.* **RULED: option B, E-R2: the legend-engine route
+answers everything lite can** (the user, 2026-11-19 ~04:30 UTC, "Switch e-r1", replacing the ~04:02 ruling of E-R1
+after the trade-off was put: E-R2 is smaller, and the translator never copies legend-engine's compile-time
+rejections, which is how it would grow into a second compiler).
+- **What it means:**
+  - where legend-engine refuses a program and lite can answer it, lite answers. One blanket register row records it,
+    and the lane judges those cases against PCT's expected values;
+  - where legend-engine answers, lite still matches it (the rewrites);
+  - where legend-engine answers wrongly, lite answers correctly;
+  - programs written against lite's legend-engine route may not run back on legend-engine itself. Plan export is not
+    affected: an exported plan carries lite's SQL.
 - **Option A, E-R1 (recommended).** It refuses exactly what legend-engine refuses at planning ("No SQL translation
   exists"), per database, from a table derived from legend-engine's manifests, in its words. Where legend-engine
   fails by its own defect, lite answers correctly, with a register row.
@@ -831,9 +844,8 @@ words, item 3). B2's count of the corpus tests it moves (0.4 (b)) is reported to
       `dateExtension.pure:202`) and Sunday on H2. That is a lite parity bug (G2), handed to the product owner;
   - no test moved from fail to pass; the runtime was 10.5 minutes for both lanes;
   - the record: `docs/records/census-b2-sqltext-probe-2026-11-19.md` on `claude/census-b2` at `32ef19118`;
-  - **its limit, still to count in 0.4 (e):** the 143 were measured with the rows appeal still running. 2.3 deletes
-    the appeal stack, so the tests that pass today THROUGH a successful appeal also become "not promised". That
-    number is added before 2.3 lands.
+  - the 143 were measured with the rows appeal running, which is how it stays: the appeal is kept (the user,
+    ~04:30 UTC). So 143 is the cost, not a floor.
 - **The question:** legend-engine's own suite calls `toSQLString` 588 times in 64 files (H1); its test-data
   generator's `sqls` are pinned by 45 asserts (S193); its answers carry SQL in `activities` and `sqlQuery`.
 - **Option A, never promised (recommended).**
@@ -1065,3 +1077,23 @@ There is no force push. A pin, a ceiling, a ledger or an allowlist moves only wi
 - The files' sizes: `wc -l` on each file named (§4).
 - The verified native sets: `core/src/test/java/com/legend/builtin/NativeCatalogGovernanceTest.java`
   (`everyLiteInternalNativeIsNamedAndVerified`, `theVerifiedSetsOnlyShrink`).
+
+---
+
+## 12. Implications to go through (the user's question, 2026-11-19 ~04:30 UTC)
+
+Each item is a consequence of the rulings or the design that is easy to miss, with what the plan does about it.
+
+| # | Implication | What the plan does |
+|---|---|---|
+| I1 | **R4 changes answers for lite's own users**, not just upstream's: any saved query, saved cube or DataCube calculated column using `substring` or `indexOf`, and lite's Cypher translator. DataCube's own help example (`datacube/src/calc.ts:88`, `substring(0, 2)`) is already written in Pure's meaning, so R4 makes it right | 3.3 lists every lite emitter and every saved-artifact use it can find; the change is announced as a meaning change; 3.1 fixes the Cypher translator first |
+| I2 | **E-R2 is one-way:** a program written against lite's legend-engine route may not run back on legend-engine. Studio users see answers legend-engine would refuse | accepted by the ruling; one blanket register row; plan export unaffected |
+| I3 | **The appeal becomes load-bearing for every SQL-text assert** (CP-4): lite's text never matches, so each one replays legend-engine's golden on the referee. The corpus lanes may get slower | 0.4 (e) measures the lanes' run time against today's; the appeal's decline reasons (B2: 64 declines) are a place to win tests back later (a referee that can replay more goldens) |
+| I4 | **The referee may need legend-engine's H2 settings** (`MODE=LEGACY`) to replay its goldens, while CP-8 removes those settings from lite's executed plans | the referee is the judge's tool, not the product: it keeps whatever settings replaying legend-engine's SQL needs; 0.4 (h) confirms which settings it uses |
+| I5 | **The judges split shrinks the evidence for judge parity (G2):** today every PCT test is judged by both judges; afterwards compatibility judging is host-only, and parity is proven on the 36 ported shapes | an opportunity: since lite now follows Pure (R4), most of PCT is lite's own meaning. Run PCT as a LITE suite under BOTH judges as well, which makes PCT a product test and widens the parity evidence. Proposed as an addition to 2.1, for the user's word |
+| I6 | **Rewritten code must keep the user's source positions,** so a compile error or a raise points at what the user wrote, not at the rewrite | a 3.2 guard: every rewritten node carries its original span; a planted rewrite whose error points elsewhere fails |
+| I7 | **"No special functions" (CP-5) moves some ENGINE answers away from legend-engine** (S20's exact-decimal Float arithmetic; unchecked operations without an ordinary-function rewrite) | 0.4 (j) counts them by case before anything is deleted |
+| I8 | **Clients see lite's SQL** in `activities`, generatePlan and the test-data generator's statements (CP-4) | accepted by the ruling; cosmetic for answers |
+| I9 | **Plan format bumps** (v59 in 1.2, v60 in 1.6): anything holding a serialized plan must re-plan; the three hosts move in lockstep | `PLAN_VERSION` generated from Java (1.5), so the hosts cannot drift |
+| I10 | **The census blocking at the end changes how everyone works:** any new upstream spelling or branch in the product fails the build, so later compatibility work must go through the translator or a presenter | intended (done-when 2); the census's (b) rows name each ruled exception |
+| I11 | **The product follows Pure, not legend-engine, from now on** (R4 plus E-R2 plus CP-5): wherever the two differ and no ordinary-function rewrite exists, the legend-engine route answers Pure's way | stated in the register's blanket rows, so the rule is visible to every later session |
