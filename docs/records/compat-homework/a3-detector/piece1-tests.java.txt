@@ -1,0 +1,37 @@
+// A3 piece 3: the detector's three tests that need A3 piece 1 (the translator's natives). They join
+// PureMeaningCheckTest when this branch rebases onto piece 1. Measured 2026-11-19 ~20:10:
+// - on piece 1's patch (48801791's 0001-a3-piece1-frontends.patch, applied by git am onto 800aeae7d): 25 of 25 pass;
+// - without it, on this branch: the three fail (substring/3=1, indexOf/2=1; substring/3=1; substring/3=2),
+//   since the island's and the mapping's calls are plain Pure substring and indexOf there.
+
+    // ---- what piece 1 makes quiet (the islands and the ###Relational dynaFunctions keep SQL's meaning) -------------
+
+    /** A model whose relational mapping carries the dynaFunctions: a property mapped through {@code substring} and a
+     *  {@code ~filter} through {@code position}. */
+    static final String DYNA_MODEL = MODEL.replace(
+            "Mapping t::M ( t::Person: Relational { ~mainTable [t::DB]PERSON name: [t::DB]PERSON.NAME,"
+                    + " code: [t::DB]PERSON.CODE } )",
+            "Mapping t::M ( t::Person: Relational { ~mainTable [t::DB]PERSON name: substring([t::DB]PERSON.NAME, 1,"
+                    + " 3), code: [t::DB]PERSON.CODE } )");
+
+    @Test
+    void aRelationalDynaFunctionIsNotFlagged_itKeepsSqlsMeaning() {
+        PureMeaningCheck.Result r = check(DYNA_MODEL, "|t::Person.all()->project(~[n: p|$p.name])->from(t::M, t::RT)");
+        assertTrue(r.clean(), r.header());
+    }
+
+    @Test
+    void aRelationalMappingsLiftedBodyIsWalked_aPureCallBesideItIsFlagged() {
+        // the same mapping read, and the query's own call flagged: the walk reached the binding and kept walking
+        PureMeaningCheck.Result r = check(DYNA_MODEL, "|t::Person.all()->project(~[n: p|$p.name->substring(1, 2)])"
+                + "->from(t::M, t::RT)");
+        assertEquals("substring/3=1", r.header());
+        assertTrue(r.sites().stream().allMatch(s -> s.where().equals("the query")), r.sites().toString());
+    }
+
+    @Test
+    void aSqlIslandsSubstringIsNotFlagged_itKeepsSqlsMeaning() {
+        PureMeaningCheck.Result r = check("|#SQL{select substring(NAME, 1, 3) as s, position('a' in NAME) as p"
+                + " from tb('t::DB.PERSON')}#");
+        assertTrue(r.clean(), r.header());
+    }
