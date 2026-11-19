@@ -410,6 +410,14 @@ class AssertBarTest {
                 + " 2015-04-16T14:00:00.000000Z (DateTime, hour), got 2015-04-16T14:00:00.000000Z (DateTime, minute)");
         want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
         want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}", "pass");
+        // no text carrier holds a zone for the message's read to its minute to trip on (PR #127's review, 2026-11-19):
+        // a zoned minute is normalised to GMT at parse (PureDateLiteral, as legend-pure's DateFormat.parsePureDate),
+        // and a zone on an hour is refused at parse
+        want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 13, 30))}", "pass");
+        want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 14, 30))}",
+                "AssertFailed: expected 2015-04-16T13:30:00.000000Z, got 2015-04-16T14:30:00.000000Z");
+        want.put("{|assertEquals(%2015-04-16T14+0100, date(2015, 4, 16, 13))}", "ParseException: [1:16] invalid date"
+                + " literal '%2015-04-16T14+0100': expected ':' after hour at position 13 in '2015-04-16T14+0100'");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             for (var e : want.entrySet()) {

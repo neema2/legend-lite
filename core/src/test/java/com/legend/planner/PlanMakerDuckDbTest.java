@@ -46,6 +46,23 @@ class PlanMakerDuckDbTest {
         assertEquals(List.of("SET TimeZone='UTC'"), Targets.of(database, dialect).session());
     }
 
+    /** A database a connection DECLARES is the user's and runs as it is: a file DuckDB's test target writes no
+     *  threads, so a test and a product plan on one file in one process never meet over the database's own setting
+     *  (PR #127's review, 2026-11-19); an in-memory one the platform makes does. */
+    @Test
+    void aDeclaredFileKeepsItsOwnThreads_anInMemoryOneTheTestsSetting() {
+        var dialect = com.legend.database.Databases.dialect(DUCKDB);
+        var type = ConnectionPlans.type(DUCKDB);
+        var file = new ExecutionPlan.Database.Declared(new com.legend.executionplan.Connection("t::File", null, type,
+                new com.legend.executionplan.ConnectionSpecification.LocalFile("/tmp/t.duckdb"),
+                new com.legend.executionplan.AuthenticationSpec.NoAuth()), null);
+        var memory = new ExecutionPlan.Database.Declared(new com.legend.executionplan.Connection("t::Memory", null, type,
+                new com.legend.executionplan.ConnectionSpecification.InMemory(),
+                new com.legend.executionplan.AuthenticationSpec.NoAuth()), null);
+        assertEquals(List.of("SET TimeZone='UTC'"), Targets.forTest(file, dialect).session());
+        assertEquals(List.of("SET TimeZone='UTC'", "SET threads TO 1"), Targets.forTest(memory, dialect).session());
+    }
+
     /** DuckDB binds a parameter typed by its value bare, as the database types the value (H2 casts it to a type hole:
      *  {@link PlanMakerH2Test}). */
     @Test

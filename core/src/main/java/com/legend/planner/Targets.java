@@ -55,12 +55,19 @@ public final class Targets {
 
     /** {@code database}'s target for a TEST plan, as {@code dialect} writes it: {@link #of}'s, its session statements
      *  followed by the dialect's test session statements ({@code SqlDialect.testSessionSetup}: DuckDB's one thread,
-     *  G10, the compatibility owner's ruling of 2026-11-19) -- a target of its own, so a test plan's session is never
-     *  a product plan's. */
+     *  G10, the compatibility owner's ruling of 2026-11-19) where the platform makes the database -- a target of its
+     *  own, so a test plan's session is never a product plan's; a database a connection declares (a file) runs as it
+     *  is. */
     public static ExecutionPlan.Target forTest(ExecutionPlan.Database database,
             com.legend.sql.dialect.SqlDialect dialect) {
         List<String> session = new java.util.ArrayList<>(dialect.sessionSetup());
-        session.addAll(dialect.testSessionSetup());
+        // only where the platform MAKES the database (its own engine, the catalog, a connection's in-memory database):
+        // a file, a server or a warehouse a connection declares is the user's, never modified, as its settings
+        // (settings, above) -- DuckDB's threads is the database's own setting, and a file a product plan reads in the
+        // same process would share it (PR #127's review, 2026-11-19)
+        if (madeInProcess(database)) {
+            session.addAll(dialect.testSessionSetup());
+        }
         return new ExecutionPlan.Target(database, session, List.of(), readBack(dialect), settings(database, dialect),
                 transaction(dialect));
     }

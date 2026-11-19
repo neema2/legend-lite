@@ -50,4 +50,14 @@ class ChannelBLedgerTest {
                 List.of(new ChannelBLedger.Expected("t::a", error))));
         assertTrue(e.getMessage().contains("THE JUDGES DISAGREE"), e.getMessage());
     }
+
+    /** The guard's head is the judges' disagreement's own class name, which the runner writes before its words: a
+     *  rename of {@code testexec.IsolatedRun.JudgesDisagree} fails here, never turning the guard off silently (PR #127's
+     *  review, 2026-11-19; the class is package-private there, so it is named). */
+    @Test
+    void theDisagreementsHeadIsItsClassesName() throws ClassNotFoundException {
+        org.junit.jupiter.api.Assertions.assertEquals(
+                Class.forName("com.legend.testexec.IsolatedRun$JudgesDisagree").getSimpleName() + ": ",
+                ChannelBLedger.DISAGREEMENT);
+    }
 }
