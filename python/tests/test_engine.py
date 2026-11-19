@@ -553,6 +553,23 @@ class QueryRunRoute(Served):
         said = json.loads(body)
         self.assertEqual((status, said, ), (422, {'kind': 'data', 'message': 'no such party'}), body[:300])
 
+    def test_a_fail_inside_an_if_raises_and_an_any_columns_cells_are_their_values(self):
+        # FOLLOW_UPS §9 (the PR #121 fixer's finding, 2026-11-19): fail() is Boolean[1] and an if over a Boolean and a
+        # String is Any, upstream's typing as lite's, so the column is Any; the failing row raises the user's message
+        # (DuckDB answered it null), and a cell of the Any column is its value, as Java's server writes it (JdbcDecode's
+        # JSON slot), never its JSON text ('"Meridian Capital"')
+        def query(failing):
+            return ll.parse(f"|demo::party::Party.all()->project(~[name: p|if($p.id == {failing}, |fail('no such party'),"
+                            ' |$p.name)])->sort(~name->ascending())->from(demo::party::PartyMapping, demo::party::Runtime)')
+
+        status, _, body = self.ask(model=PARTY, query=query(1), runtime='demo::party::Runtime', format='json')
+        self.assertEqual((status, json.loads(body)), (422, {'kind': 'data', 'message': 'no such party'}), body[:300])
+        status, _, body = self.ask(model=PARTY, query=query(3), runtime='demo::party::Runtime', format='json')
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(json.loads(body), {'shape': 'RELATION',
+                                            'columns': [{'name': 'name', 'type': 'meta::pure::metamodel::type::Any'}],
+                                            'rows': [['Halberd Securities'], ['Meridian Capital']]})
+
     def test_every_failure_making_a_projects_database_is_lites_shape_as_javas_server_answers_it(self):
         # F2 of PR #121's review (2026-11-19), as Java's LiteV1Api.dataRefusal: until then (a) and (b) answered a 500 in
         # text/plain and (c) a data refusal with no raise

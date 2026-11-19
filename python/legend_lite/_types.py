@@ -76,6 +76,11 @@ def is_date_time(name: str) -> bool:
     return plain_type(name) == 'DateTime'
 
 
+def is_variant(name: str) -> bool:
+    """A Variant: a JSON value whose cell is its JSON text."""
+    return not is_model_type(name) and plain_type(name) == 'Variant'
+
+
 def is_date(name: str) -> bool:
     """A Date: a StrictDate or a DateTime."""
     return plain_type(name) == 'Date'

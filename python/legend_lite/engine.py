@@ -68,7 +68,7 @@ from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._params import ParametersRefused
-from ._types import is_float, is_model_type, is_strict_date
+from ._types import is_float, is_model_type, is_strict_date, is_variant
 from ._plans import PlanParamsRefused
 from ._raised import raised_of, wire_name
 from ._runs import LoadRefused
@@ -248,6 +248,14 @@ def _lite_cell(cell: Any, column: compiler.Column) -> Any:
     StrictDate, or a date-time of a column that holds days, its day; any other date-time UTC, six fraction digits and
     Z. A list or a structure is refused by name: the server writes its own JSON form, which Python does not yet."""
     float_column = not is_model_type(column.type) and is_float(column.type)
+    if isinstance(cell, str) and column.raw.get('slot') == 'JSON' and not is_variant(column.type):
+        # a JSON slot's cell under a type that is not a Variant -- an Any, a mixed if's to_json carrier -- is the value
+        # its JSON spells, of the token's own kind, as the server reads it (JdbcDecode's JSON slot, RowDecode.cell: a
+        # string, a boolean, a whole number, any other number a double); until then its JSON text ('"Meridian"',
+        # FOLLOW_UPS §9). A Variant's cell is its JSON text; a list or a structure is refused below
+        cell = json.loads(cell)
+        if isinstance(cell, str):
+            return cell
     if cell is None or isinstance(cell, (bool, str)):
         return cell
     if isinstance(cell, int):
