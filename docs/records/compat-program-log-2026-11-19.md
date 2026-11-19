@@ -1812,3 +1812,25 @@ who confirms or changes phases 1-3.
   first: each dialect's error-text limits, Snowflake's and ClickHouse's quoting, the SQLite Float round trip. **This
   session's call:** recorded as a B1 option, for the user with stage B's ratification. Rule 4: the +15/-4 database-judge
   change is not needed in the product (both judges say lite's own message); dropped (-0.25 day).
+- **~14:51 UTC, the independent reviewer: stages A and B against the rules of record** (§7 of
+  `compat-final-plan-review-2026-11-19.md` at `293122a0`).
+  - **Rule 1, A3 breaks it:** the A3 note makes `FeatureRules.CORRECTED_SUBSTRING` the plain rule for every String
+    `substring`, and that rule folds Integer literals in Java (`IntLit(s+1)`, `IntLit(e-s)`, `lowering/FeatureRules.java:61-70`);
+    `substr` already does this. Options: emit PLUS/MINUS over the literals and let the database fold them, or name
+    Integer index arithmetic as an allowed fold. Nothing else in A or B computes a value.
+  - **Rule 2:** B1's "each side's formatter words them" gives the product a formatter: restate lite's sentence as plan
+    data the writer only serializes, compatibility's the only formatter. B2: for lite's own audience the database spells
+    `toString`/`toCSV`, never a Java presenter.
+  - **Rule 3 holds**, with one reading for the user: B1's compatibility sentences print the site's plan-literal operands
+    in Java (Float, Decimal, DateTime, Boolean the database used to print); it holds if a raised error's record (kind,
+    where, typed operands) counts as lite's typed output.
+  - **Rule 4 holds by A4, but nothing enforces it:** add to A4 a guard, with a plant, that no compatibility audience
+    plans a database-judge verdict.
+  - **Folded in (15:50):** A3's row (the index arithmetic waits on the user's fold-list answer; the database folds it
+    unless the user lists it); A4's guard; B1 and B2 restated. Put to the user: the fold list (now with `substring`'s
+    index arithmetic) and the rule-3 reading.
+- **~14:51 UTC, B2 checked its outputs against the rules:** none breaks one. The differences page gains the line "The
+  database computes every answer. Only the output's formatting happens in Java ..." (`9512a9da4`). The SQL-text appeal
+  runs legend-engine's expected SQL on the referee H2 and compares the rows in Java (`SqlReplayReferee.verify`), the
+  host comparing, which fits rule 4. A2 proposes no value-computing Java. The B5 ratchet excludes `com/legend/edge/`
+  and refuses any new compatibility hook in the core. Idle until A2's briefing.
