@@ -2890,3 +2890,8 @@ who confirms or changes phases 1-3.
   `SelectMergeQueriedOperandsTest` replaces the scratch census (both scratch files deleted). WindowReadThroughAListTest
   and its Postgres target pass (PCT's rows on DuckDB, SQLite, Postgres; the chunked shape refused by name on SQLite);
   the lean-SQL baseline green, no pin moves. Gates running.
+- **~21:50 UTC, B1-R: the batteries under `engine` measured** (local `d61e524fb`): H2 AGREE 46 with every
+  legend-engine answer (2 DIFFER, the 3-argument `indexOf`, E-R2; 1 BOTH_FAIL); DuckDB AGREE 47 (2 DIFFER, the same);
+  so DuckDB is enabled under `engine` by the design's rule, every other database refused by name; the `warn` pins
+  unmoved. **For the user's word:** two new pin files, `pct/batteries/agreement_engine_{h2,duckdb}.tsv` (named by the
+  design; new pins need the word), with the funnel row.
