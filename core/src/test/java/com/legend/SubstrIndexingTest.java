@@ -26,6 +26,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * existing queries, hence the flag"). In Pure the two are one function
  * (substr's body calls substring) — the split lives in the lowering, which
  * is why substr is a platform native here and never the prelude's body.
+ *
+ * <p>Since A3 of the compatibility program, piece 2 (2026-11-19; the user's
+ * word: "approved: push both A3 branches and make piece 2's moves"), lite's
+ * core answers Pure's meaning for both names, with or without the flag
+ * (S130): legend-engine's uncorrected {@code substring} is the compatibility
+ * edge's. The pins below were re-pinned to Pure's answers that day.
  */
 class SubstrIndexingTest {
 
@@ -54,7 +60,7 @@ class SubstrIndexingTest {
             ExecuteOptions.NONE.withFeatures(Set.of(Feature.CORRECT_SQL_SUBSTRING_INDEXING));
 
     @Test
-    @DisplayName("substr is corrected with no flag; substring only under the flag")
+    @DisplayName("substr and substring are Pure's, corrected with or without the flag")
     void substrAlwaysCorrected() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             // the PCT's own example: 'the quick brown fox'->substr(4, 9) == 'quick'
@@ -62,11 +68,11 @@ class SubstrIndexingTest {
                     "|'the quick brown fox'->substr(4, 9)", "t::RT", c)));
             assertEquals("quick brown fox", scalar(Lean.run(MODEL,
                     "|'the quick brown fox'->substr(4)", "t::RT", c)));
-            // substring passes its indexes straight to SQL by default: SQL's
-            // substring(s, 4, 9) starts at the 4th character and takes 9
-            assertEquals(" quick br", scalar(Lean.run(MODEL,
+            // substring is Pure's with no flag (it passed its indexes straight to
+            // SQL until A3 piece 2, " quick br")
+            assertEquals("quick", scalar(Lean.run(MODEL,
                     "|'the quick brown fox'->substring(4, 9)", "t::RT", c)));
-            // … and is corrected under the flag
+            // … and the same under the flag
             assertEquals("quick", scalar(Program.last(MODEL,
                     "|'the quick brown fox'->substring(4, 9)", "t::RT", c, CORRECTED)));
             // the flag never changes substr
