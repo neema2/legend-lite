@@ -237,6 +237,44 @@ class PureMeaningCheckTest {
         assertEquals("substring/3=1, indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
     }
 
+    /** A refused request sends nothing to the database: the check runs right after the request is typed, before it
+     *  is planned or run, on every route that runs a query (the compat owner's order of ~19:52). The runner is the
+     *  routes' one way to a session, and a refused request never reaches it. */
+    @Test
+    void aRefusedRequestRunsNoStatement_onEveryRouteThatRunsAQuery() {
+        java.util.concurrent.atomic.AtomicInteger runs = new java.util.concurrent.atomic.AtomicInteger();
+        LiteV1Api.Runner counting = (query, runtime, output) -> runs.incrementAndGet();
+        String testData = testDataBody("|t::Person.all()->project(~[i: p|$p.name->substring(1, 2)])");
+        Map<String, String> routes = new java.util.LinkedHashMap<>();
+        routes.put("/api/pure/v1/execution/execute", body(PLANTED));
+        routes.put("/api/pure/v1/execution/generatePlan", body(PLANTED));
+        routes.put("/api/pure/v1/execution/testDataGeneration/generateSeedData", testData);
+        routes.put("/api/pure/v1/execution/testDataGeneration/generateTestData_WithSeed", testData);
+        routes.put("/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed", testData);
+        for (Map.Entry<String, String> route : routes.entrySet()) {
+            for (String format : java.util.Arrays.asList(null, "serializationFormat=ARROW_IPC")) {
+                LiteV1Api.Answer a = PureV1Routes.route(route.getKey(), format, route.getValue(), counting);
+                assertEquals(500, a.status(), route.getKey() + " " + a.json());
+                assertTrue(a.json().contains("LEGEND_LITE_PURE_MEANING=warn"), route.getKey() + " " + a.json());
+                assertTrue(a.headers().get(PureMeaningCheck.HEADER) != null, route.getKey());
+            }
+        }
+        assertEquals(0, runs.get(), "a refused request reached the runner");
+        // the partner: the same counting runner IS reached by a clean request, so the zero above is the refusal's
+        PureV1Routes.route("/api/pure/v1/execution/execute", null,
+                body("|" + TABLE + "->select(~[NAME])->from(t::RT)"), counting);
+        assertEquals(1, runs.get(), "a clean request runs");
+    }
+
+    private static String testDataBody(String lambdaText) {
+        String function = PureV1Routes.grammarToJsonLambda(lambdaText, true).json();
+        Map<String, Object> model = new java.util.LinkedHashMap<>();
+        model.put("_type", "text");
+        model.put("code", MODEL);
+        return "{\"function\":" + function + ",\"mapping\":\"t::M\",\"runtime\":{\"_type\":\"runtimePointer\","
+                + "\"runtime\":\"t::RT\"},\"model\":" + Json.toCompact(model) + ",\"tableRowIdentifiers\":[]}";
+    }
+
     @Test
     void executeUnderWarnAnswers_withTheHeaderAndTheBrowsersLeaveToReadIt() {
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(PLANTED), NOTHING,

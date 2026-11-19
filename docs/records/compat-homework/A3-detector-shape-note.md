@@ -63,9 +63,9 @@ The census route (`DONOTUSE_generateTestData`) is left out because it runs nothi
 (section 5).
 
 **The setting** is read once, at the edge's composition root, `EdgeServer.UPSTREAM`:
-- the values are `warn`, `refuse`, or unset (meaning `warn`);
+- the values are `refuse`, `warn`, or unset (meaning `refuse`, the user's ruling of ~19:20);
 - any other value stops the server's start, so there is no fallback;
-- it reaches the routes as a parameter (`PureV1Routes.route(..., meaning)`), and the existing overloads keep `warn`.
+- it reaches the routes as a parameter (`PureV1Routes.route(..., meaning)`), and every existing overload refuses.
 
 The spike showed it must be read there: `//core:edge` cannot see the server library, and `EdgeServer` is
 `//core:edge_server`'s. The product server is untouched.
@@ -120,8 +120,10 @@ type is read from the connection's record.)
 ## 3. What it does
 
 `PureMeaningCheck.of(TypedQuery, target)` returns data: the flagged sites (code, position, element, kind) and the
-unverified ones. It never changes the query. The route plans and runs the `TypedQuery` it already holds, then adds a
-header or throws.
+unverified ones. It never changes the query. **The check runs right after `Compiler.query` types the request.**
+- Under `refuse` a flagged request is refused there, before anything is planned or run, so it sends nothing to the
+  database.
+- Under `warn` the route plans and runs the `TypedQuery` it already holds, as before, and adds the header.
 
 - **`warn`, an operator's choice (revision 2: no longer the default):**
   - the header `x-legend-lite-pure-meaning: substring/3=2, indexOf/2=1, unverified=1`. It has at most four codes and
