@@ -62,8 +62,12 @@ you need legend-engine's answer.
   write SQL's `substring` and position by name. Nothing you write there changes.
 - **When:** stage A.
 - **Measured:**
-  - Legend-engine's corpus: each database's fail roster gains the same 7 tests. Four are answers; three are SQL-text
-    tests that the old `indexOf` hid.
+  - Legend-engine's corpus: each database's fail roster gains the same 7 tests.
+    - Four are answers: `testToSQLStringSubstringIsUncorrectedByDefault` and
+      `testFilterUsing{Substring,ParseInteger,ParseDecimal}Function`. They passed by their rows until now, so each
+      unordered register loses them.
+    - Three are SQL-text tests that the old `indexOf` hid: `testPlanForDateTimeConstantParameter{No,GMT,EST}TimeZone`.
+    - None of the 7 fails without this item, A2's deletion and the rest of the batch included.
   - PCT's 3 known `indexOf` failures pass.
   - Lite's own 62 projects have no such call.
   - Evidence: H12, the combined dry run, and A3's measures on `claude/compat-translator-spike`.
@@ -82,7 +86,8 @@ you need legend-engine's answer.
 - **To get legend-engine's answer:** compare results, not SQL strings.
 - **When:** stage A.
 - **Measured:** of legend-engine's 2,761 corpus tests, 145 on H2 and 149 on DuckDB stop passing, as the merged batch's
-  lanes measured: H2's fail roster goes 276 to 421, DuckDB's 108 to 257. Their kinds (`A2-roster.tsv`):
+  lanes measured before item 1 joined it: H2's fail roster goes 276 to 421, DuckDB's 108 to 257. Their kinds
+  (`A2-roster.tsv`):
   - **text only:** 139 on H2 and 143 on DuckDB check only the SQL text;
   - **plan structure:** 6 on each check legend-engine's plan structure (a `supportsStream` flag on its plan's
     parameter-validation node);
@@ -90,7 +95,9 @@ you need legend-engine's answer.
     before (2026-09-05 and 2026-09-08), so they are accepted divergences again (the user, 2026-11-19 ~20:35). Four
     of batch 144's rows go back on the accepted rosters, and two H2 rows are new. The accepted rosters go H2 41 to
     44 and DuckDB 46 to 49. Each of those rows left its fail roster on the merged batch, so each witness matched.
-- That becomes 148 and 152 once item 1 lands: three more text tests that the old `indexOf` hid.
+- **With item 1 in the same batch**, each fail roster gains its 7 more. Three of them are SQL-text tests that the old
+  `indexOf` hid, and four are item 1's answers. The expected totals are H2 276 to 428 (+152) and DuckDB 108 to 264
+  (+156). The figure of record is the judges' measurement on the batch's final head, still pending.
 - Every other SQL-text test passes by its answer.
 - Studio's "generate plan" for an ordinary query answers byte for byte as before.
 - Evidence: A2's corpus rosters, exact against `A2-roster.tsv`, and `server/PureV1SqlTextTest`.
@@ -242,7 +249,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   - The corpus's `testToSqlGenerationFirstDayOfWeek` on DuckDB (class b of `A2-roster.tsv`). Its rows were appealed
     against legend-engine's H2 under `en_US`: `2014-11-30` there, `2014-12-01` from lite.
   - With this batch it is an accepted divergence on both databases (item 2). On H2 the merged batch's lane accepts
-    it with legend-engine's answer as the witness, `2014-11-30`.
+    it with legend-engine's answer as the witness, `2014-11-30`. That lane ran before item 1 joined; item 1 does not
+    touch this test. The judges' measurement on the final head is the figure of record, still pending.
   - Both databases were asked directly under `en_US`, `en_GB` and `fr_FR`
     (`docs/records/compat-homework/A3-piece4/first-day-of-week-probe.md`, on `claude/census-b2`).
 - **Register:** S387 (provisional).
