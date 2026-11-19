@@ -33,4 +33,21 @@ class ChannelBLedgerTest {
                 List.of(new ChannelBLedger.Expected("t::a", WORDS))));
         assertTrue(e.getMessage().contains("FAILS DIFFERENTLY"), e.getMessage());
     }
+
+    /** A judge disagreement is refused by name whatever row it would match (the compatibility owner, 2026-11-19): its
+     *  text quotes the database's run, so a row naming the database's error matched it, and the LITE lane passed on
+     *  four rows (PCT's testAdjustBy*BigNumber) while its judges disagreed. The plant: such an outcome and the row it
+     *  contains. */
+    @Test
+    void aJudgeDisagreementIsRefusedWhateverRowItWouldMatch() {
+        String error = "DataError: Conversion Error: date field value out of range: \"33803336-12-17\"";
+        String full = ChannelBLedger.DISAGREEMENT + "the judges disagree at assert 0: host"
+                + " meta::pure::functions::asserts::assertEquals failed \"Conversion Error: date field value out of"
+                + " range: \"33803336-12-17\"\"; database (none) (database's run \"" + error + "\")";
+        ChannelB.Outcome o = new ChannelB.Outcome("t::a", ChannelB.Status.ERROR, full, full);
+        assertTrue(o.full().contains(error));
+        AssertionError e = assertThrows(AssertionError.class, () -> ChannelBLedger.judge("s", List.of(o),
+                List.of(new ChannelBLedger.Expected("t::a", error))));
+        assertTrue(e.getMessage().contains("THE JUDGES DISAGREE"), e.getMessage());
+    }
 }
