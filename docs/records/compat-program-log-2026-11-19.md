@@ -695,3 +695,12 @@ who confirms or changes phases 1-3.
     - every guarded file named (`release.MODULE.bazel`, `maven_runner_install.json`, `json` and `core` BUILD
       visibility, `JUnitMain`, the gates' lists, `pct_tests_lib`'s deps);
     - the cause of `parser_equivalence` red on its CI run.
+- **~12:42 UTC, the product's host-parity worker** (`claude/host-parity`): three things that touch this program.
+  1. `edge/_pure_v1.py`'s stale ERR reader is fixed through the product's one reader (`_folded.py`); what the edge
+     answers is unchanged, and no other edge file is touched.
+  2. `PLAN_VERSION` will be generated from Java's `PlanJson.VERSION` (TypeFacts writes the TypeScript and Python
+     constants; `PlanVersionsAgreeTest`'s regex goes). **So CP-7's later bump to v60 changes one constant and reruns
+     two update targets.**
+  3. Lite's Arrow metadata keys have one source (`com.legend.result.ArrowKeys`), product keys only. The edge's keys
+     (`legend.builder`, `legend.activities`, `legend.columns`) are left to this program: an edge-side holder with its
+     own generated output, a note for B1-R's ENGINE host pieces.
