@@ -70,13 +70,13 @@ you need legend-engine's answer.
   expected SQL and comparing answers.
 - **To get legend-engine's answer:** compare results, not SQL strings.
 - **When:** stage A.
-- **Measured:** of legend-engine's 2,761 corpus tests, 147 on H2 and 152 on DuckDB stop passing, in three kinds
-  (`A2-roster.tsv`):
+- **Measured:** of legend-engine's 2,761 corpus tests, 147 or 148 on H2 and 152 on DuckDB stop passing, in three
+  kinds (`A2-roster.tsv`). The merged batch's H2 lane settles 147 or 148 (item 13 on H2, with A5):
   - **text only:** 139 on H2 and 143 on DuckDB check only the SQL text;
   - **plan structure:** 6 on each check legend-engine's plan structure (a `supportsStream` flag on its plan's
     parameter-validation node);
-  - **answers the text had hidden:** 2 on H2 and 3 on DuckDB, items 12 and 13.
-- That becomes 150 and 155 once item 1 lands: three more text tests that the old `indexOf` hid.
+  - **answers the text had hidden:** 2 or 3 on H2 and 3 on DuckDB, items 12 and 13.
+- That becomes 150 or 151, and 155, once item 1 lands: three more text tests that the old `indexOf` hid.
 - Every other SQL-text test passes by its answer.
 - Studio's "generate plan" for an ordinary query answers byte for byte as before.
 - Evidence: A2's corpus rosters, exact against `A2-roster.tsv`, and `server/PureV1SqlTextTest`.
@@ -98,8 +98,15 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **The rewrites are per database.** On H2, `x / 0` already raises under legend-engine, so the guard would be wrong
   there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
 - **Why:** Pure defines these operations to raise. PCT, legend-pure's own suite, expects the error for the first five
-  rows. For `x / 0` PCT has no test: lite raises its own division-by-zero error, and legend-pure's own answer is still
-  to be read (its interpreted `divide` hands the work to `NumericAccumulator`).
+  rows.
+- **For `x / 0`** PCT has no test, but legend-pure raises in both of its modes (legend-pure 5.99.0, read and run):
+  - **compiled**, the mode legend-engine runs Pure in, checks the divisor and raises "Cannot divide 0 by zero"
+    (`CompiledSupport.java:1481-1486`);
+  - **interpreted** has no check. An Integer divided by the Integer 0 is a double division, `Infinity`, and making
+    that a Pure Float fails with Java's `NumberFormatException` (`NumericAccumulator.java:1562-1565` and
+    `:1156-1161`, `ModelRepository.java:547-550`). With a Float or Decimal operand the division is a `BigDecimal`
+    one, and Java raises "Division by zero" (`NumericAccumulator.java:895`);
+  - lite raises its own division-by-zero error.
 - **When:** stage B.
 - **Measured:** H8 (j), (j.3), (j.4). legend-engine's DuckDB divide answer is its own (B1-R's oracle); lite's DuckDB
   server route was not run. DuckDB 1.5.6 answers the unchecked divide with `Infinity`, so only the guard matches
@@ -195,7 +202,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   `concat(first, ' ', last, '|')`. It answers `'Anthony Allen|'`, and `'Anthony Allen[,]'` for the 3-part form.
 - **lite answers** Pure's: `'Anthony| |Allen'` and `'[Anthony, ,Allen]'`.
 - **A hash over such a join differs with it** (`->joinStrings('|')->hash(HashType.MD5)`).
-- **Why:** Pure's `joinStrings` puts the separator between the strings (legend-pure `joinStrings.pure:23`).
+- **Why:** Pure's `joinStrings` puts the separator only between the strings (legend-pure
+  `essential/string/toString/joinStrings.pure:18-21`).
 - **To get legend-engine's answer:** concatenate yourself, for example `$first + ' ' + $last + '|'`.
 - **Ruled:** by the user on 2026-09-05, as a legend-engine defect ("quarantine/bucket those as engine bugs"), and the
   accepted divergence confirmed on 2026-09-08 (`docs/GATES.md`, batches 67b and 144).
