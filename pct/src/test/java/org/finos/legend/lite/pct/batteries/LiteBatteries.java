@@ -41,10 +41,17 @@ public final class LiteBatteries {
     private static void run(Map<String, String> o) throws Exception {
         String model = Files.readString(Path.of(o.get("model")));
         if (o.containsKey("database-file")) {
-            // a copy, which the database may write (a build input is read-only), named where the model's token is
+            // a copy, which the database may write (a build input is read-only), named where the model's token is. Its
+            // path goes into a Pure string, which the parser unescapes (on Windows a backslash then a 't' reads as a
+            // tab), so it is written with '/', as LegendHttpServerIntegrationTest and ConnectionLeaseTest write theirs
             Path copy = Files.createTempDirectory("lite-batteries").resolve(Path.of(o.get("database-file")).getFileName());
             Files.copy(Path.of(o.get("database-file")), copy);
-            model = model.replace(o.get("file-token"), copy.toString());
+            // a copy keeps its source's mode, and a build output is read-only: the database opens it to write, which a
+            // user other than root may not do (CI's first run, 2026-11-19: every DuckDB request a database error)
+            if (!copy.toFile().setWritable(true) || !Files.isWritable(copy)) {
+                throw new IllegalStateException("the database file's copy cannot be made writable: " + copy);
+            }
+            model = model.replace(o.get("file-token"), copy.toAbsolutePath().toString().replace('\\', '/'));
         }
         String modelJson = com.legend.tools.enginelane.Batteries.textModel(model);
         StringBuilder out = new StringBuilder("# lite's answers to the battery, as legend-engine's audience (pure/v1's"

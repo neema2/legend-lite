@@ -77,10 +77,14 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    # PctDisciplineTest is :pct_discipline's alone (a source scan with no PCT runtime)
+    # PctDisciplineTest is :pct_discipline's alone (a source scan with no PCT runtime); the batteries' runner is
+    # :pct_batteries' (H7), so no lane's classpath holds the oracle's tooling
     srcs = glob(
         ["src/test/java/**/*.java"],
-        exclude = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
+        exclude = [
+            "src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java",
+            "src/test/java/org/finos/legend/lite/pct/batteries/*.java",
+        ],
     ),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = [
@@ -104,10 +108,6 @@ legend_java_library(
         "//core:edge",
         "//core:test_backends",
         "//testing",
-        # the oracle's batteries' answer form (H7: LiteBatteries writes lite's answers as the oracle writes
-        # legend-engine's), through pure/v1's route as the edge ships it (EdgeServer.runner)
-        "//tools/engine-runner:enginelane",
-        "//core:edge_server",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_upstream//:junit_junit",
         "@maven_upstream//:org_eclipse_collections_eclipse_collections",
@@ -994,6 +994,21 @@ _BATTERY_MODEL = {
     "duckdb": "//tools/engine-runner:batteries/lite/trades-duckdb.pure",
 }
 
+# THE BATTERIES' RUNNER (H7): lite's answers written in the oracle's answer form
+# (//tools/engine-runner:enginelane), through pure/v1's route as the edge ships it (EdgeServer.runner). Its own
+# library, beside the PCT's: no lane's classpath holds the oracle's tooling, so an edit to it reruns no lane
+legend_java_library(
+    name = "pct_batteries",
+    testonly = True,
+    srcs = glob(["src/test/java/org/finos/legend/lite/pct/batteries/*.java"]),
+    deps = [
+        "//core",
+        "//core:edge",
+        "//core:edge_server",
+        "//tools/engine-runner:enginelane",
+    ],
+)
+
 [java_run(
     name = "battery_lite_" + db,
     testonly = True,
@@ -1015,7 +1030,7 @@ _BATTERY_MODEL = {
     memory_mb = 2048,
     mnemonic = "LiteBatteries",
     deps = [
-        ":pct_tests_lib",
+        ":pct_batteries",
         "//core:drivers",
     ] + (["@h2//jar"] if db == "h2" else []),
 ) for db in ["h2", "duckdb"]]
