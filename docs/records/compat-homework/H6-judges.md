@@ -881,6 +881,10 @@ raised)`: the product's default compares the raise's own message; `edge.CompatJu
 legend-pure's words and compares. That is the only presenter call inside judging; every other word is presented after
 the verdict.
 
+**Superseded by H10 (2026-11-19):** the spike built `Hearing.caughtMessage(RuntimeException)` instead. The hearing words
+the raise and the MATCH stays the product's (`AssertErrorRuns`), H13's error records riding the exception's cause. See
+H10 §3.2 and §9.5.
+
 ### 7.7 What 2.2 must show before it lands (the checks, by lane)
 
 - **PCT** (channel B, every lane): HOST unchanged (the leniencies change nothing there); channel A unchanged (no lite

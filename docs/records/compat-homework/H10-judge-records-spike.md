@@ -584,3 +584,58 @@ any caller may rewrite between the halves, but that is the doors' own model ("ca
 **My recommendation: the split.** It keeps one runner and adds no hook. The edge-owned copy keeps the product
 untouched but duplicates about 230 lines of the engine framework's rules. The preparer is the smallest change and the
 least honest.
+
+### 9.8 The door, for the owner's question to the user
+
+The owner is putting the door ((a) of §5) to the user, on the condition that it is a net shrink. The answers, checked
+in the code:
+
+1. **All four rewrites (R-S137, R-S144, R-S131's typed half, R-S15) can run through the one door, and the
+   `RelationCounting` two-form can be deleted in the same step.**
+   - **Reach.** The slot runs on the typed body at `TestPlanner.lifted` (`:225-227`), before G½'s per-statement
+     inlining (`BodyDriver.java:305`). The door, on the typed body before `planBody`, sees the same body.
+     `countedAsOne` recurses the whole tree, so lifting before or after it changes nothing.
+   - **The product keeps lite's refusal:** `TestPlanner` calls `RelationCountAsserts.REFUSED`'s check directly.
+   - **The `assertEmpty($rel)` refusal moves to the door,** with the same text and phase, reported by the runner's
+     same catch.
+   - **Every edge-style test-body road applies the door:** the corpus (its observer) and `ChannelB` (which holds its
+     `TypedQuery`). Core's `RelationCountAssertsEdgeTest` becomes the door's test. Core's seven other UPSTREAM-style
+     test classes are checked for a relation-counted assert in the build.
+   - **Deleted:** `compiler.spec.RelationCounting`, `edge.UpstreamRelationCounting` (its body becomes R-S137),
+     `PlanStyleFacets.java:40`'s entry, `PureText.java:159-161`, `TestPlanner.java:227`'s `twoForm` call, and their
+     guard rows (`HookLambdasTest`'s `TWO_FORM_CALLERS`, `HookRulingTest`, `JavaEvalLedgerTest`).
+   - **Net:** one caller-supplied body transform in, one two-form mode facet out.
+2. **Placement: a `TestObserver` method with no default** (two observers: `TestObserver.NONE`, the identity, and
+   spec's `CorpusObserver`).
+   - **Applied once, where `run()` types the body** (`PureTestRunner.java:287-289`), the one `TypedQuery` handed to
+     both `TestExecution.facts` and `planBody` (`:349`). Today the runner types each body twice, so this both
+     guarantees the facts and the plan see the same rewritten body (R-S15 changes the assert count) and saves one
+     typing per body.
+   - **Also at `runSetup`** (`:231`), to match the slot, which runs for every `planBody`.
+   - No planner or exec class reads it.
+3. **Ordering.**
+   - R-S15 runs before R-S131.
+   - **R-S15's list form must be order-free where the actual is incidental:** `testProject`'s actual is both Float and
+     INCIDENTAL. Over an incidental actual, R-S15 pairs by sorting both sides (the expected literal sorted at the
+     door, `a->sort()`) before the per-element tolerance.
+   - R-S137 and R-S144 touch other asserts: no interaction.
+4. **The no-hook alternative (the harness rewrites the PARSED body, as H5's retarget did) can reach S131's typed
+   shape.**
+   - **How:** type each body with the public compiler, read the facts from the typed tree, map each typed assert to
+     its parsed node by source position (`TypedNativeCall.pos`), rewrite the parsed call, and hand the runner rebuilt
+     `PureTests.TestCase`s (a public record).
+   - **Its one loss:** `assertEmpty($rel)`'s compatibility text. Lite's refusal answers instead: the same verdict, a
+     different message.
+   - **Cost:** about 3-3.5 days against (a)'s 2.25-2.5. The position map, its refusal for a node without a position,
+     and its tests come to +1; rebuilding the TestCases to +0.25.
+   - **Run time:** one more typing per body, unmeasured, estimated at a few percent of the corpus pass.
+   - **Fragility:** two trees kept in step by source spans.
+   - **It deletes `RelationCounting` only if every other edge-style road does the same parsed rewrite.**
+
+H13's reply (2026-11-19, `claude/compat-error-records-spike` at `538ab17d`): its two records pass through
+`Hearing.caughtMessage(RuntimeException)` unchanged, and no new member is needed.
+- `caughtMessage` supersedes H6 §7.6's `errorMatches(expected, raised)`: the match stays the product's, and the
+  audience only words.
+- H13's database-judge change binds a planned failure's words at the verdict's turn instead of planting them at
+  planning (+15/−4). It fixes the 4 `*_InvalidWindowFrameBoundary` channel B tests and ports to this spike's
+  `TestRun` as written. It is unneeded once 2.2a deletes the compatibility database judge.
