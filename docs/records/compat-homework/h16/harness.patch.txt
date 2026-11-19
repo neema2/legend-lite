@@ -1,0 +1,186 @@
+diff --git a/core/src/main/java/com/legend/lowering/Scalars.java b/core/src/main/java/com/legend/lowering/Scalars.java
+index 290147c5c..32d4c9616 100644
+--- a/core/src/main/java/com/legend/lowering/Scalars.java
++++ b/core/src/main/java/com/legend/lowering/Scalars.java
+@@ -1491,9 +1491,10 @@ final class Scalars {
+         // platform pure's 0-based). ONE verbatim emission (Phase 1
+         // audit): the DuckDB start-clamp is SubstringClamp, that
+         // dialect's own rewrite pass.
++        // H5 SPIKE (H3 (a), R4): substring is PURE's meaning, always -- 0-based, end-exclusive (the corrected rule);
++        // legend-engine's verbatim SQL substring is the ENGINE translator's rewrite, never a flag of the core
+         for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTRING) {
+-            RULES.put(f, (n, args) ->
+-                    new SqlExpr.Call(SqlFn.SUBSTRING, args));
++            RULES.put(f, FeatureRules.CORRECTED_SUBSTRING);
+         }
+         // (the same call under CORRECT_SQL_SUBSTRING_INDEXING: FeatureRules)
+         // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
+@@ -1532,33 +1533,26 @@ final class Scalars {
+                             new SqlExpr.IntLit(1)));
+                 }
+                 if (args.size() == 3) {
+-                    // indexOf(s, sub, from): H2 LOCATE(sub, s, from)
+-                    // semantics — 1-BASED from and result, miss 0 (the
+-                    // engine has NO translation for this overload; the
+-                    // convention follows the 2-arg golden). Search the
+-                    // suffix, re-base hits.
+-                    SqlExpr from1 = args.get(2) instanceof SqlExpr.IntLit il
+-                            ? new SqlExpr.IntLit(Math.max(il.value(), 1))
+-                            : SqlExpr.Call.of(SqlFn.GREATEST, args.get(2),
+-                                    new SqlExpr.IntLit(1));
+-                    SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(
+-                            args.get(0), from1));
+-                    SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS,
+-                            List.of(suffix, args.get(1)));
++                    // H5 SPIKE (H3 (a)): PURE's indexOf(s, sub, from) -- Java's String.indexOf(sub, from): a 0-based
++                    // from (below 0 searches from 0), a 0-based hit, -1 on a miss. Search the suffix, re-base hits.
++                    SqlExpr from0 = args.get(2) instanceof SqlExpr.IntLit il
++                            ? new SqlExpr.IntLit(Math.max(il.value(), 0))
++                            : SqlExpr.Call.of(SqlFn.GREATEST, args.get(2), new SqlExpr.IntLit(0));
++                    SqlExpr from1 = from0 instanceof SqlExpr.IntLit il0
++                            ? new SqlExpr.IntLit(il0.value() + 1)
++                            : SqlExpr.Call.of(SqlFn.PLUS, from0, new SqlExpr.IntLit(1));
++                    SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(args.get(0), from1));
++                    SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS, List.of(suffix, args.get(1)));
+                     return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                             SqlExpr.Call.of(SqlFn.GREATER, k, new SqlExpr.IntLit(0)),
+-                            SqlExpr.Call.of(SqlFn.MINUS,
+-                                    SqlExpr.Call.of(SqlFn.PLUS, k, from1),
++                            SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.PLUS, k, from0),
+                                     new SqlExpr.IntLit(1)))),
+-                            new SqlExpr.IntLit(0), SqlExpr.Reason.OPERATOR);
+-                }
+-                // 1-BASED, raw strpos: the engine translates indexOf to
+-                // locate() verbatim (testSqlFunctionsInMapping golden
+-                // 'select locate(...)' with rows [12,12] — C1.5c; the
+-                // reference DuckDB PCT adapter ledgers the same platform
+-                // divergence, "expected: 4 actual: 5"). Composes with the
+-                // 1-based verbatim substring above. Miss = 0.
+-                return new SqlExpr.Call(SqlFn.STRPOS, args);
++                            new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
++                }
++                // H5 SPIKE (H3 (a)): PURE's indexOf(s, sub) -- Java's String.indexOf: 0-based, -1 on a miss (strpos is
++                // 1-based, 0 on a miss: minus one is exact for both); legend-engine's 1-based locate is the ENGINE
++                // translator's rewrite (register S134)
++                return SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1));
+             });
+         }
+         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_AT) {
+diff --git a/pct/BUILD.bazel b/pct/BUILD.bazel
+index 3eba7a370..b3cb70a6b 100644
+--- a/pct/BUILD.bazel
++++ b/pct/BUILD.bazel
+@@ -1196,3 +1196,58 @@ test_suite(
+         "//tools/guards:edge_normalize_test",
+     ],
+ )
++
++# H16 SCRATCH (never pushed): the batteries with the engine-answer opt-in's rewrite on, over Pure's core meaning
++[java_run(
++    name = "battery_h16_" + db,
++    testonly = True,
++    srcs = [
++        _BATTERY_REQUESTS,
++        _BATTERY_MODEL[db],
++        "h16/compat-engine-%s.pure" % db,
++    ] + (["//tools/engine-runner:batteries/lite/trades.duckdb"] if db == "duckdb" else []),
++    outs = ["battery_h16/%s/lite.tsv" % db],
++    arguments = [
++        "run",
++        "--model=$(execpath %s)" % _BATTERY_MODEL[db],
++        "--requests=$(execpath %s)" % _BATTERY_REQUESTS,
++        "--translate=$(execpath h16/compat-engine-%s.pure)" % db,
++        "--out={OUT}",
++    ] + ([
++        "--database-file=$(execpath //tools/engine-runner:batteries/lite/trades.duckdb)",
++        "--file-token=${DUCKDB_PATH}",
++    ] if db == "duckdb" else []),
++    main_class = "org.finos.legend.lite.pct.batteries.LiteBatteries",
++    memory_mb = 2048,
++    mnemonic = "LiteBatteries",
++    deps = [
++        ":pct_batteries",
++        "//core:drivers",
++    ] + (["@h2//jar"] if db == "h2" else []),
++) for db in ["h2", "duckdb"]]
++
++[java_run(
++    name = "battery_h16_compare_" + db,
++    testonly = True,
++    srcs = [
++        ":battery_h16/%s/lite.tsv" % db,
++        "//tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv" % db,
++    ] + ([
++        "//tools/engine-runner:batteries/lite/trades_duckdb_digest.txt",
++        "//tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt",
++    ] if db == "duckdb" else []),
++    outs = ["battery_h16/%s/agreement.tsv" % db],
++    arguments = [
++        "compare",
++        "--db=" + db,
++        "--engine=$(execpath //tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv)" % db,
++        "--lite=$(execpath :battery_h16/%s/lite.tsv)" % db,
++        "--out={OUT}",
++    ] + ([
++        "--engine-digest=$(execpath //tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt)",
++        "--lite-digest=$(execpath //tools/engine-runner:batteries/lite/trades_duckdb_digest.txt)",
++    ] if db == "duckdb" else []),
++    main_class = "com.legend.tools.enginelane.Batteries",
++    mnemonic = "LiteBatteries",
++    deps = ["//tools/engine-runner:enginelane"],
++) for db in ["h2", "duckdb"]]
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/batteries/LiteBatteries.java b/pct/src/test/java/org/finos/legend/lite/pct/batteries/LiteBatteries.java
+index 1af791ffb..cbfce4e2c 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/batteries/LiteBatteries.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/batteries/LiteBatteries.java
+@@ -53,6 +53,15 @@ public final class LiteBatteries {
+             }
+             model = model.replace(o.get("file-token"), copy.toAbsolutePath().toString().replace('\\', '/'));
+         }
++        // H16 (scratch): the engine-answer opt-in measured -- the request's String substring/indexOf calls, found by
++        // typing the query, renamed to legend-engine's meaning written over Pure's (H3 (a)'s library, H5's translator)
++        String library = o.containsKey("translate") ? Files.readString(Path.of(o.get("translate"))) : null;
++        if (library != null) {
++            model = model + "\n" + library;
++        }
++        com.legend.compiler.element.ModelContext ctx = library == null ? null : com.legend.Compiler.compileModel(model);
++        EngineTranslator.Report report = new EngineTranslator.Report();
++        long translateNanos = 0;
+         String modelJson = com.legend.tools.enginelane.Batteries.textModel(model);
+         StringBuilder out = new StringBuilder("# lite's answers to the battery, as legend-engine's audience (pure/v1's"
+                 + " execute route)\n");
+@@ -62,13 +71,33 @@ public final class LiteBatteries {
+             }
+             int t = line.indexOf('\t');
+             String name = line.substring(0, t);
+-            String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(line.substring(t + 1), false).json();
++            String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(line.substring(t + 1), library != null).json();
++            if (library != null) {
++                long t0 = System.nanoTime();
++                com.legend.protocol.spec.LambdaFunction lambda = (com.legend.protocol.spec.LambdaFunction)
++                        com.legend.protocol.ProtocolReader.lambda(com.legend.json.Json.parseObject(function));
++                java.util.Set<com.legend.protocol.SourceInfo> at = new java.util.LinkedHashSet<>();
++                try {
++                    for (com.legend.compiler.spec.typed.TypedSpec st : com.legend.Compiler.query(ctx, lambda).body()) {
++                        EngineTranslator.collectStringCalls(st, at);
++                    }
++                } catch (RuntimeException e) {
++                    report.notes.add(name + " untyped: " + e.getClass().getSimpleName());
++                }
++                function = com.legend.protocol.ProtocolEmitter.emitLambda((com.legend.protocol.spec.LambdaFunction)
++                        EngineTranslator.translateQueryAt(lambda, at, report));
++                translateNanos += System.nanoTime() - t0;
++            }
+             String body = "{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":" + modelJson
+                     + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+             com.legend.server.LiteV1Api.Answer a = com.legend.edge.PureV1Routes.execute(body,
+                     com.legend.edge.EdgeServer.runner(null));
+             out.append(com.legend.tools.enginelane.Batteries.answer(name, a.status(), a.json())).append('\n');
+         }
++        if (library != null) {
++            out.append("# H16 translator: ").append(report.summary()).append(" translateMs=")
++                    .append(translateNanos / 1_000_000).append('\n');
++        }
+         Files.writeString(Path.of(o.get("out")), out, StandardCharsets.UTF_8);
+     }
+ }

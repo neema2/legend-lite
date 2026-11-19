@@ -1,0 +1,7 @@
+host.letSubstring3	|let x = 'abcdef'->substring(1, 3); #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->filter(r|$r.region == $x)->select(~[region])->from(trades::h2::RT)
+host.letSubstring2	|let x = 'abcdef'->substring(2); #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->filter(r|$r.region == $x)->select(~[region])->from(trades::h2::RT)
+host.letIndexOf	|let i = 'abcdef'->indexOf('c'); #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->filter(r|$r.year == $i)->select(~[region])->from(trades::h2::RT)
+routed.literalSubstring	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~s: r|'abcdef'->substring(1, 3))->select(~[s])->from(trades::h2::RT)
+routed.columnSubstring	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~s: r|$r.region->toOne()->substring(1, 3))->select(~[s])->from(trades::h2::RT)
+routed.columnIndexOf	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~i: r|$r.region->toOne()->indexOf('a'))->select(~[i])->from(trades::h2::RT)
+host.letOnly	|let x = 'abcdef'->substring(1, 3); $x;
