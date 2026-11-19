@@ -124,3 +124,32 @@ who confirms or changes phases 1-3.
     session-days).
   - **The review's order of work:** the translator spike, PCT under LITE, the rulings CP-12 and plan structure, 2.3a,
     2.2a, then the presenters. That is the order phase 0 and the checkpoint now follow.
+- **~11:05 UTC, B2's 0.4 (c), legend-engine's unchecked operations** (`claude/census-b2` `9cd75578c`, H8 §(c)), read
+  from legend-engine 4.145.0's 77 relational PCT manifests (11 databases) against the 26 PCT tests that assert an error:
+  - **class A** (lite raises Pure's error; legend-engine answers the database's value): **16 test cells on 8
+    databases**. DuckDB 4 (rem by zero, range step 0, slice inverted, bitShiftRight > 62); H2 3 (sqrt of a negative,
+    both shifts); MemSQL 2; Oracle 2; Snowflake 2; ClickHouse, Databricks and Trino 1 each. Postgres, Spanner and
+    SQL Server have none (their databases raise);
+  - **the plain set reaches 7 raise kinds, not `ENGINE_UNCHECKED`'s 10:** `TEXT_NOT_INTEGER`, `TEXT_NOT_FLOAT` and
+    `TEXT_NOT_DATE` are raised in the dialects, never through `LoweringForms.raise`, so they are dead entries;
+  - **lite plants 27 raise kinds at 72 sites; PCT exercises 9.** The other 18 are unmeasured per database and need
+    the oracle in (j);
+  - `acos` and `asin` of 2.0: lite has no raise kind, so it answers a value, as legend-engine does on 6 databases.
+    legend-pure raises (S138), so that is a gap in lite's PURE answer.
+- **~11:05 UTC, the judges session's I5: PCT as a LITE suite under BOTH judges** (channel B, DuckDB, 1,249 tests, main
+  plus a measurement-only switch on `claude/compat-judges-homework`):
+  - today's COMPAT BOTH: 1,240 pass, 9 fail, 0 disagree;
+  - **LITE BOTH: 786 pass, 463 fail, 5 judges disagree;** with R4's substring on, 790. HOST-only 787,
+    DATABASE-only 786;
+  - **the failures:** 423 relation tests assert legend-pure's print of a relation (refused by name under LITE: a
+    presentation test by construction); 26 assert legend-pure's words or print forms; 7 are R4 (4 substring, 3
+    indexOf); 2 are pre-existing (acos and asin);
+  - **0 failures come from compatibility-only judging rules:** no 2-ULP, multiset-order or json-simple case occurs at
+    all;
+  - **5 REAL judge-parity bugs that COMPAT's verdicts-only comparison hides:** `testDateFromHour` (the database judge
+    casts "2015-04-16T14" AS TIMESTAMP, and DuckDB refuses it); `testAdjustBy{Days,Hours,Months,Weeks}BigNumber`
+    (the two judges fail differently);
+  - **cost:** 33 to 77 s per run for the five suites, the same as today's channel-B lane; no extra build;
+  - the parity bugs were sent to the previous orchestrator (A5's area) by the judges session.
+  - **What it means:** the LITE-PCT lane is cheap and finds real bugs at once. Its known-failure ledger is mostly one
+    class (PCT tests that assert legend-pure's print forms or words: 449), which the PURE presenter's lane covers.
