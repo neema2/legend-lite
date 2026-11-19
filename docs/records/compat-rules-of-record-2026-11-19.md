@@ -92,3 +92,7 @@ works only from lite's typed output.
   today's refusal; a whole Float prints `2.0`; a date with a time prints lite's standard `...000000Z`; it lands with
   B2, so compatibility prints tables in Java from typed rows (rule 3). Measured first (H14): 390 of PCT's 423 table
   tests pass on DuckDB this way, every database printing the same text.
+- **Compatibility's table text (the user, ~18:12, "Yes record it"):** where a relation's `toString` is the program's
+  last step, the legend-pure route takes it over (the database returns typed rows, Java prints legend-pure's text);
+  where the text is used further in the query, the database computes lite's own text and the difference is recorded.
+  No SQL is kept for legend-pure's spelling.
