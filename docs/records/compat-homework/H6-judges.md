@@ -31,6 +31,7 @@ ONLY in the code.
   evidence with messages compared.
 - **Coordination (task 4, §4).** Told the previous orchestrator at the start; sent it the 5 parity findings.
 
+**Context.**
 - **Branch:** `claude/compat-judges-homework`, from `main` `b75d6c73a`.
 - **Session:** the judges session of the compatibility program; reports to the program's owner
   (`session_0195rQEoSpv1FxC3WndEk5ZH`).
@@ -63,11 +64,11 @@ ONLY in the code.
 DECIDED there: the corpus HOST-only at once (done the same night, `claude/total-wall-e-host-corpus` `b523c767d`); PCT
 HOST-only after the 36 are ported into core; CORE the blocking check (isolated BOTH, lite's words). The three-mode
 design's C4 (20:10-R8) re-ruled exactly that order. The 36 are listed in the shape-port record (`1bb0f3151`), every
-row "to port"; no later branch closes a row (searched: no commit after `1bb0f3151` names the shape port).
+row "to port"; the re-measure at `main` (§1.3) shows no row has closed since.
 
 A side shape is the side's `SideShape.Kind` (CONSTANT, GRAPH, TABULAR, KEYED, VALUES) and whether it is one value or
-many, in the assert's side order; "quantified-assert" is the census's name for `forAll`/`exists` style asserts planned
-as one quantified verdict.
+many, in the assert's side order; "quantified-assert" is the census's name for a statement root that is a `map`
+(`TypedMap`) asserting per element (`AssertVerdicts.listenerName`, `testplan/AssertVerdicts.java:320-325`).
 
 ### 1.2 The list (from `1bb0f3151`, verbatim), with today's coverage
 
@@ -139,7 +140,8 @@ what it ran (the host judge over the same packages then, the 13 BOTH targets now
 **What porting takes.** Every row is a small core test in `testing.Program`'s style, so it runs under each judge
 target already (`core_tests_<package>_judge_{database,both}`); none needs a new mechanism. They group as:
 - **26 rows are an ordinary assert over a new side shape** (2-10, 12-15, 17-19, 25-29, 31-32, 34-36): one body each,
-  its sides a query the database computes (VALUES), a relation (TABULAR), a graph fetch (GRAPH) or a literal of the plan (CONSTANT), as the row says;
+  its sides a query the database computes (VALUES), a relation (TABULAR), a graph fetch (GRAPH) or a literal of the
+  plan (CONSTANT), as the row says;
 - **4 rows are a `map` asserting per element** ("quantified-assert": the census's name for a statement root that is a
   `TypedMap`, `AssertVerdicts.listenerName`, `:320-325`; rows 1, 21, 22, 30), and row 33 is `forAll` over four literals;
 - **3 rows end a body in `equal`** (11, 16, 24);
@@ -375,7 +377,7 @@ This is the user's to rule (it changes done-when 1's wording); (ii) is the small
 | Run | Pass | Fail | Of which judges-disagree | Wall (5 suites, 4 cores) | Per suite |
 |---|---|---|---|---|---|
 | COMPAT BOTH (today's lane, reproduced) | **1,240** | 9 | 0 | 64 s | 20-60 s |
-| **LITE BOTH** | **786** | **463** | **5** | 75 s | 23-74 s |
+| **LITE BOTH** | **786** | **463** | **5** | about 75 s (the longest suite 74 s; the first run's wall included the build) | 23-74 s |
 | LITE BOTH + R4's substring half (`CORRECT_SQL_SUBSTRING_INDEXING`) | 790 | 459 | 5 | 77 s | 14-74 s |
 | LITE HOST only | 787 | 462 | n/a | 33 s | 12-24 s |
 | LITE DATABASE only | 786 | 463 | n/a | 55 s | 15-52 s |
@@ -405,7 +407,7 @@ So of the 463: **450 are compatibility presentation** (legend-pure's text or wor
 are judge-parity defects, 1 more pair is pre-existing, and none is a compatibility judging rule. The last agrees with
 the 2026-11-17 02:30 measurement (the database judge alone, lite's rules, verdicts only: 100% on PCT channel B).
 
-### 3.4 The five judge-parity findings (sent to the previous orchestrator, A5's owner, 2026-11-19 ~11:20 UTC)
+### 3.4 The five judge-parity findings (sent to the previous orchestrator, A5's owner, 2026-11-19 ~11:05 UTC)
 
 1. **`date::tests::testDateFromHour`** (`assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))`): HOST holds, DATABASE
    fails. The database judge's verdict statement, on lite's written-words path, writes the actual side's text as
