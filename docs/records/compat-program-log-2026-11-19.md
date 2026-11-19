@@ -563,3 +563,25 @@ who confirms or changes phases 1-3.
   `docs/records/compat-design-and-plan-plain-2026-11-19.md`: the design in four parts; what stays; what is lost, row
   by row with its measured size; the plan in two stages with a stop between them; the two open decisions and the two
   running prototypes. A new measurement for it: lite's own 62 projects use `substring` and `indexOf` 0 times.
+- **~12:31 UTC, the translator session's task 0: the other meaning strands with NO translator** (measured on top of
+  V2; one switch per strand; corpus H2 | corpus DuckDB | pure/v1's 28 lines; PCT follows in 30 to 40 minutes):
+  - `substring`/`indexOf`: -4 | -4 | 0;
+  - S20's bare-DECIMAL literal: **+2** | 0 | 0 answers. Turning it OFF wins 2 H2 tests
+    (`testSubAggregationInQualifier`, `testSubAggregationWithIfOnRelationMapping`: the DECIMAL prints `52` where the
+    golden says `52.0`);
+  - the plain set: pure/v1 only, -1 answer (`raise.sqrtOfNegative`: legend-engine 200 with null; lite raises).
+    `raise.divideByZero` moves in words only (both 500);
+  - `isNumeric`: 0 | 0 | 0;
+  - `parsedDecimal` (`DECIMAL(5,2)`): -2 | -2 | 0 (`testToSQLStringParseDecimal*inH2`);
+  - `parsedJson` (`}{`): **+1** | -1 | 0. On H2 the edge's own form is broken (an invalid `REGEXP_REPLACE` flag), so
+    OFF wins `testPushDownProjectWithParameter`; on DuckDB it loses `testSubTypeAtRootLevelWithInheritanceMapping`;
+  - `LEGACY_SQL_NULL_UNSAFE_EQUALS`: -1 | -1 | 0, a plan-text assert (CP-4); no answer moved;
+  - `DatabaseSettingsForm` (H2 LEGACY): -1 | n/a | 0 (B2's same test);
+  - `CrossKindNumbers`: 0 by construction;
+  - SQLite's `refusesDecimalArithmetic`: no corpus or pure/v1 lane on SQLite; PCT SQLite pending;
+  - **`PureText.raw`: n/a | -2,452 | 0.** EVERY DuckDB corpus test: `createTablesAndFillDb`'s `executeInDb` text is
+    written for H2, so setup fails without the conversion. That is input acceptance, not an answer's meaning, and it
+    stays at the door.
+  - **So beyond `substring`/`indexOf`, the real answer losses are at most 3 corpus tests per lane, offset by 3 wins on
+    H2, and 1 pure/v1 answer.** This is the user's "do lots of other things break too?": no.
+  - The switches are on `claude/compat-translator-spike` (`H5Off.java`) for B2's PCT ENGINE run.
