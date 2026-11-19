@@ -1940,3 +1940,16 @@ who confirms or changes phases 1-3.
 - **~16:11 UTC, B2: A2 brief received;** building PR 1 locally on `claude/compat-a2-printers` from `main` `b75d6c73a`.
   Its own rules need the user's word in its session to push outside `claude/census-b2` and to open a PR; it will ask
   the user there in two lines once PR 1 is green locally.
+- **~16:13 UTC, the independent reviewer's PR reviews** (`compat-pr-reviews-2026-11-19.md` at `f7af4d8f` on
+  `claude/compat-review`). **#123 (`7b7ee6ea3`): CODE APPROVED, not yet mergeable under A1's done-when:** its run's
+  "gates green" failed on six jobs not its own (Linux product's Maven 404; five macOS lanes cancelled without a runner),
+  and A1 wants the Maven fix on `main` first; re-run the six after the mirror lands. Every HOLD item closed; no
+  `src/main` file moves; no golden moved since the "no answer moved" re-derivation, only the two overlays (17 + 16
+  rows); `PlatformOverlay` sound. For the user's word: `EDGE_TEST_SRCS` +3, the gates moves, the 33 overlay rows, the
+  S0 format re-records, the normalizer's tests in `tools/guards`. Nits: `EdgeNetPlantedTest`'s javadoc (line 24); the
+  per-OS last-place fact as a register row or a differences-page line (sent to the translator for A3's page). **#124
+  (`a7a2a5aa9`): CODE APPROVED, merge after #123** once run 44557117163 completes (at 16:10 no failure; it carries
+  #123's head, covering the macOS lanes #123's run missed). All six items closed; no product `src/main` moves; all 22
+  engine-runner targets testonly; the one allowlist entry dated (CP-9); no core switch; rules 3 and 4 hold. Notes: B5's
+  count must include this lane's PURE_V1 use; A3 moves 12 of its pinned rows (each a pin move for the user's word);
+  say in the body that "report-only" fails on class moves, not on lite's failures.
