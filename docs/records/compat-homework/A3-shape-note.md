@@ -5,7 +5,8 @@ Read from the code at `main` (`b75d6c73a`) and from this branch's H5 and H12 mea
 `H12-combined-dry-run.md`, their evidence under `h5/` and `h12/`). The user's ruling D1 (2026-11-19, ~13:25 UTC,
 relayed): **"Pure's way, LOUD, no translator."**
 
-**Revision 2 (2026-11-19, the compat owner's calls).**
+**Revision 3 (2026-11-19):** the literal-0 exemptions per target and arity, as measured; A5's lane's 7 conditional
+rows. **Revision 2 (2026-11-19, the compat owner's calls).**
 - **Taken:** option (a) for PR1; FeatureRules javadoc-only, with `LEGACY_SQL_NULL_UNSAFE_EQUALS` and `withFeatures`
   untouched; the raise on legend-pure's three conditions, one register row (both on the user's list).
 - **Added:**
@@ -30,14 +31,14 @@ relayed): **"Pure's way, LOUD, no translator."**
 | PCT known-failure rows that leave | **63**: S134's 3 tests on 11 channel A classes (33) and 10 channel B lanes (30) |
 | edge net golden lines | **9**: 3 answer lines in each of `duckdb_essential_answers.tsv` and `sqlite_essential_answers.tsv`, and 3 outcome lines in `channel_b_duckdb_essential_outcomes.tsv` |
 | ENGINE lane rows | **12**, only if PR #124 lands first: DuckDB essential 7, H2 essential 5, each BOTH_FAIL to LITE_FIXES or LITE_ANSWERS |
+| A5's `duckdb-lite` lane rows | **7**, only if A5's PR lands first (revision 3): the R4 rows it ledgers today leave |
 | corpus lines, A3 after A2 | **20, measured** (section 2). Each fail roster gains the same 7 tests on both databases: 4 answers and the 3 text tests the old `indexOf` hid. Each `*-unordered-register` loses 3 |
 | corpus with the cross-kind fix landed | **the same 7 on DuckDB.** Its datetime test already fails under A2, before its `indexOf` assert |
 | `NativeCatalogGovernanceTest` ceiling | **1**: `INTERNAL_DESUGAR` from 38 to 40 |
 | register rows | **3**: S130 and S134 rewritten; one new row, the out-of-range `substring`, naming all three conditions |
 | detector routes | **5**: generatePlan; execute, Arrow included; the three test-data routes that run a query. The census route is excluded: it runs nothing |
 | load-time report | **once per model, off the answer's path.** About 4 s on the corpus world (about 8 s when compile triggers it). There it lists 48 calls and 83 unverified bodies (H5's V6 by proxy) |
-| H2's literal 0 | **measured equal to Pure's** on H2 2.1.214 and 2.5.252, in both REGULAR and LEGACY mode, whenever Pure answers. Exempt on H2, 2- and 3-argument forms |
-| DuckDB's literal 0 | the 2-argument form is equal too (measured); the 3-argument form is not |
+| literal-0 exemptions (revision 3) | **per target and arity, as measured**. H2: both arities (equal on 2.1.214 and 2.5.252, REGULAR and LEGACY, whenever Pure answers). DuckDB: `substring(s, 0)` only; its 3-argument form stays flagged |
 | new core hooks | **0**: the detector and the report use only public API, inside the edge |
 | pure/v1 net lines | **0**: the net records status and JSON only, and none of its 28 requests calls either function |
 
@@ -188,6 +189,19 @@ H12 did not run `//pct:edge_*`.
 Each row goes from `BOTH_FAIL` to `LITE_FIXES`, or `LITE_ANSWERS` for `testFromIndex`, which legend-engine refuses.
 H12 measured them under (1) alone. Note: *"2026-11-?? A3 (D1): lite answers PCT's expected value where legend-engine's
 manifest marks a DEFECT or a refusal (E-R2)."*
+
+### A5's PCT lane under lite's rules (PR2, only if A5's PR lands first; revision 3)
+
+A5's new channel B lane `duckdb-lite`, PCT judged by lite's own rules (its PR to come on
+`claude/compat-judges-parity`, per the compat owner), runs without the adapter's corrected option. So it ledgers **7 R4
+rows** today:
+- `substring` `testStart` and `testStartEnd`;
+- the 2 substring-keyed sorts, `testSimpleSortWithKey` and `testSimpleSortWithFunctionVariables`;
+- `indexOf` `testSimple`, `testFromIndex` and `testIndexOfOneElement`.
+
+They pass after the switch. **If A5's PR lands before A3, A3's PR removes those 7 rows.** Note: *"2026-11-?? A3 (D1):
+left; Pure's substring and indexOf are the product's, so the lane without the corrected option passes them."* Not
+measured here: the lane is not on this branch.
 
 ### The corpus (PR2), in the fixed order: A3 lands after A2
 
@@ -346,14 +360,17 @@ the commonest prefix idiom. legend-engine writes both verbatim, on H2 (`h2Extens
 whenever legend-pure answers. Where it does not (an end past the length), H2 clamps and legend-pure raises. After A3
 lite raises too, so that difference is loud on its own, not a silent answer.
 
-**The exemption:** on H2, a `substring` whose start is the literal `0` is not flagged, for both the 2- and 3-argument
-forms. The database type comes from the request's runtime connection, the one `connectionOf` reads
-(`PureV1Routes.java:519`).
+**The exemptions follow the measurement, per target and arity** (the compat owner's call, revision 3; within §4a's
+rule, "exempt where measured equal", so no separate ruling):
 
-**DuckDB (for the user's word):**
-- **The 3-argument form differs** (`'ab'` for `'abc'`), so it stays flagged, as §4a says.
-- **The 2-argument `substring(s, 0)` is equal** (the whole string). A second exemption is possible: a literal 0 in the
-  2-argument form on DuckDB. It goes beyond §4a's "not on DuckDB" and is posted, not assumed.
+| target | `substring(s, 0)` | `substring(s, 0, n)` |
+|---|---|---|
+| H2 | exempt | exempt |
+| DuckDB | exempt (measured equal: the whole string) | flagged (`'ab'` for `'abc'`) |
+| any other database | flagged (not measured) | flagged (not measured) |
+
+Only a literal `0` start is exempt. The database type comes from the request's runtime connection, the one
+`connectionOf` reads (`PureV1Routes.java:519`).
 
 ### The header, as §4a words it (revision 2)
 
@@ -427,8 +444,9 @@ to keep the two in step.
 7. **Arrow.** The header sits beside `x-legend-response-format`.
 8. **A frontend island is not flagged** (option (a)). A `#SQL{...}#` source whose SQL calls `substring`: no header.
 9. **The test-data routes.** `generateSeedData` with the planted query is warned; the census route never is.
-10. **H2's literal 0.** `substring($p.name, 0, 3)` on an H2 runtime: not flagged. The same on DuckDB: flagged.
-    `substring($p.name, 1, 3)` on H2: flagged.
+10. **The literal-0 exemptions, per target and arity.**
+    - On H2: `substring($p.name, 0, 3)` and `substring($p.name, 0)` are not flagged; `substring($p.name, 1, 3)` is.
+    - On DuckDB: `substring($p.name, 0)` is not flagged; `substring($p.name, 0, 3)` is.
 11. **The mapping reach** (section 3a). An M2M transform and a constraint each calling `substring`, read through the
     query: flagged with their kinds; a `###Relational` property mapping's `substring`: not.
 12. **The header's value is bounded.** A query with 50 flagged calls carries the four codes and their counts, under a
