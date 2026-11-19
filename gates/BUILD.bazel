@@ -405,6 +405,15 @@ test_suite(
     ],
 )
 
+# THE EDGE GOLDEN NET (the compatibility program's slice 0.2, CP-9 RULED by the user 2026-11-19: "per-push
+# compatibility checks"): every edge recording in-process on DuckDB, H2 and SQLite (PCT channels A and B, the
+# corpus's verdict ledger, pure/v1, the missing cases) diffed against its golden, and the net's planted-change proof;
+# a lane of its own, in parallel with the others (docs/records/compat-program-plan-2026-11-19.md, slice 0.2)
+test_suite(
+    name = "edge_net",
+    tests = ["//pct:edge_net"],
+)
+
 # EVERY LANE: what the product job's guard compares the repository's tests against (not `all`: that name is also
 # Bazel's wildcard for a package)
 test_suite(
@@ -418,6 +427,7 @@ test_suite(
         ":pct_h2",
         ":pct_postgres",
         ":pct_channel_b",
+        ":edge_net",
         ":parser_equivalence",
         ":stress",
         ":warehouse",
@@ -498,10 +508,8 @@ test_suite(
         "//pct:pct_bc_date_probe_sqlite",
         "//core:answer_snapshot",
         "//pct:update_ratchets_test",
-        # the edge golden net's updaters (2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md Phase 0): the
-        # 36 diff tests of //pct:edge_contract_test (PCT's 27, the corpus's 8, pure/v1's 1), run by hand on every push
-        # of the edge program and on a re-record; found in no lane by stage-linux run 17, 2026-11-16
-        "//pct:edge_contract_test",
+        # (//pct:edge_contract_test, the edge golden net's updaters: a per-push lane of its own since 2026-11-19,
+        # //gates:edge_net -- the compatibility program's slice 0.2, CP-9 ruled by the user)
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an
         # account's credentials (its §4, never in the repository; a CI workflow for them is not built), and the SQLite

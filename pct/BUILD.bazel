@@ -941,8 +941,8 @@ test_suite(
 )
 
 # THE EDGE NET (S0 of the presentation program, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
-# §4 (d)): every recording above, in-process on DuckDB, H2 and SQLite, and the net's proof. It runs in //gates:heavy;
-# whether it runs on every push is the user's call ((d′), PENDING THE USER), its measured cost reported by S0.
+# §4 (d)): every recording above, in-process on DuckDB, H2 and SQLite, and the net's proof. It runs on every push, a
+# lane of its own (//gates:edge_net; the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19).
 test_suite(
     name = "edge_net",
     tests = [":edge_contract_test"],

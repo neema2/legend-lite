@@ -61,6 +61,7 @@ jobs:
             {"key":"pct_h2",             "cmd":"test",  "name":"PCT on H2"},
             {"key":"pct_postgres",       "cmd":"test",  "name":"PCT on Postgres 16"},
             {"key":"pct_channel_b",      "cmd":"test",  "name":"PCT Channel B, the dual verdict"},
+            {"key":"edge_net",           "cmd":"test",  "name":"the edge golden net: PCT, the corpus and pure/v1 against their goldens"},
             {"key":"parser_equivalence", "cmd":"test",  "name":"parser equivalence"},
             {"key":"stress",             "cmd":"test",  "name":"the stress corpus"},
             {"key":"warehouse",          "cmd":"test",  "name":"the warehouse (on the JVM, as a native image, its launcher, live Postgres) and the legend-lite compiler as a native library"},
@@ -74,7 +75,7 @@ jobs:
             lanes=$all
           fi
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,parser_equivalence,stress,warehouse,datacube,ui,sdlc"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,edge_net,parser_equivalence,stress,warehouse,datacube,ui,sdlc"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
