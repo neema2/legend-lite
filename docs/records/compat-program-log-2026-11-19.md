@@ -2504,3 +2504,15 @@ who confirms or changes phases 1-3.
   judges, DuckDB), the only place the database judge still runs, re-pinned at that lane's numbers (essential
   statements 466 → 463, characters 1.73M → 7.19M; relation 469 → 106 statements; a different lane's baseline, not
   growth). Taken to the user: keep it there (recommended) or drop the judge pins.
+- **~19:53 UTC, B1: H15 §11, toCSV as the program it is** (`5ee5af2f09`; probe `4ffa125d1d`, scratch). The body
+  IS corpus input (the corpus walks all of `core_relational/relational`), but lite intercepts the name: the three
+  `toCSV` signatures are registry natives (`Pure.java:1871-1873`, "the RENDER phase's CSV text (F4.2): platform-owned
+  lowerings"; moved to the edge by D1.3/S316, 2026-11-15), the Lowerer's TO_CSV arm asks the `RelationTexts` facet, and
+  the judges read it by name. Removed, the body types and plans as a program; it needs two platform constants lite
+  lacks (`SimpleDateTimeFormat()`, `ISO8601DateFormat()`). **Corpus with the program:** the 46 nested tests DuckDB 22
+  (39 today), H2 33 (32); every toCSV test (170) DuckDB 112 (158), H2 94 (150, 5 gained); nothing else moved. Losses:
+  14 DuckDB calendar tests compared EXACTLY now (today a rendered text within 2 ULP, S132; legend-pure compares
+  exactly); 16 DuckDB a null cell vanishes (lite holds SQL NULL, no TDSNull); 14 per lane a column the TDS gains at run
+  is missing (the typed schema at planning); 47 H2 no list encoding; 2 DuckDB binder errors. The relation's `toString`
+  is a Pure program too, but PLATFORM (`meta::pure::functions::relation`, `PCT.platformOnly`): lite owns it. A TDS's
+  `csv` is a stored property, no printer.
