@@ -2711,3 +2711,6 @@ who confirms or changes phases 1-3.
   producer; SqlFnSortedTest's PRODUCT +1; optional, for the user: a new pin that the row has no product claimer but
   Scalars. B1 told; the user asked. B1-R confirmed #124 green 55 of 55 and is on the detector's review fixes. B2's docs
   branch at `46805b9ef` (the H2 counts corrected).
+- **~20:47 UTC, the parser memo pushed** (on the user's word in the CI-health session, "Push parser test speed up"):
+  `claude/compat-parser-parity-memo` at `37ef44ff0`, sent to the reviewer; it merges into the batch plainly (no file
+  in common with #124).
