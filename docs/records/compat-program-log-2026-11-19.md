@@ -2314,3 +2314,6 @@ who confirms or changes phases 1-3.
   it; answered with the measured options (the core flag 2,289 / 2,452; the typed door translator 2,285 / 2,447;
   nothing 2,281 / 2,443) and why a flag in the core is the wrong place; offered an opt-in at the door after A3, sized
   first.
+- **~19:04 UTC, B2:** A3 piece 4 taken. A2's final commit `6551c2036` (one late fix: EnginePlans' drop and create share
+  a lookup, re-pinned 760 → 757) under `//gates:local`; the previous run green but the 12 root-refusing targets, which
+  pass 12 of 12 as `ubuntu`. Then it asks the user for the push.
