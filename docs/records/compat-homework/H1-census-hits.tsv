@@ -1,0 +1,143 @@
+lens	category	where	term	group	class	subtag
+M1	SENTENCE	com/legend/compiler/spec/GroupByChecker.java	SubAggIds and Ids should not have an intersection	C10	P	-
+M1	SENTENCE	com/legend/compiler/spec/GroupByChecker.java	Ids and Ids should not have an intersection	C10	P	-
+M1	SENTENCE	com/legend/compiler/spec/GroupByChecker.java	SubAggIds must be a subset of ids	C10	P	-
+M1	SENTENCE	com/legend/compiler/spec/LambdaBodies.java	Assert failed	C14	P	-
+M1	EDGE	com/legend/compiler/spec/LambdaBodies.java	Assert failed	C14	P	-
+M1	SENTENCE	com/legend/compiler/spec/NewChecker.java	Missing value(s) for required property	C15	P	-
+M1	SENTENCE	com/legend/compiler/spec/NewChecker.java	which has a multiplicity of	C15	P	-
+M1	SENTENCE	com/legend/normalizer/MappingNormalizer.java	Inconsistent database definitions for the mapping	C19	P	-
+M1	NAME	com/legend/lowering/CalendarAgg.java	fiscalDay	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	numberOfFiscalDaysInYear	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	currentYear	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	numberOfFiscalDaysInMonth	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	currentMonthNum	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	prior4WeekDate	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	prior12WeekDate	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	prior52WeekDate	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	previousFiscalYear	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	previousFiscalMonth	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	currentWeek	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	fiscalDayOfWeek	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	adjustedDate	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	previousBusinessDay	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	fiscalWeekOffset	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	shortNameWeekDay	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	dayOfCalendarYear	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	currentQuarterNum	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	fiscalDayOfMonth	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	previousFiscalQuarter	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	fiscalDayOfQuarter	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	LegendCalendarSchema	C02	S	same
+M1	NAME	com/legend/lowering/CalendarAgg.java	_Calendar	C02	S	same
+M1	SENTENCE	com/legend/lowering/DateFormats.java	Missing closing quote in format string	C11	P	-
+M1	SENTENCE	com/legend/lowering/DateFormats.java	Could not find	C11	P	-
+M1	SENTENCE	com/legend/lowering/DateFormats.java	Could not find end of date format starting at index	C11	P	-
+M1	SENTENCE	com/legend/lowering/Scalars.java	Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]	C16	P	-
+M1	SENTENCE	com/legend/lowering/Scalars.java	Unsupported duration unit for StrictDate. Units can only be	C16	P	-
+M1	NAME	com/legend/lowering/SqlPostProcessors.java	subquery_cte_	C20	S	rep
+M1	SENTENCE	com/legend/resolver/GraphEmission.java	Constraint :[	C17	P	-
+M1	SENTENCE	com/legend/resolver/GraphEmission.java	] violated in the Class	C17	P	-
+M1	SENTENCE	com/legend/setup/CsvSeed.java	There should be exactly 1 schema with name	C05	P	-
+M1	SENTENCE	com/legend/setup/CsvSeed.java	found in the provided runtime database(s) [	C05	P	-
+M1	SENTENCE	com/legend/setup/CsvSeed.java	] at the given connection.	C05	P	-
+M1	SENTENCE	com/legend/setup/CsvSeed.java	not found in Schema	C05	P	-
+M1	SENTENCE	com/legend/setup/CsvSeed.java	not found in Table	C05	P	-
+M1	EDGE	com/legend/queries/SavedQueries.java	IllegalArgumentException	C08	P	-
+M1	SENTENCE	com/legend/queries/SavedQueries.java	Unknown sort-by value	C08	P	-
+M1	NAME	engine-client/src/relation-type.ts:90	tdsColumns	C04	P	edge-host
+M1	NAME	engine-client/src/relation-type.ts:91	rootExecutionNode	C04	P	edge-host
+M1	NAME	engine-client/src/relation-type.ts:91	resultType	C04	P	edge-host
+M1	NAME	engine-client/src/relation-type.ts:91	tdsColumns	C04	P	edge-host
+M1	NAME	engine-client/src/relation-type.ts:92	rootExecutionNode	C04	P	edge-host
+M1	NAME	engine-client/src/relation-type.ts:93	resultType	C04	P	edge-host
+M1	NAME	engine-client/src/relation-type.ts:93	tdsColumns	C04	P	edge-host
+M1	NAME	engine-client/src/relation-type.ts:95	tdsColumns	C04	P	edge-host
+M1	NAME	python/legend_lite/_plans.py:29	relationalType	C21	P	edge-host
+M2	NAME	com/legend/sql/dialect/H2.java	ENGINE_LEXICON	C09	R0	target
+M2	NAME	com/legend/sql/dialect/H2.java	FREED_BY_THE_ENGINE	C09	R0	target
+M2	NAME	com/legend/sql/dialect/H2.java	freedByTheEngine	C09	R0	target
+M2	NAME	com/legend/database/PlanStyle.java	judgesEngineText	C03	P	-
+M2	NAME	com/legend/database/PlanStyle.java	judgesEngineText	C03	P	-
+M2	NAME	com/legend/planner/UpstreamPlans.java	UpstreamPlans	C12	P	export
+M2	NAME	com/legend/planner/UpstreamPlans.java	engineSeedSql	C12	P	export
+M2	NAME	com/legend/planner/UpstreamPlans.java	engineSeedSqlFromRecords	C12	P	export
+M2	NAME	com/legend/testplan/EngineTextGates.java	EngineTextGates	C03	P	-
+M2	NAME	com/legend/testplan/EngineTextGates.java	reachesUpstreamText	C03	P	-
+M2	NAME	com/legend/test/PureTests.java	excludedByEngine	C18	P	harness
+M2	NAME	com/legend/test/PureTests.java	engineSuiteOrder	C18	P	harness
+M3	ANSWER	com/legend/database/PlanStyle.java:117	PlanStyle#judgesEngineText()	C03	P	-
+M3	UNUSED	com/legend/lowering/Styled.java:34	DateTimeTexts#dateTimeText(SqlExpr, String)	C22	R1	-
+M3	UNUSED	com/legend/lowering/ProductLoweringForms.java:91	LoweringForms#existsJoin(SqlSelect, ExistsSites)	C23	S	rep
+M3	ANSWER	com/legend/lowering/ProductLoweringForms.java:112	LoweringForms#unionFrame()	C06	S	rep
+M3	UNUSED	com/legend/lowering/ProductLoweringForms.java:32	LoweringForms#view(SqlSelect, Supplier, String)	C24	S	rep
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:89	VerdictWords#elementText(Type, SqlExpr, Styled)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:111	VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr)	C01	P	judge
+M3	UNUSED	com/legend/lowering/LiteVerdictWords.java:82	VerdictWords#notInstanceOf(SqlExpr, boolean, String, String)	C01	P	judge
+M3	UNUSED	com/legend/lowering/ProductLoweringForms.java:128	WhereZones#merge(SqlExpr, SqlExpr, Stamp)	C25	S	rep
+M3	UNUSED	com/legend/result/CellText.java:70	CellText$Forms#structure(Object, String, Column)	C26	P	-
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:222	HostWords#caught(RuntimeException, EdgeHearing)	C01	P	judge
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:58	HostWords#cellMultisetDiffers(String, List, List, HostRules)	C01	P	judge
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:58	HostWords#cellMultisetDiffers(String, List, List, HostRules)	C01	P	judge
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:187	HostWords#jsonDiffers(String, String, boolean, String)	C01	P	judge
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:64	HostWords#notEquivalent(Tabular, Tabular, double, String)	C01	P	judge
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:151	HostWords#notInstanceOf(Object, String, String)	C01	P	judge
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:39	HostWords#rowValuesDiffer(List, List, List, List, boolean)	C01	P	judge
+M3	UNUSED	com/legend/testexec/LiteHostWords.java:39	HostWords#rowValuesDiffer(List, List, List, List, boolean)	C01	P	judge
+M3	BRANCH	com/legend/sql/dialect/SQLite.java:1597	com.legend.sql.dialect.SQLite#call	C27	X	no-exact-rewrite
+M3	BRANCH	com/legend/compiler/spec/VerdictQueries.java:795	com.legend.compiler.spec.VerdictQueries#parseRendered	C01	P	judge
+M3	BRANCH	com/legend/compiler/spec/VerdictQueries.java:977	com.legend.compiler.spec.VerdictQueries#tdsCellText	C01	P	judge
+M3	BRANCH	com/legend/lowering/Fold.java:1661	com.legend.lowering.Fold#tryProjectAll	C06	S	rep
+M3	BRANCH	com/legend/lowering/Lowerer.java:3028	com.legend.lowering.Lowerer#unionFrame	C06	S	rep
+M3	BRANCH	com/legend/lowering/VerdictSql.java:234	com.legend.lowering.VerdictSql#equality	C01	P	judge
+M3	BRANCH	com/legend/lowering/VerdictSql.java:343	com.legend.lowering.VerdictSql#gridRows	C01	P	judge
+M3	BRANCH	com/legend/lowering/VerdictSql.java:375	com.legend.lowering.VerdictSql#gridCells	C01	P	judge
+M3	BRANCH	com/legend/lowering/VerdictSql.java:574	com.legend.lowering.VerdictSql#contains	C01	P	judge
+M3	BRANCH	com/legend/lowering/VerdictSql.java:698	com.legend.lowering.VerdictSql#perElement	C01	P	judge
+M3	BRANCH	com/legend/lowering/VerdictSql.java:895	com.legend.lowering.VerdictSql#gridTolerance	C01	P	judge
+M3	BRANCH	com/legend/lowering/VerdictSql.java:1286	com.legend.lowering.VerdictSql#gridPair	C01	P	judge
+M3	BRANCH	com/legend/testexec/Equality.java:206	com.legend.testexec.Equality#same	C01	P	judge
+M3	BRANCH	com/legend/testexec/Equality.java:234	com.legend.testexec.Equality#ordered	C01	P	judge
+M3	BRANCH	com/legend/testexec/Equality.java:251	com.legend.testexec.Equality#contains	C01	P	judge
+M3	BRANCH	com/legend/testexec/HostJudgments.java:571	com.legend.testexec.HostJudgments#eqOf	C01	P	judge
+M3	BRANCH	com/legend/testexec/HostJudgments.java:890	com.legend.testexec.HostJudgments#renderedOf	C01	P	judge
+M3	BRANCH	com/legend/testexec/IsolatedRun.java:154	com.legend.testexec.IsolatedRun#difference	C28	P	judge
+M3	BRANCH	com/legend/testplan/AssertVerdicts.java:1872	com.legend.testplan.AssertVerdicts#textFirst	C01	P	judge
+M3	BRANCH	com/legend/testplan/DatabaseJudge.java:337	com.legend.testplan.DatabaseJudge#lite	C01	P	judge
+M3	BRANCH	com/legend/testplan/DatabaseJudge.java:367	com.legend.testplan.DatabaseJudge#crossNumberKinds	C01	P	judge
+M3	BRANCH	com/legend/testplan/EngineTextGates.java:26	com.legend.testplan.EngineTextGates#facet	C03	P	-
+M3	BRANCH	com/legend/testplan/EngineTextGates.java:94	com.legend.testplan.EngineTextGates#planningCall	C03	P	-
+M3	BRANCH	com/legend/testplan/EngineTextGates.java:101	com.legend.testplan.EngineTextGates#siteWords	C03	P	-
+M3	BRANCH	com/legend/testplan/EngineTextGates.java:107	com.legend.testplan.EngineTextGates#sizeWords	C03	P	-
+M3	REFUSED	com/legend/lowering/VerdictSql.java:701	VerdictNumbers#floatsWithin(SqlExpr, SqlExpr)	C01	P	judge
+M3	REFUSED	com/legend/lowering/VerdictSql.java:3067	VerdictNumbers#floatsWithin(SqlExpr, SqlExpr)	C01	P	judge
+M3	REFUSED	com/legend/testplan/EngineTextGates.java:26	PlanStyle#facet(Class)	C03	P	-
+M3	REFUSED	com/legend/testplan/EngineTextGates.java:94	PlanStyle#facet(Class)	C03	P	-
+M3	REFUSED	com/legend/testplan/EngineTextGates.java:101	PlanStyle#facet(Class)	C03	P	-
+M3	REFUSED	com/legend/testplan/EngineTextGates.java:107	PlanStyle#facet(Class)	C03	P	-
+M3	EDGE_LIVE	com.legend.lowering.SubselectPrune:75	SubselectPrune#prune(SqlQuery, boolean, String)	C06	S	rep
+M3	EDGE_LIVE	com.legend.resolver.RelationalRootForm:45	RelationalRootForm#apply(List, ModelContext, String)	C29	S	rep
+M5	COMMENT	core/src/main/java/com/legend/lowering/Lowerer.java:3004	(engine model)	C06	S	rep
+M5	COMMENT	core/src/main/java/com/legend/queries/SavedQueries.java:31	as the engine does	C08	P	-
+M5	COMMENT	core/src/main/java/com/legend/queries/SavedQueries.java:230	as legend-engine answers	C08	P	-
+M5	COMMENT	core/src/main/java/com/legend/sql/SqlSource.java:44	as upstream prints	C30	P	-
+M5	COMMENT	core/src/main/java/com/legend/sql/dialect/H2.java:35	replayed here reads as it did in the engine	C09	R0	target
+M5	COMMENT	core/src/main/java/com/legend/testplan/DatabaseJudge.java:230	as upstream writes	C01	P	judge
+M5	COMMENT	core/src/main/java/com/legend/testplan/TestPlanner.java:224	as upstream does	C01	P	judge
+M6	EXPORT	engine-client/src/planned-sql.ts:28	fromPlan	C04	P	edge-host
+M6	EXPORT	engine-client/src/values.ts:112	timestampFromText	C04	P	edge-host
+M6	EXPORT	python/legend_lite/_home.py:100	locked	C07	S	placement
+M6	EXPORT	python/legend_lite/_loader.py:209	EngineMissing	C13	S	placement
+M6	EXPORT	python/legend_lite/_loader.py:231	engine_loaded	C13	S	placement
+M6	EXPORT	python/legend_lite/_reads.py:292	run_arrow	C07	S	placement
+M6	EXPORT	python/legend_lite/_reads.py:299	run_rows_json	C07	S	placement
+M6	EXPORT	python/legend_lite/engine.py:393	_under	C07	S	placement
+M6	EXPORT	python/legend_lite/engine.py:403	_stored	C07	S	placement
+M7	OPT_IN	python/legend_lite/_loader.py:220	legend_lite_engine	C13	S	placement
+M7	DOOR	com/legend/edge/EdgeServer.java:93	com.legend.edge.EdgeServer#main	C31	S	placement
