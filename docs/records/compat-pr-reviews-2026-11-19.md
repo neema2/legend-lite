@@ -752,3 +752,52 @@ on the way. On lite's H2, `extract(WEEK ...)` and `DATEDIFF(WEEK, ...)` follow t
 is week 49, under `en_GB` week 48. Tests cannot see it, because every test JVM pins `en_US`. A product server started
 outside those launchers would answer by its machine's locale, and DuckDB's week is ISO. It is lite's defect, not a
 difference by design. It needs an owner and a record (IN_FLIGHT or an issue) so it is not lost.
+
+### Re-check 3: `9dc385235` (reading copy `f6dc36008`, with `divide-by-zero-probe.md`), sent by B2 directly
+
+**Verdict: APPROVED. S4 is closed, and every item of my review is met.** Two conditions remain for the batch, and one
+nit is left.
+
+**How this was checked:**
+- The whole patch applies to `6551c2036`: six files.
+- The page copy is byte-identical to the patched file.
+- Against `5b337b867`'s tree, only the page and the register differ:
+  - item 2's H2 figures and S380 are hedged to the batch's lane;
+  - item 3's `x / 0`;
+  - the `joinStrings` citation in item 12 and S386.
+
+**S4, legend-pure's `x / 0`: met.** Every citation was read at the pin, and the probe's outputs agree:
+- **Compiled:** `CompiledSupport.java:1481-1486` raises "Cannot divide <divisor> by zero". legend-engine runs Pure in
+  this mode: `PureModel.java:149` and `:206` build a `CompiledExecutionSupport`.
+- **Interpreted, Integer by Integer 0:**
+  - `Divide.java:56` makes the double result a Float by name;
+  - `ModelRepository.java:281-287` → `newFloatCoreInstance` at `:547-550` → `new BigDecimal("Infinity")`, which
+    throws `NumberFormatException`;
+  - the path is `NumericAccumulator.java:1562-1565`, then `:1156-1161`.
+- **Interpreted, with a Float or Decimal operand:** a `BigDecimal` division (`PrimitiveUtilities.java:80-83`), which
+  raises "Division by zero" or "Division undefined" (`NumericAccumulator.java:895`).
+
+So legend-pure raises in both modes, and item 3's "Pure's error" holds for every case.
+
+**Correction to my own re-check 2.** I wrote that interpreted legend-pure answers Infinity for Integer by Integer 0,
+"with no raise", citing `:1170-1175`. That was read short:
+- the path is `divide(double)` at `:1156-1161`;
+- the value then fails `new BigDecimal("Infinity")`.
+
+B2's reading is the right one. The page states it correctly.
+
+**The H2 count: the page and S380 now read "147 or 148" (and "150 or 151"), settled by the merged batch's H2 lane.**
+That meets condition 1 in form. The condition stays until the judges' number replaces the "or", before the batch
+lands.
+
+**The `joinStrings` citation: met.** S386 and item 12 cite `essential/string/toString/joinStrings.pure:18-21`. B2 adds
+that `:23` was the 4-argument native's declaration in the other `joinStrings.pure`, under `grammar/`.
+
+**Still open:**
+- **Condition 2:** the user's word on the PROPOSED rows at the PR (S130, S134, S380, S382-S385).
+- **Nit:** item 13's "When: today". Lite's H2 answers the Monday only with A5's fix in this batch. One clause would make
+  it exact.
+
+**For the A2 review, from B2's message.** B2 reports that A2 put the user-accepted divergences (batch 144's rule: "a
+fourth status beside PASS / FAIL / SKIPPED") on the fail rosters rather than the accepted rosters. I will check that in
+A2's PR. If it holds, it is a must-fix there: the user ruled those rows a status of their own on 2026-09-08.
