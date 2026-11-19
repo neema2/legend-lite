@@ -2542,3 +2542,12 @@ who confirms or changes phases 1-3.
   Infinity. Conditions at the batch: the merged H2 lane settles item 2's H2 figures and S380; the user's word on the
   PROPOSED rows (S130, S134, S380, S382-S385). The H2 week-locale defect needs an owner and a record: added to the
   page's Gaps for the product track. Sent to B2 for one last commit, then its push on the user's word.
+- **~20:00 UTC, B2: piece 4's last commit** (`9dc385235`, local; reading copy `f6dc36008`; sent to the reviewer).
+  legend-pure's `x / 0` read to the end at 5.99.0 AND run (the pinned `NumericAccumulator` compiled and driven as
+  `Divide.java` does; `divide-by-zero-probe.md`): **both modes raise for every zero divisor**: compiled "Cannot divide
+  0 by zero" (`CompiledSupport.java:1481-1486`); interpreted Integer / Integer is a double division whose Infinity or
+  NaN then fails as a Pure Float with a NumberFormatException, and a Float or Decimal operand raises BigDecimal's
+  "Division by zero". (This corrects the reviewer's reading that the interpreter answers Infinity.) H2's count worded
+  "147 or 148", pending the merged lane. **For B1's error-record backlog:** the edge's `PureMessages.java:26-29` words
+  Integer / Integer's error "Division by zero" (wrong mode and words), and cites `CompiledSupport:1485` for rem's message
+  (that line is divide's; rem's is `CoreHelper.java:544`). Sent to B1.
