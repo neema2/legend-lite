@@ -129,10 +129,11 @@ public final class RowDecode {
                 return node instanceof Json.Str s && !numericPure(type) ? s.value() : floating(node, c);
             }
             case "DECIMAL", "NUMERIC" -> {
-                // an Integer over a DECIMAL slot: its exact integral, a fraction refused by name (JdbcDecode's rule,
-                // the PR #118 follow-up, 2026-11-19, Q8)
+                // an Integer over a DECIMAL slot: the decimal it spells, its exact integral where whole, a fraction
+                // refused by name (JdbcDecode's rule, the PR #118 follow-up, 2026-11-19, Q8; the review of PR #121, B2:
+                // a whole value the wire spells as text, "5.00", is its Integer too)
                 return node instanceof Json.Str s && !numericPure(type) ? s.value()
-                        : type.equals("Integer") ? integer(node, c) : decimal(node, c);
+                        : type.equals("Integer") ? wholeDecimal(node, c) : decimal(node, c);
             }
             case "BOOLEAN" -> {
                 if (node instanceof Json.Bool b) {
@@ -289,6 +290,23 @@ public final class RowDecode {
         };
         // a long holds a whole number of up to 63 bits beside its sign (bitLength counts the sign apart): until
         // 2026-10-29 the bound was 63 exclusive, and [2^62, 2^63-1] rode as a BigInteger (the track A audit, finding 2)
+        return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
+    }
+
+    /** An Integer's cell under a DECIMAL slot: the decimal it spells, a number or its text, and its exact integral where
+     *  it is whole ("5.00", "-0.00", 1E+3); a fraction, or a text that is no number, refused by name (JdbcDecode's
+     *  wholeDecimal; the review of PR #121, 2026-11-19, B2). */
+    private static Object wholeDecimal(Json.Node node, ExecutionPlan.Column c) {
+        BigDecimal d;
+        try {
+            d = decimal(node, c);
+        } catch (NumberFormatException e) {
+            throw refused(node, c);
+        }
+        if (d.signum() != 0 && d.stripTrailingZeros().scale() > 0) {
+            throw refused(node, c);
+        }
+        BigInteger whole = d.toBigInteger();
         return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
     }
 

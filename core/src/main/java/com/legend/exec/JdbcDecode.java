@@ -281,10 +281,11 @@ final class JdbcDecode {
                     return s;
                 }
                 // an Integer over a DECIMAL slot (an Integer property mapped to a DECIMAL(10,0) column; the PR #118
-                // follow-up, 2026-11-19, Q8): the Integer's carrier, its exact integral, as an integral slot's scale-0
-                // decimal is read -- a cell with a fraction refused by name, never truncated
+                // follow-up, 2026-11-19, Q8): the cell read as the decimal it is -- whatever the driver's carrier, a
+                // BigDecimal or its text (SQLite's scaled DECIMAL, printf's '5.00'; the review of PR #121, B2) -- and the
+                // Integer's carrier its exact integral where it is whole; a fraction refused by name, never truncated
                 if (type.equals("Integer")) {
-                    return integral(v, c);
+                    return wholeDecimal(v, c);
                 }
                 BigDecimal d = decimal(v, c);
                 // a driver that drops a decimal's trailing zeros (BigQuery's): the slot's declared scale is the
@@ -404,6 +405,23 @@ final class JdbcDecode {
             default -> throw refused(v, c);
         };
         // 63 bits beside the sign fit a long (the track A audit's finding 2, 2026-10-29: 63 exclusive until then)
+        return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
+    }
+
+    /** An Integer's cell under a DECIMAL slot: the decimal it is, any carrier ({@link #decimal}), and its exact integral
+     *  where it is whole -- 5, 5.00, -0.00 and 1E+3 alike -- a long within 63 bits, else the BigInteger; a fraction, or a
+     *  text that is no number, refused by name (the review of PR #121, 2026-11-19, B2). */
+    private static Object wholeDecimal(Object v, ExecutionPlan.Column c) {
+        BigDecimal d;
+        try {
+            d = decimal(v, c);
+        } catch (NumberFormatException e) {
+            throw refused(v, c);
+        }
+        if (d.signum() != 0 && d.stripTrailingZeros().scale() > 0) {
+            throw refused(v, c);
+        }
+        BigInteger whole = d.toBigInteger();
         return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
     }
 

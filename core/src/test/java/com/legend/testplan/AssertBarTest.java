@@ -406,7 +406,7 @@ class AssertBarTest {
             ###Connection
             RelationalDatabaseConnection p::C { store: p::DB; type: %s;
                 specification: LocalH2 {
-                    testDataSetupCSV: 'default\\nV\\nID,N\\n1,5\\n-----\\ndefault\\nW\\nID,F\\n1,5.50\\n'; };
+                    testDataSetupCSV: 'default\\nV\\nID,N\\n1,5\\n-----\\ndefault\\nW\\nID,F\\n1,5.50\\n2,5.00\\n3,-0.00\\n'; };
                 auth: DefaultH2; }
             ###Runtime
             Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
@@ -423,6 +423,13 @@ class AssertBarTest {
             want.put("{|assertNotEq(5, " + side + ")}", "AssertFailed: expected a value other than 5");
             want.put("{|assertIsNot(5, " + side + ")}", "AssertFailed: expected an instance other than 5");
         }
+        // a whole value at a scale above zero is its Integer too where the cell is decoded (the review of PR #121,
+        // 2026-11-19, B2: SQLite hands a scaled DECIMAL back as its text, '5.00', '-0.00'): the value decides, never its
+        // scale or its carrier. The database judge compares the column's DECIMAL(10,2) value where it is ("expected 5,
+        // got 5.00"), so BOTH disagree -- the fraction's open finding, widened; reported, not pinned here
+        java.util.Map<String, String> whole = java.util.Map.of(
+                "{|assertEq(5, p::S.all()->filter(x | $x.id == 2)->toOne().f)}", "pass",
+                "{|assertEq(0, p::S.all()->filter(x | $x.id == 3)->toOne().f)}", "pass");
         String fraction = "{|assertEq(5, p::S.all()->filter(x | $x.id == 1)->toOne().f)}";
         List<String> wrong = new ArrayList<>();
         // the map's toOne reads a list, which a dialect without a list encoding refuses by name (as above): its shape
@@ -444,6 +451,12 @@ class AssertBarTest {
                 // compares it where it is (assertEq fails, "expected 5, got 5.50"), and BOTH disagree -- an open finding
                 // of the follow-up (2026-11-19), not pinned here
                 if (mode == com.legend.testplan.PlanningOptions.JudgeMode.HOST) {
+                    for (var e : whole.entrySet()) {
+                        String said = verdict(integerOn, e.getKey(), database, mode);
+                        if (!e.getValue().equals(said)) {
+                            wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(said));
+                        }
+                    }
                     String got = verdict(integerOn, fraction, database, mode);
                     // (a property read alone answers one column, 'value')
                     if (!got.contains("is declared Integer in slot DECIMAL(10,2)") || !got.contains("5.5")) {

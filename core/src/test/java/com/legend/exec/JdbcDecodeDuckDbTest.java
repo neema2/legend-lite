@@ -110,6 +110,16 @@ class JdbcDecodeDuckDbTest {
             // a whole value at a scale above zero is its integral too: the value decides, never its scale
             assertEquals(-5L, JdbcDecodeCases.row(c, DUCKDB, "SELECT -5.00::DECIMAL(10,2) AS n",
                     List.of(JdbcDecodeCases.col("n", "Integer", "DECIMAL(10,2)"))).get(0));
+            // a whole value the driver answers as its text (SQLite's scaled DECIMAL, printf('%.2f')), an exponent too:
+            // read as the decimal it spells (the review of PR #121, 2026-11-19, B2)
+            for (var whole : List.of(List.of("5.00", 5L), List.of("-0.00", 0L), List.of("1E+3", 1000L))) {
+                assertEquals(whole.get(1), JdbcDecodeCases.row(c, DUCKDB, "SELECT '" + whole.get(0) + "' AS n",
+                        List.of(JdbcDecodeCases.col("n", "Integer", "DECIMAL(10,2)"))).get(0), (String) whole.get(0));
+            }
+            String text = assertThrows(IllegalStateException.class, () -> JdbcDecodeCases.row(c, DUCKDB,
+                    "SELECT '5.50' AS f", List.of(JdbcDecodeCases.col("f", "Integer", "DECIMAL(10,2)")))).getMessage();
+            assertTrue(text.startsWith("column 'f' is declared Integer in slot DECIMAL(10,2), and the driver's value,"
+                    + " a java.lang.String 5.50, is not of that kind"), text);
             String refused = assertThrows(IllegalStateException.class, () -> JdbcDecodeCases.row(c, DUCKDB,
                     "SELECT 5.50::DECIMAL(10,2) AS f", List.of(JdbcDecodeCases.col("f", "Integer", "DECIMAL(10,2)"))))
                     .getMessage();

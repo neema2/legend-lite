@@ -62,6 +62,12 @@ class RowDecodeTest {
                 .getMessage();
         assertTrue(refused.startsWith("column 'v' is declared Integer in slot DECIMAL(10,2), and its cell's token 5.50"),
                 refused);
+        // a whole value the wire spells as text, or with an exponent, is its Integer (the review of PR #121, 2026-11-19,
+        // B2): the decimal it spells decides
+        assertEquals(5L, one("Integer", "DECIMAL(10,2)", "\"5.00\""));
+        assertEquals(0L, one("Integer", "DECIMAL(10,2)", "\"-0.00\""));
+        assertEquals(1000L, one("Integer", "DECIMAL(10,2)", "\"1E+3\""));
+        assertEquals(1000L, one("Integer", "DECIMAL(10,2)", "1E+3"));
         // a fraction the wire spells as text, refused by name too (never a parse error of no column)
         String text = assertThrows(IllegalStateException.class, () -> one("Integer", "DECIMAL(10,2)", "\"5.50\""))
                 .getMessage();

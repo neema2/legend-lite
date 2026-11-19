@@ -38,7 +38,7 @@ class IntegerOverDecimalTest {
             ###Connection
             RelationalDatabaseConnection p::C { store: p::DB; type: %s;
                 specification: LocalH2 {
-                    testDataSetupCSV: 'default\\nV\\nID,N\\n1,5\\n-----\\ndefault\\nW\\nID,F\\n1,5.50\\n'; };
+                    testDataSetupCSV: 'default\\nV\\nID,N\\n1,5\\n-----\\ndefault\\nW\\nID,F\\n1,5.50\\n2,5.00\\n3,-0.00\\n'; };
                 auth: DefaultH2; }
             ###Runtime
             Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
@@ -59,6 +59,14 @@ class IntegerOverDecimalTest {
             try (Connection c = backend.open()) {
                 Lean.Result one = Lean.established(model, "|p::R.all()->filter(x | $x.id == 1)->toOne().n", "p::RT", c);
                 assertEquals(List.of(List.of(5L)), one.rows(), backend.type() + ": " + one.text());
+            }
+            // a whole value at a scale above zero is its Integer (the review of PR #121, 2026-11-19, B2)
+            for (var whole : List.of(List.of(2, 5L), List.of(3, 0L))) {
+                try (Connection c = backend.open()) {
+                    Lean.Result one = Lean.established(model, "|p::S.all()->filter(x | $x.id == " + whole.get(0)
+                            + ")->toOne().f", "p::RT", c);
+                    assertEquals(List.of(List.of(whole.get(1))), one.rows(), backend.type() + ": " + one.text());
+                }
             }
             try (Connection c = backend.open()) {
                 Throwable refused = assertThrows(Throwable.class,
