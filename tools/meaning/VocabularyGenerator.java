@@ -4,7 +4,6 @@
 package com.legend.tools.meaning;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -430,11 +429,5 @@ public final class VocabularyGenerator {
             }
         }
         return out.toString();
-    }
-
-    static void requireDirectory(Path p) {
-        if (!Files.isDirectory(p)) {
-            throw new UncheckedIOException(new IOException(p + " is not a directory"));
-        }
     }
 }

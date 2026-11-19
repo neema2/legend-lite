@@ -440,7 +440,7 @@ class MeaningCensusTest {
                             + " reason: " + line);
                 }
                 String cls = f[4].strip();
-                if (!Set.of("a", "b", "c").contains(cls)) {
+                if (!Set.of("a", "b", "c", "p").contains(cls)) {
                     throw new IllegalArgumentException("inventory.tsv: a class is a, b or c: " + line);
                 }
                 rows.add(new Row(f[0].strip(), f[1].strip(), glob(f[2].strip()), glob(f[3].strip()), cls,

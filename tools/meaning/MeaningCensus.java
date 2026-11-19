@@ -298,9 +298,16 @@ public final class MeaningCensus {
     // -----------------------------------------------------------------------------------------------------------------
     // M1 TEXT
 
-    /** A string the product holds, and where. */
-    public record Text(String text, String where, boolean isName) {
+    /** A string the product holds, and where; {@code doc} when it is a Pure tagged value's (a declaration's
+     *  documentation, {@code doc.doc = '...'}), never a value. */
+    public record Text(String text, String where, boolean isName, boolean doc) {
+
+        public Text(String text, String where, boolean isName) {
+            this(text, where, isName, false);
+        }
     }
+
+    private static final Pattern TAGGED_VALUE = Pattern.compile("\\b\\w+\\.\\w+\\s*=\\s*$");
 
     /** The strings of the product's classes: each pool string constant (a concatenation's recipe split at its
      *  arguments). Its names in code are M2's. */
@@ -329,7 +336,8 @@ public final class MeaningCensus {
                 for (int k = 0; k < lines.length; k++) {
                     Matcher m = Pattern.compile("'((?:[^'\\\\]|\\\\.)*)'").matcher(lines[k]);
                     while (m.find()) {
-                        out.add(new Text(m.group(1), name + ":" + (k + 1), false));
+                        boolean doc = TAGGED_VALUE.matcher(lines[k].substring(0, m.start())).find();
+                        out.add(new Text(m.group(1), name + ":" + (k + 1), false, doc));
                     }
                 }
             } else if (name.matches(".*\\.(json|tsv|txt|properties|csv|yaml|yml|md|sql|html)$")) {
@@ -407,7 +415,7 @@ public final class MeaningCensus {
             }
             for (String found : sentences.within(s)) {
                 if (seen.add("SENTENCE|" + t.where() + "|" + found)) {
-                    out.add(new Hit("M1", "SENTENCE", t.where(), found, v.sentences.get(found)));
+                    out.add(new Hit("M1", t.doc() ? "DOC" : "SENTENCE", t.where(), found, v.sentences.get(found)));
                 }
             }
             for (String found : edgeIndex.within(s)) {
@@ -601,7 +609,9 @@ public final class MeaningCensus {
     public static final Pattern REPRODUCTION = Pattern.compile("(?i)\\bquirk|\\bengine gap\\b|\\(engine model\\)"
             + "|as (?:legend-engine|the engine|upstream) (?:writes|does|prints|spells|answers|orders|names|emits)"
             + "|legend-engine's (?:harness|defect|bug|gap|double|order)|reproduc\\w* (?:legend-engine|the engine)"
-            + "|replayed here reads as it did in the engine");
+            + "|replayed here reads as it did in the engine"
+            // the code follows legend-engine's recorded answers or its translation (COMPLETENESS-5's two comments)
+            + "|\\bengine(?:'s)? goldens?\\b|the engine translates");
 
     /** M5 over Java sources (path -> text): each comment line holding a marker. */
     public static List<Hit> javaComments(Map<String, String> sources) {

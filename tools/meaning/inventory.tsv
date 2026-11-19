@@ -3,7 +3,8 @@
 # match a hit classifies it (* is any run of characters; a lens or category of * any). A class is
 #   a  upstream meaning in the product (a finding: the edge's, or ruled to stay);
 #   b  covered by a user ruling (a docs/SEMANTICS_REGISTER.md row, or FOLLOW_UPS.md §6/§7's R1-R11), named;
-#   c  no upstream meaning (a false positive), with the reason.
+#   c  no upstream meaning (a false positive), with the reason;
+#   p  upstream meaning whose ruling is pending (R4: its own class until the user rules it).
 # A reason naming a known item carries its id in brackets ([C1]); the summary counts each known item's hits.
 # KNOWN rows: KNOWN | id | what | why the census may not see it (empty when it should).
 
@@ -11,7 +12,7 @@ KNOWN | C1 | legend-engine's union framing shape runs in product lowering (LOWER
 KNOWN | C2 | the product planner computes legend-engine's exists-join rule (LOWERSQL-4) |
 KNOWN | C3-TS | TypeScript product records read legend-engine's shapes (COMPLETENESS-1) |
 KNOWN | C3-Py | Python's product plan record reads relationalType (COMPLETENESS-4) |
-KNOWN | HOSTS-3 | Python's product engine serves /api/server/v1/currentUser (C4) |
+KNOWN | HOSTS-3 | Python's product engine serves /api/server/v1/currentUser (C4) | closed on this branch at 8fe8c4cf8 (PR #118's N4): Python's currentUser is the edge's; M1's route lens bites a planted /api/server/v1/currentUser
 KNOWN | HOSTS-4 | Python's product loader holds the engine library's entry table and imports legend_lite_engine (C4) |
 KNOWN | HOSTS-7 | two undeclared doors to legend-engine's routes: EdgeServer.main, Python's direct EngineRoutes() (R11(b)) |
 KNOWN | C5 | the prelude ships legend-pure's print bodies (Pair, List, SQLNull, TDSColumn) (COMPLETENESS-2, R5) |
@@ -20,10 +21,17 @@ KNOWN | LOWERSQL-7 | H2's product dialect sets legend-engine's NON_KEYWORDS on e
 KNOWN | COMPLETENESS-7 | parser and protocol emitter reproduce legend-engine's span and emit quirks |
 KNOWN | COMPLETENESS-8 | product test order and lineage labels follow legend-engine (engineSuiteOrder, unionAlias, SQLNull) |
 KNOWN | PRODUCT-7 | edge-only product surface exempted on reasons that do not hold (LiteV1Api.Runner, testDataTimestampText, "pageContent") |
-KNOWN | PRODUCT-11 | readThroughExecuteValues: an edge-only flag carried through four product layers |
+KNOWN | PRODUCT-11 | readThroughExecuteValues: an edge-only flag carried through four product layers | a record component branched on at Lowerer.java:829: M3 follows parameters and hook answers, never a record field's provenance (C2's existsJoinable has the same limit)
 KNOWN | JUDGES-3 | host failure texts bypass HostWords, so the judges disagree on the message |
 KNOWN | JUDGES-6 | judgesEngineText() serves as an "is this the edge" flag |
 KNOWN | C6 | DataCube's product queries work around legend-engine's defects on every planner (COMPLETENESS-3, R6) |
+KNOWN | R10 | the six other in-body guards' default is legend-pure's "Assert failed" (LambdaBodies; PRODUCT-3's other half) |
+KNOWN | PRODUCT-10 | the product's carried Float layout is legend-pure's; two product texts of one DateTime | a layout and a digit count carry no upstream literal, and CellText's comment cites legend-pure as the spec the text matches, which M5 cannot tell from a copy (lite cites legend-pure everywhere as spec)
+KNOWN | J5 | the store-read carrier spells a Decimal 1D, legend-pure's %r form (LiteralSpelling.decimalPrintD, the DECIMAL_TEXT carrier) | the spelling is a one-letter SQL literal, "D", concatenated onto the value's text: below every text lens's length, with no upstream name and no reproduction comment
+KNOWN | R2 | the test-data generator's legend-engine forms and words stay for now (ruled) |
+KNOWN | R7 | the grammar level and the level-less entries (COMPLETENESS-6, PRODUCT-8; ruled) |
+KNOWN | COMPLETENESS-5 | the product's default substring and indexOf are legend-engine's relational semantics (R4, its ruling pending) |
+KNOWN | PRODUCT-3 | NEGATIVE: assert's own default is no longer legend-pure's in the product (fixed: Pure.Lite.ASSERT_FAILED_TEXT; the edge's EdgeLoweringForms) | expected unseen: the product's "Assert failed" hits are the six other guards' (R10) and AssertMessages.unevaluated, lite's own sentence (c)
 KNOWN | N-PRELUDE | the prelude ships upstream Pure bodies beyond C5's print forms (legend-engine's relational asserts, its plan warning, the PCT runner's prints) |
 KNOWN | N-PARSER | the product parser and its section grammars hold legend-engine's grammar refusals in upstream's words |
 KNOWN | N-JUDGE | the product judges compute and branch for compiled legend-pure's comparison (tolerances, canons, rendered texts, message operands) |
@@ -46,10 +54,10 @@ M3 | ANSWER | * | RoutedQueries#routingActivity* | b | an aggregation-aware quer
 M3 | UNUSED_NOOP | * | RoutedQueries#routingActivity* | b | as its ANSWER row: S310
 M3 | ANSWER | * | LoweringForms#objectReferenceConnection() | b | S362 (RULED by the user, 2026-11-17): the product's object reference names no connection; legend-engine's bytes stay at the edge
 M3 | EDGE_LIVE | * | RelationalRootForm#apply* | a | legend-engine's toSQLString root form, its javadoc "consumed ONLY by the toSQLString golden-text surface", sits in the product resolver; its mapping argument only the edge passes [N-ROOTFORM]
-M3 | EDGE_LIVE | * | TestDataPlanner#* | b | the test-data generator's legend-engine row-identifier form stays for now (R2, the user, 2026-11-18): its seed argument only the edge's route passes
+M3 | EDGE_LIVE | * | TestDataPlanner#* | b | the test-data generator's legend-engine row-identifier form stays for now (R2, the user, 2026-11-18): its seed argument only the edge's route passes [R2]
 M3 | EDGE_LIVE | * | TestExecution#runProgram* | c | a door's output parameter: the product's test door, which the edge's service-test runner calls with its own sink
-M3 | UNUSED | com/legend/testdatagen/* | * | b | the test-data generator's printing seam: R2 (the user, 2026-11-18)
-M3 | UNUSED_NOOP | * | TestDataPlanner$Printing#* | b | the test-data generator's printing seam: R2 (the user, 2026-11-18)
+M3 | UNUSED | com/legend/testdatagen/* | * | b | the test-data generator's printing seam: R2 (the user, 2026-11-18) [R2]
+M3 | UNUSED_NOOP | * | TestDataPlanner$Printing#* | b | the test-data generator's printing seam: R2 (the user, 2026-11-18) [R2]
 M3 | * | com/legend/lowering/VerdictSql.java | * | a | the database judge builds compiled legend-pure's float tolerance and canon grids behind a two-form answer (GUARDS-1/-2: an upstream algorithm behind a branch, the owner's question) [N-JUDGE]
 M3 | * | com/legend/testexec/Equality.java | * | a | the host judge's equality branches for compiled legend-pure's cross-kind and float rules [N-JUDGE]
 M3 | BRANCH | com/legend/testexec/HostJudgments.java | HostJudgments#renderedOf | a | the rendered-text compare branches on legend-pure's rendered texts; its failure text is one of JUDGES-3's four (HostJudgments.java:891-892) [JUDGES-3]
@@ -93,10 +101,10 @@ M3 | REFUSED | com/legend/sql/dialect/* | * | c | a dialect hook the edge's engi
 # ---------------------------------------------------------------------------------------------------------------------
 # M4 PRINT BODIES and BODY
 
-M4 | TOSTRING | * | *Pair | a | legend-pure's <a, b> print of a Pair, the product writer's form today; R5 (the user, 2026-11-18): LITE's is its JSON object, <a, b> to PURE and ENGINE [C5]
-M4 | TOSTRING | * | *::List | a | legend-pure's [a, b] print of a List; S363 (RULED): the product's text of a list is its JSON; R5 takes the body to PURE and ENGINE [C5]
-M4 | TOSTRING | * | *SQLNull | a | legend-pure's 'SQLNull' print; R5 takes the prelude's legend-pure print bodies to PURE and ENGINE [C5]
-M4 | TOSTRING | * | *TDSColumn | a | legend-pure's TDSColumn print; R5 takes the prelude's legend-pure print bodies to PURE and ENGINE [C5]
+M4 | TOSTRING | * | *Pair | b | legend-pure's <a, b> print of a Pair, the product writer's form today; R5 (the user, 2026-11-18): LITE's is its JSON object, <a, b> to PURE and ENGINE [C5]
+M4 | TOSTRING | * | *::List | b | legend-pure's [a, b] print of a List; S363 (RULED): the product's text of a list is its JSON; R5 takes the body to PURE and ENGINE [C5]
+M4 | TOSTRING | * | *SQLNull | b | legend-pure's 'SQLNull' print; R5 takes the prelude's legend-pure print bodies to PURE and ENGINE [C5]
+M4 | TOSTRING | * | *TDSColumn | b | legend-pure's TDSColumn print; R5 takes the prelude's legend-pure print bodies to PURE and ENGINE [C5]
 M4 | TOSTRING | * | *RoutingStrategy | c | a function field's own toString, delegated: no print form
 M4 | BODY | * | * | a | an upstream Pure body the prelude ships (the world-map tenet: declarations, views over the platform's own tables, no other Pure bodies; residue named, never ported) [N-PRELUDE]
 
@@ -110,8 +118,8 @@ M6 | EXPORT | python/legend_lite/* | * | a | a product helper only the Python ed
 M7 | OPT_IN | python/legend_lite/_loader.py | legend_lite_engine | a | the product loader's import of the opt-in package (HOSTS-4: the "optional import in Python" blind spot) [HOSTS-4]
 M7 | OPT_IN | * | ServiceLoader.load | c | a ServiceLoader lookup: the declared opt-in mechanism (K2, the user's ruling 2026-11-18), or a product registry (connectors, grammars, probes)
 M7 | STATIC | datacube/demo/verify-*.mjs | * | c | a verification script (a test in all but its folder) that drives a real legend-engine for comparison
-M7 | BUILD | //python:wheel_package | * | a | the product wheel ships legend_lite.edge (HOSTS-5) [HOSTS-5]
-M7 | BUILD | //datacube:bundle_* | * | a | a product bundle lists the edge entry as an input, so the build graph cannot prove it edge-free (HOSTS-8) [HOSTS-5]
+M7 | BUILD | //python:wheel_package | * | b | the product wheel ships legend_lite.edge (HOSTS-5, ruled: the orchestrator's corrected list, 2026-11-19) [HOSTS-5]
+M7 | BUILD | //datacube:bundle_* | * | b | a product bundle lists the edge entry as an input, so the build graph cannot prove it edge-free (HOSTS-8; HOSTS-5, ruled) [HOSTS-5]
 M7 | DOOR | * | com.legend.edge.EdgeServer#main | a | an undeclared door: java -cp server_deploy.jar com.legend.edge.EdgeServer serves legend-engine's routes; R11(b) (the user, 2026-11-18): the first small follow-up PR [HOSTS-7]
 M7 | DOOR | * | com.legend.edge.wasm.EngineExports#main | c | the declared opt-in module's entry (//wasm:engine_planner, TeaVM's main; _EDGE_OPT_IN_MODULES)
 
@@ -149,7 +157,7 @@ M1 | NAME | com/legend/lowering/SqlPostProcessors.java | * | a | legend-engine's
 M1 | NAME | com/legend/lowering/JsonEmission.java | * | c | the value of a platform function (toJSON's metaType), as upstream defines it (the upstream-fidelity tenet)
 M1 | NAME | com/legend/lowering/Scalars.java | * | c | a database's format name (BigQuery's)
 M1 | NAME | com/legend/lowering/* | * | c | an internal alias or column name of lite's own lowering
-M1 | NAME | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine form stays for now (R2, the user, 2026-11-18)
+M1 | NAME | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine form stays for now (R2, the user, 2026-11-18) [R2]
 M1 | NAME | com/legend/executionplan/* | * | c | lite's own plan JSON field names
 M1 | NAME | com/legend/sql/* | * | c | lite's own MIR fields (__type: lite's identity layout; tablePattern: lite's catalog grid)
 M1 | * | * | __type | c | lite's own identity layout field (SqlExpr.SYNTHETIC_TYPE, ClassLayouts.SYNTHETIC_TYPE)
@@ -161,27 +169,46 @@ M1 | NAME | com/legend/testexecutionplan/Failure.java | * | c | lite's own failu
 M1 | NAME | sdlc-client/src/* | * | c | legend-sdlc's API, which lite's SDLC server serves (its own program; outside legend-engine and legend-pure)
 M1 | NAME | datacube/demo/* | * | c | a demo or verification script driving a real legend-engine for comparison (a test in all but its folder)
 M1 | NAME | * | dataCube | c | lite's own DataCube app's settings and routes
-M1 | NAME | * | * | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells
+M1 | NAME | * | className | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | targetSetId | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | AssertError | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | enumMapping | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | notEmpty | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | yyyyMMdd | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | rowCount | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | formatCode | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | ContentType | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | distinctCount | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | openFiles | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | firstValue | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | lastValue | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | runtimePath | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | resultColumns | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | NAME | * | javaDouble | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
 
 # M1 TEXT: routes, the edge's strings
 
 M1 | ROUTE | datacube/demo/planners.ts | * | b | the engine plane's health check, in the picker that loads the declared opt-in by URL (H11); R6 (the user, 2026-11-18) keeps legend-engine's work toward legend-engine
 M1 | ROUTE | datacube/demo/* | * | c | a verification or chaos script driving a real legend-engine (a test in all but its folder)
-M1 | EDGE | com/legend/compiler/spec/*.java | Assert failed | a | legend-pure's "Assert failed" as the in-body guards' default; R10 (the user, 2026-11-18): their LITE words after the merge [C7]
-M1 | SENTENCE | com/legend/compiler/spec/*.java | Assert failed | a | legend-pure's "Assert failed" as the in-body guards' default; R10 (the user, 2026-11-18) [C7]
+M1 | EDGE | com/legend/compiler/spec/AssertMessages.java | Assert failed | c | lite's own sentence for an assert whose message could not be evaluated (AssertMessages.unevaluated, 2026-11-04): it begins with legend-pure's two words, and is neither assert's default (PRODUCT-3, fixed) nor the six guards' (R10)
+M1 | EDGE | com/legend/compiler/spec/LambdaBodies.java | Assert failed | a | legend-pure's "Assert failed" as the six other in-body guards' default; R10 (the user, 2026-11-18): their LITE words after the merge [R10]
+M1 | SENTENCE | com/legend/compiler/spec/AssertMessages.java | Assert failed | c | lite's own sentence for an assert whose message could not be evaluated (AssertMessages.unevaluated, 2026-11-04): it begins with legend-pure's two words, and is neither assert's default (PRODUCT-3, fixed) nor the six guards' (R10)
+M1 | SENTENCE | com/legend/compiler/spec/LambdaBodies.java | Assert failed | a | legend-pure's "Assert failed" as the six other in-body guards' default; R10 (the user, 2026-11-18) [R10]
 M1 | EDGE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Warning: Results only shown* | a | legend-engine's plan-text warning in a prelude body [N-PRELUDE]
 M1 | EDGE | com/legend/server/LegendHttpServer.java | * | c | the product server naming legend-engine's API to refuse it by name and point at --engine (K2's declared opt-in)
 M1 | EDGE | datacube/demo/* | * | c | a verification or chaos script driving a real legend-engine (a test in all but its folder)
-M1 | EDGE | * | * | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too
+M1 | EDGE | * | ' cannot extend ' | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | EDGE | * | cannot be cast to | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | EDGE | * | is not empty | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | EDGE | * | Unexpected token | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | EDGE | * | ' in mapping ' | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | EDGE | * | in mapping ' | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | EDGE | * | typed columns | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M1 | EDGE | * | does not contain | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
 
 # M1 TEXT: sentences
 
-M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Create a Relation typed* | b | a platform declaration's documentation, verbatim with its signature (the reference-checkout tenet: signatures verified verbatim against the real .pure sources)
-M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Plan Generation* | b | a platform declaration's documentation (the reference-checkout tenet)
-M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Pure Execution* | b | a platform declaration's documentation (the reference-checkout tenet)
-M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Set to * | b | a platform declaration's documentation (the reference-checkout tenet)
-M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | ~* | b | a platform declaration's grammar documentation (PCT.grammarDoc; the reference-checkout tenet)
-M1 | * | libbuiltin.jar!/com/legend/builtin/prelude.pure | typed columns | b | a platform declaration's documentation (the reference-checkout tenet)
+M1 | DOC | * | * | b | a platform declaration's documentation, a tagged value verbatim with its signature (the reference-checkout tenet: signatures verified verbatim against the real .pure sources)
 M1 | * | libbuiltin.jar!/com/legend/builtin/prelude.pure | * | a | an upstream message inside a Pure body the prelude ships (legend-engine's relational asserts, its External Format and TDS bodies, the PCT runner's prints) [N-PRELUDE]
 M1 | SENTENCE | com/legend/parser/* | * | a | legend-engine's grammar refusal, in its words, raised by the product parser (a product raise is lite's kind; upstream's words the edge's: J10, D1.6) [N-PARSER]
 M1 | SENTENCE | com/legend/model/* | * | a | legend-engine's model-building refusal, in its words, in the product (J10's rule: a kind, upstream's words at the edge) [N-PARSER]
@@ -190,7 +217,7 @@ M1 | SENTENCE | com/legend/protocol/*Composer.java | * | b | the model's own gra
 M1 | SENTENCE | com/legend/protocol/cypher/* | * | c | the #Cypher island's own refusal
 M1 | SENTENCE | com/legend/protocol/sql/* | * | c | the #SQL and #IQ islands' own words (Postgres's type and refusal vocabulary)
 M1 | SENTENCE | com/legend/sql/dialect/* | * | c | a SQL statement's text (the database's language)
-M1 | SENTENCE | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine words stay for now (R2, the user, 2026-11-18)
+M1 | SENTENCE | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine words stay for now (R2, the user, 2026-11-18) [R2]
 M1 | SENTENCE | com/legend/setup/CsvSeed.java | * | a | legend-engine's test-data setup messages, in its words, in the product's seeding (R2 rules the generator's spellings, not these)
 M1 | SENTENCE | com/legend/compiler/spec/NewChecker.java | * | a | legend-pure's compile message for a missing required property, in its words, in the product typer (J10's rule)
 M1 | SENTENCE | com/legend/compiler/spec/GroupByChecker.java | * | a | legend-engine's aggregation-aware groupBy assertions, in its words, in the product typer
@@ -199,7 +226,24 @@ M1 | SENTENCE | com/legend/lowering/DateFormats.java | * | a | legend-pure's dat
 M1 | SENTENCE | com/legend/lowering/Scalars.java | * | a | legend-pure's duration-unit message, in its words, in product lowering (K1's family)
 M1 | SENTENCE | com/legend/normalizer/* | * | a | legend-engine's mapping message, in its words, in the product normalizer (J10's rule)
 M1 | SENTENCE | com/legend/queries/SavedQueries.java | * | a | legend-engine's query-store message in the product store (PH-2); R11(a): to the presentation program [R11a]
-M1 | SENTENCE | * | * | c | a generic phrase lite's own message and upstream's share (Unknown type, is not an instance of, defined more than once, cannot be cast to, Compilation error, There is already a)
+M1 | SENTENCE | * | Unknown type | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | is not an instance of | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | defined more than once | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | cannot be cast to | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | Compilation error | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | There is already a | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | could not be evaluated | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | is not compatible with | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | Cannot serialize | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | Float literal | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | String literal | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | in hierarchy of class | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | Can't execute | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | Failed to execute | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | is not of type | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | The operation | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | The property | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
+M1 | SENTENCE | * | Pure expression | c | a generic phrase lite's own message and upstream's share (each listed, 2026-11-19: no catch-all, so a new upstream sentence is unclassified, never hidden)
 
 # ---------------------------------------------------------------------------------------------------------------------
 # M2 NAMES
@@ -210,8 +254,8 @@ M2 | NAME | com/legend/parser/EngineQuirks.java | * | a | legend-engine's parse 
 M2 | NAME | com/legend/sql/dialect/H2.java | * | a | legend-engine's H2 lexicon and its NON_KEYWORDS session setting in the product dialect (ruled to stay by the P2 checkpoint audit's S5, not the user; B3's item) [LOWERSQL-7]
 M2 | NAME | com/legend/test/PureTests.java | * | a | the product's test discovery in legend-engine's PureTestBuilder order, and its exclusions [COMPLETENESS-8]
 M2 | NAME | com/legend/planner/UpstreamPlans.java | * | a | the edge's facet in the product planner, its testDataTimestampText with no caller [PRODUCT-7]
-M2 | NAME | com/legend/parser/GrammarLevel.java | LEGEND_ENGINE | b | legend-engine's grammar level: the one grammar (S364, the user, 2026-11-17; J21); R7 (the user, 2026-11-18): the level-less entries default to LITE in the three-mode program
-M2 | NAME | com/legend/door/Parse.java | * | b | the doors' legend-engine parse entries (S364, J21); R7 (the user, 2026-11-18) takes the level-less defaults to LITE
+M2 | NAME | com/legend/parser/GrammarLevel.java | LEGEND_ENGINE | b | legend-engine's grammar level: the one grammar (S364, the user, 2026-11-17; J21); R7 (the user, 2026-11-18): the level-less entries default to LITE in the three-mode program [R7]
+M2 | NAME | com/legend/door/Parse.java | * | b | the doors' legend-engine parse entries (S364, J21); R7 (the user, 2026-11-18) takes the level-less defaults to LITE [R7]
 M2 | NAME | com/legend/builtin/EngineHandlers.java | * | b | legend-engine's bare-name function surface, generated from its Handlers registry: the language's names (S364; the reference-checkout tenet)
 M2 | NAME | com/legend/builtin/* | * | c | the platform's ledger of upstream's own machinery, named (the world-map tenet: residue named, never ported)
 M2 | NAME | com/legend/platform/* | * | c | the platform's ledger of upstream's bodies and machinery, named (the world-map tenet)
@@ -222,7 +266,7 @@ M2 | NAME | com/legend/protocol/sql/iq/* | * | c | SQL Anywhere IQ's own engine 
 M2 | NAME | com/legend/server/LegendHttpServer.java | engineOf | c | the declared opt-in's switch (--engine legend-engine; K2, the user's ruling 2026-11-18)
 M2 | NAME | com/legend/planner/PlanMaker.java | * | c | lite's own system database engine
 M2 | NAME | com/legend/planner/SystemRoutes.java | * | c | lite's own system database engine
-M2 | NAME | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine form stays for now (R2, the user, 2026-11-18)
+M2 | NAME | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine form stays for now (R2, the user, 2026-11-18) [R2]
 M2 | NAME | com/legend/testplan/EngineTextPlanning.java | * | b | the engine-text residue, its pin ratified (R3, the user, 2026-11-18: EngineTextPlanning 151)
 M2 | NAME | com/legend/testplan/BodyDriver.java | * | b | the engine-text residue in the body driver, its pin ratified (R3, the user, 2026-11-18: BodyDriver 545)
 M2 | NAME | com/legend/testplan/EngineTestText.java | * | b | the engine-text hook, refused by the product (HOOK-RULED; R3's residue)
@@ -234,9 +278,12 @@ M2 | NAME | datacube/demo/* | * | c | a verification script driving a real legen
 # ---------------------------------------------------------------------------------------------------------------------
 # M5 PROVENANCE
 
+M5 | COMMENT | core/src/main/java/com/legend/lowering/Scalars.java | engine goldens | p | the product's default substring passes legend-engine's relational (start, length) verbatim, against Pure's 0-based end-exclusive indexes, its corrected rule only under CORRECT_SQL_SUBSTRING_INDEXING (S130; R4, its ruling pending) [COMPLETENESS-5]
+M5 | COMMENT | core/src/main/java/com/legend/lowering/Scalars.java | the engine translates | p | the product's default indexOf is legend-engine's 1-based strpos, 0 on a miss, against Pure's 0-based, -1 on a miss (S134; R4, its ruling pending) [COMPLETENESS-5]
+M5 | COMMENT | * | *golden* | c | legend-engine's recorded answer (a golden) cited as the witness of a semantic the product shares -- what a navigation, a membership, a milestone or an aggregate means -- not a spelling (the upstream-fidelity tenet); sampled 2026-11-19 (TemporalFrame, Substitution, SyntheticHeads, ModelJoinNesting, EnumSourceValues), the rest not read one by one
 M5 | COMMENT | core/src/main/java/com/legend/lowering/Lowerer.java | * | a | the union frame's join wrapper, declared legend-engine's model [C1]
 M5 | COMMENT | core/src/main/java/com/legend/sql/dialect/H2.java | replayed here* | a | legend-engine's NON_KEYWORDS kept so a golden replays as in the engine's run [LOWERSQL-7]
-M5 | COMMENT | datacube/src/query.ts | * | a | DataCube's product query works around legend-engine's unpartitioned over (S24); R6 (the user, 2026-11-18): only toward legend-engine [C6]
+M5 | COMMENT | datacube/src/query.ts | * | b | DataCube's product query works around legend-engine's unpartitioned over (S24); R6 (the user, 2026-11-18): only toward legend-engine [C6]
 M5 | COMMENT | core/src/main/java/com/legend/queries/* | * | a | the product store answers as legend-engine does (PH-2); R11(a) [R11a]
 M5 | COMMENT | core/src/main/java/com/legend/protocol/SourceInformation.java | * | b | the model JSON without source information, as legend-engine writes it (S369, RULED by the user, 2026-11-17)
 M5 | COMMENT | core/src/main/java/com/legend/protocol/*Composer.java | * | c | the model's text as upstream's grammar composer prints it: the language's own form (the upstream-fidelity tenet; S364)
@@ -245,13 +292,23 @@ M5 | COMMENT | core/src/main/java/com/legend/protocol/* | * | a | the protocol r
 M5 | COMMENT | core/src/main/java/com/legend/sql/SqlSource.java | * | a | a generated column's presented name, as upstream prints it, in the product MIR (a presentation in the plan's data; for the presentation program)
 M5 | COMMENT | core/src/main/java/com/legend/testplan/DatabaseJudge.java | * | a | each side written in the failure message as legend-pure writes it, by the product judge [N-JUDGE]
 M5 | COMMENT | core/src/main/java/com/legend/testplan/TestPlanner.java | * | a | the compatibility rules count a body as upstream does, decided in the product test planner [N-JUDGE]
-M5 | COMMENT | core/src/main/java/com/legend/testdatagen/* | * | b | the test-data generator writes as legend-engine does (R2, the user, 2026-11-18)
+M5 | COMMENT | core/src/main/java/com/legend/testdatagen/* | * | b | the test-data generator writes as legend-engine does (R2, the user, 2026-11-18) [R2]
 M5 | COMMENT | core/src/main/java/com/legend/sql/dialect/Postgres.java | * | b | a store's name folded as legend-engine does (decision D8, the user's, 2026-10-13)
 M5 | COMMENT | core/src/main/java/com/legend/sql/dialect/H2.java | * | b | a number's plain-digit text, as upstream prints it (the user's ruling, cited at the site)
 M5 | COMMENT | core/src/main/java/com/legend/executionplan/PlanJson.java | * | b | the format read as upstream does (the user's ruling of 2026-11-10, cited at the site)
 M5 | COMMENT | core/src/main/java/com/legend/lowering/WhereZones.java | * | c | describes the edge's form: legend-engine's zone order is the edge's (L10)
 M5 | COMMENT | core/src/main/java/com/legend/Compiler.java | * | c | describes the edge's words (edge.PureMessages.compile)
-M5 | COMMENT | core/src/main/java/* | * | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29)
+M5 | COMMENT | core/src/main/java/com/legend/compiler/element/TypeClassifier.java | as the engine prints | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/compiler/element/type/PlatformTypes.java | as upstream spells | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/exec/JdbcDecode.java | as upstream writes | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/model/FromProtocol.java | as the engine does | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/model/MappingFromProtocol.java | as the engine names | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/resolver/ScalarValueReads.java | as the engine does | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/resolver/SyntheticHeads.java | reproducing the engine | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/sql/DeclaredKind.java | as upstream writes | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/sql/dialect/CatalogModel.java | as legend-engine does | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/sql/dialect/DuckDb.java | quirk | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
+M5 | COMMENT | core/src/main/java/com/legend/testexec/TestRun.java | as legend-engine does | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29) (listed 2026-11-19: no catch-all, so a new hit is unclassified, never hidden)
 M5 | COMMENT | datacube/src/* | * | c | legend-studio's DataCube's behaviour, the app DataCube follows (not legend-engine's or legend-pure's)
 M5 | COMMENT | query/src/* | * | c | legend-studio's query builder's behaviour, the app Query follows
 M5 | COMMENT | sdlc-client/src/* | * | c | legend-sdlc's API, which lite's SDLC server serves
