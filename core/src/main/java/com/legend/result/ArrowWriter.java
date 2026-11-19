@@ -107,13 +107,13 @@ public final class ArrowWriter implements ResultSink {
      *  P5, 2026-11-19), so the facts are this one rule's on every host. */
     public static Map<String, String> facts(ExecutionPlan.Column c) {
         Map<String, String> m = new LinkedHashMap<>();
-        m.put("legend.type", c.type());
-        m.put("legend.multiplicity", pureMultiplicity(c.multiplicity()));
+        m.put(ArrowKeys.TYPE, c.type());
+        m.put(ArrowKeys.MULTIPLICITY, pureMultiplicity(c.multiplicity()));
         if (c.slot() != null) {
-            m.put("legend.slot", c.slot());
+            m.put(ArrowKeys.SLOT, c.slot());
         }
         if (c.precision() != null) {
-            m.put("legend.precision", c.precision().name());
+            m.put(ArrowKeys.PRECISION, c.precision().name());
         }
         return m;
     }
@@ -175,7 +175,7 @@ public final class ArrowWriter implements ResultSink {
                 List<ExecutionPlan.Column> slots = RowDecode.taggedSlots(c);
                 List<Enc> members = new ArrayList<>(slots.size());
                 for (ExecutionPlan.Column s : slots) {
-                    members.add(encoder(s, s.type(), Map.of("legend.kind", s.type())));
+                    members.add(encoder(s, s.type(), Map.of(ArrowKeys.KIND, s.type())));
                 }
                 yield new UnionOf(name, metadata, c, members);
             }

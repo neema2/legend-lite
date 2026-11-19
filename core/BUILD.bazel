@@ -88,7 +88,8 @@ legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/t
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
 # lite_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
-legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"])
+# //engine-client: the generator of lite's Arrow metadata keys (TypeFacts, result.ArrowKeys; H4's P10, 2026-11-19)
+legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"], visibility = ["//engine-client:__pkg__"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
 # THE COMPATIBILITY FORMS A RUN IS HANDED (phase D's W9/W10, 2026-11-16): the hook the edge implements and the planner
 # and the test planner read -- interfaces only

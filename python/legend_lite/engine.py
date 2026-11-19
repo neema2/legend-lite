@@ -67,6 +67,8 @@ from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._params import ParametersRefused
 from ._plans import PlanParamsRefused, host_rows
+# lite's Arrow metadata keys, generated from the product's (result.ArrowKeys; H4's P10, 2026-11-19)
+from ._type_facts import ARROW_KEY_PLAN, ARROW_KEY_RECEIPT
 from ._reads import count_of, read_plane, run_on_plane, run_plan
 from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
 from .keeper import PageKeeper, Refused
@@ -148,7 +150,7 @@ _LITE_API = '/api/lite/v1/'
 # lite's query/run (the spec's §2): a host's own operation -- planned by the product, run on this engine's DuckDB
 _QUERY_RUN = _LITE_API + 'query/run'
 # the planner's answer to the plan a page's rows are of, in their Arrow schema's metadata
-_PLAN_KEY = b'legend.plan'
+_PLAN_KEY = ARROW_KEY_PLAN.encode('utf-8')
 # the only places a page's remote file may be read from (remote.json), each as DuckDB's httpfs names it: never this
 # machine's own files, which Python's DuckDB can read and a page must not make it (R4's reason). Azure's schemes are not
 # here: the wheel carries no azure extension. An Iceberg table's metadata names its files by path, so each of those
@@ -219,7 +221,7 @@ def _arrow_rows(rows: pa.Table, planned: str, receipt: dict[str, Any] | None = N
     they were read when not here (``legend.receipt``: a warehouse table's, its statement and its reader)."""
     kept = {**(rows.schema.metadata or {}), _PLAN_KEY: planned.encode('utf-8')}
     if receipt is not None:
-        kept[b'legend.receipt'] = json.dumps(receipt).encode('utf-8')
+        kept[ARROW_KEY_RECEIPT.encode('utf-8')] = json.dumps(receipt).encode('utf-8')
     rows = rows.replace_schema_metadata(kept)
     sink = pa.BufferOutputStream()
     with pyarrow.ipc.new_stream(sink, rows.schema) as writer:

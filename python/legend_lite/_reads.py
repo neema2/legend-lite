@@ -23,9 +23,11 @@ from ._planned import Database, PlannedSql, Result, send
 from ._plans import Plan, host_rows
 from ._runframe import current_run, in_run, runs
 from ._types import UnknownType, is_integer, is_model_type
+# lite's Arrow metadata keys, generated from the product's (result.ArrowKeys; H4's P10, 2026-11-19)
+from ._type_facts import ARROW_KEY_TYPE
 
 # the field metadata that carries a result column's type, as the compiler typed it
-TYPE_KEY = b'legend.type'
+TYPE_KEY = ARROW_KEY_TYPE.encode('utf-8')
 
 
 class UntypedColumn(RuntimeError):

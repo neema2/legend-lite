@@ -63,3 +63,16 @@ export const TYPE_FACTS: Readonly<Record<string, TypeFact>> = {
 
 /** How a pivot's generated column name joins its parts (Type.RelationType.PIVOT_SEPARATOR). */
 export const PIVOT_SEPARATOR = '__|__';
+
+/** LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer
+ *  carries in its schema's or a field's metadata, never a literal of the host's own. */
+export const ARROW_KEYS = {
+  SHAPE: 'legend.shape',
+  TYPE: 'legend.type',
+  MULTIPLICITY: 'legend.multiplicity',
+  SLOT: 'legend.slot',
+  PRECISION: 'legend.precision',
+  KIND: 'legend.kind',
+  PLAN: 'legend.plan',
+  RECEIPT: 'legend.receipt',
+} as const;

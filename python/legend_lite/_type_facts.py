@@ -59,3 +59,15 @@ RAISE_SENTINEL = '\u001f'
 RAISE_POSITION_SEP = '\u001e'
 RAISE_QUOTE_MARK = '\u001d'
 RAISE_TOKEN = '\u001cLG#'
+
+# LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer
+# carries in its schema's or a field's metadata, never a literal of the host's own. The same as DataCube's
+# (lite-facts.ts ARROW_KEYS).
+ARROW_KEY_SHAPE = 'legend.shape'
+ARROW_KEY_TYPE = 'legend.type'
+ARROW_KEY_MULTIPLICITY = 'legend.multiplicity'
+ARROW_KEY_SLOT = 'legend.slot'
+ARROW_KEY_PRECISION = 'legend.precision'
+ARROW_KEY_KIND = 'legend.kind'
+ARROW_KEY_PLAN = 'legend.plan'
+ARROW_KEY_RECEIPT = 'legend.receipt'

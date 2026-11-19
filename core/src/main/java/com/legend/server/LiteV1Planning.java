@@ -368,7 +368,7 @@ public final class LiteV1Planning {
      */
     static final class ShapedArrow implements com.legend.result.ResultSink {
         /** The stream's metadata key of the answer's shape. */
-        static final String SHAPE = "legend.shape";
+        static final String SHAPE = com.legend.result.ArrowKeys.SHAPE;
         /** The stream's metadata, its shape once the run tells it. */
         private final Map<String, String> told = new java.util.LinkedHashMap<>();
         private final com.legend.result.ArrowWriter writer;

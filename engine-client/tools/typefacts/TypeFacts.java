@@ -99,7 +99,14 @@ public final class TypeFacts {
                 .append("/** How a pivot's generated column name joins its parts (Type.RelationType.PIVOT_SEPARATOR). */\n")
                 .append("export const PIVOT_SEPARATOR = '")
                 .append(Type.RelationType.PIVOT_SEPARATOR.replace("\\", "\\\\").replace("'", "\\'"))
-                .append("';\n");
+                .append("';\n\n")
+                .append("/** LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer\n")
+                .append(" *  carries in its schema's or a field's metadata, never a literal of the host's own. */\n")
+                .append("export const ARROW_KEYS = {\n");
+        for (Map.Entry<String, String> k : com.legend.result.ArrowKeys.all().entrySet()) {
+            out.append("  ").append(k.getKey()).append(": '").append(k.getValue()).append("',\n");
+        }
+        out.append("} as const;\n");
         return out.toString();
     }
 
@@ -172,7 +179,13 @@ public final class TypeFacts {
                 .append("RAISE_POSITION_SEP = '").append(unicode(com.legend.exec.RaisedErrors.POSITION_SEP)).append("'\n")
                 .append("RAISE_QUOTE_MARK = '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("'\n")
                 .append("RAISE_TOKEN = '").append(unicode(com.legend.sql.RaiseKind.TOKEN.charAt(0)))
-                .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("'\n");
+                .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("'\n\n")
+                .append("# LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer\n")
+                .append("# carries in its schema's or a field's metadata, never a literal of the host's own. The same as DataCube's\n")
+                .append("# (lite-facts.ts ARROW_KEYS).\n");
+        for (Map.Entry<String, String> k : com.legend.result.ArrowKeys.all().entrySet()) {
+            out.append("ARROW_KEY_").append(k.getKey()).append(" = '").append(k.getValue()).append("'\n");
+        }
         return out.toString();
     }
 
