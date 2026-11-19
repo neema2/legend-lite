@@ -4,11 +4,11 @@ The compatibility program's A3 piece 4 covers three things: the differences page
 rulebook amendment. It is docs only.
 
 It is built on `claude/compat-a3-docs`. That branch is cut from A2's head `6551c2036` and stays LOCAL until the
-review. Its head is `9dc385235`.
+review. Its head is `3780307f1`. The reviewer approved at `5b337b867` (record `ce90f3df`).
 
 This folder carries the change for the reviewer to read:
 
-- `A3-piece4.patch.txt`: the whole change, `git diff 6551c2036 9dc385235`. It touches six files:
+- `A3-piece4.patch.txt`: the whole change, `git diff 6551c2036 3780307f1`. It touches six files:
   - `AGENTS.md`: the upstream-fidelity tenet is amended, and the six tenets sit beside it;
   - `docs/GOALS_OF_RECORD_2026_11_07.md`: G8's first bullet;
   - `docs/SEMANTICS_REGISTER.md`:
@@ -17,7 +17,8 @@ This folder carries the change for the reviewer to read:
   - `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`: new;
   - `docs/records/compat-rules-of-record-2026-11-19.md`: carried from `claude/compat-program`;
   - `docs/TOTAL_WALL_START_HERE_2026_11_11.md`: a dated pointer.
-- `A3-piece4-since-review.patch.txt`: the delta since the first review, `git diff c957c2b49 9dc385235`. It holds two
+- `A3-piece4-since-approval.patch.txt`: what came after the approval, `git diff 5b337b867 3780307f1`.
+- `A3-piece4-since-review.patch.txt`: the delta since the first review, `git diff c957c2b49 3780307f1`. It holds three
   commits:
   - `5b337b867`:
     - firstDayOfWeek corrected: the page's item 13, the Gaps bullet removed, S387 rewritten;
@@ -27,6 +28,10 @@ This folder carries the change for the reviewer to read:
     - item 3's `x / 0`, legend-pure read to the end (the review's S4);
     - H2's count, "147 or 148, settled by the merged batch's H2 lane" (item 2 and S380);
     - S386's cite (re-check 1's nit).
+  - `3780307f1`, after the approval:
+    - item 3's `x / 0` in one statement;
+    - item 13's When;
+    - the Gaps' H2 week defect, for the product track.
 - `DIFFERENCES_FROM_LEGEND_ENGINE.md`: the new page as it will land, for reading whole.
 - `first-day-of-week-probe.md`: S387's evidence.
   - Each database was asked directly under three Java locales: H2 2.1.214 and 2.5.252, and DuckDB 1.5.6.0.
@@ -35,4 +40,4 @@ This folder carries the change for the reviewer to read:
   - legend-pure 5.99.0 read in both modes.
   - Its `NumericAccumulator` compiled exactly as pinned and run.
 
-`//gates:checks` on `9dc385235`: 197 pass, 1 skipped.
+`//gates:checks` on `3780307f1`: 197 pass, 1 skipped.

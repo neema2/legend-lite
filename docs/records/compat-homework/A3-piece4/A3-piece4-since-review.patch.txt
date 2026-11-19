@@ -1,5 +1,5 @@
 diff --git a/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md b/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
-index 2387f242d..6a198bb6f 100644
+index 2387f242d..0aee0b9ce 100644
 --- a/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
 +++ b/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
 @@ -70,13 +70,13 @@ you need legend-engine's answer.
@@ -20,25 +20,23 @@ index 2387f242d..6a198bb6f 100644
  - Every other SQL-text test passes by its answer.
  - Studio's "generate plan" for an ordinary query answers byte for byte as before.
  - Evidence: A2's corpus rosters, exact against `A2-roster.tsv`, and `server/PureV1SqlTextTest`.
-@@ -98,8 +98,15 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
+@@ -98,8 +98,13 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
  - **The rewrites are per database.** On H2, `x / 0` already raises under legend-engine, so the guard would be wrong
    there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
  - **Why:** Pure defines these operations to raise. PCT, legend-pure's own suite, expects the error for the first five
 -  rows. For `x / 0` PCT has no test: lite raises its own division-by-zero error, and legend-pure's own answer is still
 -  to be read (its interpreted `divide` hands the work to `NumericAccumulator`).
 +  rows.
-+- **For `x / 0`** PCT has no test, but legend-pure raises in both of its modes (legend-pure 5.99.0, read and run):
-+  - **compiled**, the mode legend-engine runs Pure in, checks the divisor and raises "Cannot divide 0 by zero"
-+    (`CompiledSupport.java:1481-1486`);
-+  - **interpreted** has no check. An Integer divided by the Integer 0 is a double division, `Infinity`, and making
-+    that a Pure Float fails with Java's `NumberFormatException` (`NumericAccumulator.java:1562-1565` and
-+    `:1156-1161`, `ModelRepository.java:547-550`). With a Float or Decimal operand the division is a `BigDecimal`
-+    one, and Java raises "Division by zero" (`NumericAccumulator.java:895`);
-+  - lite raises its own division-by-zero error.
++- **For `x / 0`** PCT has no test, and legend-pure 5.99.0 raises for every zero divisor. Compiled legend-pure, the
++  mode legend-engine runs Pure in and the one compatibility follows (S127), raises "Cannot divide 0 by zero"
++  (`CompiledSupport.java:1481-1486`). The interpreter has no check of its own and fails on Java's arithmetic instead:
++  with a Float or Decimal operand, `BigDecimal` raises "Division by zero" (`NumericAccumulator.java:893-896`); an
++  Integer over the Integer 0 gives `Infinity` (`:1562-1565`, then `:1156-1161`), which `Divide.java:56` cannot make a
++  Pure Float (a `NumberFormatException`, `ModelRepository.java:547-550`). lite raises its own division-by-zero error.
  - **When:** stage B.
  - **Measured:** H8 (j), (j.3), (j.4). legend-engine's DuckDB divide answer is its own (B1-R's oracle); lite's DuckDB
    server route was not run. DuckDB 1.5.6 answers the unchecked divide with `Infinity`, so only the guard matches
-@@ -157,8 +164,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
+@@ -157,8 +162,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
  
  ### 9. Error messages
  - **legend-engine's message** is often its database's own error over legend-engine's SQL.
@@ -49,7 +47,7 @@ index 2387f242d..6a198bb6f 100644
  - **When:** today; the words move to a formatter in stage B.
  - **Measured:** the pure/v1 net (for example divide by zero: 500 on both, different words).
  
-@@ -195,21 +202,36 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
+@@ -195,21 +200,36 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
    `concat(first, ' ', last, '|')`. It answers `'Anthony Allen|'`, and `'Anthony Allen[,]'` for the 3-part form.
  - **lite answers** Pure's: `'Anthony| |Allen'` and `'[Anthony, ,Allen]'`.
  - **A hash over such a join differs with it** (`->joinStrings('|')->hash(HashType.MD5)`).
@@ -85,8 +83,8 @@ index 2387f242d..6a198bb6f 100644
 +- **lite answers the Monday** on every database, whatever the locale.
 +- **Ruled:** by the user on 2026-09-05, as a legend-engine defect ("quarantine/bucket those as engine bugs"), and the
 +  accepted divergence confirmed on 2026-09-08 (`docs/GATES.md`, batches 67b and 144).
-+- **When:** today. From 2026-09-21 until A2 the corpus test passed on its SQL text alone. Since A2 its rows are
-+  compared again.
++- **When:** with this batch (A5's H2 fix in #127; before it lite's H2 followed the locale too). From 2026-09-21 until
++  A2 the corpus test passed on its SQL text alone; since A2 its rows are compared again.
 +- **Measured:**
 +  - The corpus's `testToSqlGenerationFirstDayOfWeek` on DuckDB (class b of `A2-roster.tsv`). Its rows were appealed
 +    against legend-engine's H2 under `en_US`: `2014-11-30` there, `2014-12-01` from lite.
@@ -96,16 +94,22 @@ index 2387f242d..6a198bb6f 100644
  - **Register:** S387 (provisional).
  
  ### 14. A table's text used inside a query (stage B)
-@@ -237,8 +259,6 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
+@@ -237,8 +257,12 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
    - H2 also answers `sqrt(-1.0)` with NaN and wraps a 63-bit shift. Pure has no NaN, so no query can reproduce that,
      and lite does not write shifts on H2 at all.
    - **Measured:** B1-R's lane; H8 (j.4).
 -- **`firstDayOfWeek` on H2** answers legend-engine's Sunday, not Pure's Monday (item 13). Lite's two databases
 -  disagree, so it is a defect, for the product track.
++- **`weekOfYear` and `dateDiff(..., DurationUnit.WEEKS)` on H2 follow the Java locale.** lite writes H2's
++  `extract(WEEK ...)` and `DATEDIFF(WEEK, ...)`, and H2 starts their week on the locale's first day: Sunday
++  2014-11-30 is week 49 under `en_US` and week 48 under `en_GB`.
++  - lite's tests pin `en_US` (`tools/junit/defs.bzl:52-54`). The product server (`//core:server`) pins no locale, so
++    it answers by its machine's.
++  - A defect, for the product track. Measured: `first-day-of-week-probe.md` (item 13).
  - **Not supported yet:**
    - legend-engine's mapping test suites and service tests;
    - cross-store queries;
-@@ -260,8 +280,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
+@@ -260,8 +284,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
    compiled code; none of the 15 recorded requests is affected). Only a query that itself asks for SQL text is
    affected, and that is item 2.
  - **Tests that check SQL text** are still judged, by their answers, on legend-engine's own H2.
