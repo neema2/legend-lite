@@ -154,10 +154,10 @@ public final class PeRatchets {
                     + " the reference grammar refuses) is replaced by a lambda read from a collection; the merged value"
                     + " is regenerated on the merged tree; UP)",
             "own_corpus.matched 3314/3321 -> 3325 (2026-11-19, the stage-A batch's merged tree with the detector's section"
-                    + " fix, measured by //parser-equivalence:update_ratchets there, under the user's ruling of 2026-11-19"
-                    + " ~20:10: 3314 + 6 (the section fix) + 5 (the batch's InCollectionSpliceRefusalTest model, a Class,"
+                    + " fix, measured by //parser-equivalence:update_ratchets there: 3314 + 6 (the section fix, under the"
+                    + " user's ruling of 2026-11-19 ~20:10) + 5 (the batch's InCollectionSpliceRefusalTest model, a Class,"
                     + " a Database, a Mapping, a Connection and a Runtime, which match the reference grammar; 3320 measured"
-                    + " without it) = 3325; UP)");
+                    + " without it; a floor rising, listed for the user's word at the batch PR) = 3325; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
