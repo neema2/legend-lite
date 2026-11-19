@@ -391,7 +391,7 @@ class AssertBarTest {
     /** An Integer property over a DECIMAL(10,0) column (the PR #118 follow-up, 2026-11-19, Q8): its value arrives as the
      *  column's scale-0 decimal, its declaration says Integer, so it is the Integer 5 -- under the host judge, the
      *  database judge and both, on each database the platform runs in-process. An Integer over a fraction (5.50) is
-     *  refused by name where the cell is decoded, never truncated or guessed (AGENTS.md invariant 4). {@code %s} its
+     *  refused by the plan's planned raise (CAST_IMPOSSIBLE), never truncated or guessed (AGENTS.md invariant 4). {@code %s} its
      *  database. */
     private static final String INTEGER_ON = """
             ###Pure
@@ -447,9 +447,10 @@ class AssertBarTest {
                         wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
                     }
                 }
-                // the fraction is the decode's to refuse, so the host judge's, which reads the cell: the database judge
-                // compares it where it is (assertEq fails, "expected 5, got 5.50"), and BOTH disagree -- an open finding
-                // of the follow-up (2026-11-19), not pinned here
+                // the fraction is the plan's planned raise (S371's one answer on both roads, the orchestrator's ruling of
+                // 2026-11-19: CAST_IMPOSSIBLE, where "Decimal to Integer"; until then the decode's refusal), so the host
+                // judge's, which reads the cell: the database judge compares it where it is (assertEq fails, "expected 5,
+                // got 5.50"), and BOTH disagree -- an open finding of the follow-up (2026-11-19), not pinned here
                 if (mode == com.legend.testplan.PlanningOptions.JudgeMode.HOST) {
                     for (var e : whole.entrySet()) {
                         String said = verdict(integerOn, e.getKey(), database, mode);
@@ -459,7 +460,7 @@ class AssertBarTest {
                     }
                     String got = verdict(integerOn, fraction, database, mode);
                     // (a property read alone answers one column, 'value')
-                    if (!got.contains("is declared Integer in slot DECIMAL(10,2)") || !got.contains("5.5")) {
+                    if (!got.contains("the value cannot be cast to the requested type: Decimal to Integer")) {
                         wrong.add(database + " " + mode + " " + fraction + " -> " + oneLine(got));
                     }
                 }
