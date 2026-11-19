@@ -1084,26 +1084,6 @@ public final class PlanJson {
         throw new IllegalArgumentException("a plan's extension tagged '" + tag + "' no codec reads");
     }
 
-    private static List<Object> extensionsJson(List<Extension> records, List<ExtensionCodec> codecs) {
-        List<Object> out = new ArrayList<>(records.size());
-        for (Extension e : records) {
-            out.add(extensionJson(e, codecs));
-        }
-        return out;
-    }
-
-    /** {@code holder}'s extensions (v59: a raise site's), read by the registered codecs; none where it carries none. */
-    private static List<Extension> readExtensions(Json.Obj holder) {
-        Json.Node records = holder.getOr("extensions", null);
-        if (records == null) {
-            return List.of();
-        }
-        List<Extension> out = new ArrayList<>();
-        for (Json.Node n : ((Json.Arr) records).items()) {
-            out.add(extensionOf((Json.Obj) n, registeredCodecs()));
-        }
-        return out;
-    }
 
     // ---- read -------------------------------------------------------------------------------------------------------
 
@@ -1491,7 +1471,8 @@ public final class PlanJson {
     }
 
     /** A statement's raise sites as JSON (v57): each {@code n}, {@code kind}, its {@code where} where it has one, its
-     *  {@code message}, and the edge's data of it where it has some (v59, {@code extensions}, each by {@code codecs}). */
+     *  {@code message}, and (H13 spike) its {@code operands} where it was built from any: typed data, written natively
+     *  ({@link #operandJson}). {@code codecs} is S1's plumbing, unread here. */
     private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites, List<ExtensionCodec> codecs) {
         List<Map<String, Object>> out = new ArrayList<>(sites.size());
         for (ExecutionPlan.Site site : sites) {
@@ -1502,12 +1483,51 @@ public final class PlanJson {
                 so.put("where", site.where());
             }
             so.put("message", site.message());
-            if (!site.extensions().isEmpty()) {
-                so.put("extensions", extensionsJson(site.extensions(), codecs));
+            if (!site.operands().isEmpty()) {
+                List<Object> operands = new ArrayList<>(site.operands().size());
+                site.operands().forEach(operand -> operands.add(operandJson(operand)));
+                so.put("operands", operands);
             }
             out.add(so);
         }
         return out;
+    }
+
+    /** One operand as JSON: an object of one key naming its kind. A Float as its shortest round-trip text and a Decimal
+     *  as its plain digits with its scale, so neither passes through a JSON number. */
+    static Map<String, Object> operandJson(Operand operand) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (operand) {
+            case Operand.Text t -> o.put("string", t.value());
+            case Operand.Int n -> o.put("integer", n.value());
+            case Operand.Flt f -> o.put("float", Double.toString(f.value()));
+            case Operand.Dec d -> o.put("decimal", d.value().toString());
+            case Operand.Bool b -> o.put("boolean", b.value());
+            case Operand.Day d -> o.put("date", d.iso());
+            case Operand.Instant i -> o.put("dateTime", i.iso());
+            case Operand.Computed c -> o.put("computed", true);
+        }
+        return o;
+    }
+
+    /** {@link #operandJson} read back; an object of any other shape refused by name. */
+    static Operand readOperand(Json.Obj o) {
+        if (o.fields().size() != 1) {
+            throw new IllegalArgumentException("a raise site's operand is an object of one key, and this has "
+                    + o.fields().keySet());
+        }
+        String key = o.fields().keySet().iterator().next();
+        return switch (key) {
+            case "string" -> new Operand.Text(o.getString("string"));
+            case "integer" -> new Operand.Int(o.getLong("integer"));
+            case "float" -> new Operand.Flt(Double.parseDouble(o.getString("float")));
+            case "decimal" -> new Operand.Dec(new java.math.BigDecimal(o.getString("decimal")));
+            case "boolean" -> new Operand.Bool(o.getBool("boolean"));
+            case "date" -> new Operand.Day(o.getString("date"));
+            case "dateTime" -> new Operand.Instant(o.getString("dateTime"));
+            case "computed" -> Operand.COMPUTED;
+            default -> throw new IllegalArgumentException("a raise site's operand of an unknown kind '" + key + "'");
+        };
     }
 
     /** The raise sites {@code o} carries ({@link #sitesJson}), none where it has none; a site's product sentence that is
@@ -1520,10 +1540,17 @@ public final class PlanJson {
         List<ExecutionPlan.Site> out = new ArrayList<>();
         for (Json.Node n : ((Json.Arr) ss).items()) {
             Json.Obj so = (Json.Obj) n;
-            only(so, "a raise site", "n", "kind", "where", "message", "extensions");
+            only(so, "a raise site", "n", "kind", "where", "message", "operands");
+            List<Operand> operands = new ArrayList<>();
+            Json.Node written = so.getOr("operands", null);
+            if (written != null) {
+                for (Json.Node operand : ((Json.Arr) written).items()) {
+                    operands.add(readOperand((Json.Obj) operand));
+                }
+            }
             ExecutionPlan.Site site = new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
                     so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"),
-                    readExtensions(so));
+                    operands);
             String sentence = ExecutionPlan.Site.sentence(site.kind(), site.where());
             if (!sentence.equals(site.message())) {
                 throw new IllegalArgumentException("raise site " + site.n() + " of " + site.kind() + " says '"

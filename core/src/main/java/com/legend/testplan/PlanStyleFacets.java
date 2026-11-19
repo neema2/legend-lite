@@ -74,9 +74,5 @@ import java.util.List;
             com.legend.lowering.VerdictWords.class,
             // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
             // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
-            com.legend.sql.dialect.DatabaseSettingsForm.class,
-            // an upstream mode's words of a raise site (K1 of the presentation program, S1, 2026-11-19, the
-            // orchestrator's approval of choice A): none in the product, whose site says lite's sentence; legend-pure's
-            // words, the site's own record, at the edge (until then PlanStyle.siteWords fed the edge's recorder)
-            com.legend.planner.SiteFacts.class);
+            com.legend.sql.dialect.DatabaseSettingsForm.class);
 }

@@ -57,10 +57,13 @@ class InterimEdgeSitesTest {
                 .executionPlan("s::RT", java.util.Set.of(), com.legend.edge.PureText.UPSTREAM);
     }
 
+    /** H13 spike: G7's measure over the fixed query set. No raise keeps a sentence in SQL (the interim is gone: every
+     *  raise is a site); what was the interim is now the sites whose legend-pure sentence prints a computed operand,
+     *  its value withheld after the run (A3). */
     @Test
     void theInterimsComputedOperandSitesDoNotGrow() {
-        List<String> interim = new ArrayList<>();
-        int worded = 0;
+        List<String> withheld = new ArrayList<>();
+        int exact = 0;
         int sites = 0;
         for (String query : QUERIES) {
             ExecutionPlan planned;
@@ -68,34 +71,38 @@ class InterimEdgeSitesTest {
                 planned = planned(query);
             } catch (com.legend.sql.DialectCapability | com.legend.error.NotImplementedException
                      | com.legend.error.LegendCompileException refused) {
-                interim.add("REFUSED " + query + ": " + refused.getMessage());
+                withheld.add("REFUSED " + query + ": " + refused.getMessage());
                 continue;
             }
             for (ExecutionPlan.Sql sql : statements(planned.root())) {
                 sites += sql.sites().size();
                 for (ExecutionPlan.Site site : sql.sites()) {
-                    assertTrue(site.extensions().stream().anyMatch(e -> e instanceof com.legend.edge.SiteWords),
-                            "the edge words every edge site at planning: " + site);
+                    com.legend.edge.PureMessages.Worded worded = com.legend.edge.PureMessages.worded(site.kind(),
+                            site.operands());
+                    if (worded.exact()) {
+                        exact++;
+                    } else {
+                        withheld.add(site.kind() + " " + site.operands() + " -> " + worded.sentence() + " in " + query);
+                    }
                 }
                 if (sql.tree() == null) {
                     continue;
                 }
+                int raises = 0;
                 for (SqlExpr.RaiseText r : raises(sql.tree())) {
-                    if (r.asData() != null || r.kind() == RaiseKind.USER_FAIL) {
-                        continue;
-                    }
-                    if (com.legend.edge.PureMessages.wordable(r)) {
-                        worded++;
-                    } else {
-                        interim.add(r.kind() + " in " + query);
+                    if (r.asData() == null && r.kind() != RaiseKind.USER_FAIL) {
+                        raises++;
                     }
                 }
+                assertTrue(raises >= sql.sites().size(), "every raise of the tree is a site: " + sql.sites());
+                assertTrue(!sql.statement().contains("Cannot divide") && !sql.statement().contains("Unable to compute"),
+                        "no upstream sentence in an edge statement: " + sql.statement());
             }
         }
-        // MEASURED 2026-11-16 (phase D's Phase 2): the computed-operand raises the edge still words in SQL over this
-        // set. The count moves only with a dated reason; a ruling on the interim (the design note's §5.3) takes it to 0.
-        assertEquals(INTERIM, interim.size(), String.join("\n", interim));
-        assertTrue(worded > 0 && sites >= worded, "worded " + worded + ", sites " + sites);
+        System.out.println("H13 G7 over the fixed set: sites " + sites + ", exact " + exact + ", withheld "
+                + withheld.size() + "\n  " + String.join("\n  ", withheld));
+        assertEquals(INTERIM, withheld.size(), String.join("\n", withheld));
+        assertTrue(exact > 0 && sites == exact + withheld.size(), "exact " + exact + ", sites " + sites);
     }
 
     /** The computed-operand raises over {@link #QUERIES}, as measured 2026-11-16. */

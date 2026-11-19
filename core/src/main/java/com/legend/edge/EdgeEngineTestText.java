@@ -205,7 +205,7 @@ final class EdgeEngineTestText implements EngineTestText {
     /** legend-pure's sentence of a SIZE_NOT_MULTIPLICITY site whose bound is {@code multiplicity}. */
     @Override
     public String sizeWords(String multiplicity) {
-        return PureMessages.words(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                List.of(new com.legend.sql.SqlExpr.StringLit(multiplicity)));
+        return PureMessages.worded(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+                List.of(new com.legend.executionplan.Operand.Text(multiplicity))).sentence();
     }
 }

@@ -42,16 +42,15 @@ public final class RaisedWords {
                 r.site().where(), wordsOf(r), r);
     }
 
-    /** The words the raised site {@code r} carries; a site planned with none refused by name. */
+    /** legend-pure's words of the raised site {@code r}, worded HERE, after the run, from the site's own typed record:
+     *  its kind and its operands ({@link PureMessages#worded}; H13 spike, slice 1.2). Nothing was worded at planning
+     *  and nothing is looked up: the plan carries no upstream words. An operand the plan did not know (computed) is
+     *  withheld (A3). */
     static String wordsOf(com.legend.exec.RaisedErrors.Raised r) {
         com.legend.executionplan.ExecutionPlan.Site site = java.util.Objects.requireNonNull(r.site(),
                 "a raise of a planned site");
-        String words = SiteWords.of(site);
-        if (words == null) {
-            throw new IllegalStateException("legend-pure's words of raise site " + site.n() + " of a statement whose"
-                    + " plan words no site of that number (its operands not literals the edge words at planning, or a"
-                    + " plan made in lite's own style): " + r.statement(), r);
-        }
-        return words;
+        PureMessages.Worded worded = PureMessages.worded(site.kind(), site.operands());
+        H13Log.raised(site, worded);
+        return worded.sentence();
     }
 }

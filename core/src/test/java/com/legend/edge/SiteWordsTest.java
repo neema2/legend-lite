@@ -4,6 +4,7 @@
 package com.legend.edge;
 
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.executionplan.Operand;
 import com.legend.executionplan.PlanJson;
 import com.legend.sql.RaiseKind;
 import com.legend.sql.SqlExpr;
@@ -16,14 +17,14 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * AN UPSTREAM MODE'S WORDS OF A RAISE SITE, THE SITE'S OWN RECORD (K1 of the presentation program, S1, 2026-11-19;
- * until then the edge's recorder, one per planning call, kept them beside the plan): planned with the site by the
- * style's two-form {@code planner.SiteFacts}, statelessly; none in the product's plan; carried through the plan's JSON
- * by the edge's codec, the registered one or the one it hands the writer; one record a site.
+ * H13 SPIKE (slice 1.2 of the compatibility program; scratch, never proposed for merge): A RAISE SITE'S OPERANDS ARE
+ * TYPED DATA OF THE PLAN, AND ITS UPSTREAM WORDS ARE WORDED AFTER THE RUN. The record is one under every style; the
+ * plan's JSON carries it natively (no codec); legend-pure's sentence comes from {@link PureMessages#worded} over the
+ * raised site, exact over literals, the value withheld over a computed operand (A3). The file keeps S1's name so the
+ * spike moves no build list.
  */
 class SiteWordsTest {
 
@@ -32,28 +33,49 @@ class SiteWordsTest {
     }
 
     @Test
-    void theEdgesStylesWordASiteAtPlanning_theProductsNone() {
-        List<RaiseSite> written = List.of(site(1, RaiseKind.DIVIDE_BY_ZERO));
+    void aSitesRecordIsTheSameUnderEveryStyle_andCarriesNoWords() {
+        SqlExpr column = new SqlExpr.Column("t", "c");
+        List<RaiseSite> written = List.of(site(1, RaiseKind.DIVIDE_BY_ZERO, new SqlExpr.IntLit(5)),
+                site(2, RaiseKind.DIVIDE_BY_ZERO, column));
+        List<ExecutionPlan.Site> product = com.legend.planner.PlanMaker.sites(written,
+                com.legend.database.PlanStyle.PRODUCT);
+        assertEquals(List.of(new Operand.Int(5)), product.get(0).operands());
+        assertEquals(List.of(Operand.COMPUTED), product.get(1).operands(), "a computed operand keeps its place alone");
         for (com.legend.database.PlanStyle edge : List.of(PureText.UPSTREAM, PureText.PURE_V1)) {
-            ExecutionPlan.Site planned = com.legend.planner.PlanMaker.sites(written, edge).get(0);
-            assertEquals(List.of(new SiteWords("Division by zero")), planned.extensions());
-            assertEquals("Division by zero", SiteWords.of(planned));
-            // the product's fields are lite's, whatever the style (K10)
-            assertEquals(ExecutionPlan.Site.sentence(RaiseKind.DIVIDE_BY_ZERO, null), planned.message());
+            assertEquals(product, com.legend.planner.PlanMaker.sites(written, edge));
         }
-        ExecutionPlan.Site product = com.legend.planner.PlanMaker.sites(written,
-                com.legend.database.PlanStyle.PRODUCT).get(0);
-        assertEquals(List.of(), product.extensions(), "lite's plan carries no upstream words");
-        assertEquals(null, SiteWords.of(product));
+        // the formatter, after the run: exact over the literal, the value withheld over the computed one
+        assertEquals(new PureMessages.Worded("Cannot divide 5 by zero", 0, 0),
+                PureMessages.worded(RaiseKind.DIVIDE_BY_ZERO, product.get(0).operands()));
+        assertEquals(new PureMessages.Worded("Cannot divide " + PureMessages.WITHHELD + " by zero", 1, 0),
+                PureMessages.worded(RaiseKind.DIVIDE_BY_ZERO, product.get(1).operands()));
     }
 
+    /** Every literal kind, and the computed marker, through the plan's JSON and back. */
     @Test
-    void aSiteCarriesOneRecordOfItsWords() {
-        ExecutionPlan.Site twice = new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null,
-                ExecutionPlan.Site.sentence(RaiseKind.DIVIDE_BY_ZERO, null),
-                List.of(new SiteWords("Division by zero"), new SiteWords("Division by zero")));
-        IllegalStateException e = assertThrows(IllegalStateException.class, () -> SiteWords.of(twice));
-        assertTrue(e.getMessage().contains("two records"), e.getMessage());
+    void everyOperandKindSurvivesThePlansJson() {
+        List<SqlExpr> operands = List.of(new SqlExpr.StringLit("a 'quoted' text"), new SqlExpr.IntLit(-7),
+                new SqlExpr.FloatLit(-1.0), new SqlExpr.FloatLit(1e-7), new SqlExpr.FloatLit(0.1 + 0.2),
+                new SqlExpr.DecimalLit(new java.math.BigDecimal("1.500")), new SqlExpr.BoolLit(true),
+                new SqlExpr.DateLit("2014-02-29"), new SqlExpr.TimestampLit("2014-01-01 10:10:10.123"),
+                new SqlExpr.Column("t", "c"), new SqlExpr.NullLit(), new SqlExpr.TimeLit("10:10:10"));
+        List<ExecutionPlan.Site> planned = com.legend.planner.PlanMaker.sites(List.of(new RaiseSite(1,
+                RaiseKind.VALUE_NOT_HELD, "somewhere", operands)), com.legend.database.PlanStyle.PRODUCT);
+        assertEquals(List.of(new Operand.Text("a 'quoted' text"), new Operand.Int(-7), new Operand.Flt(-1.0),
+                new Operand.Flt(1e-7), new Operand.Flt(0.1 + 0.2), new Operand.Dec(new java.math.BigDecimal("1.500")),
+                new Operand.Bool(true), new Operand.Day("2014-02-29"), new Operand.Instant("2014-01-01 10:10:10.123"),
+                Operand.COMPUTED, Operand.COMPUTED, Operand.COMPUTED), planned.get(0).operands());
+        var ctx = com.legend.Compiler.compileModel(MODEL);
+        ExecutionPlan plan = com.legend.Compiler.query(ctx, RAISING).executionPlan("s::RT", Set.of());
+        ExecutionPlan.TdsResult root = (ExecutionPlan.TdsResult) plan.root();
+        ExecutionPlan carrying = new ExecutionPlan(plan.parameters(), new ExecutionPlan.TdsResult(root.shape(),
+                root.columns(), root.sql().raising(planned)), plan.writes());
+        String written = PlanJson.write(carrying);
+        assertTrue(written.contains("\"operands\":[{\"string\":\"a 'quoted' text\"},{\"integer\":-7},{\"float\":\"-1.0\"},"
+                + "{\"float\":\"1.0E-7\"},{\"float\":\"0.30000000000000004\"},{\"decimal\":\"1.500\"},{\"boolean\":true},"
+                + "{\"date\":\"2014-02-29\"},{\"dateTime\":\"2014-01-01 10:10:10.123\"},{\"computed\":true},"
+                + "{\"computed\":true},{\"computed\":true}]"), written);
+        assertEquals(carrying, PlanJson.read(written), "the plan read back whole, each operand of its kind");
     }
 
     private static final String MODEL = """
@@ -71,32 +93,33 @@ class SiteWordsTest {
             Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
             """;
 
-    private static final String RAISING = "|#>{s::DB.T}#->extend(~r: r|$r.ID / $r.D)->select(~r)";
+    private static final String RAISING = "|#>{s::DB.T}#->extend(~r: r|$r.ID->rem($r.D))->select(~r)";
 
-    /** A plan made in the edge's style: its site's words survive its JSON, written by the registered codec or the one
-     *  the edge hands the writer (WebAssembly's loader finds none), each the same text; lite's plan of the same query
-     *  carries none, and needs no codec (K2). */
+    /** A plan made in the edge's style and lite's plan of the same query declare the SAME sites, operands included;
+     *  each survives its JSON with no codec; the hosts' site view is the plan's own sites. MEASURED here: what the
+     *  operands add to lite's plan's JSON (the plan said "byte-identical but its version"; it is not). */
     @Test
-    void theWordsSurviveThePlansJson() {
+    void theEdgesPlanAndLitesDeclareTheSameSites() {
         var ctx = com.legend.Compiler.compileModel(MODEL);
         ExecutionPlan edge = com.legend.Compiler.query(ctx, RAISING).executionPlan("s::RT", Set.of(),
                 PureText.UPSTREAM);
+        ExecutionPlan lite = com.legend.Compiler.query(ctx, RAISING).executionPlan("s::RT", Set.of());
         List<ExecutionPlan.Site> sites = sites(edge.root());
         assertFalse(sites.isEmpty(), "the edge's plan raises a site");
-        sites.forEach(s -> assertTrue(SiteWords.of(s) != null, "worded at planning: " + s));
+        assertEquals(sites(lite.root()).stream().map(ExecutionPlan.Site::kind).toList(),
+                sites.stream().map(ExecutionPlan.Site::kind).toList(), "the same raises, each a site, in both plans");
+        assertEquals(sites(lite.root()).stream().map(ExecutionPlan.Site::operands).toList(),
+                sites.stream().map(ExecutionPlan.Site::operands).toList(), "and the same operands");
         String written = PlanJson.write(edge);
-        assertEquals(written, PlanJson.write(edge, EdgeCodec.INSTANCE), "the registered codec and the edge's agree");
-        assertTrue(written.contains("\"extensions\":[{\"_type\":\"siteWords\",\"words\":"), written);
         assertEquals(edge, PlanJson.read(written), "the edge's plan read back whole");
-        ExecutionPlan lite = com.legend.Compiler.query(ctx, RAISING).executionPlan("s::RT", Set.of());
-        assertFalse(sites(lite.root()).isEmpty(), "lite's plan raises the same site");
-        assertFalse(PlanJson.write(lite).contains("\"extensions\""), "lite's plan carries no edge data");
-        // the hosts' site view: each site as the plan writes it, its words too (a host declares a statement's sites
-        // from the view and from the plan carried beside it, and refuses two that differ), by either codec
+        assertFalse(written.contains("Cannot divide"), "no upstream sentence in the edge's plan: " + written);
+        String litePlan = PlanJson.write(lite);
+        assertEquals(lite, PlanJson.read(litePlan));
+        assertTrue(litePlan.contains("\"operands\":[{\"computed\":true}]"), "lite's plan says its sites' operands: "
+                + litePlan);
         assertTrue(edge.root() instanceof ExecutionPlan.TdsResult, "one statement answers: " + edge.root());
         String statement = ((ExecutionPlan.TdsResult) edge.root()).sql().statement();
         String view = com.legend.json.Json.toCompact(PlanJson.sitesOf(edge, statement, EdgeCodec.INSTANCE));
-        assertTrue(view.contains("\"extensions\""), view);
         assertTrue(written.contains("\"sites\":" + view), "the view is the plan's own sites: " + view);
     }
 

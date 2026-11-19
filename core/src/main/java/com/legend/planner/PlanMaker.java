@@ -1043,22 +1043,17 @@ public final class PlanMaker {
 
     /** The raise sites a dialect's render wrote into a statement or a CSV reading ({@code sql.dialect.RaiseSite}),
      *  PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16): each one's product sentence its kind's and its where
-     *  ({@link ExecutionPlan.Site#sentence}), and the plan style's data of it, its two-form {@link SiteFacts}'s (K1 of
-     *  the presentation program, S1, 2026-11-19: none in the product's form, an upstream mode's words in the edge's;
-     *  until then each statement was offered to the style's recorder, which kept the words beside the plan). */
+     *  ({@link ExecutionPlan.Site#sentence}), and (H13 spike, slice 1.2) its operands as typed data
+     *  ({@link com.legend.executionplan.Operand#of}: a literal typed, any other expression computed, its value never
+     *  carried). No style is asked: the record is the same under every style, and each audience's formatter words it
+     *  after the run. {@code style} is kept only so the spike's callers do not move. */
     public static List<ExecutionPlan.Site> sites(List<com.legend.sql.dialect.RaiseSite> written,
             com.legend.database.PlanStyle style) {
-        SiteFacts facts = style.twoForm(SiteFacts.class, NO_SITE_FACTS);
+        java.util.Objects.requireNonNull(style, "the plan's style");
         return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
-                ExecutionPlan.Site.sentence(w.kind(), w.where()), facts.of(w))).toList();
+                ExecutionPlan.Site.sentence(w.kind(), w.where()),
+                w.operands().stream().map(com.legend.executionplan.Operand::of).toList())).toList();
     }
-
-    /** {@link SiteFacts}' product form: lite's plan carries no upstream words of a site, whose message is lite's own
-     *  sentence ({@link ExecutionPlan.Site#message}). */
-    static final SiteFacts NO_SITE_FACTS = written -> {
-        java.util.Objects.requireNonNull(written, "the raise site");
-        return List.of();
-    };
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database
      *  refuses it ({@link ExecutionPlan.Binding.Payload#label}: the database splits the payload itself, so its refusal --

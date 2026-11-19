@@ -330,19 +330,18 @@ class HookRulingTest {
                 "pure/v1 writes legend-engine's unchecked raises plain");
     }
 
-    /** THE RAISE SITES' WORDS (K10b of the edge audit, the orchestrator's ruling (A) of 2026-11-17; K1 of the
-     *  presentation program, S1, 2026-11-19: the two-form {@code planner.SiteFacts}): the product's style answers its
-     *  own form -- a site says lite's message and carries nothing else -- and each of the edge's templates words the
-     *  site at planning, its own record, statelessly (until then only a fresh recorder of the edge kept the words). */
+    /** THE RAISE SITES' RECORD IS ONE UNDER EVERY STYLE (H13 spike, slice 1.2): a site's planned record -- its kind,
+     *  its where, lite's message, its typed operands -- is the same whichever style plans it; no style is asked, and
+     *  no upstream words are planned. */
     @Test
-    void theRaiseSitesWordsAreTheProductsNoneAndTheEdgesRecordAtPlanning() {
+    void theRaiseSitesRecordIsTheSameUnderEveryStyle() {
         List<com.legend.sql.dialect.RaiseSite> sites = List.of(new com.legend.sql.dialect.RaiseSite(1,
-                com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, null, List.of()));
-        assertEquals(List.of(), com.legend.planner.PlanMaker.sites(sites, PlanStyle.PRODUCT).get(0).extensions(),
-                "the product's site carries no upstream words");
+                com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, null, List.of(new com.legend.sql.SqlExpr.IntLit(5))));
+        List<com.legend.executionplan.ExecutionPlan.Site> product =
+                com.legend.planner.PlanMaker.sites(sites, PlanStyle.PRODUCT);
+        assertEquals(List.of(new com.legend.executionplan.Operand.Int(5)), product.get(0).operands());
         for (PlanStyle edge : List.of(com.legend.edge.PureText.UPSTREAM, com.legend.edge.PureText.PURE_V1)) {
-            assertEquals(List.of(new com.legend.edge.SiteWords("Division by zero")),
-                    com.legend.planner.PlanMaker.sites(sites, edge).get(0).extensions(), "the edge words its site");
+            assertEquals(product, com.legend.planner.PlanMaker.sites(sites, edge), "one record under every style");
         }
     }
 
@@ -389,11 +388,7 @@ class HookRulingTest {
                 // FailureWords, which named whose words they were by a flag, went with it)
                 com.legend.lowering.VerdictWords.class,
                 // DatabaseSettingsForm (the audit's J22, RULED by the user 2026-11-17: a database's settings)
-                com.legend.sql.dialect.DatabaseSettingsForm.class,
-                // SiteFacts (K1 of the presentation program, S1, 2026-11-19, the orchestrator's approval of its shape's
-                // choice A: an upstream mode's words of a raise site, none in the product, the site's record at the
-                // edge; until then PlanStyle.siteWords offered each statement to the edge's recorder)
-                com.legend.planner.SiteFacts.class),
+                com.legend.sql.dialect.DatabaseSettingsForm.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;

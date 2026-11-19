@@ -102,158 +102,146 @@ public final class PureMessages {
         };
     }
 
-    /**
-     * Whether the edge words {@code r}'s upstream sentence AT PLANNING (phase D's Phase 2, raises as SITES, 2026-11-16):
-     * a raise (not a checked graph's defect text, not a user's {@code fail}) whose operands are all literals the
-     * sentence prints exactly as the SQL sentence did ({@link #words}). Any other is the INTERIM: its sentence stays in
-     * SQL ({@link #sentence}), no site, until the user rules on a computed operand (the design note's §5.3).
-     */
-    public static boolean wordable(SqlExpr.RaiseText r) {
-        return r.asData() == null && r.kind() != com.legend.sql.RaiseKind.USER_FAIL
-                && wordsOrNull(r.kind(), r.operands()) != null;
+    // ---- H13 spike (slice 1.2): legend-pure's sentence of a raise, worded in Java AFTER the run, from the raised
+    // site's typed record -- its kind and its operands (executionplan.Operand). No recorder, no planning-time words, no
+    // sentence written in SQL. ------------------------------------------------------------------------------------
+
+    /** What stands where the sentence prints an operand whose value the plan does not carry (A3: a run-time value
+     *  never enters a message). A SPIKE'S PLACEHOLDER, never ruled: the register row slice 1.2 names would rule the
+     *  spelling. */
+    public static final String WITHHELD = "<computed>";
+
+    /** legend-pure's sentence of one raised site. {@code withheld}: how many operands the sentence prints were
+     *  computed (their value withheld, A3). {@code javaPrinted}: how many printed operands are literals the SQL
+     *  sentence printed by the database's cast to text (a Float, a Decimal, a DateTime, a Boolean), which Java now
+     *  prints as legend-pure does -- no loss, but a text to check. */
+    public record Worded(String sentence, int withheld, int javaPrinted) {
+        /** Whether the sentence prints every value legend-pure's does. */
+        public boolean exact() {
+            return withheld == 0;
+        }
     }
 
-    /** legend-pure's sentence of a site of {@code kind} raised from {@code operands}, worded in Java at planning, byte
-     *  for byte as {@link #sentence} spells it in SQL; an operand it cannot word refused by name (the edge's dialect
-     *  writes such a site's sentence in SQL instead, {@link #wordable}). */
-    public static String words(com.legend.sql.RaiseKind kind, java.util.List<SqlExpr> operands) {
-        String words = wordsOrNull(kind, operands);
-        if (words == null) {
-            throw new IllegalStateException("legend-pure's sentence of a " + kind + " site is worded at planning from"
-                    + " literal operands, and this site's are " + operands + ": the edge's dialect writes it in SQL");
-        }
-        return words;
+    /** One wording's count of what it could not print as before. */
+    private static final class Tally {
+        int withheld;
+        int javaPrinted;
     }
 
-    /** {@link #words}, or null where an operand is not a literal printed exactly. Each arm mirrors {@link #sentence}'s,
-     *  its operand at the same place: a text the planner knew as it is ({@code text}), a value as the database's cast
-     *  to text writes it ({@code str}: an Integer's digits, a date's ISO day, a text itself), a Float as legend-pure
-     *  prints it ({@code FLOAT_SHORTEST_TEXT}). */
-    static @com.legend.base.Nullable String wordsOrNull(com.legend.sql.RaiseKind kind,
-            java.util.List<SqlExpr> o) {
-        for (SqlExpr x : o) {
-            if (!(x instanceof SqlExpr.StringLit || x instanceof SqlExpr.IntLit || x instanceof SqlExpr.FloatLit
-                    || x instanceof SqlExpr.DecimalLit || x instanceof SqlExpr.DateLit
-                    || x instanceof SqlExpr.TimestampLit)) {
-                return null;   // a computed operand: the interim
-            }
-        }
-        return switch (kind) {
-            case USER_FAIL -> null;
-            case DIVIDE_BY_ZERO -> o.isEmpty() ? "Division by zero" : join("Cannot divide ", str(o, 0), " by zero");
+    /** legend-pure's sentence of a site of {@code kind} built from {@code o}, each arm mirroring {@link #sentence}'s,
+     *  its operand at the same place. */
+    public static Worded worded(com.legend.sql.RaiseKind kind, java.util.List<com.legend.executionplan.Operand> o) {
+        Tally t = new Tally();
+        String sentence = switch (kind) {
+            case USER_FAIL -> throw new IllegalStateException("a user's fail raises its own message, never a site");
+            case DIVIDE_BY_ZERO -> o.isEmpty() ? "Division by zero" : "Cannot divide " + str(o, 0, t) + " by zero";
             case SHIFT_OUT_OF_RANGE -> "Unsupported number of bits to shift - max bits allowed is 62";
-            case DATE_PART_ABSENT -> join("Cannot get ", text(o, 0), " for ", str(o, 1));
-            case INDEX_OUT_OF_BOUNDS -> join("The system is trying to get an element at offset ", str(o, 0),
-                    " where the collection is of size ", str(o, 1));
+            case DATE_PART_ABSENT -> "Cannot get " + text(o, 0, t) + " for " + str(o, 1, t);
+            case INDEX_OUT_OF_BOUNDS -> "The system is trying to get an element at offset " + str(o, 0, t)
+                    + " where the collection is of size " + str(o, 1, t);
             case INSERT_OUT_OF_BOUNDS -> "add(set, index, value): index out of bounds";
-            case SQRT_OF_NEGATIVE -> o.get(0) instanceof SqlExpr.FloatLit f
-                    ? "Unable to compute sqrt of " + Presenter.legendPure(f.value(), "Float") : null;
+            case SQRT_OF_NEGATIVE -> "Unable to compute sqrt of " + asFloat(o, 0, t);
             case SIZE_NOT_MULTIPLICITY -> o.size() == 1
-                    ? join("Cannot cast a collection of size 0 to multiplicity ", text(o, 0))
-                    : join("Cannot cast a collection of size ", str(o, 1), " to multiplicity ", text(o, 0));
-            case SLICE_BOUNDS_INVERTED -> join("The low bound (", str(o, 0), ") can't be higher than the high bound (",
-                    str(o, 1), ") in a slice operation");
-            case DATE_COMPONENT_INVALID -> dateComponentWords(o);
+                    ? "Cannot cast a collection of size 0 to multiplicity " + text(o, 0, t)
+                    : "Cannot cast a collection of size " + str(o, 1, t) + " to multiplicity " + text(o, 0, t);
+            case SLICE_BOUNDS_INVERTED -> "The low bound (" + str(o, 0, t) + ") can't be higher than the high bound ("
+                    + str(o, 1, t) + ") in a slice operation";
+            case DATE_COMPONENT_INVALID -> dateComponentWords(o, t);
             case VALUE_NOT_HELD, FRACTION_NOT_KEPT, CSV_TOO_WIDE -> {
                 StringBuilder parts = new StringBuilder();
                 for (int i = 0; i < o.size(); i++) {
-                    String part = o.get(i) instanceof SqlExpr.StringLit t ? t.value() : str(o, i);
-                    if (part == null) {
-                        break;
-                    }
-                    parts.append(part);
+                    parts.append(str(o, i, t));
                 }
-                yield allWorded(o) ? parts.toString() : null;
+                yield parts.toString();
             }
-            case CAST_IMPOSSIBLE -> join("Cast exception: ", text(o, 0), " cannot be cast to ", text(o, 1));
-            case INSTANCE_NOT_OF -> join("Cast exception: ", text(o, 0), " is not a ", text(o, 1));
-            case MATCH_FAILURE -> matchFailure(text(o, 0), text(o, 1));
+            case CAST_IMPOSSIBLE -> "Cast exception: " + text(o, 0, t) + " cannot be cast to " + text(o, 1, t);
+            case INSTANCE_NOT_OF -> "Cast exception: " + text(o, 0, t) + " is not a " + text(o, 1, t);
+            case MATCH_FAILURE -> text(o, 1, t).isEmpty() ? "Match failure: " + text(o, 0, t) + " matches no branch"
+                    : "Match failure: no arm of [" + text(o, 1, t) + "] accepts the row's run-time type";
             case RANGE_STEP_ZERO -> "range step must not be 0";
             case WINDOW_FRAME_INVERTED -> "Invalid window frame boundary - lower bound of window"
                     + " frame cannot be greater than the upper bound!";
             case WINDOW_FRAME_OFFSET_INVALID -> "Invalid window frame boundary - a window frame"
                     + " bound written -(n) is n before the current row and any other n after it, so a computed n must"
                     + " be neither negative nor empty (docs/SEMANTICS_REGISTER.md S170)";
-            case LIST_LENGTHS_DIFFER -> join(text(o, 0), ": the two value lists differ in length");
-            case CONSTRAINT_UNEVALUABLE -> join("Unable to evaluate constraint [", text(o, 0),
-                    "]: data not available - check your mappings");
+            case LIST_LENGTHS_DIFFER -> text(o, 0, t) + ": the two value lists differ in length";
+            case CONSTRAINT_UNEVALUABLE -> "Unable to evaluate constraint [" + text(o, 0, t)
+                    + "]: data not available - check your mappings";
             case MAP_KEYS_MISALIGNED -> "The map key list does not align with the map value list.";
             case MAP_KEY_NULL -> "Map keys can not be NULL.";
             case MAP_KEYS_NOT_UNIQUE -> "Map keys must be unique.";
-            case TEXT_NOT_INTEGER -> join("Could not convert string '", text(o, 0), "' to INT64");
-            case TEXT_NOT_FLOAT -> join("Could not convert string '", text(o, 0), "' to DOUBLE");
-            case TEXT_NOT_DATE -> join("Could not parse '", text(o, 0), "' as a date");
+            case TEXT_NOT_INTEGER -> "Could not convert string '" + text(o, 0, t) + "' to INT64";
+            case TEXT_NOT_FLOAT -> "Could not convert string '" + text(o, 0, t) + "' to DOUBLE";
+            case TEXT_NOT_DATE -> "Could not parse '" + text(o, 0, t) + "' as a date";
         };
+        return new Worded(sentence, t.withheld, t.javaPrinted);
     }
 
-    /** {@code MATCH_FAILURE}'s words: the value's type, and the arms where the resolver's dispatch read them. */
-    private static @com.legend.base.Nullable String matchFailure(@com.legend.base.Nullable String type,
-            @com.legend.base.Nullable String arms) {
-        if (arms == null) {
-            return null;
-        }
-        return arms.isEmpty() ? join("Match failure: ", type, " matches no branch")
-                : "Match failure: no arm of [" + arms + "] accepts the row's run-time type";
-    }
-
-    /** Whether every one of {@code o} is worded exactly as a part ({@code parts}' rule: a text, or {@link #str}'s). */
-    private static boolean allWorded(java.util.List<SqlExpr> o) {
-        for (int i = 0; i < o.size(); i++) {
-            if (!(o.get(i) instanceof SqlExpr.StringLit) && str(o, i) == null) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** {@link #dateComponent}'s words in Java, or null where its value is the database's text of a computed one. */
-    private static @com.legend.base.Nullable String dateComponentWords(java.util.List<SqlExpr> o) {
+    /** {@link #dateComponent}'s words from typed operands. */
+    private static String dateComponentWords(java.util.List<com.legend.executionplan.Operand> o, Tally t) {
         if (o.size() == 4) {
-            return o.get(1) instanceof SqlExpr.IntLit y && o.get(2) instanceof SqlExpr.IntLit m
-                    && o.get(3) instanceof SqlExpr.IntLit d ? "Invalid day: " + y.value() + "-" + m.value() + "-"
-                    + d.value() : null;
+            return "Invalid day: " + str(o, 1, t) + "-" + str(o, 2, t) + "-" + str(o, 3, t);
         }
-        String head = text(o, 0) == null ? null : "Invalid " + text(o, 0) + ": ";
-        if (head == null) {
-            return null;
-        }
+        String head = "Invalid " + text(o, 0, t) + ": ";
         return switch (o.get(1)) {
-            case SqlExpr.IntLit lit -> head + lit.value();
-            case SqlExpr.FloatLit fl -> head + java.math.BigDecimal.valueOf(fl.value()).toPlainString();
-            case SqlExpr.DecimalLit dl -> head + dl.value().toPlainString();
-            default -> join(head, str(o, 1));
+            case com.legend.executionplan.Operand.Int n -> head + n.value();
+            // as the SQL half spelled a literal at planning: the plain digits
+            case com.legend.executionplan.Operand.Flt f -> head + java.math.BigDecimal.valueOf(f.value()).toPlainString();
+            case com.legend.executionplan.Operand.Dec d -> head + d.value().toPlainString();
+            default -> head + str(o, 1, t);
         };
     }
 
-    /** {@code parts} as one text, or null where any is (an operand not worded exactly). */
-    private static @com.legend.base.Nullable String join(@com.legend.base.Nullable String... parts) {
-        StringBuilder out = new StringBuilder();
-        for (String p : parts) {
-            if (p == null) {
-                return null;
-            }
-            out.append(p);
-        }
-        return out.toString();
+    /** Operand {@code i}, a text: a text the planner knew as it is; any other as {@link #str} prints it (the SQL half
+     *  concatenated such an operand as it was). */
+    private static String text(java.util.List<com.legend.executionplan.Operand> o, int i, Tally t) {
+        return str(o, i, t);
     }
 
-    /** Operand {@code i}, a text the planner knew; null where it is not one. */
-    private static @com.legend.base.Nullable String text(java.util.List<SqlExpr> o, int i) {
-        return i < o.size() && o.get(i) instanceof SqlExpr.StringLit t ? t.value() : null;
-    }
-
-    /** Operand {@code i}'s text as the database's cast to text writes it, where Java writes the same: a text, an
-     *  Integer's digits, a date's ISO day; null for any other (a Float's or a decimal's or a timestamp's text is the
-     *  database's own, so its site stays in SQL). */
-    private static @com.legend.base.Nullable String str(java.util.List<SqlExpr> o, int i) {
+    /** Operand {@code i} as the sentence prints it: a text itself, an Integer's digits, a date's ISO day -- as the
+     *  database's cast to text wrote them; a Float, a Decimal, a DateTime and a Boolean as legend-pure prints them
+     *  (the SQL half's PRINT cast, which the edge's dialects spelled legend-pure's way; counted, to be checked); a
+     *  computed one withheld. */
+    private static String str(java.util.List<com.legend.executionplan.Operand> o, int i, Tally t) {
         if (i >= o.size()) {
-            return null;
+            throw new IllegalStateException("a raise site built from " + o.size() + " operands, and its sentence prints"
+                    + " operand " + i);
         }
         return switch (o.get(i)) {
-            case SqlExpr.StringLit t -> t.value();
-            case SqlExpr.IntLit n -> Long.toString(n.value());
-            case SqlExpr.DateLit d -> d.iso();
-            default -> null;
+            case com.legend.executionplan.Operand.Text x -> x.value();
+            case com.legend.executionplan.Operand.Int n -> Long.toString(n.value());
+            case com.legend.executionplan.Operand.Day d -> d.iso();
+            case com.legend.executionplan.Operand.Flt f -> {
+                t.javaPrinted++;
+                yield Presenter.legendPure(f.value(), "Float");
+            }
+            case com.legend.executionplan.Operand.Dec d -> {
+                t.javaPrinted++;
+                yield d.value().toPlainString();
+            }
+            case com.legend.executionplan.Operand.Bool b -> {
+                t.javaPrinted++;
+                yield Boolean.toString(b.value());
+            }
+            case com.legend.executionplan.Operand.Instant ts -> {
+                t.javaPrinted++;
+                yield ts.iso();
+            }
+            case com.legend.executionplan.Operand.Computed c -> {
+                t.withheld++;
+                yield WITHHELD;
+            }
+        };
+    }
+
+    /** Operand {@code i} as legend-pure prints a Float ({@code FLOAT_SHORTEST_TEXT} in the SQL half): a numeric
+     *  literal's double; a computed one withheld. */
+    private static String asFloat(java.util.List<com.legend.executionplan.Operand> o, int i, Tally t) {
+        return switch (o.get(i)) {
+            case com.legend.executionplan.Operand.Flt f -> Presenter.legendPure(f.value(), "Float");
+            case com.legend.executionplan.Operand.Int n -> Presenter.legendPure((double) n.value(), "Float");
+            case com.legend.executionplan.Operand.Dec d -> Presenter.legendPure(d.value().doubleValue(), "Float");
+            default -> str(o, i, t);
         };
     }
 

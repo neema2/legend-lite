@@ -104,25 +104,35 @@ class RaiseTextTest {
         SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT, SqlExpr.Reason.USER);
         SqlExpr before = SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(
                 "Cannot divide "), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)), new SqlExpr.StringLit(" by zero"));
+        assertTrue(before != null);
         for (DatabaseType type : Databases.implemented()) {
-            assertEquals(text(Databases.dialect(type), select(before)), text(com.legend.edge.PureText.dialect(type),
-                    select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(a)))), type + ": rem's");
-            // a site of literal operands: the product's token in SQL, upstream's sentence planned in its site (phase D's
-            // Phase 2, 2026-11-16)
+            // H13 spike: rem's raise (a computed dividend) is a SITE under the edge too -- the product's token in SQL,
+            // no sentence written there; legend-pure's sentence is worded after the run, the value withheld (A3)
+            SqlExpr rem = new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(a));
+            assertEquals(text(Databases.dialect(type), select(rem)), text(com.legend.edge.PureText.dialect(type),
+                    select(rem)), type + ": rem's");
+            com.legend.edge.PureMessages.Worded rems = upstream(com.legend.edge.PureText.dialect(type), select(rem));
+            if (rems != null) {
+                assertEquals("Cannot divide " + com.legend.edge.PureMessages.WITHHELD + " by zero", rems.sentence());
+                assertEquals(1, rems.withheld());
+            }
             SqlExpr bare = new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of());
             assertEquals(text(Databases.dialect(type), select(bare)), text(com.legend.edge.PureText.dialect(type),
                     select(bare)), type + ": Integer / Integer's");
-            String upstream = upstream(com.legend.edge.PureText.dialect(type), select(bare));
+            com.legend.edge.PureMessages.Worded upstream = upstream(com.legend.edge.PureText.dialect(type), select(bare));
             if (upstream != null) {
-                assertEquals("Division by zero", upstream, type + ": Integer / Integer's site");
+                assertEquals("Division by zero", upstream.sentence(), type + ": Integer / Integer's site");
             }
         }
     }
+        }
+    }
 
-    /** The upstream words of {@code q}'s one raise site, as {@code dialect} writes the statement and the edge's style
-     *  plans its site (K1 of the presentation program, S1, 2026-11-19: the words are the site's edge record); null
+    /** legend-pure's words of {@code q}'s one raise site, as {@code dialect} writes the statement and the formatter
+     *  words its planned record after a run (H13 spike: the site's kind and typed operands, no words planned); null
      *  where the dialect refuses the statement. */
-    private static @com.legend.base.Nullable String upstream(SqlDialect dialect, SqlSelect q) {
+    private static com.legend.edge.PureMessages.@com.legend.base.Nullable Worded upstream(SqlDialect dialect,
+            SqlSelect q) {
         RenderedStatement statement;
         try {
             statement = dialect.renderStatement(q);
@@ -132,10 +142,7 @@ class RaiseTextTest {
         assertEquals(1, statement.sites().size(), dialect.getClass().getSimpleName() + ": " + statement.sites());
         List<com.legend.executionplan.ExecutionPlan.Site> planned = com.legend.planner.PlanMaker.sites(
                 statement.sites(), com.legend.edge.PureText.UPSTREAM);
-        List<String> words = planned.get(0).extensions().stream().map(e -> ((com.legend.edge.SiteWords) e).words())
-                .toList();
-        assertEquals(1, words.size(), dialect.getClass().getSimpleName() + ": " + words);
-        return words.get(0);
+        return com.legend.edge.PureMessages.worded(planned.get(0).kind(), planned.get(0).operands());
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
@@ -219,21 +226,30 @@ class RaiseTextTest {
         for (DatabaseType type : Databases.implemented()) {
             for (var e : moved.entrySet()) {
                 SqlExpr.RaiseText r = (SqlExpr.RaiseText) e.getKey();
-                if (com.legend.edge.PureMessages.wordable(r)) {
-                    // a site of literal operands (phase D's Phase 2, 2026-11-16): the product's token in SQL, and
-                    // upstream's sentence, byte for byte the one the SQL wrote, planned in the site
-                    assertEquals(text(Databases.dialect(type), select(r)), text(com.legend.edge.PureText.dialect(type),
-                            select(r)), type + ": " + r);
-                    String upstream = upstream(com.legend.edge.PureText.dialect(type), select(r));
-                    if (upstream != null) {
-                        assertEquals(((SqlExpr.StringLit) e.getValue()).value(), upstream, type + ": " + r);
-                    }
+                if (r.kind() == RaiseKind.USER_FAIL) {
+                    // the user's own message: written by every dialect, never a site
+                    assertEquals(text(com.legend.edge.PureText.dialect(type), select(e.getValue())),
+                            text(com.legend.edge.PureText.dialect(type), select(r)), type + ": " + r);
                     continue;
                 }
-                // the interim (a computed operand): both through the edge, a raise nested in the old message's own SQL
-                // (SQLite's Float print) is the edge's sentence on both sides
-                assertEquals(text(com.legend.edge.PureText.dialect(type), select(e.getValue())),
-                        text(com.legend.edge.PureText.dialect(type), select(r)), type + ": " + r);
+                // H13 spike: EVERY raise is a site under the edge's dialects too -- the product's token in SQL, no
+                // sentence written there -- and legend-pure's sentence is worded after the run from the site's typed
+                // operands: byte for byte the old one where every printed operand is a literal, the value withheld
+                // where one is computed (A3)
+                assertEquals(text(Databases.dialect(type), select(r)), text(com.legend.edge.PureText.dialect(type),
+                        select(r)), type + ": " + r);
+                com.legend.edge.PureMessages.Worded upstream = upstream(com.legend.edge.PureText.dialect(type),
+                        select(r));
+                if (upstream == null) {
+                    continue;
+                }
+                if (e.getValue() instanceof SqlExpr.StringLit whole) {
+                    assertEquals(whole.value(), upstream.sentence(), type + ": " + r);
+                    assertEquals(0, upstream.withheld(), type + ": " + r);
+                } else {
+                    assertTrue(upstream.withheld() > 0, type + ": a computed operand is withheld: " + upstream);
+                    assertTrue(upstream.sentence().contains(com.legend.edge.PureMessages.WITHHELD), upstream.sentence());
+                }
             }
         }
     }

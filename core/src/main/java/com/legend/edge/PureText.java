@@ -107,10 +107,6 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
-            if (kind == com.legend.planner.SiteFacts.class) {
-                // legend-pure's words of each raise site, the site's own record, planned (K1, S1, 2026-11-19)
-                return kind.cast((com.legend.planner.SiteFacts) SiteWords::planned);
-            }
             if (kind == com.legend.lowering.VerdictWords.class) {
                 // legend-pure's words of a failed assert, the database judge's (census J29; C1's FailureWords before)
                 return kind.cast(UpstreamVerdictWords.INSTANCE);
@@ -355,8 +351,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -393,8 +388,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -439,8 +433,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -471,8 +464,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -496,8 +488,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -521,8 +512,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -554,8 +544,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -579,8 +568,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -604,8 +592,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -636,8 +623,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -661,8 +647,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 
@@ -692,8 +677,7 @@ public final class PureText {
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.sentence(r) : site(r);   // H13: every raise a site
         }
     }
 }

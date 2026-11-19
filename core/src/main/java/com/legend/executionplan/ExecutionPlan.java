@@ -844,17 +844,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * none in lite's own plan, and the product never reads one.
      */
     public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where, String message,
-            List<Extension> extensions) {
+            List<Operand> operands) {
         public Site {
             if (n < 1) {
                 throw new IllegalArgumentException("a raise site is numbered from 1: " + n);
             }
             Objects.requireNonNull(kind, "a raise site's kind");
             Objects.requireNonNull(message, "a raise site's message");
-            extensions = List.copyOf(extensions);
+            operands = List.copyOf(operands);
         }
 
-        /** A site with none of the edge's data: lite's own. */
+        /** A site built from no operand. */
         public Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where, String message) {
             this(n, kind, where, message, List.of());
         }
