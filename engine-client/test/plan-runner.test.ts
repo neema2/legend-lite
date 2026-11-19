@@ -19,7 +19,7 @@ import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-para
 import type { PlanColumn } from '../src/relation-type.ts';
 import { statementOf, TabEngine } from '../src/legend/browser-engine.ts';
 import { BrowserEngine } from '../src/legend/edge-engine.ts';
-import { QueryError } from '../src/engine.ts';
+import { QueryError, typedByPlan } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
@@ -188,6 +188,24 @@ before(async () => {
   await inRun('a test', () => asTest(engine).run(unplanned("INSERT INTO SRC VALUES (1, 'a', 1.5), (2, 'b', 2.5)"), 0));
   await inRun('a test', () => asTest(engine).run(unplanned('CREATE TABLE T (id INTEGER PRIMARY KEY, name VARCHAR, amount DOUBLE)'), 0));
   handle = Number(ok(answer(m, { kind: 'hold', model: MODEL })));
+});
+
+describe("a planned query's rows, typed by its plan by position, as Java's runner and Python read them (F1)", () => {
+  const raw = (names: readonly string[]) => ({ columns: names.map((name) => ({ name, values: [5] })), rowCount: 1, epoch: 0, elapsedMs: 0 });
+  const plan = (names: readonly string[]) => ({ sql: unplanned('SELECT t0.N AS u_map__n FROM V AS t0'),
+    columns: names.map((name) => ({ name, type: 'Integer' })) }) as unknown as Parameters<typeof typedByPlan>[1];
+
+  it("names each column as the plan does: a VALUE's one column is 'value' whatever its SQL alias", () => {
+    const typed = typedByPlan(raw(['u_map__n']), plan(['value']));
+    assert.deepEqual(typed.columns.map((c) => [c.name, c.type, c.values]), [['value', 'Integer', [5]]]);
+  });
+
+  it('refuses a statement answering another number of columns than the plan declares, by name', () => {
+    assert.throws(() => typedByPlan(raw(['a', 'b']), plan(['a'])),
+      (e: unknown) => e instanceof QueryError && e.message === "the plan does not type the result column 'b' [a]");
+    assert.throws(() => typedByPlan(raw(['a']), plan(['a', 'b'])),
+      (e: unknown) => e instanceof QueryError && e.message === 'the statement answers 1 columns, and the plan declares 2 [a, b]');
+  });
 });
 
 describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {

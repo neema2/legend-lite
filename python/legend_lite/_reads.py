@@ -50,9 +50,10 @@ def _integer(column: pa.ChunkedArray) -> pa.ChunkedArray:
 
 def typed_by_plan(rows: pa.Table, plan: Plan, model_types: bool = False) -> pa.Table:
     """A planned query's rows, typed by its plan: each column the compiler's type (``TYPE_KEY``), its values exact (an
-    Integer an int64, by either compiler's name for one: a server's ``precisePrimitives::BigInt`` too). A result column
-    the plan does not type is refused: the two disagree about the query's shape, a bug to surface, never a gap to fill
-    (engine-client's ``typedByPlan``); so is one typed by a name legend-lite's lattice does not know (``_types``) --
+    Integer an int64, by either compiler's name for one: a server's ``precisePrimitives::BigInt`` too). A statement
+    answering another number of columns than the plan declares is refused: the two disagree about the query's shape, a
+    bug to surface, never a gap to fill (engine-client's ``typedByPlan``, by the same rule); so is a column typed by a
+    name legend-lite's lattice does not know (``_types``) --
     unless ``model_types``: lite's query/run, which carries a column of the MODEL's own type (a class's, an
     enumeration's path) as the driver read it, as the server's query/run does (JdbcDecode.byPureType; the host train,
     2026-11-17). DataCube's frames keep refusing one (types.ts typeFact: a page reads an enumeration as its
@@ -60,8 +61,9 @@ def typed_by_plan(rows: pa.Table, plan: Plan, model_types: bool = False) -> pa.T
 
     Read BY POSITION, as the server's runner reads a typed-rows statement (JdbcStatements: "a typed-rows statement answers
     the plan's columns in their order"), each column named as the plan names it: a VALUE's one column is ``value``
-    whatever its SQL alias (``u_map__n``), and a statement answering other columns than the plan's is refused (the PR #118
-    follow-up, 2026-11-19, N-b: until then read by name, so every VALUE answer over a project was an UntypedColumn)."""
+    whatever its SQL alias (``u_map__n``); the names the statement answers are not read (the PR #118 follow-up,
+    2026-11-19, N-b: until then read by name, so every VALUE answer over a project was an UntypedColumn; the tab's
+    ``typedByPlan`` reads by position too since F1 of PR #121's review)."""
     declared = plan.columns
     if len(rows.schema) != len(declared):
         beyond = [f.name for f in rows.schema][len(declared):]
