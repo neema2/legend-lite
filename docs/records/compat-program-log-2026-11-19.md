@@ -2736,3 +2736,15 @@ who confirms or changes phases 1-3.
   languages, one meaning everywhere; `substringAsGiven`, the database's raw call, door-only, opt-in). Flagged: lite's
   `sqlSubstring` today copies H2's quirk (a start below 1 counts as 1, `'Cr'`), where the SQL standard, DuckDB and
   Postgres give `'C'` for `SUBSTRING('Credit' FROM 0 FOR 2)`; proposed for the product track, measured first.
+- **~20:57 UTC, the judges: the batch branch assembled** (`claude/compat-a4-host-only`, pushed): A2, A5 (with A1),
+  `main` (#124) and the parser memo merged; regenerated on the merged tree: the lean-SQL baseline, the edge-net ledgers,
+  the judge-SQL ratchet (LITE lane), parser-equivalence's ratchets (own_corpus.matched 3309 on the batch: A2's move was
+  DOWN, 3310 → 3309); the reviewer's S1-S3; A2's PureV1SqlTextTest set against S0's net format; the six accepted rows.
+  **The merged rosters:** DuckDB fail 257 (main 108, +149), accepted 46 → 49; H2 fail 421 (main 276, +145), accepted
+  41 → 44; H2's `testToSqlGenerationFirstDayOfWeek` accepted (witness 2014-11-30); every new accepted row left its fail
+  roster, no other roster or register moved. The ~20:45 ruling cited on A4's 32 down notes and A2's 16 down sites;
+  `LiteSqlText.java`'s closed-list entry waits for the user's word. The last full measurement before these fixes:
+  652 pass; its 16 failures were the 12 root-refusing Postgres targets, 3 killed by memory pressure (re-run alone), the
+  PureV1SqlTextTest merge (fixed) and the H2 roster's firstDayOfWeek (now accepted). Now running: the fast loop and the
+  touched lanes; then one full measurement on the head. B1-R corrected its ratchet note (elements, not models). B2 sent
+  the merged numbers.
