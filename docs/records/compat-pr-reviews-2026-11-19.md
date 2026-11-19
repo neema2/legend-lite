@@ -1320,3 +1320,147 @@ with the approved design and my addendum.
 - MongoDB's arm refuses `SUBSTRING_AS_GIVEN` rather than writing its clamped `$substrCP` under the "as given" name.
   That is right (invariants 3 and 4: an arm that cannot express the variant throws).
 - One edge class, `EngineSubstitutes`, holds both substitutes.
+
+## A3, B1's native `substringAsGiven`, `origin/claude/compat-a3-raw-substring` at `64adcc05e`
+
+The branch has three commits of its own (`f3553c63`, `897db4bb`, `64adcc05`). They sit on A2 PR 1 (`6551c203`) and
+piece 1's patch (`ff069d8a`). B1's record is `docs/records/compat-homework/A3-B1-substring-as-given.md` on
+`claude/compat-b1-homework` at `f9f0acbbd`.
+
+**Verdict: the code is APPROVED. The branch is NOT LANDABLE until the user rules on three guard moves (S1).**
+
+**S1. Three guard moves have no ruling.** B1's record names them honestly, and `//core:census`, `//core:guardrails`
+and `//spec:spec_tests` stay red on them:
+- `implementation.kinds.Intrinsic` 738 → 740;
+- `CatalogUpstreamDiffTest.NOT_UPSTREAM_MAX` 76 → 78;
+- `JavaEvalLedgerTest`'s edge funnel register + `EngineSubstitutes.java`.
+
+The first two go up. The third is a new entry in a closed list. ~20:45 covers moves down only, and ~21:10 names native-claims,
+`INTERNAL_DESUGAR`, `SqlFnSortedTest` and the pin, nothing else. So each needs the user's word.
+The compat owner's message to me does not mention them. Until they are ruled, the done-when is not shown green. Piece
+1's `FUNCTION_FQN_LITERALS_MAX` 346 → 347, the fourth red, is ruled (~20:50) and lands with piece 1.
+
+**What I checked, each read on the branch:**
+- **The two SUBSTRING functions stay apart:**
+  - `SubstringClamp` matches `c.fn() == SqlFn.SUBSTRING` alone, and `StringCountsAsInt` keys `SqlFn.SUBSTRING` alone;
+  - every other writer of `SqlFn.SUBSTRING` in main code is untouched (`VerdictSql`, `LiteText`, `AsorReaders`,
+    `CellTexts`, `TestDataPlanner`, `RelationTextLowering`, `FeatureRules`, `Scalars`' own rules);
+  - the one writer of `SUBSTRING_AS_GIVEN` is `Scalars`' rule for the native's two ids.
+- **The render arms:** each relational dialect writes `case SUBSTRING, SUBSTRING_AS_GIVEN ->`, the same function name,
+  and MySQL passes it through. Javac's exhaustiveness covers them all, and `SqlTyping` types it as SUBSTRING is typed.
+  No `default ->` arm is added.
+- **MongoDB refuses by `DialectCapability`.** That is an `IllegalStateException`, where AGENTS.md invariant 3 names
+  `UnsupportedOperationException`, but it is the dialect's own refusal type for TRANSLATE and `CURRENT_USER_FN`
+  already. The owner accepted it, and I agree: the arm throws, which is what invariant 3 requires.
+- **`COMPILER_OWN`:**
+  - `NameResolver.refuseCompilersOwn` reads `COMPILER_OWN` and `COMPILER_OWN_IDS`, so a call by full name, by either
+    signature id, or as a function reference under `eval` is refused;
+  - `InternalNativeCallTest` checks that the two sets agree, and both ids map to `SUBSTRING_AS_GIVEN`;
+  - nothing else reads `COMPILER_OWN`;
+  - the test pins all four refusals and the bare name's "unknown function".
+- **`EngineSubstitutes` (D-S2):**
+  - the callee comes from `ctx.findFunctionById` through `InferenceKernel.resolveOverload`, an existing public method
+    (`InferenceKernel` is not in the diff), and the type is that resolution's output;
+  - `checked` refuses any other callee or type, and the entry refuses a call that is not the Pure overload it replaces;
+  - the five plants (the other arity, `sqlSubstring`, a hand-made signature, Pure's own `substring`, a hand-made
+    `ExprType`) and the three mismatches are each refused;
+  - the class is package-private, with no main caller until B1-R's rewrite.
+- **The answers:** on H2 and DuckDB, lite's plan answers each of the 18 rows over the column and over the literal (72
+  in all) as `SELECT substring(...)` sent directly on the same session.
+- **`Lean.run(TypedQuery, ...)`** is a test helper that goes through `Execution.run`, the door. Nothing is bypassed.
+- **The guard moves made**, each with a dated note citing ~21:10:
+  - native-claims' two new rows read `EngineSubstitutes;Scalars`;
+  - `sqlPosition`, `indexOf`/2 and `substring`/2 and /3 gain `EngineSubstitutes` in their `also` column (the calls it
+    reads);
+  - `INTERNAL_DESUGAR <= 41`, with piece 1's 38 → 40 carried in a line its own note replaces;
+  - `SqlFnSortedTest` PRODUCT + `SUBSTRING_AS_GIVEN`;
+  - the pin moved to spec's `ClaimRegistryTest`. It checks that the `also` column is exactly the two claimers, it bites
+    on a planted `CypherToPure`, and it names its own limit (a use through `Pure.Lite`'s name constant alone).
+- **No new core hook, switch or mode.** The native and its `SqlFn` are ruled (~21:10). Nothing reads a setting.
+
+**Should, for B1-R's measurement rather than this branch.**
+- **S2: show the answers against upstream's pinned answers, not the database's.** The test's reference is the
+  database's own `substring`, which the design defines as legend-engine's answer (the sources read: `processSubstring`
+  and the extensions' plain `substring`).
+- **Why it matters:** the engine runner's answers are pinned on `main`
+  (`tools/engine-runner/src/test/resources/batteries/engine_{h2,duckdb}_answers.tsv`: legend-engine 4.145.0, H2
+  2.1.214, DuckDB v1.3.0). Lite runs its own versions (H2 2.5.252). Where the two versions read a negative start
+  differently, "the database's own" and "legend-engine's" part ways.
+- **What to show:** the agreement battery under `engine` (`pct/batteries/agreement_{h2,duckdb}.tsv`) should turn
+  DuckDB's substring DIFFER rows to AGREE against those pins, for example `col.s01`, where legend-engine answers `C` and
+  lite answers `Cr` today. H2's substring rows already AGREE.
+- **The cited path:** the test's javadoc names `substring_indexof.tsv`, which exists on `main` but not on this
+  branch's base. It resolves on rebase.
+
+**Carried, not this branch's:**
+- **C1, Postgres:** `StringCountsAsInt` does not take `SUBSTRING_AS_GIVEN`, so a BIGINT count would fail there. B1's
+  record names this. It cannot be reached while `engine` refuses an unmeasured database (B1-R). It becomes due when
+  Postgres is measured.
+- **C2, the product track's ~21:10 (3) (`sqlSubstring` to follow the SQL standard):**
+  - that change moves this test's partner half, where SUBSTRING is clamped on 10 dialects;
+  - after it, `SUBSTRING` and `SUBSTRING_AS_GIVEN` may write the same text on DuckDB and Postgres. The two meanings
+    stay separate (lite's uniform SQL meaning against each database's own reading), and H2 then needs the reverse
+    correction for `sqlSubstring`.
+
+**Nits:**
+- **N1:** the test's "not a copy" message is checked by equality, and `checked` uses equality too. An exact copy is the
+  same function, so equality is the right test, but the message overclaims.
+- **N2:** a blank line is left at the end of `NativeCatalogGovernanceTest`, from moving the pin to spec.
+- **Proof:** the worker's runs are taken as reported, not rerun here (no Bazel in this session). Green:
+  `//core:core_edge_tests`, `:core_tests_builtin`, `:core_tests_sql`, `:guardrails_edge`, and `//docs:all` at the
+  head. Red: census, guardrails and spec_tests, on S1's three moves and piece 1's count.
+
+## A2 PR 2: the plan text's spelling-only code out, `origin/claude/compat-a2-plan-text` at `059cc71df`
+
+The branch has two commits (`d9d1fdd0`, `059cc71d`) on A2 PR 1 (`6551c203`): 12 files, +95/−296.
+
+**Verdict: APPROVED.** Every deletion answers exactly as PR 1's adapter did. Every guard moves down only, and nothing
+recorded moves.
+
+**Behaviour-neutral, each checked against PR 1's `LiteSqlText`:**
+- **`params`:** PR 1's version was a null check only. Its call in `engineSql` goes, and `planParams.resolveDotted`
+  still reads the table. In `EngineParams`, only the splice and temp-table sets and their four methods go; `copy()`
+  and the imports are still used.
+- **`selectList`:** PR 1's always answered null, so `PlanText.single`'s `item != null ? item : sql` was always `sql`.
+  It is now `sql`.
+- **`renderedAlias`:** PR 1's was the identity, so `scalarRelational` prints `c.table()` as before.
+- **`renderAsAliased`:** PR 1's was `dialect.render`, so `TestDataPlanText` calls `render`.
+- **`inTempTableSelect` and the FreeMarker conditional:** they were reached only through a conditional site's true
+  block, after a refusal. They are deleted, with `PlanText.freeMarkerConditional` and the `isTest` and threshold
+  arithmetic they used.
+- **`collectionSplice`'s refusal:** it moves into `InProtocol.allNodeTexts` with the same exception type
+  (`NotImplementedException`), the same message, and the same point: the first conditional site, before that site's
+  texts.
+  - **A non-conditional site's texts are unchanged:** the constants' allocation, when there are constants, then the
+    create-and-populate.
+  - **The one caller, `PlanEnvelope.emit`, still refuses first:** it calls `allNodeTexts` before it uses
+    `InProtocol.apply`'s rewritten plan, which still carries the wrapper parameter.
+- **The dialect:** `PureText.dialect(type)` makes a new dialect per call, as `LiteSqlText.of` did. The sites that
+  reused one adapter for several renders (`EngineAllocations`, the cross-store spine's `planText`) reuse one dialect
+  the same way.
+- **No reference remains** to `LiteSqlText`, `isSplice`, `isTempTable`, `EngineParams.withProtocol`, `collectionSplice`,
+  `selectList`, `renderedAlias`, `renderAsAliased` or `inTempTableSelect`. The exceptions are the dated history notes in
+  `JavaEvalLedgerTest` and `SqlTextRatchetTest`, which are history and correct as such.
+
+**Guards, all moving down under ~20:45 (read in the owner's log: "A standing approval for every guard move that only
+goes DOWN"), each with a dated note:**
+- `JavaEvalLedgerTest`: `PlanText.java` 762 → 748 and `EnginePlans.java` 757 → 755;
+- the closed edge-file list loses `LiteSqlText.java`, the entry PR 1 added;
+- `EngineParamsTest` loses its assertions on the deleted table;
+- `ArchitectureTest`'s comment and `AGENTS.md`'s line name `PureText.dialect`.
+
+The diff touches no roster, register, recording or golden.
+
+**Shown, not claimed** (taken as reported, not rerun here), from `059cc71d`'s message:
+- `//gates:checks`: 197 pass, 1 skipped;
+- the corpus host lanes on H2 and DuckDB: their fail rosters and unordered and engine-order registers equal PR 1's
+  files line for line;
+- `//pct:edge_contract_test`'s 27 shards and `//core:edge_pure_v1` unchanged;
+- `//spec:update_edge_corpus_{0..3}_test` and `//spec:lean_sql_corpus_{h2,duckdb}` pass.
+
+**Should (small; the gap predates this PR, but this PR now owns the code):** no test reaches the conditional site's
+refusal. Neither branch has a test, recording or golden carrying "FreeMarker collection splice", so the refusal now
+written in `InProtocol` is unpinned. One planted test would pin it: a `String[*]` plan parameter in an `in(...)` on the
+plan-text route (`planToString` or an execution plan over a connection with a threshold), refused by that message.
+Without it, a later edit could drop the check and print a plan whose SQL names `${inFilterClause_X}` with nothing to
+fill it.
