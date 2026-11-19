@@ -322,7 +322,7 @@ is made, per database, as upstream's database extension writes its template (D1 
 value's type into the statement was deleted 2026-11-09 (the total wall's M2, P4). The legacy engine-text printers
 (`EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, which wrote legend-engine's own SQL spellings) were deleted
 2026-11-19 (A2 of the compatibility program, stage A ratified by the user; CP-4: upstream's SQL text is never promised):
-the compatibility routes print lite's own SQL through the edge's dialect (`edge/LiteSqlText`), and a database lite has no
+the compatibility routes print lite's own SQL through the edge's dialect (`PureText.dialect`), and a database lite has no
 dialect for is refused by name.
 
 > **If you have read otherwise:** `SQLDialect`, `SqlAggregate`, `SqlRelation`

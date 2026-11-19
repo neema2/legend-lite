@@ -11,8 +11,8 @@ import com.legend.compiler.spec.typed.TypedSpec;
 
 /**
  * legend-engine's PLAN TEXT, written at planning (the planner-driver seam program's S2g, 2026-10-31; the body driver's
- * until then): a query's SQL in the engine's own spelling ({@link #engineSql}: lowered with the engine-text options
- * and rendered by an {@link LiteSqlText}), the plan a {@code planToString} or
+ * until then): a query's SQL, lite's own since A2 of the compatibility program (2026-11-19) ({@link #engineSql}: lowered
+ * in the plan environment's style and rendered by the edge's dialect of the database, {@link PureText#dialect}), the plan a {@code planToString} or
  * {@code toSQLString} call prints (D30: plan-time values, the routines {@link #nativeRoutines} hands the native
  * stager), and a plan's node model for the {@code $plan} handle's rows ({@link #planModel}). Every one is a function
  * of the model and the query over a {@link PlanEnv}: no session, nothing run.
@@ -85,7 +85,7 @@ public final class EnginePlans {
             // reader's gap, read as the engine test connection's database until the rebuild reads it
             db = dbBound == null ? EngineText.ENGINE_TEST_DATABASE.name() : dbBound;
         }
-        LiteSqlText renderer = LiteSqlText.of(com.legend.database.Databases.named(db));
+        com.legend.sql.dialect.SqlDialect renderer = PureText.dialect(com.legend.database.Databases.named(db));
         if (!(in.query()
                 instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
@@ -122,7 +122,7 @@ public final class EnginePlans {
             com.legend.compiler.spec.typed.TypedLambda lam,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
-            LiteSqlText renderer) {
+            com.legend.sql.dialect.SqlDialect renderer) {
         return engineSql(lam.body(), mappingFqn, specs, env, renderer,
                 EngineParams.none(),
                 java.util.function.UnaryOperator.identity());
@@ -134,7 +134,7 @@ public final class EnginePlans {
     static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
-            LiteSqlText renderer,
+            com.legend.sql.dialect.SqlDialect renderer,
             EngineParams planParams,
             java.util.function.UnaryOperator<String> tableRenames) {
         return engineSql(raw, mappingFqn, specs, env, renderer, planParams,
@@ -147,7 +147,7 @@ public final class EnginePlans {
     static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
-            LiteSqlText renderer,
+            com.legend.sql.dialect.SqlDialect renderer,
             EngineParams planParams,
             java.util.function.UnaryOperator<String> tableRenames,
             java.util.List<String> chainMappings) {
@@ -176,7 +176,6 @@ public final class EnginePlans {
         EngineParams.Resolved dotted = planParams.resolveDotted(body);
         EngineParams params = dotted.params();
         params.slots().forEach(lw::bindPlanParam);
-        renderer.params(params);
         // ENGINE-TEXT lowering: wire coercions read bare (a Lowerer option
         // since batch 136; a thread-local scope before)
         com.legend.sql.SqlQuery plan = lw.lower(dotted.body());
@@ -262,7 +261,7 @@ public final class EnginePlans {
         public java.util.List<String> engineSeedSql(String csv, com.legend.model.DatabaseDefinition db,
                 java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup) {
             return EngineSeedText.setUpDataSqlsText(csv, db, lookup,
-                    LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).dialect());
+                    PureText.dialect(EngineText.ENGINE_TEST_DATABASE));
         }
 
         @Override
@@ -270,14 +269,14 @@ public final class EnginePlans {
                 com.legend.model.DatabaseDefinition db,
                 java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup) {
             return EngineSeedText.setUpDataSqlsTextFromRecords(records, db, lookup,
-                    LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).dialect());
+                    PureText.dialect(EngineText.ENGINE_TEST_DATABASE));
         }
 
         @Override
         public String generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen tg,
                 com.legend.compiler.element.ModelContext ctx) {
             return TestDataPlanText.planTextResult(tg, ctx,
-                    LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE),
+                    PureText.dialect(EngineText.ENGINE_TEST_DATABASE),
                     "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")");
         }
 
@@ -292,7 +291,7 @@ public final class EnginePlans {
      *  plan facet's {@code activitySql}, asked by the planner beside lite's own and picked by the style). */
     static String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
-        LiteSqlText renderer = LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE);
+        com.legend.sql.dialect.SqlDialect renderer = PureText.dialect(EngineText.ENGINE_TEST_DATABASE);
         EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, EngineParams.none(),
                 java.util.function.UnaryOperator.identity());
         if (!recorded) {
@@ -434,7 +433,7 @@ public final class EnginePlans {
             if (tr == null) {
                 throw new com.legend.error.NotImplementedException("planToString: no getAll or table root (multi-node plans pending)");
             }
-            EngineSql tes = engineSql(lam.body(), mappingFqn, specs, env, LiteSqlText.of(dbType),
+            EngineSql tes = engineSql(lam.body(), mappingFqn, specs, env, PureText.dialect(dbType),
                     EngineParams.none(), java.util.function.UnaryOperator.identity(), java.util.List.of());
             return PlanText.singleRelationRoot(env.ctx(), tr.store(),
                     tr.accessor(), tes.plan(), tes.sql(), lam.body(), connName);
@@ -449,15 +448,14 @@ public final class EnginePlans {
             return crossDb;
         }
         EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
-                LiteSqlText.of(dbType), EngineParams.none(),
+                PureText.dialect(dbType), EngineParams.none(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
         return PlanText.single(env.ctx(), rootClass,
                         mappingFqn, es.plan(), es.sql(),
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
-                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body()),
-                        LiteSqlText.of(dbType)::selectList);
+                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body()));
     }
 
     /** The engine's CROSS-STORE plan split (executionPlan tdsJoinTwoDB*
@@ -530,7 +528,7 @@ public final class EnginePlans {
         }
         java.util.List<String> allocs = new java.util.ArrayList<>();
         String prevVar = null;
-        var planText = LiteSqlText.of(dbType);
+        var planText = PureText.dialect(dbType);
         for (int k = spine.size() - 1; k >= 0; k--) {
             TypedSpec at = k == spine.size() - 1
                     ? spine.get(k).left() : spine.get(k + 1);
@@ -565,7 +563,7 @@ public final class EnginePlans {
                             prevVar == null ? aEs.plan()
                                     : PlanText.colsPlanFor(
                                             aEs.plan(), prevVar),
-                            pushDownEnums(env, java.util.List.of(at)), planText::selectList)));
+                            pushDownEnums(env, java.util.List.of(at)))));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
@@ -578,7 +576,7 @@ public final class EnginePlans {
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
                 lam.body(), connName, chainMaps,
                 PlanText.colsPlanFor(
-                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()), planText::selectList);
+                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()));
         String[] impl = SetImplementations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
@@ -694,7 +692,7 @@ public final class EnginePlans {
                     "plan: sequence terminal without a getAll root");
         }
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
-                env, LiteSqlText.of(dbType), params,
+                env, PureText.dialect(dbType), params,
                 java.util.function.UnaryOperator.identity());
         String[] impl = SetImplementations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
@@ -702,7 +700,7 @@ public final class EnginePlans {
         // file guardrail — PlanEnvelope owns the block-vs-sequence rule)
         return PlanEnvelope.emit(es, children, env, rootClass, impl,
                 mappingFqn, term, connName, dbType,
-                LiteSqlText.of(dbType),
+                PureText.dialect(dbType),
                 !lam.parameters().isEmpty());
     }
 
@@ -748,7 +746,7 @@ public final class EnginePlans {
                 ? c.value() : null;
         java.util.List<String> sqls = java.util.List.of();
         if (csv != null && db != null) {
-            sqls = EngineSeedText.setUpDataSqlsText(csv, db, lookup, LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).dialect());
+            sqls = EngineSeedText.setUpDataSqlsText(csv, db, lookup, PureText.dialect(EngineText.ENGINE_TEST_DATABASE));
         }
         PlanConn.DsSpec spec = null;
         if (ni.properties().get("datasourceSpecification")
@@ -761,7 +759,7 @@ public final class EnginePlans {
                     ? sc2.value() : null;
             java.util.List<String> specSqls = specCsv != null && db != null
                     ? EngineSeedText.setUpDataSqlsText(specCsv, db,
-                            lookup, LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).dialect())
+                            lookup, PureText.dialect(EngineText.ENGINE_TEST_DATABASE))
                     : java.util.List.of();
             spec = new PlanConn.DsSpec(
                     "LocalH2DatasourceSpecification", specCsv, specSqls);
@@ -837,7 +835,7 @@ public final class EnginePlans {
         firstFromChainMappings(term).stream()
                 .filter(m2 -> !chainMaps.contains(m2)).forEach(chainMaps::add);
         EngineSql es = engineSql(java.util.List.of(term), pmFqn,
-                specs, env, LiteSqlText.of(planDatabase(pc2)),
+                specs, env, PureText.dialect(planDatabase(pc2)),
                 params, mapperRenames, chainMaps);
         PlanNode sqlNode = new PlanNode(
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
@@ -965,7 +963,7 @@ public final class EnginePlans {
             }
             // the engine text renders the IR's schema DDL, as the table statements below
             // (the dialect program's Phase 3, 2026-10-16: until then the text was written here)
-            return LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).render(DROP_SCHEMA_STATEMENT.equals(fqn)
+            return PureText.dialect(EngineText.ENGINE_TEST_DATABASE).render(DROP_SCHEMA_STATEMENT.equals(fqn)
                     ? new com.legend.sql.SqlDdl.DropSchema(sc.value(), false)
                     : new com.legend.sql.SqlDdl.CreateSchema(sc.value(), false));
         }
@@ -989,7 +987,7 @@ public final class EnginePlans {
         if (DROP_TABLE_STATEMENT.equals(fqn)) {
             // the table named as its store declared it, as the create statement names it (A2, 2026-11-19: legend-engine's
             // printer spelled every name bare, so its two texts agreed; a table the store does not declare, bare)
-            return LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).render(declared.map(d -> com.legend.setup.Ddl
+            return PureText.dialect(EngineText.ENGINE_TEST_DATABASE).render(declared.map(d -> com.legend.setup.Ddl
                     .dropDeclaredTable(d, sch)).orElseGet(() -> com.legend.setup.Ddl.dropTable(sch, tbl)));
         }
         com.legend.model.DatabaseDefinition.TableDefinition def = declared.orElseThrow(() -> new IllegalStateException(
@@ -997,7 +995,7 @@ public final class EnginePlans {
         // the ENGINE_TEXT flavor of the ONE generator (NOT NULL /
         // PRIMARY KEY constraints) — the EXECUTION flavors stay
         // constraint-free for DuckDB re-seeds
-        return LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).render(com.legend.setup.Ddl.createTable(def, sch));
+        return PureText.dialect(EngineText.ENGINE_TEST_DATABASE).render(com.legend.setup.Ddl.createTable(def, sch));
     }
 
     /** PUSH_DOWN_ENUM_TRANSFORM on this plan's context: legend-engine's plan printer's enum-tuple form follows it

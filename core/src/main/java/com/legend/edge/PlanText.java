@@ -42,15 +42,12 @@ public final class PlanText {
      * the cross-store splice passes the placeholder-bearing IR here
      * (engine: the placeholder relation IS in the query when
      * resultColumns is computed) while typeBlock/tdsTuples keep the
-     * pre-splice plan. {@code selectList}: the plan text's dialect's
-     * select list of a query (a scalar projection's resultColumns), passed
-     * as a function: this layer is dialect-blind. */
+     * pre-splice plan. */
     public static String single(ModelContext ctx, String rootClassFqn,
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
             @com.legend.base.Nullable String connectionName,
-            java.util.List<String> chainMappings, SqlQuery colsPlan, boolean pushDownEnums,
-            java.util.function.Function<SqlQuery, @com.legend.base.Nullable String> selectList) {
+            java.util.List<String> chainMappings, SqlQuery colsPlan, boolean pushDownEnums) {
         String[] impl = SetImplementations.rootImpl(ctx, mappingFqn,
                 rootClassFqn, chainMappings);
         com.legend.compiler.element.type.Type.RelationType rrt =
@@ -62,12 +59,10 @@ public final class PlanText {
                 && body.get(body.size() - 1).info().type()
                         instanceof com.legend.compiler.element.type
                                 .Type.Primitive) {
-            // scalar projection: the ONE select expression, empty doc —
-            // the engine prints the raw select item text, which the
-            // dialect writes from the IR the sql was written from (a
-            // query with no select list prints whole)
-            String item = selectList.apply(colsPlan);
-            cols = "(" + (item != null ? item : sql) + ", \"\")";
+            // scalar projection: the one column, empty doc, printed as the whole statement (legend-engine printed its
+            // select item alone, cut from its own SQL text; that text went with A2 of the compatibility program,
+            // 2026-11-19, CP-4)
+            cols = "(" + sql + ", \"\")";
         } else {
             cols = resultColumns(ctx, storeDbs(ctx, mappingFqn, body,
                     chainMappings, impl[2]), colsPlan, rrt);
@@ -321,24 +316,6 @@ public final class PlanText {
                 + "  connection = " + connName + "\n)\n";
     }
 
-    /** {@code FreeMarkerConditionalExecutionNode} (processInOperation):
-     * the size-threshold conditional — String-typed, the freemarker
-     * boolean prints as {@code condition}. */
-    public static String freeMarkerConditional(String condition,
-            String trueBlock, String falseBlock) {
-        return "FreeMarkerConditionalExecutionNode\n(\n"
-                + "  type = String\n"
-                + "  condition = " + condition + "\n"
-                // engine planNodeToString: the block's parenthesis sits at
-                // the label's indent, its node two deeper
-                + "  trueBlock = \n  (\n"
-                + indent(trueBlock, "    ")
-                + "  )\n"
-                + "  falseBlock = \n  (\n"
-                + indent(falseBlock, "    ")
-                + "  )\n)\n";
-    }
-
     /** {@code PureExp} — a NON-RELATIONAL let value carried as a plan
      * expression (the engine's PureExpressionPlatformExecutionNode):
      * type/sizeRange, the free plan variables it requires, and the PURE
@@ -396,10 +373,10 @@ public final class PlanText {
      * resultColumns spelled as the RAW column expression, and the SQL
      * rendered WITHOUT projection aliases (the engine's scalar select
      * form). Rendering stays in the root layer — the caller supplies the
-     * alias-less SQL text and the post-render alias spelling. */
+     * alias-less SQL text; a column's table alias prints as the plan names it. */
     public static String scalarRelational(ModelContext ctx, String dbFqn,
             SqlSelect plan, String typeName, @com.legend.base.Nullable String sizeRange, String sql,
-            java.util.function.UnaryOperator<String> aliasSpell, @com.legend.base.Nullable String connectionName) {
+            @com.legend.base.Nullable String connectionName) {
         StringBuilder rc = new StringBuilder();
         for (SqlSelect.Projection p : plan.projections()) {
             if (rc.length() > 0) {
@@ -416,8 +393,8 @@ public final class PlanText {
             var cd = td.columns().stream()
                     .filter(x -> x.name().equalsIgnoreCase(strip(c.name())))
                     .findFirst().orElseThrow();
-            rc.append("(\"").append(aliasSpell.apply(java.util.Objects.requireNonNull(
-                    c.table(), "resultColumns need a table-qualified column")))
+            rc.append("(\"").append(java.util.Objects.requireNonNull(
+                    c.table(), "resultColumns need a table-qualified column"))
                     .append("\".").append(c.name()).append(", ")
                     .append(spell(cd.dataType())).append(')');
         }

@@ -17,10 +17,12 @@ import java.util.List;
  * {@code in} whose collection exceeds the connection's threshold — or
  * carries a many-valued plan parameter of unknown size — becomes the
  * block plan: {@code RelationalBlockExecutionNode} wrapping
- * Allocation / CreateAndPopulateTempTable /
- * FreeMarkerConditionalExecutionNode ahead of the Relational node,
- * whose SQL splices the temp-table select (over threshold) or the
- * {@code ${inFilterClause_X}} wrapper variable (conditional).
+ * Allocation / CreateAndPopulateTempTable ahead of the Relational
+ * node, whose SQL reads the temp table (over threshold). The
+ * conditional form (a parameter of unknown size, legend-engine's
+ * FreeMarkerConditionalExecutionNode splicing its
+ * {@code ${inFilterClause_X}} wrapper into its own SQL text) is
+ * refused by name: lite's SQL has no such splice (A2, 2026-11-19).
  *
  * <p>Thresholds are the engine's
  * {@code getCollectionThresholdLimitForDatabaseType}: TEST connections
@@ -59,17 +61,6 @@ public final class InProtocol {
     }
 
     public record Result(SqlQuery plan, List<Site> sites) {
-
-        /** The wrapper variables its conditional sites splice bare ({@code ${inFilterClause_X}}): the edge's
-         *  template table's splices (the audit's J31). */
-        List<String> splices() {
-            return sites.stream().filter(Site::conditional).map(Site::wrapper).toList();
-        }
-
-        /** The temp tables its over-threshold sites read back (the edge's template table's, J40). */
-        List<String> tempTables() {
-            return sites.stream().filter(x -> !x.conditional()).map(Site::tempTable).toList();
-        }
     }
 
     /** Scan-and-rewrite; null when no site triggers. */
@@ -141,71 +132,45 @@ public final class InProtocol {
 
     /** Every site's node texts in emission order — the caller-facing
      * form (a triggered protocol implies a connection spelling: the
-     * threshold rule only fires with one). */
+     * threshold rule only fires with one). A CONDITIONAL site (a
+     * many-valued plan parameter of unknown size) is refused by name:
+     * legend-engine wrote it as a FreeMarker conditional splicing its
+     * collection into its own SQL text, and lite's SQL has no such splice
+     * (A2 of the compatibility program, 2026-11-19, CP-4; the conditional
+     * node's text went with it). */
     public static List<String> allNodeTexts(Result inp,
             @com.legend.base.Nullable String connName,
-            @com.legend.base.Nullable Integer databaseThreshold,
-            java.util.function.Function<SqlExpr.PlanParam, String> splice,
-            java.util.function.UnaryOperator<String> tempSelect) {
+            @com.legend.base.Nullable Integer databaseThreshold) {
         String conn = java.util.Objects.requireNonNull(connName,
                 "in-protocol threshold without a connection spelling");
-        Integer th = java.util.Objects.requireNonNull(
-                thresholdFor(connName, databaseThreshold));
-        boolean isTest = conn.startsWith("TestDatabaseConnection");
+        java.util.Objects.requireNonNull(thresholdFor(connName, databaseThreshold));
         List<String> out = new ArrayList<>();
         for (Site site : inp.sites()) {
-            out.addAll(nodeTexts(site, conn, isTest, th,
-                    site.conditional()
-                            ? splice.apply(site.vars().get(0)) : "", tempSelect));
+            if (site.conditional()) {
+                throw new com.legend.error.NotImplementedException("a collection parameter spliced into plan text ("
+                        + site.vars().get(0).name() + "): lite's SQL has no FreeMarker collection splice (legend-engine's"
+                        + " SQL spelling is not lite's, CP-4)");
+            }
+            out.addAll(nodeTexts(site, conn));
         }
         return out;
     }
 
-    /** The site's plan-node texts, in emission order (before the
-     * Relational node); {@code tempSelect} reads the temp table back
-     * (the plan text's dialect writes it). */
-    public static List<String> nodeTexts(Site s, String connName,
-            boolean isTest, int threshold, String falseText,
-            java.util.function.UnaryOperator<String> tempSelect) {
+    /** An over-threshold site's plan-node texts, in emission order (before
+     * the Relational node): its constants' allocation, then the temp
+     * table's create-and-populate. */
+    public static List<String> nodeTexts(Site s, String connName) {
         List<String> out = new ArrayList<>();
         String colType = "VARCHAR(1024)";   // String collections — the
         // only element kind the goldens pin; others wall at the caller
-        String createTemp = PlanText.createAndPopulateTempTable(
-                inputVarNames(s), s.tempTable(), colType, connName);
-        if (!s.conditional()) {
-            if (!s.constants().isEmpty()) {
-                out.add(PlanText.allocation(s.tempVar(),
-                        "  type = String\n",
-                        PlanText.constantBare("String",
-                                constantsText(s))));
-            }
-            out.add(createTemp);
-            return out;
+        if (!s.constants().isEmpty()) {
+            out.add(PlanText.allocation(s.tempVar(),
+                    "  type = String\n",
+                    PlanText.constantBare("String",
+                            constantsText(s))));
         }
-        StringBuilder checks = new StringBuilder("(");
-        for (SqlExpr.PlanParam v : s.vars()) {
-            checks.append("instanceOf(").append(v.name())
-                    .append(", \"Stream\")");
-            if (isTest) {
-                checks.append(" || instanceOf(").append(v.name())
-                        .append(", \"StreamingResult\")");
-            }
-            checks.append(" || ");
-        }
-        checks.append("((").append(s.vars().stream()
-                        .map(v -> "collectionSize(" + v.name() + "![])?number")
-                        .reduce((a, b) -> a + " + " + b).orElseThrow())
-                .append(s.constants().isEmpty()
-                        ? "" : " + " + s.constants().size())
-                .append(") > ").append(threshold).append("))");
-        String condition = "${" + checks + "?c}";
-        String trueBlock = PlanText.sequence("  type = String\n",
-                List.of(createTemp, PlanText.constantBare("String",
-                        tempSelect.apply(s.tempTable()))));
-        String falseBlock = PlanText.constantBare("String", falseText);
-        out.add(PlanText.allocation(s.wrapper(), "  type = String\n",
-                PlanText.freeMarkerConditional(condition, trueBlock,
-                        falseBlock)));
+        out.add(PlanText.createAndPopulateTempTable(
+                inputVarNames(s), s.tempTable(), colType, connName));
         return out;
     }
 

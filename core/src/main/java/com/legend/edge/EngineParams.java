@@ -22,9 +22,10 @@ import java.util.Set;
  * legend-engine's plan-TEMPLATE parameters, the edge's own table (the audit's J31, 2026-11-18, the orchestrator's
  * ruling: no edge node in the product's MIR -- J28's pattern, product MIR plus edge-held data). Each parameter lowers
  * to a plain {@link SqlExpr.PlanParam} of its name, its type {@code UNKNOWN} (a template binds nothing); what only
- * the FreeMarker template knows is held here, by name, and read by the edge's plan text ({@link LiteSqlText#params})
- * and {@link PlanEnumForm}: an enumeration's mapping function ({@code enumMap_<mapping>_<enum>}), and the temp-table
- * protocol's wrapper variable, spliced bare ({@code ${inFilterClause_X}}, {@link InProtocol}). A field read through a
+ * the FreeMarker template knows is held here, by name, and read by {@link PlanEnumForm}: an enumeration's mapping
+ * function ({@code enumMap_<mapping>_<enum>}). (The temp-table protocol's splices and read-back tables, which
+ * legend-engine's SQL printer read here, went with that printer: A2 of the compatibility program, 2026-11-19, CP-4.)
+ * A field read through a
  * parameter ({@code $p.a.b}) is legend-engine's dotted placeholder {@code ${p.a.b}}: the edge resolves it before
  * lowering ({@link #resolveDotted}), so the product's lowering reads no template.
  */
@@ -32,8 +33,6 @@ public final class EngineParams {
 
     private final LinkedHashMap<String, SqlExpr.PlanParam> slots = new LinkedHashMap<>();
     private final Map<String, String> enumMapFns = new HashMap<>();
-    private final Set<String> splices = new HashSet<>();
-    private final Set<String> tempTables = new HashSet<>();
 
     /** A table with no parameters. */
     public static EngineParams none() {
@@ -92,46 +91,10 @@ public final class EngineParams {
         return enumMapFns.get(name);
     }
 
-    /** Whether {@code name} is the temp-table protocol's wrapper, spliced bare. */
-    boolean isSplice(String name) {
-        return splices.contains(name);
-    }
-
-    /** Whether {@code name} is the temp-table protocol's temp table, read back by legend-engine's temp-select template
-     *  ({@code generateTempTableSelectSQLQuery}; J40, 2026-11-18: SqlExpr.TempTableInSplice until then). */
-    boolean isTempTable(String name) {
-        return tempTables.contains(name);
-    }
-
-    /** This table with {@code wrappers} spliced bare and {@code tables} read back as temp tables ({@link InProtocol}). */
-    EngineParams withProtocol(Collection<String> wrappers, Collection<String> tables) {
-        EngineParams out = copy();
-        out.splices.addAll(wrappers);
-        out.tempTables.addAll(tables);
-        return out;
-    }
-
-    /** This table, its entries {@code other}'s (a printer's table, replaced per plan). */
-    void replaceWith(EngineParams other) {
-        if (other == this) {
-            return;
-        }
-        slots.clear();
-        enumMapFns.clear();
-        splices.clear();
-        tempTables.clear();
-        slots.putAll(other.slots);
-        enumMapFns.putAll(other.enumMapFns);
-        splices.addAll(other.splices);
-        tempTables.addAll(other.tempTables);
-    }
-
     private EngineParams copy() {
         EngineParams out = new EngineParams();
         out.slots.putAll(slots);
         out.enumMapFns.putAll(enumMapFns);
-        out.splices.addAll(splices);
-        out.tempTables.addAll(tempTables);
         return out;
     }
 

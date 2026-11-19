@@ -249,8 +249,8 @@ final class ArchitectureTest {
     // (engineTextDialectIsQuarantinedToTheRootLayerAndThePlanPrinter), went 2026-11-19 with their subjects: A2 of the
     // compatibility program (stage A ratified by the user 2026-11-19) deleted legend-engine's SQL text printers
     // (EngineStyleH2, EngineStyleDB2, EngineStyleComposite) and EngineTextDialect under CP-4 (upstream's SQL text is
-    // never promised). What prints SQL text on the compatibility routes now is the edge's package-private LiteSqlText
-    // over the edge's own dialect, which no class outside com.legend.edge can name; the edge rule
+    // never promised). What prints SQL text on the compatibility routes now is the edge's own dialect
+    // (PureText.dialect), handed to the plan text directly since A2's second PR; the edge rule
     // (PRODUCT_REACHES_NO_EDGE) still holds every product class off the edge.
 
     /**

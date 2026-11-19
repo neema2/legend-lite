@@ -1884,9 +1884,10 @@ class JavaEvalLedgerTest {
                             "SqlTextInputs.java",
                             // the dialects spelled upstream's way (D1.0); legend-engine's text printers (O3) left
                             // 2026-11-19 (A2 of the compatibility program, stage A ratified by the user 2026-11-19:
-                            // legend-engine's SQL text deleted, CP-4), and lite's own SQL text took their seams: an
-                            // adapter over the edge's dialect, writing no SQL of its own and deciding nothing
-                            "PureText.java", "LiteSqlText.java",
+                            // legend-engine's SQL text deleted, CP-4); the adapter that took their seams,
+                            // LiteSqlText.java, left the same day with its engine-only questions (A2's second PR): the
+                            // plan text takes the edge's dialect itself
+                            "PureText.java",
                             // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,
                             // 2026-11-15): a node for a node, no value met
                             "PurePrintForms.java",

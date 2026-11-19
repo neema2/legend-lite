@@ -27,7 +27,7 @@ final class TestDataPlanText {
     /** planToString over a test-data carrier: the {@code plan} flavor prints the engine's MultiResultSequence text;
      *  any other flavor is not a plan (loud). */
     static String planTextResult(com.legend.compiler.spec.typed.TypedTestDataGen g, ModelContext ctx,
-            LiteSqlText text, String connection) {
+            com.legend.sql.dialect.SqlDialect text, String connection) {
         if (!"plan".equals(g.flavor())) {
             throw new com.legend.error.NotImplementedException(
                     "planToString over a non-plan test-data carrier ("
@@ -46,7 +46,7 @@ final class TestDataPlanText {
     }
 
     /** The plan text of the generator's {@code roots}. */
-    static String planText(List<TestDataFetches.FetchNode> roots, LiteSqlText text, String connection) {
+    static String planText(List<TestDataFetches.FetchNode> roots, com.legend.sql.dialect.SqlDialect text, String connection) {
         StringBuilder kids = new StringBuilder();
         for (TestDataFetches.FetchNode r : roots) {
             node(r, kids, text, connection);
@@ -58,14 +58,14 @@ final class TestDataPlanText {
                 + "  )\n)\n";
     }
 
-    private static void node(TestDataFetches.FetchNode n, StringBuilder out, LiteSqlText text,
+    private static void node(TestDataFetches.FetchNode n, StringBuilder out, com.legend.sql.dialect.SqlDialect text,
             String connection) {
         switch (n) {
             case TestDataFetches.Unidentified u -> out.append(unidentified(u, text, connection));
             case TestDataFetches.Fetch f -> {
                 String relType = relationType(f.db(), f.schema(), f.table(), f.columns());
                 // the fetch as the engine prints the query it built (its own aliases), from IR
-                String inner = relational(relType, f.columns(), text.renderAsAliased(f.query()), connection);
+                String inner = relational(relType, f.columns(), text.render(f.query()), connection);
                 out.append(PlanText.allocation(f.res(), "  type = " + relType + "\n  resultSizeRange = *\n", inner));
                 for (TestDataFetches.FetchNode child : f.children()) {
                     node(child, out, text, connection);
@@ -98,13 +98,13 @@ final class TestDataPlanText {
 
     /** The engine's Error node for a root without row identifiers: the assert message (primary key columns as
      *  name:TYPE) over the sampled {@code select top 5} of the root table. */
-    private static String unidentified(TestDataFetches.Unidentified u, LiteSqlText text, String connection) {
+    private static String unidentified(TestDataFetches.Unidentified u, com.legend.sql.dialect.SqlDialect text, String connection) {
         String relType = relationType(u.db(), u.schema(), u.table(), u.keys());
         String pk = u.keys().stream()
                 .map(c -> c.name() + ":" + PlanText.spell(c.type()))
                 .collect(java.util.stream.Collectors.joining(","));
         String qualified = "default".equals(u.schema()) ? u.table() : u.schema() + "." + u.table();
-        String inner = relational(relType, u.keys(), text.renderAsAliased(u.sample()), connection);
+        String inner = relational(relType, u.keys(), text.render(u.sample()), connection);
         return "Error\n(\n"
                 + "  type = meta::pure::metamodel::type::Any\n"
                 + "  message = Row Identifers should be provided for the root"
