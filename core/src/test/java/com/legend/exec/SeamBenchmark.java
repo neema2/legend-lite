@@ -80,13 +80,23 @@ final class SeamBenchmark {
         // 2026-10-27: the typed columns are the product's path now)
         String plain = "SELECT id, name, amount, ts, bucket FROM bench";
         String csvRows = "SELECT " + csvLine + " AS line FROM bench";
-        String csvWhole = "SELECT " + agg + " FROM (SELECT " + csvLine + " AS line FROM bench) AS r";
 
         if (!SMALL_HEAP) {
             measure(db, "1 typed columns (driver values by slot)", rows, mustDrain, () -> typedColumns(c, plain));
         }
         measure(db, "4 csv line per row by the database", rows, mustDrain, () -> textRows(c, csvRows, false));
-        // the whole text is the path the design retires: whether it drains is the measurement, never the test
+        // (5, the whole text, is measured last: wholeTextLast)
+    }
+
+    /** Path 5, the whole CSV text in one value ({@code csvLine} each row's, {@code agg} the text aggregate): the path
+     *  the design retires, so whether it drains is the measurement, never the test -- measured after every path that
+     *  must drain (each test calls it last, after {@link #product}): on H2 a path that runs out of memory closes the
+     *  database (90098), and every path measured after it then reads a closed database, as the retired wire's shape
+     *  below does (2026-11-19: at the small heap the whole text ran H2 out of memory before the product's paths, and
+     *  //core:seam_benchmark_small_heap's h2Lazy failed on the product runner's session setup, "The database has been
+     *  closed"). */
+    static void wholeTextLast(String db, Connection c, long rows, String csvLine, String agg) throws Exception {
+        String csvWhole = "SELECT " + agg + " FROM (SELECT " + csvLine + " AS line FROM bench) AS r";
         measure(db, "5 csv whole text in one value", rows, false, () -> wholeText(c, csvWhole, rows));
     }
 

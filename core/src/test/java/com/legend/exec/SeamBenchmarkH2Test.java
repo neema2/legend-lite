@@ -52,15 +52,17 @@ final class SeamBenchmarkH2Test {
                 + " FROM SYSTEM_RANGE(0, " + (rows - 1) + ")");
     }
 
+    private static final String CSV_LINE = "CONCAT(CAST(id AS VARCHAR), ',', name, ',', CAST(amount AS VARCHAR), ',',"
+            + " FORMATDATETIME(ts, 'yyyy-MM-dd''T''HH:mm:ss'), ',', COALESCE(CAST(bucket AS VARCHAR), ''))";
+    private static final String CSV_AGG = "LISTAGG(line, CHAR(13) || CHAR(10))";
+
     private static void h2(Connection c, String db, boolean mustDrain) throws Exception {
         bench(c, H2_ROWS);
-        SeamBenchmark.run(db, c, Databases.dialect(DatabaseType.H2), true, H2_ROWS, mustDrain,
-                "CONCAT(CAST(id AS VARCHAR), ',', name, ',', CAST(amount AS VARCHAR), ',',"
-                        + " FORMATDATETIME(ts, 'yyyy-MM-dd''T''HH:mm:ss'), ',', COALESCE(CAST(bucket AS VARCHAR), ''))",
-                "LISTAGG(line, CHAR(13) || CHAR(10))");
+        SeamBenchmark.run(db, c, Databases.dialect(DatabaseType.H2), true, H2_ROWS, mustDrain, CSV_LINE, CSV_AGG);
         SeamBenchmark.product(db, c, DatabaseType.H2, H2_ROWS, mustDrain,
                 "CAST(JSON_OBJECT('id': id, 'name': name, 'amount': amount,"
                         + " 'ts': FORMATDATETIME(ts, 'yyyy-MM-dd''T''HH:mm:ss'), 'bucket': bucket NULL ON NULL)"
                         + " AS VARCHAR)", java.util.List.of());
+        SeamBenchmark.wholeTextLast(db, c, H2_ROWS, CSV_LINE, CSV_AGG);
     }
 }

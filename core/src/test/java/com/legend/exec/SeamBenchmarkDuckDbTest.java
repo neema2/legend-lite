@@ -22,14 +22,16 @@ final class SeamBenchmarkDuckDbTest {
     void duckdb() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             bench(c, DUCKDB_ROWS);
-            SeamBenchmark.run("duckdb", c, Databases.dialect(DatabaseType.DuckDB), false, DUCKDB_ROWS, true,
-                    "concat(CAST(id AS VARCHAR), ',', name, ',', CAST(amount AS VARCHAR), ',',"
-                            + " strftime(ts, '%Y-%m-%dT%H:%M:%S'), ',', coalesce(CAST(bucket AS VARCHAR), ''))",
-                    "string_agg(line, chr(13) || chr(10))");
+            String csvLine = "concat(CAST(id AS VARCHAR), ',', name, ',', CAST(amount AS VARCHAR), ',',"
+                    + " strftime(ts, '%Y-%m-%dT%H:%M:%S'), ',', coalesce(CAST(bucket AS VARCHAR), ''))";
+            String csvAgg = "string_agg(line, chr(13) || chr(10))";
+            SeamBenchmark.run("duckdb", c, Databases.dialect(DatabaseType.DuckDB), false, DUCKDB_ROWS, true, csvLine,
+                    csvAgg);
             SeamBenchmark.product("duckdb", c, DatabaseType.DuckDB, DUCKDB_ROWS, true,
                     "CAST(to_json(struct_pack(id := id, name := name, amount := amount,"
                             + " ts := strftime(ts, '%Y-%m-%dT%H:%M:%S'), bucket := bucket)) AS VARCHAR)",
                     exactTexts());
+            SeamBenchmark.wholeTextLast("duckdb", c, DUCKDB_ROWS, csvLine, csvAgg);
         }
     }
 
