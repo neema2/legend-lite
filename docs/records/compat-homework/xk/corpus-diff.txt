@@ -1,0 +1,93 @@
+## h2-fail-roster: main 276 -> fix 301  (+26 / -1)
+< meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone
+> meta::pure::graphFetch::tests::XStore::ordered::testOrderedCrossStoreGraphFetchWithComplexQualifierExpression
+> meta::pure::graphFetch::tests::XStore::ordered::testOrderedCrossStoreGraphFetchWithComplexQualifierExpressionReuse
+> meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements
+> meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchPropertyLevel
+> meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testMilestoneDatePropogationThruExistsConditionalClause
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testPropertyProjectionQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testPropertyQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testRootQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testSubTypeProjectionQueryWithInnerJoinClassMappingTableFilter
+> meta::relational::tests::mapping::dynajoin::testFilterOnJoinWithAggregateFunction
+> meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierProperty
+> meta::relational::tests::mapping::embedded::advanced::testQualifierProperty
+> meta::relational::tests::milestoning::contextpropagation::testMilestoneDateNotPropogatedThroughNonMilestonedType
+> meta::relational::tests::milestoning::contextpropagation::testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll
+> meta::relational::tests::milestoning::contextpropagation::testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty
+> meta::relational::tests::milestoning::contextpropagation::testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll
+> meta::relational::tests::projection::filter::in::testInWithDynaFunction
+> meta::relational::tests::projection::qualifier::testFilterOnRootTypeWithOrWithFilterInQualifier
+> meta::relational::tests::query::function::testDayOfWeekNumberFunction
+> meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter
+> meta::relational::validation::showcase::standalone::validateAllConstraints
+> meta::relational::validation::showcase::standalone::validateAllConstraintsWithInnerJoinInFilter
+> meta::relational::validation::showcase::standalone::validateAllConstraintsWithPostTDSOperation2
+## h2-unordered-register: main 899 -> fix 885  (+0 / -14)
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testPropertyProjectionQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testPropertyQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testRootQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testSubTypeProjectionQueryWithInnerJoinClassMappingTableFilter
+< unordered-chain meta::relational::tests::mapping::dynajoin::testFilterOnJoinWithAggregateFunction
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierProperty
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::testQualifierProperty
+< unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoneDateNotPropogatedThroughNonMilestonedType
+< unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll
+< unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty
+< unordered-chain meta::relational::tests::projection::qualifier::testFilterOnRootTypeWithOrWithFilterInQualifier
+< unordered-chain meta::relational::tests::query::function::testDayOfWeekNumberFunction
+## h2-engine-order-register: main 0 -> fix 0  (+0 / -0)
+## h2-skipped-roster: main 7 -> fix 7  (+0 / -0)
+## duckdb-fail-roster: main 108 -> fix 138  (+30 / -0)
+> meta::pure::graphFetch::tests::XStore::ordered::testOrderedCrossStoreGraphFetchWithComplexQualifierExpression
+> meta::pure::graphFetch::tests::XStore::ordered::testOrderedCrossStoreGraphFetchWithComplexQualifierExpressionReuse
+> meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchMissingProperty
+> meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements
+> meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchPropertyLevel
+> meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchReverseOrder
+> meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchRightOrder
+> meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchStringKey
+> meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testMilestoneDatePropogationThruExistsConditionalClause
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testPropertyProjectionQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testPropertyQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testRootQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+> meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testSubTypeProjectionQueryWithInnerJoinClassMappingTableFilter
+> meta::relational::tests::mapping::dynajoin::testFilterOnJoinWithAggregateFunction
+> meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierProperty
+> meta::relational::tests::mapping::embedded::advanced::testQualifierProperty
+> meta::relational::tests::milestoning::contextpropagation::testMilestoneDateNotPropogatedThroughNonMilestonedType
+> meta::relational::tests::milestoning::contextpropagation::testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll
+> meta::relational::tests::milestoning::contextpropagation::testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty
+> meta::relational::tests::milestoning::contextpropagation::testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll
+> meta::relational::tests::projection::filter::in::testInWithDynaFunction
+> meta::relational::tests::projection::qualifier::testFilterOnRootTypeWithOrWithFilterInQualifier
+> meta::relational::tests::query::function::testDayOfWeekNumberFunction
+> meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter
+> meta::relational::validation::showcase::standalone::validateAllConstraints
+> meta::relational::validation::showcase::standalone::validateAllConstraintsWithInnerJoinInFilter
+> meta::relational::validation::showcase::standalone::validateAllConstraintsWithPostTDSOperation2
+## duckdb-unordered-register: main 913 -> fix 899  (+0 / -14)
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testPropertyProjectionQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testPropertyQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testRootQueryWithInnerJoinClassMappingWithMilestoningTableFilter
+< unordered-chain meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testSubTypeProjectionQueryWithInnerJoinClassMappingTableFilter
+< unordered-chain meta::relational::tests::mapping::dynajoin::testFilterOnJoinWithAggregateFunction
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierProperty
+< unordered-chain meta::relational::tests::mapping::embedded::advanced::testQualifierProperty
+< unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoneDateNotPropogatedThroughNonMilestonedType
+< unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromAll
+< unordered-chain meta::relational::tests::milestoning::contextpropagation::testMilestoningContextNotPropogatedThroughNonTemporalPropertiesFromMilestonedQualifiedProperty
+< unordered-chain meta::relational::tests::projection::qualifier::testFilterOnRootTypeWithOrWithFilterInQualifier
+< unordered-chain meta::relational::tests::query::function::testDayOfWeekNumberFunction
+## duckdb-engine-order-register: main 977 -> fix 977  (+0 / -0)
+## duckdb-skipped-roster: main 7 -> fix 7  (+0 / -0)

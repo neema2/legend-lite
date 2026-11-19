@@ -1,0 +1,3 @@
+//core:corpus_differential_test                                          PASSED in 10.8s
+//core:guardrails_edge                                                   PASSED in 185.1s
+MAIN EXIT 0
