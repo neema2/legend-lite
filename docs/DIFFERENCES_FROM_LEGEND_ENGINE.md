@@ -12,9 +12,9 @@ follows Pure. legend-engine's formats are matched, and its answers where they ag
 Where they do not agree, the difference is listed here, with what to write if you need legend-engine's answer.
 
 **When:**
-- **today:** lite already behaves this way;
-- **stage A:** the next few weeks;
-- **stage B:** after stage A, once ratified.
+- **today:** lite behaved this way before the compatibility program;
+- **stage A:** lands with this page, the compatibility program's first batch;
+- **stage B:** after stage A, once the user ratifies it.
 
 ## Where your answers can change
 
@@ -22,18 +22,35 @@ Where they do not agree, the difference is listed here, with what to write if yo
 - **You write:** `'abcdef'->substring(1, 3)`; `'abc'->indexOf('b')`.
 - **legend-engine** (on H2 and DuckDB) answers `'abc'` and `2`: the database's 1-based meaning, and 0 when the text is
   not found. Its corrected-substring option fixes `substring` only, never `indexOf`.
-- **lite answers** `'bc'` and `1`, and `-1` when the text is not found.
+- **lite answers** `'bc'` and `1`, and `-1` when the text is not found, with or without that option.
 - **Why:** Pure defines both 0-based, with `substring`'s end excluded (legend-pure
   `essential/string/slice/substring.pure:53`, `essential/string/index/indexOf.pure:39`).
+- **Out of range, lite raises Pure's error** in the database, where legend-engine passes the positions to SQL unchecked
+  (H2 clamps past the end):
+  - a start below 0;
+  - an end past the length;
+  - an end before the start.
 - **To get legend-engine's answer:** `substring($a - 1, $a - 1 + $b)` for legend-engine's `substring($a, $b)`; and
   `indexOf(...) + 1`, which also turns Pure's -1 into legend-engine's 0.
-- **You will be told.** The legend-engine door warns (a log line and a response header) whenever a query sent to the
-  database calls either one. A setting makes it refuse instead. A report lists every such call in your project when it
-  loads.
+- **You will be told:**
+  - **The legend-engine door warns** whenever a query sent to the database calls either one: a log line, and a
+    response header, `x-legend-lite-pure-meaning`.
+  - **A server setting makes it refuse instead:** `LEGEND_LITE_PURE_MEANING=refuse`.
+  - **When it is quiet:** for `substring`, when the request sets legend-engine's corrected option; `indexOf` always
+    warns.
+  - **A literal start of 0 is exempt** where it is measured equal to Pure's answer: on H2 both forms, on DuckDB the
+    2-argument form only.
+  - **A report lists every such call in your project when it loads,** and in your saved queries.
+- **Lite's other languages keep SQL's meaning:** `#Cypher`, `#SQL`, `#IQ` and a `###Relational` mapping's own functions
+  write SQL's `substring` and position by name. Nothing you write there changes.
 - **When:** stage A.
-- **Measured:** legend-engine's corpus has 5 such calls (4 tests per database); lite's own 62 projects have none.
-  Evidence: H12, the combined dry run, on `claude/compat-translator-spike`.
-- **Register:** S130, S134 (rewritten), plus a new row.
+- **Measured:**
+  - Legend-engine's corpus: each database's fail roster gains the same 7 tests. Four are answers; three are SQL-text
+    tests that the old `indexOf` hid.
+  - PCT's 3 known `indexOf` failures pass.
+  - Lite's own 62 projects have no such call.
+  - Evidence: H12, the combined dry run, and A3's measures on `claude/compat-translator-spike`.
+- **Register:** S130 and S134 (rewritten), S383 (provisional).
 
 ### 2. The SQL you are shown is lite's own
 - **You write:** `toSQLString(...)`, `planToString(...)`, a `toDDL` function, or read an execute result's
@@ -73,7 +90,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Measured:** H8 (j), (j.3), (j.4). legend-engine's DuckDB divide answer is its own (B1-R's oracle); lite's DuckDB
   server route was not run. DuckDB 1.5.6 answers the unchecked divide with `Infinity`, so only the guard matches
   legend-engine there.
-- **Register:** a new row (D2).
+- **Register:** a row comes with stage B's step that removes the shortcuts (B4, the user's D2).
 
 ### 4. Float literals are floating point, not exact decimals
 - **You write:** `1.1 + 0.6`.
@@ -93,7 +110,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **To get legend-engine's answer:** `$x->first()`.
 - **When:** today.
 - **Measured:** the pure/v1 net's `raise.toOneOfEmpty`, against legend-engine's own answer (B1-R's oracle).
-- **Register:** a row to add.
+- **Register:** S384 (provisional).
 
 ### 6. `isNumeric`, `parseDecimal`, `parseJson` on unusual input
 - **legend-engine on H2:**
@@ -104,7 +121,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **When:** stage B.
 - **Measured:** corpus: `isNumeric` 0 tests, `parseDecimal` 2 per database, `parseJson` 1 lost on DuckDB and 1 gained
   on H2. Evidence: H5 task 0.
-- **Register:** S370, S365, plus a row to add (`parseJson`).
+- **Register:** S370, S365; `parseJson`'s row comes with stage B.
 
 ### 7. H2 runs in its regular mode
 - **legend-engine** opens H2 with `MODE=LEGACY`, which allows comparing a yes/no column with a number.
@@ -115,14 +132,14 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Register:** S368.
 
 ### 8. legend-engine's feature flags
-- **The corrected-substring flag** is read at the door and is always on in effect, because item 1 makes Pure's
-  meaning the only one.
-- **The legacy null-equality flag** is refused by name.
-- **The enum push-down flag** is accepted and changes nothing, since lite always transforms enums in SQL.
+- **The corrected-substring flag** changes nothing, because item 1 makes Pure's meaning the only one. It only quiets
+  the door's `substring` warning. **When:** stage A.
+- **The legacy null-equality flag** is refused by name. **When:** stage B.
+- **The enum push-down flag** is accepted and changes nothing, since lite always transforms enums in SQL. **When:**
+  stage B.
 - **The two flags lite has never implemented** stay refused by name, as today.
-- **When:** stage B.
 - **Read:** H8 (a.3). 7 corpus tests set a flag, and 1 needs the legacy flag; it checks SQL text only.
-- **Register:** S130, plus a row to add.
+- **Register:** S130 (rewritten); the other flags' row comes with stage B's flag step (B5).
 
 ### 9. Error messages
 - **legend-engine's message** is often its database's own error over legend-engine's SQL.
@@ -138,7 +155,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **When:** today.
 - **Measured:** on DuckDB, 99 of legend-engine's 110 refused PCT tests answered and 109 wrong answers fixed; on H2,
   28 of 36. Evidence: B1-R's lane, H7.
-- **Register:** a blanket row to add.
+- **Measured on the corpus:** no runnable verdict moves (census B2's H8 (k)).
+- **Register:** S385 (provisional).
 
 ### 11. The last digit of some maths on Windows and macOS
 - **What happens:** DuckDB and SQLite compute their maths functions with the operating system's maths library. On
