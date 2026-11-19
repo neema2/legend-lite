@@ -134,7 +134,7 @@ The order: A1; then A2 and A3 in either order; then A4.
 | legend-engine's corpus on H2 | 2,289 pass | 2,135 pass | 157 stop passing: 146 are SQL-text and plan-printout checks (not promised), 8 are `substring`/`indexOf` (4 of them also text checks), 3 are the small quirks and the legacy mode. 3 start passing |
 | legend-engine's corpus on DuckDB | 2,452 pass | 2,290 pass | 162 stop passing: 150 SQL-text and plan-printout checks, 9 `substring`/`indexOf` (5 of them also text checks), 3 quirks. None start passing |
 | PCT on DuckDB, all five suites, both ways of judging | as recorded | unchanged, but 3 known failures now pass | the 3 are `indexOf` tests |
-| legend-engine's PCT route (DuckDB five suites, H2 one) | as pinned | 13 more pass | every one moves to PCT's expected answer |
+| legend-engine's PCT route (DuckDB five suites, H2 three) | as pinned | 22 more pass (13 DuckDB, 9 H2) | every one moves to PCT's expected answer; none moves the other way |
 | the server route's 28 recorded answers | as recorded | 8 lines move | 1 answer (square root of a negative), 1 error's words, 6 lines of SQL text |
 
 Every moved test was predicted from the single measurements, except 3 per corpus database: SQL-text tests whose check

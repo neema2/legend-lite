@@ -1080,3 +1080,16 @@ who confirms or changes phases 1-3.
   - **Sent to the product orchestrator (13:28):** a recommendation to add H2 essential and standard to lite's own PCT
     lanes (channels A and B), their known failures ledgered with the user's word; until then only #124's ENGINE lane
     runs those suites on H2.
+- **~13:13 UTC, H12's addendum: stage A on H2's essential and standard ENGINE lanes** (`f9b010ac` on
+  `claude/compat-translator-spike`, `h12/engine_lane_h2/`). **9 rows move, every one lite FAIL to PASS toward PCT's
+  expected value; none the other way; no SAME row moves; no interaction.**
+  - Essential, 7: change (1) alone 5 (`indexOf` `testSimple`, `testIndexOfOneElement`, `substring` `testStart`,
+    `testStartEnd`: BOTH_FAIL to LITE_FIXES; `indexOf` `testFromIndex`: BOTH_FAIL to LITE_ANSWERS, legend-engine
+    refuses the 3-argument form); combined only 2 (`testRemError`, `testSquareRootError`: the plain set).
+  - Standard, 2: both 62-bit shift error tests (the plain set). Relation 0.
+  - Every moved row is one legend-engine's manifest marks DEFECT or REFUSES. The two substring-keyed sorts that moved
+    on DuckDB do not move on H2: lite refuses them there before and after (a pre-existing H2 refusal).
+  - **So stage A's whole ENGINE-route effect, all six DuckDB and H2 lanes: 22 rows, every one toward PCT's expected
+    value** (DuckDB 13, H2 9).
+- **~13:14 UTC, the product orchestrator:** H2 essential and standard join lite's own PCT lanes in both channels as
+  step 0 of the H2 track (`claude/h2-dialect-gaps`), the known-failure list and the lane's minutes to the user first.
