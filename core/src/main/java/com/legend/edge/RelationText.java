@@ -63,7 +63,7 @@ final class RelationText {
      *  Variant column); a Variant quoted; a String holding <code>{</code> or {@code [} quoted; anything else its
      *  {@code toString()} ({@link #value}). */
     static String tdsCell(@com.legend.base.Nullable Object v, String type) {
-        met(v, type);
+        met("tds", v, type);
         boolean variant = type.equals(RowDecode.VARIANT);
         if (v == null) {
             return variant ? "'null'" : "null";
@@ -122,6 +122,7 @@ final class RelationText {
      *  {@code TDSNull} when asked; a date with a time of day ({@code hasHour}) as {@code %t{yyyy-MM-dd HH:mm:ss}},
      *  escaped, one without as {@code %t{yyyy-MM-dd}}; anything else its {@code toString()}, escaped. */
     static String csvCell(@com.legend.base.Nullable Object v, String type, boolean renderTdsNull) {
+        met("csv", v, type);
         if (v == null) {
             return renderTdsNull ? Presenter.TDS_NULL : "";
         }
@@ -183,12 +184,12 @@ final class RelationText {
     /** The spike's census: each (column type, carrier) pair the printer met, printed once per JVM. */
     private static final java.util.Set<String> MET = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-    private static void met(@com.legend.base.Nullable Object v, String type) {
+    private static void met(String where, @com.legend.base.Nullable Object v, String type) {
         String carrier = v == null ? "null" : v instanceof PureDateLiteral d ? "PureDateLiteral/" + d.precision()
                 : v.getClass().getSimpleName();
         String shown = type.matches("[A-Z][A-Za-z]*(\\(.*\\))?") || type.equals(RowDecode.VARIANT) ? type : "<a path>";
-        if (MET.add(shown + " " + carrier)) {
-            System.out.println("[H11-cell] type=" + shown + " carrier=" + carrier + " first="
+        if (MET.add(where + " " + shown + " " + carrier)) {
+            System.out.println("[H11-cell] " + where + " type=" + shown + " carrier=" + carrier + " first="
                     + System.getProperty("legend.test.current"));
         }
     }

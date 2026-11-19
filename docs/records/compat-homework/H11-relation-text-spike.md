@@ -46,8 +46,22 @@ every text PCT has.**
   SQL for the 365 relation tests shrinks by 73% (§4.6).
 - **The estimate (§11):** the relation-text half of 1.3 is 4 to 5 days after 2.2 and 1.1. The value prints of 1.3
   were not prototyped; with them, all of 1.3 looks like 6 to 8 days against the plan's 4 to 6.
-- **Not done (§9):** the relational corpus was not run (so `toCSV` is unit-tested only); seven database lanes were not
-  run; no guard was run.
+- **Not done (§9):** seven database lanes were not run; no guard was run. (The relational corpus was run in §13.)
+
+**The corpus half (§13, a second session, 2026-11-19 afternoon):**
+- **The relational corpus with the Java printers** (`toString`, `toCSV`, `toCSV->replace('\n', sep)` as the presenter
+  form `CSVJOIN:<sep>`, a TDS's `csv`), against a baseline of the same head: **DuckDB's rosters, verdict ledger and
+  failure lines byte-identical to `main`'s; H2's the same except 3 gains** (upstream's `3.0`, `10.0`, `100000.0`
+  where the SQL builder printed `3`, `10`, `100000`). 283 comparisons per lane, 0 differences caused by the printer.
+  With the SQL builder fully OFF, 11 tests per lane fail by name: all `assertSameElements(..., toCSV(...))`, which
+  today's edge hook cannot reach (§13.2). **2.2b's claim must cover `assertSameElements`.**
+- **The 41 calendar tests:** all judged; DuckDB 20 byte-equal and 14 held by the ruled comparison, H2 33 byte-equal
+  and 1 ruled; the other 7 are accepted divergences on both lanes (differ on `main` too). No refusal.
+- **Judge-side composed relation prints: 41 in the corpus (one shape, covered by the form), 0 in PCT.** The corpus's
+  other 525 judge-side prints are cell VALUES the tests compose; only 1 test reaches an edge value text (§13.5).
+- **The abstract Date at midnight:** upstream prints a TIMESTAMP cell `yyyy-MM-dd HH:mm:ss` even at midnight; no
+  corpus golden or cell exercises the case; the SQL builder's midnight rule is not upstream's and nothing depends on it
+  (§13.4).
 
 ## 1. What was read
 
@@ -572,3 +586,93 @@ every `[corpus2] FAIL` line, and the arm's `[H11]` lines.
 
 No refusal is needed for them. The ruled comparison holds DuckDB's 14 as it holds them on `main` (§13.3 dumps the
 texts).
+
+### 13.3 The HYBRID run: everything the arm can claim, Java's; the rest left to the SQL builder
+
+The strict run fails the prints the arm cannot claim, so it cannot show that NOTHING ELSE moves. The hybrid run keeps
+the SQL builder only for those (`-Dlegend.spike.relationText.builder=on`: a print that reaches lowering is counted as
+`[H11] BUILDER` and built as on `main`), with `testEnumInRelation`'s fix in (the rows asked of the relation under a
+`cast(@TDS<...>)`: asked through the cast, the side planned as a COLLECTION, not rows). Same commands, same baseline.
+
+| Lane | Passes, switch off | Passes, hybrid | Judged by the arm | Byte-equal | Ruled | Differ (all differ on `main` too) | Left to the builder |
+|---|---|---|---|---|---|---|---|
+| **DuckDB** | 2,452 | **2,452** | 283 | 254 | 18 | 11 | 11 |
+| **H2** | 2,289 | **2,292** | 283 | 271 | 1 | 11 | 11 |
+
+- **DuckDB: the four rosters, the verdict ledger and every `[corpus2] FAIL` line (its words included) are
+  BYTE-IDENTICAL to `main`'s.** The lane's own diff tests pass (all four `update_rcorpus_duckdb_*_test`).
+- **H2: identical except the 3 gains of §13.2** (`testMtdValue`, `testSubclassValue`, `testGroupByWithFilterFunction_noDatePath`):
+  the fail roster loses those 3, the unordered register gains `testGroupByWithFilterFunction_noDatePath` (it now
+  reaches its referee assert), the ledger changes in those 3 tests' rows alone (FAIL to PASS, and the noDatePath test's
+  three later asserts appear, PASS). Two listed roster moves for the real slice, toward upstream's goldens.
+- **The 11 left to the builder** are the 11 `assertSameElements` of §13.2, unchanged. With them claimed (2.2b), the
+  strict run is the hybrid run.
+- **The 18 ruled holds on DuckDB** (`[H11-text]` dumps) are the DATABASE's numbers and order, not the printer's:
+  DuckDB's doubles a few ULP from the golden's H2 doubles (`9.26769230769231` against `9.267692307692307`,
+  `4.2299999999999995` against `4.23`; S132's 2 ULP), and unsorted rows in another order (S131's multiset:
+  `testMergeForClassMappingInnerJoinFilter`, `testCorrelatedSubQueryIsolationStrategy`). `main` holds the same pairs by
+  the same rule.
+- **PCT re-run with this arm** (`pct_channel_b_host_relation`, `_standard`, `_h2_relation`, switch on): 373 of 373, 58
+  of 58 and 342 of 342 texts byte-equal; 469, 205 and 436 passes, as §4. The H2 lane's only red is §4.2's four
+  "PASSES, ledgered as failing".
+
+**What the printer met in the corpus** (`[H11-cell]`, both lanes the same): CSV cells of Integer (`Long`), Float
+(`Double`), Number (`Double`), String (`String`, and once a `Long`: `validateComplexValidation3`'s late-bound ID
+column, declared String, carried as an integer; its digits are the same text), Boolean, an enumeration (`String`, the
+value's name), an abstract `Date` carried at DAY precision, and empty cells of each; `#TDS` cells of Integer, Float,
+String, an enumeration and empty Strings. **No DateTime, StrictDate, Decimal or TIMESTAMP-carried cell reached either
+printer in the corpus.**
+
+### 13.4 The abstract `Date` at midnight in `toCSV` (ask 4): settled
+
+- **Upstream, read at the pin:** legend-pure's `executeInDb` reads each cell by the RESULT SET's column type, never by
+  the Pure property's (`legend-pure-runtime-java-extension-compiled-store-relational`, `ResultSetValueHandlers.java:125-150`):
+  a `DATE` column into a StrictDate (`:199-200`, `StrictDate.fromSQLDate`); a `TIMESTAMP` into a DateTime at nine
+  subsecond digits (`:217-241`, `DateFunctions.fromInstant(..., 9)`, else `fromSQLTimestamp`). `hasHour` is a
+  PRECISION fact, not a test of the time of day (`legend-pure-m4`'s `AbstractDateWithHour.hasHour()` returns `true`;
+  `StrictDate`, `YearMonth` and `Year` return `false`). So `hasHour` is true for every TIMESTAMP cell, midnight included, and `formatDateTime` (`helperFunctions.pure:238-243`) prints it
+  `yyyy-MM-dd HH:mm:ss`: **`2024-01-02 00:00:00`, not the day.** The day alone only for a DATE column.
+- **The corpus's goldens:** no `toCSV` golden in the corpus spells a time of day at all (a scan of the source around
+  each of the 188 judge-side `toCSV` sites, goldens and queries alike: 215 date tokens, none with a time of day), and the run's cell census (§13.3) shows every date
+  cell a claimed `toCSV` met is an abstract `Date` carried at DAY precision (a DATE column, e.g.
+  `testGetAllForEachDate`'s `CalendarTable.calendar_date DATE`, `testEnumInRelation`'s `dateOfHire`), on both lanes.
+  **No golden and no cell in the corpus exercises the TIMESTAMP-at-midnight case.**
+- **So:** the Java printer's rule (the carrier decides: a DATE cell its day, a TIMESTAMP cell `yyyy-MM-dd HH:mm:ss`)
+  is upstream's. The SQL builder's midnight rule (`RelationTextLowering.timed`: an abstract `Date` over a TIMESTAMP
+  slot at midnight prints its day) is not upstream's, and nothing in today's corpus or PCT depends on it. Its origin is
+  `docs/CSV_DIFFERENTIAL.md` (2026-08-17, "Mechanism 2"): it read `hasHour` as "the time of day is not midnight",
+  which at the pin it is not, and made 4 rows of that older CSV differential probe exact, naming as its one residue
+  "the F5.4 slot-erasure" (lite's own reads then lost a DATE column's slot). The current lanes do not show that
+  erasure: the date cells arrive at DAY precision. **Dropping the rule moves nothing measured here.** If a lite lane
+  still erases a DATE slot (not seen on DuckDB or H2), that is a lite defect to fix in the read, not a text rule.
+
+### 13.5 The value prints on the corpus's judge side (for 1.3's value half)
+
+The census's B families (525 sides, §13.1) are lowered by the PRODUCT: `makeString`, `plus` and `toString` with each
+cell's text the product's own (`Scalars.pureToString`: a Float `LiteralSpelling.floatPrint`, a Boolean `BOOL_TO_TEXT`,
+a Decimal `DECIMAL_TO_TEXT`, anything else the product's cast). The edge is consulted for only three value texts: a
+list's (`PureListTexts`), a DateTime in a `format` slot (`EdgeDateTimeTexts`), and legend-pure-only texts (`format`'s
+`%r` and padded directives, an instance's `@_` id: `EdgePureOnlyTexts`). The run counted every call of those three
+(`[H11-vp]`, once per test and facet): **in the whole corpus, on both lanes, 1 test reaches one of them**
+(`mapping::union::specialUnion::testGroupBy`, a list's text, `$r.values->map(x|$x->toString())->joinStrings(',')`).
+**So the corpus half of 1.3's value prints is 1 test**, not 525 sides: the rest already print the product's text,
+which is upstream's for the kinds they hold (they pass on `main` with it).
+
+### 13.6 Sizes now, and what the real slice needs from this
+
+| | Lines | Code lines |
+|---|---|---|
+| `edge/RelationText.java` (unchanged in substance; the cell census takes a "where") | 214 | 134 |
+| `edge/RelationTextArm.java`: the claim of seven print shapes, `main`'s judgment per pair, the record, the value-print census | 300 | 227 |
+| `edge/RelationTextJudgment.java` | 21 | 5 |
+
+- **The prints the real slice must claim, measured:** in PCT, 431 `toString` sides; in the corpus, 455 relation-text
+  sides (253 `toString`, 160 `toCSV`, 41 `CSVJOIN`, 1 `csv`), every one at an assert side's root. **22 of the 455 are
+  under `assertSameElements`, which today's hook does not reach** (11 in the lanes): 2.2b's claim must cover it.
+- **No refusal is needed in the corpus or PCT for a relation's text.** The one composed shape is a presenter form.
+- **Listed moves for the real slice:** H2's fail roster loses `testMtdValue`, `testSubclassValue`,
+  `testGroupByWithFilterFunction_noDatePath`, and H2's unordered register gains the last (§13.3); PCT H2's ledger loses
+  four rows (§4.2). DuckDB moves nothing.
+- **The estimate (§11) holds, tighter on its corpus row:** "`toCSV`, `csv` and the corpus, 1 to 1.5 days" is now
+  mostly done in this spike; what remains of it is the `assertSameElements` claim on 2.2b's interface and EDGE-2's
+  goldens. The value half's corpus share is 1 test (§13.5).

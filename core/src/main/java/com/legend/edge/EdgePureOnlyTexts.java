@@ -24,6 +24,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
      *  phase D's D1.3; from the edge's spelling pass to its lowering facet, B8 (i), 2026-11-17). */
     @Override
     public SqlExpr formatPadded(SqlExpr x, SqlExpr.IntLit width) {
+        RelationTextArm.valuePrint("formatPadded");   // SPIKE (H11): the value-print census
         SqlExpr padded = SqlExpr.Call.of(SqlFn.LPAD,
                 new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.ABS, x), com.legend.sql.SqlType.Scalar.VARCHAR,
                         SqlExpr.Reason.PRINT),
@@ -38,6 +39,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
      *  (the edge's pass composed it from the INSTANCE_TEXT marker until B8, 2026-11-17). */
     @Override
     public SqlExpr instanceText(SqlExpr id) {
+        RelationTextArm.valuePrint("instanceText");   // SPIKE (H11): the value-print census
         return SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("@_"), id);
     }
 
@@ -45,6 +47,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
      *  edge's pass unwrapped REPRESENTATION_TEXT to it until B8 (i), 2026-11-17). */
     @Override
     public SqlExpr representation(SqlExpr text) {
+        RelationTextArm.valuePrint("representation");   // SPIKE (H11): the value-print census
         return text;
     }
 
@@ -60,6 +63,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
     @Override
     public SqlExpr representationOf(com.legend.lowering.Styled styled, com.legend.compiler.element.type.Type t,
             SqlExpr x) {
+        RelationTextArm.valuePrint("representationOf");   // SPIKE (H11): the value-print census
         if (t == STRING) {
             // CAST first: identity for a real string, and keeps a DEAD size-1 branch (assertEquals' %r fast path over a
             // known-many collection) VALID SQL -- DuckDB type-checks dead branches
@@ -105,6 +109,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
     @Override
     public SqlExpr formatR(com.legend.lowering.Styled styled,
             com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec typed, SqlExpr e) {
+        RelationTextArm.valuePrint("formatR");   // SPIKE (H11): the value-print census
         if (typed != null) {
             SqlExpr dp = dateReprOf(styled, typed, e);
             if (dp != null) {

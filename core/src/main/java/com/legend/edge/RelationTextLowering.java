@@ -33,23 +33,38 @@ final class RelationTextLowering implements RelationTexts {
     @Override
     public SqlExpr toCsv(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
+        spikeOff("toCSV");
         return relationText(lowerToCsv(styled, tc, relation, alias), "toCSV");
+    }
+
+    /** SPIKE (H11): the SQL builder is OFF under the spike's switch; a print that reaches lowering is not at an assert
+     *  side's root (or not claimed by the arm), refused by name and counted under the running test. Off unless
+     *  {@code -Dlegend.spike.relationText=java}; {@code -Dlegend.spike.relationText.builder=on} keeps the builder for
+     *  the prints the arm does not claim (the HYBRID run), counting them. */
+    private static void spikeOff(String what) {
+        if (!RelationTextArm.ON) {
+            return;
+        }
+        boolean hybrid = "on".equals(System.getProperty("legend.spike.relationText.builder"));
+        System.out.println("[H11] " + (hybrid ? "BUILDER" : "REACHED") + " " + System.getProperty("legend.test.current")
+                + " " + what);
+        if (!hybrid) {
+            throw new com.legend.error.NotImplementedException("SPIKE H11: a relation's " + what + " reached the SQL"
+                    + " builder, which is switched off: the print is not at an assert side's root");
+        }
     }
 
     @Override
     public SqlExpr csvProperty(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedPropertyAccess read,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
+        spikeOff("a TDS's csv");
         return relationText(lowerTdsCsvProperty(styled, read, relation, alias), "a TDS's csv");
     }
 
     @Override
     public SqlExpr relationToString(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
-        if (RelationTextArm.ON) {
-            // SPIKE (H11): the SQL builder is OFF; a toString that reaches lowering is not at an assert side's root
-            throw new com.legend.error.NotImplementedException("SPIKE H11: a relation's toString reached the SQL"
-                    + " builder, which is switched off: the print is not at an assert side's root");
-        }
+        spikeOff("toString");
         return relationText(lowerToString(styled, tc, relation, alias), "toString");
     }
 

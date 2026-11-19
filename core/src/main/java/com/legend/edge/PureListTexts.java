@@ -24,6 +24,7 @@ final class PureListTexts implements com.legend.lowering.ListTexts {
     /** The JSON array's elements as root text, joined {@code ', '} in brackets. */
     @Override
     public SqlExpr anyList(SqlExpr x) {
+        RelationTextArm.valuePrint("anyList");   // SPIKE (H11): the value-print census
         return bracketed(new SqlExpr.Cast(x, new com.legend.sql.SqlType.Array(com.legend.sql.SqlType.Scalar.VARCHAR),
                 SqlExpr.Reason.CARRIER));
     }
@@ -31,6 +32,7 @@ final class PureListTexts implements com.legend.lowering.ListTexts {
     /** Each element printed as its kind (legend-pure's {@code toString} under Any), joined {@code ', '} in brackets. */
     @Override
     public SqlExpr mixedList(com.legend.lowering.Styled styled, SqlExpr.TaggedList tl) {
+        RelationTextArm.valuePrint("mixedList");   // SPIKE (H11): the value-print census
         String p = "_tlp";
         return bracketed(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, tl.positions(), new SqlExpr.Lambda(List.of(p),
                 com.legend.lowering.RelationTexts.pureToString(styled,

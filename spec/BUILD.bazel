@@ -183,6 +183,12 @@ junit_test(
 # log) and the committed rosters equal the measured ones
 # (bazel run //spec:update_rcorpus_duckdb re-blesses a reviewed change). spec/corpus.bzl.
 # memory_mb 1024: java_run's smallest size, above the old test's 768.
+# SPIKE (H11, scratch, never merged): the relation text printed in Java, the SQL builder off
+# off on this branch, so its lanes are main's; the runs of H11 §13 set it to
+# ["-Dlegend.spike.relationText=java"] (STRICT: the SQL builder off) and then also
+# "-Dlegend.spike.relationText.builder=on" and "-Dlegend.spike.relationText.dump=true" (HYBRID)
+_H11_SPIKE = []
+
 corpus_lane(
     name = "corpus_duckdb",
     memory_mb = 1024,
@@ -190,7 +196,7 @@ corpus_lane(
     # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
     # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
     # shows here as a verdict that moves, against the committed rosters
-    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
+    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"] + _H11_SPIKE,
     rosters = "duckdb",
     runtime_deps = [":spec_tests_lib"],
 )
@@ -232,7 +238,7 @@ corpus_lane(
     name = "corpus_h2",
     memory_mb = 4096,
     data = _CORPUS_INPUTS,
-    jvm_flags = ["-Drcorpus.backend=h2"],
+    jvm_flags = ["-Drcorpus.backend=h2"] + _H11_SPIKE,
     rosters = "h2",
     runtime_deps = [":spec_tests_lib"],
 )

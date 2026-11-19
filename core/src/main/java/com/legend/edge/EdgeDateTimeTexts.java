@@ -22,6 +22,7 @@ final class EdgeDateTimeTexts implements com.legend.lowering.DateTimeTexts {
 
     @Override
     public SqlExpr dateTimeText(SqlExpr x, @com.legend.base.Nullable String written) {
+        RelationTextArm.valuePrint("dateTimeText");   // SPIKE (H11): the value-print census
         return written != null ? new SqlExpr.StringLit(written + "+0000")
                 : SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x);
     }

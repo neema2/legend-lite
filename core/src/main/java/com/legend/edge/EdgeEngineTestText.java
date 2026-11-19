@@ -78,11 +78,11 @@ final class EdgeEngineTestText implements EngineTestText {
     @Override
     public boolean reachesUpstreamText(String name, boolean wantEqual, List<TypedSpec> args, List<TypedSpec> letPrefix,
             SpecCompiler specs) {
+        if (RelationTextArm.claims(args, letPrefix)) {
+            return true;   // SPIKE (H11): assertEquals and assertNotEquals over a print at a side's root
+        }
         if (!wantEqual || args.size() < 2) {
             return false;
-        }
-        if (RelationTextArm.claims(wantEqual, args, letPrefix)) {
-            return true;   // SPIKE (H11)
         }
         for (TypedSpec side : args.subList(0, 2)) {
             if (reaches(side, letPrefix) || "assertEquals".equals(name) && reachesThroughHelpers(side, letPrefix, specs)) {

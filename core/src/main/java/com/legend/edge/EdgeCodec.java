@@ -65,7 +65,13 @@ public final class EdgeCodec implements ExtensionCodec {
                 o.put("name", r.name());
                 o.put("wantEqual", r.wantEqual());
                 o.put("printed", r.printed());
-                o.put("form", r.form());
+                o.put("eForm", r.eForm());
+                o.put("aForm", r.aForm());
+                if (r.mainForm() != null) {
+                    o.put("mainForm", r.mainForm());
+                }
+                o.put("renderedIsActual", r.renderedIsActual());
+                o.put("sorted", r.sorted());
             }
             case SiteWords w -> {
                 // legend-pure's words of a raise site, planned (K10b, 2026-11-17): the hearing's lookup by the step's
@@ -114,7 +120,9 @@ public final class EdgeCodec implements ExtensionCodec {
             case engineText -> AppealJson.rEngineTextJudgment(o);
             case siteWords -> new SiteWords(o.getInt("at"), o.getInt("n"), o.getString("words"));
             case relationText -> new RelationTextJudgment(o.getString("name"), o.getBool("wantEqual"),
-                    o.getInt("printed"), o.getString("form"));
+                    o.getInt("printed"), o.getString("eForm"), o.getString("aForm"),
+                    o.has("mainForm") ? o.getString("mainForm") : null, o.getBool("renderedIsActual"),
+                    o.getBool("sorted"));
         };
     }
 }
