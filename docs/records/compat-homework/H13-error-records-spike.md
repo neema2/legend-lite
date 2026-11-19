@@ -322,3 +322,65 @@ affected: the host catches the raise, words it after the run and binds the words
   census J29), for example `noRows(multiplicity)`. No existing member says this sentence. That is a widening of an
   existing hook's surface, not a new hook, and it deletes a facet member in exchange. **It is a question for the
   orchestrator before it is built.**
+
+## 9. THE CHECK, second run: the whole PCT net and pure/v1, with the planning-failure half in
+
+Run: every PCT lane of the net (DuckDB 5 suites, SQLite 5 suites, H2 Relation, channel B on DuckDB 5 suites) and
+`//core:edge_pure_v1`, 5 min 9 s, diffed against `main`'s goldens.
+
+| Golden | Lines | Differing lines | What differs |
+|---|---|---|---|
+| DuckDB channel A answers (5 suites) | 2,710 | 8 | the 6 Essential tests of section 6; 2 Relation lines' quoted SQL |
+| DuckDB channel A outcomes (5 suites) | 1,165 | 6 | the same 6 tests |
+| SQLite channel A answers (5 suites) | 2,808 | 8 | **the same 6 tests**, the same 2 SQL lines |
+| SQLite channel A outcomes (5 suites) | 1,165 | 6 | the same 6 tests |
+| H2 channel A answers and outcomes (Relation) | 880 | **0** | |
+| DuckDB channel B outcomes (5 suites) | 1,249 | 10 | the same 6 tests; **4 Relation tests, a new cause (below)** |
+| pure/v1's answers | 28 | **0** | every body byte-identical, the error bodies included |
+
+**pure/v1's error bodies.** The golden holds 9 error answers (status 500): 1 unprobed-serialization refusal, 2 of
+the database's own errors (`raise.divideByZero`, `raise.parseInteger`: legend-engine writes no guard there, so no
+site), and 6 compile refusals worded through `PureMessages.compile`. All 9 are byte-identical. None is a site
+raise, so pure/v1's golden does not exercise the raise formatter; the planning-failure record is what it checks.
+
+**The 4 new channel B differences: the compatibility DATABASE judge.**
+
+| Test | Before | After |
+|---|---|---|
+| `relation::tests::over::testRange_InvalidWindowFrameBoundary` | PASS | `JudgesDisagree`: host `assertError` held; database `assertError` failed, the actual message `window frame starts after it ends` |
+| `relation::tests::over::testRows_InvalidWindowFrameBoundary` | PASS | the same |
+| `relation::tests::reduce::testRange_InvalidWindowFrameBoundary` | PASS | the same |
+| `relation::tests::reduce::testRows_InvalidWindowFrameBoundary` | PASS | the same |
+
+- These are section 8's dependency, measured. The frame's refusal is raised at PLANNING (`WINDOW_FRAME_INVERTED`, a
+  kinded compile error, no wrapper). The host judge words it after the run from the record and holds, byte for
+  byte. The compatibility database judge planted the planned failure's message in its verdict statement at
+  planning, and that message is now lite's sentence.
+- Channel B runs under both judges, so the two disagree. Channel A's outcomes for the same 4 tests are unchanged.
+- **It is the only planning failure in PCT whose words differ between lite and legend-pure.** The census over PCT
+  found 8 planned failures an `assertError` catches: these 4 (kinded, upstream's words differ) and 4 un-kinded
+  `ModelException`s whose message is already legend-pure's sentence inside the product
+  (`Unsupported duration unit for StrictDate. ...` 3 tests, `The type ... is not supported yet!` 1 test). The second
+  group is the census's "upstream sentence inside the product" family. This slice does not touch it.
+- **No wrapped planning failure occurs in PCT.** The wrapper (`in function 'f': ...`, `[inlined via ...]`) is
+  exercised by the core edge tests and by pure/v1's golden, both of which pass.
+
+**The raises worded after the run, whole net (62 raises):** `DATE_PART_ABSENT` 16 (all withheld),
+`VALUE_NOT_HELD` 10, `SHIFT_OUT_OF_RANGE` 8, `DATE_COMPONENT_INVALID` 8, `SQRT_OF_NEGATIVE` 4 (withheld),
+`SLICE_BOUNDS_INVERTED` 4, `RANGE_STEP_ZERO` 4, `INDEX_OUT_OF_BOUNDS` 4 (withheld), `DIVIDE_BY_ZERO` 4. So 38 are
+exact and 24 are withheld, and the 24 are the 6 tests on two databases and two channels. **No raise in the net
+prints a literal that Java prints where the database printed it before** (`javaPrinted` is 0 on all 62): a Float, a
+Decimal or a DateTime literal in a printed position does not occur in PCT.
+
+**The count the brief asked for.** Raises whose upstream sentence prints a computed operand, by test:
+
+| Test | Kind | Databases | Channels | A true run-time value? |
+|---|---|---|---|---|
+| `testAtError` | `INDEX_OUT_OF_BOUNDS` | DuckDB, SQLite | A, B | no: `[1, 2]->at(2)` (at.pure:72) |
+| `testDayOfMonthError` | `DATE_PART_ABSENT` | DuckDB, SQLite | A, B | no: `%2017` |
+| `testHourError` | `DATE_PART_ABSENT` | DuckDB, SQLite | A, B | no: `%2017->hour()` (hour.pure:50) |
+| `testMinuteError` | `DATE_PART_ABSENT` | DuckDB, SQLite | A, B | no: `%2017` |
+| `testSecondError` | `DATE_PART_ABSENT` | DuckDB, SQLite | A, B | no: `%2017` |
+| `testSquareRootError` | `SQRT_OF_NEGATIVE` | DuckDB, SQLite | A, B | no: `sqrt(-1.0)` (sqrt.pure:54) |
+
+**6 tests. 0 of them raise over a value known only at run time.** H2's Relation lane has none.
