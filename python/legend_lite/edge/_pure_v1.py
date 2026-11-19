@@ -154,10 +154,22 @@ def _request_model(body: str) -> str | None:
     return None
 
 
+# the edge's door's own key: legend-engine's routes are made by the door alone (``legend_lite.edge.engine``)
+_DOOR = object()
+
+
 class EngineRoutes:
     """LEGEND-ENGINE'S ROUTES, served by an engine composed at the edge's door (``legend_lite.edge.engine``): POSTs of
     ``/api/pure/v1/...`` (execute among them), the query store at ``/api/pure/v1/query`` (GET, POST, PUT, DELETE), and
-    the GET of ``/api/server/v1/currentUser``; anything else is no call of theirs."""
+    the GET of ``/api/server/v1/currentUser``; anything else is no call of theirs. Made by the door alone, ONE DOOR EACH
+    (the PR #118 follow-up, 2026-11-19, R11(b), HOSTS-7: as Java's edge composes its server in one place): a caller
+    composing an engine of its own with them is refused by name. The product cannot name this class (the layer rule),
+    so the door's key is checked here, where the routes are made."""
+
+    def __init__(self, door: object = None) -> None:
+        if door is not _DOOR:
+            raise TypeError("legend-engine's routes are composed by the edge's door alone: an engine that serves them is"
+                            " legend_lite.edge.engine(frames)")
 
     def serves(self, method: str, path: str) -> bool:
         if _under(path, QUERIES):

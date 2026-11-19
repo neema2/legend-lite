@@ -18,7 +18,7 @@ from typing import Any
 from ..engine import Engine
 from ..frames import Frames
 from ._engine import EngineMissing, engine_library
-from ._pure_v1 import EngineRoutes
+from ._pure_v1 import _DOOR, EngineRoutes
 
 __all__ = ['EngineMissing', 'EngineRoutes', 'engine']
 
@@ -31,4 +31,4 @@ def engine(frames: Frames, **kwargs: Any) -> Engine:
     # legend-engine's routes answer from the engine library: none installed, refused here, by name, before any route is
     # served (EngineMissing: "legend-engine needs the legend-lite[engine] extra"), never a route that fails later
     engine_library()
-    return Engine(frames, edge=EngineRoutes(), **kwargs)
+    return Engine(frames, edge=EngineRoutes(_DOOR), **kwargs)
