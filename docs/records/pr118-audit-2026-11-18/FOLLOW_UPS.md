@@ -163,3 +163,24 @@ own owner session (`docs/records/compat-program-handoff-2026-11-19.md`); this li
 (`claude/hosts-followups`), CI health (`claude/ci-health`). Delegated small pin steps taken: FixtureWriteCensus 951 -> 957
 (Q2), DatabaseJudge 852 -> 854 (J3). R-a goes into PR #121 as a register row per option (i); the user's merge of #121
 rules it.
+
+## 10. Paused (the user, 2026-11-19 ~13:40 UTC: "stop everything here for now, need to focus on getting compatibility in and done")
+
+Every product track stopped at a safe point, its work pushed to its own branch (no PR). To resume: send the track's
+session "resume", with the open asks below answered.
+
+| Track | Session | Branch @ head | State at the pause | Left | Open asks |
+|---|---|---|---|---|---|
+| PR #121 (Q8, Q9, R11(b), S371) | fixer `session_0195rQEmYHkvKen3hqSVTUGU` | `claude/followup-q8-q9` @ 6baad4af1 | open PR; CI run 44514722832 green but 3 jobs that never ran a test (Maven 404 x2, a cancelled macOS runner) | re-run those jobs (after the Maven mirror lands) | the user's merge word (rules R-a as option (i), S371) |
+| Maven mirror | CI health | commit f183b784a (parent main b75d6c73a), on `claude/ci-health` | proven (forced 404 falls through to Google's mirror; sha256 unchanged) | a branch `claude/ci-maven-mirror`, a PR, CI | the user's word to push and land; it unblocks #121, #123, #124 and main |
+| Warehouse (Q2) | `session_0195rQEjKJc9QU59cK1esBJZ` | `claude/warehouse-binds-q2` @ 13741656c | //gates:local 558 pass; 12 Postgres targets need tools/postgres/as_unprivileged.sh | those 12; the warehouse verdict and native tests once more; GATES entry; report | S372 (a file load on a server refused by name), proposed; the upload design U1/U3/U4 (docs/records/warehouse-upload-design-2026-11-19.md); the warehouse verdict per push (recommended: its own Linux lane) |
+| Judges (A5) | `session_0195rQEn49s2BEcy7BVaoAL4` | `claude/parity-a5` @ f42f74444 (WIP) | WIP red on 2: AssertVerdicts 1466 > 1465 (approved 13:12, the message crossed) and SqlFnSortedTest (LiteText writes SqlFn.OR) | the broad run; 3(b) BigNumber; C3 (integration BOTH twins, the LITE-PCT lane from df5a1a37, the goals-doc text); Q3 A'; S131's narrowing; the computed-DateTime precision words (last, size first) | SqlFnSortedTest: pin OR or rewrite |
+| Numbers (Q1, Q4, bug 4) | `session_0195rQEjTP2YHCipAiqZmEma` | `claude/numbers-q1` @ db77ca880 | probe 0 wrong on 12 databases incl. the three clouds; PCT A/B green; //gates:local stopped at 337/572 | the rest of //gates:local; report; then (queued) variant JSON Floats, then the H2 gaps track (step 0: H2 essential and standard into lite's own lanes) | (a) JavaEvalLedgerTest Equality 338 > 326; (b) VerdictChannelRegisterTest (EqualityNonFiniteTest); (c) DialectLeakRatchetTest (NumbersProbeTest); (d) lean SQL Snowflake toString_Any 378 -> 720; (e) cast census Snowflake 218 -> 169 (a shrink) |
+| Hosts and planner | `session_0195rQEjb2QyV1G7qABK31Wj` | `claude/hosts-followups` @ a80a6eb9 (WIP S379) | done: HOSTS-2, PH-1, fail() in if, cross-kind !=, currentUser (S378), F8-F10, S371 on both roads, pivot maxBy/minBy, H2 ARG_MAX | S379's lean-SQL numbers and row; //gates:local; report | the pivot count case (a) Pure's null / (b) 0; a DISTINCT count in a pivot (recommended (b): keep 0, residue in S379; (c) a presence companion later) |
+| Host parity (CP-13) | `session_0195rQEmBA2Ek93uxggvDTQx` | `claude/host-parity` @ 7f7f58eaa (WIP lite_wire, untested) | done: P2, P3, P4, P5, P8, P10, the 404/405 routes | lite_wire's tests and the page size; P9, the Arrow schema cast, P6, P12, the byte suite | core-layers.txt: server_lib gains lite_wire; ArchitectureTest PRODUCT_LIBRARIES row (unchecked) |
+| CI health | `session_0195rQEmJ9D6cn7yjYczb2bi` | `claude/ci-health` @ c733c4265 | done: markets_test 210 -> 46 s, the checks lane, the cube test, heavy reds 1-5, the merge-shadowing fix with the reference golden re-blessed (FAILED 970 -> 959) | the fix's verification (23/128 run, all green); //gates:local; a CI run for the times | ts_scale_measure's three pins (4,171 / 4,174 / 1,147, from the D8 tie refusal) |
+| Window in a list | `session_0195rQEjkEZDfj2GjXCAhyJr` | `claude/window-list-lowering` @ 5bd61e1da (WIP, red: the reproduction) | root found in sql/dialect/SelectMerge (it merges the window's subselect back into SQLite's and Postgres's per-row list subqueries) | the fix in SelectMerge with a per-dialect predicate and a census guard; the Postgres test; ratchets; gates; tell the compatibility owner (it gates slice 1.3) | fix in the dialect pass (yes, recommended); SQLite's unrelated chunk(1) capability refusal |
+
+Gates the compatibility program on: the Maven mirror (#123, #124), the window-in-a-list fix (slice 1.3), the LITE-PCT
+lane (2.2a), the cross-kind != (A3; done on `claude/hosts-followups`, not landed). The compatibility owner
+(`session_0195rQEoSpv1FxC3WndEk5ZH`) has the list.
