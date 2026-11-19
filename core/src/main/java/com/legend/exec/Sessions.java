@@ -258,7 +258,7 @@ public final class Sessions {
     }
 
     /**
-     * WHERE A SESSION'S DATABASE RUNS (track Q2, the orchestrator's ruling of 2026-11-19; S371): in THIS PROCESS (an
+     * WHERE A SESSION'S DATABASE RUNS (track Q2, the orchestrator's go of 2026-11-19; S372): in THIS PROCESS (an
      * embedded engine: DuckDB's, H2's, SQLite's), so it reads this machine's files -- a file load's copy, which the
      * runner writes and binds by path ({@code ExecutionPlan.LoadStep.Delivery.Reads}) -- or on a SERVER its driver
      * reaches (Postgres, an H2 server, the warehouse's DuckDB over HTTP), which reads its own machine's files and never

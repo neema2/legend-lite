@@ -193,12 +193,13 @@ public final class TestPlanner {
         }
         if (!options.targetReadsRunnerFiles()) {
             // a file its database reads from the runner's copy (Delivery.Reads), and the run's target runs on a server,
-            // which reads its own machine's files: refused by name at planning, as a database with no reader is (S371;
-            // track Q2, the orchestrator's ruling of 2026-11-19, U2(b) -- the upload that would reach it, the user's)
+            // which reads its own machine's files: refused by name at planning, as a database with no reader is (S372;
+            // track Q2, the orchestrator's go of 2026-11-19, U2(b); the difference, and the upload that would reach it,
+            // the user's to rule)
             for (com.legend.executionplan.DataRef file : com.legend.testexecutionplan.TestPlan.filesRead(plan)) {
                 throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the file '" + file.name() + "': its"
                         + " database reads the runner's copy of the file, and the run's target database runs on a server,"
-                        + " which does not read this machine's files: a file load there is refused by name (S371)");
+                        + " which does not read this machine's files: a file load there is refused by name (S372)");
             }
         }
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(plan);

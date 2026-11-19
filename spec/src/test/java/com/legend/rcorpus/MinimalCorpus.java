@@ -349,8 +349,8 @@ public final class MinimalCorpus {
     }
 
     /** {@code options} for the lane's target, where its backend's database runs: a server's -- the warehouse's -- reads no
-     *  file the runner writes, so a body's file load is refused by name at planning (track Q2, the orchestrator's ruling
-     *  of 2026-11-19, U2(b); S371). */
+     *  file the runner writes, so a body's file load is refused by name at planning (track Q2, the orchestrator's go
+     *  of 2026-11-19, U2(b); S372, the user's ruling pending). */
     static com.legend.ExecuteOptions targetOf(com.legend.ExecuteOptions options) {
         return BACKEND.inProcess() ? options : options.withTargetOnAServer();
     }
@@ -528,7 +528,7 @@ public final class MinimalCorpus {
     private static com.legend.exec.Sessions.Session openWorkspace() {
         try {
             // the corpus runs on the edge's database (the audit's J22, 2026-11-17)
-            // where the workspace's database runs, as the lane's backend knows it (the warehouse's is a server's: S371)
+            // where the workspace's database runs, as the lane's backend knows it (the warehouse's is a server's: S372)
             return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace(com.legend.edge.PureText.UPSTREAM),
                     BACKEND.inProcess() ? com.legend.exec.Sessions.Reach.THIS_PROCESS : com.legend.exec.Sessions.Reach.SERVER);
         } catch (SQLException e) {

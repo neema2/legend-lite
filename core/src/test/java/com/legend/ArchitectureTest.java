@@ -1390,11 +1390,16 @@ final class ArchitectureTest {
             "lowering.VerdictReads#CANONS", "com.legend.edge.UpstreamVerdictWords",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words (its
             // PlanStyle parameter 2026-11-15, phase D's D1.0, merged with main's #101 in ca5c4338f9; dated 2026-11-17 by
-            // the GUARD stream's C.13-CI, which found the row changed with no note)
+            // the GUARD stream's C.13-CI, which found the row changed with no note; its boolean, whether the run's target
+            // reads the runner's files, 2026-11-19, track Q2's U2(b), S372 -- the row approved by the orchestrator under
+            // the user's delegation that day)
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
-                    + "java.util.Set, com.legend.database.PlanStyle)",
+                    + "java.util.Set, com.legend.database.PlanStyle, boolean)",
             "com.legend.ExecuteOptions",
+            // a target on a server, which reads no file the runner writes: its file loads refused at planning (2026-11-19,
+            // track Q2's U2(b), S372 -- the row approved by the orchestrator under the user's delegation that day)
+            "testplan.PlanningOptions#withTargetOnAServer()", "com.legend.ExecuteOptions",
             // phase D's D1.0 (merged 2026-11-15): the test door's plan style, the product's or the edge's
             "testplan.PlanningOptions#withStyle(com.legend.database.PlanStyle)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#edge()", "com.legend.ExecuteOptions",

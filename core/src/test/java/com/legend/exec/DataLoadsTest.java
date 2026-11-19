@@ -94,7 +94,7 @@ class DataLoadsTest {
     }
 
     /** {@link #loaded(TestBackend, DataStores, ExecutionPlan.Load, String...)} on the session {@code session} makes of the
-     *  connection (one said to run on a server: S371). */
+     *  connection (one said to run on a server: S372). */
     private static List<List<Object>> loaded(TestBackend b, DataStores stores, ExecutionPlan.Load load,
             java.util.function.Function<Connection, Sessions.Session> session, String... setup) throws Exception {
         try (Connection c = b.open(); Statement st = c.createStatement()) {
@@ -217,7 +217,7 @@ class DataLoadsTest {
         }
     }
 
-    /** A file's load on a session whose database runs on a server is refused by name before anything is sent (S371,
+    /** A file's load on a session whose database runs on a server is refused by name before anything is sent (S372,
      *  track Q2, 2026-11-19: the database reads the runner's copy, and a server -- an H2 server, the warehouse's DuckDB
      *  -- does not read this machine's files): said where the session is made, never read off its driver. */
     @Test
@@ -228,7 +228,7 @@ class DataLoadsTest {
             DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir), planned,
                     c -> Sessions.borrowed(c, Sessions.Reach.SERVER)), b.name());
             assertTrue(e.getMessage().contains("the file 'employees.csv'") && e.getMessage().contains(
-                    "runs on a server") && e.getMessage().contains("(S371)"), e.getMessage());
+                    "runs on a server") && e.getMessage().contains("(S372)"), e.getMessage());
             // the same load on a session in this process reads the file: the refusal is the session's fact alone
             assertEquals(List.of(List.of("Joe", "Bloggs", 21), List.of("Jill", "Smith", 31)),
                     loaded(b, DataStores.resources(dir), planned), b.name());

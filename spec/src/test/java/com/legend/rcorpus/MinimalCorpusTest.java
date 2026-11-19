@@ -905,8 +905,9 @@ public class MinimalCorpusTest {
      * through the warehouse ({@code -Drcorpus.backend=warehouse}, which holds DuckDB's rosters): what that backend alone
      * refuses, each row's bucket naming why, read beside the platform's accepted rows ({@code
      * /rcorpus/<the backend's name>-accepted-roster.txt}); null for a lane whose backend owns its rosters. Since
-     * 2026-11-19 (track Q2, the orchestrator's ruling: the warehouse's DuckDB reads no file the runner writes, so a file
-     * load there is refused by name at planning, S371 -- an expected refusal, never a roster line on DuckDB's own lane).
+     * 2026-11-19 (track Q2, the orchestrator's go, the difference the user's to rule: the warehouse's DuckDB reads no
+     * file the runner writes, so a file load there is refused by name at planning, S372 -- an expected refusal, never a
+     * roster line on DuckDB's own lane).
      */
     private static @com.legend.base.Nullable String ownAccepted() {
         String backend = MinimalCorpus.BACKEND.name();

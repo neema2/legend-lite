@@ -305,7 +305,7 @@ class ConnectorsTest {
     }
 
     /** WHERE A DECLARED DATABASE RUNS, as its connector's opening says it from the connection's specification (track
-     *  Q2, 2026-11-19, S371): a file the engine opens is in this process, a server's address a server's -- the fact a
+     *  Q2, 2026-11-19, S372): a file the engine opens is in this process, a server's address a server's -- the fact a
      *  file load is sent by (JdbcStatements.readsFile), never read off the session's driver. */
     @Test
     void eachUrlOpeningSaysWhereItsDatabaseRuns() {

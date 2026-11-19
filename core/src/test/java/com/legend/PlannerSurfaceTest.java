@@ -1157,6 +1157,9 @@ class PlannerSurfaceTest {
             Map.entry("ExecuteOptions#withFeatures(Set<Feature>)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withStyle(PlanStyle)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withOptions(Set<PlanOption>)", List.of(OPTION)),
+            // a run whose target runs on a server, which reads no file the runner writes (2026-11-19, track Q2's U2(b),
+            // S372 -- the row approved by the orchestrator under the user's delegation that day): no parameter, a choice
+            Map.entry("ExecuteOptions#withTargetOnAServer()", List.of()),
             // (ExecuteOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge hook's)
             Map.entry("ExecuteOptions#recording(Edge, DataStores)", List.of(CALLBACK, DATA_REFERENCE))));
 

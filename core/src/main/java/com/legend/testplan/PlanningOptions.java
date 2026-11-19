@@ -19,7 +19,7 @@ package com.legend.testplan;
  *                     delivery, {@code ExecutionPlan.LoadStep.Delivery.Reads}): an embedded engine in this process,
  *                     the platform's own, does; a server the caller's sessions reach -- the warehouse lane's -- does
  *                     not, and a file load planned for it is refused by name, as for any database with no reader
- *                     (track Q2, the orchestrator's ruling of 2026-11-19, U2(b); S371)
+ *                     (track Q2, the orchestrator's go of 2026-11-19, U2(b); S372, the user's ruling pending)
  */
 public record PlanningOptions(
         com.legend.testexecutionplan.Edge edge,
@@ -72,7 +72,7 @@ public record PlanningOptions(
     }
 
     /** These options for a run whose target database runs on a server its sessions reach, which reads no file this
-     *  runner writes ({@link #targetReadsRunnerFiles}: the warehouse lane's, S371). */
+     *  runner writes ({@link #targetReadsRunnerFiles}: the warehouse lane's, S372). */
     public PlanningOptions withTargetOnAServer() {
         return new PlanningOptions(edge, stores, features, judgeMode, options, style, false);
     }

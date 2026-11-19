@@ -226,7 +226,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The files {@code plan}'s loads have their database read from the runner's copy
      *  ({@code ExecutionPlan.LoadStep.Delivery.Reads}), in order: what a target that reads no file of the runner's
-     *  cannot take (S371; track Q2, 2026-11-19). */
+     *  cannot take (S372; track Q2, 2026-11-19). */
     public static List<com.legend.executionplan.DataRef> filesRead(TestPlan plan) {
         List<com.legend.executionplan.DataRef> out = new java.util.ArrayList<>();
         plan.steps().forEach(step -> filesRead(step, out));

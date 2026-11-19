@@ -30,8 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A FILE'S LOAD ON A DATABASE THAT READS NO FILE OF THE RUNNER'S (S371; track Q2, the orchestrator's rulings of
- * 2026-11-19): a file load's database reads the runner's copy ({@code Delivery.Reads}), and a database on a server --
+ * A FILE'S LOAD ON A DATABASE THAT READS NO FILE OF THE RUNNER'S (S372, the user's ruling pending; track Q2, the
+ * orchestrator's go of 2026-11-19): a file load's database reads the runner's copy ({@code Delivery.Reads}), and a database on a server --
  * the warehouse's DuckDB, an H2 server -- reads its own machine's files. Refused by name at both ends: at PLANNING, for a
  * run whose target the caller says runs on a server ({@code ExecuteOptions.withTargetOnAServer}: the warehouse lane's);
  * at the RUN, on a session made as a server's ({@code Sessions.Reach}, said where the session is made, never read off its
@@ -77,7 +77,7 @@ class RunnerFilesOnAServerTest {
         RuntimeException e = assertThrows(RuntimeException.class,
                 () -> TestExecution.planBody(body(), "x::RT", options.withTargetOnAServer()));
         assertTrue(e.getMessage().contains("people.csv") && e.getMessage().contains("runs on a server")
-                && e.getMessage().contains("(S371)"), e.getMessage());
+                && e.getMessage().contains("(S372)"), e.getMessage());
     }
 
     @Test
@@ -92,7 +92,7 @@ class RunnerFilesOnAServerTest {
                     Sessions.borrowed(c, Sessions.Reach.SERVER), null, com.legend.testexec.NoEdgeRun.NONE, options,
                     new Output.Rows(new Collector())));
             assertTrue(e.getMessage().contains("people.csv") && e.getMessage().contains("runs on a server")
-                    && e.getMessage().contains("(S371)"), e.getMessage());
+                    && e.getMessage().contains("(S372)"), e.getMessage());
             try (Statement st = c.createStatement();
                     ResultSet rs = st.executeQuery("SELECT count(*) FROM PEOPLE")) {
                 assertTrue(rs.next());
