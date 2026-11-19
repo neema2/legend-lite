@@ -20,6 +20,7 @@ breaks `//core:corpus_differential_test` and one guard. All of these pass at `ma
 | `//core:guardrails_edge` | green | red: `SqlFnSortedTest.theSortIsMeasured`, a product writer not in the pin |
 | `CrossKindEqualityTest` (in `//core:core_tests_exec`) | n/a | green |
 | PCT: `//gates:pct_duckdb`, `//gates:pct_h2`, `//gates:pct_channel_b` | green | green |
+| the rest of `//gates:local` (`--lockfile_mode=error`) | green | green; the 12 Postgres and DataCube tests that refuse root pass as `ubuntu` (`postgres-as-ubuntu.txt`) |
 
 Per test: `corpus-diff.txt` and `new-failures.tsv`. Every new failure is rows lost, or kept, because a comparison now
 answers `false`, or `true` for `!=`. Examples:
