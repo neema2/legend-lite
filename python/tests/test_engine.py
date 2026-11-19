@@ -553,6 +553,45 @@ class QueryRunRoute(Served):
         said = json.loads(body)
         self.assertEqual((status, said, ), (422, {'kind': 'data', 'message': 'no such party'}), body[:300])
 
+    def test_every_failure_making_a_projects_database_is_lites_shape_as_javas_server_answers_it(self):
+        # F2 of PR #121's review (2026-11-19), as Java's LiteV1Api.dataRefusal: until then (a) and (b) answered a 500 in
+        # text/plain and (c) a data refusal with no raise
+        import duckdb
+        from legend_lite._raised import declare_statement_sites, raised_of, worded
+        from legend_lite._runs import LoadRefused
+
+        def ask_failing(failure):
+            with mock.patch('legend_lite.projects.open_project', side_effect=failure):
+                status, headers, body = self.ask(model=PARTY, query=ll.parse(PARTY_QUERY), runtime='demo::party::Runtime',
+                                                 format='json')
+            self.assertEqual(headers['Content-Type'], 'application/json', body[:300])
+            return status, json.loads(body)
+
+        # (a) a load refused before the database saw it, and a lost connection under a load: internal
+        status, said = ask_failing(LoadRefused('the load reads the content abc, which its plan does not carry'))
+        self.assertEqual((status, said['kind'], 'raise' in said), (500, 'internal', False), said)
+        self.assertIn('which its plan does not carry', said['message'])
+        lost = LoadRefused('the rows: Connection Error: Connection already closed!')
+        lost.__cause__ = duckdb.ConnectionException('Connection Error: Connection already closed!')
+        status, said = ask_failing(lost)
+        self.assertEqual((status, said['kind']), (500, 'internal'), said)
+        # (b) the database refusing a project's own statement (its open, its use, a load's statement step): data
+        status, said = ask_failing(duckdb.CatalogException('Catalog Error: Schema with name nope does not exist!'))
+        self.assertEqual((status, said['kind'], 'raise' in said), (422, 'data', False), said)
+        self.assertIn('Schema with name nope', said['message'])
+        status, said = ask_failing(duckdb.ConnectionException('Connection Error: Connection already closed!'))
+        self.assertEqual((status, said['kind']), (500, 'internal'), said)
+        # (c) a planned raise inside a load's statement: data, its kind and where kept
+        declare_statement_sites('INSERT a sized row', [{'n': 1, 'kind': 'SIZE_NOT_MULTIPLICITY', 'where': '[1]',
+                                                        'message': 'expected one value, got 2'}], 'a plan')
+        raised = worded(duckdb.InvalidInputException('Invalid Input Error: \x1f\x1cLG#1\x1f'), 'INSERT a sized row')
+        self.assertIsNotNone(raised_of(raised))
+        load = LoadRefused(f'the rows: {raised}')
+        load.__cause__ = raised
+        status, said = ask_failing(load)
+        self.assertEqual((status, said['kind'], said.get('raise'), said.get('where')), (422, 'data', 'sizeNotMultiplicity', '[1]'),
+                         said)
+
     def test_a_value_over_a_projects_rows_is_answered(self):
         # a VALUE (a property read alone) over a project's own rows, its one column the plan's 'value' (the PR #118
         # follow-up, 2026-11-19, N-b: until then every one answered 500, the result column untyped by its alias)

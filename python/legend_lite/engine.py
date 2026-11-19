@@ -726,6 +726,15 @@ class Engine:
             return request(f"runs in the format json or arrow, not {form!r}")
         plan_asked = {'lambda': _json.dumps(asked['query']), 'runtime': asked['runtime']}
 
+        def data_refused(failure: duckdb.Error, message: str) -> LegendError:
+            """A run's or a load's failure as Java's LiteV1Api.dataRefusal answers it (the PR #118 follow-up,
+            2026-11-19, Q9): a planned raise is data, its kind in raise and its site's where; the database refusing the
+            work in its own words, and a user's fail, are data with no raise."""
+            said = raised_of(failure)
+            if said is not None and said.kind is not None:
+                return LegendError(message, compiler.error_kind('DATA'), said.where, wire_name(said.kind))
+            return LegendError(message, compiler.error_kind('DATA'))
+
         def run(planned: str, rows_of: Callable[[compiler.Plan], pa.Table]) -> Answer:
             try:
                 plan = self.planner.read(planned)
@@ -741,14 +750,7 @@ class Engine:
                 message = redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values())
                 return refused(LegendError(message, compiler.error_kind('INTERNAL')))
             except duckdb.Error as failure:
-                # a run's failure as Java's LiteV1Api.dataRefusal answers it (the PR #118 follow-up, 2026-11-19, Q9):
-                # a planned raise is data, its kind in raise and its site's where; the database refusing the work in
-                # its own words, and a user's fail, are data with no raise
-                said = raised_of(failure)
-                message = redact_held(str(failure), self.frames.held_values())
-                if said is not None and said.kind is not None:
-                    return refused(LegendError(message, compiler.error_kind('DATA'), said.where, wire_name(said.kind)))
-                return refused(LegendError(message, compiler.error_kind('DATA')))
+                return refused(data_refused(failure, redact_held(str(failure), self.frames.held_values())))
             shape = _json.loads(planned[len('OK\n'):])['plan']['root']['shape']
             if form == 'json':
                 try:
@@ -783,13 +785,23 @@ class Engine:
             # in lite's one shape, its own kind (the PR #118 follow-up, 2026-11-19, N-c: until then a 500 in text)
             return refused(error)
         except LoadRefused as load:
-            # a project's load the database refused in its own words (the load's statement, its cause): data with no
-            # raise, as Java's server answers a load's DATABASE_ERROR (the PR #118 follow-up, 2026-11-19, Q9); a lost
-            # connection, or a load refused before the database saw it, is not the caller's data -- left as it was
+            # a project's load the database refused in its own words (the load's statement, its cause): data, as Java's
+            # server answers a load's DATABASE_ERROR (the PR #118 follow-up, 2026-11-19, Q9), a raise its kind and
+            # where kept (F2 (c) of PR #121's review); a lost connection, or a load refused before the database saw it,
+            # is not the caller's data -- internal, in lite's shape (F2 (a): until then a 500 in text)
             cause = load.__cause__
+            message = redact_held(str(load), self.frames.held_values())
             if not isinstance(cause, duckdb.Error) or isinstance(cause, duckdb.ConnectionException):
-                raise
-            return refused(LegendError(redact_held(str(load), self.frames.held_values()), compiler.error_kind('DATA')))
+                return refused(LegendError(redact_held(f'{type(load).__name__}: {load}', self.frames.held_values()),
+                                           compiler.error_kind('INTERNAL')))
+            return refused(data_refused(cause, message))
+        except duckdb.Error as failure:
+            # the database refusing a project's database as it is made -- its open and use statements, a load's own
+            # statement step -- answered as a run's failure is (F2 (b) of PR #121's review: until then a 500 in text)
+            if isinstance(failure, duckdb.ConnectionException):
+                return refused(LegendError(redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values()),
+                                           compiler.error_kind('INTERNAL')))
+            return refused(data_refused(failure, redact_held(str(failure), self.frames.held_values())))
 
     def _answered(self, work: Callable[[str], Answer], body: str) -> Answer:
         """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug,
