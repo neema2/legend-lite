@@ -2931,3 +2931,8 @@ who confirms or changes phases 1-3.
   cannot move on any OS; nit: the dump file's name rewrite could in theory collide two testables) **and merged into the
   batch** (head `29ebd101b`, clean; the smoke test fresh, 27.9 s, the storeless case included). The batch waits on the
   detector's section fix and the translator's A3 heads.
+- **~22:01 UTC, B2 reconciled the corpus counts** (docs `185e35e6f`): none of A3's 7 per database fails without A3 (read
+  at main `b75d6c73a`, A2 `6551c2036` and the batch `29ebd101b`); the 4 answer tests were on the unordered registers
+  from A2 on, passing by rows; the 3 text tests on no list. The earlier "+3" counted only the 3 hidden text tests and
+  left out item 1's own 4 (B2's error, corrected). Expected with A3: H2 276 → 428 (+152), DuckDB 108 → 264 (+156); the
+  judges' measurement on the final head is the figure of record.
