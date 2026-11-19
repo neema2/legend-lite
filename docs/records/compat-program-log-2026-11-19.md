@@ -2166,3 +2166,16 @@ who confirms or changes phases 1-3.
   edited by two pieces; #124's new fetches get the mirror too (619 runner files with a sha256). Remaining: the combined
   run 44580527071 green per OS. **B1-R** and the **CI-health worker** watch it, neither pushes without word. **B1**
   (#123's builder) idle; told #124's body names #123's guarded entries.
+- **~17:53 UTC, the judges: A4 step 3 built** (head `e91005cc6` on `claude/compat-a4-host-only`, local). Step 3: 30
+  files, +183 / −805. A4 whole in `core/src/main`: 52 files, +292 / −1,995, 18 files deleted, 1 added
+  (`HostOnlyCompatibilityTest`); all paths 81 files, +1,119 / −2,960. Green: census, census_edge, guardrails,
+  guardrails_edge; all 26 judge-matrix targets and `core_edge_tests` (at `7c53aefed`, same code). Running in one
+  invocation: `//gates:local`, both corpora, PCT channel B, edge integration, lean SQL. **Two finds:** the ruled
+  comparison (`VerdictBatch.orElse`, `VerdictSql.either`) lost its only caller in step 2 and is deleted; `BatchTexts` was
+  a ruled hook of its own and is deleted, so the narrowed ruled hooks are four (`EngineTestText` loses five members,
+  `BatchTexts`, `EdgeHearing.rowAppealed`, `EdgeRun.wordsAlike`), each with the dated note. TestPlanJson 32 → 33. Other
+  guard moves with dated notes: `PLANNER_ENTRIES` 11 rows, `HOOKS_RULED`, `EdgeOnlyMembersTest`, `HookLambdasTest`,
+  JavaEvalLedger shrinks (`SqlTextVerdicts` 1146 → 1086, `AssertVerdicts` 1394 → 1363, `EngineTextPlanning` 151 → 125,
+  `SqlTextRuns` 214 → 199, `BodyDriver` 545 → 544, `BatchTexts`' row gone); one refusal by name added (unreachable in
+  the product). **Landing changed:** stage A's remaining steps (A2, A3, A4, A5) land as ONE batch PR, each piece reviewed
+  on its own branch, CI once; A4 asks the user for the push of its branch alone.
