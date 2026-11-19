@@ -2927,3 +2927,7 @@ who confirms or changes phases 1-3.
   legend-engine's answer at the server door, not in the corpus lanes, which judge lite's own meaning. A discrepancy to
   reconcile, sent to B2: its docs expect +3 per database from A3 on the batch, the translator measured +7 on A2's
   base; the judges' full measurement on the final head is the figure of record.
+- **~21:59 UTC, the engine runner fix APPROVED by the reviewer** (record `d7d2595ea`: tooling only; the corpus verdicts
+  cannot move on any OS; nit: the dump file's name rewrite could in theory collide two testables) **and merged into the
+  batch** (head `29ebd101b`, clean; the smoke test fresh, 27.9 s, the storeless case included). The batch waits on the
+  detector's section fix and the translator's A3 heads.
