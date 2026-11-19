@@ -991,8 +991,8 @@ would have to return where a computed operand's value is withheld today.**
 
 **Can the database return them with the raise? Yes, as text in the raise's own envelope, which exec reads back as
 typed values.** Every dialect builds its raise from a text EXPRESSION, not a constant (DuckDB `error(...)`, SQLite's
-`json_extract('{}', ...)`, ClickHouse's `toInt64(concat(...))`, Snowflake's and MariaDB's failing casts, MariaDB and
-MySQL's `@legend_raise` read-back, H2's `errorArm`, BigQuery `ERROR`, Databricks `raise_error`, Trino's): `main`'s edge
+`json_extract('{}', ...)`, ClickHouse's `toInt64(concat(...))`, Snowflake's failing cast, MariaDB and MySQL's
+two-row subquery that keeps the message in `@legend_raise` for the read-back, H2's `errorArm`, BigQuery `ERROR`, Databricks `raise_error`, Trino's): `main`'s edge
 already wrote computed values into it on all of them. The envelope already carries a second field, the position
 (`chr(31) || 'line:col' || chr(30) || <message> || chr(31)`). So:
 - the planner declares each withheld operand's slot on the site: its position and its Pure type (planning knows both;
