@@ -204,9 +204,7 @@ test_suite(
         "//core:lean_sql_baseline_test",
         # its sets' capture, run with the switch on: text and names only, no plan changed
         "//core:query_capture_test",
-        # the corpus's set (E3, 2026-11-12): every corpus body planned on DuckDB and H2, its product statements pinned
-        "//spec:lean_sql_corpus_duckdb",
-        "//spec:lean_sql_corpus_h2",
+        # (the corpus's set, //spec:lean_sql_corpus_duckdb and _h2, is in its corpus lane, 2026-11-19: below)
         "//pct:pct_discipline",
         # every hand tool compiles (L1b): the manual binaries of each package, built and not run; the three whose
         # closures hold the native image or the WebAssembly planner sit in the lanes that build those anyway
@@ -224,16 +222,26 @@ test_suite(
     ],
 )
 
-# the relational corpus on DuckDB (gates 4 and 11): the host and database passes, their verdict, the roster diff tests
+# the relational corpus on DuckDB (gates 4 and 11): the host and database passes, their verdict, the roster diff tests;
+# and the corpus's product-SQL set on DuckDB (E3, 2026-11-12: every corpus body planned on the lane's database, its
+# product statements pinned). The set moved here from :checks on 2026-11-19 (the ci-health track): it plans the whole
+# corpus -- 288 s and 263 s of the checks lane's 1049 s on main's CI, run 44437840195, beside its guards on one runner --
+# and this lane is the corpus's, its upstream inputs fetched already; //gates:local runs it by name, as before
 test_suite(
     name = "corpus_duckdb",
-    tests = ["//spec:corpus_duckdb"],
+    tests = [
+        "//spec:corpus_duckdb",
+        "//spec:lean_sql_corpus_duckdb",
+    ],
 )
 
-# the relational corpus on H2 (gate 5)
+# the relational corpus on H2 (gate 5), and the corpus's product-SQL set on H2 (moved from :checks, 2026-11-19: above)
 test_suite(
     name = "corpus_h2",
-    tests = ["//spec:corpus_h2"],
+    tests = [
+        "//spec:corpus_h2",
+        "//spec:lean_sql_corpus_h2",
+    ],
 )
 
 # PCT on DuckDB (gate 6): the five suites, one target each (P3-09)
@@ -578,6 +586,10 @@ test_suite(
         # snapshot's pull -- ran in the warehouse lane alone; it shares the native library and the bundle the lanes
         # above build
         "//python:headless_test",
+        # 2026-11-19 (the ci-health track): the corpus's product-SQL set, in :checks until its move to the corpus lanes
+        # (above), still a session's gate before a push
+        "//spec:lean_sql_corpus_duckdb",
+        "//spec:lean_sql_corpus_h2",
         # 2026-11-17 (the GUARD stream's C.13-CI, the orchestrator's GO): a guard file's pin grows only with a dated note,
         # read against the merge-base with origin/main (tools/guards/shrink_only.py; manual, so listed by name)
         "//tools/guards:shrink_only_check",
