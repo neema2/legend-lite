@@ -2883,3 +2883,10 @@ who confirms or changes phases 1-3.
   class's property in a filter, on any setting. Branches: section fix alone on `claude/compat-a3-detector`; the
   landing branch `claude/compat-a3-engine`; a review-only `claude/compat-a3-engine-review` with the wiring, so the
   reviewer reads it before the batch can take it.
+- **~21:48 UTC, the window-in-a-list fix on `claude/window-list-lowering` at `e201769d`** (main `8eea8fa1` merged): in
+  `SelectMerge`, each dialect declares which expressions it writes as a query of their own (SQLite and Postgres
+  OPERANDS_IN_A_QUERY, exhaustive over the MIR; DuckDB, H2, ClickHouse, Snowflake IN_PLACE, their SQL unchanged); a
+  window's, aggregate's or UNNEST's value is never merged under such an expression; no statement added.
+  `SelectMergeQueriedOperandsTest` replaces the scratch census (both scratch files deleted). WindowReadThroughAListTest
+  and its Postgres target pass (PCT's rows on DuckDB, SQLite, Postgres; the chunked shape refused by name on SQLite);
+  the lean-SQL baseline green, no pin moves. Gates running.
