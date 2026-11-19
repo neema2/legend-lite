@@ -410,8 +410,13 @@ against `aLetBoundLambdaTheQueryNamesIsStoreBound`. Plant P9 (a computed let wal
 
    No `substring` or `indexOf` runs, so the detector need not walk the serialize tree. Lite computes the property
    (`"initials()":"ab"` today). That difference is the serialize tree's, not a meaning's: it holds for any qualified
-   property, so it goes to the compat owner for the product track or a register row. The probes are in
-   `a3-engine-probes/` as `graph.serialize.extra.*`.
+   property. The probes are in `a3-engine-probes/` as `graph.serialize.extra.*`.
+
+   **The compat owner's call (~23:14): no door refusal.** Lite computing a qualified property the serialize tree
+   names and the fetch tree lacks is Pure's meaning, since legend-pure computes it. legend-engine's `null`, or its
+   NullPointerException mid-stream, is legend-engine's quirk. Under the goal ("lite follows Pure ... the rest is
+   recorded"), it is a recorded difference, not a gap. B2 drafts a PROPOSED register row for the user's word at the
+   batch PR, with these probes as its witness.
 3. **Under `engine`, a qualified property a graph-fetch tree reads is REFUSED by name.** The detector reaches it through
    `follow`, a body the rewrite cannot reach, since the store resolver inlines a graph tree's properties after the
    body exists. That is a conservative refusal: legend-engine computes it in SQL, so `engine` could answer it once the
