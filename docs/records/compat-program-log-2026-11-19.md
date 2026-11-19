@@ -242,3 +242,25 @@ who confirms or changes phases 1-3.
   - **Next:** V2 (the core only, no translator: the "nothing" option for substring/indexOf), V4 (a definition-site
     rename), V5 (an identity pass-through), then 3.1's sizing and the 0.6 ledger (127 rows drafted, 51 flagged
     unclear).
+- **~11:19 UTC, the judges session's H6 complete** (`df5a1a37`, §0 the one-page answer):
+  - channel A under LITE's planning style (legend-pure's interpreter judging lite's answers): COMPAT 1,222/27 (the
+    switch inert on every lane), LITE 1,203/46. The 19 new failures are classes already seen in channel B (4 R4
+    substring, 6 error words, 7 value prints, 2 format refusals). The relation and standard suites do not move, so
+    the 423 channel-B relation failures concern legend-pure's asserted TEXT only: **lite's relation answers are right
+    by value;**
+  - **its recommendation:** yes to a per-push LITE channel-B lane (about 75 s, an exact ledger) in 2.1, plus channel A
+    under LITE (129 s) as the value check for the relation tests.
+- **~11:20 UTC, the product orchestrator:** the user asked that the whole product scope be fixed now, so five product
+  tracks run:
+  - judges `session_0195rQEn49s2BEcy7BVaoAL4`, `claude/parity-a5`: J3, Q3 A', H6's two parity findings,
+    `firstDayOfWeek`, J7, JUDGES-8, and C3 (a real guard for "BOTH on every lane"). It lands before 2.1 and 2.2, and
+    messages us before touching the PURE/ENGINE judging paths;
+  - numbers `session_0195rQEjTP2YHCipAiqZmEma`, `claude/numbers-q1`: Q1, Q4, the Float print outside its windows,
+    Decimal NaN;
+  - hosts and planner `session_0195rQEjb2QyV1G7qABK31Wj`, `claude/hosts-followups`;
+  - warehouse `session_0195rQEjKJc9QU59cK1esBJZ`;
+  - CI health `session_0195rQEmJ9D6cn7yjYczb2bi`.
+  - **Confirmed as ours:** C1 (0.2), substring's negative start (3.3), S138 and S63 (0.5), the census's REGEXP_REPLACE
+    blind spot (B2), and F4 (Python's copy of Java's classifier, with the presenters).
+  - **Proposed:** their C3 builds the LITE-PCT lane from H6's prototype, and our 2.1 then ports only the 30
+    combinations.
