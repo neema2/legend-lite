@@ -1769,3 +1769,9 @@ who confirms or changes phases 1-3.
   of the types, as overload resolution does; no value is computed or answered as a constant; the statement goes to the
   database, which evaluates the value-dependent part (emptiness). Unlike the AdjustBy call, which answered a value at
   planning. Not to be spelled as kind-tag comparisons in SQL. The PR body says so in two lines; the user is told.
+- **~14:49 UTC, the judges' rules note (H10 §9.10):** 2.2a IS rule 4's deletion (A4), the same pieces, 3.5 days. Rule 4
+  removes from 2.2b/§9: `Hearing.rowAppealed` and `JudgeRun.wordsAlike` (already 2.2a's); the edge presenter's
+  Unjudged case (an UNJUDGED row is the database judge's); the database judge's word sites reached only with the
+  product's hearing; COMPAT/BOTH as a check configuration (the checks become COMPAT/HOST, LITE/HOST, LITE/BOTH and the
+  corpus); H13's database-judge binding. 2.2b about 4.25 days (was 4.5). Rules 1-3 hold against the designs; the one
+  product gap the rules name (lite refusing a relation's `toString`) is the one its `Printed` design keeps.
