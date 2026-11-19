@@ -1652,3 +1652,38 @@ that must be answered before `engine` is offered to an operator (E-M1) and three
 - **E-M1, E-S1, E-S2 and E-S3 went to B1-R.** E-M1 is a must before the wiring joins the batch: probes on DuckDB and H2
   per shape, then each position refused by name or added to the batteries.
 - **My switch-rule note goes on B5's row.**
+
+### E-M1, answered: CLOSED. The detector's graphFetch-tree fix, `origin/claude/compat-a3-detector` at `e4496b763`: APPROVED
+- **The evidence is legend-engine's own** (`docs/records/compat-homework/a3-engine-probes/`; legend-engine 4.145.0,
+  H2 2.1.214, DuckDB v1.3.0; 20 probes). I read it in the answer files:
+  - **In the database:** `cls.toOne.sub3`, `sub2`, `sub0` answer through a `relationalDataTypeInstantiation` node
+    whose SQL is `select substring("root".desk, ...)`. `graph.qualified.sub3` answers `"deskPart()":"Cre"`, SQL's
+    meaning.
+  - **On the host:** `let.then.sub3` answers `"re"`, Pure's meaning, from a Java plan.
+  - **Refused by legend-engine:** `graph.serialize.sub` and `tds.value.sub3` (500).
+- **What lite does today:** its execute route refuses every scalar and collection result before planning ("a
+  SCALAR/COLLECTION result's serialization is unprobed", every setting). So the tail shapes cannot be answered wrong
+  today. The TDS, filter and relation shapes agree under `engine`.
+- **The one host-side shape is never store-bound:** `StatementEffects.reaches` follows user calls and children, never a
+  variable to its let, so `$d->substring(...)` in its own statement is not flagged. I agree that no position needs
+  refusing under `engine`, and I accept the owner's call: no battery move in stage A, and the class shapes guarded as
+  `PureMeaningEngineTest` cases asserting the probed answers.
+- **The fix:**
+  - `TypedGraphFetch` now walks its tree. Each node's arguments are walked.
+  - A derived property's body is followed (through `follow`, so its sites have no node, and under `engine` a qualified
+    property in a tree is refused by name, not rewritten; legend-engine computes it in the database, so this is a
+    conservative refusal, not a wrong answer).
+  - Each class reached joins the mapping reach.
+  - A property not found, or a body not in the model, is unverified.
+  - M2M bindings stay skipped under a graphFetch, as before.
+  - The test has its positive case and its partner. The plant P8, the edge net unchanged, census and guardrails are
+    taken as reported.
+- **Nits:**
+  - **Pin the host-side shape:** add `{|let d = <store>->...->toOne().desk; $d->substring(1, 3)}` to
+    `PureMeaningCheckTest` as clean. It is the one host-side shape, and today it is guarded only by `reaches` not
+    following variables, which a later change could alter.
+  - **A serialize tree that is not the fetch's:** only the `graphFetch` tree is walked. A `serialize` tree naming a
+    qualified property the fetch tree does not is unprobed. Either probe it or refuse such a pair by name when it
+    matters.
+  - **Record the refusal:** the shape note should say that a graph-fetch tree's qualified property is refused under
+    `engine`, since the tree's derived bodies are followed, not inlined.
