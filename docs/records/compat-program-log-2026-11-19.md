@@ -1353,3 +1353,10 @@ who confirms or changes phases 1-3.
   S131's shape by source positions, about 1 day more, a third typing, fragile, and cannot delete `RelationCounting`
   alone. **The call stands (13:45):** the third shape (prepare/run split, no callback), with all of §9.8's conditions
   carried over to it, written into §9.8 by the judges for the builder.
+- **~13:40 UTC, the judges: R-S137 is a rewrite of the prepared body** (`UpstreamRelationCounting.countedAsOne` is
+  already a typed-body walk), so the split's condition holds and `RelationCounting` (`PlanStyleFacets:40`,
+  `PureText:159-161`, `TestPlanner.java:227`, `UpstreamRelationCounting`) is deleted in the same step;
+  `RelationCountAsserts.REFUSED` stays as lite's own refusal. One case is a refusal, `assertEmpty($rel)`
+  (`UpstreamRelationCounting.java:71`): the harness raises it before `run(Prepared)` and reports the test's FAIL with
+  the runner's own reason text (`"ModelException: " + PureTestRunner.whole(message)`). The one difference: it is
+  reported before the package's setups run; no corpus FAIL line on either lane carries that text. H10 done.
