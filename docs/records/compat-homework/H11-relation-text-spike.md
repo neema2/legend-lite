@@ -506,3 +506,69 @@ so move when 1.3 deletes the edge's value texts, is measured by the run (§13.4)
 enough to be presenter forms ("each row's cells joined by s1, the rows joined by s2, optionally sorted"); B2 (72) is
 arbitrary user code in a lambda (getters and `+`), no form: it can only stay a lowered query with the product's text,
 or be refused where a printed type's text differs by audience.
+
+### 13.2 The corpus with the Java printers and the SQL builder OFF (ask 1): the STRICT run
+
+**What the arm claims now** (`edge/RelationTextArm`, edited on this branch; still only the edge's files): a side whose
+root, through the lets, is `toString(rel)` / `toString(rel, false)`; `toCSV(tds)`, `toCSV(tds, renderTdsNull)`,
+`toCSV(tds, '%t{yyyy-MM-dd HH:mm:ss}', '%t{yyyy-MM-dd}', renderTdsNull)`; `toCSV(...)->replace('\n', sep)` (the form
+`CSVJOIN:<sep>`); a TDS's `csv`; under `assertEquals` AND `assertNotEquals` (the claim now precedes the edge's
+`!wantEqual` early return). **Each comparison is judged as `main`'s host judge judges the same pair**, the text now
+Java's: where `main` names the pair a render form (`AssertVerdicts.renderForm`: `CSVTEXT` for a one-argument `toCSV`,
+`TDSTEXT` for `string::toString` over a relation, `CSVJOIN:<sep>`), the two strings, then the compatibility rules'
+ruled comparison where they differ (`UpstreamRenderedTexts.held`, S131 and S132, with `main`'s order fact
+`OrderView.SORTED` of the rendered side) and `main`'s failure words; elsewhere (`main`'s generic equality:
+`relation::toString`, a two- or four-argument `toCSV`, `csv`) the two strings. The record carries both sides' forms,
+`main`'s form, which side `main` reads as rendered, and the order fact (`EdgeCodec` writes and reads them: the DuckDB
+lane runs the plan read back from its JSON). All three SQL builders (`toString`, `toCSV`, `csv`) throw by name under
+the switch, so a print the arm does not claim fails and is counted.
+
+**The check.** `bazel test //spec:corpus_h2 //spec:corpus_duckdb --nocache_test_results`, run twice at the same head:
+the switch off (`main`'s behaviour; both lanes green, every measured roster equal to the committed one, 10 of 10), and
+on (`-Dlegend.spike.relationText=java` added to the two lanes' `jvm_flags` in `spec/BUILD.bazel`, scratch). Joined by
+`tools/compare.py` (scratch): the four rosters, the verdict ledger (`judge-host.tsv`: test, ordinal, family, verdict),
+every `[corpus2] FAIL` line, and the arm's `[H11]` lines.
+
+| Lane | Passes, switch off | Passes, Java printers | Comparisons judged | Byte-equal | Held by the ruled comparison | Differ | Of those, the printer's |
+|---|---|---|---|---|---|---|---|
+| DuckDB | 2,452 of 2,613 | 2,440 | 282 | 253 | 18 | 11 | **0** |
+| H2 | 2,289 of 2,613 | 2,280 | 282 | 270 | 1 | 11 | **0** |
+
+- **The 11 that differ are the same on both lanes and differ on `main` too:** 10 are on both lanes' ACCEPTED rosters
+  (the 7 calendar tests `engine-store-arithmetic:h2-decfloat-divide`, whose goldens hold legend-engine's H2 DECFLOAT
+  quotients to 12 places; `testSimpleMappingQueryWithFilterInProject` `engine-golden-defect:filter-lambda-binds-outer-row`;
+  the two `testUnionTwoRelationMappings_ManyColumnProject*` `engine-golden-defect:empty-string-as-null`), and the
+  accepted-divergence counts are equal on both runs (DuckDB 46, H2 41); 1 (`testMixedMappingWithFilterInProject`)
+  fails on both runs with the same words.
+- **Moves, DuckDB: 12 from pass to fail, none from fail to pass.** H2: the same 12, and **3 from fail to pass**.
+- **The 3 H2 gains are upstream's Float text:** `calendarAggregations::testMtdValue` (golden `Campus,3.0`: the SQL
+  builder printed `3`), `testSubclassValue` (`10.0` against `10`), `groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath`
+  (CSVTEXT, `100000.0` against `100000`). On H2 those cells arrive as whole decimals; the Java printer writes a Float
+  column's cell as a Float (`TestTDS`'s rule, §2), the SQL builder did not.
+- **The 12 losses: every one is "the print reached the SQL builder, which is switched off"**, none is a printer's
+  text:
+  - **11 are `assertSameElements(golden, ...->toCSV())`**: `mapping::groupBy::testGroupByMappingProject` and its four
+    siblings, `graphFetch::tests::resultSourcing::testSourcingJsonResultToQuery*` (4),
+    `advanced::resultSourcing::relationalResultSourcingOf{List,DateList}`. **The edge's hook cannot reach them:**
+    `AssertVerdicts.planArm` consults `EngineTextGates` (the edge's `EngineTestText`) for `ASSERT_EQUALS` and
+    `ASSERT_NOT_EQUALS` only; `ASSERT_SAME_ELEMENTS` goes straight to the product's `renderedPlan`. Claiming them needs
+    a change in the core, so this spike does not (told to the owner, 13:50 UTC). The census's 22 such sides: these 11
+    run; the other 11 (`milestoning::temporalDateProjectionQuery`, `<<test.ExcludeAlloy>>`) are not in the lanes.
+    **For the real slice: 2.2b's "claim an assert at planning" must cover `assertSameElements`.**
+  - **1 is `mapping::enumeration::testEnumInRelation`'s `$result.values->cast(@TDS<Any>).csv`**: the arm's planning
+    check asked for the receiver's relation schema, which a `cast(@TDS<Any>)` has only after the store's resolution
+    (the lowering's `Render.csvOverRelation` reads it there). Widened to the TDS-shaped type; §13.3 re-runs it.
+- **Rosters:** the fail rosters move by exactly those tests (DuckDB 108 to 120; H2 276 to 285); the skipped rosters
+  and the engine-order registers are identical; the unordered registers lose the three `testGroupByMappingProject*`
+  tests that now fail before their referee assert (H2 also gains `testGroupByWithFilterFunction_noDatePath`, which now
+  reaches its later asserts). **The verdict ledgers differ in exactly those tests' rows** and nowhere else.
+
+**Ask 2, the 41 calendar tests, as the presenter form `CSVJOIN:<sep>`:** all 41 run and are judged on both lanes.
+
+| Lane | Byte-equal | Held by the ruled comparison | Accepted divergences (differ on `main` too) | Fail |
+|---|---|---|---|---|
+| DuckDB | 20 | 14 | 7 | 0 |
+| H2 | **33** (2 of them H2 gains: `testMtdValue`, `testSubclassValue`) | 1 | 7 | 0 |
+
+No refusal is needed for them. The ruled comparison holds DuckDB's 14 as it holds them on `main` (§13.3 dumps the
+texts).
