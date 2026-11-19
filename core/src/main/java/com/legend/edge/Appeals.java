@@ -100,6 +100,9 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
     @Override
     public TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged j, List<TypedSide> sides,
             boolean messaged) {
+        if (j.judgment() instanceof RelationTextJudgment r) {
+            return RelationTextArm.judge(r, sides);   // SPIKE (H11): the rows presented, then compared
+        }
         return SqlTextRuns.judge((EngineTextJudgment) j.judgment(), j.appeal(), sides, this, messaged);
     }
 

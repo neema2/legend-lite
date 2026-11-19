@@ -27,6 +27,11 @@ final class EdgeEngineTestText implements EngineTestText {
     /** The arm for {@code ask}: null where it does not claim the shape ({@link #claims}); else the arm's plan. */
     @Override
     public com.legend.testplan.@com.legend.base.Nullable TextPlanned plan(com.legend.testplan.TextAsk ask) {
+        // SPIKE (H11): a relation's text at a side's root is planned as its rows, presented in Java at the run
+        com.legend.testplan.HostSides.Check relationText = RelationTextArm.ON ? RelationTextArm.plan(ask) : null;
+        if (relationText != null) {
+            return EngineTextPlanning.planned(relationText);
+        }
         return !claims(EngineTextPlanning.bare(ask), EngineTextPlanning.letPrefix(ask), EngineTextPlanning.specs(ask))
                 ? null : SqlTextVerdicts.plan(ask);
     }
@@ -75,6 +80,9 @@ final class EdgeEngineTestText implements EngineTestText {
             SpecCompiler specs) {
         if (!wantEqual || args.size() < 2) {
             return false;
+        }
+        if (RelationTextArm.claims(wantEqual, args, letPrefix)) {
+            return true;   // SPIKE (H11)
         }
         for (TypedSpec side : args.subList(0, 2)) {
             if (reaches(side, letPrefix) || "assertEquals".equals(name) && reachesThroughHelpers(side, letPrefix, specs)) {
@@ -172,6 +180,10 @@ final class EdgeEngineTestText implements EngineTestText {
     @Override
     public com.legend.testplan.DatabaseGate gate(com.legend.testexecutionplan.Extension judgment,
             java.util.function.Supplier<String> shape) {
+        if (judgment instanceof RelationTextJudgment) {
+            // SPIKE (H11): the compatibility database judge plans none (slice 2.2 deletes it before 1.3)
+            return com.legend.testplan.DatabaseGate.UNPLANNED;
+        }
         EngineTextJudgment e = (EngineTextJudgment) judgment;
         if (e.golden() == null) {
             com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: " + shape.get());

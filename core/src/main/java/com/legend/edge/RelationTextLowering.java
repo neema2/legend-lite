@@ -45,6 +45,11 @@ final class RelationTextLowering implements RelationTexts {
     @Override
     public SqlExpr relationToString(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
+        if (RelationTextArm.ON) {
+            // SPIKE (H11): the SQL builder is OFF; a toString that reaches lowering is not at an assert side's root
+            throw new com.legend.error.NotImplementedException("SPIKE H11: a relation's toString reached the SQL"
+                    + " builder, which is switched off: the print is not at an assert side's root");
+        }
         return relationText(lowerToString(styled, tc, relation, alias), "toString");
     }
 
