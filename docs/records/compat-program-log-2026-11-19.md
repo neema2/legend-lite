@@ -1898,3 +1898,6 @@ who confirms or changes phases 1-3.
   characters do not move. Ledger: duckdb-lite 462 rows (the four AdjustBy as "a date past DuckDB's range"); the duckdb
   COMPAT AdjustBy rows' text unchanged. All 18 channel-B suite targets green. Next: the COMPAT channel-B lanes on SQLite,
   H2, MariaDB, MySQL, Postgres (Trino, ClickHouse and the cloud lanes named in the PR), the local gate, the PR.
+- **~15:39 UTC, B1-R: PR #124 carries B1's head** (`7b7ee6ea3` merged as `a7a2a5aa9`, a normal merge; one comment
+  conflict in `pct/BUILD.bazel`, both blocks kept). `main` has no Maven mirror yet, so not merged. Local: the 56 tests
+  the merge touches pass; `//gates:local` running; the PR body updated. CI per OS to follow.
