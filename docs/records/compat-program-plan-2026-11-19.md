@@ -85,8 +85,9 @@ The program is done when all six hold, each checked by a test that runs per push
    (`Lowerer.withFeatures`), and the test runner's per-decision seams (`testexec` `EdgeRun`, `EdgeHearing`, `HostWords`,
    `HostForms`) do not exist. A door chooses a whole translator, presenter and judge; nothing inside the core asks which. The one
    allowed seam: the test planner and the test runner each call the judge the door handed in through one narrow
-   typed interface (planning, run), at exactly two call sites (`TestDoor`, `TestRunner`), which the SQL-text appeal
-   needs. The planning interface writes into the test plan's typed extension point, so the plan stays data (the
+   typed interface (planning, run), at exactly three call sites (`TestDoor`; the test planner's per-assert entry,
+   where the engine-text arm claims an assert, `AssertVerdicts` and `EngineTextPlanning`; `TestRunner`), which the
+   SQL-text appeal needs (the judges session's map, 2026-11-19). The planning interface writes into the test plan's typed extension point, so the plan stays data (the
    2026-11-08 ruling). The two call sites and the two interfaces' method sets are pinned, shrink-only, and the run
    interface never receives a planning object. An ArchUnit rule forbids their return, and B1's
    `ModeBranchCensusTest` reads 0 and blocks.
@@ -513,8 +514,9 @@ error record the translator's refusals are worded through.
     §12 I5). Its cost is measured in phase 0 by the judges session.
 - **Deletes:** nothing yet.
 - **Check:** core's isolated BOTH green on the ported shapes.
-- **Size:** 3 days.
-- **Depends on:** CP-1, the phase-0 LITE-PCT measurement. **Owner:** a judges session (new). **Coordination:** the previous orchestrator's A5 (Q3, Q3b,
+- **Size:** 2.5 days. Measured by the judges session: none of the 36 is covered by core at `main`; 6 are judged by
+  the LITE-PCT lane in passing tests, so 30 remain to port; all are small test bodies needing no new mechanism.
+- **Depends on:** CP-1, the phase-0 LITE-PCT measurement. **Owner:** the judges session. **Coordination:** the previous orchestrator's A5 (Q3, Q3b,
   J1-J4) touches the same judges. The two sessions agree by message before either builds.
 
 **2.2 Compatibility judging becomes host-only** (C4, part 2; rule 9). **Split in two** (the independent review): 2.2a
@@ -566,7 +568,11 @@ precondition of 2.2a**, unless the user amends G2 ("the agreement judge on every
   - the corpus rosters unchanged, except unordered-assert lines that now pass as multisets (listed);
   - core's BOTH green.
 - **Guards:** the census's 52 J hits leave (a); `JavaEvalLedgerTest`'s pins shrink.
-- **Size:** 7.5 days: 2.2a about 4, 2.2b about 3.5.
+- **Size:** 8.5 days under CP-14's option (ii), 11.5 under (i) (the judges session's map); less under (iii) if the
+  leniencies are unused.
+- **More is deleted than moved:** the database judge's appeal paths (`rowAppealed`, `RootLoops`' row appeals,
+  `EngineTestText.batchTexts` and its gate, the database gate) go with the compatibility database judge. The
+  `EngineTestText` facet's 13 methods reshape into one claim at the test planner's per-assert entry.
 - **Depends on:** 2.1. **Owner:** the judges session.
 
 **2.3 Upstream's SQL text and shapes go, checked by answers** (rule 4, CP-4). **Split in two** (the independent
@@ -1068,6 +1074,18 @@ checkpoint.*
   this program), the CP-7 part, and 1.7.
 - **Shrink phase 3** under CP-12's strict reading, and 1.4 if plan structure is not promised.
 - **Together about 20 to 25 session-days**, without giving up done-when 1 to 3.
+
+**CP-14. What the "whole" compatibility host judge is.** *Gates 2.2.* Found by the judges session's map.
+- **(i) The edge's own copy** of the product's host judge (about 2,765 lines). It has no seam in the product, but it
+  is a second judge to keep in step: +3 days, and drift risk.
+- **(ii) The product's host judge stays the one library**, and the edge passes its rules as a typed parameter. There
+  is no copy, but that parameter is today's `HostForms` by another name, so done-when 1 would be reworded to allow it.
+- **(iii) The host judge emits verdict RECORDS (kind and operands), and the words are a presenter's** (lite's or
+  legend-pure's), with no rules parameter at all. This holds only if legend-pure's comparison leniencies (S15, S131,
+  S132, S144, S366, S137) change no verdict. On channel B DuckDB they changed none (the judges session's I5); the
+  other lanes are being measured.
+- **Recommendation:** (iii) if the measurement holds, since it matches the architecture (words are presentation);
+  otherwise (ii), with the parameter pinned.
 
 **Held by the previous orchestrator:** R-a, a fractional cell under an Integer property (PR #121). Its ENGINE
 answer, when ruled, becomes a translator rewrite or a refusal in phase 3.

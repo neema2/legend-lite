@@ -201,3 +201,16 @@ who confirms or changes phases 1-3.
   - Built: `//pct:engine_lane_<db>_<suite>`, the pinned tables in `pct/engine_lane/`, `//pct:update_engine_lane`,
     `//pct:engine_lane_test`. Commits on `claude/compat-engine-lane`, NOT yet pushed: `28f6d56c3` (the `jars_table`
     entry, dated), `4381eb8f6` (a merge of `claude/presentation-r`), `f5da0b965` (the lane).
+- **~11:14 UTC, the judges session's tasks 1 and 2** (`69263372`, `452ebe09`):
+  - **the 36 combinations:** none is covered by core at `main` (core has 13 BOTH targets, 922 planned asserts and 46
+    combos, all green with the shape census on); 6 are judged by the LITE-PCT lane in passing tests, so 30 remain to
+    port. All are small test bodies needing no new mechanism. 2.1 is 2.5 days;
+  - **the map, three findings that change 2.2:**
+    - (A) the appeal's planning half also lives at the test planner's per-assert entry (`AssertVerdicts`, 15 gate
+      calls; `EngineTextPlanning`, 58 calls from `SqlTextVerdicts`), so the judge interfaces have three call sites,
+      not two. The `EngineTestText` facet's 13 methods reshape into one claim; no new hook;
+    - (B) more is deleted than moved: the database judge's appeal paths go with the compatibility database judge;
+    - (C) a decision: is the compatibility host judge the edge's own copy (+3 days), or the product's judge with its
+      rules as a typed parameter? Now CP-14, with a third option the architecture prefers: verdict records worded
+      by a presenter, valid if the leniencies change no verdict (being measured);
+  - **2.2:** 8.5 days under (ii), 11.5 under (i). Plan updated: done-when 1 says three call sites.
