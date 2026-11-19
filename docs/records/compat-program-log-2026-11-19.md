@@ -2551,3 +2551,9 @@ who confirms or changes phases 1-3.
   "147 or 148", pending the merged lane. **For B1's error-record backlog:** the edge's `PureMessages.java:26-29` words
   Integer / Integer's error "Division by zero" (wrong mode and words), and cites `CompiledSupport:1485` for rem's message
   (that line is divide's; rem's is `CoreHelper.java:544`). Sent to B1.
+- **~20:02 UTC, the reviewer: A3 piece 4 APPROVED at `9dc385235`** (record `7fc86465`), every item met; the
+  reviewer corrected its own re-check 2 (legend-pure raises for `x / 0` in both modes; the interpreter's Integer path
+  throws a NumberFormatException at `new BigDecimal("Infinity")`). Open: the H2 count's "147 or 148" replaced by the
+  judges' number before landing; the user's word on the PROPOSED rows at the PR. It will check A2's placing of the
+  user-accepted divergences in the batch review (a must-fix there if it holds, by the user's 2026-09-08 ruling of a
+  fourth status). B2 asks the user for the push of `claude/compat-a3-docs`.
