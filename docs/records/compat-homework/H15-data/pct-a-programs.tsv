@@ -1,0 +1,7 @@
+lane	programs	tests	relation_text_nodes
+duckdb_essential	845	341	0
+duckdb_grammar	554	132	0
+duckdb_relation	479	401	0
+duckdb_standard	708	198	0
+duckdb_unclassified	122	93	0
+h2_relation	479	401	0

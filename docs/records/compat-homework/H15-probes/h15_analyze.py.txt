@@ -1,0 +1,117 @@
+"""H15's analysis: the probe's rows (/tmp/h15/<pid>.tsv, written by H15Census at TypedQuery.body()) per source, ROOT
+against NESTED, deduplicated. Usage: python3 -I h15_analyze.py <probe dir> <out dir>"""
+import collections
+import os
+import re
+import sys
+
+probe, out = sys.argv[1], sys.argv[2]
+os.makedirs(out, exist_ok=True)
+
+
+def source(cmd):
+    m = re.search(r"bin/pct/edge/channel_b_(\w+?)/", cmd)
+    if m:
+        return "PCT-B " + m.group(1)
+    m = re.search(r"bin/pct/edge/(duckdb|h2|sqlite)_(\w+?)/", cmd)
+    if m:
+        return "PCT-A " + m.group(1) + "_" + m.group(2)
+    m = re.search(r"bin/spec/judge_host_(\w+?)/", cmd)
+    if m:
+        return "corpus " + m.group(1)
+    if "bin/core/edge/pure_v1" in cmd:
+        return "pure/v1"
+    if "bin/core/edge/cases" in cmd:
+        return "core edge_cases"
+    m = re.search(r"--select-class=([\w.]+)", cmd)
+    return "core " + (m.group(1).rsplit(".", 1)[-1] if m else cmd[:80])
+
+
+def verdict(cls):
+    """ROOT, NESTED, or MIXED for a let whose uses differ."""
+    if cls.startswith("ROOT"):
+        return "ROOT"
+    if cls.startswith("NESTED"):
+        return "NESTED"
+    if cls.startswith("LET("):
+        uses = cls.split(")->", 1)[1]
+        parts = re.split(r"\|(?=ROOT|NESTED|LET)", uses)
+        kinds = {verdict(p) for p in parts}
+        return kinds.pop() if len(kinds) == 1 else "MIXED"
+    return "?"
+
+
+def consumer(cls):
+    """The consuming node of a NESTED class (through a let, the first nested use)."""
+    if cls.startswith("NESTED:"):
+        return cls[len("NESTED:"):].split(" via ")[0]
+    if cls.startswith("LET("):
+        uses = cls.split(")->", 1)[1]
+        for p in re.split(r"\|(?=ROOT|NESTED|LET)", uses):
+            if not p.startswith("ROOT"):
+                return consumer(p)
+    return ""
+
+
+def family(cls):
+    m = re.search(r"ROOT:assert:(\w+)", cls)
+    if m:
+        return m.group(1)
+    m = re.match(r"ROOT:(\S+)", cls)
+    return m.group(1) if m else ""
+
+
+nodes = {}
+programs = collections.Counter()
+tests = collections.defaultdict(set)
+inline_fail = collections.Counter()
+for f in sorted(os.listdir(probe)):
+    lines = open(os.path.join(probe, f), encoding="utf-8").read().split("\n")
+    cmd = lines[0][len("#CMD\t"):] if lines and lines[0].startswith("#CMD") else "?"
+    src = source(cmd)
+    for line in lines[1:]:
+        if not line:
+            continue
+        p = line.split("\t")
+        if p[0] == "#PROGRAM":
+            programs[src] += 1
+            tests[src].add(p[1] if p[1] != "-" else p[2])
+            if not p[5].startswith("inlined"):
+                inline_fail[src, p[5]] += 1
+        elif p[0] == "NODE":
+            _, current, tid, kind, cls, chain, stmt, pos, arg, inl = p[:10]
+            test = current if current != "-" else tid
+            key = (src, test, kind, cls, chain, stmt, pos)
+            nodes[key] = (arg, inl)
+
+by = collections.Counter()
+fam = collections.Counter()
+nested = []
+for (src, test, kind, cls, chain, stmt, pos), (arg, inl) in sorted(nodes.items()):
+    v = verdict(cls)
+    by[src, kind, v] += 1
+    if v == "ROOT":
+        fam[src, family(cls)] += 1
+    else:
+        nested.append((src, test, kind, v, consumer(cls), cls, chain, pos, arg))
+
+with open(os.path.join(out, "nodes.tsv"), "w", encoding="utf-8") as o:
+    o.write("source\ttest\tkind\tverdict\tclass\tchain\tstatement\tpos\targ\tinlined\n")
+    for (src, test, kind, cls, chain, stmt, pos), (arg, inl) in sorted(nodes.items()):
+        o.write("\t".join([src, test, kind, verdict(cls), cls, chain, stmt, pos, arg, inl]) + "\n")
+
+print("== programs typed, tests reached, per source")
+for src in sorted(programs):
+    print(f"{src:40s} programs {programs[src]:6d}  tests {len(tests[src]):5d}")
+print("== inlining fell back to the raw body")
+for (src, why), n in sorted(inline_fail.items()):
+    print(f"{src:40s} {why} {n}")
+print("== relation-text nodes, by source, kind and verdict (deduplicated)")
+for (src, kind, v), n in sorted(by.items()):
+    print(f"{src:40s} {kind:9s} {v:7s} {n}")
+print("== ROOT by family")
+for (src, f), n in sorted(fam.items()):
+    print(f"{src:40s} {f:30s} {n}")
+print("== NESTED / MIXED, every node")
+for r in nested:
+    print("\t".join(r))
