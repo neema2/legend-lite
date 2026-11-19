@@ -2626,3 +2626,11 @@ who confirms or changes phases 1-3.
   right after typing, so a refused request reaches no runner (a test proves it); `warn` an operator's choice;
   `engine` not yet accepted; the setting read once, at `EdgeServer.UPSTREAM`. 22 tests, each against a plant (the three
   needing piece 1 pass on its patch, 25 of 25, and join at the rebase). Next: the `engine` design note, fast loop.
+- **~20:38 UTC, B2: piece 4's fold-ins** (`caca6a69b`, local; reading copy `31d3f11bb`; it asks the user for the
+  push): S128 amended for `println`; S316 amended for `toCSV` (in `d-register-rows-2026-11-16.md`, where D's rows
+  live); item 14 the toCSV line; item 1 the `engine` setting (read at the legend-engine door alone); AGENTS.md's tenet 6
+  points to the switch rule; the rules-of-record copy refreshed. **Corrected:** this session's relayed H2 count was
+  wrong; with six rows ruled, H2 accepted 41 → 44 and fail +145, DuckDB accepted 46 → 49 and fail +149 (B2 and the
+  judges told). **The 2026-11-15 rule ("no PR edits a shared document"):** the AGENTS.md and G8 edits are ruled
+  specifically (stage A's plan); the register rows enter the register once, in the batch PR, as D's rows were to "move
+  into the register when D lands".
