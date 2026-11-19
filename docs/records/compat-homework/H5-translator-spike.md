@@ -66,14 +66,16 @@ are not the translator's to win.
 
 The corpus, Pure's meaning in the core, the dynaFunction split and the use-site translator (variant V3, §2):
 
-| lane | main (V0) | V3 | moved |
-|---|---|---|---|
-| H2 | 2,289 pass, 276 fail, 7 skipped | 2,285 pass, 280 fail, 7 skipped | +4 fail, all 4 in B2's CP-4 list |
-| DuckDB | 2,452 pass, 108 fail, 7 skipped | 2,447 pass, 113 fail, 7 skipped | +5 fail: the same 4, and one vacuous pass made real |
+| lane | main (V0) | core change, translator off (V2) | core change + translator (V3) | V0 to V3 |
+|---|---|---|---|---|
+| H2 | 2,289 pass, 276 fail, 7 skipped | 2,281 pass, 284 fail | 2,285 pass, 280 fail | +4 fail, all 4 in B2's CP-4 list |
+| DuckDB | 2,452 pass, 108 fail, 7 skipped | 2,443 pass, 117 fail | 2,447 pass, 113 fail | +5 fail: the same 4, and one vacuous pass made real |
 
-- **11 of H3's 15 pass, on both lanes:** the 3 query-lambda tests by the translator
-  (`testFilterUsingSubstringFunction`, `testFilterUsingParseIntegerFunction`, `testFilterUsingParseDecimalFunction`),
-  the 7 dynaFunction tests by the core's split, and `testToSQLStringSubstringIsUncorrectedByDefault` (by the appeal).
+- **V2 to V3 is the translator alone: exactly +4 passes per lane and nothing else moves**: the 3 query-lambda tests
+  (`testFilterUsingSubstringFunction`, `testFilterUsingParseIntegerFunction`, `testFilterUsingParseDecimalFunction`)
+  and `testToSQLStringSubstringIsUncorrectedByDefault` (a `toSQLString` lambda: rewritten, then decided by the appeal
+  on rows).
+- **11 of H3's 15 pass, on both lanes:** those 4 by the translator and the 7 dynaFunction tests by the core's split.
 - **The 4 that stay failing are all in B2's 143** (CP-4, not promised): `testModelConnectionAgg`,
   `testModelConnectionMultipleAgg`, `testSubstringIndexingCorrectedByFeatureFlag`, `testToSQLStringWithPosition`.
   Each judges legend-engine's plan or SQL text only, with no replay the appeal can run (B2's classes a1, a2); they

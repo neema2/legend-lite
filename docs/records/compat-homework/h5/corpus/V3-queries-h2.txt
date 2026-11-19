@@ -1,0 +1,69 @@
+# V3-queries h2: pass=2285 fail=280 skipped=7 of 2613 in 158s
+[H5] QUERIES compat translator: rewritten={substring/3=5} keptPure={indexOf/2=190, indexOf/3 (no upstream translation)=6, substring/2=4, substring/3=78} queryHelpers=[meta::pure::executionPlan::tests::assertPlanGenerationForOptionalParameterWithGreaterThanLessThan[0], meta::pure::executionPlan::tests::runPlanTest[0], meta::pure::executionPlan::m2m2r::tests::planToString[0], meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan[0], meta::relational::tests::query::paginate::helper::runTest[0], meta::relational::tests::query::paginate::helper::runGraphFetchTest[0], meta::relational::tests::query::runLegendTest[0], meta::relational::dbTestRunner::executeViaPlan[0], meta::relational::testDataGeneration::tests::loadAndTestExecution[0], meta::relational::tests::mapping::relation::aggregation::testFirmAgg[0], meta::relational::tests::mapping::union::relation::testTds[0], meta::relational::metamodel::execute::tests::executeLegendFunction[0], meta::relational::tests::semistructured::arrayStore::arrayExecute[0], meta::relational::tests::semistructured::arrayStore::testArrayFunctionsInMapping[0], meta::relational::tests::semistructured::arrayStore::testArrayFunctionInFilter[0], meta::relational::tests::semistructured::chain::chainExecute[0], meta::relational::tests::semistructured::chain::testComplexChainInStoreLanguage[0], meta::relational::tests::semistructured::explode::semiStructuredExecute_SimpleMapping[0], meta::relational::tests::semistructured::explode::semiStructuredExecute_ViewMapping[0], meta::relational::tests::semistructured::explode::semiStructuredExecute_ExtractAndExplodeMapping[0], meta::relational::tests::semistructured::explode::testCanProperlyMixExtractAndExplode[0], meta::relational::tests::semistructured::join::semiStructuredExecute[0], meta::relational::tests::semistructured::join::testJoinOnSemiStructuredProperty[0], meta::relational::tests::semistructured::join::testJoinOnSemiStructuredPropertyWithQPFilter[0], meta::relational::tests::semistructured::extract::testDotAndBracketNotationAccess[0], meta::relational::tests::semistructured::extract::testArrayElementNoFlattenAccess[0], meta::relational::tests::semistructured::extract::testAllDataTypesAccess[0], meta::relational::tests::semistructured::extract::testExtractEnumProperty[0], meta::relational::tests::semistructured::nested::nestedExecute[0], meta::relational::tests::semistructured::nested::testNestedExplode[0], meta::relational::tests::semistructured::flattening::arrayScalarExecute[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayDirectIsEmpty[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayDirectSize[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayDirectIsNotEmpty[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayDirectAt[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayDirectFold[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterWithIsEmpty[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterOnly[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterAtIndex[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterFirst[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterSize[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterMap[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterFold[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterFirstInIfElse[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterFirstWithEnumComparison[0], meta::relational::tests::semistructured::flattening::testSemiStructuredArrayFilterFirstJoinStrings[0], meta::relational::tests::semistructured::flattening::testSemiStructured
+[H5] buildModule ms=3574
+# unresolved routed arguments: 40
+[H5] unresolved routed argument: meta::pure::executionPlan::tests::execution::executeServiceTests: AppliedProperty
+[H5] unresolved routed argument: meta::pure::executionPlan::tests::testSubstringIndexingCorrectedByFeatureFlag: AppliedFunction
+[H5] unresolved routed argument: meta::pure::executionPlan::tests::testSubstringIndexingCorrectedByFeatureFlag: AppliedFunction
+[H5] unresolved routed argument: meta::pure::executionPlan::m2m2r::tests::planToString: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNull: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNull: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullInFlowSql: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullPlanSql: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullWithInWithEmpty: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullWithIn: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullWithIn: AppliedFunction
+[H5] unresolved routed argument: meta::relational::graphFetch::domain::tests::testGraphFetch: AppliedProperty
+[H5] unresolved routed argument: meta::relational::graphFetch::domain::tests::checkPlans: AppliedFunction
+[H5] unresolved routed argument: meta::relational::graphFetch::domain::tests::checkPlans: AppliedFunction
+[H5] unresolved routed argument: meta::relational::graphFetch::tests::milestoning::testMilestonedProperty: AppliedFunction
+[H5] unresolved routed argument: meta::pure::lineage::scanColumns::enrichPropertyPathTreeWithDataSetMapping: CString
+[H5] unresolved routed argument: meta::pure::lineage::scanColumns::enrichQualifiedPropertyWithDataSetMapping: CString
+[H5] unresolved routed argument: meta::pure::lineage::scanColumns::enrichQualifiedPropertyWithDataSetMapping: CString
+[H5] unresolved routed argument: meta::pure::lineage::scanColumns::printDebug: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::milestoning::businessdate::testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::milestoning::businessdate::testMilestonedThisBusinessDateWithNestedDerivedProperty: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::milestoning::businessdate::testViewChainsWithBusinessDate: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testProp1: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testProp1: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testProp2: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testProp2: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testProp3: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testProp3: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testProp4: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testProp4: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testPreeavalOnSort: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::m2m2r::testPreeavalOnSort: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::tds::groupBy::testTDSGroupByWithEnumArgumentFunctionCall: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::tds::sort::testSimpleSortAscWithPreval: AppliedFunction
+[H5] unresolved routed argument: meta::relational::tests::functions::sqlstring::runTestCaseById: AppliedProperty
+[H5] unresolved routed argument: meta::relational::functions::sqlstring::toSQLStringPretty: AppliedFunction
+[H5] unresolved routed argument: meta::relational::functions::sqlstring::toSQLString: AppliedFunction
+[H5] unresolved routed argument: meta::relational::functions::sqlstring::toSQL: AppliedFunction
+[H5] unresolved routed argument: meta::relational::functions::sqlstring::toSQL: AppliedFunction
+[H5] unresolved routed argument: meta::relational::functions::sqlstring::toSQL: AppliedFunction
+## diff V0-main -> V3-queries: h2-fail-roster
+13a14
+> meta::pure::executionPlan::tests::testModelConnectionAgg
+15a17
+> meta::pure::executionPlan::tests::testModelConnectionMultipleAgg
+20a23
+> meta::pure::executionPlan::tests::testSubstringIndexingCorrectedByFeatureFlag
+189a193
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithPosition
+## diff V0-main -> V3-queries: h2-skipped-roster
+## diff V0-main -> V3-queries: h2-unordered-register
+104a105
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
+325a327,330
+> unordered-chain meta::relational::tests::mapping::propertyfunc::simple::testSimplePropertyFuncGetAll
+> unordered-chain meta::relational::tests::mapping::propertyfunc::simple::testSimplePropertyFuncProject
+> unordered-chain meta::relational::tests::mapping::propertyfunc::withjoin::testSimplePropertyFuncProjectWithJoin
+> unordered-chain meta::relational::tests::mapping::propertyfunc::withjoin::testSimplePropertyFuncQueryWithJoin
+335a341
+> unordered-chain meta::relational::tests::mapping::sqlFunction::indexOf::testProject
+791a798
+> unordered-chain meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+793a801
+> unordered-chain meta::relational::tests::query::function::testFilterUsingSubstringFunction
+## diff V0-main -> V3-queries: h2-engine-order-register

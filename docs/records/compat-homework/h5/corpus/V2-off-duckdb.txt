@@ -1,0 +1,48 @@
+# V2-off duckdb: pass=2443 fail=117 skipped=7 of 2613 in 472s
+[H5] buildModule ms=3880
+## diff V0-main -> V2-off: duckdb-fail-roster
+4a5
+> meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone
+12a14
+> meta::pure::executionPlan::tests::testModelConnectionAgg
+14a17
+> meta::pure::executionPlan::tests::testModelConnectionMultipleAgg
+19a23
+> meta::pure::executionPlan::tests::testSubstringIndexingCorrectedByFeatureFlag
+76a81
+> meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
+78a84
+> meta::relational::tests::functions::sqlstring::testToSQLStringWithPosition
+97a104,106
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction
+## diff V3-queries -> V2-off: duckdb-fail-roster
+80a81
+> meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
+102a104,106
+> meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+> meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+> meta::relational::tests::query::function::testFilterUsingSubstringFunction
+## diff V0-main -> V2-off: duckdb-skipped-roster
+## diff V3-queries -> V2-off: duckdb-skipped-roster
+## diff V0-main -> V2-off: duckdb-unordered-register
+104a105
+> unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
+327a329,332
+> unordered-chain meta::relational::tests::mapping::propertyfunc::simple::testSimplePropertyFuncGetAll
+> unordered-chain meta::relational::tests::mapping::propertyfunc::simple::testSimplePropertyFuncProject
+> unordered-chain meta::relational::tests::mapping::propertyfunc::withjoin::testSimplePropertyFuncProjectWithJoin
+> unordered-chain meta::relational::tests::mapping::propertyfunc::withjoin::testSimplePropertyFuncQueryWithJoin
+338a344
+> unordered-chain meta::relational::tests::mapping::sqlFunction::indexOf::testProject
+804d809
+< unordered-chain meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+## diff V3-queries -> V2-off: duckdb-unordered-register
+810,811d809
+< unordered-chain meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+< unordered-chain meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+814d811
+< unordered-chain meta::relational::tests::query::function::testFilterUsingSubstringFunction
+## diff V0-main -> V2-off: duckdb-engine-order-register
+## diff V3-queries -> V2-off: duckdb-engine-order-register

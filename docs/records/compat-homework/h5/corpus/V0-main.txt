@@ -1,0 +1,2 @@
+# V0-main h2: pass=2289 fail=276 skipped=7 of 2613 in 151s
+# V0-main duckdb: pass=2452 fail=108 skipped=7 of 2613 in 486s
