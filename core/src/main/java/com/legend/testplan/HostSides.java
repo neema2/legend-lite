@@ -118,8 +118,10 @@ public final class HostSides {
         for (Ask a : asks) {
             // an ask the arm read under an environment of its own (`at`: a text side of a runtime-dialect form, its
             // frame and table replaces rebound; 2026-11-06) is planned there, as the arm read it
-            JudgePlans.PlannedSide p = JudgePlans.plannedSide(a.arg(), letPrefix, specs, a.at() != null ? a.at() : env,
-                    a.identity(), a.fold(), a.hook());
+            // a date literal a folding ask reads is the plan's constant, never a statement (JudgePlans.dateLiteral)
+            JudgePlans.PlannedSide literal = a.fold() ? JudgePlans.dateLiteral(a.arg()) : null;
+            JudgePlans.PlannedSide p = literal != null ? literal : JudgePlans.plannedSide(a.arg(), letPrefix, specs,
+                    a.at() != null ? a.at() : env, a.identity(), a.fold(), a.hook());
             planned.add(p);
             base.add(p.side());
             if (p.wrapped() != null) {

@@ -433,6 +433,44 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** Two asserts whose ACTUAL sides the database cannot compute (PCT's testAdjustBy*BigNumber, the compatibility
+     *  program's A4 gate, 2026-11-19): one outcome under every judge, and the same on every run. The host's side batch
+     *  read the EXPECTED literal through the database ({@code DATE '33803336-12-17'}, which DuckDB cannot hold) where
+     *  upstream evaluates it in Pure, so the host failed on the literal and the database judge on the actual side; the
+     *  database judge's fused statement raised either assert's error by timing (G10); and its rejection failed the run
+     *  with no assert reported, where the host's reported its first assert's failure. Now the literal is the plan's
+     *  constant, the fused statement reads its asserts in order, and its rejection is its first assert's failure, the
+     *  run ending with the database's own text, on each in-process database. */
+    @Test
+    void anActualSideTheDatabaseCannotComputeIsOneOutcomeUnderEveryJudge() throws Exception {
+        String body = "{|assertEquals(%33803336-12-17, %2016-02-29->adjust(12345678912, DurationUnit.DAYS));"
+                + " assertEquals(%-33799305-05-13, %2016-02-29->adjust(-12345678912, DurationUnit.DAYS));}";
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            java.util.Set<String> outcomes = new java.util.LinkedHashSet<>();
+            for (int run = 0; run < 3; run++) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try (Connection c = backend.open()) {
+                        Program.run(StorelessRuntime.with(MODEL, backend.type()), body, StorelessRuntime.RUNTIME, c,
+                                ExecuteOptions.NONE.withJudgeMode(mode));
+                        got = "pass";
+                    } catch (Throwable e) {
+                        got = e.getClass().getSimpleName() + ": " + e.getMessage();
+                    }
+                    outcomes.add(got);
+                }
+            }
+            if (outcomes.size() != 1 || outcomes.iterator().next().startsWith("JudgesDisagree")
+                    || outcomes.iterator().next().startsWith("ParseException")
+                    || outcomes.iterator().next().contains("33803336")) {
+                // one outcome, every judge, every run -- and never the expected literal's (Pure holds it)
+                wrong.add(backend.type() + " -> " + outcomes.stream().map(AssertBarTest::oneLine).toList());
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one outcome under every judge, on every run:\n  " + String.join("\n  ", wrong));
+    }
+
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
      *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
      *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */

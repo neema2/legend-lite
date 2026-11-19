@@ -1683,8 +1683,51 @@ public final class VerdictSql {
             }
             branches.add(indexed(i, body, outs));
         }
+        // THE VERDICTS IN ORDER (G10; the compatibility program's A4 gate, 2026-11-19): every branch but the last a
+        // MATERIALIZED expression in the asserts' order, each later branch read after the one before it (a one-row
+        // count of it, joined as the build side), as the host's side batch reads its sides (HostSideBatch.batch): where
+        // two asserts' sides raise, the first assert's error is the statement's, as upstream evaluates the asserts in
+        // order -- DuckDB answered either of two failing casts by timing (PCT's testAdjustBy*BigNumber)
+        for (int i = 0; branches.size() > 1 && i < branches.size(); i++) {
+            SqlQuery b = i == 0 ? branches.get(i) : after(branches.get(i), ORDERED + (i - 1), outs);
+            if (i + 1 < branches.size()) {
+                ctes.add(new SqlWith.Cte(ORDERED + i, b, true));
+                b = readAll(ORDERED + i, outs);
+            }
+            branches.set(i, b);
+        }
         SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
         return ctes.isEmpty() ? union : new SqlWith(ctes, union);
+    }
+
+    /** A fused statement's ordered verdict rows: {@code __vo<i>}, the i-th assert's row. */
+    private static final String ORDERED = "__vo";
+
+    /** {@code SELECT <outs> FROM <name>}: an ordered verdict row read where the union reads it. */
+    private static SqlQuery readAll(String name, List<OutputCol> outs) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
+        for (OutputCol o : outs) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of(name, o), o.name(), o));
+        }
+        return new SqlSelect(ps, false, new SqlSource.Cte(name, name, outs), null, List.of(), null, null, List.of(),
+                null, null, outs);
+    }
+
+    /** {@code row} read after {@code earlier}'s ordered row: {@code SELECT __vr.<outs> FROM (row) __vr CROSS JOIN
+     *  (SELECT COUNT(1) AS __n FROM earlier) __vg}, the count the database finishes before it reads {@code row}. */
+    private static SqlQuery after(SqlQuery row, String earlier, List<OutputCol> outs) {
+        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
+        SqlSelect count = new SqlSelect(List.of(new SqlSelect.Projection(new com.legend.sql.SqlAgg.Reducer(
+                com.legend.sql.SqlAgg.Fn.COUNT, List.of(new SqlExpr.IntLit(1)), false, List.of()), n.name(), n)), false,
+                new SqlSource.Cte(earlier, earlier, List.of()), null, List.of(), null, null, List.of(), null, null,
+                List.of(n));
+        List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
+        for (OutputCol o : outs) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("__vr", o), o.name(), o));
+        }
+        SqlSource from = new SqlSource.Join(new SqlSource.Subselect(row, "__vr", null),
+                new SqlSource.Subselect(count, "__vg", null), SqlSource.Join.Kind.CROSS, null);
+        return new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null, outs);
     }
 
     /** {@code SELECT i AS __ix, <the row's columns>}: the verdict row's own

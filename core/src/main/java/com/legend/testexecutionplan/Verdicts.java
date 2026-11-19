@@ -122,8 +122,10 @@ public final class Verdicts {
                 java.math.BigInteger b = new java.math.BigInteger(s);
                 yield b.bitLength() < 64 ? (Object) b.longValue() : b;
             }
+            // a date literal the host judge carries as its text (the compatibility program's A4 gate, 2026-11-19)
+            case "StrictDate", "DateTime", "Date" -> com.legend.values.PureDateLiteral.parse(s);
             default -> throw new com.legend.error.NotImplementedException("a constant side of type " + type
-                    + ": the folds admit String, Integer and Boolean");
+                    + ": the folds admit String, Integer, Boolean and a date literal");
         };
     }
 
