@@ -1,0 +1,21 @@
+# lite's answers to the battery, as legend-engine's audience (pure/v1's execute route)
+cls.toOne.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+cls.toOne.sub2	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+cls.toOne.sub0	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+cls.toOne.idx	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+cls.toOne.upper.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+cls.map.inside.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a COLLECTION result's serialization is unprobed","status":"error"}
+cls.map.after.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a COLLECTION result's serialization is unprobed","status":"error"}
+cls.map.after.toOne.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+cls.distinct.after.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"LIST_FILTER reached a dialect without a list encoding","status":"error"}
+cls.project.sub3	ROWS	[["Cre"]]
+cls.filter.sub3	ROWS	[["Credit"]]
+graph.toOne.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"class query under TypedMap is not resolvable yet (H2 vocabulary)","status":"error"}
+graph.serialize.sub	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+tds.value.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+let.then.sub3	ERROR	OTHER	# {"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+rel.extend.sub3	ROWS	[["Cre"]]
+graph.qualified.sub3	ERROR	OTHER
+graph.qualified.idx	ERROR	OTHER
+cls.project.qualified.sub3	ROWS	[["Cre"]]
+graph.filter.sub3	ERROR	OTHER
