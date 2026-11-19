@@ -1065,3 +1065,18 @@ who confirms or changes phases 1-3.
     plain plan. Asked of B2 first (13:25): a planted run, the count of recorded pure/v1 requests that take the path,
     whether an ordinary Studio generatePlan reaches it, and what such a request answers after A2. Expected: only a
     query that itself asks for SQL text, the same promise as CP-4.
+- **~13:13 UTC, B1-R's cross-check of the 33, with a correction to this session's premise:** lite's own H2 PCT runs
+  ONLY the relation suite (channel A `//pct:pct_h2` = `Test_LegendLite_H2_RelationFunctions_PCT`; channel B
+  `_CHANNEL_B_LANES["h2"] = ["Relation"]`). H2's essential and standard suites had never run on lite before today's
+  ENGINE lane, so there is no lite ledger to check against.
+  - **Measured instead:** lite's own audience (the PCT default) on H2 essential and standard, a local scratch target:
+    **all 33 fail there too**, with the same messages. None is a route difference; all are H2 dialect gaps.
+  - **6 other tests differ by audience**, each BOTH_FAIL on the ENGINE route (lite reproduces legend-engine's defect
+    there, as the audience intends) and passing on lite's own route: `testStart`, `testStartEnd` (substring's 1-based
+    start), `testRemError`, `testSquareRootError` (the plain set), `testBitShiftLeft_MoreThan62Bits`,
+    `testBitShiftRight_MoreThan62Bits`. These are exactly the rows A3 and D2 move.
+  - **Lite's own route totals on H2:** essential 256 of 345, standard 115 of 205 (ENGINE route: 252, 113).
+  - Into the record and #124's body with the #123 merge commit (one CI run).
+  - **Sent to the product orchestrator (13:28):** a recommendation to add H2 essential and standard to lite's own PCT
+    lanes (channels A and B), their known failures ledgered with the user's word; until then only #124's ENGINE lane
+    runs those suites on H2.
