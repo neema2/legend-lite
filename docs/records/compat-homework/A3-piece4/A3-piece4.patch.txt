@@ -1,0 +1,340 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index c6b5de268..c567df423 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -91,18 +91,56 @@
+ > `meta::pure::functions::` elements
+ > (`LibraryPlatformNamespaceGuardTest`).
+ >
+-> **Upstream-fidelity tenet (the user, 2026-10-29):** wherever possible,
+-> lite does EXACTLY what legend-pure and legend-engine do. Every decision
+-> -- a spelling, an outcome, an error, a type, a rule -- is settled by one
+-> question, asked first: "can we do exactly as pure/engine does?" Where
+-> exactness is too expensive, lite does the closest thing, and that
+-> divergence is POSTED to the user before it lands (case by case: the
+-> expression, upstream's answer, lite's) and LEDGERED as a row of
+-> `docs/SEMANTICS_REGISTER.md`. Upstream's answer is READ from the pinned
+-> sources or ASKED of the engine runner
+-> (`docs/result-boundary-homework/README.md` §7), never recalled or
+-> guessed. A divergence that is not a row is a defect; a row the user did
+-> not rule is a defect too.
++> **Upstream-fidelity tenet (the user, 2026-10-29; amended 2026-11-19 by
++> the user's ruling for the compatibility program: "Lite follows Pure.
++> legend-engine's formats are matched, and its answers where they agree with
++> Pure. The rest is recorded."):** lite follows PURE: a Pure program means
++> what legend-pure's definition of it says. legend-engine's and
++> legend-pure's FORMATS (result and error envelopes, printed values) are
++> matched, at the edge. legend-engine's ANSWERS are matched where they agree
++> with Pure. Where legend-engine departs from Pure's own definition (a
++> database's meaning for a Pure function, an older database's behaviour, its
++> SQL text), lite answers Pure's way, and the departure is POSTED to the user
++> before it lands (case by case: the expression, upstream's answer, lite's)
++> and LEDGERED as a row of `docs/SEMANTICS_REGISTER.md`. Both answers, Pure's
++> and legend-engine's, are READ from the pinned sources or ASKED of the engine
++> runner (`docs/result-boundary-homework/README.md` §7), never recalled or
++> guessed. A divergence that is not a row is a defect; a row the user did not
++> rule is a defect too. People bringing a legend-engine project read the
++> recorded differences as one page: `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`.
++>
++> **The six tenets (adopted by the user, 2026-11-19: "Adopt tenets yes";
++> `docs/records/compat-rules-of-record-2026-11-19.md`).** Each has a test, so
++> it cannot quietly erode:
++> 1. **The database computes.** Every value a program produces is computed by
++>    the database: numbers, `toString()` and `format()` text, an error's
++>    values, product verdicts. *Test:* could this value differ from one row to
++>    the next? Then the database computes it.
++> 2. **Java orchestrates and decides nothing about a value.** It plans, sends
++>    the statements, carries typed results and serializes them; product
++>    presentation never chooses, rounds, reorders or rewords. *Test:* does
++>    this Java change what a value is, or only how it is written on the wire?
++> 3. **Compatibility re-spells, never re-computes.** At the edge, Java may
++>    change how lite's typed output is written to match legend-pure or
++>    legend-engine. If upstream's value differs, that is a meaning difference:
++>    answered Pure's way and recorded. *Test:* would this fix change the answer
++>    for some input, not just its spelling?
++> 4. **Upstream is the spec of the answer, never the design.** *Test:* is the
++>    reason for a design "upstream does it that way"? Then stop. Where a tenet
++>    and upstream fidelity conflict, the tenet wins and the difference is
++>    recorded.
++> 5. **Two judges in the product, one in compatibility.** In the product the
++>    database judge and the host judge implement the same rules independently
++>    and must agree; the host judge is the one Java comparison allowed, because
++>    its independence catches bugs. Compatibility uses the host judge alone.
++> 6. **No modes in the core.** The core never branches on who is asking;
++>    differences between audiences live only at the door (input) and in the
++>    presenters (output).
++>
++> Two readings were ruled the same minute. **Folds:** the compiler may fold
++> constants and facts fixed by the types, never row data. **Error records:** a
++> raised error's record is lite's typed output, so compatibility may word
++> upstream's sentence in Java from it (tenet 3).
+ >
+ > **World-map tenet — ratified 2026-09-03 (`docs/WORLD_MAP.md`,
+ > `docs/TENET_CHARTER.md` Clause 6):** Pure code is NATIVES (one Java SQL
+diff --git a/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md b/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
+new file mode 100644
+index 000000000..32aed30f0
+--- /dev/null
++++ b/docs/DIFFERENCES_FROM_LEGEND_ENGINE.md
+@@ -0,0 +1,216 @@
++# Differences from legend-engine
++
++*Written 2026-11-19 by the compatibility program, from `docs/SEMANTICS_REGISTER.md` and the rows the program adds (its
++plan: `docs/records/compat-final-plan-2026-11-19.md`). Each entry is marked **measured** (with where) or **read** (from
++the pinned sources), and names its register rows. The register is the record; this page is its reading for a team
++moving a project. A register id marked provisional is settled when the program's batch lands.*
++
++**Who this is for:** a team bringing a legend-engine project to legend-lite.
++
++**The one rule behind every entry** (the user's ruling, 2026-11-19, and AGENTS.md's upstream-fidelity tenet): "Lite
++follows Pure. legend-engine's formats are matched, and its answers where they agree with Pure. The rest is recorded."
++Where they do not agree, the difference is listed here, with what to write if you need legend-engine's answer.
++
++**When:**
++- **today:** lite behaved this way before the compatibility program;
++- **stage A:** lands with this page, the compatibility program's first batch;
++- **stage B:** after stage A, once the user ratifies it.
++
++## Where your answers can change
++
++### 1. `substring` and `indexOf` count from 0, as Pure does
++- **You write:** `'abcdef'->substring(1, 3)`; `'abc'->indexOf('b')`.
++- **legend-engine** (on H2 and DuckDB) answers `'abc'` and `2`: the database's 1-based meaning, and 0 when the text is
++  not found. Its corrected-substring option fixes `substring` only, never `indexOf`.
++- **lite answers** `'bc'` and `1`, and `-1` when the text is not found, with or without that option.
++- **Why:** Pure defines both 0-based, with `substring`'s end excluded (legend-pure
++  `essential/string/slice/substring.pure:53`, `essential/string/index/indexOf.pure:39`).
++- **Out of range, lite raises Pure's error** in the database, where legend-engine passes the positions to SQL unchecked
++  (H2 clamps past the end):
++  - a start below 0;
++  - an end past the length;
++  - an end before the start.
++- **To get legend-engine's answer:** `substring($a - 1, $a - 1 + $b)` for legend-engine's `substring($a, $b)`; and
++  `indexOf(...) + 1`, which also turns Pure's -1 into legend-engine's 0.
++- **You will be told:**
++  - **The legend-engine door warns** whenever a query sent to the database calls either one: a log line, and a
++    response header, `x-legend-lite-pure-meaning`.
++  - **A server setting makes it refuse instead:** `LEGEND_LITE_PURE_MEANING=refuse`.
++  - **When it is quiet:** for `substring`, when the request sets legend-engine's corrected option; `indexOf` always
++    warns.
++  - **A literal start of 0 is exempt** where it is measured equal to Pure's answer: on H2 both forms, on DuckDB the
++    2-argument form only.
++  - **A report lists every such call in your project when it loads,** and in your saved queries.
++- **Lite's other languages keep SQL's meaning:** `#Cypher`, `#SQL`, `#IQ` and a `###Relational` mapping's own functions
++  write SQL's `substring` and position by name. Nothing you write there changes.
++- **When:** stage A.
++- **Measured:**
++  - Legend-engine's corpus: each database's fail roster gains the same 7 tests. Four are answers; three are SQL-text
++    tests that the old `indexOf` hid.
++  - PCT's 3 known `indexOf` failures pass.
++  - Lite's own 62 projects have no such call.
++  - Evidence: H12, the combined dry run, and A3's measures on `claude/compat-translator-spike`.
++- **Register:** S130 and S134 (rewritten), S383 (provisional).
++
++### 2. The SQL you are shown is lite's own
++- **You write:** `toSQLString(...)`, `planToString(...)`, a `toDDL` function, or read an execute result's
++  `activities[].sql`.
++- **legend-engine** prints its own SQL spelling.
++- **lite prints** the SQL it actually runs, on all 12 databases it has a dialect for. Before stage A it printed only
++  H2's, DB2's and Composite's legend-engine text.
++- **For a database lite has no dialect for** (DB2, Composite, Oracle, SQL Server and others), lite refuses by name:
++  "SQL dialect for database type 'DB2' is not implemented yet".
++- **Why:** SQL text is never promised. A test that checks SQL text is still judged, by running legend-engine's
++  expected SQL and comparing answers.
++- **To get legend-engine's answer:** compare results, not SQL strings.
++- **When:** stage A.
++- **Measured:** of legend-engine's 2,761 corpus tests, 147 on H2 and 152 on DuckDB stop counting, because they check
++  only the text. That becomes 150 and 155 once item 1 lands. Every other SQL-text test passes by its answer. Studio's
++  "generate plan" for an ordinary query answers byte for byte as before. Evidence: A2's corpus rosters, exact against
++  `A2-roster.tsv`, and `server/PureV1SqlTextTest`.
++- **Register:** S380 (provisional), which supersedes S4.
++
++### 3. Maths legend-engine leaves unchecked raises Pure's error
++
++legend-engine writes no check for these, so the database answers. Lite raises Pure's error.
++
++| You write | legend-engine answers | lite answers | To get legend-engine's answer |
++|---|---|---|---|
++| `[1,2,3,4,5]->slice(3, 2)` (DuckDB) | `[]` | Pure's error | `if($lo > $hi, \|[], \|$x->slice($lo, $hi))` |
++| `5->rem(0)` (DuckDB) | `null` | Pure's error | `if($d == 0, \|[], \|$x->rem($d))` |
++| `range(0, 5, 0)` (DuckDB) | `[]` | Pure's error | `if($step == 0, \|[], \|range(...))` |
++| `1->bitShiftRight(63)` (DuckDB) | `0` | Pure's error | `if($n > 62, \|0, \|$x->bitShiftRight($n))`; `-1` for a negative `$x` |
++| `sqrt(-2.0)` (H2, through the legend-engine server) | `null` | Pure's error | `if($x < 0, \|[], \|sqrt($x))` |
++| `x / 0` (DuckDB, through the legend-engine server) | `null` | Pure's error | `if($d == 0, \|[], \|$x / $d)` |
++
++- **The rewrites are per database.** On H2, `x / 0` already raises under legend-engine, so the guard would be wrong
++  there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
++- **Why:** Pure defines these operations to raise (PCT, legend-pure's own suite, expects the error in every case).
++- **When:** stage B.
++- **Measured:** H8 (j), (j.3), (j.4). legend-engine's DuckDB divide answer is its own (B1-R's oracle); lite's DuckDB
++  server route was not run. DuckDB 1.5.6 answers the unchecked divide with `Infinity`, so only the guard matches
++  legend-engine there.
++- **Register:** a row comes with stage B's step that removes the shortcuts (B4, the user's D2).
++
++### 4. Float literals are floating point, not exact decimals
++- **You write:** `1.1 + 0.6`.
++- **legend-engine** (H2, DuckDB) answers `1.7`: it writes the literal bare, and the database computes it as a decimal.
++- **lite answers** `1.7000000000000002`: a Float is a double.
++- **Why:** Pure's Float is floating point.
++- **To get legend-engine's answer:** write Decimal literals, `1.1D + 0.6D`, or use `toDecimal()`.
++- **When:** stage B.
++- **Measured:** 2 PCT answers move per database (PCT accepts both). 2 corpus tests on H2 start passing: the decimal
++  printed `52` where the expected answer is `52.0`. Evidence: H8 (j), (j.4).
++- **Register:** S20, S9.
++
++### 5. `toOne()` of an empty collection raises
++- **legend-engine** answers `null`: it writes no check.
++- **lite raises an error**, as Pure defines ("Cannot cast a collection of size 0 to multiplicity [1]"). Today it is
++  worded `Raised: SIZE_NOT_MULTIPLICITY`; Pure's words come with stage B's error formatter.
++- **To get legend-engine's answer:** `$x->first()`.
++- **When:** today.
++- **Measured:** the pure/v1 net's `raise.toOneOfEmpty`, against legend-engine's own answer (B1-R's oracle).
++- **Register:** S384 (provisional).
++
++### 6. `isNumeric`, `parseDecimal`, `parseJson` on unusual input
++- **legend-engine on H2:**
++  - `isNumeric` is "has no cased letter", so `' 1 '`, `''` and `'-'` count as numeric;
++  - `parseDecimal` cuts to `DECIMAL(5,2)`, so `'123.450021'` becomes `123.45`;
++  - `parseJson` patches concatenated objects.
++- **lite** answers each Pure's way: numeric text by its full form, an exact decimal, a JSON parse.
++- **When:** stage B.
++- **Measured:** corpus: `isNumeric` 0 tests, `parseDecimal` 2 per database, `parseJson` 1 lost on DuckDB and 1 gained
++  on H2. Evidence: H5 task 0.
++- **Register:** S370, S365; `parseJson`'s row comes with stage B.
++
++### 7. H2 runs in its regular mode
++- **legend-engine** opens H2 with `MODE=LEGACY`, which allows comparing a yes/no column with a number.
++- **lite** opens H2 with H2's own defaults. Lite writes every null ordering explicitly, so no ordering changes.
++- **To keep the comparison working:** compare with `true` and `false`, not with 1 and 0.
++- **When:** stage B.
++- **Measured:** 1 corpus test (a mapping filter `active = 1` on a `BIT` column). Evidence: H8 (h).
++- **Register:** S368.
++
++### 8. legend-engine's feature flags
++- **The corrected-substring flag** changes nothing, because item 1 makes Pure's meaning the only one. It only quiets
++  the door's `substring` warning. **When:** stage A.
++- **The legacy null-equality flag** is refused by name. **When:** stage B.
++- **The enum push-down flag** is accepted and changes nothing, since lite always transforms enums in SQL. **When:**
++  stage B.
++- **The two flags lite has never implemented** stay refused by name, as today.
++- **Read:** H8 (a.3). 7 corpus tests set a flag, and 1 needs the legacy flag; it checks SQL text only.
++- **Register:** S130 (rewritten); the other flags' row comes with stage B's flag step (B5).
++
++### 9. Error messages
++- **legend-engine's message** is often its database's own error over legend-engine's SQL.
++- **lite gives** its own clear message, in legend-engine's error envelope and with the same status. Neither carries a
++  source position on these routes.
++- **When:** today; the words move to a formatter in stage B.
++- **Measured:** the pure/v1 net (for example divide by zero: 500 on both, different words).
++
++### 10. lite answers where legend-engine refuses
++- **legend-engine** refuses some functions at planning ("No SQL translation exists ..." and the like).
++- **lite answers them**, and checks those answers against PCT's expected values.
++- **What it means for you:** a query written against lite may not run back on legend-engine.
++- **When:** today.
++- **Measured:** on DuckDB, 99 of legend-engine's 110 refused PCT tests answered and 109 wrong answers fixed; on H2,
++  28 of 36. Evidence: B1-R's lane, H7.
++- **Measured on the corpus:** no runnable verdict moves (census B2's H8 (k)).
++- **Register:** S385 (provisional).
++
++### 11. The last digit of some maths on Windows and macOS
++- **What happens:** DuckDB and SQLite compute their maths functions with the operating system's maths library. On
++  Windows and on macOS, the last digit or two of a Double can differ from Linux, legend-engine's own platform for its
++  results:
++  - **Windows:** `sinh`, `cosh` and `tanh` (the same values on DuckDB and SQLite), `cbrt` and `pow`;
++  - **macOS:** `acos`, `asin` and `cot` (DuckDB and SQLite), `cbrt` (DuckDB), `sinh` and `cosh` (DuckDB and SQLite),
++    each exactly one unit in the last place.
++- **H2** matched on both: it computes in Java.
++- **Why:** this is the database's own platform, not lite's choice. Lite does not recompute the database's answer.
++- **To avoid it:** compare such results with a tolerance.
++- **When:** today.
++- **Measured:** the edge golden net on each operating system. On Windows, 30 lines (17 named facts,
++  `pct/src/test/resources/edge/overlay_windows.tsv`); on macOS, 31 lines (16 named facts, `overlay_macos.tsv`). No
++  order, locale, path or line ending moved on either. Evidence: PR #123's runs on both, its overlays.
++- **Register:** S382 (provisional).
++
++## Gaps lite has today (not differences by design)
++
++- **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,
++  max and min of dates, the bit operations, splitting a string into rows, cube root, reverse, and list positions
++  (`at`, `toOne` over a list).
++  - These are 33 PCT tests on H2, being added by the product track.
++  - H2 also answers `sqrt(-1.0)` with NaN and wraps a 63-bit shift. Pure has no NaN, so no query can reproduce that,
++    and lite does not write shifts on H2 at all.
++  - **Measured:** B1-R's lane; H8 (j.4).
++- **Not supported yet:**
++  - legend-engine's mapping test suites and service tests;
++  - cross-store queries;
++  - external formats;
++  - databases lite has no dialect for;
++  - handing plans to legend-engine, or taking plans from it (deferred).
++
++## What is the same
++
++- **Your project** loads, compiles and runs as on legend-engine: models, mappings, stores, runtimes, connections.
++- **The database computes every answer.** Only the output's formatting happens in Java: legend-engine's printed
++  tables, envelopes and error sentences, written from lite's typed values.
++- **The legend-engine server routes Studio uses** answer in legend-engine's own formats. That covers the result
++  envelopes, and the printed tables, byte for byte in a prototype (431 of 431 tables on DuckDB, 342 of 342 on H2).
++- **Studio's "generate plan" for an ordinary query** uses none of the code these changes remove (checked in the
++  compiled code; none of the 15 recorded requests is affected). Only a query that itself asks for SQL text is
++  affected, and that is item 2.
++- **Tests that check SQL text** are still judged, by their answers, on legend-engine's own H2.
++- **Floats are doubles**, as in legend-engine. A 20-digit Float literal loses digits in both (only legend-pure's
++  interpreter keeps them; S120).
++- **On legend-engine's own function suite (PCT)**, lite's legend-engine route passes more tests than legend-engine
++  on DuckDB, H2 relation and H2 essential, and fewer on H2 standard:
++
++  | | lite | legend-engine |
++  |---|---:|---:|
++  | DuckDB | 1,212 | 1,005 |
++  | H2 relation | 448 | 411 |
++  | H2 essential | 252 | 131 |
++  | H2 standard | 113 | 134 |
++
++  H2 standard is behind by the gaps above.
+diff --git a/docs/GOALS_OF_RECORD_2026_11_07.md b/docs/GOALS_OF_RECORD_2026_11_07.md
+index 87823b95f..ef53077b5 100644
+--- a/docs/GOALS_OF_RECORD_2026_11_07.md
++++ b/docs/GOALS_OF_RECORD_2026_11_07.md
+@@ -129,7 +129,10 @@ derive values, decide types from values, reshape rows, or count rows (charter Cl
+   name is missing, a value fabricated for a null. This is AGENTS.md invariant 4, extended explicitly to exec and the
+   judges.
+ - **G8. Upstream fidelity, verified and ledgered.**
+-  - Lite does what upstream does, read from the pinned sources or asked of the engine runner.
++  - Lite follows Pure; legend-engine's formats are matched, and its answers where they agree with Pure. Both are read
++    from the pinned sources or asked of the engine runner. (Amended 2026-11-19 by the user's ruling for the
++    compatibility program: "Lite follows Pure. legend-engine's formats are matched, and its answers where they agree
++    with Pure. The rest is recorded." Until then: "Lite does what upstream does".)
+   - Every difference is a user-ruled row of `docs/SEMANTICS_REGISTER.md`.
+   - The edge (G5) is where fidelity is bought.
+   - This restates the AGENTS.md upstream-fidelity tenet, scoped to the edge.
+diff --git a/docs/SEMANTICS_REGISTER.md b/docs/SEMANTICS_REGISTER.md
+index 91ed33d16..c2ec16645 100644
+--- a/docs/SEMANTICS_REGISTER.md
++++ b/docs/SEMANTICS_REGISTER.md
+@@ -159,11 +159,11 @@ that names S104 for functions generic over relations means S112).
+ | S127 | outcome (the user's ruling, 2026-11-04: "the principled fix for the product, then compiled for backwards compatible") | upstream's three runtimes disagree on two numbers of different kinds (asked 2026-11-04, `core/src/test/resources/upstream-api/s127-number-equality.txt`): interpreted legend-pure (`EqualityUtilities.eq`: the same primitive type, then the value) says `1D == 1`, `1 == 1.0` and `1.5 == 1.5D` all false; compiled legend-pure (`CompiledSupport.eq(Number, Number)`: `equals`, then `toString`), where a test's assert runs, says `1D == 1` and `3 == 3D` true, `1 == 1.0` and `1.5 == 1.5D` false; legend-engine's plan executor (its generated Java) says `1D == 1` and `1 == 1.0` true, `1.5 == 1.5D` false, and plans no assert | lite's own runs: the type is part of the value -- two numbers of different kinds are never equal (`1D == 1`, `1 == 1.0`, `1.5 == 1.5D` false), the host judge's Rule 3 (`judge/Equality`) and the database judge deciding a single pair of different known kinds false at planning (`DatabaseJudge.crossNumberKinds`), so the two agree by construction; backwards-compatibility mode (`ExecuteOptions.withEngineCompat`: PCT channel B, the corpus) compiled legend-pure's rule, an Integer and a Decimal equal by their texts, a Float equal to neither. Lite's tagged list still REFUSES by name the pairs that can cross in `contains`, `sameElement` and `sameListByKinds` (`lowering/TaggedLists.refuseCrossingNumbers`, D54 (4)); an equality inside a QUERY is the database's comparison, unchanged | the user, 2026-11-04 (asked with the engine's answers in hand); until then pending since 2026-10-29 (the L2 audit, finding 5; the Z audit, finding 3) | `judge/Equality.java` (Rule 3), `driver/DatabaseJudge.java` (`crossNumberKinds`), `AssertBarTest` (`decimal-vs-integer`, `float-vs-decimal`, `assertNotEquals-across-kinds`; `backwardsCompatibilityModeComparesNumbersAsCompiledPureDoes`) | the asserts-as-plan-nodes program |
+ | S128 | outcome (scope) | legend-engine 4.145.0 has no `print`: `|print('x', 1)` is refused when the lambda is built ("Function does not exist 'print(String[1],Integer[1])'"); legend-pure's `print` returns `Nothing[0]` | lite's product plans `print` as no statement and answers a query ending on it with one row of a null cell (`[{"value":null}]`, the JSON rows writer); a test body answers it as no row (Pure's `[]`) | R18 (2026-10-31), kept by R21 (the user, 2026-11-01: "If matches engine too do it" -- it does not) | `core/src/test/resources/upstream-api/m5-answers.json`; `ProductStatements.constant`, `asATestAnswers` | -- |
+ | S129 | outcome (the user's ruling, 2026-11-02) | legend-pure evaluates every `let` once, at its turn, in order (the interpreter's letFunction): a let nothing reads still runs, what it raises fails the test, and its value is the one every reader sees | an UNREAD let is the statement it binds, at its turn (`LetPlanner.unreadAsStatements`, the execution door before routing: upstream-exact), the body's LAST let among them (2026-11-03: nothing reads it, and a body's last `let x = e` answers `e`; channel B's last walker, `testVariantColumn_modelOutputNotSupported`'s `let res = assertError(...)`) -- but for a value that does no work (a lambda, an element, a variable, a constant, a handle) and the generator's carrier until T8. A READ let is evaluated where it is read: spliced into each reader, so once per reader; a reader that never runs never evaluates it; where an effect stands between the let and a reader, its rows are staged at the let's turn (`LetPlanner.Kind.STAGED_GRID`, D75), as upstream reads them. Visible only (1) where a read let raises: at its first reader's turn, not the let's; (2) where a non-deterministic value (`now()`, a random) is read twice: two evaluations | the user, 2026-11-02 ("let at the end just runs as normal statement" for the unread let; one row for the read let instead of materializing every let once, a large change to SQL shapes and the product's query path); found by M10c item 13's audit | `LetPlanner.unreadAsStatements`, `Execution.runProgram`; `BodyRouterParityTest.anUnreadLetInAnEffectProgram`; the corpus's four passes (2026-11-03: outcomes unchanged, rosters byte-identical) | the let's evaluation, if the read let is ever materialized |
+-| S130 | input (the user's ruling, 2026-09-12; kept 2026-11-03) | legend-engine's PCT adapters set no feature flag and ledger the substring tests as failures; its testable runner (`TestExecutionContextHelper`) sets `CORRECT_SQL_SUBSTRING_INDEXING` for relation-returning tests; its relational tests run without it | lite's PCT (both channels) runs with `CORRECT_SQL_SUBSTRING_INDEXING` on -- Pure's 0-based substring -- through the one door (`Execution.run`'s feature flags, upstream's `ExecutionOptionContext`); the corpus runs without it, as the engine's relational tests | the user, 2026-09-12 and 2026-11-03 ("keep it for now") | `PctPlanRoute`, `ChannelB` | the user's word |
++| S130 | input (the user's ruling, 2026-09-12; kept 2026-11-03; REWRITTEN by A3, 2026-11-19, the user's D1: "Pure's way, LOUD, no translator"; PROPOSED by the compatibility program's A3, 2026-11-19, for the user's word) | legend-engine's PCT adapters set no feature flag and ledger the substring tests as failures; its testable runner (`TestExecutionContextHelper`) sets `CORRECT_SQL_SUBSTRING_INDEXING` for relation-returning tests, and its `processSubstring` corrects the indexes then (`pureToSQLQuery.pure:4662`); its relational tests run without it | `CORRECT_SQL_SUBSTRING_INDEXING` is a documented no-op: `substring` is Pure's (0-based, end-exclusive) with or without it, on every road. Lite's PCT adapter stops setting it (`PctPlanRoute.java:54`, `ChannelB.java:393`), reversing the 2026-09-12 written deviation; the corpus runs Pure's meaning too. At the pure/v1 door a store-routed `substring` is marked (the detector, S134) or refused under `LEGEND_LITE_PURE_MEANING=refuse`, and is quiet under the flag. A literal start of 0 is exempt where it is measured equal to Pure's answer: on H2 both arities (2.1.214 and 2.5.252, regular and legacy mode, read start 0 as position 1), on DuckDB 1.5.6 the 2-argument form only (`substring(s, 0, 3)` is `'ab'` there) | the user, 2026-09-12 and 2026-11-03; D1, 2026-11-19 | `PctPlanRoute`, `ChannelB`; `docs/records/compat-homework/a3/{h2,duckdb}-literal-zero.tsv` (the exemptions, measured) | A3 |
+ | S131 | outcome (test judge; the user's ruling, 2026-11-03) | legend-pure's `assertEquals` is `equal`, position by position (`EqualityUtilities`); an unsorted query's row order is the database's | an assert whose ACTUAL side is SORTED compares in order; one with NO sort may compare as a multiset (rows, a grid's rows, a rendered text's lines, a join's tokens, a JSON root array) -- the database promises no order where none was asked ("sort needs to be strict, no sort can be multiset compare"). Every other comparison is upstream's: each side typed by its own declared kind, the classifier before the keys, a tolerance in the sides' own kind, an object never a one-element array | the user, 2026-11-03 | `AssertVerdicts`, `HostJudge`, `DatabaseJudge`, `TdsCompare`, `Equality`; `AssertVerdictSpliceTest` | the user's word **Narrowed by the user, 2026-11-05 (build pending):** the multiset is backwards-compatibility mode's alone; lite's own tests are deterministic -- an operation that reads an order the program never defined is refused at planning (docs/ORDER_TRACKING_DESIGN_2026_11_05.md, measured report-only first). |
+ | S132 | outcome (test judge; the user's ruling, 2026-11-03, widening S15) | legend-pure compares Floats exactly | Floats within 2 ULP in every judge, and in a rendered text (a golden String against a query result rendered as text: toCSV, toString) the rendered rows' Float cells within 2 ULP (the host's `TdsCompare.renderedText`; the database judge's ruled verdict row, in the same statement as the texts', `VerdictSql.either`); two plain Strings compare exactly, the float-token comparison deleted (2026-11-06, `bf5b2ab4`: the host had applied it to any two Strings and passed `'x=1.0000000000000002'` against `'x=1.0'`, which the database judge and upstream fail): the database computes in doubles (`5.590000000000001` where the engine's golden prints `5.59`). Two DIFFERENT doubles only: two spellings of one value (`30.20` and `30.2`, a Decimal's scale where a Float is spelled) are a spelling bug and fail, as exact text (2026-11-03, the corpus's H2 `testGroupByPercentile`, which the first form passed on the host judge alone) | the user, 2026-11-03 ("allow float tolerance") | `Equality` | the user's word **Narrowed by the user, 2026-11-05; built 2026-11-05:** the 2-ULP tolerance is backwards-compatibility mode's alone (`JudgingRules.floatTolerance`: the host's scalar Float, the database's equality, grid and per-element statements); lite's own (clean) runs compare Floats exactly, as legend-pure's `equal` does, and a lite test that means "approximately" says so with `assertEqWithinTolerance`. **Decided by the user, 2026-11-06, for the corpus phase (option (a)):** a rendered text whose rows hold the same value spelled differently (a Decimal's scale where the engine spells a Float: `30.20` against `30.2`) fails, as exact text does and as upstream does; today the ruled rows compare the cells' values and pass it on both judges (the final audit, 2026-11-06), so the guard above ("two spellings of one value fail") holds for a scalar Float, not yet for a rendered text. |
+ | S133 | capability (test door; the user's ruling, 2026-11-04) | NO upstream test builds a SQL text at run time: 0 of legend-engine's 2,255 `executeInDb` call sites and 0 of legend-pure's build one from a query's data (the corpus: 0 bodies) -- the difference is only what the native accepts: legend-engine's `executeInDb` (and the other database effects) would run whatever String it is handed, a text built from a query's value (`executeInDb('... values (\'' + $names + '\')', $c)`, `$names` a class query's `makeString`) included | lite refuses such a text by name at planning, nothing run: a SQL text built at run time is a TEXT HOLE, which lite does not have (D75: a let is a staged table or a compile-time splice, never a value Java holds); a computed value is written with a store write. A String argument that folds at planning (a literal, a let of one, their concatenation) runs as written. The splice of the let's query as a scalar subselect where the hole is a value was weighed and left for later (the user, 2026-11-04: "leave it refused for now") | the user, 2026-11-04 | `testplan/BodyClass.computedEffectText`, `testplan/TestKinds.effect`; `ExecuteInDbDuckDbTest#aComputedEffectTextIsRefused` | the user's word |
+-| S134 | outcome (the user's ruling, 2026-11-05) | legend-pure's string `indexOf` is 0-based; legend-engine's relational lowering answers 1-based (its own PCT adapters fail the tests) | lite lowers as the engine does, 1-based, and the PCT tests stay KNOWN FAILURES on every lane (`indexOf::testSimple`, `testFromIndex`, ...) | the user, 2026-11-05: "it is correct that we fail right now" -- kept until upstream adds a flag for it, as it did for `substring` | `pct/src/test/resources/org/finos/legend/lite/pct/channelb/ledger.tsv` (the indexOf rows) | upstream's flag |
++| S134 | outcome (the user's ruling, 2026-11-05; REWRITTEN by A3, 2026-11-19, the user's D1: "Pure's way, LOUD, no translator", replacing 2026-11-05's "it is correct that we fail right now"; PROPOSED by the compatibility program's A3, 2026-11-19, for the user's word) | legend-pure's string `indexOf` is 0-based, -1 on a miss; legend-engine's relational lowering is 1-based, 0 on a miss (`locate`, with no flag: `pureToSQLQuery.pure:10644`) | legend-pure's meaning on every road. The pure/v1 door marks a request whose store-routed code calls the 2-argument String `indexOf` (the detector: the response header `x-legend-lite-pure-meaning` and one WARNING log line, by default, with the report at load) and refuses it under `LEGEND_LITE_PURE_MEANING=refuse`; `indexOf` always warns (legend-engine's option corrects `substring` alone). Lite's own frontends (`#Cypher`, `#SQL`, `#IQ`) and `###Relational` keep SQL's meaning through two lite-internal natives, `meta::legend::lite::sqlSubstring` and `sqlPosition` | the user, D1, 2026-11-19 | H12; the 63 PCT known-failure rows that leave (`indexOf::testSimple`, `testFromIndex`, `indexof::testIndexOfOneElement`: 3 tests on 11 channel A classes and 10 channel B lanes); `docs/records/compat-homework/A3-shape-note.md` (rev 3) | A3 |
+ | S135 | outcome (the user's ruling, 2026-11-05; built 2026-11-05: GATES "assertError: the host catches, the database judges (S135)") | both legend-pure runtimes run `f` and catch its exception in Java, then compare the message (interpreted `AssertError.java:55-73`, compiled `CoreGen.assertError:345-357`) | assertError is a verdict over an OUTCOME: `f` planned as any statement (a lite compile error is the outcome, known at planning), its steps run by the runner in isolation (a savepoint), the raise caught (orchestration) and bound as a side, which both judges compare as any side -- the database judge in its verdict row, upstream's failure text written there. A write `f` makes before it raises is rolled back with the savepoint, where upstream would keep it | the user, 2026-11-05 (the design spike, "host catches, database judges") | the spike's classification, docs/ASSERT_NODES_PLAN_2026_11_04.md "The rulings of 2026-11-05" | the build |
+ | S136 | outcome (the user's ruling, 2026-11-05; WITHDRAWN 2026-11-05, the user: "drop s136") | an error decided by a literal (`%2017->dayOfMonth()`, a constant bit shift past 62) raises at run time | lite does the same: the lowering writes the constant raise (`SELECT error(...)`) and the database raises it, the message upstream's. Withdrawn because raising it at planning instead would change no outcome, diverge from both upstreams' timing, and need a rule (only code certain to run) with its own trap | the user, 2026-11-05 | the assertError spike: 9 PCT and 5 core sites | -- |
+ | S137 | outcome (the user's ruling, 2026-11-05; built 2026-11-05) | `assertSize` / `assertEmpty` / `assertNotEmpty` over a relation count it as ONE value (`assertEmpty($rel)` always fails, `assertNotEmpty($rel)` always passes) | lite's own runs refuse the three over a relation at planning, naming the assert to write (`assertEquals(<size>, $relation->size())`, `assertEquals(0, ...)`, `assertNotEquals(0, ...)`). Backwards-compatibility mode counts the relation as one value, as upstream does: the body router replaces it by one value before either judge plans (`assertSize($rel, n)` holds for n = 1 alone, failing with `expected size: n, actual size: 1`; `assertNotEmpty($rel)` holds). Residue: `assertEmpty($rel)` fails upstream with `'%s is not empty'` printing the relation itself, a text lite does not spell, so compatibility mode refuses it by name (a failure either way). `compiler.spec.RelationCountAsserts`, called first by `driver.BodyRouter` | the user, 2026-11-05 | `RelationCountAssertsTest`, `AssertVerdictSpliceTest`; PCT DuckDB channel B reaches none of the three over a relation (measured 2026-11-05) | -- |
+@@ -251,6 +251,10 @@ that names S104 for functions generic over relations means S112).
+ | S369 | representation (a model's and a lambda's JSON without source information) (RULED by the user, 2026-11-17, the behaviour batch: "Yes to the rule"; J35 of the edge audit, the orchestrator's order of 2026-11-18; beside S364, the one grammar -- J21's row, S362 on its branch) | legend-engine 4.145.0 asked for JSON without source information (`returnSourceInformation=false`) still records the spans of five places its walker parses through a span context of its own (an `equalTo`'s expected value, a test parameter's value, a legacy service test's parameter values, a persistence context's service parameters' primitive values: `edge.EngineSpans.keptByTheEngine`) | the product's JSON doors (`door.Parse.documentJson`/`lambdaJson`: model changes, the SDLC's grammar, the embedded hosts' grammar operations and programs) write NO span when asked for none (`SourceInformation.stripAll`); legend-engine's kept spans (`edge.EngineSpans.withoutSpans`, moved out of the product's protocol package by J35's residue, 2026-11-18) are the edge's engine entries' alone (`edge.EngineGrammar`: pure/v1's `grammar/grammarToJson`), byte for byte | the user's rule: the product's answer is its own definition, the engine's quirk compatibility behaviour, the edge's | lite: `door/Parse.java`, `protocol/SourceInformation.java` (`stripAll`), `edge/EngineSpans.java` (`withoutSpans`, `keptByTheEngine`); parser-equivalence's CorpusSweepTest claim 1c (the edge's entries, unmoved) | E-P5 (J35) |
+ | S370 | outcome | legend-engine's relational `isNumeric` on H2 is `lower(s) = upper(s)`: true for any text with no cased letter (`' 1 '`, `''`, `'-'` numeric; `'1e3'` not); NULL on NULL | on the product's plan style `meta::legend::lite::isNumeric(s)` is `SqlFn.IS_NUMERIC`, each dialect's full match of `SqlFn.NUMERIC_TEXT` (an optional sign, digits with an optional fraction or a fraction alone, an optional exponent; no space): `'1'`, `'-1.5'`, `'1e3'` true; `' 1 '`, `'abc'`, `''` false; NULL on NULL. legend-engine's `lower = upper` is the compatibility edge's (`EdgeLoweringForms.isNumeric`, the two-form `LoweringForms`): PCT, the corpus and pure/v1 answer as the engine does | RULED by the user, 2026-11-17 23:05 (relayed by the orchestrator): "a real numeric check, the same on every database"; substring and indexOf unchanged (S130, S134) | `IsNumericProbeTest` (//core:is_numeric_probe_test): the seven answers alike on DuckDB, H2, SQLite and Postgres, 2026-11-18 | E-Java, census J20 |
+ | S380 | outcome (SQL text; PROPOSED by A2 of the compatibility program, 2026-11-19, for the user's word; the id PROVISIONAL until landing, coordinated with the product track's rows: CP-4, "SQL text is never promised", stage A ratified by the user 2026-11-19) | legend-engine prints its own SQL spelling wherever a request asks for SQL text: `toSQLString` (and its pretty and non-executable forms), `planToString` and an execution plan's SQL nodes and allocations, the deprecated `toDDL` statement generators, an execute result's `activities[].sql`, a plan connection's `testDataSetupSqls`, and the test-data generator's plan (`"root"`, `<table>_<n>` aliases, lowercase keywords; S4) | lite prints its OWN SQL there, the edge's dialect of the database (`PureText.dialect`, the SQL the route runs) on all 12 databases lite has a dialect for (before: only H2's, DB2's and Composite's legend-engine text, every other database refused); a database lite has no dialect for (DB2, Composite, Oracle, SQL Server and the rest) is refused by name ("SQL dialect for database type 'DB2' is not implemented yet"). A corpus test that checks SQL text is judged by its answer: the SQL-text appeal runs legend-engine's expected SQL on its own H2 (the referee) and compares rows in Java (the host judge). 147 corpus tests on H2 and 152 on DuckDB move to the fail rosters (text alone, or a plan structure, `A2-roster.tsv`) | CP-4 (the compatibility plan's rule, stage A ratified by the user 2026-11-19): upstream defines the answer, never its SQL text; the user's rules of record (2026-11-19): the database computes, presentation only serializes typed values | lite: `edge/LiteSqlText.java`, `edge/EnginePlans.java`; the printers `edge/EngineStyleH2.java`, `EngineStyleDB2.java`, `EngineStyleComposite.java` and `EngineTextDialect.java` deleted; `server/PureV1SqlTextTest` (an ordinary request byte-identical, a DDL native's and an activity's SQL lite's); the corpus rosters `spec/src/test/resources/rcorpus/{h2,duckdb}-fail-roster.txt` | A2 (census B2) |
++| S382 | representation (a Double's last digits by the operating system; PROPOSED by the compatibility program, 2026-11-19, for the user's word; the id PROVISIONAL until landing, coordinated with S380 and S381) | legend-engine's answers are recorded on Linux, where DuckDB and SQLite compute their maths functions with the system's C maths library | lite sends the same SQL on every operating system and the database computes the value there: on Windows `sinh`, `cosh`, `tanh` (identical on DuckDB and SQLite), `cbrt` and `pow`, and on macOS `acos`, `asin`, `cot`, `cbrt`, `sinh` and `cosh`, can differ from Linux in the last one or two digits of a Double (on macOS each exactly one unit in the last place); H2 computes in Java and matches. Lite does not recompute the database's answer (tenet 1, the user's rules of record, 2026-11-19). The edge golden net names each such line per operating system in an overlay, so any other difference still fails | the database computes every value; its platform is the database's, not lite's choice | PR #123: `pct/src/test/resources/edge/overlay_windows.tsv` (17 rows, 30 lines) and `overlay_macos.tsv` (16 rows, 31 lines), read by `tools/edgenet/PlatformOverlay`, its plants in `//tools/guards:edge_normalize_test`; no order, locale, path or line ending moved | B1 (the edge net) |
++| S383 | outcome (an out-of-range `substring`; PROPOSED by the compatibility program's A3, 2026-11-19, for the user's word, the id PROVISIONAL until landing; ruled by the compat owner, rev 2 of A3's shape note, on the user's list) | legend-pure raises Java's `StringIndexOutOfBoundsException` for a start below 0, an end past the length, or an end before the start (`String.substring`: interpreted `SubString.java:56,61`, compiled `CompiledSupport.java:1546-1556`, read at the pin); legend-engine passes the indexes to SQL unchecked (H2 clamps past the length) | lite raises in the database on all three, its words read from the JDK's text at the slice | Pure's definition (D1, "Pure's way"); the database computes the raise (tenet 1) | `docs/records/compat-homework/A3-shape-note.md` (rev 3) | A3 |
++| S384 | outcome (`toOne()` of an empty collection; PROPOSED by the compatibility program, 2026-11-19, for the user's word; the id PROVISIONAL until landing; named by the compat owner: a difference with no row until now) | legend-pure raises "Cannot cast a collection of size 0 to multiplicity [1]"; legend-engine's relational SQL writes no check, so the database answers `null` | lite raises Pure's error in the database (today worded `Raised: SIZE_NOT_MULTIPLICITY`; legend-pure's sentence comes with B1's error records). To get legend-engine's answer, write `$x->first()` | Pure's definition; the database computes the raise (tenet 1) | the pure/v1 edge net's `raise.toOneOfEmpty`, against legend-engine's own answer (B1-R's oracle) | B1 |
++| S385 | scope (lite answers where legend-engine refuses; PROPOSED by the compatibility program, 2026-11-19, for the user's word; the id PROVISIONAL until landing; the plan's E-R2; named by the compat owner: a difference with no row until now) | legend-engine refuses some functions at planning ("No SQL translation exists ..." and the like) | lite answers them, its answers checked against PCT's expected values; a query written against lite may not run back on legend-engine | E-R2: an answer that agrees with Pure is never refused for legend-engine's gap | B1-R's ENGINE lane: on DuckDB 99 of legend-engine's 110 refused PCT tests answered and 109 wrong answers fixed, on H2 28 of 36 (H7); on the corpus no runnable verdict moves (census B2's H8 (k)) | B1-R |
+ 
+ **Renumbered 2026-10-30, at main's merge into the timeseries platform branch (PR #81's review).** Main and the
+ branch had each given S115 to a row of its own: main's (a Variant cell's wire text) keeps S115, which main's code and
