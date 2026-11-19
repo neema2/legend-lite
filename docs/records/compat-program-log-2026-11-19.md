@@ -2723,3 +2723,16 @@ who confirms or changes phases 1-3.
 - **~20:52 UTC, the parser memo final** (`7f36f2730`: an OutOfMemoryError never kept; parser_parity green in 167.3 s,
   same counts); handed to the judges to merge into the batch branch. The translator confirmed it needs the user's word
   in its own session for piece 1's guard moves and its pushes.
+- **~20:56 UTC, B1-R: the detector's review fixes** (29 tests green; seven plants each failing a named test; M2 proven
+  on the old constraint). The parser-equivalence ratchet `own_corpus.matched` 3312 → 3315 (four new one-line test
+  declarations, three parse alike on both parsers): **covered by the user's ~20:10 ruling** (the ratchet regenerated
+  for the detector's test models; a matched-count floor rising strengthens the guard); expected 3316 on the merged
+  tree. **Two product-track gaps found:** the pure/v1 door types through `Compiler.query`, which skips
+  `ValidateDesugar`, so a `validate` request is refused at the door, never answered; a packaged runtime's
+  `ModelChainConnection` does not reach the typed context (StressServiceSuitesTest's "has 0 mappings"); in both, no
+  wrong answer escapes.
+- **~20:55 UTC, the user asked how to do `substring` correctly and expertly.** Answered: three meanings, three named
+  functions (Pure's `substring`, computed in the database and raising like Pure; lite's `sqlSubstring` for its SQL-family
+  languages, one meaning everywhere; `substringAsGiven`, the database's raw call, door-only, opt-in). Flagged: lite's
+  `sqlSubstring` today copies H2's quirk (a start below 1 counts as 1, `'Cr'`), where the SQL standard, DuckDB and
+  Postgres give `'C'` for `SUBSTRING('Credit' FROM 0 FOR 2)`; proposed for the product track, measured first.
