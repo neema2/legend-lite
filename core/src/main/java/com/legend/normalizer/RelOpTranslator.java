@@ -449,9 +449,11 @@ final class RelOpTranslator {
             // indexOf rule IS 1-based locate (engine parity), so the
             // dynafunction forwards VERBATIM (the old +1 emission paired
             // with the 0-based rule; both sides dropped together).
+            // A3 of the compatibility program (PR1, 2026-11-19): SQL's meaning by name, lite's sqlPosition (the
+            // database's STRPOS verbatim), so Pure's indexOf can take Pure's 0-based meaning
             case RelationalOperation.FunctionCall call
                     when dyna(call) == DynaFn.INDEX_OF && call.args().size() == 2 ->
-                    Calls.platform("indexOf", List.of(
+                    Calls.exact(com.legend.builtin.Pure.Lite.SQL_POSITION, List.of(
                             translate(call.args().get(0), tableScope,
                                     targetVarOrNull, rowBindOrNull, pipeline),
                             translate(call.args().get(1), tableScope,
@@ -469,7 +471,9 @@ final class RelOpTranslator {
             case RelationalOperation.FunctionCall call
                     when dyna(call) == DynaFn.SUBSTRING
                     && (call.args().size() == 2 || call.args().size() == 3) ->
-                Calls.platform("substring", toOneAll(translateArgs(call,
+                // A3 (PR1): SQL's SUBSTRING by name, lite's sqlSubstring (verbatim), so Pure's substring can take
+                // Pure's meaning
+                Calls.exact(com.legend.builtin.Pure.Lite.SQL_SUBSTRING, toOneAll(translateArgs(call,
                         tableScope, targetVarOrNull, rowBindOrNull, pipeline)));
             // dyna 'add'/'sub' are SQL ARITHMETIC — pure spells them
             // plus/minus; the bare names would hit pure's COLLECTION
@@ -496,8 +500,9 @@ final class RelOpTranslator {
                     when dyna(call) == DynaFn.POSITION && call.args().size() == 2 ->
                     // toOne on the haystack: an OPTIONAL column read would
                     // otherwise infect the whole arithmetic chain with [*]
-                    // (SQL null-propagates; erasure makes toOne free)
-                    Calls.platform("indexOf", List.of(
+                    // (SQL null-propagates; erasure makes toOne free); A3 (PR1): SQL's position by name, lite's
+                    // sqlPosition
+                    Calls.exact(com.legend.builtin.Pure.Lite.SQL_POSITION, List.of(
                             Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                                     translate(call.args().get(1), tableScope,
                                             targetVarOrNull, rowBindOrNull,
