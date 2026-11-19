@@ -15,14 +15,14 @@ has closed the items (a later decision).
 
 | Lens | (a) | (p) | (b) | (c) | all |
 |---|---|---|---|---|---|
-| M1 | 171 | 0 | 206 | 235 | 612 |
-| M2 | 13 | 0 | 24 | 17 | 54 |
+| M1 | 55 | 0 | 322 | 235 | 612 |
+| M2 | 12 | 0 | 25 | 17 | 54 |
 | M3 | 57 | 0 | 31 | 131 | 219 |
-| M4 | 192 | 0 | 4 | 1 | 197 |
-| M5 | 41 | 2 | 8 | 83 | 134 |
+| M4 | 0 | 0 | 196 | 1 | 197 |
+| M5 | 7 | 2 | 42 | 83 | 134 |
 | M6 | 9 | 0 | 0 | 0 | 9 |
 | M7 | 2 | 0 | 5 | 12 | 19 |
-| **all** | **485** | **2** | **278** | **479** | **1244** |
+| **all** | **142** | **2** | **621** | **479** | **1244** |
 
 Every hit is classified by the committed `tools/meaning/inventory.tsv`:
 - **(a)** upstream meaning in the product. A finding still in the product, including items the user has ruled to move,
@@ -146,11 +146,11 @@ G4's "the hosts' and DataCube's readers" of a Pair's `<a, b>` text is a LITERAL 
 | Lens | Category | (a) | (p) | (b) | (c) |
 |---|---|---|---|---|---|
 | M1 | DOC | 0 | 0 | 54 | 0 |
-| M1 | EDGE | 4 | 0 | 1 | 47 |
+| M1 | EDGE | 2 | 0 | 3 | 47 |
 | M1 | NAME | 33 | 0 | 136 | 137 |
 | M1 | ROUTE | 0 | 0 | 1 | 3 |
-| M1 | SENTENCE | 134 | 0 | 14 | 48 |
-| M2 | NAME | 13 | 0 | 24 | 17 |
+| M1 | SENTENCE | 20 | 0 | 128 | 48 |
+| M2 | NAME | 12 | 0 | 25 | 17 |
 | M3 | ANSWER | 2 | 0 | 2 | 32 |
 | M3 | BRANCH | 25 | 0 | 6 | 2 |
 | M3 | EDGE_LIVE | 2 | 0 | 2 | 1 |
@@ -158,9 +158,9 @@ G4's "the hosts' and DataCube's readers" of a Pair's `<a, b>` text is a LITERAL 
 | M3 | UNUSED | 22 | 0 | 10 | 16 |
 | M3 | UNUSED_LAZY | 0 | 0 | 0 | 6 |
 | M3 | UNUSED_NOOP | 0 | 0 | 5 | 58 |
-| M4 | BODY | 192 | 0 | 0 | 0 |
+| M4 | BODY | 0 | 0 | 192 | 0 |
 | M4 | TOSTRING | 0 | 0 | 4 | 1 |
-| M5 | COMMENT | 41 | 2 | 8 | 83 |
+| M5 | COMMENT | 7 | 2 | 42 | 83 |
 | M6 | EXPORT | 9 | 0 | 0 | 0 |
 | M7 | BUILD | 0 | 0 | 5 | 0 |
 | M7 | DOOR | 1 | 0 | 0 | 1 |
@@ -170,155 +170,23 @@ G4's "the hosts' and DataCube's readers" of a Pair's `<a, b>` text is a LITERAL 
 ### 6.2 (a): upstream meaning in the product, by item
 
 The items the audit knew (tagged by their ids) and the ones this census found, which no audit row lists:
-- **N-PRELUDE**: the prelude ships upstream Pure bodies, and upstream's messages inside them. This goes beyond C5's four
-  print forms: legend-engine's DbExtension asserts (`[unsupported-api] ... not supported for Database Type`), its plan
-  text warning, its External Format and TDS bodies, the PCT runner's prints.
-- **N-PARSER**: the product parser, its section grammars, its model builder and its protocol upgrade raise
-  legend-engine's grammar refusals in legend-engine's words.
 - **N-JUDGE**: the product's judges compute and branch for compiled legend-pure's comparison: VerdictSql's tolerance
   and canon grids, Equality, HostJudgments, DatabaseJudge, AssertVerdicts, and the words families' eager operands.
 - **N-ROOTFORM**: legend-engine's toSQLString root form in the product resolver.
+
+The user ruled on 2026-11-19, "we're not going to change prelude or parser". So two of this census's own groups and one
+audit item are (b), in §6.4:
+- **N-PRELUDE**: the prelude's upstream Pure bodies and the messages inside them. This goes beyond C5's four print
+  forms: legend-engine's DbExtension asserts, its plan text warning, its External Format and TDS bodies, the PCT
+  runner's prints.
+- **N-PARSER**: legend-engine's grammar refusals in its words, in the product parser, its section grammars, its model
+  builder and its protocol upgrade.
+- **COMPLETENESS-7**: the parser's and the protocol emitter's span and emit quirks.
 
 C5, C6, HOSTS-5, R2 and R7 are ruled, so their rows are in (b) (§6.4).
 
 Untagged rows are single sites, each with its reason. The first 60 sites of each group are shown; the TSV holds all.
 
-
-#### N-PRELUDE (235)
-
-Reason: an upstream message inside a Pure body the prelude ships (legend-engine's relational asserts, its External Format and TDS bodies, the PCT runner's prints) [N-PRELUDE]
-
-| Lens | Where | Term |
-|---|---|---|
-| M1 SENTENCE | prelude:prelude.pure:1412 | `Surveyor Suite completed` |
-| M1 SENTENCE | prelude:prelude.pure:1440 | `Discovering PCT tests in` |
-| M1 SENTENCE | prelude:prelude.pure:1445 | `PCT tests to execute!` |
-| M1 SENTENCE | prelude:prelude.pure:1459 | `Surveyor PCT Suite completed` |
-| M1 SENTENCE | prelude:prelude.pure:2498 | `Inline embedded mapping for property` |
-| M1 SENTENCE | prelude:prelude.pure:2498 | `has more than one root mapping is, not supported yet!` |
-| M1 SENTENCE | prelude:prelude.pure:3876 | `External Format needs to provide serialized tree structure for its source record` |
-| M1 SENTENCE | prelude:prelude.pure:3891 | `External Format -` |
-| M1 SENTENCE | prelude:prelude.pure:3891 | `does not support binding validation` |
-| M1 SENTENCE | prelude:prelude.pure:3919 | `External Format does not support model generation with debug` |
-| M1 SENTENCE | prelude:prelude.pure:3919 | `does not support model generation` |
-| M1 SENTENCE | prelude:prelude.pure:3941 | `External Format does not support schema generation with debug` |
-| M1 SENTENCE | prelude:prelude.pure:3941 | `does not support schema generation` |
-| M1 SENTENCE | prelude:prelude.pure:4999 | `Unable to find` |
-| M1 SENTENCE | prelude:prelude.pure:4999 | `Unable to find index for the column` |
-| M1 SENTENCE | prelude:prelude.pure:4999 | `The TDS row has no parent, make sure the row has a parent.` |
-| M1 SENTENCE | prelude:prelude.pure:5006 | `Unable to find` |
-| M1 SENTENCE | prelude:prelude.pure:5006 | `Unable to find index for the column` |
-| M1 SENTENCE | prelude:prelude.pure:5006 | `The TDS row has no parent, make sure the row has a parent.` |
-| M1 SENTENCE | prelude:prelude.pure:5023 | `No index for the column` |
-| M1 SENTENCE | prelude:prelude.pure:5081 | `must in in existing schema` |
-| M1 SENTENCE | prelude:prelude.pure:5168 | `Conflicting / duplicte column names in schemas` |
-| M1 SENTENCE | prelude:prelude.pure:6343 | `[unsupported-api] Window Columns not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6349 | `[unsupported-api] Tabular Functions not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6355 | `[unsupported-api] Semi structured array element processing not supported for Dat` |
-| M1 SENTENCE | prelude:prelude.pure:6361 | `[unsupported-api] variable dleclaration param processing not supported for Datab` |
-| M1 SENTENCE | prelude:prelude.pure:6368 | `[unsupported-api] table function param processing not supported for Database Typ` |
-| M1 SENTENCE | prelude:prelude.pure:6374 | `[unsupported-api] Lateral operation not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6386 | `[unsupported-api] Join strings operation not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6420 | `[unsupported-api] Upsert operation not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6424 | `[unsupported-api] commit not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6465 | `] is not registered in meta::relational::functions::sqlQueryToString::DynaFuncti` |
-| M1 SENTENCE | prelude:prelude.pure:6471 | `[unsupported-api] DDL commands translator not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6478 | `[unsupported-api] Create schema translation not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6485 | `[unsupported-api] Drop schema translation not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6492 | `[unsupported-api] Create table translation not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6499 | `[unsupported-api] Drop table translation not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6506 | `[unsupported-api] Load table translation not supported for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6512 | `Pre & Finally Execution SQL Queries are not set for Database Type` |
-| M1 SENTENCE | prelude:prelude.pure:6523 | `[unsupported-api] relational lambda parameter processing not supported for Datab` |
-| M1 SENTENCE | prelude:prelude.pure:6529 | `[unsupported-api] relational lambda processing not supported for Database Type` |
-| M1 EDGE | prelude:prelude.pure:6757 | `Warning: Results only shown for first relational query.` |
-| M1 EDGE | prelude:prelude.pure:6767 | `Warning: Results only shown for first relational query.` |
-| M4 BODY | prelude:prelude.pure:438 | `meta::pure::functions::math::binFloor` |
-| M4 BODY | prelude:prelude.pure:513 | `meta::pure::functions::meta::lenientPathToElement` |
-| M4 BODY | prelude:prelude.pure:554 | `meta::pure::functions::meta::pathToElement` |
-| M4 BODY | prelude:prelude.pure:593 | `meta::pure::functions::meta::getHiddenPayload` |
-| M4 BODY | prelude:prelude.pure:627 | `meta::pure::functions::meta::getUpperBound` |
-| M4 BODY | prelude:prelude.pure:661 | `meta::pure::functions::meta::hasToOneUpperBound` |
-| M4 BODY | prelude:prelude.pure:695 | `meta::pure::functions::meta::hasUpperBound` |
-| M4 BODY | prelude:prelude.pure:732 | `meta::pure::functions::meta::isToMany` |
-| M4 BODY | prelude:prelude.pure:766 | `meta::pure::functions::meta::isToOne` |
-| M4 BODY | prelude:prelude.pure:905 | `meta::pure::functions::meta::reactivate` |
-| M4 BODY | prelude:prelude.pure:1017 | `meta::pure::functions::meta::_subTypeOf` |
-| M4 BODY | prelude:prelude.pure:1053 | `meta::pure::functions::meta::class` |
-| M4 BODY | prelude:prelude.pure:1121 | `meta::pure::functions::meta::properties` |
-| M4 BODY | prelude:prelude.pure:1190 | `meta::pure::functions::meta::functionType` |
-| M4 BODY | prelude:prelude.pure:1232 | `meta::pure::functions::meta::getAllTypeGeneralisations` |
-| M4 BODY | prelude:prelude.pure:1287 | `meta::pure::functions::string::lastIndexOf` |
-| M4 BODY | prelude:prelude.pure:1317 | `meta::pure::test::pct::testAdapterForInMemoryExecution` |
-| ... | 175 more in the TSV | |
-
-#### N-PARSER (73)
-
-Reason: legend-engine's protocol refusal, in its words, in the product [N-PARSER]
-
-| Lens | Where | Term |
-|---|---|---|
-| M1 SENTENCE | com/legend/protocol/ProtocolUpgrade.java | `Unexpected number of parameters values for AggregateValue, got` |
-| M1 SENTENCE | com/legend/model/AssociationDefinition.java | `Property name cannot be null` |
-| M1 SENTENCE | com/legend/model/ClassDefinition.java | `Property name cannot be null` |
-| M1 SENTENCE | com/legend/model/ClassMapping.java | `Property name cannot be null` |
-| M1 SENTENCE | com/legend/model/FromProtocol.java | `Expected 2 properties for an association` |
-| M1 SENTENCE | com/legend/model/MappingFromProtocol.java | `Unsupported type` |
-| M1 SENTENCE | com/legend/model/MappingFromProtocol.java | `Package path not allowed in types` |
-| M1 SENTENCE | com/legend/model/PropertyMapping.java | `Property name cannot be null` |
-| M1 SENTENCE | com/legend/parser/DatabaseProtocolParser.java | `Missing table or alias` |
-| M1 SENTENCE | com/legend/parser/DatabaseProtocolParser.java | `Missing table or alias for column` |
-| M1 SENTENCE | com/legend/parser/ElementParser.java | `Documentation must be written as a multi-line` |
-| M1 SENTENCE | com/legend/parser/ElementParser.java | `Unsupported syntax` |
-| M1 SENTENCE | com/legend/parser/ElementParser.java | `Type and/or multiplicity parameters are not authorized in Legend Engine` |
-| M1 SENTENCE | com/legend/parser/ElementParser.java | `Function name in test` |
-| M1 SENTENCE | com/legend/parser/ElementParser.java | `Unsupported embedded data type` |
-| M1 SENTENCE | com/legend/parser/ElementParser.java | `Unsupported embedded data type for function test assertion` |
-| M1 SENTENCE | com/legend/parser/ElementParser.java | `Only 'Relation' is supported.` |
-| M1 SENTENCE | com/legend/parser/MappingProtocolParser.java | `Service Store Mapping does not support extends` |
-| M1 SENTENCE | com/legend/parser/MappingProtocolParser.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/MappingProtocolParser.java | `ModelJoin association mapping requires a lambda join condition of the form '{src` |
-| M1 SENTENCE | com/legend/parser/MappingProtocolParser.java | `Multiple entries found for type` |
-| M1 SENTENCE | com/legend/parser/PmcdParser.java | `Documentation must be written as a multi-line` |
-| M1 SENTENCE | com/legend/parser/PmcdParser.java | `is not a known section parser` |
-| M1 SENTENCE | com/legend/parser/RelationIslands.java | `Data space executable sampleValues must be a standalone Relation element (e.g. s` |
-| M1 SENTENCE | com/legend/parser/ServiceStubDataParser.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/ServiceStubDataParser.java | `Service response body should be ExternalFormat Embedded Data` |
-| M1 SENTENCE | com/legend/parser/ServiceStubDataParser.java | `Unsupported HTTP Method type -` |
-| M1 SENTENCE | com/legend/parser/ServiceStubDataParser.java | `Supported types are -` |
-| M1 SENTENCE | com/legend/parser/ServiceStubDataParser.java | `value should be defined only once` |
-| M1 SENTENCE | com/legend/parser/ServiceStubDataParser.java | `Unknown contentPattern pattern type` |
-| M1 SENTENCE | com/legend/parser/SpecParser.java | `Expected a non-empty function caller` |
-| M1 SENTENCE | com/legend/parser/SpecParser.java | `Unit instance not supported` |
-| M1 SENTENCE | com/legend/parser/SpecParser.java | `Bracket operation is not supported` |
-| M1 SENTENCE | com/legend/parser/SpecParser.java | `Graph fetch tree must not be empty` |
-| M1 SENTENCE | com/legend/parser/SpecParser.java | `->subType() is supported only at root level` |
-| M1 SENTENCE | com/legend/parser/TokenStreamCursor.java | `Documentation must be written as a multi-line` |
-| M1 SENTENCE | com/legend/parser/TokenStreamCursor.java | `Element has both documentation and an explicit doc.doc tagged value. Use one.` |
-| M1 SENTENCE | com/legend/parser/TokenStreamCursor.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/TokenStreamCursor.java | `Unsupported join type` |
-| M1 SENTENCE | com/legend/parser/TokenStreamCursor.java | `The multiplicity parameter` |
-| M1 SENTENCE | com/legend/parser/section/ConnectionSectionGrammar.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/section/ConnectionSectionGrammar.java | `baseUrl should not end with '/` |
-| M1 SENTENCE | com/legend/parser/section/ConnectionSectionGrammar.java | `URL is not valid` |
-| M1 SENTENCE | com/legend/parser/section/ConnectionSectionGrammar.java | `Unsupported cluster details type` |
-| M1 SENTENCE | com/legend/parser/section/DataSpaceSectionGrammar.java | `Data space execution context` |
-| M1 SENTENCE | com/legend/parser/section/DataSpaceSectionGrammar.java | `Data space execution context must define either 'mapping' or 'mappingProvider` |
-| M1 SENTENCE | com/legend/parser/section/DataSpaceSectionGrammar.java | `Data space execution context cannot define both 'mapping' and 'mappingProvider` |
-| M1 SENTENCE | com/legend/parser/section/DiagramSectionGrammar.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/section/ElasticsearchSectionGrammar.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/section/FileGenerationSectionGrammar.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/section/FileGenerationSectionGrammar.java | `Can't have config property with reserved name` |
-| M1 SENTENCE | com/legend/parser/section/PersistenceSectionGrammar.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/section/PersistenceSectionGrammar.java | `must have a non-empty body` |
-| M1 SENTENCE | com/legend/parser/section/RuntimeSectionGrammar.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/section/RuntimeSectionGrammar.java | `Embedded runtime must not be empty` |
-| M1 SENTENCE | com/legend/parser/section/ServiceSectionGrammar.java | `Service mcpServer should be a valid identifier ([a-zA-Z_][a-zA-Z0-9_]*)` |
-| M1 SENTENCE | com/legend/parser/section/ServiceSectionGrammar.java | `should be specified only once` |
-| M1 SENTENCE | com/legend/parser/section/ServiceSectionGrammar.java | `Field 'runtime' is required` |
-| M1 SENTENCE | com/legend/parser/section/ServiceSectionGrammar.java | `Field 'mapping' is required` |
-| M1 SENTENCE | com/legend/parser/section/ServiceSectionGrammar.java | `Execution param key cannot contain spaces. Invalid Key` |
-| ... | 13 more in the TSV | |
 
 #### N-JUDGE (38)
 
@@ -364,48 +232,6 @@ Reason: the product judge computes the operands of legend-pure's failure sentenc
 | M3 REFUSED | com/legend/lowering/VerdictSql.java:3067 | `VerdictNumbers#floatsWithin(SqlExpr, SqlExpr)` |
 | M5 COMMENT | com/legend/testplan/DatabaseJudge.java:230 | `as upstream writes` |
 | M5 COMMENT | com/legend/testplan/TestPlanner.java:224 | `as upstream does` |
-
-#### COMPLETENESS-7 (35)
-
-Reason: legend-engine's parse quirks in the product parser [COMPLETENESS-7]
-
-| Lens | Where | Term |
-|---|---|---|
-| M2 NAME | com/legend/parser/EngineQuirks.java | `EngineQuirks` |
-| M5 COMMENT | com/legend/parser/DatabaseProtocolParser.java:450 | `QUIRK` |
-| M5 COMMENT | com/legend/parser/DatabaseProtocolParser.java:490 | `quirk` |
-| M5 COMMENT | com/legend/parser/DatabaseProtocolParser.java:766 | `QUIRK` |
-| M5 COMMENT | com/legend/parser/ElementParser.java:1425 | `quirk` |
-| M5 COMMENT | com/legend/parser/MappingProtocolParser.java:93 | `quirk` |
-| M5 COMMENT | com/legend/parser/MappingProtocolParser.java:2037 | `quirk` |
-| M5 COMMENT | com/legend/parser/MappingProtocolParser.java:2206 | `quirk` |
-| M5 COMMENT | com/legend/parser/OperatorParts.java:110 | `reproduces the engine` |
-| M5 COMMENT | com/legend/parser/PmcdParser.java:31 | `reproduce the engine` |
-| M5 COMMENT | com/legend/parser/SpecParser.java:144 | `reproduces the engine` |
-| M5 COMMENT | com/legend/parser/SpecParser.java:146 | `quirk` |
-| M5 COMMENT | com/legend/parser/SpecParser.java:2591 | `quirk` |
-| M5 COMMENT | com/legend/parser/section/ElasticsearchSectionGrammar.java:76 | `quirk` |
-| M5 COMMENT | com/legend/parser/section/PersistenceSectionGrammar.java:450 | `quirk` |
-| M5 COMMENT | com/legend/parser/section/PersistenceSectionGrammar.java:964 | `quirk` |
-| M5 COMMENT | com/legend/protocol/Protocol.java:484 | `quirk` |
-| M5 COMMENT | com/legend/protocol/Protocol.java:505 | `quirk` |
-| M5 COMMENT | com/legend/protocol/Protocol.java:3177 | `quirk` |
-| M5 COMMENT | com/legend/protocol/Protocol.java:3518 | `as the engine names` |
-| M5 COMMENT | com/legend/protocol/ProtocolEmitter.java:32 | `quirk` |
-| M5 COMMENT | com/legend/protocol/ProtocolEmitter.java:1693 | `quirk` |
-| M5 COMMENT | com/legend/protocol/ProtocolEmitter.java:2233 | `as the engine writes` |
-| M5 COMMENT | com/legend/protocol/ProtocolEmitter.java:2412 | `quirk` |
-| M5 COMMENT | com/legend/protocol/ProtocolEmitter.java:2841 | `QUIRK` |
-| M5 COMMENT | com/legend/protocol/ProtocolEmitter.java:2895 | `as the engine writes` |
-| M5 COMMENT | com/legend/protocol/ProtocolReader.java:42 | `quirk` |
-| M5 COMMENT | com/legend/protocol/ProtocolReader.java:305 | `quirk` |
-| M5 COMMENT | com/legend/protocol/RelationalOperations.java:15 | `as upstream prints` |
-| M5 COMMENT | com/legend/protocol/SetIds.java:4 | `as legend-engine spells` |
-| M5 COMMENT | com/legend/protocol/SpanOrigin.java:11 | `quirk` |
-| M5 COMMENT | com/legend/protocol/SpanOrigin.java:52 | `quirk` |
-| M5 COMMENT | com/legend/protocol/SpecIslandReader.java:321 | `as the engine writes` |
-| M5 COMMENT | com/legend/protocol/TailEmitter.java:193 | `quirk` |
-| M5 COMMENT | com/legend/protocol/spec/TypeAnnotation.java:57 | `quirk` |
 
 #### untagged: legend-engine's calendar schema (LegendCalendarSchema.<type>_Calendar and its fiscal columns) in product lowering: the calendar functions' own definition or a legend-engine convention; no register row (for the user) (23)
 
@@ -702,14 +528,20 @@ Reason: an undeclared door: java -cp server_deploy.jar com.legend.edge.EdgeServe
 
 | Lens | Reason | Hits | e.g. |
 |---|---|---|---|
+| M4 BODY | an upstream Pure body the prelude ships (the world-map tenet: declarations, views over the platform's own tables, no other Pure bodies; residue named, never ported) [N-PRELUDE] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 192 | prelude:prelude.pure:438 `meta::pure::functions::math::binFloor` |
+| M1 SENTENCE | legend-engine's grammar refusal, in its words, raised by the product parser (a product raise is lite's kind; upstream's words the edge's: J10, D1.6) [N-PARSER] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 65 | com/legend/parser/DatabaseProtocolParser.java `Missing table or alias` |
 | M1 DOC | a platform declaration's documentation, a tagged value verbatim with its signature (the reference-checkout tenet: signatures verified verbatim against the real .pure sources) | 54 | prelude:prelude.pure:68 `Identity (i.e., pointer equality)` |
 | M1 NAME | the model's own element fields (S364: the one grammar) | 43 | com/legend/model/AssociationDefinition.java `qualifiedName` |
+| M1 SENTENCE | an upstream message inside a Pure body the prelude ships (legend-engine's relational asserts, its External Format and TDS bodies, the PCT runner's prints) [N-PRELUDE] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 41 | prelude:prelude.pure:1412 `Surveyor Suite completed` |
 | M1 NAME | the language's names (the ###Relational dynaFunctions, the registry's natives): the one grammar (S364, the user, 2026-11-17) and the reference-checkout tenet (signatures verified verbatim) | 34 | com/legend/builtin/DynaFn.java `ASCII` |
+| M5 COMMENT | the protocol reader and emitter reproduce legend-engine's span and emit quirks [COMPLETENESS-7] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 19 | com/legend/protocol/Protocol.java:484 `quirk` |
 | M1 NAME | the saved queries' and pages' records keep legend-engine's Query shape: lite API v1 §1, "the same store and the same records" (the user, 2026-11-17: every choice ruled) | 16 | com/legend/queries/SavedCubes.java `createdAt` |
+| M5 COMMENT | the parser reproduces legend-engine's span and walker quirks, which reach the product's protocol JSON with source information [COMPLETENESS-7] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 15 | com/legend/parser/DatabaseProtocolParser.java:450 `QUIRK` |
 | M1 NAME | the saved queries' records (lite API v1 §1, the user, 2026-11-17) | 11 | datacube/src/saved-queries.ts:139 `defaultParameterValues` |
 | M2 NAME | the model protocol's date and value JSON (S369, RULED by the user, 2026-11-17) | 11 | com/legend/protocol/DomainReader.java `engineBound` |
 | M1 SENTENCE | the test-data generator's legend-engine words stay for now (R2, the user, 2026-11-18) [R2] | 10 | com/legend/testdatagen/TestDataGenerator.java `not passed in TemporalMilestoningDates` |
 | M1 NAME | the model protocol (S364, S369) | 8 | com/legend/protocol/ActivatorReader.java `bigQueryFunctionConfig` |
+| M1 SENTENCE | legend-engine's model-building refusal, in its words, in the product (J10's rule: a kind, upstream's words at the edge) [N-PARSER] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 7 | com/legend/model/AssociationDefinition.java `Property name cannot be null` |
 | M3 UNUSED | the test plan's edge extension, no-op in the product (docs/PLAN_AS_DATA_2026_11_07.md, the user's rulings of 2026-11-08: the edge's typed extension point) | 6 | com/legend/testexec/NoEdgeRun.java:100 `EdgeHearing#afterFailure(RuntimeExceptio` |
 | M1 NAME | the model protocol lite reads and writes as upstream defines it (S364, S369: RULED by the user, 2026-11-17) | 5 | com/legend/protocol/Protocol.java `qualifiedName` |
 | M1 NAME | a saved query's execution context, its record's field (lite API v1 §1, the user, 2026-11-17) | 5 | datacube/src/examples/markets-classes.ts:25 `explicitExecutionContext` |
@@ -724,18 +556,21 @@ Reason: an undeclared door: java -cp server_deploy.jar com.legend.edge.EdgeServe
 | M3 REFUSED | the test runner hands the edge's extension its rows (PLAN_AS_DATA, the user's rulings of 2026-11-08) | 3 | com/legend/testexec/BodyRun.java:60 `EdgeHearing#judged(EdgeJudged, List, boo` |
 | M3 REFUSED | the test door hands the edge's extension its data (PLAN_AS_DATA, the user's rulings of 2026-11-08) | 3 | com/legend/testplan/TestDoor.java:189 `Edge#siteWords(int, Map)` |
 | M1 NAME | lineage rebuilt upstream's way for everything (C8, the user, 2026-11-14) [COMPLETENESS-8] | 2 | com/legend/compiler/spec/LineageTreeLines.java `unionBase` |
+| M1 EDGE | legend-engine's plan-text warning in a prelude body [N-PRELUDE] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 2 | prelude:prelude.pure:6757 `Warning: Results only shown for first re` |
 | M2 NAME | the engine-text hook, refused by the product (HOOK-RULED; R3's residue) | 2 | com/legend/testplan/EngineTestText.java `EngineTestText` |
 | M3 UNUSED_NOOP | the test-data generator's printing seam: R2 (the user, 2026-11-18) [R2] | 2 | com/legend/testdatagen/LitePrinting.java:64 `TestDataPlanner$Printing#checkTree(Model` |
 | M3 UNUSED | the test-data generator's printing seam: R2 (the user, 2026-11-18) [R2] | 2 | com/legend/testdatagen/LitePrinting.java:58 `TestDataPlanner$Printing#headerName(Tabl` |
 | M3 EDGE_LIVE | the test-data generator's legend-engine row-identifier form stays for now (R2, the user, 2026-11-18): its seed argument only the edge's route passes [R2] | 2 | com.legend.testdatagen.TestDataPlanner:142 `TestDataPlanner#plan(ModelContext, Lambd` |
 | M5 COMMENT | the model JSON without source information, as legend-engine writes it (S369, RULED by the user, 2026-11-17) | 2 | com/legend/protocol/SourceInformation.java:13 `as the engine answers` |
 | M5 COMMENT | the test-data generator writes as legend-engine does (R2, the user, 2026-11-18) [R2] | 2 | com/legend/testdatagen/TestDataPlanner.java:647 `as upstream writes` |
+| M1 SENTENCE | legend-engine's protocol refusal, in its words, in the product [N-PARSER] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 1 | com/legend/protocol/ProtocolUpgrade.java `Unexpected number of parameters values f` |
 | M1 EDGE | lineage rebuilt upstream's way for everything (C8, the user, 2026-11-14): scanRelations' labels are its value [COMPLETENESS-8] | 1 | com/legend/lineage/ScanRelations.java `unionAlias` |
 | M1 NAME | lite's route for DataCube's saved pages (lite API v1 §1, the user, 2026-11-17) | 1 | com/legend/server/LegendHttpServer.java `dataCube` |
 | M1 NAME | a saved query's record field (lite API v1 §1, the user, 2026-11-17) | 1 | datacube/src/app/sources.ts:285 `defaultParameterValues` |
 | M1 ROUTE | the engine plane's health check, in the picker that loads the declared opt-in by URL (H11); R6 (the user, 2026-11-18) keeps legend-engine's work toward legend-engine | 1 | datacube/demo/planners.ts:88 `server/v1/info` |
 | M2 NAME | a date literal's protocol JSON (S369) | 1 | com/legend/values/PureDateLiteral.java `engineJson` |
 | M2 NAME | upstream's function ids, the language's own names (S364) | 1 | com/legend/model/SignatureMangle.java `upstreamTail` |
+| M2 NAME | legend-engine's parse quirks in the product parser [COMPLETENESS-7] -- (b) by the user's ruling of 2026-11-19, "we're not going to change prelude or parser" | 1 | com/legend/parser/EngineQuirks.java `EngineQuirks` |
 | M2 NAME | legend-engine's grammar level: the one grammar (S364, the user, 2026-11-17; J21); R7 (the user, 2026-11-18): the level-less entries default to LITE in the three-mode program [R7] | 1 | com/legend/parser/GrammarLevel.java `LEGEND_ENGINE` |
 | M2 NAME | legend-engine's bare-name function surface, generated from its Handlers registry: the language's names (S364; the reference-checkout tenet) | 1 | com/legend/builtin/EngineHandlers.java `EngineHandlers` |
 | M2 NAME | the engine-text hook in the DDL spelling (D1.7: engine text the edge's, its printer handed in) | 1 | com/legend/sql/dialect/DdlSpelling.java `engineText` |
@@ -833,7 +668,7 @@ The 16 open items, as the orchestrator corrected the list (2026-11-19):
 1. C1
 2. C2
 3. LOWERSQL-7
-4. COMPLETENESS-7
+4. COMPLETENESS-7 (ruled (b) by the user, 2026-11-19: the parser stays)
 5. COMPLETENESS-8
 6. C3-TS
 7. C3-Py
@@ -858,7 +693,7 @@ The product's two "Assert failed" hits are accounted for:
 - `LambdaBodies:142` is the six other guards' default: R10, (a).
 - `AssertMessages.unevaluated` is lite's own sentence: (c).
 
-Then this census's new items (N-*).
+Then this census's new items (N-*). N-PRELUDE and N-PARSER are ruled (b) with COMPLETENESS-7.
 
 Every open item is found except three, and each says why: PRODUCT-11, PRODUCT-10 and J5, all lens limits (§9). Both
 negatives hold.
@@ -876,7 +711,7 @@ negatives hold.
 | C5 | the prelude ships legend-pure's print bodies (Pair, List, SQLNull, TDSColumn) (COMPLETENESS-2, R5) | 4 | M4 TOSTRING | prelude:prelude.pure:20 `meta::pure::functions::collection::Pair`; prelude:prelude.pure:34 `meta::pure::functions::collection::List`; prelude:prelude.pure:3546 `meta::relational::metamodel::SQLNull`; prelude:prelude.pure:4950 `meta::pure::tds::TDSColumn` |
 | R11a | the product store's legend-engine statuses and IllegalArgumentException text (PH-2, PRODUCT-1, HOSTS-9) | 4 | M1 EDGE, M1 SENTENCE, M5 COMMENT | com/legend/queries/SavedQueries.java `IllegalArgumentException`; com/legend/queries/SavedQueries.java `Unknown sort-by value`; com/legend/queries/SavedQueries.java:230 `as legend-engine answers`; com/legend/queries/SavedQueries.java:31 `as the engine does` |
 | LOWERSQL-7 | H2's product dialect sets legend-engine's NON_KEYWORDS on every session | 4 | M2 NAME, M5 COMMENT | com/legend/sql/dialect/H2.java `ENGINE_LEXICON`; com/legend/sql/dialect/H2.java `FREED_BY_THE_ENGINE`; com/legend/sql/dialect/H2.java `freedByTheEngine`; com/legend/sql/dialect/H2.java:35 `replayed here reads as it did in the eng` |
-| COMPLETENESS-7 | parser and protocol emitter reproduce legend-engine's span and emit quirks | 35 | M2 NAME, M5 COMMENT | com/legend/parser/DatabaseProtocolParser.java:450 `QUIRK`; com/legend/parser/DatabaseProtocolParser.java:490 `quirk`; com/legend/parser/DatabaseProtocolParser.java:766 `QUIRK`; com/legend/parser/ElementParser.java:1425 `quirk` |
+| COMPLETENESS-7 | parser and protocol emitter reproduce legend-engine's span and emit quirks (ruled (b) by the user, 2026-11-19) | 35 | M2 NAME, M5 COMMENT | com/legend/parser/DatabaseProtocolParser.java:450 `QUIRK`; com/legend/parser/DatabaseProtocolParser.java:490 `quirk`; com/legend/parser/DatabaseProtocolParser.java:766 `QUIRK`; com/legend/parser/ElementParser.java:1425 `quirk` |
 | COMPLETENESS-8 | product test order and lineage labels follow legend-engine (engineSuiteOrder, unionAlias, SQLNull) | 8 | M1 EDGE, M1 NAME, M2 NAME | com/legend/compiler/spec/LineageTreeLines.java `unionAlias`; com/legend/compiler/spec/LineageTreeLines.java `unionBase`; com/legend/lineage/ScanRelations.java `tdsJoin`; com/legend/lineage/ScanRelations.java `unionAlias` |
 | PRODUCT-7 | edge-only product surface exempted on reasons that do not hold (LiteV1Api.Runner, testDataTimestampText, "pageContent") | 3 | M2 NAME | com/legend/planner/UpstreamPlans.java `UpstreamPlans`; com/legend/planner/UpstreamPlans.java `engineSeedSqlFromRecords`; com/legend/planner/UpstreamPlans.java `engineSeedSql` |
 | PRODUCT-11 | readThroughExecuteValues: an edge-only flag carried through four product layers | not found | a record component branched on at Lowerer.java:829: M3 follows parameters and hook answers, never a record field's provenance (C2's existsJoinable has the same limit) |  |
@@ -890,8 +725,8 @@ negatives hold.
 | R7 | the grammar level and the level-less entries (COMPLETENESS-6, PRODUCT-8; ruled) | 4 | M2 NAME | com/legend/door/Parse.java `engineDocumentJson`; com/legend/door/Parse.java `engineLambdaJson`; com/legend/door/Parse.java `engineRecords`; com/legend/parser/GrammarLevel.java `LEGEND_ENGINE` |
 | COMPLETENESS-5 | the product's default substring and indexOf are legend-engine's relational semantics (R4, its ruling pending) | 2 | M5 COMMENT | com/legend/lowering/Scalars.java:1490 `engine goldens`; com/legend/lowering/Scalars.java:1555 `the engine translates` |
 | PRODUCT-3 | NEGATIVE: assert's own default is no longer legend-pure's in the product (fixed: Pure.Lite.ASSERT_FAILED_TEXT; the edge's EdgeLoweringForms) | not found | expected unseen: the product's "Assert failed" hits are the six other guards' (R10) and AssertMessages.unevaluated, lite's own sentence (c) |  |
-| N-PRELUDE | the prelude ships upstream Pure bodies beyond C5's print forms (legend-engine's relational asserts, its plan warning, the PCT runner's prints) | 235 | M1 EDGE, M1 SENTENCE, M4 BODY | prelude:prelude.pure:1017 `meta::pure::functions::meta::_subTypeOf`; prelude:prelude.pure:1053 `meta::pure::functions::meta::class`; prelude:prelude.pure:1121 `meta::pure::functions::meta::properties`; prelude:prelude.pure:1190 `meta::pure::functions::meta::functionTyp` |
-| N-PARSER | the product parser and its section grammars hold legend-engine's grammar refusals in upstream's words | 73 | M1 SENTENCE | com/legend/model/AssociationDefinition.java `Property name cannot be null`; com/legend/model/ClassDefinition.java `Property name cannot be null`; com/legend/model/ClassMapping.java `Property name cannot be null`; com/legend/model/FromProtocol.java `Expected 2 properties for an association` |
+| N-PRELUDE | the prelude ships upstream Pure bodies beyond C5's print forms (legend-engine's relational asserts, its plan warning, the PCT runner's prints) (ruled (b) by the user, 2026-11-19) | 235 | M1 EDGE, M1 SENTENCE, M4 BODY | prelude:prelude.pure:1017 `meta::pure::functions::meta::_subTypeOf`; prelude:prelude.pure:1053 `meta::pure::functions::meta::class`; prelude:prelude.pure:1121 `meta::pure::functions::meta::properties`; prelude:prelude.pure:1190 `meta::pure::functions::meta::functionTyp` |
+| N-PARSER | the product parser and its section grammars hold legend-engine's grammar refusals in upstream's words (ruled (b) by the user, 2026-11-19) | 73 | M1 SENTENCE | com/legend/model/AssociationDefinition.java `Property name cannot be null`; com/legend/model/ClassDefinition.java `Property name cannot be null`; com/legend/model/ClassMapping.java `Property name cannot be null`; com/legend/model/FromProtocol.java `Expected 2 properties for an association` |
 | N-JUDGE | the product judges compute and branch for compiled legend-pure's comparison (tolerances, canons, rendered texts, message operands) | 47 | M3 ANSWER, M3 BRANCH, M3 REFUSED, M3 UNUSED, M3 UNUSED_NOOP, M5 COMMENT | com/legend/compiler/spec/VerdictQueries.java:795 `com.legend.compiler.spec.VerdictQueries#`; com/legend/compiler/spec/VerdictQueries.java:977 `com.legend.compiler.spec.VerdictQueries#`; com/legend/lowering/LiteVerdictNumbers.java:19 `VerdictNumbers#floatTolerance()`; com/legend/lowering/LiteVerdictNumbers.java:24 `VerdictNumbers#floatsWithin(SqlExpr, Sql` |
 | N-ROOTFORM | RelationalRootForm: legend-engine's toSQLString root form in the product resolver, its mapping argument only the edge passes | 1 | M3 EDGE_LIVE | com.legend.resolver.RelationalRootForm:45 `RelationalRootForm#apply(List, ModelCont` |
 | HOSTS-5 | the product wheel ships the edge's Python; the DataCube product bundles list the edge entry as an input | 5 | M7 BUILD | //datacube:bundle_bundle `//datacube:bundle_bundle`; //datacube:bundle_bundle_engine `//datacube:bundle_bundle_engine`; //datacube:bundle_remote_bundle `//datacube:bundle_remote_bundle`; //datacube:bundle_stress `//datacube:bundle_stress` |
@@ -945,16 +780,17 @@ Each is now an explicit list (§0), and the head's classes did not change.
 edge has neither, so main has 0 M3 and 0 M6 hits by construction. A head M3 or M6 hit reads as "new in #118", but it is
 mostly meaning main held inline, which #118's seams made visible.
 
+**The user's ruling of 2026-11-19** ("we're not going to change prelude or parser") moved N-PRELUDE, N-PARSER and
+COMPLETENESS-7 to (b) after the first comparison was sent. The table is under the ruling. Before it, the totals were:
+(a) at main 800, at the head 484, new 79, removed 395, on both 405.
+
 ### 8.1 (a) per group
 
 | group | (a) at main | (a) at head | new in #118 | removed by #118 | on both |
 |---|---:|---:|---:|---:|---:|
-| N-PRELUDE | 251 | 235 | 2 | 18 | 233 |
-| N-PARSER | 73 | 73 | 0 | 0 | 73 |
 | MOVED: an upstream message or plan template, in its words, in a product file | 86 | 0 | 0 | 86 | 0 |
 | MOVED: a product member named for upstream (the edge's facet) | 84 | 0 | 0 | 84 | 0 |
 | MOVED: legend-engine's protocol or plan name in a product file | 84 | 0 | 0 | 84 | 0 |
-| COMPLETENESS-7 | 36 | 35 | 0 | 1 | 35 |
 | MOVED: legend-engine's API route in a product file | 48 | 0 | 0 | 48 | 0 |
 | legend-engine's calendar schema (LegendCalendarSchema.<type>_Calendar and its fiscal colum | 23 | 23 | 0 | 0 | 23 |
 | N-JUDGE | 2 | 38 | 36 | 0 | 2 |
@@ -992,28 +828,26 @@ mostly meaning main held inline, which #118's seams made visible.
 | a structure cell's type name, handed to the product writer only the edge's presenter reads | 0 | 1 | 1 | 0 | 0 |
 | the WHERE zone stamp the product computes for legend-engine's zone order (L10's order is t | 0 | 1 | 1 | 0 | 0 |
 | view's name argument, computed for the edge's frame alone (the product writes the subselec | 0 | 1 | 1 | 0 | 0 |
-| **all (a)** | **800** | **484** | **79** | **395** | **405** |
+| **all (a)** | **440** | **141** | **77** | **376** | **64** |
 
-COMPLETENESS-5 (p) is on both, 2 and 2. The head's (a) is 484 here and 485 in the census, because one string (R10's
+COMPLETENESS-5 (p) is on both, 2 and 2. The head's (a) is 141 here and 142 in the census, because one string (R10's
 `LambdaBodies`) fires two matchers.
 
-### 8.2 The 79 (a) hits new in #118
+### 8.2 The 77 (a) hits new in #118
 
 By why:
-- 40 sit in files new in #118: the product halves of its seams and facets (`ProductLoweringForms`, `LiteVerdictWords`,
-  `LiteHostWords`, `PlanStyle`, `EngineTextGates`, `UpstreamPlans`, `IsolatedRun`, `Styled`, `EdgeServer`).
+- 40 sit in files new in #118: the product halves of its seams and facets (`ProductLoweringForms`,
+  `LiteVerdictWords`, `LiteHostWords`, `PlanStyle`, `EngineTextGates`, `UpstreamPlans`, `IsolatedRun`, `Styled`,
+  `EdgeServer`).
 - 35 sit in files on main, where only the seam or edge the lens reads is #118's (M3, M6, M7).
-- 3 are text on main too, seen now by M1 EDGE through the edge's strings: the prelude's plan warning twice, and
-  `SavedQueries`' `IllegalArgumentException`.
+- 1 is text on main too, seen now by M1 EDGE through the edge's strings: `SavedQueries`'
+  `IllegalArgumentException`.
 - 1 is new text: `SavedQueries.java:230`, the comment "as legend-engine answers" [R11a].
 
-- **N-PRELUDE (2)**
-  - M1 EDGE `libbuiltin.jar!/com/legend/builtin/prelude.pure:6757`: `Warning: Results only shown for first relational query. (tex`
-  - M1 EDGE `libbuiltin.jar!/com/legend/builtin/prelude.pure:6767`: `Warning: Results only shown for first relational query. (tex`
-- **N-JUDGE (36)**
+- **N-JUDGE** (36)
   - M3 BRANCH `com/legend/compiler/spec/VerdictQueries.java:795`: `com.legend.compiler.spec.VerdictQueries#parseRendered`
   - M3 BRANCH `com/legend/compiler/spec/VerdictQueries.java:977`: `com.legend.compiler.spec.VerdictQueries#tdsCellText`
-  - M3 UNUSED `com/legend/lowering/LiteVerdictWords.java:111` x7: `VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr`
+  - M3 UNUSED `com/legend/lowering/LiteVerdictWords.java:111` x7: `VerdictWords#notEquivalent(String, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, SqlExpr, S`
   - M3 UNUSED `com/legend/lowering/LiteVerdictWords.java:82`: `VerdictWords#notInstanceOf(SqlExpr, boolean, String, String)`
   - M3 UNUSED `com/legend/lowering/LiteVerdictWords.java:89`: `VerdictWords#elementText(Type, SqlExpr, Styled)`
   - M3 BRANCH `com/legend/lowering/VerdictSql.java:1286`: `com.legend.lowering.VerdictSql#gridPair`
@@ -1039,13 +873,13 @@ By why:
   - M3 BRANCH `com/legend/testplan/AssertVerdicts.java:1872`: `com.legend.testplan.AssertVerdicts#textFirst`
   - M3 BRANCH `com/legend/testplan/DatabaseJudge.java:337`: `com.legend.testplan.DatabaseJudge#lite`
   - M3 BRANCH `com/legend/testplan/DatabaseJudge.java:367`: `com.legend.testplan.DatabaseJudge#crossNumberKinds`
-- **R11a (2)**
+- **R11a** (2)
   - M1 EDGE `com/legend/queries/SavedQueries.java`: `IllegalArgumentException`
   - M5 COMMENT `core/src/main/java/com/legend/queries/SavedQueries.java:230`: `as legend-engine answers`
-- **C3-TS (2)**
+- **C3-TS** (2)
   - M6 EXPORT `engine-client/src/planned-sql.ts:28`: `fromPlan`
   - M6 EXPORT `engine-client/src/values.ts:112`: `timestampFromText`
-- **JUDGES-6 (13)**
+- **JUDGES-6** (13)
   - M2 NAME `com/legend/database/PlanStyle.java` x2: `judgesEngineText`
   - M3 ANSWER `com/legend/database/PlanStyle.java:117`: `PlanStyle#judgesEngineText()`
   - M2 NAME `com/legend/testplan/EngineTextGates.java`: `EngineTextGates`
@@ -1058,42 +892,42 @@ By why:
   - M3 REFUSED `com/legend/testplan/EngineTextGates.java:26`: `PlanStyle#facet(Class)`
   - M3 BRANCH `com/legend/testplan/EngineTextGates.java:94`: `com.legend.testplan.EngineTextGates#planningCall`
   - M3 REFUSED `com/legend/testplan/EngineTextGates.java:94`: `PlanStyle#facet(Class)`
-- **C1 (4)**
+- **C1** (4)
   - M3 EDGE_LIVE `com.legend.lowering.SubselectPrune:75`: `SubselectPrune#prune(SqlQuery, boolean, String)`
   - M3 BRANCH `com/legend/lowering/Fold.java:1661`: `com.legend.lowering.Fold#tryProjectAll`
   - M3 BRANCH `com/legend/lowering/Lowerer.java:3028`: `com.legend.lowering.Lowerer#unionFrame`
   - M3 ANSWER `com/legend/lowering/ProductLoweringForms.java:112`: `LoweringForms#unionFrame()`
-- **a product helper only the Python edge uses (HOSTS-15: the edge reaches (5)**
+- **a product helper only the Python edge uses (HOSTS-15: the edge reaches** (5)
   - M6 EXPORT `python/legend_lite/_home.py:100`: `locked`
   - M6 EXPORT `python/legend_lite/_reads.py:292`: `run_arrow`
   - M6 EXPORT `python/legend_lite/_reads.py:299`: `run_rows_json`
   - M6 EXPORT `python/legend_lite/engine.py:393`: `_under`
   - M6 EXPORT `python/legend_lite/engine.py:403`: `_stored`
-- **HOSTS-4 (3)**
+- **HOSTS-4** (3)
   - M6 EXPORT `python/legend_lite/_loader.py:209`: `EngineMissing`
   - M7 OPT_IN `python/legend_lite/_loader.py:220`: `legend_lite_engine`
   - M6 EXPORT `python/legend_lite/_loader.py:231`: `engine_loaded`
-- **PRODUCT-7 (3)**
+- **PRODUCT-7** (3)
   - M2 NAME `com/legend/planner/UpstreamPlans.java`: `UpstreamPlans`
   - M2 NAME `com/legend/planner/UpstreamPlans.java`: `engineSeedSql`
   - M2 NAME `com/legend/planner/UpstreamPlans.java`: `engineSeedSqlFromRecords`
-- **C2 (1)**
+- **C2** (1)
   - M3 UNUSED `com/legend/lowering/ProductLoweringForms.java:91`: `LoweringForms#existsJoin(SqlSelect, ExistsSites)`
-- **HOSTS-7 (1)**
+- **HOSTS-7** (1)
   - M7 DOOR `com/legend/edge/EdgeServer.java:93`: `com.legend.edge.EdgeServer#main`
-- **JUDGES-3 (1)**
+- **JUDGES-3** (1)
   - M3 BRANCH `com/legend/testexec/IsolatedRun.java:154`: `com.legend.testexec.IsolatedRun#difference`
-- **N-ROOTFORM (1)**
+- **N-ROOTFORM** (1)
   - M3 EDGE_LIVE `com.legend.resolver.RelationalRootForm:45`: `RelationalRootForm#apply(List, ModelContext, String)`
-- **SQLite's Decimal arithmetic SQL in the product dialect, reached only u (1)**
+- **SQLite's Decimal arithmetic SQL in the product dialect, reached only u** (1)
   - M3 BRANCH `com/legend/sql/dialect/SQLite.java:1597`: `com.legend.sql.dialect.SQLite#call`
-- **a DateTime literal's written text, handed to the product's text form o (1)**
+- **a DateTime literal's written text, handed to the product's text form o** (1)
   - M3 UNUSED `com/legend/lowering/Styled.java:34`: `DateTimeTexts#dateTimeText(SqlExpr, String)`
-- **a structure cell's type name, handed to the product writer only the ed (1)**
+- **a structure cell's type name, handed to the product writer only the ed** (1)
   - M3 UNUSED `com/legend/result/CellText.java:70`: `CellText$Forms#structure(Object, String, Column)`
-- **the WHERE zone stamp the product computes for legend-engine's zone ord (1)**
+- **the WHERE zone stamp the product computes for legend-engine's zone ord** (1)
   - M3 UNUSED `com/legend/lowering/ProductLoweringForms.java:128`: `WhereZones#merge(SqlExpr, SqlExpr, Stamp)`
-- **view's name argument, computed for the edge's frame alone (the product (1)**
+- **view's name argument, computed for the edge's frame alone (the product** (1)
   - M3 UNUSED `com/legend/lowering/ProductLoweringForms.java:32`: `LoweringForms#view(SqlSelect, Supplier, String)`
 
 
