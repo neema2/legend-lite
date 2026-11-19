@@ -2911,3 +2911,5 @@ who confirms or changes phases 1-3.
   asked whether Java can rewrite the error to match compatibility: answered (it is B1's prototyped design, worded
   from the record, never by editing text; the only limit is a value from row data; options 1, 2, 3 with costs; the
   choice between 1 and 2 waits on the measurement).
+- **~21:57 UTC, `claude/compat-engine-runner-storeless` pushed** on the user's word in the CI-health session (head
+  `b648c377b`); its //gates:local running. Sent to the judges (merge, independent of the rest) and the reviewer.
