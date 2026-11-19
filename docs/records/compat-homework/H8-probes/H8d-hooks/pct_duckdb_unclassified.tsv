@@ -1,0 +1,8 @@
+# door	//pct:pct_duckdb_unclassified
+# command	com.legend.tools.junit.JUnitMain --select-class=org.finos.legend.lite.pct.Test_LegendLite_UnclassifiedFunctions_PCT --fail-if-no-tests
+UPSTREAM.dialect:DuckDB	244
+UPSTREAM.twoForm:DateTimeTexts	122
+UPSTREAM.twoForm:ListTexts	122
+UPSTREAM.twoForm:LoweringForms	122
+forms.computedPruning	122
+pass.DuckDb.scanOrderPasses	122

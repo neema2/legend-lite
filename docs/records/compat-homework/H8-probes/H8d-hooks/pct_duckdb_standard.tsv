@@ -1,0 +1,12 @@
+# door	//pct:pct_duckdb_standard
+# command	com.legend.tools.junit.JUnitMain --select-class=org.finos.legend.lite.pct.Test_LegendLite_StandardFunctions_PCT --fail-if-no-tests
+UPSTREAM.dialect:DuckDB	1595
+UPSTREAM.twoForm:DateTimeTexts	691
+UPSTREAM.twoForm:ListTexts	691
+UPSTREAM.twoForm:LoweringForms	691
+forms.computedPruning	688
+forms.existsJoin	1
+forms.raise:SHIFT_OUT_OF_RANGE:checked	22
+forms.whereZones	1
+pass.DuckDb.floatLiteralKind	219
+pass.DuckDb.scanOrderPasses	688

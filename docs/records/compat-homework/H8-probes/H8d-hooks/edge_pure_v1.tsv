@@ -1,0 +1,14 @@
+# door	com.legend.tools.junit.JUnitAction bazel-out/k8-fastbuild/bin/core/edge/pure_v1/verdict.txt bazel-out/k8-fastbuild/bin/core/edge/pure_v1/run.log bazel-out/k8-fastbuild/bin/core/edge/pure_v1/answers.tsv -- --select-class=com.legend.server.PureV1EdgeGoldenTest
+# command	com.legend.tools.junit.JUnitAction bazel-out/k8-fastbuild/bin/core/edge/pure_v1/verdict.txt bazel-out/k8-fastbuild/bin/core/edge/pure_v1/run.log bazel-out/k8-fastbuild/bin/core/edge/pure_v1/answers.tsv -- --select-class=com.legend.server.PureV1EdgeGoldenTest
+PURE_V1.dialect:H2	54
+PURE_V1.siteWords	22
+UPSTREAM.dialect:H2	54
+UPSTREAM.siteWords	22
+UPSTREAM.twoForm:DatabaseSettingsForm	54
+UPSTREAM.twoForm:DateTimeTexts	39
+UPSTREAM.twoForm:ListTexts	39
+forms.computedPruning	39
+forms.raise:DIVIDE_BY_ZERO:plain	3
+forms.raise:SQRT_OF_NEGATIVE:plain	3
+forms.unionFrame	36
+pass.H2.floatLiteralKind	15

@@ -1,0 +1,21 @@
+# door	//pct:pct_channel_b_unclassified
+# command	com.legend.tools.junit.JUnitMain --select-class=org.finos.legend.lite.pct.channelb.ChannelBUnclassifiedTest --fail-if-no-tests
+UPSTREAM.dialect:DuckDB	1209
+UPSTREAM.facet:EngineTestText	3352
+UPSTREAM.facet:PureOnlyTexts	736
+UPSTREAM.judgesEngineText	3352
+UPSTREAM.twoForm:CrossKindNumbers	182
+UPSTREAM.twoForm:DateLiteralTexts	384
+UPSTREAM.twoForm:DateTimeTexts	1258
+UPSTREAM.twoForm:ListTexts	1258
+UPSTREAM.twoForm:LoweringForms	1258
+UPSTREAM.twoForm:Printing	372
+UPSTREAM.twoForm:RelationCounting	372
+UPSTREAM.twoForm:VerdictNumbers	576
+UPSTREAM.twoForm:VerdictWords	1432
+appeal.open	186
+appeal.verdict	244
+forms.computedPruning	872
+pass.DuckDb.floatLiteralKind	8
+pass.DuckDb.scanOrderPasses	1006
+runner.CompatEdge	1

@@ -1,0 +1,15 @@
+# door	//pct:pct_duckdb_relation
+# command	com.legend.tools.junit.JUnitMain --select-class=org.finos.legend.lite.pct.Test_LegendLite_RelationFunctions_PCT --fail-if-no-tests
+UPSTREAM.dialect:DuckDB	963
+UPSTREAM.twoForm:DateTimeTexts	479
+UPSTREAM.twoForm:ListTexts	479
+UPSTREAM.twoForm:LoweringForms	479
+forms.computedPruning	474
+forms.existsJoin	142
+forms.raise:DIVIDE_BY_ZERO:checked	2
+forms.raise:SIZE_NOT_MULTIPLICITY:checked	1
+forms.raise:SLICE_BOUNDS_INVERTED:checked	1
+forms.unionFrame	132
+forms.whereZones	122
+pass.DuckDb.floatLiteralKind	15
+pass.DuckDb.scanOrderPasses	484

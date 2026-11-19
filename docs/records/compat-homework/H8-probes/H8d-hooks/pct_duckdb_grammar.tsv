@@ -1,0 +1,10 @@
+# door	//pct:pct_duckdb_grammar
+# command	com.legend.tools.junit.JUnitMain --select-class=org.finos.legend.lite.pct.Test_LegendLite_GrammarFunctions_PCT --fail-if-no-tests
+UPSTREAM.dialect:DuckDB	797
+UPSTREAM.twoForm:DateTimeTexts	370
+UPSTREAM.twoForm:ListTexts	370
+UPSTREAM.twoForm:LoweringForms	370
+forms.computedPruning	370
+forms.raise:RANGE_STEP_ZERO:checked	29
+pass.DuckDb.floatLiteralKind	57
+pass.DuckDb.scanOrderPasses	370

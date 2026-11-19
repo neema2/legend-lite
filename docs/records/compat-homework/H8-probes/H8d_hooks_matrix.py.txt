@@ -1,0 +1,48 @@
+"""H8 (d), census B2, 2026-11-19: the strands' doors, from the hook recorder's files (one per JVM run; the recorder is
+HookProbe.java.txt, applied by instrument_hooks.py.txt). usage: python3 -I hooks_matrix.py <hooks dir>"""
+import os, re, sys, collections
+DOOR = [  # a run's label -> its door
+    (r"judge_host_h2", "corpus H2"), (r"judge_host_duckdb", "corpus DuckDB"),
+    (r"pct_channel_b", "PCT B"), (r"//pct:pct_duckdb", "PCT A DuckDB"), (r"//pct:pct_h2", "PCT A H2"),
+    (r"edge/pure_v1|PureV1EdgeGolden", "pure/v1 (golden net)"), (r"core_tests_server", "server tests (pure/v1, test data)"),
+    (r"tab_round_trip", "tab round trip (host edge, JVM)"),
+]
+def door(label, cmd):
+    for p, d in DOOR:
+        if re.search(p, label) or re.search(p, cmd):
+            return d
+    return "other: " + label[:60]
+def strand(h):
+    h = re.sub(r"^(UPSTREAM|PURE_V1)\.", "style.", h)
+    if h.startswith("style.facet:"): return "facet " + h.split(":", 1)[1]
+    if h.startswith("style.twoForm:"): return "two-form " + h.split(":", 1)[1]
+    if h.startswith("style.dialect:"): return "PlanStyle.dialect (PureText passes) " + h.split(":", 1)[1]
+    if h.startswith("style."): return "PlanStyle." + h.split(".", 1)[1]
+    if h.startswith("forms.raise:"): return "LoweringForms.raise " + h.split(":", 2)[2]
+    if h.startswith("forms."): return "LoweringForms." + h.split(".", 1)[1] + " (executed)"
+    if h.startswith("engineShape."): return "LoweringForms." + h.split(".", 1)[1].split(":")[0] + " (EngineShape, text)"
+    if h.startswith("pass."): return "PureText pass " + h.split(".", 1)[1]
+    if h.startswith("printer."): return "engine-text printer " + h.split(".", 1)[1]
+    if h.startswith("rootForm"): return "RelationalRootForm.apply"
+    if h.startswith("appeal."): return "the appeal stack (" + h.split(".", 1)[1] + ")"
+    if h.startswith("runner."): return "the runner's edge (CompatEdge)"
+    return h
+m = collections.defaultdict(collections.Counter)
+doors = set()
+for f in sorted(os.listdir(sys.argv[1])):
+    lines = open(os.path.join(sys.argv[1], f)).read().split("\n")
+    label = next((l.split("\t", 1)[1] for l in lines if l.startswith("# door")), "?")
+    cmd = next((l.split("\t", 1)[1] for l in lines if l.startswith("# command")), "?")
+    d = door(label, cmd); doors.add(d)
+    hits = dict(l.rsplit("\t", 1) for l in lines if l and not l.startswith("#"))
+    for h, n in hits.items():
+        # PURE_V1 answers by delegating to UPSTREAM (PureText.PURE_V1), so a PURE_V1 hit with an UPSTREAM twin in the
+        # same run is the same answer counted twice: the UPSTREAM hit is kept
+        if h.startswith("PURE_V1.") and ("UPSTREAM." + h[len("PURE_V1."):]) in hits:
+            continue
+        m[strand(h)][d] += int(n)
+order = [d for _, d in DOOR if d in doors] + sorted(x for x in doors if x.startswith("other"))
+print("| Strand (hook) | " + " | ".join(order) + " |")
+print("|---|" + "---:|" * len(order))
+for s in sorted(m):
+    print(f"| {s} | " + " | ".join(f"{m[s][d]:,}" if m[s][d] else "·" for d in order) + " |")

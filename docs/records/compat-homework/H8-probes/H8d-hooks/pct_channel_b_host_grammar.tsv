@@ -1,0 +1,17 @@
+# door	//pct:pct_channel_b_host_grammar
+# command	com.legend.tools.junit.JUnitMain --select-class=org.finos.legend.lite.pct.channelb.ChannelBGrammarTest --fail-if-no-tests
+UPSTREAM.dialect:DuckDB	549
+UPSTREAM.facet:EngineTestText	1930
+UPSTREAM.judgesEngineText	1930
+UPSTREAM.twoForm:DateTimeTexts	711
+UPSTREAM.twoForm:ListTexts	711
+UPSTREAM.twoForm:LoweringForms	711
+UPSTREAM.twoForm:Printing	137
+UPSTREAM.twoForm:RelationCounting	137
+UPSTREAM.twoForm:VerdictWords	143
+appeal.open	137
+forms.computedPruning	711
+forms.raise:RANGE_STEP_ZERO:checked	29
+pass.DuckDb.floatLiteralKind	90
+pass.DuckDb.scanOrderPasses	855
+runner.CompatEdge	1

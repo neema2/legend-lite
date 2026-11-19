@@ -1,0 +1,71 @@
+"""H8 (d): instrument the edge's hook answers with HookProbe.hit (a probe worktree only, never for main).
+usage: instrument_hooks.py <worktree>"""
+import re, sys
+W = sys.argv[1] + "/core/src/main/java/com/legend/edge/"
+SIG = re.compile(r"^(\s*)(?:public |protected |static |final |private )*[\w<>?,.@\[\] ]+?\s(\w+)\((.*)\)\s*\{\s*$")
+
+def instrument(fname, label_of, lines_range=None):
+    p = W + fname
+    src = open(p).read().split("\n")
+    out, n = [], 0
+    for i, l in enumerate(src):
+        out.append(l)
+        m = SIG.match(l)
+        if not m or (lines_range and not (lines_range[0] <= i + 1 <= lines_range[1])):
+            continue
+        name, params = m.group(2), m.group(3)
+        if name in ("if", "for", "while", "switch", "catch", "synchronized") or name[0].isupper():
+            continue
+        call = label_of(i + 1, name, params)
+        if call:
+            out.append(m.group(1) + "    com.legend.edge.HookProbe.hit(" + call + ");")
+            n += 1
+    open(p, "w").write("\n".join(out))
+    return n
+
+def style(lo, hi, who):
+    def f(line, name, params):
+        if not (lo <= line <= hi):
+            return None
+        if name in ("facet", "twoForm"):
+            return f'"{who}.{name}:" + kind.getSimpleName()'
+        if name == "dialect":
+            return f'"{who}.dialect:" + type'
+        return f'"{who}.{name}"'
+    return f
+
+ONLY_FORMS = len(sys.argv) > 2
+if not ONLY_FORMS: print("PureText UPSTREAM", instrument("PureText.java", style(45, 201, "UPSTREAM")))
+if not ONLY_FORMS: print("PureText PURE_V1", instrument("PureText.java", style(218, 279, "PURE_V1")))
+def textprinters(line, name, params):
+    if name in ("engineText", "enginePlanText"):
+        return f'"printer.{name}:" + type'
+    if name in ("floatLiteralKind", "raw", "scanOrderPasses", "refusesDecimalArithmetic", "dateTimeFormat"):
+        return f'"pass." + getClass().getSimpleName() + ".{name}"'
+    return None
+if not ONLY_FORMS: print("PureText printers/passes", instrument("PureText.java", textprinters))
+def forms(line, name, params):
+    if name == "raise":
+        return '"forms.raise:" + kind + (plain.contains(kind) ? ":plain" : ":checked")'
+    if name in ("view", "wireCast", "objectReferenceConnection", "assertFailed", "executeValues", "relations",
+                "keyedCounts", "computedPruning", "parsedDecimal", "parsedJson", "isNumeric", "existsJoin",
+                "unionFrame", "whereZones"):
+        return f'"{"engineShape" if line >= 186 else "forms"}.{name}"'
+    return None
+print("EdgeLoweringForms", instrument("EdgeLoweringForms.java", forms))
+def appeals(line, name, params):
+    return f'"appeal.{name}"' if name in ("rowAppealed", "verdict", "declined", "open") else None
+if not ONLY_FORMS: print("Appeals", instrument("Appeals.java", appeals))
+if not ONLY_FORMS: print("AppealRun", instrument("AppealRun.java", appeals))
+def edge(line, name, params):
+    return None
+# the runner's edge, at construction; the engine plans' root form, at its call
+if ONLY_FORMS: sys.exit(0)
+p = W + "CompatEdge.java"; s = open(p).read()
+s = s.replace("    public CompatEdge(RawLedger.Recorder recorder, DataStores stores) {",
+              "    public CompatEdge(RawLedger.Recorder recorder, DataStores stores) {\n        com.legend.edge.HookProbe.hit(\"runner.CompatEdge\");", 1)
+open(p, "w").write(s)
+p = W + "EnginePlans.java"; s = open(p).read()
+s = s.replace("            body = com.legend.resolver.RelationalRootForm.apply(",
+              "            com.legend.edge.HookProbe.hit(\"rootForm.apply\");\n            body = com.legend.resolver.RelationalRootForm.apply(", 1)
+open(p, "w").write(s)

@@ -1,0 +1,3 @@
+# door	//pct:pct_channel_b_twice_guard_test
+# command	com.legend.tools.junit.JUnitMain --select-class=org.finos.legend.lite.pct.channelb.ChannelBTwiceTest --fail-if-no-tests
+runner.CompatEdge	1

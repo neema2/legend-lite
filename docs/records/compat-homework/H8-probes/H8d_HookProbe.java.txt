@@ -1,0 +1,40 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.edge;
+
+/**
+ * PROBE, NEVER FOR MAIN (census B2's H8 (d), 2026-11-19): counts every answer the edge's plan styles give, by hook, and
+ * writes the counts at JVM exit to one file per run (the door's run: a test's TEST_TARGET, else the JVM's command).
+ */
+public final class HookProbe {
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> HITS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final String DIR = "/tmp/claude-0/-home-user-legend-lite/f84639bd-8c8c-5089-adae-aa79b00e3979/scratchpad/hooks";
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(HookProbe::dump));
+    }
+
+    private HookProbe() {
+    }
+
+    public static void hit(String hook) {
+        HITS.computeIfAbsent(hook, k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    private static void dump() {
+        String target = System.getenv("TEST_TARGET");
+        String cmd = System.getProperty("sun.java.command", "?");
+        String label = target != null ? target : cmd;
+        StringBuilder out = new StringBuilder("# door\t" + label + "\n# command\t" + cmd + "\n");
+        new java.util.TreeMap<>(HITS).forEach((k, v) -> out.append(k).append('\t').append(v.sum()).append('\n'));
+        try {
+            java.nio.file.Files.writeString(java.nio.file.Path.of(DIR, "hooks-" + ProcessHandle.current().pid() + "-"
+                    + System.nanoTime() + ".tsv"), out);
+        } catch (java.io.IOException | RuntimeException e) {
+            System.err.println("HookProbe: " + e);
+        }
+    }
+}

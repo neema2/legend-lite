@@ -307,3 +307,140 @@ The "ref" cells are E-R2's (lite answers where legend-engine refuses).
   legend-engine. Lite has no raise kind for them, so lite does not check them either: they are not class A. Under the
   PURE audience, legend-pure raises (S138, being corrected in 0.5), so lite's PURE answer is the gap there, not
   ENGINE's.
+
+## (d) The strands' doors: which door reaches each strand
+
+### (d.1) The method
+
+**The recorder.** `H8d_HookProbe.java.txt` counts every answer the edge's styles give, by hook. A static counter is
+written at JVM exit, one file per run, headed by the run's door. `H8d_instrument_hooks.py.txt` plants it in a probe
+worktree off `b75d6c73a`, never for main, at:
+- every `PlanStyle` method of `PureText.UPSTREAM` and `PureText.PURE_V1`: a facet or two-form by kind, a dialect by
+  database;
+- every `EdgeLoweringForms` member: the executed form, and `EngineShape`'s text form apart;
+- every `LoweringForms.raise` by kind, plain or checked;
+- `PureText`'s dialect passes and the engine-text printer `engineText`;
+- the appeal stack (`Appeals`, `AppealRun`);
+- the runner's edge (`CompatEdge`'s constructor).
+
+A count is answers given, not distinct sites. `PURE_V1` answers by delegating to `UPSTREAM`, so a delegated answer is
+counted once (`H8d_hooks_matrix.py.txt`).
+
+**The runs** (2026-11-19, 11:09-11:23 UTC, every suite passing): 21 JVMs, one file each in `H8d-hooks/`.
+- **The corpus:** `//spec:judge_host_h2` and `//spec:judge_host_duckdb`.
+- **PCT B:** the 12 `//pct:pct_channel_b_*` suites.
+- **PCT A:** the 5 `//pct:pct_duckdb_*` suites and `//pct:pct_h2`.
+- **pure/v1:** `//core:edge_pure_v1`, the route's golden net.
+- **The test-data generator** is not a door of its own: its tests are corpus tests (`testDataGeneration`). Its strands
+  are the corpus's `Printing` two-form (`TestDataPlanner.Printing`) and its `setUpDataSQLs` text. Item (e) measures
+  that text's executions.
+
+**Two more doors ran and reached no edge hook.** The recorder loads on its first hit, so a run with no hit leaves no
+file. Each was forced past the caches:
+- `//core:core_tests_server`, the server's own tests, under the product's style;
+- `//parser-equivalence:tab_round_trip`, the JVM half of the tab's round trip, which only parses and composes.
+
+**Not run: the hosts' edge routes.** The WebAssembly engine module's `EdgeBoundary` has no JVM test, and building the
+module was not worth its cost here. By the code, `EdgeBoundary` → `HostAnswers` → `PureV1Routes`, handed
+`PureText.PURE_V1`. That is pure/v1's style and code, so the hosts reach pure/v1's strands. Their counts would differ,
+because their inputs are the module's pins.
+
+**Two hooks the instrumenter missed:** its text patterns did not match `RelationalRootForm.apply` (`EnginePlans.java:164`)
+or `PureText.enginePlanText`. By the code:
+- `RelationalRootForm.apply` sits inside `EnginePlans.engineSql`, which runs only with an engine-text renderer.
+- `enginePlanText` serves the `planToString` and plan paths, the `UpstreamPlans` facet's.
+
+Both renderers' measured counts (the printer and `UpstreamPlans`) are corpus-only, so both hooks are the corpus's.
+
+### (d.2) The matrix
+
+Hook answers per door. The full table is `H8d-matrix.md`: 58 hook rows.
+
+| Strand | corpus H2 | corpus DuckDB | PCT B | PCT A DuckDB | PCT A H2 | pure/v1 |
+|---|---:|---:|---:|---:|---:|---:|
+| **Facets** | | | | | | |
+| `EngineTestText` (= `judgesEngineText`) | 28,342 | 28,651 | 79,503 | · | · | · |
+| `RelationTexts` | 878 | 878 | 5,056 | · | · | · |
+| `PureOnlyTexts` | · | · | 12,792 | 10 | · | · |
+| `UpstreamPlans` | 676 | 676 | · | · | · | · |
+| `ResultEnvelopes` | 66 | 66 | · | · | · | · |
+| **Two-forms** | | | | | | |
+| `DateTimeTexts`, `ListTexts` (each) | 13,653 | 13,744 | 33,520 | 2,489 | 479 | 39 |
+| `LoweringForms` (asked) | 13,653 | 13,744 | 33,520 | 2,489 | 479 | (no hook: `PURE_V1` answers it itself) |
+| `DatabaseSettingsForm` | 10,158 | · | 1,876 | · | 946 | 54 |
+| `VerdictWords` | 3,167 | 3,170 | 27,552 | · | · | · |
+| `Printing` (the test-data generator), `RelationCounting` | 3,186 / 3,184 | 3,186 / 3,184 | 6,714 / 6,714 | · | · | · |
+| `ActivityTexts` | 1,643 | 1,643 | · | · | · | · |
+| `ExecutedValues` | 68 | 68 | · | · | · | · |
+| `RoutedQueries` | 18 | 18 | · | · | · | · |
+| `VerdictNumbers` | · | · | 11,022 | · | · | · |
+| `DateLiteralTexts` | · | · | 7,348 | · | · | · |
+| `CrossKindNumbers` | · | · | 3,378 | · | · | · |
+| **`LoweringForms` members, executed** | | | | | | |
+| `existsJoin` | 12,251 | 12,314 | 3,103 | 143 | 142 | · |
+| `computedPruning` | 11,565 | 11,656 | 26,077 | 2,480 | 474 | 39 |
+| `unionFrame` | 10,481 | 10,533 | 3,008 | 132 | 132 | 36 |
+| `whereZones` | 6,303 | 6,334 | 1,444 | 123 | 122 | · |
+| `wireCast` | 366 | 368 | · | · | · | · |
+| `executeValues` | 179 | 179 | · | · | · | · |
+| `parsedJson`, `view`, `isNumeric`, `parsedDecimal`, `objectReferenceConnection` | 39, 18, 18, 14, 6 | the same | · | · | · | · |
+| `raise`, checked | 33 | 33 | 453 | 69 | 4 | · |
+| `raise`, **plain** | · | · | · | · | · | **6** (`DIVIDE_BY_ZERO` 3, `SQRT_OF_NEGATIVE` 3) |
+| **`EngineShape`'s text forms** (`engineSql`) | `computedPruning` 2,067, `unionFrame` 1,624, `existsJoin` 1,362, `whereZones` 1,148, `wireCast` 172, `raise` 5, `parsedDecimal` 3, `view` 2 | the same | · | · | · | · |
+| **`PlanStyle` methods** | | | | | | |
+| `dialect` (the `PureText` passes) | H2 10,158 | DuckDB 9,841 | DuckDB 21,243, H2 1,876 | DuckDB 5,360 | H2 946 | H2 54 |
+| `errorWords` | · | · | 45 | · | · | · |
+| `siteWords` | · | · | · | · | · | 22 |
+| `traceCell`, `graphKeyDate`, `graphKeyString` | 36, 35, 2 | the same | · | · | · | · |
+| **The dialect passes** | | | | | | |
+| DuckDB `raw` | · | 120,811 | · | · | · | · |
+| DuckDB `scanOrderPasses` | · | 10,326 | 28,958 | 2,490 | · | · |
+| `floatLiteralKind` (S20's bare DECIMAL) | H2 609 | DuckDB 612 | DuckDB 4,858, H2 179 | DuckDB 400 | H2 15 | H2 15 |
+| **The engine-text printers** | H2 1,806, DB2 36, Composite 9 | the same | · | · | · | · |
+| **The appeal stack** (open / verdict / declined) | 3,165 / 5,542 / 60 | 3,168 / 5,795 / 60 | 4,216 / 5,430 / · | · | · | · |
+| **The runner's edge** (`CompatEdge`) | 2,575 | 2,575 | 12 | · | · | · |
+
+The hook rows each door reaches: corpus H2 47, corpus DuckDB 48, PCT B 28, PCT A DuckDB 12, PCT A H2 11, pure/v1 9.
+
+### (d.3) What the matrix says
+
+- **pure/v1 alone reaches the plain set and `siteWords`.** Every other door writes `LoweringForms.raise` checked. So
+  3.6's deletion of the plain set changes pure/v1, and through `HostAnswers` the hosts' routes, and nothing else.
+  Under the golden net it moves 6 answers: 3 divides by zero and 3 square roots of a negative.
+- **pure/v1 reaches 9 strands.** They are the H2 dialect pass, `DatabaseSettingsForm`, `DateTimeTexts`, `ListTexts`,
+  `computedPruning`, `unionFrame`, the plain raise, `siteWords` and S20's `floatLiteralKind` (15).
+- **PCT A reaches 11-12 strands:**
+  - the four executed `LoweringForms` members (`existsJoin`, `computedPruning`, `unionFrame`, `whereZones`);
+  - checked raises;
+  - the dialect passes, with S20's `floatLiteralKind` on both databases;
+  - the two-forms `DateTimeTexts`, `ListTexts` and `LoweringForms`, plus `DatabaseSettingsForm` on H2;
+  - DuckDB's `scanOrderPasses`;
+  - `PureOnlyTexts`, 10 answers on DuckDB.
+
+  It reaches no text judging, no appeal and no printer, since PCT A has no SQL-text assert.
+- **PCT B is the only door of 5 strands:** `errorWords`, `VerdictNumbers`, `DateLiteralTexts`, `CrossKindNumbers`, and
+  nearly all of `PureOnlyTexts` (PCT A DuckDB 10). It also uses the appeal stack (4,216 appeals opened) and judges
+  legend-engine's text (`EngineTestText`, 79,503 answers).
+- **The corpus is the only door of the rest:**
+  - every `EngineShape` text form and every engine-text printer;
+  - `UpstreamPlans`, `ResultEnvelopes`, `ActivityTexts`, `ExecutedValues` and `RoutedQueries`;
+  - `traceCell` and the graph keys;
+  - the `LoweringForms` members `wireCast`, `executeValues`, `parsedJson`, `view`, `isNumeric`, `parsedDecimal` and
+    `objectReferenceConnection`;
+  - DuckDB's `raw` pass (120,811 answers on the DuckDB lane alone);
+  - by the code, `RelationalRootForm.apply` and `enginePlanText`.
+- **Instrumented, reached by no door:**
+  - the two-forms `JsonGrammar`, `RenderedTextRule` and `GoldenNullWord`;
+  - `LoweringForms.assertFailed`, both forms;
+  - `EngineShape`'s `isNumeric`, `executeValues`, `objectReferenceConnection` and `parsedJson` text forms (their
+    executed forms are reached);
+  - `Appeals.rowAppealed`;
+  - the passes of databases no door runs in the edge's style: Postgres, Databricks and Trino `floatLiteralKind`,
+    Postgres `raw`, SQLite `refusesDecimalArithmetic`, MongoDB `dateTimeFormat`. PCT A runs DuckDB and H2 only.
+  - `PURE_V1.judgesEngineText` is refused by name, so 0 is its right answer.
+
+  A strand no door reaches has no measured user. Its deletion moves no measured answer, but no suite here would
+  catch a break either.
+- **The `Feature` flags (a.3) are not a `PlanStyle` strand.** The product's doors reach them through the query's own
+  context. PCT A and PCT B set `CORRECT_SQL_SUBSTRING_INDEXING` always, and 7 corpus tests set a flag.
+

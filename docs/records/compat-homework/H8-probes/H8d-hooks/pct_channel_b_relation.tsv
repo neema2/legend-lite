@@ -1,0 +1,29 @@
+# door	//pct:pct_channel_b_relation
+# command	com.legend.tools.junit.JUnitMain --select-class=org.finos.legend.lite.pct.channelb.ChannelBRelationTest --fail-if-no-tests
+UPSTREAM.dialect:DuckDB	6097
+UPSTREAM.errorWords	20
+UPSTREAM.facet:EngineTestText	14250
+UPSTREAM.facet:PureOnlyTexts	3096
+UPSTREAM.facet:RelationTexts	2984
+UPSTREAM.judgesEngineText	14250
+UPSTREAM.twoForm:CrossKindNumbers	770
+UPSTREAM.twoForm:DateLiteralTexts	1548
+UPSTREAM.twoForm:DateTimeTexts	5862
+UPSTREAM.twoForm:ListTexts	5862
+UPSTREAM.twoForm:LoweringForms	5862
+UPSTREAM.twoForm:Printing	1876
+UPSTREAM.twoForm:RelationCounting	1876
+UPSTREAM.twoForm:VerdictNumbers	2322
+UPSTREAM.twoForm:VerdictWords	6278
+appeal.open	938
+appeal.verdict	958
+forms.computedPruning	4294
+forms.existsJoin	2052
+forms.raise:DIVIDE_BY_ZERO:checked	32
+forms.raise:SIZE_NOT_MULTIPLICITY:checked	20
+forms.raise:SLICE_BOUNDS_INVERTED:checked	20
+forms.unionFrame	1992
+forms.whereZones	956
+pass.DuckDb.floatLiteralKind	768
+pass.DuckDb.scanOrderPasses	4888
+runner.CompatEdge	1
