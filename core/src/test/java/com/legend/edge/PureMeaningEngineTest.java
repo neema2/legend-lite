@@ -27,10 +27,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PureMeaningEngineTest {
 
-    /** {@link PureMeaningCheckTest#MODEL} with three rows declared on its H2 connection: 'abcdef' (SQL's
-     *  {@code substring(1, 3)} is 'abc', Pure's 'bc'), 'xoxo' (SQL's {@code indexOf('o')} is 2, Pure's 1) and 'abc'. */
+    /** {@link PureMeaningCheckTest#MODEL} with four rows declared on its H2 connection: 'abcdef' (SQL's
+     *  {@code substring(1, 3)} is 'abc', Pure's 'bc'), 'xoxo' (SQL's {@code indexOf('o')} is 2, Pure's 1), 'abc' and
+     *  'ab'. */
     static final String MODEL = PureMeaningCheckTest.MODEL.replace("specification: LocalH2 { };",
-            "specification: LocalH2 { testDataSetupCSV: 'default\\nPERSON\\nID,NAME,CODE\\n1,abcdef,a\\n2,xoxo,b\\n3,abc,c\\n'; };");
+            "specification: LocalH2 { testDataSetupCSV: 'default\\nPERSON\\nID,NAME,CODE\\n1,abcdef,a\\n2,xoxo,b\\n3,abc,c\\n4,ab,d\\n'; };");
 
     private static final LiteV1Api.Runner EDGE = EdgeServer.runner(null);
 
@@ -122,6 +123,25 @@ class PureMeaningEngineTest {
         assertTrue(engine.json().contains("rootExecutionNode"), engine.json());
     }
 
+    /** A graph fetch's qualified property: legend-engine computes it in the database (asked of legend-engine 4.145.0,
+     *  E-M1: {@code deskPart()} answers SQL's 'Cre' on H2 and DuckDB), and the detector flags it. The store resolver
+     *  reaches a graph tree's properties after the body exists (the inliner does not), so under engine it is refused
+     *  by name, as an M2M chain's transforms are, never answered with another meaning. */
+    @Test
+    void aGraphFetchsQualifiedPropertyIsRefusedByNameUnderEngine() {
+        String graph = "|t::Person.all()->filter(p|$p.name == 'abcdef')->graphFetch(#{t::Person{name,initials}}#)"
+                + "->serialize(#{t::Person{name,initials}}#)->from(t::M, t::RT)";
+        LiteV1Api.Runner never = (query, runtime, output) -> {
+            throw new AssertionError("a refused request is never run");
+        };
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(graph), never,
+                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
+        assertEquals(500, a.status(), a.json());
+        assertTrue(a.json().contains("t::Person$prop$initials") && a.json().contains("cannot be rewritten at this door"),
+                a.json());
+        assertEquals("substring/3=1", a.headers().get(PureMeaningCheck.HEADER));
+    }
+
     // ---- the three test-data routes: the seed's query is the one whose meaning chooses the keys ------------------
 
     /** Under SQL's meaning {@code 'abcdef'->substring(1, 3)} is 'abc', so the row with ID 3 is the seed (under Pure's
@@ -132,10 +152,14 @@ class PureMeaningEngineTest {
             + "->project([p|$p.name], ['n'])";
 
     private static String testDataBody(boolean identifiers) {
-        String function = PureV1Routes.grammarToJsonLambda(SEEDED, true).json();
+        return testDataBody(MODEL, SEEDED, identifiers);
+    }
+
+    private static String testDataBody(String modelText, String query, boolean identifiers) {
+        String function = PureV1Routes.grammarToJsonLambda(query, true).json();
         Map<String, Object> model = new java.util.LinkedHashMap<>();
         model.put("_type", "text");
-        model.put("code", MODEL);
+        model.put("code", modelText);
         String ids = identifiers
                 ? "[{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":\"t::DB\"},"
                         + "\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]}]}]"
@@ -171,6 +195,33 @@ class PureMeaningEngineTest {
         assertEquals(200, engine.status(), engine.json());
         assertEquals("engine substring/3=1", engine.headers().get(PureMeaningCheck.HEADER));
         assertTrue(engine.json().contains("abcdef"), engine.json());
+    }
+
+    /** The seed rewritten on DuckDB, both ways on any tree (the reviewer's E-S2): a 3-argument {@code substring} with a
+     *  literal start of 0, which DuckDB's literal-0 exemption does not cover (the 2-argument form alone). DuckDB's own
+     *  SUBSTRING('abcdef', 0, 3) is 'ab', so under engine the seed is ID 4; Pure's answer is 'abc', and lite's lowering
+     *  before the switch clamps the start to 1, so under warn it is ID 3. A seed lowered unrewritten (plant W2) answers
+     *  ID 3 under engine. */
+    @Test
+    void theSeedIsRewrittenOnDuckDb_aThreeArgumentStartOfZero() {
+        String duckdb = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+                "type: DuckDB; specification: DuckDB { }; auth: Test;");
+        String seeded = "|t::Person.all()->filter(p|$p.name == 'abcdef'->substring(0, 3))->project([p|$p.name], ['n'])";
+        String path = "/api/pure/v1/execution/testDataGeneration/generateSeedData";
+        String engine = seedSql(path, testDataBody(duckdb, seeded, false), PureMeaningCheck.Mode.ENGINE);
+        String warn = seedSql(path, testDataBody(duckdb, seeded, false), PureMeaningCheck.Mode.WARN);
+        // DuckDB's own SUBSTRING over the arguments as given under engine; under warn, not that call
+        assertTrue(engine.toLowerCase(java.util.Locale.ROOT).contains("substr('abcdef', 0, 3)"), engine);
+        assertFalse(warn.toLowerCase(java.util.Locale.ROOT).contains("substr('abcdef', 0, 3)"), warn);
+    }
+
+    /** The seed statement a test-data route hands its runner, planned (DuckDB's text), never run. */
+    private static String seedSql(String path, String body, PureMeaningCheck.Mode mode) {
+        java.util.List<String> sql = new java.util.ArrayList<>();
+        LiteV1Api.Runner planOnly = (query, runtime, output) -> sql.add(query.plan(runtime, PureText.PURE_V1).sql());
+        LiteV1Api.Answer a = PureV1Routes.route(path, null, body, planOnly, LiteV1Api.Models.COMPILED, mode);
+        assertEquals(1, sql.size(), a.json());
+        return sql.get(0);
     }
 
     // ---- refused by name -------------------------------------------------------------------------------------------
