@@ -801,3 +801,164 @@ that `:23` was the 4-argument native's declaration in the other `joinStrings.pur
 **For the A2 review, from B2's message.** B2 reports that A2 put the user-accepted divergences (batch 144's rule: "a
 fourth status beside PASS / FAIL / SKIPPED") on the fail rosters rather than the accepted rosters. I will check that in
 A2's PR. If it holds, it is a must-fix there: the user ruled those rows a status of their own on 2026-09-08.
+
+## A2 (piece): legend-engine's SQL text printers deleted, `origin/claude/compat-a2-printers` at `6551c2036` (7 commits on `main` `b75d6c73a`)
+
+**Verdict: APPROVED WITH 1 MUST-FIX** (the user-accepted divergences), plus the listed moves for the user's word.
+Checked against:
+- the final plan §4 (A2);
+- the rules of record;
+- A2's section (`docs/records/compat-batch/A2-section.md` on `claude/compat-program`);
+- `A2-roster.tsv` and `A2-shape-note.md` on `claude/census-b2`.
+
+### What holds
+- **The printers are deleted.** That covers `EngineStyleH2` (2,507 lines), `EngineStyleDB2`, `EngineStyleComposite`,
+  `EngineTextDialect`, `PureText.engineText` and `enginePlanText`, `EngineShape` and `RelationalRootForm.apply`. The
+  whole diff is 91 files, +2,177/-6,141.
+- **The product changes are comments plus the dead `relationalRootForm` flag** on both `Compiler.lowerResolved`
+  overloads. Every caller passed it false. `PlannerSurfaceTest` follows.
+- **`edge/LiteSqlText` is package-private and computes no value.** It renders the plan's SQL through
+  `PureText.dialect(type)`. Each legend-engine-only question gets its plainest answer, or is refused by name (the
+  FreeMarker splice). No rule of record is touched: SQL text is a statement's presentation, not a value.
+- **The fail rosters are exact.** H2 +147 and DuckDB +152, 0 removed, and the added names equal `A2-roster.tsv`'s lane
+  columns. R4's three are left out, as they should be.
+- **The corpus edge net's judge ledgers** move on 156 tests (H2) and 160 (DuckDB): 147 and 152 on the roster, plus 9
+  and 8 already failing at `main`. None outside, as the section says.
+- **Every guard move carries its dated note.** I read each diff:
+  - ArchitectureTest's 4d rules went with their subjects, and the planner entries shrink;
+  - CodeShapeGuardrailTest −2;
+  - DialectBoundaryTest 17→12 and 20→13;
+  - DialectOwnerExclusivityTest: the crossing left, and the chain retargeted to MariaDb;
+  - DialectVocabularyTest's floor 15→12 (the three printers);
+  - JavaEvalLedgerTest: EnginePlans 760→757;
+  - ParkedWorkLedgerTest: PARK-18 closed;
+  - CompatSpellingGuardTest: the plant moved;
+  - PeRatchets 3310→3311, UP.
+- **AGENTS.md changes only invariant 3's prose** about the printers. No number moves.
+- **For the user's word, as the section lists:**
+  - the closed edge-file list in JavaEvalLedgerTest gains `LiteSqlText.java` (FLAGGED there);
+  - S380;
+  - the 12-dialect widening;
+  - the dead flag;
+  - every guard row.
+
+### MUST-FIX: the user-accepted divergences go to the FAIL rosters, not the accepted rosters
+**The ruling.** On 2026-09-08 (batch 144, "i agree with all 11") the user ruled that an ACCEPTED divergence is "a fourth
+status beside PASS / FAIL / SKIPPED — never a pass, never hidden". It is pinned in
+`{duckdb,h2}-accepted-roster.txt` as `fqn ||| bucket ||| witness`. MinimalCorpusTest checks the witness: a failure
+without it is an ordinary FAIL, "CHANGED".
+
+**How these rows left that roster.** On 2026-09-21, rung 2a (`7dfbdf601`) took four of those rows off it, because their
+SQL text then held and they passed: "accepted rosters −3 / −1 (text held → pass)". Read in that commit's patch:
+- DuckDB:
+  - `meta::relational::tests::functions::sqlstring::testHashFunctions ||| engine-golden-defect:joinStrings-literal-collection ||| aceae9411805b964e79dd85254a18a64`
+  - `meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin ||| engine-golden-defect:joinStrings-literal-collection ||| Anthony Allen[,]`
+  - `meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek ||| engine-golden-defect:firstDayOfWeek-h2-week-start ||| 2014-11-30`
+- H2:
+  - `meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin ||| engine-golden-defect:joinStrings-literal-collection ||| Anthony Allen[,]`
+
+**What A2 does with them.** A2 stops comparing the text, so these tests are judged by their rows again and diverge (class
+b of `A2-roster.tsv`). A2 adds them to the fail rosters, and the accepted rosters are untouched. The failures carry the
+ruled witnesses (B2's `census-b2-sqltext-probe-2026-11-19.tsv`, the first 300 characters of each failure):
+- `testToSQLStringForTDSStringJoin`, both lanes: golden-only `...Anthony Allen[,]|myValueAnthony Allen[,]...`. The
+  witness is present.
+- `testToSqlGenerationFirstDayOfWeek`, DuckDB: golden-only `[2014-11-30, ...]`. The witness is present.
+- `testHashFunctions`, both lanes: golden-only `[20f1aeb7819d7858684c898d1e98c1bb|c3f15d27...|3090ad7f...`. The record's
+  300 characters do not reach the ruled witness `aceae941...`. Running the lane settles it.
+
+**Fix:**
+- Restore the DuckDB rows and the H2 row above verbatim, and take those tests off the fail rosters: DuckDB −3, H2 −1.
+- H2's `testHashFunctions` passed on H2 at batch 144, so it was never accepted there. It now fails on H2 with the same
+  ruled divergence. An H2 accepted row for it is new and needs the user's word, with its witness read from the H2 lane.
+  The same holds on the merged batch for H2's `testToSqlGenerationFirstDayOfWeek`: with A5 it diverges on H2 with
+  `2014-11-30`.
+
+**The counts that follow:**
+- A2's fail rosters: H2 +145 (or +146 if H2's `testHashFunctions` stays a FAIL until the user rules); DuckDB +149.
+- The accepted rosters: H2 41 → 42 (43 with `testHashFunctions`); DuckDB 46 → 49.
+- `docs/GATES.md`'s A2 entry, S380, and A3 piece 4's item 2 ("answers the text had hidden") follow. Those are
+  accepted divergences, ruled 2026-09-05 and 2026-09-08, not new FAILs.
+
+The owner reports the user is being asked. If the user rules them FAILs instead, that ruling is the dated note those
+rows need.
+
+### Not shown here
+- CI's other operating systems, and the lanes CI runs alone, as the section says.
+- The merged batch, which the batch PR carries.
+
+## A4 (piece): the database judge leaves compatibility, `origin/claude/compat-a4-host-only` at `e91005cc6` (6 commits on `main` `b75d6c73a`, before the batch merge)
+
+**Verdict: APPROVED, with 3 should-fixes and a proof gap that the batch's merged run closes.** Checked against:
+- the final plan §4 (A4);
+- rule 4 of the rules of record ("Host judge is only judge in compatibility, database and host both in product");
+- tenet 6 (no modes in the core).
+
+### What holds
+- **The guard.** `TestPlanner.refuseTheDatabaseJudgeInCompatibility` refuses a DATABASE or BOTH judge for any style but
+  `PlanStyle.PRODUCT`, by name, before the style is asked anything. It is the first statement of the one public entry,
+  `TestPlanner.plan`, and that is the only entry `TestExecution` (`:47`, `:71`) uses. The package-private overload and
+  `planIsolated` are reached after it.
+- **The plant.** `HostOnlyCompatibilityTest` plants a style that answers exactly as the product's but is not it:
+  - under HOST it plans;
+  - under DATABASE and BOTH it is refused, with the message checked;
+  - the product plans every judge.
+
+  The commit says it was shown to bite.
+- **Every compatibility road is judged by the host:**
+  - PCT channel B sets `JudgeMode.HOST`;
+  - the `pct_channel_b_host_*` duplicate lanes are deleted;
+  - `core_edge_tests_judge_{database,both}` are deleted;
+  - MinimalCorpus's `both` mode is refused by name.
+
+  No CI workflow names a deleted target.
+- **The database judge's compatibility arms are deleted.** That covers the six two-form kinds (`CrossKindNumbers`,
+  `VerdictNumbers`, `RenderedTextRule`, `DateLiteralTexts`, `GoldenNullWord`, JsonGrammar's planning read), the appeal
+  path and `orElse`. The product's arms stay inline. Fewer forms in the core is tenet 6's direction. The host judge
+  keeps legend-pure's rules until stage B (B3).
+- **The rosters are byte-identical across A4.** No roster, register, edge-net ledger or PCT ledger file changes between
+  `b75d6c73a` and `e91005cc6`. Only `lean-sql-baseline.tsv` moves.
+- **Every guard move shrinks.** I checked ArchitectureTest, OpenClassMembersTest, HookLambdasTest, SqlFnSortedTest,
+  EdgeSeparationTest, EdgeOnlyMembersTest and HookRulingsAgreeTest: the only added non-comment line re-terminates an
+  existing entry. Each move is dated, and the JavaEvalLedger pins shrink with notes:
+  - DatabaseJudge 852→808;
+  - AssertVerdicts 1465→1363;
+  - SqlTextVerdicts 1146→1086;
+  - EngineTextPlanning 151→125;
+  - SqlTextRuns 214→199;
+  - BodyDriver 545→544.
+- **The four ruled hooks that narrow** (EngineTestText's arms, BatchTexts deleted, `EdgeHearing.rowAppealed`,
+  `EdgeRun.wordsAlike`) each say "NARROWS A HOOK THE USER RULED". They are for the user's word.
+- **TestPlanJson 32 → 33** (`VERSION`): `RootLoop.Row` loses `orElse`, `appeal` and `decline`, and the edge's `Appeal`
+  loses `batched` and `joins`. The javadoc says so, and the round-trip test is updated.
+
+### SHOULD-FIX
+**S1. The lean-SQL baseline's note leaves out one moved column.** The note says the baseline grows on the measure's road:
+DuckDB statements 350 → 2,319, H2 349 → 2,313. Read across the whole file (626 families, keys equal), these columns rise
+too:
+- `plan` 10.8M → 49.9M chars;
+- `subselects` 1,440 → 6,136;
+- `refused` 108 → 115.
+
+`refused` is the one the note does not name. Seven family rows (five bodies) newly refuse at planning under the host:
+- XStore `inMemoryAndRelational` and modelJoin `advanced`, on both lanes;
+- `objectReferenceIn`, `map` and `base64`, on H2.
+
+Each family has a test already on that lane's fail roster, so no verdict hides. But a shrink-only pin's growth for the
+user's word should name it. Add one line to the note.
+
+**S2. `-Dpct.channelb.judge` is now ignored silently.** ChannelB hard-codes `JudgeMode.HOST`, while MinimalCorpus refuses
+`both` by name. A session that follows the live start-here docs (`PCT_CORE_CLOSEOUT_START_HERE:596,631,692,703`,
+`TOTAL_WALL_START_HERE:1361`) with `=DATABASE` gets a host run and is not told. Refuse a set value other than HOST by
+name, as the corpus does, and add a dated pointer to those docs. That is invariant 4, no silent defaults.
+
+**S3. A stale comment.** `TestPlanner.plan`'s BOTH branch still says "under the compatibility rules their verdicts (the
+words are the host's alone...)". BOTH under a compatibility style is refused two lines above.
+
+### Proof gap
+- At `e91005cc6` the commits show //core:census, census_edge, guardrails and guardrails_edge green.
+- At step 2 (`61653394`) they also show core_edge_tests and the 26 `core_tests_*_judge_{database,both}` targets green.
+- No run is shown at the head after step 3's appeal-path deletion for the judge suites, PCT channel A/B or the corpus
+  lanes.
+
+The batch's merged run (the judges' measurement) must show them green with the unchanged rosters. That is A4's
+done-when.
