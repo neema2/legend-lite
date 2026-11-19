@@ -1078,3 +1078,109 @@ tests of section 22, which keep legend-pure's words.
 - **So B1 with this option is about 10 to 11 days for one session** (section 20's 6.5 to 7, less 0.25 for section 12,
   plus this), or B1 as section 20 sizes it and this as its own slice after it (the plan's record format already holds
   a `Computed` operand, so the slot is an additive change: one more plan version).
+
+## 25. The lite-words option: lite's own error message on every route (measured, 2026-11-19 evening)
+
+**The question** (the user, ~21:50 UTC, relayed by the orchestrator): "why not just a decent and cheap and lean message
+in lite that everyone uses?" Lite's product error message (since 2026-11-10: the kind plus where it happened, a fixed
+text known at planning, no value: `ErrorKind`'s sentences) on the legend-pure and legend-engine routes too, instead of
+compatibility wording legend-pure's sentences, with legend-engine's error envelope and status kept as they are.
+
+**The probe.** A scratch tree from current `main` (`8eea8fa1`, the merge of #124), never pushed, with the compatibility
+wording switched off at its six points (16 lines in 4 files; the patch is `H13/lite-words-probe.patch.txt`):
+
+| Point | `main` | Switched |
+|---|---|---|
+| A. the edge dialects' raise (`PureMessages.wordable`) | a raise with a computed operand writes legend-pure's sentence in SQL | every raise is a site, as in the product |
+| B. a checked graph's defect cell (`PureMessages.sentence`, `CONSTRAINT_UNEVALUABLE`) | legend-engine's sentence | lite's text (`RaiseText.asData`) |
+| C. a raise answered on PCT's plan route (`RaisedWords.worded`) | the site's planned legend-pure words | lite's message |
+| D. `assertError`'s words of a raise under the edge (`EdgeHostWords.caught`) | the site's planned legend-pure words | lite's message |
+| E. a compile error and pure/v1's error text (`PureMessages.compile`: the kinded sentences, the parameter texts, the test-data asserts, a raise's kind name) | upstream's sentence | lite's message (a raised site's own) |
+| F. the size words (`EdgeEngineTestText.sizeWords`) | legend-pure's sentence | lite's |
+
+Legend-engine's envelope (`EngineEnvelope`: status, `code`, `errorType`, the `"<type>: "` prefix) and every other
+compatibility presentation (relation prints, value prints, assert words) are untouched.
+
+Run: `//pct:edge_net` (the PCT goldens of every lane and channel, pure/v1, the edge cases), `//spec:corpus_duckdb`,
+`//spec:corpus_h2` and their edge ledgers, and the ENGINE lanes (`//pct:engine_lane_*`, PCT as legend-engine's audience
+on DuckDB and H2), diffed against `main`'s goldens.
+
+**1. PCT: the same 16 tests move on every lane where their suite runs, each from PASS to FAIL** ("Execution error
+message mismatch": each asserts legend-pure's sentence). A5's 16 is confirmed, and is the whole set:
+
+| Suite | Tests | DuckDB A | DuckDB B | SQLite A | SQLite B | H2 A | H2 B |
+|---|---|---|---|---|---|---|---|
+| essential | `testAtError`, `testSliceError`, `testRemError`, `testSquareRootError`, `testDayOfMonthError`, `testHourError`, `testMinuteError`, `testSecondError`, `testNewDateError` | 9 | 9 | 9 | 9 | (not run) | (not run) |
+| grammar | `testRangeStepError` | 1 | 1 | 1 | 1 | | |
+| relation | `over::` and `reduce::` `testRange_InvalidWindowFrameBoundary`, `testRows_InvalidWindowFrameBoundary` | 4 | 4 | 4 | 4 | 4 | 4 |
+| standard | `testBitShiftLeft_MoreThan62Bits`, `testBitShiftRight_MoreThan62Bits` | 2 | 2 | 2 | 2 | | |
+| unclassified | none | 0 | 0 | 0 | 0 | | |
+| **total** | **16** | **16** | **16** | **16** | **16** | **4** | **4** |
+
+(Channel A keys its outcome lines by a test's short name, so `over::` and `reduce::` share a line: 4 tests on 2 lines.)
+
+- **And on SQLite, 12 known failures whose pinned message changes** (failing before and after; the manifest pins lite's
+  own words as the edge wrote them, the where alone, and lite's message prefixes the kind's sentence):
+  channel A essential 7 (`testAdjustBy{Days,Hours,Minutes,Months,Weeks}BigNumber`, `testArcCosineError`,
+  `testArcSineError`), channel A grammar 3 (`testLargePlus`, `testLargeMinus`, `testLargeTimes`), channel B essential 2
+  (`testArcCosineError`, `testArcSineError`). Their manifest entries (`one(..., "\"a date past the years 0000-9999 has
+  no SQLite value\"")` in `Test_LegendLite_SQLite_*Functions_PCT`) re-pin to lite's whole sentence.
+- **The ENGINE lanes** (PCT as legend-engine's audience): only the 4 window-frame tests move, on DuckDB and on H2, from
+  `SAME` (both pass) to `LITE_BEHIND` (`ERROR_MISMATCH`). The other 12 do not move there: legend-engine itself fails,
+  refuses or answers them otherwise (its unchecked maths, `at` only after a property), so lite's words never decided
+  them.
+- **Not moved, and why:** 4 more PCT `assertError` tests expect upstream text that is already lite's own product
+  message today (the census's "upstream sentence inside the product" family: `The type ... is not supported yet!`, 1
+  test; `Unsupported duration unit for StrictDate. ...`, 3 tests). They would move only if the product rewords those
+  messages. And no PCT `assertError` wraps an inner assert (read: all 19 bodies at the pins), so assert-failure words
+  never decide a passing PCT test.
+
+**2. The corpus, H2 and DuckDB: 0 tests move** (both rosters and both edge ledgers byte-identical).
+- **0 corpus tests assert an error message:** neither lane has a single `assertError` among its 5,786 (DuckDB) and
+  5,533 (H2) asserts (the ledgers' function column).
+- The corpus nets pin verdicts, not messages: the per-assert ledger holds `PASS`/`FAIL`, the outcome file one line.
+  So a failing test's words could change unseen, and none of its verdicts does.
+
+**3. The server route and the edge net's pins:**
+- **pure/v1: 1 of 15 answers moves**, `raise.toOneOfEmpty`: `main` says `Raised: SIZE_NOT_MULTIPLICITY` (the kind's bare
+  name, the defect of section 17), the probe `Raised: collection size does not match the multiplicity: [1]`.
+  (legend-engine answers 200 with a row there, B1-R's finding.)
+- `pure_v1_plan_text.tsv`: 0. The edge cases (`edge_cases_answers.tsv`): 0.
+- The PCT answer goldens move with the outcomes (the same tests).
+
+**4. What B1 becomes under this option.**
+- **Deleted outright** (counted on `main`):
+  - `edge/PureMessages.java`: about 445 of its 481 lines. Gone are the SQL sentence builder (`sentence`), the
+    planning-time worders (`wordable`, `words`, `wordsOrNull` and their helpers), `compile`'s upstream table and
+    splices, and the test-data assert words. `typeName` and `uncaught` (the envelope) stay.
+  - the planned site words: `SiteWords` (28), `SiteWordsRecorder` (124), `RaisedWords` (54); `PlanStyle.siteWords`,
+    `errorWords` and `PureText.recording` with their implementations; the 12 edge dialects' `raiseMessage` overrides
+    (about 125 lines in `PureText`); `EdgeHearing.raisedWords`, `Appeals.raisedWords` and its table, the `NoEdgeRun`
+    stub; `EdgeHostWords.caught`; the `siteWords` tag of `EdgeCodec`, `CompatEdge.siteWords`, `HostAnswers`'
+    `siteWords` table; the planned-words plumbing (101 references in 36 files);
+  - the size words: `EngineTestText.sizeWords`, `EngineTextGates.sizeWords`, `JudgePlans.sizeWords`,
+    `TestDoor.answerSizeWords`, `SideShape.sizeWords`, `TestPlan.answerSizeWords` and `TestPlan.words` (about 80 lines).
+- **Nothing is added:** no `Operand`, no `Failure.Compile` record, no formatter, no lowering change, no plan growth
+  (lite's plan JSON and SQL unchanged), no `EdgeOnlyDataTest` row, no plan version for operands. S1's own work
+  (re-planning the words as site records) is not needed either: the words go instead of moving.
+- **Size: about +30 / -1,030 lines of main code, 2 to 3 days** (the deletions, the tests of the mechanism deleted,
+  about -400 test lines; the guard pins that name deleted hooks; the 32 PCT recordings and the 4 ENGINE tables
+  re-recorded; the known-failure ledger rows for the 16 tests with the user's word; one blanket register row). Against
+  H13's real slice (+1,450 / -880, 6.5 to 7 days) and the slots' +570 (3.5 to 4 days more).
+- **A further deletion it allows, optional:** `RaiseText`'s operands then have no reader but a user `fail`'s message
+  and the place. Dropping them from the MIR (51 construction sites) also drops the extra subquery their second read
+  caused (section 18: `at`'s `__lets` hoist), so lite's SQL shrinks. About -150 lines, 0.5 to 1 day.
+
+**5. What cannot use lite's sentence:**
+- **a user's `fail` (and an assert's own message argument):** the user's text, as in the product today;
+- **a database's own error** (pure/v1's H2 `JdbcSQLDataException: Division by zero: ...` where legend-engine writes no
+  guard): it is the database's words in the product too, and stays;
+- **legend-engine's envelope and status**: kept by the option (the `errorType`, the `"<type>: "` prefix);
+- **the judges' assert-failure words** (`expected: ... actual: ...`): not error messages, and not switched here; they
+  decide no passing PCT test (no PCT `assertError` wraps an assert);
+- texts a client might parse, which become lite's under the option and need a word each: legend-engine's parameter
+  validation (`Missing external parameter(s): ...`, `Invalid provided parameter(s): [...]`; Studio shows them), the
+  test-data generation route's assert texts, and the compile errors' upstream sentences (Studio shows them, with no
+  source position on these routes today either);
+- **an answer, not an error:** a checked graph's defect cell becomes lite's text inside a JSON answer (0 answers carry
+  one today, section 15).

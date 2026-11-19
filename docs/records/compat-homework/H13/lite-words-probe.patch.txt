@@ -1,0 +1,79 @@
+diff --git a/core/src/main/java/com/legend/edge/EdgeEngineTestText.java b/core/src/main/java/com/legend/edge/EdgeEngineTestText.java
+index 8158155c..9f771de7 100644
+--- a/core/src/main/java/com/legend/edge/EdgeEngineTestText.java
++++ b/core/src/main/java/com/legend/edge/EdgeEngineTestText.java
+@@ -223,7 +223,7 @@ final class EdgeEngineTestText implements EngineTestText {
+     /** legend-pure's sentence of a SIZE_NOT_MULTIPLICITY site whose bound is {@code multiplicity}. */
+     @Override
+     public String sizeWords(String multiplicity) {
+-        return PureMessages.words(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+-                List.of(new com.legend.sql.SqlExpr.StringLit(multiplicity)));
++        // LITE-WORDS PROBE: lite's own sentence
++        return com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + multiplicity;
+     }
+ }
+diff --git a/core/src/main/java/com/legend/edge/EdgeHostWords.java b/core/src/main/java/com/legend/edge/EdgeHostWords.java
+index ddd94cba..cca40d1a 100644
+--- a/core/src/main/java/com/legend/edge/EdgeHostWords.java
++++ b/core/src/main/java/com/legend/edge/EdgeHostWords.java
+@@ -225,6 +225,9 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
+      *  site's number; any other error its own message. */
+     @Override
+     public String caught(RuntimeException error, com.legend.testexec.EdgeHearing hearing) {
++        if (true) {
++            return String.valueOf(error.getMessage());   // LITE-WORDS PROBE: lite's own message
++        }
+         if (error instanceof com.legend.error.DataError && error.getCause() instanceof com.legend.exec.RaisedErrors.Raised r
+                 && r.site() != null) {
+             return hearing.raisedWords(java.util.Objects.requireNonNull(r.statement(),
+diff --git a/core/src/main/java/com/legend/edge/PureMessages.java b/core/src/main/java/com/legend/edge/PureMessages.java
+index 16c93a6b..16f0a5d6 100644
+--- a/core/src/main/java/com/legend/edge/PureMessages.java
++++ b/core/src/main/java/com/legend/edge/PureMessages.java
+@@ -84,8 +84,7 @@ public final class PureMessages {
+             // [the native's name]: lite's own sentence, kept for the compatibility road
+             case LIST_LENGTHS_DIFFER -> new SqlExpr.StringLit(text(r, 0) + ": the two value lists differ in length");
+             // [the constraint's id]: the engine's milestoning/constraint sentence, in a checked graph's defect row
+-            case CONSTRAINT_UNEVALUABLE -> new SqlExpr.StringLit("Unable to evaluate constraint [" + text(r, 0)
+-                    + "]: data not available - check your mappings");
++            case CONSTRAINT_UNEVALUABLE -> new SqlExpr.StringLit(java.util.Objects.requireNonNull(r.asData(), "lite's defect text"));
+             // DuckDB's own words, which the reference database's other dialects raise (the D0 inventory's K3)
+             case MAP_KEYS_MISALIGNED -> new SqlExpr.StringLit("The map key list does not align with the map value list.");
+             case MAP_KEY_NULL -> new SqlExpr.StringLit("Map keys can not be NULL.");
+@@ -109,8 +108,8 @@ public final class PureMessages {
+      * SQL ({@link #sentence}), no site, until the user rules on a computed operand (the design note's §5.3).
+      */
+     public static boolean wordable(SqlExpr.RaiseText r) {
+-        return r.asData() == null && r.kind() != com.legend.sql.RaiseKind.USER_FAIL
+-                && wordsOrNull(r.kind(), r.operands()) != null;
++        // LITE-WORDS PROBE: every raise a site, its words lite's own
++        return r.asData() == null && r.kind() != com.legend.sql.RaiseKind.USER_FAIL;
+     }
+ 
+     /** legend-pure's sentence of a site of {@code kind} raised from {@code operands}, worded in Java at planning, byte
+@@ -318,6 +317,11 @@ public final class PureMessages {
+      * {@code [line:col]} stays in front.
+      */
+     public static String compile(Throwable e) {
++        // LITE-WORDS PROBE: lite's own message, the envelope and status unchanged
++        if (true) {
++            return e instanceof com.legend.exec.RaisedErrors.Raised r && r.site() != null ? r.site().message()
++                    : String.valueOf(e.getMessage());
++        }
+         String message = String.valueOf(e.getMessage());
+         if (message.length() > 1 && message.charAt(0) == com.legend.sql.RaiseKind.MARK) {
+             // a product raise's text (MARK kind [MARK where]): its kind's name, as an upstream reader has read it since
+diff --git a/core/src/main/java/com/legend/edge/RaisedWords.java b/core/src/main/java/com/legend/edge/RaisedWords.java
+index 1c2d1212..85624419 100644
+--- a/core/src/main/java/com/legend/edge/RaisedWords.java
++++ b/core/src/main/java/com/legend/edge/RaisedWords.java
+@@ -38,6 +38,9 @@ public final class RaisedWords {
+      *  is. */
+     static com.legend.error.DataError worded(com.legend.error.DataError e,
+             java.util.Map<String, java.util.Map<Integer, String>> words) {
++        if (true) {
++            return e;   // LITE-WORDS PROBE: lite's own message
++        }
+         if (!(e.getCause() instanceof com.legend.exec.RaisedErrors.Raised r) || r.site() == null) {
+             return e;
+         }
