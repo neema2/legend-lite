@@ -49,7 +49,7 @@ public final class TestRunner {
      */
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
             com.legend.executionplan.DataStores stores, Edge edge,
-            @Nullable AssertListener callers, EdgeRun edgeRun, @Nullable Output answer,
+            @Nullable AssertListener callers, JudgeRun edgeRun, @Nullable Output answer,
             java.util.UUID execution) {
         lites(answer);
         // both judges isolated: each plan its own run, then compared (IsolatedRun)
@@ -79,7 +79,7 @@ public final class TestRunner {
      */
     public static void run(TestPlan plan, Sessions.Session session,
             com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.Edge edge,
-            @Nullable AssertListener callers, EdgeRun edgeRun,
+            @Nullable AssertListener callers, JudgeRun edgeRun,
             @Nullable Output answer, com.legend.exec.StatementOrigin origin, java.util.UUID execution) {
         if (plan.steps().size() == 1 && plan.steps().get(0) instanceof TestPlan.Isolated pair) {
             // both judges isolated on the caller's own session: read-only plans alone (IsolatedRun's refusal)
@@ -95,8 +95,8 @@ public final class TestRunner {
             // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
             // judges tell the caller's listener through it, its reports kept back while an appeal is held
             // (the edge's hearing, opened for this run: census C2, 2026-11-17; the product's refuses an appeal by name)
-            EdgeHearing appeals = edgeRun.open(plan, callers, execution);
-            String hookWords = appeals.hostForms().words().name();
+            JudgeRun.Hearing appeals = edgeRun.open(plan, callers, execution);
+            String hookWords = appeals.wordsName();
             if (!plan.words().equals(hookWords)) {
                 // one choice per run (census C1, the orchestrator's ruling of 2026-11-17): the plan's style and the run's
                 // hook word its failures alike -- a mixed run is refused by name, never judged half one way
@@ -257,7 +257,7 @@ public final class TestRunner {
                 // an assertError's verdict the database judges (S135): its row is its statement's, judged alone at its
                 // step -- the host's facts name the assert it reports under
                 com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(), java.util.Objects.requireNonNull(row,
-                        "an assertError's verdict statement answered no row"), listener, run.hearing().hostForms().words());
+                        "an assertError's verdict statement answered no row"), listener, run.hearing());
                 lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
                 return;
             }
@@ -276,7 +276,7 @@ public final class TestRunner {
             com.legend.testexec.RootLoops.Run run = runs.of(verdict);
             run.received(verdict, row);
             if (runs.closes(verdict)) {
-                run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing().hostForms().words()), rowAppeals, this.run);
+                run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing()), rowAppeals, this.run);
             }
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }

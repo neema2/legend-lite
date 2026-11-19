@@ -225,7 +225,7 @@ public final class PureTestRunner implements AutoCloseable {
      *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
      *  where a thread-scoped SEED mark around the program counted them until then). */
     private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options,
-            com.legend.testexec.EdgeRun edgeRun) {
+            com.legend.testexec.JudgeRun edgeRun) {
         // a setup asserts nothing, so it hears no appeal; it is heard by the body's own hook, which goes with the run's
         // style (census C1, the orchestrator's ruling of 2026-11-17: one choice per run)
         TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
@@ -233,7 +233,7 @@ public final class PureTestRunner implements AutoCloseable {
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
-            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
+            ExecuteOptions options, com.legend.testexec.JudgeRun edgeRun) {
         List<String> failures = new ArrayList<>();
         for (String fqn : setupCandidates(t.pkg())) {
             if (shared && setupsDone.contains(fqn)) {
@@ -300,7 +300,7 @@ public final class PureTestRunner implements AutoCloseable {
         observer.privateWorkspace(!shared);
         com.legend.exec.Sessions.Session conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
         ExecuteOptions options = observer.options(t, shared).judgedAs(judging);
-        com.legend.testexec.EdgeRun referee = observer.edgeRun(t);
+        com.legend.testexec.JudgeRun referee = observer.edgeRun(t);
         try {
             // a setup that fails FAILS every test depending on it: the engine's
             // suite scores each BeforePackage function as a test case of its own,
@@ -327,7 +327,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     private Result judge(PureTests.TestCase t, ValueSpecification resolved,
             com.legend.testexecutionplan.BodyFacts facts,
-            com.legend.exec.Sessions.Session conn, ExecuteOptions options, com.legend.testexec.EdgeRun referee) {
+            com.legend.exec.Sessions.Session conn, ExecuteOptions options, com.legend.testexec.JudgeRun referee) {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();

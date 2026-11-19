@@ -48,7 +48,7 @@ public interface TestObserver extends AssertListener {
     /** The run that hears this test's compatibility appeals (census C2, 2026-11-17): the edge's, or the product's,
      *  which hears none ({@link com.legend.testexec.NoEdgeRun#NONE}). No default (census K6, 2026-11-18, G7): every
      *  observer states its run, so no observer is the product's by omission. */
-    com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase test);
+    com.legend.testexec.JudgeRun edgeRun(PureTests.TestCase test);
 
     /** The body is about to execute; {@code effectful} says the platform
      *  found statement effects in it (an attempt a referee may mark). */
@@ -77,7 +77,7 @@ public interface TestObserver extends AssertListener {
     /** The observer of a caller that attaches no instrument: the product's run, stated (census K6, 2026-11-18). */
     TestObserver NONE = new TestObserver() {
         @Override
-        public com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase test) {
+        public com.legend.testexec.JudgeRun edgeRun(PureTests.TestCase test) {
             return com.legend.testexec.NoEdgeRun.NONE;
         }
     };

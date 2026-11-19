@@ -165,7 +165,7 @@ public final class Equality {
             // value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false, legend-pure's interpreted rule); in backwards-compatibility
             // mode compiled legend-pure's (CompiledSupport.eq(Number, Number), what a test's assert runs upstream): an
             // Integer and a Decimal equal by their texts (1D == 1), a Float equal to neither
-            return rules.forms().equalAcrossNumberKinds(ek, ak, e, a);
+            return false;   // H10 SPIKE: lite's rule inline (two number kinds never equal, S127 used by no lane)
         }
         if (ek == Kind.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -182,7 +182,7 @@ public final class Equality {
             }
             // the run hook's form (train 17, 2026-11-18): lite's by value (register S139, the user's ruling of
             // 2026-11-05), as `==` does in the database; the edge's scale-sensitive, compiled legend-pure's
-            boolean eq = rules.forms().equalDecimals(decimal(en), decimal(an));
+            boolean eq = decimal(en).compareTo(decimal(an)) == 0;   // H10 SPIKE: lite's rule inline (S139 used by no lane)
             if (!eq && decimal(en).compareTo(decimal(an)) == 0) {
                 // leg 3.0 census: the pair differs by SCALE only — the
                 // witness set for the canon spec's Decimal amendment
@@ -203,7 +203,7 @@ public final class Equality {
             }
             // two Floats whose values differ: the run hook's form (train 17, 2026-11-18) -- lite's exact (S15/S132, the
             // user's ruling of 2026-11-05: "I like our clean float"), the edge's compiled legend-pure 2 ULP
-            return e instanceof Double de && a instanceof Double da && rules.forms().equalFloatsApart(de, da);
+            return false;   // H10 SPIKE: lite's rule inline (a Float exact; S15 is the door rewrite's)
         }
         if (ek == Kind.STRING) {
             // two Strings compare exactly, as legend-pure's equal does, under every rule set and both judges (2026-11-06,

@@ -8,7 +8,7 @@ import com.legend.exec.SessionSource;
 import com.legend.exec.Sessions;
 import com.legend.exec.StatementOrigin;
 import com.legend.result.Output;
-import com.legend.testexec.EdgeRun;
+import com.legend.testexec.JudgeRun;
 import com.legend.testexec.TestRunner;
 import com.legend.testexecutionplan.AssertListener;
 import com.legend.testexecutionplan.TestPlan;
@@ -42,17 +42,17 @@ public final class TestExecution {
      * {@link #runBody}), providing them between.
      */
     public static void runProgram(TypedQuery typed, @Nullable String runtimeFqn, SessionSource sessions,
-            @Nullable AssertListener listener, EdgeRun referee, ExecuteOptions options,
+            @Nullable AssertListener listener, JudgeRun referee, ExecuteOptions options,
             @Nullable Output answer) {
         TestRunner.runOpening(TestPlanner.plan(typed, runtimeFqn, options.planning()), sessions,
                 options.stores(), options.edge(), listener, referee, answer, java.util.UUID.randomUUID());
     }
 
-    /** {@link #runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun, ExecuteOptions, Output)}
+    /** {@link #runProgram(TypedQuery, String, SessionSource, AssertListener, JudgeRun, ExecuteOptions, Output)}
      *  with no answer wanted: the body's last statement answers nothing to anyone (the corpus's bodies, whose verdicts
      *  are the listener's). */
     public static void runProgram(TypedQuery typed, @Nullable String runtimeFqn, SessionSource sessions,
-            @Nullable AssertListener listener, EdgeRun referee, ExecuteOptions options) {
+            @Nullable AssertListener listener, JudgeRun referee, ExecuteOptions options) {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
@@ -75,14 +75,14 @@ public final class TestExecution {
      *  and judged; each verdict told to {@code listener} at its turn; a held appeal decided after the run by the
      *  {@code referee}; the last statement's answer, where wanted, streamed to {@code answer} (a format and a stream, or the caller's receiver: data, 2026-11-09). */
     public static void runBody(TestPlan plan, Sessions.Session session, @Nullable AssertListener listener,
-            EdgeRun referee, ExecuteOptions options, @Nullable Output answer) {
+            JudgeRun referee, ExecuteOptions options, @Nullable Output answer) {
         TestRunner.run(plan, session, options.stores(), options.edge(), listener, referee, answer,
                 StatementOrigin.OTHER, java.util.UUID.randomUUID());
     }
 
     /** A fixture's {@code plan} (a package's setup, planned by {@link #planBody}) run on {@code session}, its
      *  statements counted as seeding (the census's SEED). */
-    public static void runFixture(TestPlan plan, Sessions.Session session, EdgeRun edgeRun, ExecuteOptions options) {
+    public static void runFixture(TestPlan plan, Sessions.Session session, JudgeRun edgeRun, ExecuteOptions options) {
         TestRunner.run(plan, session, options.stores(), options.edge(), null, edgeRun, null, StatementOrigin.SEED,
                 java.util.UUID.randomUUID());
     }

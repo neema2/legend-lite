@@ -14,12 +14,12 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * LEGEND-PURE'S WORDS OF A FAILED ASSERT, THE HOST JUDGE'S (census J29, 2026-11-18): the compatibility edge's form of
- * {@link com.legend.testexec.HostWords} -- the assert files' own messages (assertEquals.pure, assertSameElements.pure,
+ * LEGEND-PURE'S WORDS OF A FAILED ASSERT, THE HOST JUDGE'S (census J29, 2026-11-18): the compatibility edge's PRESENTER of
+ * {@link com.legend.testexec.VerdictRecord} (H10 spike; HostWords' edge form until then) -- the assert files' own messages (assertEquals.pure, assertSameElements.pure,
  * assertError.pure, ...) and the platform's texts around them, each value by {@code toRepresentation}
  * ({@link EdgePureWords}). The decisions stay the product's; these only word them.
  */
-public final class EdgeHostWords implements com.legend.testexec.HostWords {
+public final class EdgeHostWords {
 
     public static final EdgeHostWords INSTANCE = new EdgeHostWords();
 
@@ -31,7 +31,6 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
     private EdgeHostWords() {
     }
 
-    @Override
     public String name() {
         return NAME;
     }
@@ -69,58 +68,48 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
         return rows;
     }
 
-    @Override
     public String rowValuesDiffer(List<Object> e, List<Object> a, List<Equality.Typed> te, List<Equality.Typed> ta,
             boolean incidental) {
         // upstream's own '\nexpected: %r\nactual:   %r' over the typed grids (the database judge's words too)
         return W.equals(values(te), values(ta), null, null);
     }
 
-    @Override
     public String notEqual(List<Object> e, List<Object> a, @Nullable String aClass) {
         return W.notEquals(e, a);
     }
 
-    @Override
     public String sameElements(List<Object> e, List<Object> a, @Nullable String eClass, @Nullable String aClass) {
         // assertSameElements.pure: assertEquals(e->sort(), a->sort()), both sides sorted
         return W.sameElements(PureAsserts.sorted(e), PureAsserts.sorted(a), eClass, aClass);
     }
 
-    @Override
     public String cellMultisetDiffers(String family, List<Object> e, List<Object> a, HostRules rules) {
         return PureAsserts.holds(PureAsserts.sorted(e), PureAsserts.sorted(a), rules)
                 ? family + " (TDSRow.values): cell multiset differs" : sameElements(e, a, null, null);
     }
 
-    @Override
     public String notEquivalent(TypedSide.Tabular one, TypedSide.Tabular two, double delta,
             @Nullable String cellDiff) {
         return cellDiff != null ? cellDiff : "\n" + summarize(one) + "\n is not equivalent to:\n" + summarize(two);
     }
 
-    @Override
     public String grids(TypedSide.Tabular te, TypedSide.Tabular ta, boolean wantEqual) {
         return W.grids(gridRows(te), gridRows(ta), wantEqual);
     }
 
-    @Override
     public String size(@Nullable Object expected, long actual) {
         return W.size(expected, actual);
     }
 
-    @Override
     public String notContained(List<Object> collection, @Nullable Object value, @Nullable String collectionClass,
             @Nullable String valueClass) {
         return W.notContains(collection, value, collectionClass, valueClass);
     }
 
-    @Override
     public String notWithin(Number expected, Number actual, Number delta) {
         return W.pair(expected, null, actual, null);
     }
 
-    @Override
     public String negated(String kind, List<Object> first, List<Object> second) {
         // the prelude's bodies these natives replace: assertNotEq '%r should not equal %r', assertIsNot 'Should not be
         // identical to: %r', assertNotContains '%s should not contain %r', assertNotSize 'size should not equal: %s'
@@ -133,17 +122,14 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
         };
     }
 
-    @Override
     public String condition(boolean wantTrue) {
         return "Assert failed";
     }
 
-    @Override
     public String emptiness(boolean wantEmpty, TypedSide side, List<Object> values) {
         return wantEmpty ? W.notEmpty(values) : "Expected non-empty collection";
     }
 
-    @Override
     public String notEq(@Nullable Object e, @Nullable Object a, @Nullable String eClass, @Nullable String aClass,
             @Nullable String eDeclared, @Nullable String aDeclared) {
         // assertEq.pure: '\nexpected: %r\nactual:   %r', an instance as %r writes it (<id instanceOf Class>); each value
@@ -151,70 +137,58 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
         return W.pair(e, wireType(e), a, wireType(a));
     }
 
-    @Override
     public String notInstanceOfClass(@Nullable Object v, String wireType, String type) {
         return W.notInstanceOf(v, wireType, type, wireType);
     }
 
-    @Override
     public String notInstanceOf(@Nullable Object v, String type, String carrier) {
         return W.notInstanceOf(v, null, PureAsserts.bare(type), carrier);
     }
 
-    @Override
     public String notSameInstance(String name) {
         return name + ": the element references differ";
     }
 
-    @Override
     public String atIndex(String sentence, int index) {
         // legend-pure names no element: the element's own failure
         return sentence;
     }
 
-    @Override
     public String rowNotEqual(@Nullable Object e, @Nullable Object a, @Nullable String eClass,
             @Nullable String aClass) {
         return W.equals(Collections.singletonList(e), Collections.singletonList(a), eClass, aClass);
     }
 
-    @Override
     public String sidesNotEqual(List<Object> e, List<Object> a, List<Object> eCarried, List<Object> aCarried,
             @Nullable String eClass, @Nullable String aClass) {
         return W.equals(e, a, eClass, aClass);
     }
 
-    @Override
     public String jsonDiffers(String expected, String actual, boolean incidentalRoot, String diff) {
         return "assertJsonStringsEqual: FIRST DIFF at " + diff;
     }
 
-    @Override
     public String noError(String expected) {
         // interpreted AssertError.java: PureAssertFail("No error was thrown")
         return "No error was thrown";
     }
 
-    @Override
     public String errorDiffers(String expected, String actual) {
         // assertError.pure:24, the /4 body's assertEquals format, verbatim
         return "Execution error message mismatch.\nThe actual message was \"" + actual
                 + "\"\nwhere the expected message was:\"" + expected + "\"";
     }
 
-    @Override
     public String lineDiffers(long expected, long actual) {
         // assertError.pure:25
         return "Execution error line mismatch. Actual: " + actual + " where expected: " + expected;
     }
 
-    @Override
     public String columnDiffers(long expected, long actual) {
         // assertError.pure:26
         return "Execution error column mismatch. Actual: " + actual + " where expected: " + expected;
     }
 
-    @Override
     public String unjudged(String expected, String actual) {
         // the evidence as upstream's frame writes a pair (assertEquals.pure's '\nexpected: %r\nactual:   %r')
         return "\nexpected: " + expected + "\nactual:   " + actual;
@@ -223,13 +197,55 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
     /** legend-pure's words of a caught error (K10 of the edge audit, re-ported onto J29's hook, 2026-11-18): a raise
      *  of a planned site is the words the plan's edge records hold for it, by the raising statement's text and the
      *  site's number; any other error its own message. */
-    @Override
-    public String caught(RuntimeException error, com.legend.testexec.EdgeHearing hearing) {
+    static String caught(RuntimeException error, Appeals hearing) {
         if (error instanceof com.legend.error.DataError && error.getCause() instanceof com.legend.exec.RaisedErrors.Raised r
                 && r.site() != null) {
             return hearing.raisedWords(java.util.Objects.requireNonNull(r.statement(),
                     "a raise of a planned site carries its statement's text"), r.site().n());
         }
         return String.valueOf(error.getMessage());
+    }
+
+    private static final EdgeHostWords SELF = INSTANCE;
+    private static final HostRules RULES = HostRules.LITE;
+
+    /** H10 SPIKE: legend-pure's words of a failure record (the presenter; the product's judge decided). SPIKE NOTE:
+     *  {@code cellMultisetDiffers} picks its sentence by comparing the sorted pools; it compares under lite's rules
+     *  now (the edge's 2-ULP form went with HostForms), so its wording can move only where two Float cells are within
+     *  2 ULP and unequal. */
+    static String present(com.legend.testexec.VerdictRecord failure) {
+        return presentWith(failure);
+    }
+
+    private static String presentWith(com.legend.testexec.VerdictRecord failure) {
+        return switch (failure) {
+            case com.legend.testexec.VerdictRecord.RowValuesDiffer r -> SELF.rowValuesDiffer(r.e(), r.a(), r.te(), r.ta(), r.incidental());
+            case com.legend.testexec.VerdictRecord.NotEqual r -> SELF.notEqual(r.e(), r.a(), r.aClass());
+            case com.legend.testexec.VerdictRecord.SameElements r -> SELF.sameElements(r.e(), r.a(), r.eClass(), r.aClass());
+            case com.legend.testexec.VerdictRecord.CellMultisetDiffers r -> SELF.cellMultisetDiffers(r.family(), r.e(), r.a(), RULES);
+            case com.legend.testexec.VerdictRecord.NotEquivalent r -> SELF.notEquivalent(r.one(), r.two(), r.delta(), r.cellDiff());
+            case com.legend.testexec.VerdictRecord.Grids r -> SELF.grids(r.te(), r.ta(), r.wantEqual());
+            case com.legend.testexec.VerdictRecord.Size r -> SELF.size(r.expected(), r.actual());
+            case com.legend.testexec.VerdictRecord.NotContained r -> SELF.notContained(r.collection(), r.value(), r.collectionClass(),
+                    r.valueClass());
+            case com.legend.testexec.VerdictRecord.NotWithin r -> SELF.notWithin(r.expected(), r.actual(), r.delta());
+            case com.legend.testexec.VerdictRecord.Negated r -> SELF.negated(r.kind(), r.first(), r.second());
+            case com.legend.testexec.VerdictRecord.Condition r -> SELF.condition(r.wantTrue());
+            case com.legend.testexec.VerdictRecord.Emptiness r -> SELF.emptiness(r.wantEmpty(), r.side(), r.values());
+            case com.legend.testexec.VerdictRecord.NotEq r -> SELF.notEq(r.e(), r.a(), r.eClass(), r.aClass(), r.eDeclared(), r.aDeclared());
+            case com.legend.testexec.VerdictRecord.NotInstanceOfClass r -> SELF.notInstanceOfClass(r.v(), r.wireType(), r.type());
+            case com.legend.testexec.VerdictRecord.NotInstanceOf r -> SELF.notInstanceOf(r.v(), r.type(), r.carrier());
+            case com.legend.testexec.VerdictRecord.NotSameInstance r -> SELF.notSameInstance(r.name());
+            case com.legend.testexec.VerdictRecord.AtIndex r -> SELF.atIndex(r.sentence(), r.index());
+            case com.legend.testexec.VerdictRecord.RowNotEqual r -> SELF.rowNotEqual(r.e(), r.a(), r.eClass(), r.aClass());
+            case com.legend.testexec.VerdictRecord.SidesNotEqual r -> SELF.sidesNotEqual(r.e(), r.a(), r.eCarried(), r.aCarried(), r.eClass(),
+                    r.aClass());
+            case com.legend.testexec.VerdictRecord.JsonDiffers r -> SELF.jsonDiffers(r.expected(), r.actual(), r.incidentalRoot(), r.diff());
+            case com.legend.testexec.VerdictRecord.NoError r -> SELF.noError(r.expected());
+            case com.legend.testexec.VerdictRecord.ErrorDiffers r -> SELF.errorDiffers(r.expected(), r.actual());
+            case com.legend.testexec.VerdictRecord.LineDiffers r -> SELF.lineDiffers(r.expected(), r.actual());
+            case com.legend.testexec.VerdictRecord.ColumnDiffers r -> SELF.columnDiffers(r.expected(), r.actual());
+            case com.legend.testexec.VerdictRecord.Unjudged r -> SELF.unjudged(r.expected(), r.actual());
+        };
     }
 }

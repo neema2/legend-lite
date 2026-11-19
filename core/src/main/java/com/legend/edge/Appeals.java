@@ -32,7 +32,7 @@ import java.util.function.Function;
  * outcome stands. A body measured on 2026-11-07 (both DuckDB corpus judges): 1,010 bodies appeal, 48 of them after a
  * write of their own and none before a later write, so the rows read after the run are the rows at the assert.
  */
-final class Appeals implements com.legend.testexec.EdgeHearing {
+final class Appeals implements com.legend.testexec.JudgeRun.Hearing {
 
     /** An appeal heard at its assert, as the run records it (the plan-as-data design's step 8b, 2026-11-08: data, the
      *  run's output): the appeal's number in the plan, the two texts as read and their equality; {@code at} the kept
@@ -133,9 +133,23 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
         return out;
     }
 
-    /** legend-pure's words of site {@code n} of {@code statement}, as the plan holds them; none refused by name. */
     @Override
-    public String raisedWords(String statement, int n) {
+    public String wordsName() {
+        return EdgeHostWords.NAME;
+    }
+
+    @Override
+    public String present(com.legend.testexec.VerdictRecord failure) {
+        return EdgeHostWords.present(failure);
+    }
+
+    @Override
+    public String caughtMessage(RuntimeException error) {
+        return EdgeHostWords.caught(error, this);
+    }
+
+    /** legend-pure's words of site {@code n} of {@code statement}, as the plan holds them; none refused by name. */
+    String raisedWords(String statement, int n) {
         Map<Integer, String> byN = siteWords.get(statement);
         String words = byN == null ? null : byN.get(n);
         if (words == null) {
@@ -196,10 +210,6 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
     }
 
     /** Compiled legend-pure's host equality (S127; census C1's step 2c, 2026-11-17). */
-    @Override
-    public com.legend.testexec.HostForms hostForms() {
-        return CompiledPureHostForms.INSTANCE;
-    }
 
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
      *  appeals (each body's run holds its own record of them, slice 5). */

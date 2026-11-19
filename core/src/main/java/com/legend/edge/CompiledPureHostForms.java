@@ -3,69 +3,19 @@
 
 package com.legend.edge;
 
-import com.legend.testexec.Equality;
-
 /**
- * COMPILED LEGEND-PURE'S HOST EQUALITY (register S127; census C1's step 2c, the orchestrator's ruling of 2026-11-17:
- * moved from {@code testexec.Equality}): the edge's form of the run hook's {@link com.legend.testexec.HostForms} --
- * {@code CompiledSupport.eq(Number, Number)}, what a test's assert runs upstream: an Integer and a Decimal equal by
- * their texts ({@code 1D == 1}), a Float equal to neither.
+ * H10 SPIKE: compiled legend-pure's Float tolerance (S15/S132), what remains of the edge's form of the deleted
+ * {@code HostForms}: the constant and the comparison the edge's rendered-text kind and its SQL verdict numbers use.
+ * S127 and S139 (two number kinds equal by their texts; a Decimal's scale part of its value) were used by no lane
+ * (H6 section 6.1) and go; S15 on a scalar Float is the door rewrite R-S15's, not the judge's.
  */
-public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
-    INSTANCE;
+public final class CompiledPureHostForms {
 
-    @Override
-    public boolean equalAcrossNumberKinds(Equality.Kind ek, Equality.Kind ak, Object e, Object a) {
-        boolean integerAndDecimal = ek == Equality.Kind.INTEGER && ak == Equality.Kind.DECIMAL
-                || ek == Equality.Kind.DECIMAL && ak == Equality.Kind.INTEGER;
-        boolean r = integerAndDecimal && String.valueOf(e).equals(String.valueOf(a));
-        // H6 PROTOTYPE (MEASUREMENT ONLY): lite answers false
-        if (r) {
-            com.legend.diagnostics.LeniencyProbe.changed("S127", e + " vs " + a);
-            if (com.legend.diagnostics.LeniencyProbe.off("S127")) {
-                return false;
-            }
-        }
-        return r;
+    private CompiledPureHostForms() {
     }
 
     /** The units in the last place two Floats may differ by and be equal: compiled legend-pure's 2 (S15/S132). */
     public static final int FLOAT_ULPS = 2;
-
-    /** Compiled legend-pure's assert compares a Decimal's {@code getValue().equals}: its scale part of its value
-     *  ({@code 3.0D} differs from {@code 3.00D}; register S139; train 17, 2026-11-18: moved from testexec.Equality). */
-    @Override
-    public boolean equalDecimals(java.math.BigDecimal e, java.math.BigDecimal a) {
-        boolean r = e.equals(a);
-        // H6 PROTOTYPE (MEASUREMENT ONLY): lite compares by value
-        boolean lite = e.compareTo(a) == 0;
-        if (r != lite) {
-            com.legend.diagnostics.LeniencyProbe.changed("S139", e + " vs " + a);
-            if (com.legend.diagnostics.LeniencyProbe.off("S139")) {
-                return lite;
-            }
-        }
-        return r;
-    }
-
-    /** Two Floats within {@link #FLOAT_ULPS} ULP are equal (S15/S132; train 17, 2026-11-18: moved from
-     *  testexec.Equality). */
-    @Override
-    public boolean equalFloatsApart(double e, double a) {
-        boolean within = withinUlps(e, a);
-        // H6 PROTOTYPE (MEASUREMENT ONLY): lite answers false for two Floats apart
-        if (within) {
-            com.legend.diagnostics.LeniencyProbe.changed("S15", e + " ~ " + a);
-            if (com.legend.diagnostics.LeniencyProbe.off("S15")) {
-                return false;
-            }
-        }
-        if (within) {
-            // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
-            com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);
-        }
-        return within;
-    }
 
     /** Two finite doubles within {@code FLOAT_ULPS * ulp(max(|x|, |y|))} (moved from testexec.Equality, train 17,
      *  2026-11-18). */
@@ -82,11 +32,5 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
             }
         }
         return ok;
-    }
-
-    @Override
-    public com.legend.testexec.HostWords words() {
-        // the compatibility rules: legend-pure's words
-        return EdgeHostWords.INSTANCE;
     }
 }

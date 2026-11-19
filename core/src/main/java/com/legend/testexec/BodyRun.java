@@ -17,26 +17,26 @@ import com.legend.testexecutionplan.TypedSide;
  */
 final class BodyRun {
 
-    /** The run's hearing of the compatibility appeals (the edge's, or the product's refusal: {@link EdgeRun}). */
-    private final EdgeHearing hearing;
+    /** The run's hearing of the compatibility appeals (the edge's, or the product's refusal: {@link JudgeRun}). */
+    private final JudgeRun.Hearing hearing;
     /** How many messaged asserts are being judged (nested: an assert inside a messaged one's helper). */
     private int messaged;
 
-    BodyRun(EdgeHearing hearing) {
+    BodyRun(JudgeRun.Hearing hearing) {
         this.hearing = hearing;
     }
 
-    EdgeHearing hearing() {
+    JudgeRun.Hearing hearing() {
         return hearing;
     }
 
     /** THE MESSAGE an assertError matches a caught error by (K10b of the edge audit, the orchestrator's ruling (A) of
      *  2026-11-17): under lite's own rules its own message; under the compatibility rules (the run hook's words), a raise of a
      *  planned site is legend-pure's words of that site, looked up in the plan's records by the raising statement's text
-     *  and the site's number ({@link EdgeHearing#raisedWords}); any other error its own message. */
+     *  and the site's number (the run's caughtMessage); any other error its own message. */
     String caughtMessage(RuntimeException e) {
         // whose words: the run hook's (census J29, 2026-11-18), never a branch of the judge's
-        return hearing.hostForms().words().caught(e, hearing);
+        return hearing.caughtMessage(e);   // H10 SPIKE: the run's words of the raise, the product not knowing whose
     }
 
     /** The listener the run's judges tell: the caller's, its reports kept back while an appeal is held. */
@@ -55,12 +55,12 @@ final class BodyRun {
         return messaged > 0;
     }
 
-    /** An edge-judged comparison at its verdict step ({@link EdgeHearing#judged}). */
+    /** An edge-judged comparison at its verdict step . */
     TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged e, java.util.List<TypedSide> sides) {
         return hearing.judged(e, sides, messaged > 0);
     }
 
-    /** A step of the body that writes is about to run ({@link EdgeHearing#writing}). */
+    /** A step of the body that writes is about to run . */
     void writing() {
         hearing.writing();
     }

@@ -420,7 +420,7 @@ public final class ChannelB {
 
     private static final com.legend.ExecuteOptions OPTIONS = RULES.equals("COMPAT") ? COMPAT_OPTIONS : LITE_OPTIONS;
 
-    private static final com.legend.testexec.EdgeRun REFEREE = RULES.equals("COMPAT")
+    private static final com.legend.testexec.JudgeRun REFEREE = RULES.equals("COMPAT")
             ? com.legend.edge.AppealRun.with(null) : com.legend.testexec.NoEdgeRun.NONE;
 
     /**

@@ -4,8 +4,7 @@
 package com.legend.edge;
 
 import com.legend.base.Nullable;
-import com.legend.testexec.EdgeHearing;
-import com.legend.testexec.EdgeRun;
+import com.legend.testexec.JudgeRun;
 import com.legend.testexecutionplan.AssertListener;
 import com.legend.testexecutionplan.TestPlan;
 
@@ -14,7 +13,7 @@ import com.legend.testexecutionplan.TestPlan;
  * each held appeal decided after the run by the harness's {@link SqlReplayReferee}, or by none (a contract appeal needs
  * no referee; a rows appeal with none declines by name).
  */
-public final class AppealRun implements EdgeRun {
+public final class AppealRun implements JudgeRun {
 
     private final @Nullable SqlReplayReferee referee;
 
@@ -28,7 +27,7 @@ public final class AppealRun implements EdgeRun {
     }
 
     @Override
-    public EdgeHearing open(TestPlan plan, @Nullable AssertListener callers, java.util.UUID execution) {
+    public JudgeRun.Hearing open(TestPlan plan, @Nullable AssertListener callers, java.util.UUID execution) {
         return new Appeals(plan, callers, execution, referee);
     }
 

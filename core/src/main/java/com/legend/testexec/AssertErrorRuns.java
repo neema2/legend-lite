@@ -59,9 +59,9 @@ final class AssertErrorRuns {
     private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
             @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
             @com.legend.base.Nullable Throwable caughtCause, BodyRun run) {
-        HostWords words = run.hearing().hostForms().words();   // whose words: the run hook's (census J29)
+        JudgeRun.Hearing words = run.hearing();   // H10 SPIKE: the run's presenter (census J29: never whose)
         if (caughtMessage == null) {
-            throw new com.legend.error.AssertFailed(words.noError(expected));
+            throw new com.legend.error.AssertFailed(words.present(new VerdictRecord.NoError(expected)));
         }
         // B7 (RaisedErrors): messages arrive ALREADY clean — the
         // Executor funnel unwraps the transport envelope from
@@ -71,7 +71,7 @@ final class AssertErrorRuns {
         // coincidence. The old broad prefix regex is deleted.
         String actual = caughtMessage;
         if (!actual.equals(expected)) {
-            throw new com.legend.error.AssertFailed(words.errorDiffers(expected, actual));
+            throw new com.legend.error.AssertFailed(words.present(new VerdictRecord.ErrorDiffers(expected, actual)));
         }
         // POSITION adjudication (leg 2, assertError.pure:25-26 — message
         // first, then line, then column, each only when expected): the
@@ -90,10 +90,10 @@ final class AssertErrorRuns {
                         + " a raise emission without provenance)");
             }
             if (expectedLine != null && p.line() != expectedLine) {
-                throw new com.legend.error.AssertFailed(words.lineDiffers(expectedLine, p.line()));
+                throw new com.legend.error.AssertFailed(words.present(new VerdictRecord.LineDiffers(expectedLine, p.line())));
             }
             if (expectedColumn != null && p.column() != expectedColumn) {
-                throw new com.legend.error.AssertFailed(words.columnDiffers(expectedColumn, p.column()));
+                throw new com.legend.error.AssertFailed(words.present(new VerdictRecord.ColumnDiffers(expectedColumn, p.column())));
             }
         }
         return new TypedSide.Scalar(Boolean.TRUE,

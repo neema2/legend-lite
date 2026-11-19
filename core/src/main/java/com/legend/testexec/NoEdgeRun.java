@@ -21,7 +21,7 @@ import java.util.function.Function;
  * pointing to the edge -- as a plan naming an appeal is refused when the run opens. Every other implementation of
  * {@link EdgeRun} and {@link EdgeHearing} is the edge's.
  */
-public final class NoEdgeRun implements EdgeRun {
+public final class NoEdgeRun implements JudgeRun {
 
     /** Lite's runs: no appeal is heard. */
     public static final NoEdgeRun NONE = new NoEdgeRun();
@@ -33,7 +33,7 @@ public final class NoEdgeRun implements EdgeRun {
     }
 
     @Override
-    public EdgeHearing open(TestPlan plan, @Nullable AssertListener callers, java.util.UUID execution) {
+    public JudgeRun.Hearing open(TestPlan plan, @Nullable AssertListener callers, java.util.UUID execution) {
         if (!plan.extensionsByVerdict().isEmpty()) {
             throw new NotImplementedException("a test plan naming the compatibility edge's appeals " + WHY);
         }
@@ -47,7 +47,22 @@ public final class NoEdgeRun implements EdgeRun {
     }
 
     /** A run that hears no appeal: the caller's listener as it is. */
-    private record Hearing(@Nullable AssertListener listener) implements EdgeHearing {
+    private record Hearing(@Nullable AssertListener listener) implements JudgeRun.Hearing {
+
+        @Override
+        public String wordsName() {
+            return LiteHostWords.NAME;
+        }
+
+        @Override
+        public String present(VerdictRecord failure) {
+            return LiteHostWords.present(failure);
+        }
+
+        @Override
+        public String caughtMessage(RuntimeException error) {
+            return LiteHostWords.caught(error);
+        }
 
         @Override
         public TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, boolean messaged) {
@@ -59,10 +74,6 @@ public final class NoEdgeRun implements EdgeRun {
             throw new NotImplementedException("appeal " + number + " " + WHY);
         }
 
-        @Override
-        public String raisedWords(String statement, int n) {
-            throw new NotImplementedException("legend-pure's words of raise site " + n + " " + WHY);
-        }
 
         @Override
         public com.legend.testexecutionplan.JsonGrammar json() {
@@ -76,11 +87,6 @@ public final class NoEdgeRun implements EdgeRun {
             return LiteRenderedTexts.STRINGS;
         }
 
-        @Override
-        public HostForms hostForms() {
-            // lite's own runs: two number kinds never equal (S127)
-            return LiteHostForms.STRICT;
-        }
 
         @Override
         public void writing() {

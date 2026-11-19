@@ -4,16 +4,16 @@
 package com.legend.testexec;
 
 /**
- * WHAT THE HOST JUDGE JUDGES A VERDICT BY (census C1's step 2c, 2026-11-17): the run hook's behaviours
- * ({@link HostForms}, the hearing's), carried through the host judge's comparisons. The plan's judging rules went
- * 2026-11-18 (train 17, the orchestrator's ruling): a Float's tolerance and a Decimal's scale are the forms' now.
+ * H10 SPIKE (claude/compat-judges-spike, never for merge): what the host judge's comparisons carry -- since CP-14 (iii)
+ * no rules (lite's are inline in {@link Equality}), only the run's PRESENTER of a failure record, threaded here so the
+ * sites without the run record word through it (a build passes the run record instead and drops this class).
  */
-public record HostRules(HostForms forms) {
+public record HostRules(java.util.function.Function<VerdictRecord, String> presenter) {
 
-    /** Lite's behaviours. */
-    public static final HostRules LITE = new HostRules(LiteHostForms.STRICT);
+    /** Lite's presenter. */
+    public static final HostRules LITE = new HostRules(LiteHostWords::present);
 
     public HostRules {
-        java.util.Objects.requireNonNull(forms, "an equality names the run's forms");
+        java.util.Objects.requireNonNull(presenter, "the run's presenter");
     }
 }
