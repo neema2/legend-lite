@@ -66,7 +66,12 @@ class ObservabilityGuardrailTest {
             "LEGEND_LITE_BIND", "LEGEND_LITE_ALLOWED_ORIGINS",
             // 2026-11-10, the A checkpoint's tenets audit (11) and the user's ruling that day: the folders the server
             // reads file: sources from, its startup setting beside --sources DIR; deployment config, not a debug flag
-            "LEGEND_LITE_SOURCE_DIRS");
+            "LEGEND_LITE_SOURCE_DIRS",
+            // 2026-11-19, A3 piece 3 (the pure-meaning detector at legend-engine's door), the user's rulings that day
+            // (~14:55 the setting, ~19:20 "I think it has to be refuse then for now"): what the edge's legend-engine
+            // routes do with a query whose answer would differ from legend-engine's (unset or refuse, the default;
+            // warn), read once where the edge mounts them (EdgeServer.UPSTREAM); deployment config, not a debug flag
+            "LEGEND_LITE_PURE_MEANING");
 
     // 40 compiler sites + 3 server-shell sites that moved in with the
     // engine-module deletion (DiagramHandler crash report, the two

@@ -102,7 +102,11 @@ class DialectBoundaryTest {
             // database, which the judges' engine-test methods on the one hook (PlanStyle.engineTestText and the plan
             // text and connection beside it) read; the edge may not reach the planner's EngineText (the planner-entries
             // rule), and the knowledge is the edge's -- W9 moves EngineText's copy there too
-            "PureText.java", 1);
+            // PureText.java 1 -> 2: A3 piece 3 (the detector), ruled by the user 2026-11-19 ~20:10 ('Yes', to the
+            // owner's question on these three moves): legend-engine's substring at a literal start of 0, measured equal
+            // to legend-pure's answer per database and arity (ZERO_START_AS_PURE), the edge's per-database fact held in
+            // the edge's registry so the detector names no database (DialectLeakRatchetTest's ban)
+            "PureText.java", 2);
 
     /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
      *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a

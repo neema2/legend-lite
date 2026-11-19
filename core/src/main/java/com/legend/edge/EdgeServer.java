@@ -26,9 +26,11 @@ public final class EdgeServer {
     /** The store's path upstream's clients call (legend-engine's query store). */
     static final String QUERY_STORE = "/api/pure/v1/query";
 
-    /** legend-engine's API, mounted beside lite's own routes. */
+    /** legend-engine's API, mounted beside lite's own routes. The pure-meaning setting is read once, as the API is
+     *  mounted ({@code LEGEND_LITE_PURE_MEANING}: unset or {@code refuse}, the default, or {@code warn}; any other value
+     *  stops the server's start: {@link PureMeaningCheck#mode}). */
     public static final LegendHttpServer.Mount UPSTREAM = context -> List.of(
-            pureV1(runner(context.sources())),
+            pureV1(runner(context.sources()), PureMeaningCheck.mode(System.getenv("LEGEND_LITE_PURE_MEANING"))),
             engineShaped(LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(),
                     EdgeServer::storeWords)),
             currentUser());
@@ -46,8 +48,8 @@ public final class EdgeServer {
     public interface Shipped extends LiteV1Api.Runner {
     }
 
-    /** {@code /api/pure/v1/...}: POST only, as upstream serves it. */
-    static LegendHttpServer.Routes pureV1(LiteV1Api.Runner runner) {
+    /** {@code /api/pure/v1/...}: POST only, as upstream serves it; the pure-meaning detector under {@code meaning}. */
+    static LegendHttpServer.Routes pureV1(LiteV1Api.Runner runner, PureMeaningCheck.Mode meaning) {
         return new LegendHttpServer.Routes() {
             @Override
             public String prefix() {
@@ -60,7 +62,7 @@ public final class EdgeServer {
                 if (!"POST".equals(method)) {
                     return new LiteV1Api.Answer(405, "{\"error\":\"Method not allowed\"}");
                 }
-                return PureV1Routes.route(path, rawQuery, body, runner);
+                return PureV1Routes.route(path, rawQuery, body, runner, LiteV1Api.Models.COMPILED, meaning);
             }
         };
     }

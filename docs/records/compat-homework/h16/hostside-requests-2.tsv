@@ -1,0 +1,4 @@
+host.braceLetSubstring3	{|let x = 'abcdef'->substring(1, 3); #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->filter(r|$r.region == $x)->select(~[region])->from(trades::h2::RT);}
+host.letTLetSubstring3	|let x = 'abcdef'->substring(1, 3); let t = #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#; $t->filter(r|$r.region == $x)->select(~[region])->from(trades::h2::RT);
+host.letTLetIndexOf	|let i = 'abcdef'->indexOf('c'); let t = #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#; $t->filter(r|$r.year == $i)->select(~[region])->from(trades::h2::RT);
+host.letTLetSubstring2	|let x = 'abcdef'->substring(2); let t = #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#; $t->filter(r|$r.region == $x)->select(~[region])->from(trades::h2::RT);

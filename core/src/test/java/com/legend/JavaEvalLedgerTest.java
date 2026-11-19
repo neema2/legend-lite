@@ -1892,6 +1892,11 @@ class JavaEvalLedgerTest {
                             "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
+                            // 2026-11-19, A3 piece 3 (the user's rulings of ~14:55 and ~19:20, the compat owner's go): the
+                            // pure-meaning detector at those routes -- a reading of the typed tree (which calls of the
+                            // String substring and indexOf legend-engine would send to the database); it computes no
+                            // value and changes no query, and the route refuses or warns on what it finds
+                            "PureMeaningCheck.java",
                             // a pure/v1 request's model, text or PureModelContextData (2026-10-21, leg 8 step 3) -- read
                             // and compiled only; no connection, no JDBC, no value. Moved here from com.legend.server
                             // 2026-11-18 (J40.ModelInput: legend-engine's routes alone read it)
