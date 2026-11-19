@@ -2845,3 +2845,13 @@ who confirms or changes phases 1-3.
 - **~21:31 UTC, B2's docs at `db4b9eea6`** (a fast-forward: S383's wording, the product's words, legend-pure's two
   wrappers and the JDK text, each checked at 5.99.0 and JDK 21.0.13; the product side waits on the unpushed
   `claude/compat-a3-switch`); `//gates:checks` 197 pass. The judges told to merge this head.
+- **~21:33 UTC, the translator: A3 piece 2's numbers final** (record `compat-homework/a3/piece2/` on
+  `claude/compat-translator-spike` at `9dbf2056`). PCT known-failure rows −63 (the 3 `indexOf` rows on every lane): 45
+  measured (channel A on 8 classes, channel B on 7 lanes), 18 predicted for BigQuery, Snowflake and Databricks (a stale
+  row turns both channels red, so removed on prediction; the batch's CI measures them). Corpus fail rosters +7 per
+  database (UP): `testPlanForDateTimeConstantParameter{No,GMT,EST}TimeZone`,
+  `testToSQLStringSubstringIsUncorrectedByDefault`, `testFilterUsing{Substring,ParseInteger,ParseDecimal}Function`;
+  unordered registers −4 per database; 9 re-pins; 5 edge-net files re-recorded (essential answers −3 +7 on DuckDB and
+  SQLite; channel B DuckDB 3 lines ERROR → PASS; the corpus host-judge recordings −14 +4 each). SubstringRangeTest green
+  on every in-process database. Heads, local: `claude/compat-a3-frontends` `a4c1f2b1`, `claude/compat-a3-switch`
+  `bc356444`. The translator is putting the push and the up moves to the user in its session.
