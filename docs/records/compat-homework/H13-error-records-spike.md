@@ -891,3 +891,67 @@ measured.
 - H9's census rows map to section 11's changes: the 68 `Cast(... -> DOUBLE)` renders are `sqrt`'s (now its argument),
   the 32 `Cast(StringLit -> TEMPORAL_TEXT)` are the date parts' (now the literal's text), and the sizes are now a
   literal wherever the multiplicity is exact.
+
+## 22. The orchestrator's three notes on tasks 1 and 2 (13:35 UTC), and what the other sessions agreed
+
+**Note 1: the side effect, a move toward legend-pure.**
+
+| Expression | Whose message | `main` | Now | legend-pure (read at the pin, section 11) |
+|---|---|---|---|---|
+| `%2017-01-01T10:30->second()` | legend-pure's audience: PCT's routes (channels A and B, an `assertError`'s words) and pure/v1's route (which says legend-pure's words today, section 17) | `Cannot get second for 2017-01-01 10:30:00` (the database's text of a padded timestamp) | `Cannot get second for 2017-01-01T10:30+0000` | `2017-01-01T10:30+0000` |
+| `%2017-01-01T10->minute()` | the same | `... for 2017-01-01 10:00:00` | `... for 2017-01-01T10` | `2017-01-01T10` |
+
+- **Lite's own route's message does not change, by construction:** lite's sentence is `ErrorKind.sentence + (where ==
+  null ? "" : ": " + where)` (`ExecutionPlan.Site.sentence`), and the three lowering changes touch only the OPERANDS
+  (the kind and the where are the same records). Measured as far as the suites reach: all 51 `core_tests_*` targets
+  pass (section 13), under the host judge, `judge_both` and `judge_database`.
+- No pinned line in PCT, the corpus or pure/v1 holds an hour or minute date in such a message today (sections 11, 14).
+
+**Note 2: `SIZE_NOT_MULTIPLICITY`, the MIR field the real slice would need (not built).**
+- **The field:** `SqlExpr.CheckedOne(list, scalarCarrier, atLeastOnly, type)` gains `@Nullable Integer statedSize`,
+  set by the lowering from the operand's typed multiplicity where it is one number (the rule of `statedSize`, section
+  11). The renderer (`AnsiSqlRenderer.checkedOne`, `sql/dialect/AnsiSqlRenderer.java:805-830`) puts `IntLit(statedSize)`
+  in the raise's size operand where it is set, else `COALESCE(LIST_LENGTH(list), 0)` as today; the guard keeps its
+  count.
+- **Its size:** the record and its 2 convenience constructors (`SqlExpr.java:1177-1197`), its `mapChildren` arm
+  (`:281`), `SqlRewriter.java:275`, `FoldToListReduce.java:131`, `MirJson`'s writer and reader (`:1033`), the 3
+  lowering sites (`Coercions.java:75/83/169`) and `Lowerer.java:1094`, the renderer's 2 lines: **about 10 sites, 30
+  lines, 0.5 day with its tests.** `MirJson` writes the MIR into plans, so the plan's JSON moves with it (the same
+  version bump).
+- **What it covers, read from the 12 tests (not run):** the field states a size only where the multiplicity is exact.
+  Of the 12, three would then pass unchanged (`MultiplicityStrictnessTest.literalCollectionToOneRaisesUserError`,
+  `ToOneLaneTest.ifRaises`, `sortDescRaises`: a literal list, `if` of two `[2]`s, `sort`/`reverse` keep `[m]`). **The
+  other nine are TRUE run-time sizes** (a `filter`, `slice`, `range`, `take`, `limit` or `zip` result, a relation's row
+  count, a run-time empty list: `RelationToOneGuardTest.onTheLane`, `OptionalCollectionNullDropTest` 2,
+  `ToOneLaneTest` `rangeRaises`, `zipRaises`, `sliceRaises`, `takeLimitCarryTheLane`, `literalAndCallShapes`' filter
+  case, `MultiplicityStrictnessTest.runtimeEmptyListToOneRaises`): A3 withholds them by design, so their expected
+  words change under the register row that rules the withheld spelling.
+- **It joins `raise.toOneOfEmpty` on pure/v1** (B1-R's finding today, relayed by the orchestrator, not measured here):
+  legend-engine answers 200 with a row where lite answers 500. Both belong to the same `SIZE_NOT_MULTIPLICITY` row.
+
+**Note 3: the typed `Operand.Date`, an open item for the real slice, with a recommendation.**
+- **The options:**
+  1. a MIR literal for a Pure date at its precision (a new `SqlExpr` variant: a render arm in every dialect, a throwing
+     arm being allowed, and `Operand.of` maps it to `Operand.Date(canonical)`);
+  2. typed operands on `RaiseText` beside its SQL ones: **not open**, because `sql/` depends on nothing
+     (`sqlLayerIsStandalone`), so `RaiseText` cannot hold an `executionplan.Operand`, and a second `sql/`-side operand
+     type would duplicate `Operand`;
+  3. keep `Operand.Text` and let the kind's contract type it (as the spike does): `DATE_PART_ABSENT`'s operands are
+     `[the part's label, the date]`, the formatter parses the date's canonical text back (`PureDateLiteral.parse`,
+     whose round trip is the type's stated identity).
+- **Recommendation: option 3 for B1**, with a unit test that holds the contract (each kind's operand positions and
+  their types, one table), and option 1 only if a second kind needs a date operand. Today exactly one kind prints a
+  date (`DATE_PART_ABSENT`); `DATE_COMPONENT_INVALID` prints the components as Integers, not a date. Option 1 would
+  add a MIR variant to the product for a value the product never prints.
+
+**What the other sessions agreed (13:35 to 14:10 UTC):**
+- **The judges session (H10):** its `Hearing.caughtMessage(RuntimeException)` is this spike's word path; the order
+  difference (H10's edge hearing still reads `siteWords`) is about 30 lines for whichever lands second. It suggests a
+  typed parameter (a sealed `Site` / `Planned` / `Message` record instead of the exception's cause chain), for both
+  builds. It ADOPTED section 16's size-words shape (a `DataError` carrying the one-operand site record, worded by
+  `caughtMessage`, no new member, no new kind; H10 §9.4 rewritten, `claude/compat-judges-homework` `6c0a5889`), and
+  listed the `assertError` behaviour change for the user's word. It reads section 12's database-judge 4 tests as 2.2a's
+  deletion; section 12's binding is the alternative if B1 lands first.
+- **The host-parity worker:** `lite_wire.Refusal` lands with `raise` as the kind's wire name and `where` its own, no
+  `operands` key yet; when the record lands, `operands` joins as a sibling key (order kind, message, where, raise,
+  operands), present only on a data refusal whose raise has operands, written by `PlanJson.operandJson` made shared.
