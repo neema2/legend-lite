@@ -1342,3 +1342,14 @@ who confirms or changes phases 1-3.
   stage A READY for the user to ratify** (`compat-final-plan-review-2026-11-19.md` §6 at `3736b2b7`). One decision is
   the user's at ratification: the detector's default (the reviewer's view: warn with the load-time report; refuse by
   default if the report is not built).
+- **~13:39 UTC, the judges' answers to the four door questions** (H10 §9.8), crossing with this session's 13:40 call.
+  (1) All four rewrites can run through one door and `RelationCounting` is deleted in the same step (today's slot runs
+  on the typed body at `TestPlanner.lifted` :225-227, before G½; R-S137's walk recurses the whole tree, so nothing is
+  lost; the product keeps lite's refusal; `assertEmpty($rel)`'s refusal moves to the door; every edge-style road applies
+  it; deleted: `RelationCounting`, `UpstreamRelationCounting`, the `PlanStyleFacets` entry :40, `PureText`'s facet
+  answer :159-161, `TestPlanner:227`'s two-form call, their guard rows): a net shrink. (2) Type once (today the runner
+  types each body twice, :289 and :349) and feed the same `TypedQuery` to facts and planning; apply to setups too.
+  (3) R-S15 before R-S131, and R-S15 order-free over an incidental actual. (4) The parse-level alternative reaches
+  S131's shape by source positions, about 1 day more, a third typing, fragile, and cannot delete `RelationCounting`
+  alone. **The call stands (13:45):** the third shape (prepare/run split, no callback), with all of §9.8's conditions
+  carried over to it, written into §9.8 by the judges for the builder.
