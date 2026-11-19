@@ -1639,3 +1639,16 @@ that must be answered before `engine` is offered to an operator (E-M1) and three
 - **The guard move:** `own_corpus.matched` 3315 → 3321 (+6) under ~20:10, with a dated note in both `PeRatchets` and
   `ratchets.tsv`.
 - **For the combination review:** the merged tree's 3314, plus these 6, gives 3320 expected, to be regenerated there.
+
+**Dispositions (the compat owner, ~22:18; the ruling read in `compat-program-log-2026-11-19.md` on
+`claude/compat-program` at `663db991a`):**
+- **The user's ~22:20, "Yes to all three", covers:**
+  - B1's three moves: Intrinsic 738 → 740, `NOT_UPSTREAM_MAX` 76 → 78, and the funnel row for `EngineSubstitutes.java`;
+  - the funnel row for `PureMeaningRewrite.java`;
+  - the two new `agreement_engine_{h2,duckdb}.tsv` pin files.
+
+  Each move carries a dated note citing it. B1's S1 is closed by that word, and I'll check the notes when the moves are
+  made.
+- **E-M1, E-S1, E-S2 and E-S3 went to B1-R.** E-M1 is a must before the wiring joins the batch: probes on DuckDB and H2
+  per shape, then each position refused by name or added to the batteries.
+- **My switch-rule note goes on B5's row.**
