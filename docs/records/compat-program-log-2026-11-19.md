@@ -1901,3 +1901,17 @@ who confirms or changes phases 1-3.
 - **~15:39 UTC, B1-R: PR #124 carries B1's head** (`7b7ee6ea3` merged as `a7a2a5aa9`, a normal merge; one comment
   conflict in `pct/BUILD.bazel`, both blocks kept). `main` has no Maven mirror yet, so not merged. Local: the 56 tests
   the merge touches pass; `//gates:local` running; the PR body updated. CI per OS to follow.
+- **~15:46 UTC, A5 stopped on part (3)** (a rejected fused verdict statement counted as its group's first assert's
+  failure): needed on DuckDB (30/30 agree with it), wrong on Postgres COMPAT (`testAdjustByMinutesBigNumber`: Postgres
+  refuses the SECOND assert's expected literal while planning the fused statement; (3) blames assert 0). Root cause: a
+  rejected fused statement does not say which verdict the database refused. Options: (beta) start a new fused group at
+  each verdict whose sides may raise, by the planner's existing raise facts, so (3) is exact (gap: a literal past a
+  database's range beside no raising function stays blamed on its group's first verdict); (gamma) weaken the per-assert
+  comparison for a rejected group; (delta) leave the row red. **Also a guard hole:** a channel-B ledger row matches by
+  "contains" and a JudgesDisagree outcome quotes the database's run, so the LITE lane passed while the judges disagreed
+  (0 rows name a disagreement today). Other lanes: all 18 channel-B targets green; SQLite and H2 relation COMPAT green;
+  MariaDB and MySQL red as on `main`, independent of the branch (MariaDB's list order moves run to run, MySQL's 13
+  Decimal-scale rows). **This session's call (16:20): beta** (every evaluation stays in the database; no comparison
+  weakened; G2), stop if a lane's judge statements grow more than ~25% or its time more than ~10%; **and the guard**
+  (`ChannelBLedger.judge` refuses any JudgesDisagree outcome by name, with a plant). After A4, compatibility runs the
+  host judge alone, so the COMPAT two-judge case goes; beta stays for the product's LITE lane.
