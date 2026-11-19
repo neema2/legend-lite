@@ -91,12 +91,13 @@ class DeclaredQuotedTableH2Test {
         }
     }
 
-    /** The DDL natives name a quoted table one way: the drop and the create name the same table. */
+    /** The DDL natives name a quoted table one way: the drop and the create name the same table, as the store
+     *  declared it (lite's own DDL since A2, 2026-11-19, CP-4: legend-engine's printer spelled both bare). */
     @Test
     void theDdlNativesNameAQuotedTableOneWay() throws Exception {
-        assertEquals("Drop table if exists Items;",
+        assertEquals("Drop table if exists \"Items\";",
                 execute("|meta::relational::functions::toDDL::dropTableStatement(q::DB, 'Items')"));
-        assertEquals("Create Table Items(id INT NOT NULL,label VARCHAR(20) NULL, PRIMARY KEY(id));",
+        assertEquals("Create Table \"Items\"(id INTEGER NOT NULL, label VARCHAR(20) NULL, PRIMARY KEY(id));",
                 execute("|meta::relational::functions::toDDL::createTableStatement(q::DB, 'Items')"));
     }
 
@@ -108,7 +109,8 @@ class DeclaredQuotedTableH2Test {
                 + "element = q::DB, connection = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                 + "type = meta::relational::runtime::DatabaseType.H2))), [])"
                 + "->meta::pure::executionPlan::toString::planToString([])");
-        assertTrue(plan.contains("sql = select \"root\".id as \"id\" from Items as \"root\""), plan);
+        // lite's own SQL since A2 (2026-11-19, CP-4), the quoted table named as declared
+        assertTrue(plan.contains("sql = SELECT \"t0\".id AS \"id\"\nFROM \"Items\" AS \"t0\""), plan);
     }
 
     /** The column lineage finds the database that defines a quoted table (it refused: no database defines

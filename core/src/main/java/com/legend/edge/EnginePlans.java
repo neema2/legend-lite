@@ -984,10 +984,15 @@ public final class EnginePlans {
         String tbl = twoArg ? a1.value()
                 : ((com.legend.compiler.spec.typed.TypedCString)
                         ds.args().get(2)).value();
-        if (DROP_TABLE_STATEMENT.equals(fqn)) {
-            return LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).render(com.legend.setup.Ddl.dropTable(sch, tbl));
-        }
         String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
+        if (DROP_TABLE_STATEMENT.equals(fqn)) {
+            // the table named as its store declared it, as the create statement names it (A2, 2026-11-19: legend-engine's
+            // printer spelled every name bare, so its two texts agreed; a table the store does not declare, bare)
+            var declared = env.ctx().findTableDefinition(db.fullPath(), lookup);
+            return LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).render(declared.isPresent()
+                    ? com.legend.setup.Ddl.dropDeclaredTable(declared.get(), sch)
+                    : com.legend.setup.Ddl.dropTable(sch, tbl));
+        }
         com.legend.model.DatabaseDefinition.TableDefinition def =
                 env.ctx().findTableDefinition(db.fullPath(), lookup)
                         .orElseThrow(() -> new IllegalStateException(

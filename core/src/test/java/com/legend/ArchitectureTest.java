@@ -4644,13 +4644,10 @@ final class ArchitectureTest {
             "com.legend.lowering.Scalars",
             // a model CSV cell matched against its ISO shape first
             "com.legend.setup.RowLoad",
-            // the engine-text seed: a date's and a timestamp's cell (a TIMESTAMP_NS's too) a string literal, its quotes
-            // doubled; a TIME cell refused by name (quoted by EngineStyleH2.seedCell until A2, 2026-11-19; the dialect
-            // every caller of setUpDataSqlsText passes is the edge's H2 since). 2026-11-13, the orchestrator's item 3:
-            // "checked first" was wrong (its TIME and TIMESTAMP_NS literals come from unchecked text), and the finding-B
-            // refusal it named guarded nothing. Moved 2026-11-18 with J32 from setup.Ddl to the edge's EngineSeedText,
-            // the rule reading the edge's jars since (F's catch on J32)
-            "com.legend.edge.EngineSeedText",
+            // (com.legend.edge.EngineSeedText, the engine-text seed, left 2026-11-19 -- A2 of the compatibility program,
+            // stage A ratified by the user 2026-11-19: with legend-engine's printer gone, the seed writes a date's and a
+            // timestamp's cell as a string the dialect escapes, as legend-engine's text quoted it, and makes no temporal
+            // literal; a TIME cell stays refused by name)
             // a milestoning date: a date literal the lexer parsed (TestDataGenerationNatives.dateField)
             "com.legend.testdatagen.TestDataGenerator",
             // a row identifier's value checked against its column type's ISO shape first (iso: digits, separators and
