@@ -2848,13 +2848,22 @@ genquery(
     scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE,
 )
 
-# THE ROOT CHECK'S BITE: a planted shipped artifact rooted at the edge, its main class EdgeServer and its runtime the
-# edge's library -- found by the planted queries alone (ShippedArtifactRootsTest.theRootCheckBites)
+# THE PLANTS' MAIN CLASS (the PR #118 follow-up, 2026-11-19, R11(b)): EdgeServer declares no main (the edge's one door
+# is the product server's mount), so the two plants below name a planted one in the edge's package, read by the root
+# query's attribute match and never run. Its own directory, as :mongodb_planted's, so no test library carries it.
+legend_java_library(
+    name = "planted_edge_main",
+    testonly = True,
+    srcs = ["src/test/planted/com/legend/edge/PlantedEdgeMain.java"],
+)
+
+# THE ROOT CHECK'S BITE: a planted shipped artifact rooted at the edge, its main class the edge's (PlantedEdgeMain) and
+# its runtime the edge's library -- found by the planted queries alone (ShippedArtifactRootsTest.theRootCheckBites)
 legend_java_binary(
     name = "planted_edge_rooted_artifact",
     testonly = True,
-    main_class = "com.legend.edge.EdgeServer",
-    runtime_deps = [":edge"],
+    main_class = "com.legend.edge.PlantedEdgeMain",
+    runtime_deps = [":edge", ":planted_edge_main"],
     # the edge's plant, never a product test target (product_tests_closure leaves edge_test out)
     tags = ["edge_test"],
 )
@@ -2864,8 +2873,8 @@ legend_java_binary(
 legend_java_binary(
     name = "planted_opt_in_carrier",
     testonly = True,
-    main_class = "com.legend.edge.EdgeServer",
-    runtime_deps = [":edge_server"],
+    main_class = "com.legend.edge.PlantedEdgeMain",
+    runtime_deps = [":edge_server", ":planted_edge_main"],
     tags = ["edge_test"],
 )
 
@@ -3540,6 +3549,8 @@ core_layer_queries(not_layers = {
     "core_tests_lib": "the tests' library, not product code",
     "core_edge_tests_lib": "the edge's tests' library (core/edge_tests.bzl; F's census lines A5/A6, 2026-11-17), not product code",
     "mongodb_planted": "a test class planted for ArchitectureTest's MongoDB choke rule, not product code",
+    # 2026-11-19, the PR #118 follow-up's R11(b): EdgeServer declares no main, so the two plants name this one
+    "planted_edge_main": "the main class the shipped-artifact root check's two plants name (ShippedArtifactRootsTest), never run, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
     "lean_sql_baseline_lib": "the product-SQL size baseline's and the cast census's measuring library (E3, E-4), a test's, not product code",

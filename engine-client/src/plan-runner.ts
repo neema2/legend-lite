@@ -413,9 +413,12 @@ export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; 
   run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>, work: () => Promise<T>): Promise<T> {
   return inRun('a transaction', async () => {
     for (const statement of t.begin) await run(statement, []);
-    let done: T;
+    // the commit inside the try (HOSTS-2, the PR #118 audit, 2026-11-18): a COMMIT the database refuses is rolled back
+    // like any other failure, so the session is never left in its transaction (as stream() and Python's run_write)
     try {
-      done = await work();
+      const done = await work();
+      for (const statement of t.commit) await run(statement, []);
+      return done;
     } catch (e) {
       try {
         for (const statement of t.rollback) await run(statement, []);
@@ -424,8 +427,6 @@ export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; 
       }
       throw e;
     }
-    for (const statement of t.commit) await run(statement, []);
-    return done;
   });
 }
 

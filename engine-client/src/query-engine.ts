@@ -87,21 +87,24 @@ export interface HeldConnection {
 }
 
 /**
- * A planned query's rows, typed by its plan. The engine decoded the values; the
- * compiler says what they are. A result column the plan does not type is REFUSED: the
- * two disagree about the query's shape, a bug to surface, never a gap to fill.
+ * A planned query's rows, typed by its plan. The engine decoded the values; the compiler says what they are. Read BY
+ * POSITION, as Java's runner reads a typed-rows statement (JdbcStatements: "a typed-rows statement answers the plan's
+ * columns in their order") and Python's typed_by_plan: each column named and typed as the plan names it -- a VALUE's
+ * one column is `value` whatever its SQL alias (`u_map__n`). A statement answering another number of columns than the
+ * plan declares is REFUSED: the two disagree about the query's shape, a bug to surface, never a gap to fill (F1 of PR
+ * #121's review, 2026-11-19: until then read by name here, so the hosts differed).
  */
 export function typedByPlan(raw: RawTable, plan: Plan): ResultTable {
-  const types = new Map(plan.columns.map((c) => [c.name, c.type]));
+  const declared = plan.columns;
+  if (raw.columns.length !== declared.length) {
+    const beyond = raw.columns.slice(declared.length).map((c) => c.name);
+    const said = beyond.length > 0 ? `the plan does not type the result column '${beyond[0]}'`
+      : `the statement answers ${raw.columns.length} columns, and the plan declares ${declared.length}`;
+    throw new QueryError(`${said} [${declared.map((c) => c.name).join(', ')}]`, plan.sql);
+  }
   return {
     ...raw,
-    columns: raw.columns.map((c) => {
-      const type = types.get(c.name);
-      if (type === undefined) {
-        throw new QueryError(`the plan does not type the result column '${c.name}'`, plan.sql);
-      }
-      return { name: c.name, type, values: c.values };
-    }),
+    columns: raw.columns.map((c, i) => ({ name: declared[i]!.name, type: declared[i]!.type, values: c.values })),
   };
 }
 

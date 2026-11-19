@@ -94,6 +94,10 @@ export interface Target {
   readonly fetch: typeof fetch;
   /** Who the store says the caller is. */
   readonly user: string;
+  /** Whether the host's HTTP layer refuses a request URI that is not percent-encoded itself, before the store is asked:
+   *  legend-lite's server, whose JDK HttpServer answers its own 400 page ("Bad request URI") for `%zz` on either mount
+   *  (measured 2026-11-19, PH-1); the page's and Python's hosts hand the store the raw path. */
+  readonly refusesUnencodedUris?: boolean;
 }
 
 /** The `Query` fields, in the engine's order: every record answered carries exactly these. */
@@ -324,6 +328,33 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       assert.equal((sort.json as { message?: string }).message, d === LITE
         ? "the request could not be read: its sort option 'SORT_BY_NAME' is none of SORT_BY_CREATE, SORT_BY_VIEW and SORT_BY_UPDATE"
         : 'IllegalArgumentException: Unknown sort-by value');
+    });
+
+    // a path segment or a parameter that is not percent-encoded: a malformed request on every store (PH-1 of the PR #118
+    // fix batch's audit, 2026-11-18: it was the store's failure, lite's 500 internal) -- lite's 400 request in its
+    // words, legend-engine's 500 naming the decoder's exception, as before
+    it('answers a path segment or a parameter that is not percent-encoded as a malformed request on every store', async () => {
+      for (const [path, lite] of [
+        ['/%zz', "the request could not be read: its path segment '%zz' is not percent-encoded"],
+        ['/batch?queryIds=%zz', "the request could not be read: its parameter 'queryIds=%zz' is not percent-encoded"],
+        ['/%zz/history', "the request could not be read: its path segment '%zz' is not percent-encoded"],
+      ] as const) {
+        const r = await raw('GET', path);
+        if (target().refusesUnencodedUris === true) {
+          // the host's HTTP layer answers first, a request error on either mount: the store is never asked
+          assert.equal(r.status, 400, `${path}: ${r.text}`);
+          assert.equal(r.json, undefined, `${path}: ${r.text}`);
+          continue;
+        }
+        assert.equal(r.status, d.malformedStatus, `${path}: ${r.text}`);
+        const said = r.json as { kind?: string; message?: string };
+        if (d === LITE) {
+          assert.deepEqual(said, { kind: 'request', message: lite }, path);
+        } else {
+          assert.deepEqual(Object.keys(said), ['code', 'message', 'status'], r.text);
+          assert.match(String(said.message), /^IllegalArgumentException: URLDecoder: /, r.text);
+        }
+      }
     });
 
     it('keeps a number as it was written: 1.0, and a long beyond 2^53', async () => {

@@ -19,7 +19,7 @@ import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-para
 import type { PlanColumn } from '../src/relation-type.ts';
 import { statementOf, TabEngine } from '../src/legend/browser-engine.ts';
 import { BrowserEngine } from '../src/legend/edge-engine.ts';
-import { QueryError } from '../src/engine.ts';
+import { QueryError, typedByPlan } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
@@ -190,6 +190,24 @@ before(async () => {
   handle = Number(ok(answer(m, { kind: 'hold', model: MODEL })));
 });
 
+describe("a planned query's rows, typed by its plan by position, as Java's runner and Python read them (F1)", () => {
+  const raw = (names: readonly string[]) => ({ columns: names.map((name) => ({ name, values: [5] })), rowCount: 1, epoch: 0, elapsedMs: 0 });
+  const plan = (names: readonly string[]) => ({ sql: unplanned('SELECT t0.N AS u_map__n FROM V AS t0'),
+    columns: names.map((name) => ({ name, type: 'Integer' })) }) as unknown as Parameters<typeof typedByPlan>[1];
+
+  it("names each column as the plan does: a VALUE's one column is 'value' whatever its SQL alias", () => {
+    const typed = typedByPlan(raw(['u_map__n']), plan(['value']));
+    assert.deepEqual(typed.columns.map((c) => [c.name, c.type, c.values]), [['value', 'Integer', [5]]]);
+  });
+
+  it('refuses a statement answering another number of columns than the plan declares, by name', () => {
+    assert.throws(() => typedByPlan(raw(['a', 'b']), plan(['a'])),
+      (e: unknown) => e instanceof QueryError && e.message === "the plan does not type the result column 'b' [a]");
+    assert.throws(() => typedByPlan(raw(['a']), plan(['a', 'b'])),
+      (e: unknown) => e instanceof QueryError && e.message === 'the statement answers 1 columns, and the plan declares 2 [a, b]');
+  });
+});
+
 describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
   it('appends: its rows written, its count the database\'s, answered once it has committed', async () => {
     const plan = planned(fn('write', src(), target()));
@@ -215,6 +233,45 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     assert.equal(await rows(), '1:a:15 2:b:25', 'as it was');
     // the connection is the engine's again, outside any transaction
     assert.deepEqual(await inRun('a test', () => asTest(engine).exclusive((held) => held.rows(unplanned('SELECT 1'), []))), [[1]]);
+  });
+
+  it("a COMMIT that fails rolls its transaction back: the table as it was, the session outside any transaction (HOSTS-2)", async () => {
+    // the audit's HOSTS-2 (2026-11-18): `transacted` sent the commit after its try, so a refused COMMIT (DuckDB's
+    // "Failed to commit" on a conflict) left the held session in its transaction, and the next plan on it failed
+    // every row deleted: committed, T would be empty; rolled back, it is as it was
+    const plan = planned(fn('delete', target(), lambda(['r'], lit.boolean(true))));
+    const sent: string[] = [];
+    await assert.rejects(() => engine.exclusive(async (held) => runPlan(unplannedPlan(plan), {
+      databaseType: engine.databaseType,
+      run: async (sql, params) => {
+        sent.push(sql);
+        if (sql.toUpperCase().startsWith('COMMIT')) throw new Error('the commit was refused');
+        return held.rows(sql, params);
+      },
+    })), /^Error: the commit was refused$/);
+    assert.ok(sent.some((s) => s.toUpperCase().startsWith('ROLLBACK')), `a rollback was sent after the refused commit: ${sent.join(' | ')}`);
+    assert.equal(await rows(), '1:a:15 2:b:25', 'as it was');
+    // the session is outside any transaction: a new one opens on it (left open, DuckDB refuses a transaction within one)
+    assert.deepEqual(await inRun('a test', () => asTest(engine).exclusive(async (held) => {
+      await held.rows(unplanned('BEGIN TRANSACTION'), []);
+      await held.rows(unplanned('ROLLBACK'), []);
+      return held.rows(unplanned('SELECT 1'), []);
+    })), [[1]]);
+  });
+
+  it('a COMMIT and its ROLLBACK that both fail are said together, never swallowed (HOSTS-2)', async () => {
+    const seen: string[] = [];
+    await assert.rejects(() => transacted({ begin: [unplanned('BEGIN')], commit: [unplanned('COMMIT')], rollback: [unplanned('ROLLBACK')] },
+      async (sql) => {
+        seen.push(sql);
+        if (sql === 'COMMIT') throw new Error('the commit was refused');
+        if (sql === 'ROLLBACK') throw new Error('the rollback was refused');
+        return [];
+      }, async () => 'done'),
+    (e: unknown) => e instanceof Error
+      && e.message === 'the commit was refused -- and rolling its transaction back failed: the rollback was refused'
+      && e.cause instanceof Error && e.cause.message === 'the commit was refused');
+    assert.deepEqual(seen, ['BEGIN', 'COMMIT', 'ROLLBACK']);
   });
 
   it('answers a value the program wrote with nothing sent for it: the constant node', async () => {

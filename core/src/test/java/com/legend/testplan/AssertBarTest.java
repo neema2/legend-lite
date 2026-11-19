@@ -388,6 +388,100 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** An Integer property over a DECIMAL(10,0) column (the PR #118 follow-up, 2026-11-19, Q8): its value arrives as the
+     *  column's scale-0 decimal, its declaration says Integer, so it is the Integer 5 -- under the host judge, the
+     *  database judge and both, on each database the platform runs in-process. An Integer over a fraction (5.50) is
+     *  refused by name where the cell is decoded, never truncated or guessed (AGENTS.md invariant 4). {@code %s} its
+     *  database. */
+    private static final String INTEGER_ON = """
+            ###Pure
+            Class p::R { id: Integer[1]; n: Integer[1]; }
+            Class p::S { id: Integer[1]; f: Integer[1]; }
+            ###Relational
+            Database p::DB ( Table V (ID INTEGER PRIMARY KEY, N DECIMAL(10,0))
+                Table W (ID INTEGER PRIMARY KEY, F DECIMAL(10,2)) )
+            ###Mapping
+            Mapping p::M ( p::R: Relational { ~mainTable [p::DB] V id: V.ID, n: V.N }
+                p::S: Relational { ~mainTable [p::DB] W id: W.ID, f: W.F } )
+            ###Connection
+            RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+                specification: LocalH2 {
+                    testDataSetupCSV: 'default\\nV\\nID,N\\n1,5\\n-----\\ndefault\\nW\\nID,F\\n1,5.50\\n2,5.00\\n3,-0.00\\n'; };
+                auth: DefaultH2; }
+            ###Runtime
+            Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+            """;
+
+    @Test
+    void anIntegerOverADecimalColumnIsItsIntegerUnderEveryJudge() throws Exception {
+        String n = "p::R.all()->filter(x | $x.id == 1)->toOne().n";
+        String mapped = "p::R.all()->map(x | $x.n)->toOne()";
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        for (String side : List.of(n, mapped)) {
+            want.put("{|assertEq(5, " + side + ")}", "pass");
+            want.put("{|assertIs(5, " + side + ")}", "pass");
+            want.put("{|assertNotEq(5, " + side + ")}", "AssertFailed: expected a value other than 5");
+            want.put("{|assertIsNot(5, " + side + ")}", "AssertFailed: expected an instance other than 5");
+        }
+        // a whole value at a scale above zero is its Integer too where the cell is decoded (the review of PR #121,
+        // 2026-11-19, B2: SQLite hands a scaled DECIMAL back as its text, '5.00', '-0.00'): the value decides, never its
+        // scale or its carrier. The database judge compares the column's DECIMAL(10,2) value where it is ("expected 5,
+        // got 5.00"), so BOTH disagree -- the fraction's open finding, widened; reported, not pinned here
+        java.util.Map<String, String> whole = java.util.Map.of(
+                "{|assertEq(5, p::S.all()->filter(x | $x.id == 2)->toOne().f)}", "pass",
+                "{|assertEq(0, p::S.all()->filter(x | $x.id == 3)->toOne().f)}", "pass");
+        String fraction = "{|assertEq(5, p::S.all()->filter(x | $x.id == 1)->toOne().f)}";
+        List<String> wrong = new ArrayList<>();
+        // the map's toOne reads a list, which a dialect without a list encoding refuses by name (as above): its shape
+        // runs on the platform's database
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String integerOn = INTEGER_ON.formatted(database);
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                for (var e : want.entrySet()) {
+                    if (e.getKey().contains(mapped) && !database.equals(Databases.PLATFORM)) {
+                        continue;
+                    }
+                    String got = verdict(integerOn, e.getKey(), database, mode);
+                    if (!e.getValue().equals(got)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+                // the fraction is the decode's to refuse, so the host judge's, which reads the cell: the database judge
+                // compares it where it is (assertEq fails, "expected 5, got 5.50"), and BOTH disagree -- an open finding
+                // of the follow-up (2026-11-19), not pinned here
+                if (mode == com.legend.testplan.PlanningOptions.JudgeMode.HOST) {
+                    for (var e : whole.entrySet()) {
+                        String said = verdict(integerOn, e.getKey(), database, mode);
+                        if (!e.getValue().equals(said)) {
+                            wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(said));
+                        }
+                    }
+                    String got = verdict(integerOn, fraction, database, mode);
+                    // (a property read alone answers one column, 'value')
+                    if (!got.contains("is declared Integer in slot DECIMAL(10,2)") || !got.contains("5.5")) {
+                        wrong.add(database + " " + mode + " " + fraction + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "an Integer over a DECIMAL(10,0) column under every judge:\n  "
+                + String.join("\n  ", wrong));
+    }
+
+    private static String verdict(String model, String body, com.legend.model.ConnectionDefinition.DatabaseType database,
+            com.legend.testplan.PlanningOptions.JudgeMode mode) {
+        try {
+            Program.runFresh(model, body, "p::RT", database, ExecuteOptions.NONE.withJudgeMode(mode),
+                    com.legend.testexec.NoEdgeRun.NONE);
+            return "pass";
+        } catch (AssertFailed f) {
+            return "AssertFailed: " + f.getMessage();
+        } catch (Throwable t) {
+            return t.getClass().getSimpleName() + ": " + t.getMessage();
+        }
+    }
+
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
      *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
      *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */

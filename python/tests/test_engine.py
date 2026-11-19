@@ -4,6 +4,7 @@ then; the refusals in lite's error shape; and only the engine's own page answere
 cross-origin answer). legend-engine's pure/v1 is the edge's, tested by test_edge (the edge program's H5)."""
 
 import http.client
+import io
 import json
 import datetime
 from decimal import Decimal
@@ -516,6 +517,124 @@ class QueryRunRoute(Served):
                              '"2024-01-02T03:04:05.120000Z"],'
                              '[null,0.1,"-0.05",null,false,null,null]]}')
 
+    def test_a_runs_failure_is_data_as_javas_server_answers_it(self):
+        # the PR #118 follow-up, 2026-11-19, Q9 (Java's LiteV1Api.dataRefusal): a planned raise is 422 data, its kind in
+        # raise and its site's where; the database refusing the work in its own words is 422 data with no raise
+        fixture = json.loads(Path(os.environ['LEGEND_LITE_API_CASES']).read_text(encoding='utf-8'))
+        [case] = [c for c in fixture['cases'] if c['op'] == 'query/run' and c.get('refusal', {}).get('kind') == 'data']
+        status, _, body = self.ask(**case['request'])
+        said = json.loads(body)
+        self.assertEqual((status, said['kind'], said.get('raise'), said.get('where')),
+                         (422, 'data', 'sizeNotMultiplicity', '[1]'), body[:300])
+        # an ID past the 32 bits of the INTEGER column the database makes for it: its load refused in its own words
+        bad = PARTY.replace("'ID,NAME\\n1,Meridian Capital\\n", "'ID,NAME\\n3000000000,Meridian Capital\\n")
+        self.assertNotEqual(bad, PARTY)
+        status, headers, body = self.ask(model=bad, query=ll.parse(PARTY_QUERY), runtime='demo::party::Runtime',
+                                         format='json')
+        self.assertEqual((status, headers['Content-Type']), (422, 'application/json'), body[:300])
+        said = json.loads(body)
+        self.assertEqual((status, said['kind'], 'raise' in said, 'where' in said), (422, 'data', False, False),
+                         body[:300])
+
+    def test_a_lost_connection_is_internal_and_a_users_fail_is_data_with_no_raise(self):
+        # Q9's other two mappings at the route (the review of PR #121, 2026-11-19, F5), as Java's LiteV1Api.dataRefusal:
+        # a connection that could not be opened or was lost is the environment, 500 internal (Java's CONNECTION_ERROR)
+        import duckdb
+        with mock.patch('legend_lite.engine.run_plan', side_effect=duckdb.ConnectionException(
+                'Connection Error: Connection already closed!')):
+            status, _, body = self.ask(model=PARTY, query=ll.parse(PARTY_QUERY), runtime='demo::party::Runtime',
+                                       format='json')
+        said = json.loads(body)
+        self.assertEqual((status, said['kind'], 'raise' in said), (500, 'internal', False), body[:300])
+        self.assertIn('Connection already closed', said['message'])
+        # a user's fail raises its own message, never a site's token (RaiseSite refuses USER_FAIL): no kind and no
+        # site, so 422 data with no raise and no where -- Java's DataError of no kind (LiteDataRefusalTest)
+        query = ll.parse("|fail('no such party')")
+        status, _, body = self.ask(model=PARTY, query=query, runtime='demo::party::Runtime', format='json')
+        said = json.loads(body)
+        self.assertEqual((status, said, ), (422, {'kind': 'data', 'message': 'no such party'}), body[:300])
+
+    def test_a_fail_inside_an_if_raises_and_an_any_columns_cells_are_their_values(self):
+        # FOLLOW_UPS §9 (the PR #121 fixer's finding, 2026-11-19): fail() is Boolean[1] and an if over a Boolean and a
+        # String is Any, upstream's typing as lite's, so the column is Any; the failing row raises the user's message
+        # (DuckDB answered it null), and a cell of the Any column is its value, as Java's server writes it (JdbcDecode's
+        # JSON slot), never its JSON text ('"Meridian Capital"')
+        def query(failing):
+            return ll.parse(f"|demo::party::Party.all()->project(~[name: p|if($p.id == {failing}, |fail('no such party'),"
+                            ' |$p.name)])->sort(~name->ascending())->from(demo::party::PartyMapping, demo::party::Runtime)')
+
+        status, _, body = self.ask(model=PARTY, query=query(1), runtime='demo::party::Runtime', format='json')
+        self.assertEqual((status, json.loads(body)), (422, {'kind': 'data', 'message': 'no such party'}), body[:300])
+        status, _, body = self.ask(model=PARTY, query=query(3), runtime='demo::party::Runtime', format='json')
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(json.loads(body), {'shape': 'RELATION',
+                                            'columns': [{'name': 'name', 'type': 'meta::pure::metamodel::type::Any'}],
+                                            'rows': [['Halberd Securities'], ['Meridian Capital']]})
+
+    def test_every_failure_making_a_projects_database_is_lites_shape_as_javas_server_answers_it(self):
+        # F2 of PR #121's review (2026-11-19), as Java's LiteV1Api.dataRefusal: until then (a) and (b) answered a 500 in
+        # text/plain and (c) a data refusal with no raise
+        import duckdb
+        from legend_lite._raised import declare_statement_sites, raised_of, worded
+        from legend_lite._runs import LoadRefused
+
+        def ask_failing(failure):
+            with mock.patch('legend_lite.projects.open_project', side_effect=failure):
+                status, headers, body = self.ask(model=PARTY, query=ll.parse(PARTY_QUERY), runtime='demo::party::Runtime',
+                                                 format='json')
+            self.assertEqual(headers['Content-Type'], 'application/json', body[:300])
+            return status, json.loads(body)
+
+        # (a) a load refused before the database saw it, and a lost connection under a load: internal
+        status, said = ask_failing(LoadRefused('the load reads the content abc, which its plan does not carry'))
+        self.assertEqual((status, said['kind'], 'raise' in said), (500, 'internal', False), said)
+        self.assertIn('which its plan does not carry', said['message'])
+        lost = LoadRefused('the rows: Connection Error: Connection already closed!')
+        lost.__cause__ = duckdb.ConnectionException('Connection Error: Connection already closed!')
+        status, said = ask_failing(lost)
+        self.assertEqual((status, said['kind']), (500, 'internal'), said)
+        # (b) the database refusing a project's own statement (its open, its use, a load's statement step): data
+        status, said = ask_failing(duckdb.CatalogException('Catalog Error: Schema with name nope does not exist!'))
+        self.assertEqual((status, said['kind'], 'raise' in said), (422, 'data', False), said)
+        self.assertIn('Schema with name nope', said['message'])
+        status, said = ask_failing(duckdb.ConnectionException('Connection Error: Connection already closed!'))
+        self.assertEqual((status, said['kind']), (500, 'internal'), said)
+        # (c) a planned raise inside a load's statement: data, its kind and where kept
+        declare_statement_sites('INSERT a sized row', [{'n': 1, 'kind': 'SIZE_NOT_MULTIPLICITY', 'where': '[1]',
+                                                        'message': 'expected one value, got 2'}], 'a plan')
+        raised = worded(duckdb.InvalidInputException('Invalid Input Error: \x1f\x1cLG#1\x1f'), 'INSERT a sized row')
+        self.assertIsNotNone(raised_of(raised))
+        load = LoadRefused(f'the rows: {raised}')
+        load.__cause__ = raised
+        status, said = ask_failing(load)
+        self.assertEqual((status, said['kind'], said.get('raise'), said.get('where')), (422, 'data', 'sizeNotMultiplicity', '[1]'),
+                         said)
+
+    def test_a_value_over_a_projects_rows_is_answered(self):
+        # a VALUE (a property read alone) over a project's own rows, its one column the plan's 'value' (the PR #118
+        # follow-up, 2026-11-19, N-b: until then every one answered 500, the result column untyped by its alias)
+        query = ll.parse('|demo::party::Party.all()->filter(p|$p.id == 1)->toOne().name')
+        status, _, body = self.ask(model=PARTY, query=query, runtime='demo::party::Runtime', format='json')
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(json.loads(body), {'shape': 'VALUE', 'columns': [{'name': 'value', 'type': 'String'}],
+                                            'rows': [['Meridian Capital']]})
+        status, _, body = self.ask(model=PARTY, query=query, runtime='demo::party::Runtime', format='arrow')
+        self.assertEqual(status, 200, body[:300])
+        rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
+        self.assertEqual((rows.schema.metadata[b'legend.shape'], rows.to_pylist()), (b'VALUE', [{'value': 'Meridian Capital'}]))
+
+    def test_a_refusal_of_a_projects_data_is_lites_shape(self):
+        # the planner refusing a project's Data (a value its column cannot hold) is lite's {kind, message}, its own kind:
+        # the product's data, 422 (the PR #118 follow-up, 2026-11-19, N-c: until then a 500 in text)
+        bad = PARTY.replace("'ID,NAME\\n1,Meridian Capital\\n", "'ID,NAME\\nnot a number,Meridian Capital\\n")
+        self.assertNotEqual(bad, PARTY)
+        status, headers, body = self.ask(model=bad, query=ll.parse(PARTY_QUERY), runtime='demo::party::Runtime',
+                                         format='json')
+        self.assertEqual(headers['Content-Type'], 'application/json', body[:300])
+        said = json.loads(body)
+        self.assertIn("its data holds 'not a number'", said['message'])
+        self.assertEqual((status, said['kind']), (422, 'data'), said)
+
     def test_each_refusal_is_lites_by_its_kind(self):
         good = self.frame_query()
         for asked, status, kind in (
@@ -567,7 +686,10 @@ class HostRoutesConformance(unittest.TestCase):
                     # its kind, answered with that kind's status exactly -- the product's (H4's P2, 2026-11-19: until
                     # then any status from 400 up passed here)
                     self.assertEqual(said.status, ll.compiler.refusal_status(case['refusal']['kind']), said.body[:300])
-                    self.assertEqual(json.loads(said.body)['kind'], case['refusal']['kind'])
+                    # its kind, and each other key the case names (a data refusal's raise and where), equal -- as the
+                    # server's reader holds them (the PR #118 follow-up, 2026-11-19, Q9)
+                    refusal = json.loads(said.body)
+                    self.assertEqual({k: refusal.get(k) for k in case['refusal']}, case['refusal'], said.body[:300])
                 else:
                     self.assertEqual(said.status, 200, said.body[:300])
                     self.assertEqual(_json.loads(said.body), case['answer'])
@@ -856,6 +978,63 @@ class TheProductsStore(unittest.TestCase):
         self.assertEqual((said.status, json.loads(said.body)),
                          (400, {'kind': 'request', 'message': 'no such legend-lite API: /api/lite/v1/queries/dataCube/a/b'}))
 
+    def test_a_path_or_parameter_not_percent_encoded_is_a_malformed_request(self):
+        # PH-1 of the PR #118 fix batch's audit (2026-11-18): the decoder's exception was the store's failure, 500
+        # internal; it is lite's request, 400, in lite's words, as on the server's and the page's stores
+        for path, query, words in (
+                ('/api/lite/v1/queries/%zz', '', "its path segment '%zz'"),
+                ('/api/lite/v1/queries/batch', 'queryIds=%zz', "its parameter 'queryIds=%zz'"),
+                ('/api/lite/v1/queries/dataCube/%zz', '', "its path segment '%zz'")):
+            said = self.engine.answer('GET', path, query, None)
+            self.assertEqual((said.status, json.loads(said.body)),
+                             (400, {'kind': 'request',
+                                    'message': f'the request could not be read: {words} is not percent-encoded'}), path)
+
+    # THE ONE-TIME RE-OWNING (the user's ruling of 2026-11-19 ~11:27 UTC on currentUser, "2 a1"): Python's user is
+    # "anonymous", as Java's and legend-engine's; a folder an earlier version wrote as 'this user' is re-owned once, a
+    # data step, never a run-time acceptance of both owners
+    QUERY = {'id': 'q-old', 'name': 'Old', 'groupId': 'demo', 'artifactId': 'trading', 'versionId': '0.0.0',
+             'content': '|1', 'executionContext': {'_type': 'explicitExecutionContext', 'mapping': 'demo::M',
+                                                   'runtime': 'demo::R'}}
+
+    def saved_as(self, owner, entry, folder, record):
+        # written as an earlier version of this package wrote it: the store's own rules, as that owner, no re-owning
+        from legend_lite._library import library
+        said = library().call(entry, str(folder), 'POST', '', '', json.dumps(record), owner)
+        self.assertTrue(said.startswith('OK\n200\n'), said)
+
+    def test_a_record_saved_as_this_user_is_re_owned_once_and_editable(self):
+        from legend_lite import _home
+        self.assertEqual((_home.THIS_USER, _home.EARLIER_USER), ('anonymous', 'this user'))
+        queries, pages = _home.queries_folder(), _home.pages_folder()
+        queries.mkdir(parents=True, exist_ok=True)
+        pages.mkdir(parents=True, exist_ok=True)
+        self.saved_as('this user', 'lite_store_queries', queries, self.QUERY)
+        self.saved_as('this user', 'lite_store_cubes', pages, {'id': 'p-old', 'name': 'Old', 'content': {'kind': 'datacube.page'}})
+        with mock.patch('sys.stderr', new_callable=io.StringIO) as said:
+            updated = self.engine.answer('PUT', '/api/lite/v1/queries/q-old', '', json.dumps({**self.QUERY, 'name': 'New'}))
+        self.assertEqual(updated.status, 200, updated.body)
+        self.assertEqual((json.loads(updated.body)['owner'], json.loads(updated.body)['name']), ('anonymous', 'New'))
+        self.assertIn("re-owned 1 saved record(s)", said.getvalue())
+        self.assertIn("from 'this user' to 'anonymous'", said.getvalue())
+        self.assertEqual(self.engine.answer('DELETE', '/api/lite/v1/queries/dataCube/p-old', '', None).status, 204)
+        # once: a record written as 'this user' after it is no record of the earlier version, and is not re-owned
+        self.saved_as('this user', 'lite_store_queries', queries, {**self.QUERY, 'id': 'q-later'})
+        later = self.engine.answer('DELETE', '/api/lite/v1/queries/q-later', '', None)
+        self.assertEqual((later.status, json.loads(later.body)), (403, {
+            'kind': 'request', 'message': "only its owner, 'this user', can delete it, and the caller is 'anonymous'"}))
+
+    def test_a_record_of_another_owner_is_still_refused_naming_both(self):
+        from legend_lite import _home
+        queries = _home.queries_folder()
+        queries.mkdir(parents=True, exist_ok=True)
+        self.saved_as('someone else', 'lite_store_queries', queries, self.QUERY)
+        said = self.engine.answer('PUT', '/api/lite/v1/queries/q-old', '', json.dumps({**self.QUERY, 'name': 'Mine'}))
+        self.assertEqual((said.status, json.loads(said.body)), (403, {
+            'kind': 'request', 'message': "only its owner, 'someone else', can update it, and the caller is 'anonymous'"}))
+        kept = json.loads((queries / 'q-old.json').read_text(encoding='utf-8'))
+        self.assertEqual([v['owner'] for v in kept], ['someone else'])
+
     def test_a_page_saved_at_lites_route_is_read_there(self):
         made = self.engine.answer('POST', '/api/lite/v1/queries/dataCube', '',
                                   json.dumps({'id': 'p-9', 'name': 'Both', 'content': {'kind': 'datacube.page'}}))
@@ -907,7 +1086,7 @@ class SavedPagesKept(unittest.TestCase):
         made = self.call('POST', '', json.dumps({'id': 'p-2', 'name': 'Kept', 'content': {'kind': 'datacube.page'}}))
         self.assertEqual(made.status, 200, made.body)
         kept = json.loads((self.folder / 'p-2.json').read_text(encoding='utf-8'))
-        self.assertEqual((kept['owner'], kept['content']), ('this user', '{"kind":"datacube.page"}'))
+        self.assertEqual((kept['owner'], kept['content']), ('anonymous', '{"kind":"datacube.page"}'))
         # every write whole: nothing half-written left beside the pages
         self.assertEqual([p.name for p in self.folder.iterdir() if p.suffix == '.tmp'], [])
 
@@ -976,7 +1155,7 @@ class SavedPagesKept(unittest.TestCase):
                 os.environ['XDG_DATA_HOME'] = self.place.name
                 self.assertEqual(ll.home(), Path(self.place.name) / 'legend-lite')
         said = json.loads(self.engine.answer('GET', '/services.json', '', None).body)
-        self.assertEqual(said['pages'], {'where': str(self.folder), 'user': 'this user'})
+        self.assertEqual(said['pages'], {'where': str(self.folder), 'user': 'anonymous'})
 
 
 class NoFiles(Served):

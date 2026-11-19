@@ -33,7 +33,8 @@ describe("the page's own saved pages: what a server here cannot be asked", () =>
     const theirs = new CubeStoreClient(LOCAL_CUBES_API, wasmCubeServer({ load, records, user: 'you' }).fetch, 'you');
     await mine.create(page);
     await assert.rejects(theirs.update('p-1', { ...page, name: 'Mine now' }),
-      (e: unknown) => e instanceof CubeStoreError && e.status === 403 && e.message === 'only the owner can update it');
+      (e: unknown) => e instanceof CubeStoreError && e.status === 403
+        && e.message === "only its owner, 'me', can update it, and the caller is 'you'");
     await assert.rejects(theirs.delete('p-1'), (e: unknown) => e instanceof CubeStoreError && e.status === 403);
     // and a search answers the caller's own first, then the chosen sort among each's (newest first)
     await new Promise((r) => setTimeout(r, 5));

@@ -439,4 +439,4 @@ class Installed(unittest.TestCase):
         edged = subprocess.run([python, '-I', '-c', EDGE], cwd=root, env=env, capture_output=True, text=True,
                                timeout=120)
         self.assertEqual(edged.returncode, 0, edged.stdout + edged.stderr)
-        self.assertEqual(json.loads(edged.stdout.strip().splitlines()[-1]), {'user': [200, '"this user"']})
+        self.assertEqual(json.loads(edged.stdout.strip().splitlines()[-1]), {'user': [200, '"anonymous"']})

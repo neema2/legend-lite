@@ -32,7 +32,61 @@ def read_arrow(body):
         return pyarrow.ipc.open_stream(stream).read_all()
 
 
+# THE DOOR'S SOURCE RULE (F8 of PR #121's review, 2026-11-19: the door's key was a marker any module could import): in
+# the package as shipped, the door's key (_pure_v1._DOOR) is named by the door (edge/__init__.py) and by the module that
+# makes it, and legend-engine's routes (EngineRoutes) are made by the door alone -- by any spelling read here: a name,
+# an attribute, an import, a string (getattr's)
+DOOR = 'edge/__init__.py'
+KEY_MAKER = 'edge/_pure_v1.py'
+
+
+def door_breaks(sources):
+    """Every break of the door's rule in ``sources`` (a module's path in the package -> its text), in words."""
+    import ast
+    out = []
+    for name, source in sorted(sources.items()):
+        for node in ast.walk(ast.parse(source)):
+            named = (node.id if isinstance(node, ast.Name) else node.attr if isinstance(node, ast.Attribute)
+                     else node.name if isinstance(node, ast.alias)
+                     else node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None)
+            if named is not None and '_DOOR' in named and name not in (DOOR, KEY_MAKER):
+                out.append(f"{name}: line {node.lineno}: names the door's key: the door alone holds it")
+            made = (node.func.id if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    else node.func.attr if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) else None)
+            if made == 'EngineRoutes' and name != DOOR:
+                out.append(f"{name}: line {node.lineno}: makes legend-engine's routes: the door alone does")
+    return out
+
+
 class TheEdgesDoor(unittest.TestCase):
+
+    def test_no_module_but_the_door_holds_its_key_or_makes_its_routes(self):
+        # read over the package as shipped, the edge's modules and the product's alike
+        package = Path(ll.__file__).parent
+        sources = {p.relative_to(package).as_posix(): p.read_text(encoding='utf-8') for p in package.rglob('*.py')}
+        self.assertIn(DOOR, sources)
+        self.assertEqual(door_breaks(sources), [])
+        # the rule sees every break: planted, each caught
+        for name, source in (
+                ('engine.py', 'from .edge._pure_v1 import _DOOR'),
+                ('page.py', 'import legend_lite.edge._pure_v1 as p\np._DOOR'),
+                ('edge/_other.py', 'from ._pure_v1 import _DOOR'),
+                ('edge/_other.py', 'getattr(m, "_DOOR")'),
+                ('page.py', 'from legend_lite.edge import EngineRoutes\nEngineRoutes(key)'),
+                ('edge/_pure_v1.py', 'EngineRoutes(_DOOR)'),
+                ('datacube.py', 'from legend_lite import edge\nedge.EngineRoutes(k)')):
+            with self.subTest(planted=source):
+                self.assertTrue(door_breaks({name: source}), source)
+
+    def test_the_routes_serve_only_as_the_door_made_them(self):
+        # no subclass skips the door, and an instance it did not make (object.__new__ runs no __init__) serves nothing
+        with self.assertRaisesRegex(TypeError, r"EngineRoutes takes no subclass"):
+            type('Mine', (edge.EngineRoutes,), {'__init__': lambda self: None})
+        unmade = object.__new__(edge.EngineRoutes)
+        with self.assertRaisesRegex(TypeError, r"not made by it"):
+            unmade.serves('POST', '/api/pure/v1/grammar/grammarToJson/lambda')
+        with self.assertRaisesRegex(TypeError, r"not made by it"):
+            unmade.answer(Engine(ll.Frames()), 'GET', '/api/pure/v1/query/q-1', '', None)
 
     def test_the_door_composes_an_engine_with_the_edges_routes(self):
         engine = edge.engine(ll.Frames())
@@ -47,7 +101,14 @@ class TheEdgesDoor(unittest.TestCase):
         # legend-engine's current user is the edge's too (N4 of PR #118's fix round, 2026-11-18): the store's user
         self.assertTrue(engine.edge.serves('GET', '/api/server/v1/currentUser'))
         said = engine.answer('GET', '/api/server/v1/currentUser', '', None)
-        self.assertEqual((said.status, said.content_type, json.loads(said.body)), (200, 'application/json', 'this user'))
+        self.assertEqual((said.status, said.content_type, json.loads(said.body)), (200, 'application/json', 'anonymous'))
+        # GET alone, as upstream serves it (the user's ruling of 2026-11-19 ~11:27 UTC, "1 yes"): any other method 405,
+        # in Java's edge's body (register S377), never the product's 404
+        for method in ('POST', 'PUT', 'DELETE'):
+            self.assertTrue(engine.edge.serves(method, '/api/server/v1/currentUser'), method)
+            said = engine.answer(method, '/api/server/v1/currentUser', '', '{}')
+            self.assertEqual((said.status, said.content_type, said.body),
+                             (405, 'application/json', b'{"error":"Method not allowed"}'), method)
         # a call no route serves is refused as the product refuses it
         said = engine.answer('POST', '/no-such-route.json', '', '{}')
         self.assertEqual((said.status, said.body), (404, b'no such path: /no-such-route.json'))
@@ -55,6 +116,14 @@ class TheEdgesDoor(unittest.TestCase):
     def test_the_door_gives_the_routes_itself(self):
         with self.assertRaisesRegex(TypeError, "the edge's door gives the engine its routes itself"):
             edge.engine(ll.Frames(), edge=NO_EDGE_ROUTES)
+
+    def test_the_door_is_the_one_way_to_legend_engines_routes(self):
+        # one door each (the PR #118 follow-up, 2026-11-19, R11(b), HOSTS-7): legend-engine's routes are made by the
+        # edge's door alone, never by a caller composing an engine of its own -- refused by name, the door named
+        for made in (lambda: edge.EngineRoutes(), lambda: edge.EngineRoutes(object())):
+            with self.assertRaisesRegex(TypeError, r"legend_lite\.edge\.engine"):
+                Engine(ll.Frames(), edge=made())
+        self.assertIsInstance(edge.engine(ll.Frames()).edge, edge.EngineRoutes)
 
     def test_a_product_engine_serves_none_of_legend_engines_routes(self):
         engine = Engine(ll.Frames())

@@ -33,8 +33,17 @@ from typing import Any
 
 _chosen: Path | None = None
 # who this user is to the stores kept here (the saved pages, the saved queries): the folder's one owner -- there is no
-# sign-in -- as the browser's store is 'this browser''s
-THIS_USER = 'this user'
+# sign-in -- "anonymous", as legend-lite's server names its caller and legend-engine's anonymous profile is named
+# (pac4j's AnonymousProfile, the shipped AnonymousClient; the currentUser ruling, 2026-11-19); the browser's store is
+# 'this browser''s
+THIS_USER = 'anonymous'
+
+# THE ONE-TIME RE-OWNING (the user's ruling of 2026-11-19 ~11:27 UTC on currentUser, "1 yes, 2 a1"): Python's stores
+# named the caller 'this user' until then, where legend-lite's server and legend-engine's anonymous profile name it
+# "anonymous"; a folder written before is re-owned ONCE, a data migration (reowned_once), never read as both at run
+EARLIER_USER = 'this user'
+_REOWNED_MARKER = '.reowned-anonymous'
+_reowned_here: set[Path] = set()
 
 
 def home(path: str | Path | None = None) -> Path:
@@ -141,6 +150,42 @@ def pages_folder() -> Path:
     return home() / 'pages'
 
 
+def reowned_once(folder: Path) -> None:
+    """THE ONE-TIME RE-OWNING of ``folder`` (this user's saved queries or pages), under its lock, which the caller
+    holds: every record whose owner is the earlier name, ``EARLIER_USER``, is owned by ``THIS_USER`` from now on, every
+    other byte of meaning as it was (its numbers exact, its keys in order: _json); a line on stderr names how many, and
+    a marker in the folder says it is done, so it never runs twice. A store's rules then compare the owner as stored:
+    no request reads one owner as another (the user's ruling of 2026-11-19, "2 a1": a data migration, never a run-time
+    fallback). A file that does not read as a record is left as it is, as the stores leave it out."""
+    if folder in _reowned_here:
+        return
+    marker = folder / _REOWNED_MARKER
+    if not marker.exists():
+        from . import _json
+        reowned = 0
+        for path in sorted(folder.glob('*.json')):
+            try:
+                held = _json.loads(path.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            rows = held if isinstance(held, list) else [held]
+            changed = False
+            for row in rows:
+                if isinstance(row, dict) and row.get('owner') == EARLIER_USER:
+                    row['owner'] = THIS_USER
+                    changed = True
+            if changed:
+                written = path.with_name(path.name + '.tmp')
+                written.write_text(_json.dumps(held), encoding='utf-8')
+                os.replace(written, path)
+                reowned += 1
+        if reowned:
+            print(f"legend-lite: re-owned {reowned} saved record(s) in {folder} from '{EARLIER_USER}' to "
+                  f"'{THIS_USER}', once (the currentUser ruling of 2026-11-19)", file=sys.stderr)
+        marker.write_text(f"'{EARLIER_USER}' re-owned to '{THIS_USER}': {reowned} record(s)\n", encoding='utf-8')
+    _reowned_here.add(folder)
+
+
 def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
     """One call of a store the native library answers over ``folder`` (``entry``: the product's ``lite_store_queries`` or
     ``lite_store_cubes``, lite's mount and words -- the edge program's H6, 2026-11-17; legend-engine's mount is the
@@ -150,6 +195,7 @@ def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
     from ._library import library
     from ._pool import _on_compiler_threads
     with locked(folder):
+        reowned_once(folder)
         said = _on_compiler_threads(lambda: library().call(entry, str(folder), *asked))
     return _answered(said)
 

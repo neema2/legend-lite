@@ -102,4 +102,49 @@ class CompiledPureNumbersEdgeTest {
         }
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
+
+    /** An Integer property over a DECIMAL(10,0) column on the edge (the PR #118 follow-up, 2026-11-19, Q8;
+     *  AssertBarTest's product half): the property's Integer 5 under every judge alike -- assertEq and assertIs hold,
+     *  assertNotEq and assertIsNot fail. */
+    private static final String INTEGER_ON = """
+            ###Pure
+            Class p::R { id: Integer[1]; n: Integer[1]; }
+            ###Relational
+            Database p::DB ( Table V (ID INTEGER PRIMARY KEY, N DECIMAL(10,0)) )
+            ###Mapping
+            Mapping p::M ( p::R: Relational { ~mainTable [p::DB] V id: V.ID, n: V.N } )
+            ###Connection
+            RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+                specification: LocalH2 { testDataSetupCSV: 'default\\nV\\nID,N\\n1,5\\n'; }; auth: DefaultH2; }
+            ###Runtime
+            Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+            """.formatted(Databases.PLATFORM);
+
+    @Test
+    void anIntegerOverADecimalColumnIsItsIntegerUnderEveryJudgeOnTheEdge() throws Exception {
+        java.util.List<String> wrong = new java.util.ArrayList<>();
+        for (String side : List.of("p::R.all()->filter(x | $x.id == 1)->toOne().n",
+                "p::R.all()->map(x | $x.n)->toOne()")) {
+            for (String fn : List.of("assertEq", "assertIs", "assertNotEq", "assertIsNot")) {
+                String body = "{|" + fn + "(5, " + side + ")}";
+                String want = fn.endsWith("Not") || fn.endsWith("NotEq") ? "AssertFailed" : "pass";
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        com.legend.testing.EdgeProgram.runFresh(INTEGER_ON, body, "p::RT",
+                                com.legend.testing.EdgeProgram.compat(mode));
+                        got = "pass";
+                    } catch (AssertFailed e) {
+                        got = "AssertFailed";
+                    } catch (Throwable e) {
+                        got = e.getClass().getSimpleName() + ": " + e.getMessage();
+                    }
+                    if (!want.equals(got)) {
+                        wrong.add(mode + " " + body + " -> " + got);
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
 }

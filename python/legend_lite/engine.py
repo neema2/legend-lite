@@ -67,6 +67,8 @@ from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._params import ParametersRefused
 from ._plans import PlanParamsRefused, host_rows
+from ._raised import raised_of, wire_name
+from ._runs import LoadRefused
 # lite's Arrow metadata keys, generated from the product's (result.ArrowKeys; H4's P10, 2026-11-19)
 from ._type_facts import ARROW_KEY_PLAN, ARROW_KEY_RECEIPT
 from ._reads import count_of, read_plane, run_on_plane, run_plan
@@ -688,6 +690,15 @@ class Engine:
         params, form = asked['params'], asked['format']
         plan_asked = {'lambda': _json.dumps(asked['query']), 'runtime': asked['runtime']}
 
+        def data_refused(failure: duckdb.Error, message: str) -> LegendError:
+            """A run's or a load's failure as Java's LiteV1Api.dataRefusal answers it (the PR #118 follow-up,
+            2026-11-19, Q9): a planned raise is data, its kind in raise and its site's where; the database refusing the
+            work in its own words, and a user's fail, are data with no raise."""
+            said = raised_of(failure)
+            if said is not None and said.kind is not None:
+                return LegendError(message, compiler.error_kind('DATA'), said.where, wire_name(said.kind))
+            return LegendError(message, compiler.error_kind('DATA'))
+
         def run(planned: str, rows_of: Callable[[compiler.Plan], pa.Table]) -> Answer:
             try:
                 plan = self.planner.read(planned)
@@ -697,9 +708,13 @@ class Engine:
                 rows = rows_of(plan)
             except (ParametersRefused, PlanParamsRefused) as wrong:
                 return refused(compiler.parameters_refused(str(wrong)))
-            except (duckdb.Error, UntypedColumn) as failure:
+            except (duckdb.ConnectionException, UntypedColumn) as failure:
+                # the connection lost (Java's CONNECTION_ERROR), or a column the plan does not type: the environment or
+                # a defect, never the caller's query -- internal
                 message = redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values())
                 return refused(LegendError(message, compiler.error_kind('INTERNAL')))
+            except duckdb.Error as failure:
+                return refused(data_refused(failure, redact_held(str(failure), self.frames.held_values())))
             # the plan the rows answer, handed back to the server's writer (its numbers exact: _json)
             plan_json = _json.dumps(_json.loads(planned[len('OK\n'):])['plan'])
             try:
@@ -726,6 +741,28 @@ class Engine:
         except (ModelRefused, NotAModel) as no_model:
             # the model's own refusal by the compiler: its kind and where, as the compiler said them
             return refused(no_model)
+        except LegendError as error:
+            # any other refusal of the product's (a project's Data the planner refuses: a value its column cannot hold)
+            # in lite's one shape, its own kind (the PR #118 follow-up, 2026-11-19, N-c: until then a 500 in text)
+            return refused(error)
+        except LoadRefused as load:
+            # a project's load the database refused in its own words (the load's statement, its cause): data, as Java's
+            # server answers a load's DATABASE_ERROR (the PR #118 follow-up, 2026-11-19, Q9), a raise its kind and
+            # where kept (F2 (c) of PR #121's review); a lost connection, or a load refused before the database saw it,
+            # is not the caller's data -- internal, in lite's shape (F2 (a): until then a 500 in text)
+            cause = load.__cause__
+            message = redact_held(str(load), self.frames.held_values())
+            if not isinstance(cause, duckdb.Error) or isinstance(cause, duckdb.ConnectionException):
+                return refused(LegendError(redact_held(f'{type(load).__name__}: {load}', self.frames.held_values()),
+                                           compiler.error_kind('INTERNAL')))
+            return refused(data_refused(cause, message))
+        except duckdb.Error as failure:
+            # the database refusing a project's database as it is made -- its open and use statements, a load's own
+            # statement step -- answered as a run's failure is (F2 (b) of PR #121's review: until then a 500 in text)
+            if isinstance(failure, duckdb.ConnectionException):
+                return refused(LegendError(redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values()),
+                                           compiler.error_kind('INTERNAL')))
+            return refused(data_refused(failure, redact_held(str(failure), self.frames.held_values())))
 
     def _answered(self, work: Callable[[str], Answer], body: str) -> Answer:
         """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug,

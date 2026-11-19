@@ -6,7 +6,8 @@ import { conformance, ENGINE, LITE } from './conformance.ts';
 import { liteServer } from './lite-server.ts';
 
 const server = liteServer();
-const target = () => ({ api: server.api(), fetch: globalThis.fetch.bind(globalThis), user: 'anonymous' });
+// the JDK's HttpServer refuses a request URI that is not percent-encoded before any handler (PH-1, 2026-11-19)
+const target = () => ({ api: server.api(), fetch: globalThis.fetch.bind(globalThis), user: 'anonymous', refusesUnencodedUris: true });
 
 conformance("legend-lite's server", target, LITE);
 conformance("legend-lite's server", target, ENGINE);

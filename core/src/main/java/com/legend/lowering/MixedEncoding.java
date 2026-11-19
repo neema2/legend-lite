@@ -749,6 +749,34 @@ final class MixedEncoding {
     }
 
     /**
+     * The equality of two primitives of DISJOINT kinds -- a String and an Integer, a Boolean and a date, text and a
+     * number -- or null where the kinds are not disjoint (one kind, two numbers, two dates, Any, a class): never equal.
+     * legend-pure's equal compares a primitive's type before its value (EqualityUtilities.eq, interpreted;
+     * CompiledSupport.equal, compiled: a Number equals a Number only, any other value only its own kind's), and
+     * {@code a != b} is {@code not(equal(a, b))} (AntlrContextToM3CoreInstance.equalNotEqual), so {@code 'x' != -1} is
+     * true. Until then the database compared them and DuckDB and H2 refused the cast (the compatibility program's
+     * translator spike, 2026-11-19: legend-engine's own testPlanForDateTimeVariableESTTimeZone compares a String with
+     * -1). Two empties are equal ({@code [] == []}): where both sides may be empty, the equality is both being so, the
+     * database reading each side's nullness alone (no value is compared, no cast); otherwise false. Numbers of different
+     * kinds stay the database's comparison (S127), and dates their precision rule (Scalars' equal).
+     */
+    static @com.legend.base.Nullable SqlExpr disjointEquality(TypedSpec left, SqlExpr l, TypedSpec right, SqlExpr r) {
+        if (!(left.info().type() instanceof Type.Primitive a) || !(right.info().type() instanceof Type.Primitive b)
+                || a.family() == b.family() || PlatformTypes.isAny(a) || PlatformTypes.isAny(b)) {
+            return null;
+        }
+        boolean bothOptional = optional(left) && optional(right);
+        return bothOptional
+                ? SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.IS_NULL, l), SqlExpr.Call.of(SqlFn.IS_NULL, r))
+                : new SqlExpr.BoolLit(false);
+    }
+
+    /** Whether {@code s} may be empty: its multiplicity's lower bound is 0. */
+    private static boolean optional(TypedSpec s) {
+        return s.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded m && m.lower() == 0;
+    }
+
+    /**
      * A primitive needle against class-typed elements (or vice versa) can
      * never be a member — the kinds are disjoint in pure's type system.
      * Any/mixed stays undecided (falls through to the SQL comparison).

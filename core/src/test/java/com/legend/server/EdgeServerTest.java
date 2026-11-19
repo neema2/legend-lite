@@ -110,6 +110,15 @@ class EdgeServerTest {
         }
     }
 
+    /** ONE DOOR EACH (the PR #118 follow-up, 2026-11-19, R11(b), HOSTS-7): the edge's server starts one way, the product
+     *  server's mount ({@code --engine legend-engine}); its composition root declares no main of its own. */
+    @Test
+    void theEdgeHasNoDoorOfItsOwn() {
+        for (java.lang.reflect.Method m : com.legend.edge.EdgeServer.class.getDeclaredMethods()) {
+            assertTrue(!m.getName().equals("main"), "EdgeServer declares " + m);
+        }
+    }
+
     @Test
     void theShippedServerAnswersBoth() throws Exception {
         LegendHttpServer server = com.legend.edge.EdgeServer.loopback(0);
@@ -119,7 +128,16 @@ class EdgeServerTest {
             HttpResponse<String> lambda = send(server, "POST", LAMBDA, "|1");
             assertEquals(200, lambda.statusCode(), lambda.body());
             assertTrue(lambda.body().contains("\"_type\":\"lambda\""), lambda.body());
-            assertEquals(200, send(server, "GET", "/api/server/v1/currentUser", null).statusCode());
+            // legend-engine's current user: GET alone, "anonymous" (its shipped AnonymousClient's profile), any other
+            // method 405 (the user's ruling of 2026-11-19 ~11:27 UTC, "1 yes"; register S377 for the 405's body)
+            HttpResponse<String> user = send(server, "GET", "/api/server/v1/currentUser", null);
+            assertEquals(200, user.statusCode(), user.body());
+            assertEquals("\"anonymous\"", user.body());
+            for (String method : java.util.List.of("POST", "PUT", "DELETE")) {
+                HttpResponse<String> refused = send(server, method, "/api/server/v1/currentUser", "{}");
+                assertEquals(405, refused.statusCode(), method + ": " + refused.body());
+                assertEquals("{\"error\":\"Method not allowed\"}", refused.body(), method);
+            }
             // pure/v1 reads the decoded path, as its handler always did, and answers an unknown path in its old words
             // (the D part 1 audit's nits, 2026-11-15)
             HttpResponse<String> encoded = send(server, "POST", "/api/pure/v1/grammar/grammarToJson%2Flambda", "|1");

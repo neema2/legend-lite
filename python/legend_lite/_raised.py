@@ -14,7 +14,7 @@ from __future__ import annotations
 import copy
 import json
 import re
-from typing import Any
+from typing import Any, NamedTuple
 
 from ._type_facts import RAISE_POSITION_SEP, RAISE_QUOTE_MARK, RAISE_SENTINEL, RAISE_TOKEN
 
@@ -70,29 +70,43 @@ def declare_sites(answer: object, what: str) -> None:
     walk(answer)
 
 
-def raised_words(message: str, statement: str) -> str | None:
-    """The words of the raise inside a database's ``message``, as Java's runner reads one (RaisedErrors.unwrapped): the
-    text between the first two sentinels, a source position before its separator dropped, a held quote restored; a
-    site's token its planned words, read through the sites declared for ``statement``; any other raised text (a user's
-    ``fail`` message) as it is. None where ``message`` holds no raise: a database's own error, passed on as it is. A token
-    the statement does not declare is refused by name (no default)."""
+def _inner(message: str) -> str | None:
+    """The raise inside a database's ``message``: the text between its first two sentinels, a source position before its
+    separator dropped, a held quote restored -- None where ``message`` holds no raise (the database's own error)."""
     first = message.find(RAISE_SENTINEL)
     last = -1 if first < 0 else message.find(RAISE_SENTINEL, first + 1)
     if first < 0 or last <= first:
         return None
     inner = message[first + 1:last].replace(RAISE_QUOTE_MARK, "'")
     sep = inner.find(RAISE_POSITION_SEP)
-    if sep >= 0:
-        inner = inner[sep + 1:]
+    return inner[sep + 1:] if sep >= 0 else inner
+
+
+def _site(inner: str, statement: str) -> dict[str, Any] | None:
+    """The site of ``statement`` the raise ``inner`` names by its token, or None where it names none (a user's ``fail``
+    message raised as it is). A token the statement does not declare is refused by name (no default)."""
     token = _TOKEN.fullmatch(inner)
     if token is None or int(token.group(1)) < 1:
-        return inner
+        return None
     n = int(token.group(1))
     sites = _DECLARED.get(statement, [])
     if n > len(sites):
         declared = ', '.join(f"{RAISE_TOKEN}{s['n']} {s['kind']}" for s in sites) or 'none'
         raise ValueError(f'the database raised {inner}, which the statement does not declare (it declares {declared})')
-    return sites[n - 1]['message']
+    return sites[n - 1]
+
+
+def raised_words(message: str, statement: str) -> str | None:
+    """The words of the raise inside a database's ``message``, as Java's runner reads one (RaisedErrors.unwrapped): the
+    text between the first two sentinels, a source position before its separator dropped, a held quote restored; a
+    site's token its planned words, read through the sites declared for ``statement``; any other raised text (a user's
+    ``fail`` message) as it is. None where ``message`` holds no raise: a database's own error, passed on as it is. A token
+    the statement does not declare is refused by name (no default)."""
+    inner = _inner(message)
+    if inner is None:
+        return None
+    site = _site(inner, statement)
+    return inner if site is None else site['message']
 
 
 def raised_kind(message: str, statement: str) -> str | None:
@@ -100,29 +114,56 @@ def raised_kind(message: str, statement: str) -> str | None:
     site's token its site's kind; lite's envelope with no site (a user's ``fail``) none; no envelope at all, the
     database's own failure, ``DATABASE_ERROR`` (phase D's Phase 2, item 4, 2026-11-16: its words the database's,
     verbatim, which :func:`worded` leaves as they are). A token the statement does not declare is refused by name."""
-    first = message.find(RAISE_SENTINEL)
-    last = -1 if first < 0 else message.find(RAISE_SENTINEL, first + 1)
-    if first < 0 or last <= first:
+    inner = _inner(message)
+    if inner is None:
         return 'DATABASE_ERROR'
-    inner = message[first + 1:last].replace(RAISE_QUOTE_MARK, "'")
-    sep = inner.find(RAISE_POSITION_SEP)
-    if sep >= 0:
-        inner = inner[sep + 1:]
-    token = _TOKEN.fullmatch(inner)
-    if token is None or int(token.group(1)) < 1:
-        return None
-    raised_words(message, statement)   # an undeclared token refused by name, as the words are
-    return _DECLARED[statement][int(token.group(1)) - 1]['kind']
+    site = _site(inner, statement)
+    return None if site is None else site['kind']
+
+
+class Raised(NamedTuple):
+    """A raise's facts, as Java's DataError carries them (the PR #118 follow-up, 2026-11-19, Q9): its site's ``kind``
+    and ``where`` -- both None for a user's ``fail``, which names no site; ``where`` None where the site has none."""
+    kind: str | None
+    where: str | None
+
+
+_RAISED = 'legend_raised'
+
+
+def raised_of(failure: BaseException) -> Raised | None:
+    """The raise ``failure`` carries (:func:`worded` marks the copy it makes), or None: a failure lite planned no raise
+    for -- the database's own, in its own words."""
+    held = failure.__dict__.get(_RAISED)
+    return held if isinstance(held, Raised) else None
+
+
+def carry_raised(source: BaseException, copy_: BaseException) -> None:
+    """``source``'s raise facts (:func:`raised_of`) kept on ``copy_``, a copy of it whose attributes were cleared
+    (``_reads.redacted``): a raise's words redacted are still its raise, its kind and where (F3 of PR #121's review,
+    2026-11-19: the copy dropped them, so query/run answered a redacted raise as data of no raise)."""
+    said = raised_of(source)
+    if said is not None:
+        setattr(copy_, _RAISED, said)
+
+
+def wire_name(kind: str) -> str:
+    """A raise kind as the wire spells it (the lite API spec's §3: lower camel, as every wire name is, and as Java's
+    LiteV1Api spells it): ``DIVIDE_BY_ZERO`` as ``divideByZero``."""
+    head, *rest = kind.lower().split('_')
+    return head + ''.join(part[:1].upper() + part[1:] for part in rest)
 
 
 def worded(failure: BaseException, statement: str) -> BaseException | None:
-    """``failure`` of ``statement`` again, of its type, its words the raise's (``raised_words``) -- or None where it holds
-    no raise. The caller raises it outside its ``except``, as ``_reads.redacted``'s copy is, so the envelope's text is not
-    chained."""
-    words = raised_words(str(failure), statement)
-    if words is None:
+    """``failure`` of ``statement`` again, of its type, its words the raise's (``raised_words``) and its raise's facts on
+    it (:func:`raised_of`) -- or None where it holds no raise. The caller raises it outside its ``except``, as
+    ``_reads.redacted``'s copy is, so the envelope's text is not chained."""
+    inner = _inner(str(failure))
+    if inner is None:
         return None
+    site = _site(inner, statement)
     out = copy.copy(failure)
     out.__dict__.clear()
-    out.args = (words,)
+    out.args = (inner if site is None else site['message'],)
+    setattr(out, _RAISED, Raised(None, None) if site is None else Raised(site['kind'], site.get('where')))
     return out

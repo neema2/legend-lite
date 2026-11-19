@@ -107,11 +107,12 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
     rules in legend-engine's words, the engine library's), as this user, under the lock every Python process takes on
     the folder, the call on one of the compiler's threads: its answer as the store gave it, a failure of the library's
     said (500) -- as the product's store at lite's mount is answered (engine._stored, _home.store_call)."""
-    from .._home import THIS_USER
+    from .._home import THIS_USER, reowned_once
     from ..engine import Answer, _said
     from .._folded import unfold_status
     try:
         with locked(folder):
+            reowned_once(folder)
             said = _on_compiler_threads(lambda: engine_library().call(entry, str(folder), *asked, THIS_USER))
         # read by the product's one reader (H4's P3, 2026-11-19: until then the layout retired on 2026-11-17, so a
         # refusal of the library's was said as its raw JSON text); a refusal in its place said below in its own words
@@ -154,22 +155,61 @@ def _request_model(body: str) -> str | None:
     return None
 
 
+# the edge's door's own key: legend-engine's routes are made by the door alone (``legend_lite.edge.engine``)
+_DOOR = object()
+
+
 class EngineRoutes:
     """LEGEND-ENGINE'S ROUTES, served by an engine composed at the edge's door (``legend_lite.edge.engine``): POSTs of
     ``/api/pure/v1/...`` (execute among them), the query store at ``/api/pure/v1/query`` (GET, POST, PUT, DELETE), and
-    the GET of ``/api/server/v1/currentUser``; anything else is no call of theirs."""
+    ``/api/server/v1/currentUser`` (GET, any other method its 405); anything else is no call of theirs. Made by the
+    door alone, ONE DOOR EACH (the PR #118 follow-up, 2026-11-19, R11(b), HOSTS-7: as Java's edge composes its server
+    in one place): a caller
+    composing an engine of its own with them is refused by name. The product cannot name this class (the layer rule),
+    so the door's key is checked here, where the routes are made. Reusing the routes the door made on a second engine
+    (``Engine(frames, edge=edge.engine(f).edge)``) is allowed: they were composed at the door, the engine library
+    checked there (F8 of PR #121's review, 2026-11-19)."""
+
+    # F8 of PR #121's review (2026-11-19): the door's key alone was a marker -- a subclass skipping __init__, or an
+    # instance made by object.__new__, served the routes without it. Now no class extends this one, every route is
+    # served only by an instance the door made, and no module of the package but the door names the key or makes the
+    # routes (test_edge.TheEdgesDoor's source rule, over the package as shipped).
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        raise TypeError("legend-engine's routes are composed by the edge's door alone: EngineRoutes takes no subclass"
+                        " (an engine that serves them is legend_lite.edge.engine(frames))")
+
+    def __init__(self, door: object = None) -> None:
+        if door is not _DOOR:
+            raise TypeError("legend-engine's routes are composed by the edge's door alone: an engine that serves them is"
+                            " legend_lite.edge.engine(frames)")
+        self._door = door
+
+    def _by_door(self) -> None:
+        """Refused unless the door made this instance (an object.__new__ of the class never ran its __init__)."""
+        if self.__dict__.get('_door') is not _DOOR:
+            raise TypeError("legend-engine's routes are composed by the edge's door alone: these were not made by it"
+                            " (an engine that serves them is legend_lite.edge.engine(frames))")
 
     def serves(self, method: str, path: str) -> bool:
+        self._by_door()
         if _under(path, QUERIES):
             return True
-        if method == 'GET' and path == CURRENT_USER:
+        if path == CURRENT_USER:
             return True
         return method == 'POST' and path.startswith(API)
 
     def answer(self, engine: Engine, method: str, path: str, query: str, body: str | None) -> Answer:
+        self._by_door()
         from ..engine import Answer, _said
-        if method == 'GET' and path == CURRENT_USER:
-            # who a page's caller is: this user, whom the stores keep queries for (there is no sign-in)
+        if path == CURRENT_USER:
+            # who a page's caller is: "anonymous", whom the stores keep queries for (there is no sign-in) -- GET only,
+            # as upstream serves it (a JAX-RS @GET; its shipped AnonymousClient's profile is "anonymous"), any other method
+            # 405 in the body Java's edge answers (EdgeServer.currentUser; register S377): the user's ruling of
+            # 2026-11-19 ~11:27 UTC, "1 yes, 2 a1" -- until then the GET answered 'this user' and any other method fell
+            # through to the product's 404
+            if method != 'GET':
+                return Answer(405, 'application/json', b'{"error":"Method not allowed"}')
             return Answer(200, 'application/json', json.dumps(THIS_USER).encode('utf-8'))
         if _under(path, QUERIES):
             # on the caller's thread, as the product's store: it waits for the folder's lock holding no compiler thread

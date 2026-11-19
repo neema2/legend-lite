@@ -1103,6 +1103,13 @@ public class DuckDb extends AnsiSqlRenderer {
             writer.append("to_json(");
             return navigated(writer, a.get(0)).append(")");
         }
+        // a raise is no value, so it is written bare: DuckDB types error() NULL, and to_json binds a NULL-typed argument
+        // to the JSON null without evaluating it (measured on the pinned DuckDB, 2026-11-19: to_json(error('x')) answers
+        // null), so a fail() in a mixed if's branch answered null where it raises on H2 and SQLite (the PR #121
+        // fixer's finding: |...->project(~[name: p|if($p.id == 1, |fail('no such party'), |$p.name)]))
+        if (a.size() == 1 && a.get(0).type() instanceof com.legend.sql.TypeFact.Raises) {
+            return writer.expr(a.get(0), 0);
+        }
         return writer.function("to_json", a);
     }
 

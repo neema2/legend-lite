@@ -1166,6 +1166,44 @@ class ARaiseIsWorded(unittest.TestCase):
             Result(Failing(), 'SELECT 1 / 0').fetchall()
         self.assertEqual(str(raised.exception), 'division by zero')
 
+    def test_a_worded_raise_carries_its_sites_kind_and_where_as_javas_data_error(self):
+        # what Java's DataError carries (the PR #118 follow-up, 2026-11-19, Q9): a site's raise its kind and its where;
+        # a user's fail, which names no site, neither; the database's own failure is no raise at all
+        from legend_lite._raised import Raised, declare_statement_sites, raised_of, wire_name, worded
+        declare_statement_sites('SELECT a sized read', [{'n': 1, 'kind': 'SIZE_NOT_MULTIPLICITY', 'where': '[1]',
+                                                         'message': 'expected one value, got 2'}], 'a plan')
+        said = worded(RuntimeError('Invalid Input Error: \x1f\x1cLG#1\x1f'), 'SELECT a sized read')
+        self.assertEqual((str(said), raised_of(said)),
+                         ('expected one value, got 2', Raised('SIZE_NOT_MULTIPLICITY', '[1]')))
+        fail = worded(RuntimeError('Invalid Input Error: \x1fboom\x1f'), 'SELECT a sized read')
+        self.assertEqual((str(fail), raised_of(fail)), ('boom', Raised(None, None)))
+        own = RuntimeError('Conversion Error: Could not convert string "x" to INT32')
+        self.assertIsNone(worded(own, 'SELECT a sized read'))
+        self.assertIsNone(raised_of(own))
+        # the wire's spelling of a kind (the lite API spec's §3), as Java's LiteV1Api spells it
+        self.assertEqual([wire_name(k) for k in ('DIVIDE_BY_ZERO', 'SIZE_NOT_MULTIPLICITY', 'USER_FAIL')],
+                         ['divideByZero', 'sizeNotMultiplicity', 'userFail'])
+
+    def test_a_redacted_raise_keeps_its_kind_and_where(self):
+        # F3 of PR #121's review (2026-11-19): _reads.redacted copied the failure with its attributes cleared, so a raise
+        # whose words held a value the engine holds lost its kind and where, and query/run answered it as a raise of none
+        from legend_lite._raised import Raised, declare_statement_sites, raised_of, worded
+        from legend_lite._reads import redacted
+        declare_statement_sites('SELECT a held read', [{'n': 1, 'kind': 'SIZE_NOT_MULTIPLICITY', 'where': '[1]',
+                                                        'message': 'expected one value at s3://bucket/key?X-Sig=abc'}],
+                                'a plan')
+        said = worded(duckdb.InvalidInputException('Invalid Input Error: \x1f\x1cLG#1\x1f'), 'SELECT a held read')
+        out = redacted(said, ['s3://bucket/key?X-Sig=abc'])
+        self.assertIsInstance(out, duckdb.InvalidInputException)
+        self.assertNotIn('s3://bucket/key?X-Sig=abc', str(out))
+        self.assertEqual(raised_of(out), Raised('SIZE_NOT_MULTIPLICITY', '[1]'))
+        # a user's fail keeps its none; the database's own failure stays no raise
+        fail = redacted(worded(duckdb.InvalidInputException('\x1fat s3://bucket/key?X-Sig=abc\x1f'), 'SELECT a held read'),
+                        ['s3://bucket/key?X-Sig=abc'])
+        self.assertEqual(raised_of(fail), Raised(None, None))
+        own = redacted(duckdb.IOException('no file s3://bucket/key?X-Sig=abc'), ['s3://bucket/key?X-Sig=abc'])
+        self.assertIsNone(raised_of(own))
+
 if __name__ == '__main__':
     unittest.main()
 
