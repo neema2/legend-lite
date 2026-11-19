@@ -15,7 +15,7 @@ col.i01	ROWS	[["Credit",3],["Equity",0],["FX",0],["Rates",4]]
 col.i02	ROWS	[["Credit",0],["Equity",0],["FX",0],["Rates",0]]
 col.i03	ROWS	[["Credit",1],["Equity",1],["FX",1],["Rates",1]]
 col.i04	REFUSES	indexOf_String_1__String_1__Integer_1__Integer_1_
-col.i05	ERROR	UNSUPPORTED
+col.i05	REFUSES	REFUSES_OTHER: couldn't find dynafunction
 col.i06	ROWS	[["Credit",1],["Equity",1],["FX",1],["Rates",1]]
 col.i07	ROWS	[["Credit","edit"],["Equity","Equity"],["FX","FX"],["Rates","es"]]
 col.s12	ROWS	[["Credit","C"],["Equity","E"],["FX",""],["Rates",""]]

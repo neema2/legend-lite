@@ -1,5 +1,14 @@
-# legend-engine's refusals ("No SQL translation exists for the PURE function") by database and signature, from its manifests; lite's outcome on those tests as legend-engine's audience (bazel run //pct:update_engine_lane)
-database	signature	tests	lite_pass	lite_fail
+# legend-engine's planning refusals by database, from its manifests: by signature ("No SQL translation exists for the PURE function"), or by the words matched (REFUSES_OTHER); lite's outcome on those tests as legend-engine's audience (bazel run //pct:update_engine_lane)
+database	refusal	tests	lite_pass	lite_fail
+duckdb	REFUSES_OTHER: are only supported	6	6	0
+duckdb	REFUSES_OTHER: does not support	7	7	0
+duckdb	REFUSES_OTHER: doesn't support	10	6	4
+duckdb	REFUSES_OTHER: is supported only	5	4	1
+duckdb	REFUSES_OTHER: isn't a literal	2	2	0
+duckdb	REFUSES_OTHER: no relational processor matched	1	1	0
+duckdb	REFUSES_OTHER: not managed yet	4	4	0
+duckdb	REFUSES_OTHER: not supported	15	13	2
+duckdb	REFUSES_OTHER: only supports	1	1	0
 duckdb	add_T_MANY__Integer_1__T_1__T_$1_MANY$_	1	1	0
 duckdb	at_T_MANY__Integer_1__T_1_	1	1	0
 duckdb	compare_T_1__T_1__Integer_1_	8	8	0
@@ -23,3 +32,7 @@ duckdb	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	2	2	0
 duckdb	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	4	4	0
 duckdb	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	4	2	2
 duckdb	zip_T_MANY__U_MANY__Pair_MANY_	6	6	0
+h2	REFUSES_OTHER: couldn't find dynafunction	11	3	8
+h2	REFUSES_OTHER: does not support	4	4	0
+h2	REFUSES_OTHER: not implemented	20	20	0
+h2	REFUSES_OTHER: not supported	1	1	0

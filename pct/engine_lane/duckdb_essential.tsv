@@ -2,14 +2,14 @@
 test	engine	engine_class	lite	lite_class	verdict
 meta::pure::functions::collection::tests::add::testAdd	PASS		PASS		SAME
 meta::pure::functions::collection::tests::add::testAddWithOffset	REFUSES	add_T_MANY__Integer_1__T_1__T_$1_MANY$_	PASS		LITE_ANSWERS
-meta::pure::functions::collection::tests::at::testAt	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::collection::tests::at::testAtError	DEFECT	UNSUPPORTED	FAIL	ERROR_MISMATCH	BOTH_FAIL
-meta::pure::functions::collection::tests::at::testAtOtherScenario	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::collection::tests::at::testAtWithVariable	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::collection::tests::concatenate::testConcatenateMixedType	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::at::testAt	REFUSES	REFUSES_OTHER: is supported only	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::at::testAtError	REFUSES	REFUSES_OTHER: is supported only	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::collection::tests::at::testAtOtherScenario	REFUSES	REFUSES_OTHER: is supported only	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::at::testAtWithVariable	REFUSES	REFUSES_OTHER: is supported only	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::concatenate::testConcatenateMixedType	REFUSES	REFUSES_OTHER: not managed yet	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::concatenate::testConcatenateSimple	PASS		PASS		SAME
-meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::collection::tests::contains::testContainsNonPrimitive	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference	REFUSES	REFUSES_OTHER: not managed yet	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::contains::testContainsNonPrimitive	REFUSES	REFUSES_OTHER: isn't a literal	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::contains::testContainsPrimitive	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::contains::testContainsWithFunction	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::drop::testDropExceedsSizeOnEmptyList	PASS		PASS		SAME
@@ -31,7 +31,7 @@ meta::pure::functions::collection::tests::find::testFindLiteralFromVar	DEFECT	PL
 meta::pure::functions::collection::tests::find::testFindUsingVarForFunction	DEFECT	PLANNER_FAULT	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::collection::tests::fold::testFold	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::fold::testFoldCollectionAccumulator	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
-meta::pure::functions::collection::tests::fold::testFoldEmptyListAndEmptyIdentity	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::fold::testFoldEmptyListAndEmptyIdentity	REFUSES	REFUSES_OTHER: not managed yet	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::fold::testFoldEmptyListAndNonEmptyIdentity	PASS		PASS		SAME
 meta::pure::functions::collection::tests::fold::testFoldFiltering	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::fold::testFoldMixedAccumulatorTypes	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
@@ -67,7 +67,7 @@ meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicates
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyListExplicit	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	PASS		LITE_ANSWERS
-meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	REFUSES	REFUSES_OTHER: not managed yet	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionSimple	PASS		PASS		SAME
 meta::pure::functions::collection::tests::removeDuplicatesBy::testRemoveDuplicatesByPrimitive	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::reverse::testReverse	PASS		PASS		SAME
@@ -79,7 +79,7 @@ meta::pure::functions::collection::tests::slice::testSliceInList	PASS		PASS		SAM
 meta::pure::functions::collection::tests::slice::testSliceOnBounds	PASS		PASS		SAME
 meta::pure::functions::collection::tests::slice::testSliceOnEmpty	PASS		PASS		SAME
 meta::pure::functions::collection::tests::slice::testSliceOutOfBounds	PASS		PASS		SAME
-meta::pure::functions::collection::tests::sort::testMixedSortNoComparator	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::sort::testMixedSortNoComparator	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::sort::testSimpleSort	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::sort::testSimpleSortNoComparator	PASS		PASS		SAME
 meta::pure::functions::collection::tests::sort::testSimpleSortReversed	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	PASS		LITE_ANSWERS
@@ -126,7 +126,7 @@ meta::pure::functions::date::tests::testAdjustBySeconds	PASS		PASS		SAME
 meta::pure::functions::date::tests::testAdjustBySecondsBigNumber	PASS		PASS		SAME
 meta::pure::functions::date::tests::testAdjustByWeeks	PASS		PASS		SAME
 meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DEFECT	DATABASE_ERROR	FAIL	DATABASE_ERROR	BOTH_FAIL
-meta::pure::functions::date::tests::testAdjustByYears	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testAdjustByYears	REFUSES	REFUSES_OTHER: doesn't support	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testDateDiffDays	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffHours	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffMilliseconds	PASS		PASS		SAME
@@ -135,7 +135,7 @@ meta::pure::functions::date::tests::testDateDiffMonths	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffSeconds	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateDiffWeeks	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	PASS		PASS		SAME
-meta::pure::functions::date::tests::testDateDiffYears	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDateDiffYears	REFUSES	REFUSES_OTHER: doesn't support	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testDateFromDay	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDateFromHour	REFUSES	date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testDateFromMinute	REFUSES	date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	PASS		LITE_ANSWERS
@@ -146,9 +146,9 @@ meta::pure::functions::date::tests::testDateFromYear	REFUSES	date_Integer_1__Dat
 meta::pure::functions::date::tests::testDatePart	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDatePartTrivial	PASS		PASS		SAME
 meta::pure::functions::date::tests::testDatePartYearMonthOnly	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
-meta::pure::functions::date::tests::testDatePartYearOnly	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDatePartYearOnly	REFUSES	REFUSES_OTHER: doesn't support	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testDayOfMonth	PASS		PASS		SAME
-meta::pure::functions::date::tests::testDayOfMonthError	DEFECT	UNSUPPORTED	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testDayOfMonthError	REFUSES	REFUSES_OTHER: doesn't support	FAIL	ERROR_MISMATCH	BOTH_FAIL
 meta::pure::functions::date::tests::testHasDay	REFUSES	hasDay_Date_1__Boolean_1_	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testHasHour	REFUSES	hasHour_Date_1__Boolean_1_	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testHasMinute	REFUSES	hasMinute_Date_1__Boolean_1_	PASS		LITE_ANSWERS
@@ -157,32 +157,32 @@ meta::pure::functions::date::tests::testHasSecond	REFUSES	hasSecond_Date_1__Bool
 meta::pure::functions::date::tests::testHasSubsecond	REFUSES	hasSubsecond_Date_1__Boolean_1_	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testHasSubsecondWithAtLeastPrecision	REFUSES	hasSubsecondWithAtLeastPrecision_Date_1__Integer_1__Boolean_1_	PASS		LITE_ANSWERS
 meta::pure::functions::date::tests::testHour	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
-meta::pure::functions::date::tests::testHourError	DEFECT	UNSUPPORTED	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testHourError	REFUSES	REFUSES_OTHER: doesn't support	FAIL	ERROR_MISMATCH	BOTH_FAIL
 meta::pure::functions::date::tests::testMinute	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
-meta::pure::functions::date::tests::testMinuteError	DEFECT	UNSUPPORTED	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testMinuteError	REFUSES	REFUSES_OTHER: doesn't support	FAIL	ERROR_MISMATCH	BOTH_FAIL
 meta::pure::functions::date::tests::testMonthNumber	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
 meta::pure::functions::date::tests::testNewDateError	REFUSES	date_Integer_1__Integer_1__Date_1_	FAIL	ERROR_MISMATCH	BOTH_FAIL
 meta::pure::functions::date::tests::testSecond	PASS		PASS		SAME
-meta::pure::functions::date::tests::testSecondError	DEFECT	UNSUPPORTED	FAIL	ERROR_MISMATCH	BOTH_FAIL
-meta::pure::functions::date::tests::testYear	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testSecondError	REFUSES	REFUSES_OTHER: doesn't support	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testYear	REFUSES	REFUSES_OTHER: doesn't support	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::if::testIfWithEvaluate	PASS		PASS		SAME
 meta::pure::functions::lang::tests::if::testIfWithFunctionCall	PASS		PASS		SAME
 meta::pure::functions::lang::tests::if::testMultiIf	PASS		PASS		SAME
 meta::pure::functions::lang::tests::if::testSimpleIf	PASS		PASS		SAME
-meta::pure::functions::lang::tests::match::testMatch	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::lang::tests::match::testMatchManyWithMany	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::lang::tests::match::testMatchOneWith	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::lang::tests::match::testMatchOneWithMany	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::lang::tests::match::testMatchOneWithZeroOne	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatch	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchManyWithMany	REFUSES	REFUSES_OTHER: only supports	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchOneWith	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchOneWithMany	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchOneWithZeroOne	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::match::testMatchWithExtraParam	REFUSES	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::match::testMatchWithExtraParamsAndFunctionsAsParam	REFUSES	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	PASS		LITE_ANSWERS
 meta::pure::functions::lang::tests::match::testMatchWithFunctions	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::lang::tests::match::testMatchWithFunctionsAsParam	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
-meta::pure::functions::lang::tests::match::testMatchWithFunctionsAsParamManyMatch	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::lang::tests::match::testMatchWithFunctionsManyMatch	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::lang::tests::match::testMatchZeroWithMany	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::lang::tests::match::testMatchZeroWithZero	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchWithFunctionsAsParamManyMatch	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchWithFunctionsManyMatch	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType	REFUSES	REFUSES_OTHER: not supported	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::lang::tests::match::testMatchZeroWithMany	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchZeroWithZero	REFUSES	REFUSES_OTHER: does not support	PASS		LITE_ANSWERS
 meta::pure::functions::math::tests::abs::testBigFloatAbs	PASS		FAIL	WRONG_ANSWER	LITE_BEHIND
 meta::pure::functions::math::tests::abs::testBigIntAbs	PASS		PASS		SAME
 meta::pure::functions::math::tests::abs::testDecimalAbs	PASS		PASS		SAME
@@ -292,12 +292,12 @@ meta::pure::functions::string::tests::left::testLeftTooShortString	PASS		PASS		S
 meta::pure::functions::string::tests::left::testLeftZeroLength	PASS		PASS		SAME
 meta::pure::functions::string::tests::length::testEmptyLength	PASS		PASS		SAME
 meta::pure::functions::string::tests::length::testLength	PASS		PASS		SAME
-meta::pure::functions::string::tests::parseBoolean::testParseFalse	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::string::tests::parseBoolean::testParseTrue	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::string::tests::parseDate::testParseDate	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::string::tests::parseDate::testParseDateTypes	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::string::tests::parseDate::testParseDateWithTimezone	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
-meta::pure::functions::string::tests::parseDate::testParseDateWithZ	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::string::tests::parseBoolean::testParseFalse	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::parseBoolean::testParseTrue	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::parseDate::testParseDate	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::parseDate::testParseDateTypes	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::parseDate::testParseDateWithTimezone	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::parseDate::testParseDateWithZ	REFUSES	REFUSES_OTHER: not supported	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::parseDecimal::testParseDecimal	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
 meta::pure::functions::string::tests::parseDecimal::testParseDecimalWithPrecisionScale	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::string::tests::parseDecimal::testParseZero	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
@@ -323,7 +323,7 @@ meta::pure::functions::string::tests::substring::testStart	DEFECT	WRONG_ANSWER	F
 meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::toString::testBooleanToString	PASS		PASS		SAME
 meta::pure::functions::string::tests::toString::testClassToString	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
-meta::pure::functions::string::tests::toString::testComplexClassToString	DEFECT	UNSUPPORTED	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::toString::testComplexClassToString	REFUSES	REFUSES_OTHER: not supported	FAIL	WRONG_ANSWER	BOTH_FAIL
 meta::pure::functions::string::tests::toString::testDateTimeToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testDateToString	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
