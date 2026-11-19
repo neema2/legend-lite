@@ -624,3 +624,19 @@ who confirms or changes phases 1-3.
   - a note for the real slice: `ArchitectureTest.PLANNER_ENTRIES` lists `EngineTextPlanning`'s callers by class, so a
     new edge class needs caller rows (the user's word) or lives inside an existing caller.
   - Next: the CSV printers, EDGE-1/2/3, more lanes and the 1.3 estimate.
+- **~12:36 UTC, the independent review of PR #123: HOLD, for small fixes.**
+  - **The central claim holds:** the reviewer re-derived "no answer moved" with its own back-mapping (pure/v1 28 of
+    28; the PCT goldens 0 differences; the corpus ledgers' first four fields identical), and no `src/main` file moves.
+  - **To fix (sent to B1):**
+    - 3 of the 10 plants are vacuous, and 3 plants are missing;
+    - `PctDisciplineTest`'s one-indirection rule is broken in spirit (`pct_tests_lib` now depends on the sorting
+      normalizer);
+    - two guarded entries moved without being named: `EDGE_TEST_SRCS` +3, and `json`'s visibility;
+    - the PR text should say "new pins" for the order lines and the 171 unmasked values;
+    - the net does not watch a sort on an unprojected key (2 tests on each of 3 databases);
+    - PCT's own SQL is no longer diff-watched.
+  - **CI is red for an infrastructure reason:** Maven Central returned 404 for `h2-2.1.214.jar` (the referee's H2).
+    Told to the product orchestrator's CI-health track. The lane is not yet shown green on any OS.
+  - **For the final plan:** `ModeBranchCensusTest` does not count `twoForm`, `facet`, `LoweringForms` or the Feature
+    flags, so "no mode in the core" will rest on B2's bytecode ratchet (49 parameters, 50 calls → 0), not on that
+    test.
