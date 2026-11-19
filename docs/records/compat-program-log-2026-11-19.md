@@ -2331,3 +2331,15 @@ who confirms or changes phases 1-3.
   PlannerSurfaceTest's routes). It flagged the report's eager typing for the user's word: **already ruled** at ~14:55
   with the report as designed (§4a: every body typed once, off the answer's path), so carried as ruled. Builds tested on
   flagging; lands in the batch after the core switch. Order: #124's CI, the opt-in sizing, the shape note, the build.
+- **~19:14 UTC, the translator: A3 piece 1 built locally** (`claude/compat-a3-frontends`, `2a05b904` on `main`, not
+  pushed): two natives, `sqlSubstring` and `sqlPosition`, each the database's function verbatim; 47 island call heads
+  (CypherToPure 21, PostgresFunctions 10, IqFunctions 14, IqAggregates 2) and 3 dyna sites (RelOpTranslator);
+  `native-claims.tsv` regenerated; it compiles; the local gate, both corpus lanes and the three parity lanes running.
+  **Guard moves wait for the user's word in its session** (its own rules, and the standing constraint): the
+  `NativeCatalogGovernanceTest` ceiling 38 → 40 (`INTERNAL_DESUGAR`, the two natives) and the 7 text goldens (the
+  Cypher showcase, `CypherToPureTest`, `PostgresToPureTest`, `IqFunctionsTest`); later piece 2's 9 pins, 63 PCT rows,
+  edge lines, rosters and registers. It asks the user there with diffs and dated notes once the runs finish.
+- **~19:10 UTC, the user asked whether the detector compiles everything up front.** Answered: the per-request check
+  reads the query's own compile; the load-time report types every body once per model in the background (about 4 s on
+  legend-engine's corpus). Offered (b): produce the report only when the work is already done (Studio's compile) or on
+  demand through its endpoint, never started on its own. Awaiting the user's answer.
