@@ -3078,3 +3078,6 @@ who confirms or changes phases 1-3.
   `fail('Not implemented!')`; its plan's Java writes it). What the sources support: a qualified property's meaning is its
   own Pure body, which lite computes. Corrected to the user, with the offer to re-rule; B2's row says only what it read
   (`72c277048`), and its page pointer from item 10 kept.
+- **~23:25 UTC, the user on S388's corrected basis: "Keep it"** (A stands: recorded, the property's own Pure body). The
+  user asked what work is left for A and what #127 is: answered (#127 is A5's PR, kept open as review and CI evidence,
+  folding into the batch PR and closed then with a pointer).
