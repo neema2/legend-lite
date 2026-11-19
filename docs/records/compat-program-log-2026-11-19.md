@@ -2433,3 +2433,14 @@ who confirms or changes phases 1-3.
   (2 pass today, 4 fail earlier at assertSameSQL, 3 fail at this text today). **println:** lite never evaluates it
   (no statement on either door), so the 13 nodes make no text and the takeover has nothing to do; but no register row
   names println (S128 names print's inertness, R18), an unledgered divergence; a one-line amendment to S128 closes it.
+- **~19:35 UTC, B1: H15 §9 (toCSV's layout) and §10 (the S128 draft)** (`6b8c41345e`). `toCSV` is legend-engine's,
+  not legend-pure's: `meta::relational::tests::csv::toCSV` over a legacy TabularDataSet in 4.145.0's
+  `helperFunctions.pure`: each header name escaped like a cell, joined by `,`, then `\n`; rows joined with a `\n` after
+  every row, the last included (no rows: `id\n\n`); an empty or null cell `''`; a text holding `,`, `"`, `\n` or `\r`
+  wrapped in quotes with each `"` doubled; a Float cell its own `toString` (the same as a `#TDS` cell's); a Date
+  `yyyy-MM-dd`; a DateTime `yyyy-MM-dd HH:mm:ss`, a space, whole seconds, no zone. A TDS's `csv` is a stored property of
+  legend-pure's `TDS<T>` with no Pure printer. The S128 amendment drafted for `println` (legend-pure writes to standard
+  output; lite plans no statement and writes nothing). **Asked next:** since `toCSV` is a legend-engine Pure PROGRAM,
+  the world-map tenet says lite compiles its body (the database computing it with lite's natives) rather than
+  intercepting it: is the body loaded as corpus input, why lite refuses it, and what the 46 tests and the corpus give
+  with the interception removed (a scratch probe).
