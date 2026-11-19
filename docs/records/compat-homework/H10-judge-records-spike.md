@@ -433,30 +433,38 @@ On the spike the product judge's typed S131 is still live (`beacf4c9` changes no
 (phase 3). It moves 0 PCT verdicts (H6 §6.1) and 21 + 4 corpus tests until the rewrite is in (§4.2). It is its own
 step, after the door exists, and never inside 2.2a.
 
-### 9.4 The size words, worded by the hearing (the owner's input from H13)
+### 9.4 The size words, worded by the hearing (the owner's input from H13; revised with H13's shape)
 
-H13 found that `SideShape.sizeWords` and `TestPlan.answerSizeWords` (legend-pure's "Cannot cast a collection of size
-0 to multiplicity [1]") cannot leave the plan without a run-time word. Under `JudgeRun` that is one more record kind of
-the one word question, not a new member of a word hook:
-- **The record:** `VerdictRecord.SizeNotMultiplicity(long size, String multiplicity)`, from data the plan already
-  carries. A side's is `SideShape.lower` and `SideShape.multiplicity`. The answer's is the answer column's
-  `ExecutionPlan.Multiplicity` (`TestRunner.java:398-401`). The size is the rows the side returned, 0 at every site
-  today.
-- **The raise sites** present it through the run's hearing:
-  - `SideShapes.valuesShape`, `:262` (a scalar) and `:291` (a collection), reached by `SideShapes.shape` from
-    `HostSideShapes`, i.e. `TestRunner.java:301-302`, which holds the run record;
-  - `SideShapes.holding`'s `end()` for the answer, `TestRunner.java:400`;
-  - the edge's own `SqlTextRuns.java:254`/`:257`, which present with legend-pure's presenter directly.
-- **The presenters:**
-  - lite's is today's product branch, `ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + multiplicity`
-    (`testplan/EngineTextGates.java:108`);
-  - legend-pure's is `PureMessages.words(RaiseKind.SIZE_NOT_MULTIPLICITY, [StringLit(multiplicity)])`
-    (`edge/EdgeEngineTestText.java:224-228`).
+**The case.** H13 found that `SideShape.sizeWords` and `TestPlan.answerSizeWords` (legend-pure's "Cannot cast a
+collection of size 0 to multiplicity [1]") cannot leave the plan without a run-time word. A side, or the body's
+answer, whose shape requires a row and reads none is refused.
+- Today the words are planned (`JudgePlans.java:308` via `:325`, `EngineTextGates.sizeWords`, the edge's facet;
+  the answer's at `TestDoor.java:162-179`).
+- They are raised at the run as `IllegalStateException(words)` at three sites: `SideShapes.java:262` (a scalar side),
+  `:291` (a collection side) and `:162` (the answer's sink, from `TestRunner.java:401`).
+
+**The shape (H13's, record §16 at `a8066ca0`), which replaces this section's first answer.** The first answer was a
+new `VerdictRecord.SizeNotMultiplicity`. It is not needed: the refusal is exactly the 1-operand placed raise site
+`RaiseText.placed(SIZE_NOT_MULTIPLICITY, bound)`.
+- **The raise.** The run raises it as a `DataError` whose cause carries the raise record: kind
+  `SIZE_NOT_MULTIPLICITY`, operands `[Text(bound)]`, the shape H13's run-time raises have. The size is 0 by
+  construction. The bound is already in the plan (`SideShape.multiplicity`; the answer column's
+  `ExecutionPlan.Multiplicity`).
+- **The words.** `Hearing.caughtMessage(RuntimeException)` words it: lite's as `ErrorKind.SIZE_NOT_MULTIPLICITY.
+  sentence() + ": " + bound`, legend-pure's as `PureMessages.worded(SIZE_NOT_MULTIPLICITY, [Text(bound)])`. There is
+  no new `Hearing` member and no new record kind. An uncaught refusal takes the path H13 builds for an uncaught
+  raised site, so the two stay alike.
 - **Deleted:** `SideShape.sizeWords`, `TestPlan.answerSizeWords` (and their JSON: `HostJson.java:187`/`:203`,
   `TestPlanJson.java:110`/`:273`, a test plan version step), `JudgePlans.sizeWords`, `TestDoor.answerSizeWords`,
   `EngineTextGates.sizeWords` and the facet member `EngineTestText.sizeWords`.
-- **Cost:** about 0.25 day inside 2.2b. The check: a side or an answer of no rows under each presenter. Core's
-  `testexec/SideShapesHoldingTest` covers the answer's holding sink; a side's needs a case under each presenter.
+- **One behaviour to rule, and to list.** Today the refusal is an `IllegalStateException`, which `assertError` does
+  not catch (`AssertErrorRuns` takes `DataError` and `ModelException`). Legend-pure raises a
+  `PureExecutionException`, which its `assertError` does catch. As a `DataError` it would be caught. That is closer to
+  upstream, but a change to list for the user's word (a register row, since it moves a lite behaviour). Its reach
+  today, measured by H13: **0**. No planned size refusal is raised anywhere in the PCT net (DuckDB, SQLite, H2,
+  channels A and B) or in either corpus lane, and no pinned line holds the sentence.
+- **Cost:** about 0.25 day inside 2.2b, as before. The check: a side or an answer of no rows under each presenter.
+  Core's `testexec/SideShapesHoldingTest` covers the answer's sink; a side's needs a case under each presenter.
 
 `TestPlan.words` (the plan's word NAME) still goes with 1.2. Once nothing in the plan is worded, `Hearing.wordsName`
 and the mixed-run refusal (`TestRunner.java:99-106`) go with it.
