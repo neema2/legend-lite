@@ -18,6 +18,10 @@ EDGE_TEST_SRCS = [
     # no guard names what is not there (the edge audit's K16, 2026-11-17): it reads every jar the boundary guards read
     "src/test/java/com/legend/GuardNamesExistTest.java",
     "src/test/java/com/legend/HookRulingTest.java",
+    # the presentation program's guards, report-only from S0 (2026-11-18): G6, today's mode branches counted; G1, the
+    # text-producing MIR the edge builds or reaches
+    "src/test/java/com/legend/ModeBranchCensusTest.java",
+    "src/test/java/com/legend/OnePlanGuardTest.java",
     # the two hook registries agree (the GUARD stream, 2026-11-17): it reads HookRulingTest and EdgeSeparationTest
     "src/test/java/com/legend/HookRulingsAgreeTest.java",
     # the open compatibility classes pinned by member set (the GUARD stream, C.4, 2026-11-17): it reads the census
@@ -102,6 +106,9 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/integration/FloatTextTest.java",
     "src/test/java/com/legend/integration/GraphKeyTextTest.java",
     "src/test/java/com/legend/integration/JoinedTextTest.java",
+    # the edge golden net's missing cases, EDGE-1 to EDGE-3 on DuckDB and H2 under both edge styles (S0 of the
+    # presentation program, 2026-11-18)
+    "src/test/java/com/legend/integration/EdgeCasesGoldenTest.java",
     "src/test/java/com/legend/integration/PureOnlyTextTest.java",
     "src/test/java/com/legend/integration/RelationToOneGuardTest.java",
     "src/test/java/com/legend/integration/RenderCsvIntegrationTest.java",

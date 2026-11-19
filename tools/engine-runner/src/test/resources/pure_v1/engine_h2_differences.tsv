@@ -1,0 +1,40 @@
+tds	differs	$.builder.columns[0].type, $.builder.columns[1].type
+value	differs	status 500/200, -$.code, -$.errorType, -$.message, -$.status, +$.builder, +$.result
+raise.divideByZero	differs	$.message, +$.trace
+raise.atOutOfBounds	differs	-$.errorType, $.message, +$.trace
+raise.toOneOverMany	differs	-$.errorType, $.message, +$.trace
+raise.sqrtOfNegative	same	
+raise.parseInteger	differs	$.message, +$.trace
+raise.toOneOfEmpty	differs	status 500/200, -$.code, -$.message, -$.status, +$.builder, +$.result
+cell.dateTimeCoarse	same	
+cell.dateTimeSubMicro	same	
+cell.float	differs	$.result.rows[0].values[0]
+cell.floatWhole	same	
+cell.empty	differs	-$.errorType, $.message, +$.trace
+cell.emptyIf	differs	$.builder.columns[0].relationalType
+cell.strictDate	same	
+activities.tds	differs	$[0].sql
+plan.tds	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].type, $.rootExecutionNode.resultType.tdsColumns[1].type
+plan.value	differs	$.rootExecutionNode._type, $.rootExecutionNode.executionNodes[0].resultColumns[0].label, $.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType._type, -$.rootExecutionNode.resultType.tdsColumns, +$.rootExecutionNode.resultType.dataType, +$.rootExecutionNode.resultSizeRange
+plan.raise.divideByZero	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+plan.raise.atOutOfBounds	differs	-$.errorType, $.message, +$.trace
+plan.raise.toOneOverMany	differs	-$.errorType, $.message, +$.trace
+activities.raise.sqrtOfNegative	differs	$[0].sql
+plan.raise.sqrtOfNegative	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+plan.raise.parseInteger	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
+plan.raise.toOneOfEmpty	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
+activities.cell.dateTimeCoarse	differs	$[0].sql
+plan.cell.dateTimeCoarse	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+activities.cell.dateTimeSubMicro	differs	$[0].sql
+plan.cell.dateTimeSubMicro	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+activities.cell.float	differs	$[0].sql
+plan.cell.float	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+activities.cell.floatWhole	differs	$[0].sql
+plan.cell.floatWhole	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+plan.cell.empty	differs	-$.errorType, $.message, +$.trace
+activities.cell.emptyIf	differs	$[0].sql
+plan.cell.emptyIf	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
+activities.cell.strictDate	differs	$[0].sql
+plan.cell.strictDate	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
+activities.value	extra	no golden of this name
+activities.raise.toOneOfEmpty	extra	no golden of this name

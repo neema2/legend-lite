@@ -45,27 +45,72 @@ final class PctCaseRecorder {
 
     private static final java.util.Map<String, Integer> EDGE_SEQ = new java.util.HashMap<>();
 
-    static {
-        if (EDGE != null) {
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                StringBuilder out = new StringBuilder();
-                synchronized (EDGE_LINES) {
-                    EDGE_LINES.forEach((k, v) -> out.append(k).append('\t').append(v).append('\n'));
-                }
-                try {
-                    Files.writeString(Path.of(EDGE), out);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }));
+    /** THE EDGE GOLDEN NET's activities (S0 of the presentation program, 2026-11-18,
+     *  docs/records/presentation-program-design-2026-11-18.md §4 (d)): with {@code -Dlegend.edge.activities=<file>}, a
+     *  relation's activities (lite's own SQL for the execution) are written there, keyed as its answer line is -- an
+     *  informational file no diff test reads, so an SQL-only change moves no golden. They are not in the answer line. */
+    private static final String ACTIVITIES = System.getProperty("legend.edge.activities");
+
+    private static final java.util.Map<String, String> ACTIVITY_LINES = new java.util.LinkedHashMap<>();
+
+    /** G3's report (S0, 2026-11-18): with {@code -Dlegend.edge.oneplan=<file>}, each case's statements under the edge's
+     *  style and the product's compared ({@code PctPlanRoute.onePlan}), keyed by the test and the case's place in it;
+     *  informational, read by no diff test, its counts written at the end. */
+    private static final String ONE_PLAN = System.getProperty("legend.edge.oneplan");
+
+    private static final java.util.Map<String, String> ONE_PLAN_LINES = new java.util.LinkedHashMap<>();
+
+    private static final java.util.Map<String, Integer> ONE_PLAN_SEQ = new java.util.HashMap<>();
+
+    /** A case's G3 verdict, computed only when the net asks for it. */
+    static void onePlan(java.util.function.Supplier<String> verdict) {
+        if (ONE_PLAN == null) {
+            return;
+        }
+        String v = verdict.get();
+        String test = String.valueOf(System.getProperty("legend.test.id"));
+        synchronized (EDGE_LINES) {
+            int n = ONE_PLAN_SEQ.merge(test, 1, Integer::sum);
+            ONE_PLAN_LINES.put(test + "\t" + String.format(java.util.Locale.ROOT, "%03d", n), flat(v));
         }
     }
 
-    private static final java.util.regex.Pattern IDS = java.util.regex.Pattern.compile(
-            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\\b[0-9a-fA-F]{16,}\\b");
+    static {
+        if (EDGE != null) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                write(EDGE, EDGE_LINES);
+                if (ACTIVITIES != null) {
+                    write(ACTIVITIES, ACTIVITY_LINES);
+                }
+            }));
+        }
+        if (ONE_PLAN != null) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> write(ONE_PLAN, ONE_PLAN_LINES)));
+        }
+    }
 
-    private static String flat(String s) {
-        String t = IDS.matcher(s).replaceAll("<id>").replace('\t', ' ').replace("\r", "").replace("\n", "\\n");
+    private static void write(String file, java.util.Map<String, String> lines) {
+        StringBuilder out = new StringBuilder();
+        synchronized (EDGE_LINES) {
+            lines.forEach((k, v) -> out.append(k).append('\t').append(v).append('\n'));
+        }
+        try {
+            Files.writeString(Path.of(file), out);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** The ids the net masks, by what they are (S0, masking by field): a UUID -- an execution id, a trace id, a
+     *  generated guid -- never a value's digits. Until S0 any run of 16 hexadecimal characters was masked too, which hid
+     *  171 values' digits (a Long, a Float's 16th digit on, a hash) from the net. */
+    private static final java.util.regex.Pattern IDS = java.util.regex.Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+    static String flat(String s) {
+        // a backslash escaped before a line end is (S0, 2026-11-18): a raw newline and an escaped one are then two texts
+        String t = IDS.matcher(s).replaceAll("<id>").replace("\\", "\\\\").replace('\t', ' ').replace("\r", "")
+                .replace("\n", "\\n");
         // every other control character escaped (a value's NUL made a golden binary to git), but the row separator
         StringBuilder out = new StringBuilder(t.length());
         for (int i = 0; i < t.length(); i++) {
@@ -85,6 +130,10 @@ final class PctCaseRecorder {
     private static final char ROW_SEPARATOR = '\u001e';
 
     private static void edge(String expression, String kind, String text) {
+        edge(expression, kind, text, null);
+    }
+
+    private static void edge(String expression, String kind, String text, @com.legend.base.Nullable String activities) {
         if (EDGE == null) {
             return;
         }
@@ -93,7 +142,11 @@ final class PctCaseRecorder {
             int n = EDGE_SEQ.merge(test, 1, Integer::sum);
             // the expression is the adapter's input, not an edge output, and its serialization (a let's order) is not
             // stable run to run (2026-11-16, measured): the line is keyed by the test and the case's place in it
-            EDGE_LINES.put(test + "\t" + String.format(java.util.Locale.ROOT, "%03d", n), kind + "\t" + flat(text));
+            String key = test + "\t" + String.format(java.util.Locale.ROOT, "%03d", n);
+            EDGE_LINES.put(key, kind + "\t" + flat(text));
+            if (activities != null) {
+                ACTIVITY_LINES.put(key, flat(activities));
+            }
         }
     }
 
@@ -104,21 +157,7 @@ final class PctCaseRecorder {
         }
         if (answer.engineJson() != null) {
             com.legend.json.Json.Obj json = com.legend.json.Json.parseObject(answer.engineJson());
-            StringBuilder text = new StringBuilder("columns=").append(write(((com.legend.json.Json.Obj) json.get("builder"))
-                    .get("columns")));
-            // the plan text the edge prints (its activities: legend-engine's SQL for the execution), so a move of the
-            // edge's plan text is a visible line too (Phase 6's first item, the orchestrator, 2026-11-17); written
-            // before the rows, which the normalizer orders (EdgeNormalize: the rows after "rows=" as a set)
-            if (json.has("activities")) {
-                text.append(" activities=").append(write(json.get("activities")));
-            }
-            java.util.List<String> rows = new java.util.ArrayList<>();
-            for (com.legend.json.Json.Node r : ((com.legend.json.Json.Arr) ((com.legend.json.Json.Obj) json.get("result"))
-                    .get("rows")).items()) {
-                rows.add(write(r));
-            }
-            text.append(" rows=").append(String.join(String.valueOf(ROW_SEPARATOR), rows));
-            edge(expression, answer.shape().name(), text.toString());
+            edge(expression, answer.shape().name(), relationText(json, answer.order()), activities(json));
             return;
         }
         StringBuilder text = new StringBuilder("type=").append(answer.resultType()).append(" values=");
@@ -128,6 +167,34 @@ final class PctCaseRecorder {
             }
         }
         edge(expression, answer.shape().name(), text.toString());
+    }
+
+    /** A relation answer's line text: its columns, the root ORDER BY's columns where the plan sorts ({@code order=}),
+     *  and its rows in the order received, separated by U+001E. Its activities (lite's SQL for the execution) are not in
+     *  it: they go to the informational file ({@link #activities}; S0, 2026-11-18 -- until then in the line, so an
+     *  alias rename moved 1,486 golden lines), and the normalizer keeps the rows' order across distinct keys and sorts
+     *  only within ties (tools/edgenet's EdgeNormalize). */
+    static String relationText(com.legend.json.Json.Obj json, java.util.@com.legend.base.Nullable List<String> order) {
+        StringBuilder text = new StringBuilder("columns=").append(write(((com.legend.json.Json.Obj) json.get("builder"))
+                .get("columns")));
+        if (order != null) {
+            java.util.List<com.legend.json.Json.Node> keys = new java.util.ArrayList<>();
+            for (String k : order) {
+                keys.add(com.legend.json.Json.str(k));
+            }
+            text.append(" order=").append(write(new com.legend.json.Json.Arr(keys)));
+        }
+        java.util.List<String> rows = new java.util.ArrayList<>();
+        for (com.legend.json.Json.Node r : ((com.legend.json.Json.Arr) ((com.legend.json.Json.Obj) json.get("result"))
+                .get("rows")).items()) {
+            rows.add(write(r));
+        }
+        return text.append(" rows=").append(String.join(String.valueOf(ROW_SEPARATOR), rows)).toString();
+    }
+
+    /** A relation answer's activities, for the informational file; null when it has none. */
+    static @com.legend.base.Nullable String activities(com.legend.json.Json.Obj json) {
+        return json.has("activities") ? write(json.get("activities")) : null;
     }
 
     /** A value cell's text: a date as legend-pure prints it (edge/EngineCells.LEGEND_PURE's value rule: the

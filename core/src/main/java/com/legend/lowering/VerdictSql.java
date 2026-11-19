@@ -1286,7 +1286,11 @@ public final class VerdictSql {
         ctes.add(new SqlWith.Cte("__se", e.facts()));
         ctes.add(new SqlWith.Cte("__sa", a.facts()));
         // (the 2-ULP Float leniency's positional pair facts left with A4: a Float compares exactly)
-        SqlSource from = new SqlSource.Join(facts("__se", "e"), facts("__sa", "a"),
+        // the actual side's facts joined to the expected's, which a database builds first: the expected side read before
+        // the actual, as the host's side batch reads them, so where both raise the two judges raise one error (G2, G10:
+        // PCT's testAdjustBy*BigNumber on DuckDB, whose test sessions run single-threaded, 2026-11-19; the compatibility
+        // owner's option 2 -- the literal stays in the database). The verdict row reads each fact by its alias.
+        SqlSource from = new SqlSource.Join(facts("__sa", "a"), facts("__se", "e"),
                 SqlSource.Join.Kind.CROSS, null);
         SqlExpr ex = factCol("e", F_TEXT);
         SqlExpr ax = factCol("a", F_TEXT);

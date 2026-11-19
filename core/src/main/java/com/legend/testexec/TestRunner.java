@@ -273,8 +273,17 @@ public final class TestRunner {
             // the program's run: a row the loop planned ahead is read through the program's reader, THE WALL)
             com.legend.testexec.RootLoops.Run run = runs.of(verdict);
             run.received(verdict, row);
-            if (runs.closes(verdict)) {
+            // judged at the segment's last verdict -- or at once where one of its fused statements was rejected: its
+            // later groups are never sent, the roots with rows are judged and the first without one raises the
+            // rejection (the compatibility owner's (b1), 2026-11-19)
+            if (runs.closes(verdict) || run.rejected()) {
                 run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing().hostForms().words()));
+                // where the judged segment raised none, the held rejection fails the body with the database's error (PR
+                // #127's review, 2026-11-19, the owner's ruling) -- not reached by any plan: judge walks every root and
+                // every step of each, a failure thrown at its root's end, so it returns only where every Row read its
+                // row; a rejected group's verdicts are members (received refuses any other), and a member read with no
+                // row raises the held rejection first
+                run.raiseRejection();
             }
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }

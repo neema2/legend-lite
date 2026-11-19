@@ -388,6 +388,97 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** An hour-precision DateTime ({@code date(y, m, d, h)} against its literal, legend-pure's testDateFromHour) under
+     *  lite's own rules (track A5, 2026-11-19, from the compatibility judges homework): the database judge's message
+     *  read the side's text carrier as a timestamp, which DuckDB refused at the hour alone ("invalid timestamp field
+     *  format"), so its run failed where the host's held. Now one outcome and one message under every judge, on each
+     *  in-process database: the hour written at its full text, as the host writes it. */
+    @Test
+    void anHourPrecisionDateTimeIsOneVerdictUnderEveryJudge() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 14))}", "pass");
+        want.put("{|assertEquals(%1973-11-13T23, date(1973, 11, 13, 23))}", "pass");
+        want.put("{|assertEquals(%2015-04-16T14, date(2015, 4, 16, 15))}",
+                "AssertFailed: expected 2015-04-16T14:00:00.000000Z, got 2015-04-16T15:00:00.000000Z");
+        want.put("{|assertEquals(%2015-04-16T14:30, date(2015, 4, 16, 14, 31))}",
+                "AssertFailed: expected 2015-04-16T14:30:00.000000Z, got 2015-04-16T14:31:00.000000Z");
+        // Pure keeps a DateTime's precision (the orchestrator's ruling 3, 2026-11-19): an hour is not its minute --
+        // legend-pure's DateWithHour.getMinute() is -1 where a minute's is 0 (m4 PureDate.equals, the pinned jar), so
+        // %2015-04-16T14 == %2015-04-16T14:00 is false, under every judge (the text read to its minute is the message's
+        // alone, never the comparison's)
+        want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "AssertFailed: expected"
+                + " 2015-04-16T14:00:00.000000Z (DateTime, hour), got 2015-04-16T14:00:00.000000Z (DateTime, minute)");
+        want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
+        want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}", "pass");
+        // no text carrier holds a zone for the message's read to its minute to trip on (PR #127's review, 2026-11-19):
+        // a zoned minute is normalised to GMT at parse (PureDateLiteral, as legend-pure's DateFormat.parsePureDate),
+        // and a zone on an hour is refused at parse
+        want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 13, 30))}", "pass");
+        want.put("{|assertEquals(%2015-04-16T14:30+0100, date(2015, 4, 16, 14, 30))}",
+                "AssertFailed: expected 2015-04-16T13:30:00.000000Z, got 2015-04-16T14:30:00.000000Z");
+        want.put("{|assertEquals(%2015-04-16T14+0100, date(2015, 4, 16, 13))}", "ParseException: [1:16] invalid date"
+                + " literal '%2015-04-16T14+0100': expected ':' after hour at position 13 in '2015-04-16T14+0100'");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try (Connection c = backend.open()) {
+                        Program.run(StorelessRuntime.with(MODEL, backend.type()), e.getKey(), StorelessRuntime.RUNTIME,
+                                c, ExecuteOptions.NONE.withJudgeMode(mode));
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!e.getValue().equals(got)) {
+                        wrong.add(backend.type() + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** Two asserts whose sides the database cannot hold (PCT's testAdjustBy*BigNumber, the compatibility program's A4
+     *  gate, 2026-11-19): one outcome under every judge, and the same on every run. Every value is the database's (the
+     *  user, 2026-11-19: "everything must be pushed to database"): the expected literal {@code %33803336-12-17} is past
+     *  DuckDB's DATE (to year 5881580), so the database refuses it under both judges, where legend-pure evaluates the
+     *  literal in its own process (a register row, for the user's word). Until then the database judge's fused
+     *  statement raised either assert's error, or either side's, by how DuckDB scheduled its threads (G10), and its
+     *  rejection failed the run with no assert reported, where the host reported its first assert's failure: under
+     *  lite's rules the judges disagreed. Now a test plan's DuckDB session runs single-threaded (its target's test
+     *  session statement, {@code SqlDialect.testSessionSetup}), each verdict row reads its expected side before its
+     *  actual (the side DuckDB builds first is a cross join's right), as the host's side batch reads them, and a
+     *  rejected fused statement is its first assert's failure, the run ending with the database's own text. On the
+     *  platform's database, the PCT lanes' (H2 writes its whole statement into its error's text, so two judges' texts of
+     *  a rejected statement never match there: a separate finding, 2026-11-19). */
+    @Test
+    void sidesTheDatabaseCannotHoldAreOneOutcomeUnderEveryJudge() throws Exception {
+        String body = "{|assertEquals(%33803336-12-17, %2016-02-29->adjust(12345678912, DurationUnit.DAYS));"
+                + " assertEquals(%-33799305-05-13, %2016-02-29->adjust(-12345678912, DurationUnit.DAYS));}";
+        var backend = TestBackends.platform();
+        java.util.Set<String> outcomes = new java.util.LinkedHashSet<>();
+        for (int run = 0; run < 10; run++) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                String got;
+                try (Connection c = backend.open()) {
+                    Program.run(StorelessRuntime.with(MODEL, backend.type()), body, StorelessRuntime.RUNTIME, c,
+                            ExecuteOptions.NONE.withJudgeMode(mode));
+                    got = "pass";
+                } catch (Throwable x) {
+                    got = x.getClass().getSimpleName() + ": " + x.getMessage();
+                }
+                outcomes.add(got);
+            }
+        }
+        // one outcome, every judge, every run: the database's own refusal of the expected literal
+        assertTrue(outcomes.size() == 1 && outcomes.iterator().next().startsWith("DataError: ")
+                        && outcomes.iterator().next().contains("33803336-12-17"),
+                "one outcome under every judge, on every run: " + outcomes.stream().map(AssertBarTest::oneLine).toList());
+    }
+
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
      *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
      *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */

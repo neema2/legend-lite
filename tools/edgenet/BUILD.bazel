@@ -6,8 +6,13 @@ load("//tools/java:defs.bzl", "legend_java_library")
 legend_java_library(
     name = "edgenet",
     testonly = True,
-    srcs = ["EdgeNormalize.java"],
-    visibility = ["//pct:__pkg__"],
+    srcs = [
+        "EdgeNormalize.java",
+        "PlatformOverlay.java",
+    ],
+    # the PCT module's recordings, normalized at build time (pct/BUILD.bazel); and the normalizer's planted changes,
+    # tested from //tools/guards (the review of PR #123, 2026-11-19)
+    visibility = ["//pct:__pkg__", "//tools/guards:__pkg__"],
 )
 
 guards_package()

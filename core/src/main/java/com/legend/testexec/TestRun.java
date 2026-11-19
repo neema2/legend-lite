@@ -302,12 +302,16 @@ final class TestRun {
                     judges.fused(group, null);
                 } catch (DataError e) {
                     judges.fused(group, e);
-                    // the database's own error first, as the host judge reports it and as legend-engine does, then the
-                    // verdicts the rejected statement held, by name (round 25, 2026-11-09: a prefix before the
-                    // database's text moved the DATABASE judge's message off the host judge's, and off Snowflake's
-                    // channel B ledger)
-                    throw new DataError(e.getMessage() + " (the database rejected the verdict statement of "
-                            + group.verdicts().stream().map(TestPlan.Verdict::name).toList() + ")", e);
+                    // the rejection is its group's first verdict's failure, as the host's side batch's is (the
+                    // compatibility program's A4 gate, 2026-11-19, G2): each verdict told it has no row, so its root
+                    // loop raises the database's error at the first root that reads one -- reported as that assert's
+                    // failure -- and the body ends with the database's own text, as the host's does (until then the
+                    // run failed here with the verdicts' names after it, and no assert was reported: under lite's
+                    // rules the judges disagreed, PCT's testAdjustBy*BigNumber); nothing is run in its place
+                    for (TestPlan.Verdict each : group.verdicts()) {
+                        judges.verdict(each, null);
+                    }
+                    throw e;
                 }
             }
             for (int i = 0; i < group.verdicts().size(); i++) {

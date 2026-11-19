@@ -15,7 +15,8 @@ import java.util.List;
 
 /** THE PER-ASSERT VERDICT LEDGER (leg 3.3, docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4x):
  * one row per adjudicated assert of every test a corpus lane ran, in statement
- * order — {@code test, ordinal, assert family, verdict} — written by a lane run
+ * order — {@code test, ordinal, assert family, verdict}, and for a row that is not a PASS its failure's message
+ * (S0 of the presentation program, 2026-11-18) — written by a lane run
  * with {@code -Dlegend.judge.ledger=<path>} and read back by the differential
  * gate, which joins a HOST-mode ledger against a DATABASE-mode ledger on
  * {@code (test, ordinal)}. The verdict vocabulary: {@code PASS}; {@code FAIL};
@@ -72,7 +73,18 @@ final class JudgeLedger {
         requirePassed("host-judge", "legend.judge.host.verdict", "legend.judge.host.log");
     }
 
-    /** Append the test's verdict rows when this pass keeps a ledger ({@link #path}). */
+    /** The ids a message holds -- an execution id, a trace id -- masked, never a value. */
+    private static final java.util.regex.Pattern IDS = java.util.regex.Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+    /** A failure's message as one ledger cell: its ids masked, its tabs and line ends escaped. */
+    static String message(String reason) {
+        return IDS.matcher(reason).replaceAll("<id>").replace("\\", "\\\\").replace('\t', ' ').replace("\r", "")
+                .replace("\n", "\\n");
+    }
+
+    /** Append the test's verdict rows when this pass keeps a ledger ({@link #path}); a row that is not a PASS carries
+     *  the failure's message ({@link #message}). */
     static void record(String test, PureTestRunner.Result r) {
         Path path = path();
         if (path == null) {
@@ -85,7 +97,14 @@ final class JudgeLedger {
             // typed decline), never read from the failure text
             String verdict = v.pass() ? "PASS" : v.unjudgedReason() != null ? "UNJUDGED" : "FAIL";
             sb.append(test).append('\t').append(i++).append('\t').append(v.assertName())
-                    .append('\t').append(verdict).append('\n');
+                    .append('\t').append(verdict);
+            if (!v.pass()) {
+                // the failure's message, which the edge golden net pins (S0 of the presentation program, 2026-11-18,
+                // docs/records/presentation-program-design-2026-11-18.md §4 (d): until then a FAIL row carried none):
+                // the test's reason, whose first failure this row is (first-failure sequencing), ids masked
+                sb.append('\t').append(message(r.reason()));
+            }
+            sb.append('\n');
         }
         try {
             Files.writeString(path, sb, StandardCharsets.UTF_8,

@@ -76,6 +76,26 @@ public sealed interface SqlExpr
         };
     }
 
+    /**
+     * Whether evaluating {@code e} ITSELF -- not its operands -- may raise an error (2026-11-19, track A5, the
+     * compatibility owner's (b1)): a raising function ({@link SqlFn#RAISING}), a checked narrowing, a raise's text. The
+     * raising half of {@link #raisesNothing}, which counts what changes rows too (a subquery, an aggregate, UNNEST); a
+     * caller walks every expression of a statement with it. Casts are left out, measured: the judges' own facts read
+     * text as numbers throughout (1988 of the PCT reference lanes' hits were casts to DOUBLE, 180 an interval's
+     * addition), and a split at each would grow the judges' statements by half. A literal is never one, though a
+     * database may refuse it (a date past its range): the planner knows no database's range.
+     */
+    static boolean raisesItself(SqlExpr e) {
+        return switch (e) {
+            case Call c -> SqlFn.RAISING.contains(c.fn());
+            case CheckedOne c -> true;
+            case CheckedDefects c -> true;
+            case CheckedChildValue c -> true;
+            case RaiseText r -> true;
+            default -> false;
+        };
+    }
+
     /** Whether {@code c} reads text as a value that text may not spell -- a number, a decimal, a Boolean, a date, a
      *  time -- and so raises on a text that does not ({@code parseFloat('x')}): its value is text, or of a type not
      *  known (#81's final review, item 14k (5), 2026-11-10: such a cast was counted as raising nothing, so a merge or

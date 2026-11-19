@@ -42,6 +42,15 @@ public interface SqlDialect {
         return java.util.List.of();
     }
 
+    /** The statements a TEST plan's session runs after {@link #sessionSetup}, so a test body's outcome is one on every
+     *  run (G10; the compatibility owner's ruling of 2026-11-19, option (a)): where the database would otherwise answer
+     *  by how it schedules its threads. A product plan's session never runs them. A fact, as {@link #sessionSetup}:
+     *  the planner writes it into a test plan's target ({@code planner.Targets#forTest}) and the runner sends it as the
+     *  target's session statements. Default: none. */
+    default java.util.List<String> testSessionSetup() {
+        return java.util.List.of();
+    }
+
     /** The digits of a second a {@code TIMESTAMP} column keeps, as this dialect's DDL declares one: a known value of
      *  more is refused at planning, never cut (S181, the user's ruling of 2026-11-10; a load's cell,
      *  {@code setup.RowLoad}). A {@code TIMESTAMP_NS} column keeps nine wherever a dialect declares one. Each dialect

@@ -20,6 +20,23 @@ filegroup(
     srcs = ["//%s:all_files" % p for p in PACKAGES],
 )
 
+# THE EDGE GOLDEN NET's PROOF, its normalizer's half (S0 of the presentation program, 2026-11-18; out of the PCT
+# module by the review of PR #123, 2026-11-19: that module depends on no tool that sorts, PctDisciplineTest): planted
+# changes through tools/edgenet's EdgeNormalize, each built so a full sort would answer otherwise. Here because this
+# package may use JUnit (tools/deps/pools.bzl names no tools/edgenet user). In the net's suite, //pct:edge_contract_test.
+junit_test(
+    name = "edge_normalize_test",
+    memory_mb = 512,
+    size = "small",
+    srcs = ["EdgeNormalizeTest.java"],
+    select = ["--select-class=com.legend.tools.guards.EdgeNormalizeTest"],
+    visibility = ["//pct:__pkg__"],
+    deps = [
+        "//tools/edgenet",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 # G0: the inventory is complete, and every file in it is in some package's all_files (Bazel workplan P6-00)
 junit_test(
     name = "inventory_test",

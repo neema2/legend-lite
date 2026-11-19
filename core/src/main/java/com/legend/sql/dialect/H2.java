@@ -680,8 +680,12 @@ public class H2 extends AnsiSqlRenderer {
             case TODAY -> writer.append("current_date");
             case NOW -> writer.append("now()");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
-            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(),
-                    stringLit(datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
+            // a week starts on Monday, Pure's (firstDayOfWeek is mostRecentDayOfWeek(Monday), legend-engine's
+            // dateExtension.pure): H2's 'week' starts on the session locale's first day, Sunday under en_US (measured,
+            // track A5, 2026-11-19: firstDayOfWeek(%2014-12-04) answered 2014-11-30 where every other database answers
+            // 2014-12-01); its 'iso_week' starts on Monday
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(part(a.get(0)) == com.legend.sql.DatePart.WEEK
+                    ? "iso_week" : datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
             case CURRENT_USER_FN -> writer.append("current_user");
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());

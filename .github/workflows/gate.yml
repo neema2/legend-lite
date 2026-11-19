@@ -35,7 +35,7 @@ on:
   workflow_dispatch:
     inputs:
       gates:
-        description: "Comma-separated lanes to run (empty = all): product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,parser_equivalence,stress,warehouse,datacube,ui,sdlc (gates/BUILD.bazel)."
+        description: "Comma-separated lanes to run (empty = all): product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,edge_net,parser_equivalence,stress,warehouse,datacube,ui,sdlc (gates/BUILD.bazel)."
         default: ""
         type: string
       platforms:

@@ -122,7 +122,7 @@ H2	H2	call	NOW	spelled	now		0
 H2	H2	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 H2	H2	call	MAKE_DATE	spelled	make_date		2
 H2	H2	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which has no make_timestamp()		10
-H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
+H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained: iso_week		0
 H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
 H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
 H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
