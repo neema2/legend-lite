@@ -1518,6 +1518,31 @@ Data m::Rows
             self.assertEqual(sorted(h._held), sorted([(a, None), (b, None)]))
         self.assertEqual(h._held, {}, 'its own holds let go as it closes')
 
+    def test_a_third_model_held_lets_the_oldest_go(self):
+        # the engine's own holds are the latest _HELD_KEPT models': a third model held releases the oldest one's handle
+        from legend_lite import _headless
+        self.assertEqual(_headless._HELD_KEPT, 2)
+        texts = [self.MODEL % 'ID,NAME\\n1,Meridian\\n',
+                 self.MODEL % 'ID,NAME\\n1,Meridian\\n2,Halberd\\n',
+                 self.MODEL % 'ID,NAME\\n1,Meridian\\n2,Halberd\\n3,Kestrel\\n']
+        with Headless(bundle()) as h:
+            def hold(text):
+                request = json.dumps({'id': 1, 'kind': 'hold', 'model': text})
+                held = json.loads(h.evaluate(f'legendLiteHost.planner({json.dumps(request)})'))
+                self.assertTrue(held['answer'].startswith('OK\n'), held)
+
+            hold(texts[0])
+            hold(texts[1])
+            oldest = h._held[(texts[0], None)]
+            with mock.patch.object(h, '_let_go', wraps=h._let_go) as let_go:
+                hold(texts[2])
+            let_go.assert_called_once_with(oldest)
+            self.assertEqual(list(h._held), [(texts[1], None), (texts[2], None)])
+            # the oldest held again is held afresh, and the then-oldest let go in its turn
+            hold(texts[0])
+            self.assertEqual(list(h._held), [(texts[2], None), (texts[0], None)])
+        self.assertEqual(h._held, {}, 'its own holds let go as it closes')
+
     def test_an_edited_projects_rows_are_its_own_database(self):
         from legend_lite import projects
         a = self.MODEL % 'ID,NAME\\n1,Meridian\\n'
