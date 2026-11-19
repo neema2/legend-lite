@@ -2317,3 +2317,10 @@ who confirms or changes phases 1-3.
 - **~19:04 UTC, B2:** A3 piece 4 taken. A2's final commit `6551c2036` (one late fix: EnginePlans' drop and create share
   a lookup, re-pinned 760 → 757) under `//gates:local`; the previous run green but the 12 root-refusing targets, which
   pass 12 of 12 as `ubuntu`. Then it asks the user for the push.
+- **~19:06 UTC, the user: "Yes size the engine-answer opt-in please."** Sizing given to B1-R (it built the batteries,
+  and the opt-in sits on its detector): a third value of the detector's setting (`engine`), legend-engine door only,
+  rewriting the request's program per use where the code runs in the database (F1), the core keeping one meaning. To
+  measure: the translator's H5 prototype against the 49 batteries per database (and what each miss needs), the corpus
+  with it on against the flag's and nothing's counts, the per-request cost and how to keep it off other requests' path,
+  its size on the detector, any core hook (stop if so), the rules check. Note `H16-engine-answer-opt-in.md`, about half
+  a day, before the detector's bulk build. The translator adds H5's commit to its handoff.
