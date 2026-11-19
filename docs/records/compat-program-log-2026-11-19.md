@@ -1606,7 +1606,7 @@ who confirms or changes phases 1-3.
   (`AdjustBy*BigNumber`, being fixed: they become "both judges fail, the same database error"). Expected ledger: 462
   rows, none a judge disagreement. **Size: about 1.5 days** (the AdjustBy fix half a day; channel A LITE half a day;
   ledgers, ratchets and the PR a quarter; CI the rest).
-- **~14:16 UTC, the translator's A3 note, revision 3** (`2cd744bd`): the literal-0 exemptions per target and arity (H2
+- **~14:16 UTC, the translator's A3 note, revision 3** (`f4a2dd53`; first reported as `2cd744bd`): the literal-0 exemptions per target and arity (H2
   both arities; DuckDB `substring(s, 0)` only; any other database flagged, not measured); A5's lane's 7 R4 rows added to
   A3's moves, conditional on A5's PR landing first. The cross-kind fix's local run is going on local
   `claude/compat-cross-kind-ne` (`main` + `63421e0a`, cherry-picked clean as `c650d959`).
