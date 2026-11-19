@@ -24,6 +24,8 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~13:25 | "Okay agree with all" (to this session's message setting out the implications of the goal's sentence, D1 and D2, each with a recommendation) | **(1) THE GOAL:** "Lite follows Pure. legend-engine's formats are matched, and its answers where they agree with Pure. The rest is recorded." AGENTS.md's upstream-fidelity tenet and G8 are amended to say so (the draft of ~13:15, below), riding with the first stage-A code PR. **(2) D1 (was CP-12): Pure's way, LOUD:** no translator; a detector at the legend-engine server door warns (by default) or refuses (by a server setting) when a query sent to the database calls `substring`/`indexOf` with positions and the request has not set legend-engine's corrected option; built in A3. **(3) D2 (was CP-5): remove both shortcuts** (S20's exact-decimal literal and the unchecked-maths plain set), in B4. **(4) A "differences from legend-engine" page** for people bringing legend-engine projects, built from the register rows |
 
+| ~14:30 | "Yes take over the paused pieces we need and/or fold them into existing sessions" (to this session's question 3: the paused product pieces stage A needs) | The compatibility program owns, as stage-A prerequisites: the Maven mirror fix (`f183b784a`), the PCT-under-both-judges lane C3 with the 5 judge-parity fixes and `firstDayOfWeek` (`claude/parity-a5`), and the cross-kind `!=` fix (`63421e0a`); the window-in-a-list lowering at stage B. Each still lands only on the user's word |
+
 **Superseded ~13:25:** **Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
 each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
 being built by the product's judges track (C3).
@@ -1486,3 +1488,16 @@ who confirms or changes phases 1-3.
     the CP-4 row; A3 the `substring`/`indexOf` rows plus the two that exist today, `toOne` and E-R2's blanket row, with
     the page; B4 D2's and `parseJson`'s). Written into the final plan. B2 waits for stage A's ratification (A2's
     proposed builder).
+- **~14:30 UTC, THE USER: "Yes take over the paused pieces we need and/or fold them into existing sessions"**
+  (recorded in §1). Done at once (14:35), each folded into the session that already holds its context:
+  - **the Maven mirror fix** → the CI-health session (`session_0195rQEmJ9D6cn7yjYczb2bi`), resumed for that only: a
+    fresh `claude/compat-ci-maven-mirror` from `main`, `f183b784a` cherry-picked (CI-only: `.bazelrc`,
+    `tools/ci/BUILD.bazel`, `tools/ci/downloader.cfg`), a PR, CI on every OS;
+  - **C3 and the 5 judge-parity fixes (and `firstDayOfWeek`, `d4f6b524`)** → the A5 session
+    (`session_0195rQEn49s2BEcy7BVaoAL4`), resumed for those only, first a short landing plan (what remains, its base,
+    PRs, the pins each moves);
+  - **the cross-kind `!=` fix** → the translator session (A3's proposed builder): a fresh `claude/compat-cross-kind-ne`
+    from `main`, `63421e0a` cherry-picked (+95 lines, 3 files), the local gate, the corpus and PCT moves, a PR;
+  - **the window-in-a-list lowering** stays paused until stage B;
+  - the product orchestrator told, and asked not to resume those sessions in parallel.
+  The user also asked what the detector's default is and what ratifying stage A means concretely (answered in chat).
