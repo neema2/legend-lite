@@ -88,3 +88,28 @@ who confirms or changes phases 1-3.
     in 22 classes, 36 classes naming it; `LoweringForms` 15 members, 25 calls;
   - corrections, applied to the plan: three PureText line numbers, `Appeals` is 401 lines (the appeal stack 3,411),
     `LoweringForms` 15 not 17, and a missing strand, `PlanStyle.siteWords` (P, 1.2).
+- **~11:02 UTC, the translator session had not yet acted on task 0** (it was still building the H5 harness from its
+  first brief); the message was re-sent at priority "next" (~11:05).
+- **~11:02 UTC, the independent review's headline** (`session_0195rQEnCA5MRQEk6iGfgDnb`; plan r5 at `933ee1f1`; the
+  full record follows on `claude/compat-review`). Verdict: **SOUND WITH CHANGES.** The architecture is the right shape.
+  Five findings, most severe first, each folded into plan r6 (`af6d5a9a`):
+  1. **The translator is unproven at scale and was tested late.** A parsed model has no types (overloads resolve at G),
+     so a rewrite must work on resolved calls; target-aware means one compile per (audience, target), unmeasured.
+     Checkpoint 2 moves to the end of the phase-0 spike.
+  2. **2.2 would have undone the 2026-11-08 plan-as-data ruling.** The edge's effect and seed records ARE planned into
+     the test plan's typed extension point (`TestDoor.java:141-149`, verified here). F8's "the plan does not carry
+     them" was wrong. The planning interface stays data; only the run seams are replaced.
+  3. **G2's guard would leave PCT.** A LITE-PCT lane (both judges, its own ledger) becomes a precondition of 2.2a.
+  4. **The critical path and calendar were wrong:** the path is 2.1 -> 2.2 -> 1.4 -> 2.3 -> 4.1, about day 30 with one
+     session per track; the realistic calendar is 7 to 9 weeks. 2.2 is split into 2.2a and 2.2b, and 1.3 and 1.4 go to
+     two sessions.
+  5. **CP-3 contradicts 3.3 and 3.4:** "answer correctly where legend-engine is wrong" against rewriting legend-engine's
+     departures from Pure's definition. Now CP-12, for the user, decided with task 0's numbers. The strict reading
+     shrinks the translator to almost nothing.
+  - Also folded in: upstream's `Feature` flags in the core (a missed strand); R4 reaches the `#SQL` and `#IQ` islands;
+    0.4 (j) covers the corpus; a new 0.4 (k), E-R2 against the corpus's expected refusals; 1.4's plan format moves to
+    5.1's export; CP-8's differences stay attributable; the referee's settings are separated from the edge's dialects;
+    `DatabaseJudge`'s pin is 852.
+  - **Relayed:** to the translator (findings 1 and 5, resolved calls, compile cost, the islands); to the judges (2, 3,
+    the split, the referee's settings); to B2 ((j) with the corpus, (k), the Feature flags); to B1 (2, 1.4 to export,
+    the critical path).
