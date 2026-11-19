@@ -2458,8 +2458,8 @@ junit_test(
 
 # A WINDOW'S COLUMN READ THROUGH A LIST OPERATION (the compatibility program's H11 record, §8 P1, 2026-11-19): on the
 # embedded Postgres 16, where a list operation is a query over unnest, each window computed over its partition before
-# the list operation reads it -- PCT's rows; the same shapes run on DuckDB, H2 and SQLite in the integration lanes
-# (WindowReadThroughAListTest)
+# the list operation reads it -- PCT's rows; the same shapes run on DuckDB, H2 and SQLite by the integration tests named
+# for each (WindowReadThroughAListDuckDbTest, ...SQLiteTest, ...H2Test)
 junit_test(
     name = "window_read_through_a_list_postgres_test",
     memory_mb = 768,

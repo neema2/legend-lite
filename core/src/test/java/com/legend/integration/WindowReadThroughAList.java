@@ -3,17 +3,14 @@
 
 package com.legend.integration;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackend;
-import com.legend.testing.LaneFloor;
 import com.legend.testing.Lean;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -29,11 +26,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * group whose answer is {@code AE}, and Postgres refused the chunked form ("window functions are not allowed in
  * functions in FROM"). The expected rows are PCT's, legend-engine 4.145.0's
  * {@code composition::testExtendJoinStringOnNull} and {@code extend::testOLAPAggStringWithPartitionAndUnboundedWindow}.
- * Run on each lane's database (DuckDB, H2, SQLite) and on the embedded Postgres
- * ({@code WindowReadThroughAListPostgresTest}); H2 has no list encoding and refuses each by name.
+ * Run on each in-process database and on the embedded Postgres by the test named for it
+ * ({@code WindowReadThroughAList<database>Test}: a database is named by its own test alone, DialectLeakRatchetTest),
+ * each with the refusals by name its database answers instead: H2 has no list encoding, and SQLite refuses the chunked
+ * form before any window is read.
  */
-@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
-class WindowReadThroughAListTest {
+final class WindowReadThroughAList {
+
+    private WindowReadThroughAList() {
+    }
 
     /** composition::testExtendJoinStringOnNull's relation and columns, sorted as its assertion sorts them. */
     static final String SPLIT_SORTED = "{|#TDS\n"
@@ -97,10 +98,11 @@ class WindowReadThroughAListTest {
 
     static final List<List<Object>> GROUPED_ROWS = List.of(row(1, "BC"), row(2, "AE"), row(3, "D"));
 
-    /** SQLite's refusal of the chunked form, before any window is read (a ruled, loud refusal, kept: the compatibility
-     *  program's owner, 2026-11-19): chunk's pattern is built from its size, and SQLite compiles a literal pattern
-     *  only. */
-    static final String SQLITE_CHUNK_REFUSAL = "a regexp_extract_all pattern that is not a literal reached SQLite";
+    /** A database without a list encoding's refusal, by name (the channel B ledger's rows): never an answer. */
+    static final String NO_LIST_ENCODING = "reached a dialect without a list encoding";
+
+    /** Every shape. */
+    static final List<String> SHAPES = List.of(SPLIT_SORTED, CHUNKED, GROUPED);
 
     private static List<Object> row(Object... cells) {
         List<Object> r = new ArrayList<>(cells.length);
@@ -110,8 +112,9 @@ class WindowReadThroughAListTest {
         return r;
     }
 
-    /** Each shape on {@code backend}'s database: PCT's rows, or (H2) the capability refusal it names. */
-    static void answered(TestBackend backend) throws Exception {
+    /** Each shape on {@code backend}'s database: PCT's rows, or, for a shape {@code refused} names, the database's
+     *  refusal by name (its message holds the text named). */
+    static void answered(TestBackend backend, Map<String, String> refused) throws Exception {
         String model = backend.withStorelessRuntime("");
         try (Connection c = backend.open()) {
             for (var shape : List.of(List.of(SPLIT_SORTED, SPLIT_SORTED_ROWS), List.of(CHUNKED, CHUNKED_ROWS),
@@ -119,19 +122,11 @@ class WindowReadThroughAListTest {
                 String query = (String) shape.get(0);
                 @SuppressWarnings("unchecked")
                 List<List<Object>> expected = (List<List<Object>>) shape.get(1);
-                if (backend.type() == DatabaseType.SQLite && query.equals(CHUNKED)) {
+                String refusal = refused.get(query);
+                if (refusal != null) {
                     Exception e = assertThrows(Exception.class,
                             () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
-                    assertTrue(String.valueOf(e.getMessage()).contains(SQLITE_CHUNK_REFUSAL),
-                            query + ": " + e.getMessage());
-                    continue;
-                }
-                if (backend.type() == DatabaseType.H2) {
-                    // H2 has no list encoding: refused by name, never answered (the channel B ledger's H2 rows)
-                    Exception e = assertThrows(Exception.class,
-                            () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
-                    assertTrue(String.valueOf(e.getMessage()).contains("reached a dialect without a list encoding"),
-                            query + ": " + e.getMessage());
+                    assertTrue(String.valueOf(e.getMessage()).contains(refusal), query + ": " + e.getMessage());
                     continue;
                 }
                 Lean.Result r = Lean.run(model, query, StorelessRuntime.RUNTIME, c);
@@ -153,11 +148,5 @@ class WindowReadThroughAListTest {
                     ? (Object) n.longValue() : x).toArray()));
         }
         return out;
-    }
-
-    @Test
-    @DisplayName("P1: a window's column read through a list operation answers per partition, not per row")
-    void onTheLane() throws Exception {
-        answered(LaneFloor.backend());
     }
 }
