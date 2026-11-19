@@ -2290,3 +2290,6 @@ who confirms or changes phases 1-3.
   from step 2. Edge integration H2 and SQLite pass; lean SQL both lanes against the re-pinned baseline; all 26 judge
   targets, the guards, the census and the shrink-only check green. Ready to merge A2 then A5 once A2's head is in; the
   rosters re-measured on top of A2 then.
+- **~18:50 UTC, #124's run 44580527071 at `f832a6671`:** 40 of 54 jobs green, none red; the 14 left are macOS (13
+  queued, warehouse running). Windows `warehouse` green, 23 of 23 (`markets_test` done by ~99 s; it timed out at 300 s
+  before). Every H2 lane on Linux and Windows green, no 404 or 429 (the mirror). Linux and linux-arm `warehouse` green.
