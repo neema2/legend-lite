@@ -129,6 +129,8 @@ cell; B4 and B5 a few days each. About 6 weeks of one builder's work; 4 to 5 wit
 - **Deferred:** exporting plans to legend-engine and importing its plans.
 - **The product track's, found by phase 0:** the 33 H2 function gaps (and H2's essential and standard suites joining
   lite's own PCT); the window-in-list defect (gates B2); lite's own rules copied across Python and the browser tab.
+  **Lite's `sqlSubstring` follows the SQL standard** (the user, ~21:10): today it clamps a start below 1 like H2
+  (`'Cr'` for `('Credit', 0, 2)`); the standard, DuckDB and Postgres give `'C'`; measured before it changes.
   (The Maven download fix and the judge-parity work are taken into stage A1 by the user's word of ~14:30.)
 - **A later meaning decision, not a gate:** comparing text with a number (`'x' == -1`). It was thought a defect fix
   gating A3; measured (~15:15), it changes answers in 26 H2 and 30 DuckDB corpus tests, where legend-engine lets the
