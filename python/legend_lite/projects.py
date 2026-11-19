@@ -13,6 +13,7 @@ none."""
 from __future__ import annotations
 
 import threading
+from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass, field
@@ -49,6 +50,10 @@ class _Open:
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
+# how many model texts' database names a ProjectDatabases remembers (ProjectDatabases._named): a page's few projects
+_NAMED_KEPT = 8
+
+
 class ProjectDatabases:
     """The project databases on one DuckDB connection (an engine's Frames'): ``using`` a model's, made the first time."""
 
@@ -60,11 +65,12 @@ class ProjectDatabases:
         self._guard = guard
         self._type = database_type
         self._open: dict[str, _Open] = {}
-        # each opened project's model text -> its database's name (2026-11-19, //python:markets_test's time: every use
-        # asked the native library for the 5 MB markets model's statements again, 0.5 s a time, 40 times in that test,
-        # only to find the name of the database already open -- the statements are the text's and the database type's
-        # alone, compiler.project_data)
-        self._named: dict[str, str] = {}
+        # each opened project's model text -> its database's name, the latest _NAMED_KEPT texts (2026-11-19,
+        # //python:markets_test's time: every use asked the native library for the 5 MB markets model's statements
+        # again, 0.5 s a time, 40 times in that test, only to find the name of the database already open -- the
+        # statements are the text's and the database type's alone, compiler.project_data). Keyed by the whole text, so
+        # an edited text is asked afresh; a text let go is only asked again
+        self._named: OrderedDict[str, str] = OrderedDict()
         self._lock = threading.RLock()
 
     @property
@@ -82,6 +88,8 @@ class ProjectDatabases:
         follow-up's held item, 2026-11-15)."""
         with self._lock:
             named = self._named.get(model)
+            if named is not None:
+                self._named.move_to_end(model)
             opened = None if named is None else self._open.get(named)
         if opened is not None:
             with opened.lock:
@@ -107,6 +115,9 @@ class ProjectDatabases:
                 opened = self._make(model, statements)
                 self._open[statements['name']] = opened
             self._named[model] = statements['name']
+            self._named.move_to_end(model)
+            while len(self._named) > _NAMED_KEPT:
+                self._named.popitem(last=False)
         with opened.lock:
             yield Project(opened.cursor, opened.held)
 
