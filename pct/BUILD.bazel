@@ -1114,20 +1114,25 @@ legend_java_library(
     ],
 )
 
+# the halves (A3's engine rewrite, 2026-11-19): "" answers under LEGEND_LITE_PURE_MEANING=warn, Pure's meaning, as the
+# batteries always have; "engine_" under =engine, each flagged call sent as the database's own function, pinned beside
+# (pct/batteries/agreement_engine_<db>.tsv)
+_BATTERY_HALVES = ["", "engine_"]
+
 [java_run(
-    name = "battery_lite_" + db,
+    name = "battery_lite_" + half + db,
     testonly = True,
     srcs = [
         _BATTERY_REQUESTS,
         _BATTERY_MODEL[db],
     ] + (["//tools/engine-runner:batteries/lite/trades.duckdb"] if db == "duckdb" else []),
-    outs = ["battery_run/%s/lite.tsv" % db],
+    outs = ["battery_run/%s%s/lite.tsv" % (half, db)],
     arguments = [
         "run",
         "--model=$(execpath %s)" % _BATTERY_MODEL[db],
         "--requests=$(execpath %s)" % _BATTERY_REQUESTS,
         "--out={OUT}",
-    ] + ([
+    ] + (["--meaning=engine"] if half else []) + ([
         "--database-file=$(execpath //tools/engine-runner:batteries/lite/trades.duckdb)",
         "--file-token=${DUCKDB_PATH}",
     ] if db == "duckdb" else []),
@@ -1138,24 +1143,24 @@ legend_java_library(
         ":pct_batteries",
         "//core:drivers",
     ] + (["@h2//jar"] if db == "h2" else []),
-) for db in ["h2", "duckdb"]]
+) for db in ["h2", "duckdb"] for half in _BATTERY_HALVES]
 
 [java_run(
-    name = "battery_compare_" + db,
+    name = "battery_compare_" + half + db,
     testonly = True,
     srcs = [
-        ":battery_run/%s/lite.tsv" % db,
+        ":battery_run/%s%s/lite.tsv" % (half, db),
         "//tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv" % db,
     ] + ([
         "//tools/engine-runner:batteries/lite/trades_duckdb_digest.txt",
         "//tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt",
     ] if db == "duckdb" else []),
-    outs = ["battery_run/%s/agreement.tsv" % db],
+    outs = ["battery_run/%s%s/agreement.tsv" % (half, db)],
     arguments = [
         "compare",
         "--db=" + db,
         "--engine=$(execpath //tools/engine-runner:src/test/resources/batteries/engine_%s_answers.tsv)" % db,
-        "--lite=$(execpath :battery_run/%s/lite.tsv)" % db,
+        "--lite=$(execpath :battery_run/%s%s/lite.tsv)" % (half, db),
         "--out={OUT}",
     ] + ([
         "--engine-digest=$(execpath //tools/engine-runner:src/test/resources/batteries/trades_duckdb_digest.txt)",
@@ -1164,7 +1169,7 @@ legend_java_library(
     main_class = "com.legend.tools.enginelane.Batteries",
     mnemonic = "LiteBatteries",
     deps = ["//tools/engine-runner:enginelane"],
-) for db in ["h2", "duckdb"]]
+) for db in ["h2", "duckdb"] for half in _BATTERY_HALVES]
 
 # THE PIN (report-only: it moves when a request's agreement moves, and the commit says which way): bazel run
 # //pct:update_batteries
@@ -1172,7 +1177,7 @@ write_source_files(
     name = "update_batteries",
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA battery request's agreement with legend-engine moved (H7): in the diff, < is this tree (generated) and > the pin; bazel run //pct:update_batteries, and say in the commit which way each row moved",
-    files = {"batteries/agreement_%s.tsv" % db: ":battery_run/%s/agreement.tsv" % db for db in ["h2", "duckdb"]},
+    files = {"batteries/agreement_%s%s.tsv" % (half, db): ":battery_run/%s%s/agreement.tsv" % (half, db) for db in ["h2", "duckdb"] for half in _BATTERY_HALVES},
 )
 
 test_suite(

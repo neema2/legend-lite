@@ -41,14 +41,14 @@ public final class PureText {
      *        DuckDB 1.5.6 answers the whole string for the 2-argument form only, and drops a character in the
      *        3-argument one.</li>
      *    <li>{@code engineAnswers}: whether {@code LEGEND_LITE_PURE_MEANING=engine} answers legend-engine's meaning
-     *        there, measured by the batteries under {@code engine} (pct/batteries/agreement_engine_*.tsv). H2: all of
-     *        legend-engine's 46 answers. DuckDB: not yet measured with the native, so refused by name until it
-     *        is.</li>
+     *        there, measured by the batteries under {@code engine} (pct/batteries/agreement_engine_*.tsv, 2026-11-19,
+     *        with the core's native): H2, all of legend-engine's 46 answers; DuckDB, all 47. The two requests left
+     *        are the 3-argument {@code indexOf}, which legend-engine refuses (E-R2).</li>
      *  </ul>
      *  Any other database is not measured: no exemption, and refused under {@code engine}. Each database's two facts
      *  are a pair, {@code zeroStartAsPure} then {@code engineAnswers} (no nested type: this class's nested types are
      *  its dialects). */
-    private static final java.util.Map<DatabaseType, java.util.Map.Entry<java.util.Set<Integer>, Boolean>> MEASURED = java.util.Map.of(DatabaseType.H2, java.util.Map.entry(java.util.Set.of(2, 3), true), DatabaseType.DuckDB, java.util.Map.entry(java.util.Set.of(2), false));
+    private static final java.util.Map<DatabaseType, java.util.Map.Entry<java.util.Set<Integer>, Boolean>> MEASURED = java.util.Map.of(DatabaseType.H2, java.util.Map.entry(java.util.Set.of(2, 3), true), DatabaseType.DuckDB, java.util.Map.entry(java.util.Set.of(2), true));
 
     /** Whether legend-engine's {@code substring} of {@code arity} arguments at a literal start of 0 answers legend-pure's
      *  answer on {@code target} ({@link #MEASURED}); false for a target not measured, or none. */

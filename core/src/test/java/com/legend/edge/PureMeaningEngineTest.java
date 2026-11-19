@@ -178,14 +178,16 @@ class PureMeaningEngineTest {
     @Test
     void aDatabaseNotMeasuredIsRefusedByNameUnderEngine_beforeItRuns() {
         String unmeasured = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
-                "type: DuckDB; specification: DuckDB { }; auth: Test;");
+                "type: Postgres; specification: Static { name: 'x'; host: 'h'; port: 5432; };"
+                        + " auth: UserNamePassword { baseVaultReference: 'v'; userNameVaultReference: 'u';"
+                        + " passwordVaultReference: 'p'; };");
         LiteV1Api.Runner never = (query, runtime, output) -> {
             throw new AssertionError("a refused request is never run");
         };
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(unmeasured, QUERY), never,
                 LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
         assertEquals(500, a.status(), a.json());
-        assertTrue(a.json().contains("not measured on DuckDB"), a.json());
+        assertTrue(a.json().contains("not measured on Postgres"), a.json());
         assertEquals("substring/3=1, indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
     }
 }

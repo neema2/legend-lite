@@ -83,6 +83,35 @@ conclusion does not change: it is the raw call with the arguments as given, and 
 | R5 an unverified call let through | `anUnverifiedCallIsRefused` |
 | R6 a call outside the query's tree let through | `anM2MChainsTransformsAreRefused_theStoreResolverReachesThem` |
 
+**Measured at build** (2026-11-19, on a local merge of the detector branch with B1's `claude/compat-a3-raw-substring`
+897db4bbe; the batteries' `engine` half, `//pct:battery_compare_engine_{h2,duckdb}`, pinned at
+`pct/batteries/agreement_engine_{h2,duckdb}.tsv`):
+
+| database | under `engine` | the rest |
+|---|---|---|
+| H2 | AGREE 46: every legend-engine answer | 2 DIFFER, the 3-argument `indexOf` (legend-engine refuses, lite answers: E-R2); 1 BOTH_FAIL |
+| DuckDB | AGREE 47: every legend-engine answer, as section 2 predicted | 2 DIFFER, the 3-argument `indexOf` |
+
+So DuckDB is enabled (`PureText.MEASURED`), by the design's own rule. The `warn` pins did not move.
+
+**The wiring, through every route the detector covers** (`PureMeaningEngineTest`, run on H2 with the connection's
+declared rows): execute, execute as Arrow, generatePlan, generateSeedData, generateTestData_WithDefaultSeed and
+generateTestData_WithSeed each answer 200 under `engine`, with the header `engine <codes>`. A recording runner shows
+that execute and Arrow are handed the rewritten query: `substringAsGiven` and `sqlPosition` by FunctionId, and no
+String `substring` or `indexOf` left. So nothing downstream re-resolves the native by name.
+
+| plant | the tests it turns red |
+|---|---|
+| W1 the engine branch plans the query unrewritten | the execute and Arrow tests, the unmeasured-database test |
+| W2 the seed lowered unrewritten | none on this tree: before piece 2, lite's own `substring` on H2 is already the database's, so the seed's keys are the same; it bites on piece 2's tree |
+
+Until piece 2 is under it, `warn` answers the same as `engine` here, so the both-ways halves (`warn` answers
+legend-pure's) join these tests on the tree that carries piece 2.
+
+**A gap found:** the test-data scan (`ScanRelations`) cannot serve a function applied to a class's property inside a
+filter, on any setting. It reads `$p.name->substring(...)` as a property hop ("scalar 'name' in MID position"),
+because only its `OPERATORS` end a chain. The engine test seeds on a literal's `substring` for that reason.
+
 **The notes for the build:**
 - register rows S130, S134 and S383 name the `engine` value and what it does;
 - the differences page's item 1 names the operator's option beside the hand rewrite;

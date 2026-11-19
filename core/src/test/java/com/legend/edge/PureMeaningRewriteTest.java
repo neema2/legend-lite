@@ -193,11 +193,13 @@ class PureMeaningRewriteTest {
     @Test
     void aDatabaseNotMeasuredUnderEngineIsRefused() {
         String unmeasured = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
-                "type: DuckDB; specification: DuckDB { }; auth: Test;");
+                "type: Postgres; specification: Static { name: 'x'; host: 'h'; port: 5432; };"
+                        + " auth: UserNamePassword { baseVaultReference: 'v'; userNameVaultReference: 'u';"
+                        + " passwordVaultReference: 'p'; };");
         Recording r = new Recording();
         NotImplementedException e = assertThrows(NotImplementedException.class,
                 () -> rewrite(unmeasured, PureMeaningCheckTest.PLANTED, r));
-        assertTrue(e.getMessage().contains("not measured on DuckDB"), e.getMessage());
+        assertTrue(e.getMessage().contains("not measured on Postgres"), e.getMessage());
         assertEquals(0, r.built.size());
     }
 }
