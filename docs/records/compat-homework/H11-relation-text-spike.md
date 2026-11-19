@@ -676,3 +676,34 @@ which is upstream's for the kinds they hold (they pass on `main` with it).
 - **The estimate (§11) holds, tighter on its corpus row:** "`toCSV`, `csv` and the corpus, 1 to 1.5 days" is now
   mostly done in this spike; what remains of it is the `assertSameElements` claim on 2.2b's interface and EDGE-2's
   goldens. The value half's corpus share is 1 test (§13.5).
+
+### 13.7 The requirement for the real slice (the owner's ask of 13:48 UTC): `Printed` for every assert family
+
+**The owner's answer to §13.2's stop-and-tell item:** the judges' design (H10 §9.6 on `claude/compat-judges-homework`,
+accepted ~14:00 as B2's design) makes a relation's text a PRODUCT judgment kind, `HostJudgment.Printed(side,
+PrintCall)`, planned by the product's planner from the program's own `toString`/`toCSV` call at a side's root, with one
+`Hearing.print`. The edge then never claims an assert at planning. **The requirement: `Printed` is planned for EVERY
+assert family that compares a printed side**, not only `assertEquals` and `assertNotEquals` (today's
+`AssertVerdicts.planArm` reaches the edge for those two alone).
+
+**Every assert family over a relation's text, counted** (`H11-data/*-judge.tsv`, by site; a side is one assert
+argument):
+
+| Population | Assert family | Relation-text sides | Tests | Of which in the lanes today |
+|---|---|---|---|---|
+| PCT, five suites | `assertEquals` | 431 (all `toString`) | 423 | all (§4) |
+| PCT | any other family | **0** | 0 | |
+| Corpus | `assertEquals` | 433: `toString` 253, `toCSV` 138, `CSVJOIN` 41, `csv` 1 | 292 | all claimed and judged (§13.3) |
+| Corpus | **`assertSameElements`** | **22, all `toCSV`** | 22 | **11** (`mapping::groupBy::testGroupByMappingProject*` 5, `graphFetch::tests::resultSourcing::testSourcingJsonResultToQuery*` 4, `advanced::resultSourcing::relationalResultSourcingOf{List,DateList}` 2); the other 11, `milestoning::temporalDateProjectionQuery::*` (`<<test.ExcludeAlloy>>`), are not run by the lanes |
+| Corpus | `assertNotEquals`, `assert`, `assertEq`, `assertTdsEquivalent`, any other | **0** | 0 | |
+
+- **So two families carry a relation's text: `assertEquals` (864 sides in all) and `assertSameElements` (22).** Under
+  `assertSameElements` the side is still one String (`assertSameElements($expectedValue, $result.values->toCSV())`:
+  two one-element collections); `main` judges it as a render form with `orderedForm` false (its lines as a multiset
+  whatever the chain's sort, `AssertVerdicts.renderedPlan(..., false)`), and `Printed` must keep that order fact.
+- **For 1.3's value half, the same count over the cell VALUES the tests compose (§13.1's B families):** corpus
+  `assertEquals` 361 sides (355 tests), `assertSameElements` 158 (158), `assert` 5 (5; the print FEEDS `contains`
+  under `forAll`), `assertEq` 1; PCT 0. They print the product's own text today (§13.5), so `Printed` is not needed
+  for them; only the 1 test of §13.5 reaches an edge value text.
+- **With `Printed` planned for `assertSameElements` too, the STRICT run is the HYBRID run** (§13.3): DuckDB
+  byte-identical to `main`, H2 `main` plus 3.
