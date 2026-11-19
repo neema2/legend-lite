@@ -103,6 +103,25 @@ against legend-engine's manifests, is B1-R's and does not exist yet). `bazel tes
 
 S20, `isNumeric`, `parseDecimal`, `parseJson` and the settings move no PCT test on any of these lanes.
 
+**B2's 0.4 (j), the answer-level view against legend-engine itself** (`claude/census-b2` at `ed70d8b18`,
+`H8-phase0-measures.md` §(j), `H8-probes/H8j*`; S20 and the plain set off, on the ENGINE lane, PCT A, pure/v1 and the
+corpus). It agrees with the counts here (the corpus: S20's 2 H2 wins, nothing lost) and adds the 7 ANSWERS that match
+legend-engine today and would stop matching, each with its ordinary-function rewrite where one exists:
+
+| case | legend-engine's answer today | a rewrite with ordinary functions |
+|---|---|---|
+| PCT DuckDB `slice([1..5], 3, 2)` | `[]` | `if($low > $high, \|[], \|...)` |
+| PCT DuckDB `rem(5, 0)` | `null` | `if($d == 0, \|[], \|...)` |
+| PCT DuckDB `range(0, 5, 0)` | `[]` | `if($step == 0, \|[], \|...)` |
+| PCT DuckDB `1 >> 63` | `0` | `if($n > 62, \|0, \|...)` (a negative operand needs `-1`) |
+| pure/v1 H2 `sqrt(-2.0)` | `null` | `if($x < 0, \|[], \|sqrt($x))` |
+| PCT A `testFloatPlus` (S20) | `1.7`, an exact decimal | none by a guard; only through Decimal |
+| PCT A `testFloatTimes` (S20) | `2.1`, an exact decimal | the same |
+
+Against PCT's expected values these are the other side of the same coin: the ENGINE lane's 6 plain-set rows move from
+FAIL to PASS when the plain set is off (H12), and PCT passes the two S20 cases either way. 3 more keep their status and
+change only their words (DuckDB `sqrt` and `<<`, pure/v1's divide by zero).
+
 **What it says:**
 - **Beyond `substring`/`indexOf`, no strand loses more than 2 corpus tests on a lane, and two strands WIN tests when
   turned off** (S20 on H2, `parsedJson` on H2). The answer losses all come from legend-engine departing from Pure's own
