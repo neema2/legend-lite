@@ -18,7 +18,7 @@
 
 The `Lowerer`'s `relation::toString` arm calls ONE new product lowering, unconditionally, under every plan style. That
 lowering writes legend-pure's `#TDS` layout as one scalar subquery: a `STRING_AGG` in the relation's own order, each
-cell the scalar `toString` rule's node for its type. The product's Float text keeps one fraction digit for a whole
+cell the PRODUCT's scalar `toString` node for its type (`Styled.PRODUCT`, under every plan style: §7). The product's Float text keeps one fraction digit for a whole
 value. An abstract `Date` the database holds as a timestamp prints as a DateTime. `RelationTexts` loses its
 `relationToString` member. The edge deletes its `toString` SQL, because B2's Java presenter prints the edge's
 last-step tables from typed rows. `toCSV` and a TDS's `csv` are not touched: they stay the edge's and the product's
@@ -30,8 +30,8 @@ refusals, until B2 takes them.
 
 | File | Change | Lines | In the spike |
 |---|---|---|---|
-| `lowering/ProductRelationText.java` | **new**: `of(Styled, TypedNativeCall, Function<TypedSpec, SqlSelect>, String)`; the layout, the cells (`null` empty, `'null'` under a Variant, a Variant or a brace/bracket String quoted with `\` and `'` escaped, else the scalar rule: DateTime `styled.dateTimes()`, Float `Scalars.floatRepr`, the rest `Scalars.pureToString`), the order by `Render.liftOrder`, five refusals by name | +150 (spike 149, 118 code) | yes, as is but its javadoc's SPIKE words |
-| `lowering/Lowerer.java` | the `relation::toString` arm: `ProductRelationText.of(styled(), tc, this::relation, nextAlias())` in place of `relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(...)` | −2 / +1 | yes |
+| `lowering/ProductRelationText.java` | **new**: `of(TypedNativeCall, Function<TypedSpec, SqlSelect>, String)`; the layout, the cells (`null` empty, `'null'` under a Variant, a Variant or a brace/bracket String quoted with `\` and `'` escaped, else the scalar rule under `Styled.PRODUCT`: DateTime `Styled.PRODUCT.dateTimes()`, Float `Scalars.floatRepr`, the rest `Scalars.pureToString(Styled.PRODUCT, ...)`), the order by `Render.liftOrder`, five refusals by name | +150 (spike 149, 118 code) | yes, but the spike passed the planner's `styled` (§7) and its javadoc says SPIKE |
+| `lowering/Lowerer.java` | the `relation::toString` arm: `ProductRelationText.of(tc, this::relation, nextAlias())` (no style argument: the cells are the product's) in place of `relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(...)` | −2 / +1 | yes |
 | `lowering/RelationTexts.java` | the `relationToString` member and its javadoc line deleted; the class javadoc names `toCSV` and `csv` only | −3 | **no** (the spike left the facet whole) |
 | `lowering/TextRefusals.java` | `relation(what)`'s javadoc drops `toString` (the call site is gone) | ±0 | no |
 | `lowering/Scalars.java` | D1 in `pureToString`, before the Boolean arm: an abstract `Date` whose slot is `TIMESTAMP`/`TIMESTAMPTZ` takes `styled.dateTimes().dateTimeText(x, null)` | +5 | yes (`9bcbd165`) |
@@ -44,6 +44,16 @@ refusals, until B2 takes them.
 |---|---|---|
 | `edge/RelationTextLowering.java` | `relationToString`, `lowerToString`, `tdsString`, `tdsCell`, `dateOnly` and `dateTimeTextTds` deleted: the edge's `toString` SQL ("No SQL is kept for legend-pure's spelling"). `toCsv`, `csvProperty` and their helpers stay: `perSlot`/`kindType`, `printedCell`, `withSortOutputs`, `hasDynamicPivot`, `dynamicPivotText`, the date texts the CSV cell reads | about −240 of 791 |
 | B2's presenter (B2's own files) | **prerequisite:** it claims every last-step `toString` of a relation on the edge's routes before lowering. That covers an assert side's root (H11's `RelationTextArm`: PCT 431 of 431) and a query whose answer is the text: pure/v1's execute, and `FloatTextTest`'s edge query. H11 proved the root door rewrite on a test, not on a route (H11 §6 and its open row "A root's door rewrite on the real routes") | B2's |
+
+### The slice's prerequisites (the program's owner, 18:33)
+
+1. **The whole value's `.0` on Snowflake, MySQL and MongoDB** (the three Float forms V2's helpers do not reach:
+   Snowflake's arm from 1e32, MySQL's from 1e60, MongoDB's whole form), built and measured on each, so that S311's
+   amended text is one text on every database before the slice lands.
+2. **B2's presenter claims every last-step `toString` of a relation on the edge's routes, PROVEN ON A ROUTE, not
+   only a test:** an assert side's root (PCT, the corpus) and a query whose answer is the text (pure/v1's execute, the
+   service tests' runner). H11 proved the root rewrite on a test alone (H11 §6). Until it holds on the routes, the
+   edge's `toString` SQL cannot be deleted, and with it deleted an unclaimed last step would answer lite's text.
 
 **Not carried from the spike:** `H14FloatTextProbeTest`, `H14DateCellSizeTest`, the `_CORE_MANUAL_PROBES` entry, and
 the two PCT harness edits (`ChannelB`'s `-Dpct.channelb.unclipped`; `PctBackend.connect` opening the product's database
@@ -130,12 +140,12 @@ row, `TWO_FORMS` untouched), not this slice's.
   - a mixed (tagged) column;
   - a DISTINCT or star select ordered by a key that is no column.
 - **The edge's half:** "a relation's `toString` that is the program's last step is legend-pure's text, printed in
-  Java from lite's typed rows (B2). One used further in the query is lite's own text, computed by the database (the
-  user, ~18:12, 'Yes record it')." Measured: 0 such further uses among PCT's and the corpus's judged sides (H11
+  Java from lite's typed rows (B2). One used further in the query is lite's own text, exactly the product's, computed by
+  the database (the user, ~18:12, 'Yes record it')." Measured: 0 such further uses among PCT's and the corpus's judged sides (H11
   §13.1).
 - **Evidence:** the product test of §3, the two ledgers' moves, and PCT channel B at 1,179 of 1,249.
 
-**One note for the user's batch:** the layout's empty-cell token is legend-pure's `null`, while S316 (a) makes a
+**One question, taken to the user by the program's owner (18:33):** the layout's empty-cell token is legend-pure's `null`, while S316 (a) makes a
 TDS cell's own `toString` the empty value. These are two functions with two texts. H14 kept the layout exactly
 legend-pure's (390 of PCT's 423 pass byte for byte that way), so that is not a divergence from upstream. Inside the
 product, though, the empty value prints as `null` in one place and as nothing in the other; the user may want to
@@ -173,15 +183,16 @@ rule on it.
 | Tenet 3, compatibility re-spells, never re-computes | yes | B2 prints from typed values; the 33 Date tables differ from PCT by spelling alone (H14 §8: one text on every database) |
 | Tenet 4, upstream is the spec, never the design | yes | the layout is what the answer is; the computation is the product's own nodes (`STRING_AGG` over `liftOrder`, the scalar rule's cells); cells are lite's texts, not legend-pure's |
 | Tenet 5, two judges in the product | yes | unchanged |
-| Tenet 6, no modes in the core | yes | the arm is unconditional: no facet member, no `TWO_FORMS` row, no switch. The cells read the planner's `styled` exactly as the scalar `toString` does, with no read of the style of their own |
+| Tenet 6, no modes in the core | yes | the arm is unconditional: no facet member, no `TWO_FORMS` row, no switch, and no read of the plan style at all: the cells are always the product's (`Styled.PRODUCT`) |
 | AGENTS.md invariants 2, 3, 3a and 4 | yes | the lowering emits typed MIR only (`StringLit`, `Call` of `SqlFn`, `SqlAgg.Reducer` `STRING_AGG`, `Case`); no SQL text or function name; no fallback: each shape it cannot write is refused by name, and an impossible state throws |
 
-**One reading to confirm (not measured; nothing in PCT or the corpus reaches it).** The ~18:12 ruling says a text used
-further at the edge is "lite's own text". The cells follow the scalar rule through the planner's `styled`. So until
-B2 retires the edge's two-form value texts (`DateTimeTexts`' edge form, the edge's Float print), a cell of such a
-table under the edge style would take the edge's value spelling inside lite's layout. If the ruling means exactly the
-product's text even before that, `ProductRelationText` passes `Styled.PRODUCT` in place of the planner's: one
-argument, no branch.
+**Decided (the program's owner, 18:33, under the user's ~18:12 ruling): the cells are the product's text exactly.**
+A text used further at the edge is "lite's own text", so `ProductRelationText` writes every cell under
+`Styled.PRODUCT`, not under the planner's style. (The spike passed the planner's `styled`, so under the edge style a
+cell took the edge's two-form value spellings, `DateTimeTexts`' edge form and the edge's Float print, inside lite's
+layout.) One argument, no branch; not measured, because nothing in PCT or the corpus reaches a further use (H11
+§13.1). The slice's product test pins it: a table text used further under the edge style is byte-identical to the
+product's.
 
 ## 8. Known product defects this does not change
 
