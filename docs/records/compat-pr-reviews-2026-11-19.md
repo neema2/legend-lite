@@ -1238,3 +1238,14 @@ Fix: throw a `VirtualMachineError` without storing it (or store only `RuntimeExc
   for a shared `PureGrammarParser`. The measured times show no cost here, since the classes run one at a time.
 - The diagnostic's message change ("null" → the NPE text) shows that the catalog's message column depended on JIT
   state before. The new text is the better one, and it is still not asserted.
+
+### Re-check: `7f36f2730` (37ef44ff0 plus one commit)
+**Verdict: APPROVED. The should-fix is met.**
+
+`parse()` now catches only `RuntimeException | StackOverflowError`. Any other `Error` (an `OutOfMemoryError` above
+all) propagates out of `parse()` before `HELD.put`, so it is never stored, and a later class parses the text again.
+`answer()`'s rethrow covers both kept kinds, and the javadoc and the record comment say so.
+
+The worker reports `//parser-equivalence:parser_parity` passing in 167.3 s with the same counts (9,731 parsed, 28,176
+reused, 0 kept whole). I did not rerun it here. The live peak moves 827-875 MB between runs, of 2,816 MB: still not a
+CI risk, for the reason above.
