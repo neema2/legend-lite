@@ -2257,3 +2257,17 @@ who confirms or changes phases 1-3.
   clean (153 files = #127's 49 plus the combined 105 plus 2 new tests; every combined file outside #127's byte-identical
   to `f832a6671`'s). Only CI on `6f21bed29` remains.
 - **~18:30 UTC, DuckDB threads ruled** (§1's row). A5 asked to draft the register row for the product's gap (in its one push, or in the batch's merge) and to count lite's tests that run on a declared DuckDB file.
+- **~18:33 UTC, H14 at V2 + D1, the ruled variant: lite's own suites, one run** (commits `c604cd72`, `206842ef` on
+  `claude/compat-table-text-db-spike`; shape note `compat-homework/H14-slice-shape-note.md`). **PCT channel B under
+  lite's rules: 1,179 of 1,249** (was 787; relation 435/469, standard 200/205, essential 315/345, grammar 136/137,
+  unclassified 93/93); with A3's 7 `indexOf`/`substring` rows, about 1,186. Core: 9 cases move against the base (5 the
+  Float `2.0`, 2 a relation's `toString` no longer refused, 2 under the edge style that B2's Java takes as last steps);
+  channel A lite: 3 rows (2 pass and leave, 1 `0` → `0.0`); channel B duckdb-lite: 426 rows (392 leave, 34 change to the
+  spelling difference: 33 dates, 1 Float), every one of the 423 refusal rows and no other. SQL of the table tests:
+  relation 660,748 characters (the edge builder 696,964), standard 99,037 (194,885). **The slice:** a new
+  `lowering/ProductRelationText` (~150 lines), V2's helpers, D1 in `Scalars`, about 240 of `RelationTextLowering`'s 791
+  lines deleted; net about −80 lines. No guard row for the product half; register rows S311, S312 and S316(b) amended.
+  Prerequisites: the whole value's `.0` on Snowflake, MySQL, MongoDB; B2's presenter claiming every last-step toString
+  on the edge's routes. **Confirmed by this session:** text used further is the product's own (`Styled.PRODUCT`), per
+  the ~18:12 ruling. **For the user:** a printed table's empty cell, legend-pure's `null` (the spike's layout) or
+  nothing (S316(a)'s cell text).
