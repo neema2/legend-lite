@@ -1038,3 +1038,9 @@ who confirms or changes phases 1-3.
   session (13:20)** with a recommendation: a second Maven Central mirror in `_url`'s list
   (`maven-central.storage-download.googleapis.com/maven2/`), the sha256 unchanged and checked; vendoring the referee's
   jar can wait. Theirs to make and land; #123 and #124 re-run on it.
+- **~13:11 UTC, the product orchestrator owns the Maven fix:** the CI-health session builds it on
+  `claude/ci-maven-mirror` (from `main`): a CI-only Bazel downloader config that rewrites every repo1.maven.org fetch
+  to try Central first and Google's mirror second, the same sha256 checks, no pin or lock change. It covers both
+  `jars.bzl`'s `http_jar` and `rules_jvm_external` (better than a second URL in `_url`, which covers only the first),
+  proven by forcing the first URL to fail. It lands on `main` on the user's word; #121, #123 and #124 then merge it or
+  `main` to re-run.
