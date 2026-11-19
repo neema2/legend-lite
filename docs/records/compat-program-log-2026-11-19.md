@@ -2324,3 +2324,10 @@ who confirms or changes phases 1-3.
   with it on against the flag's and nothing's counts, the per-request cost and how to keep it off other requests' path,
   its size on the detector, any core hook (stop if so), the rules check. Note `H16-engine-answer-opt-in.md`, about half
   a day, before the detector's bulk build. The translator adds H5's commit to its handoff.
+- **~19:06 UTC, B1-R took A3 piece 3.** #124's run: Linux, Windows, arm all green; macOS 4 of 17 done and green, 12
+  queued. Before its shape note: two questions asked of legend-engine through slice R's oracle (does a store-free
+  `'abc'->substring(1)` plan host-side; does a chained M2M transform or a constraint reach SQL) and a throwaway guard
+  spike to name the guard moves exactly (candidates: the getenv allowlist, the System.err ceiling, EdgeOnlyMembersTest,
+  PlannerSurfaceTest's routes). It flagged the report's eager typing for the user's word: **already ruled** at ~14:55
+  with the report as designed (§4a: every body typed once, off the answer's path), so carried as ruled. Builds tested on
+  flagging; lands in the batch after the core switch. Order: #124's CI, the opt-in sizing, the shape note, the build.
