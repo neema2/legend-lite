@@ -1876,3 +1876,10 @@ who confirms or changes phases 1-3.
   `=` keeps the database's comparison; Pure code keeps legend-pure's kinds-first rule) prototyped and measured as
   homework, then the meaning question goes to the user with numbers. The 15:40 "it holds under rule 1" call stands for
   where the types alone decide it; the meaning is the open question.
+- **~15:27 UTC, B1: PR #123's edge_net GREEN on all three OSes at `7b7ee6ea3`** (run 44545061580, 38 of 38 each; both
+  overlays verified on their own OS). edge_net against each OS's longest lane: Linux 11.0 min (core 34.6), Windows 14.2
+  (core 24.8), macOS 17.7 (checks 21.3 among the lanes that ran): **not the longest lane on any OS** (before the split
+  17.9 on Linux, 19-26 on Windows). Corpus lanes with the moved diff tests within noise (Linux 4.2/4.2, Windows 2.2/3.0,
+  macOS 2.3/2.1). Not the PR's: Linux product's Maven 404 (teavm-jso); five macOS jobs cancelled after 40-47 min queued
+  without a runner (capacity, cause unknown). B1 re-runs the failed and cancelled jobs once when the run completes;
+  B1-R has `7b7ee6ea3` for #124's batched merge. #123 then waits for the user's word through this session.
