@@ -49,7 +49,7 @@ final class JdbcDecodeCases {
             List<ExecutionPlan.Column> columns) throws Exception {
         List<List<Object>> out = new ArrayList<>();
         // checked against its database first, as the runner checks every session (the timestamp re-read is its fact)
-        JdbcStatements st = new JdbcStatements(c, new SessionState());
+        JdbcStatements st = new JdbcStatements(c, new SessionState(), Sessions.Reach.THIS_PROCESS);
         // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
             st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),

@@ -1,0 +1,1 @@
+meta::relational::tests::loadCsv::testLoadCsv ||| by-design:a-server-reads-no-runner-file(S371; track Q2, the orchestrator's ruling of 2026-11-19) ||| a file load there is refused by name (S371)

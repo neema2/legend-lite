@@ -33,7 +33,7 @@ final class TrinoConnector implements DatabaseConnector {
     @Override
     public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         return switch (def.specification()) {
-            case ConnectionSpecification.Trino t -> new Sessions.Opening.Url(url(def, t));
+            case ConnectionSpecification.Trino t -> new Sessions.Opening.Url(url(def, t), Sessions.Reach.SERVER);
             default -> DatabaseConnector.refused(def);
         };
     }

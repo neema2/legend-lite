@@ -33,7 +33,7 @@ class SnapshotRestoreH2Test {
             int isolation = c.getTransactionIsolation();
             assertTrue(autoCommit, "a session the seam owns the transaction of");
             SessionState state = new SessionState();
-            JdbcStatements st = new JdbcStatements(c, state);
+            JdbcStatements st = new JdbcStatements(c, state, Sessions.Reach.THIS_PROCESS);
             Error planted = new Error("the work's own error");
             boolean[] inside = {false};
             Error told = assertThrows(Error.class, () -> st.inSnapshot(ExecutionPlan.Keyed.Snapshot.SERIALIZABLE,

@@ -1994,7 +1994,10 @@ final class ArchitectureTest {
     /** D70 (the rule of {@link #theProductBorrowsNoConnection}): a call or a reference ({@link #invokes}). */
     static final com.tngtech.archunit.lang.ArchRule PRODUCT_BORROWS_NO_CONNECTION = noClasses()
             .that().resideInAPackage("com.legend..")
-            .should().accessTargetWhere(invokes(com.legend.exec.Sessions.class, "borrowed", java.sql.Connection.class))
+            // the method by its signature (2026-11-19, track Q2: a session says where its database runs, Sessions.Reach --
+            // borrowed(Connection) became borrowed(Connection, Reach); the rule follows the same method, unchanged in intent)
+            .should().accessTargetWhere(invokes(com.legend.exec.Sessions.class, "borrowed", java.sql.Connection.class,
+                    com.legend.exec.Sessions.Reach.class))
             .as("D70: Sessions.borrowed is the test side's door; a product session owns its connection");
 
     /** Public or protected: what a class offers beyond its package. */

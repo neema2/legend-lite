@@ -56,7 +56,9 @@ public interface TestBackend {
      *  that opens no JDBC session refuses by its own name, as before). */
     default com.legend.exec.Sessions.Session openSession() {
         try {
-            return TestSessions.owning(open());
+            // where its database runs, as the backend knows it: an embedded engine in this process, a server's
+            return TestSessions.owning(open(), inProcess() ? com.legend.exec.Sessions.Reach.THIS_PROCESS
+                    : com.legend.exec.Sessions.Reach.SERVER);
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }

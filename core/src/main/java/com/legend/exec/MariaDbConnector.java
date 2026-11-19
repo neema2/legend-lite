@@ -31,7 +31,7 @@ class MariaDbConnector implements DatabaseConnector {
     public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         if (def.specification() instanceof ConnectionSpecification.StaticDatasource(String host, int port,
                 String database)) {
-            return new Sessions.Opening.Url("jdbc:mariadb://" + host + ":" + port + "/" + database);
+            return new Sessions.Opening.Url("jdbc:mariadb://" + host + ":" + port + "/" + database, Sessions.Reach.SERVER);
         }
         return DatabaseConnector.refused(def);
     }

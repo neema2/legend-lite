@@ -15,6 +15,11 @@ package com.legend.testplan;
  *                     the tests turn on {@code DETERMINISTIC_AS_OF})
  * @param style        where the body's statements take their dialects (phase D's D1.0: the product's own, or the
  *                     compatibility edge's)
+ * @param targetReadsRunnerFiles whether the run's target database reads a file this runner writes (a file load's
+ *                     delivery, {@code ExecutionPlan.LoadStep.Delivery.Reads}): an embedded engine in this process,
+ *                     the platform's own, does; a server the caller's sessions reach -- the warehouse lane's -- does
+ *                     not, and a file load planned for it is refused by name, as for any database with no reader
+ *                     (track Q2, the orchestrator's ruling of 2026-11-19, U2(b); S371)
  */
 public record PlanningOptions(
         com.legend.testexecutionplan.Edge edge,
@@ -22,7 +27,8 @@ public record PlanningOptions(
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
         java.util.Set<com.legend.platform.PlanOption> options,
-        com.legend.database.PlanStyle style) {
+        com.legend.database.PlanStyle style,
+        boolean targetReadsRunnerFiles) {
 
     public PlanningOptions {
         java.util.Objects.requireNonNull(edge, "edge");
@@ -43,16 +49,16 @@ public record PlanningOptions(
     public enum JudgeMode { HOST, DATABASE, BOTH }
 
     public PlanningOptions withJudgeMode(JudgeMode mode) {
-        return new PlanningOptions(edge, stores, features, mode, options, style);
+        return new PlanningOptions(edge, stores, features, mode, options, style, targetReadsRunnerFiles);
     }
 
     public PlanningOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
-        return new PlanningOptions(edge, stores, f, judgeMode, options, style);
+        return new PlanningOptions(edge, stores, f, judgeMode, options, style, targetReadsRunnerFiles);
     }
 
     /** Lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}). */
     public PlanningOptions withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
-        return new PlanningOptions(edge, stores, features, judgeMode, o, style);
+        return new PlanningOptions(edge, stores, features, judgeMode, o, style, targetReadsRunnerFiles);
     }
 
     /** These options with the program's statements written in {@code d}'s dialects (the spelling hook, D1.0: the
@@ -61,10 +67,17 @@ public record PlanningOptions(
      *  recorder of its raise sites' words where it is the compatibility edge's ({@link EngineTextGates#planningCall}),
      *  read once by the test door; the product's style as it is. Asked by the test planner at the call's start alone. */
     PlanningOptions forOnePlanningCall() {
-        return new PlanningOptions(edge, stores, features, judgeMode, options, EngineTextGates.planningCall(style));
+        return new PlanningOptions(edge, stores, features, judgeMode, options, EngineTextGates.planningCall(style),
+                targetReadsRunnerFiles);
+    }
+
+    /** These options for a run whose target database runs on a server its sessions reach, which reads no file this
+     *  runner writes ({@link #targetReadsRunnerFiles}: the warehouse lane's, S371). */
+    public PlanningOptions withTargetOnAServer() {
+        return new PlanningOptions(edge, stores, features, judgeMode, options, style, false);
     }
 
     public PlanningOptions withStyle(com.legend.database.PlanStyle d) {
-        return new PlanningOptions(edge, stores, features, judgeMode, options, d);
+        return new PlanningOptions(edge, stores, features, judgeMode, options, d, targetReadsRunnerFiles);
     }
 }

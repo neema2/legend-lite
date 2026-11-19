@@ -67,10 +67,10 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         ConnectionSpecification spec = def.specification();
         if (spec instanceof ConnectionSpecification.LocalFile(String path)) {
-            return new Sessions.Opening.Url("jdbc:h2:file:" + path);
+            return new Sessions.Opening.Url("jdbc:h2:file:" + path, Sessions.Reach.THIS_PROCESS);
         }
         if (spec instanceof ConnectionSpecification.StaticDatasource(String host, int port, String database)) {
-            return new Sessions.Opening.Url("jdbc:h2:tcp://" + host + ":" + port + "/" + database);
+            return new Sessions.Opening.Url("jdbc:h2:tcp://" + host + ":" + port + "/" + database, Sessions.Reach.SERVER);
         }
         // A19: a DISTINCT in-memory database per databaseName -- the engine's directory-backed isolation without disk
         // side effects; a USER-NAMED database is user-chosen identity and shares BY DESIGN
@@ -160,15 +160,6 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
     }
 
     /** {@inheritDoc} No: H2 rolls back the failed statement alone; its transaction goes on. */
-    /** {@inheritDoc} Every H2 session is sent the load, as before this question was asked: an H2 in this process
-     *  reads the runner's file with {@code CSVREAD}. An H2 SERVER (a static datasource's, {@link #opening}) reads the
-     *  path on its own machine, and is not told apart here: its driver names itself as an embedded H2's does, and its
-     *  URL is a value read the tenet's ratchet refuses (TenetRatchetTest) -- S371's named residual. */
-    @Override
-    public boolean readsRunnerFiles(Connection session) {
-        return true;
-    }
-
     @Override
     public boolean abortsTransactionOnError() {
         return false;

@@ -36,21 +36,29 @@ public final class TestSessions {
             java.util.Collections.synchronizedMap(new WeakHashMap<>());
 
     /** The one session over {@code connection}: the owning session a backend registered for it ({@link #owning}), else
-     *  a borrowed session made once ({@link Sessions#borrowed}: closing it closes nothing). */
+     *  a borrowed session made once ({@link Sessions#borrowed}: closing it closes nothing) over a connection the test
+     *  opened IN THIS PROCESS (an embedded engine's; a server backend's sessions are its own, {@link #owning}, which say
+     *  so: TestBackend.openSession). */
     public static Sessions.Session over(Connection connection) {
         purge();
         return OVER.computeIfAbsent(connection, c -> {
-            Sessions.Session s = Sessions.borrowed(c);
+            Sessions.Session s = Sessions.borrowed(c, Sessions.Reach.THIS_PROCESS);
             OF.put(Sessions.identity(s), c);
             return s;
         });
     }
 
-    /** The session that OWNS {@code connection} ({@link Sessions#owned}: closing it closes the connection), registered
-     *  as the one session over it. */
+    /** The session that OWNS {@code connection} ({@link Sessions#owned}: closing it closes the connection), a connection
+     *  the test opened in this process, registered as the one session over it. */
     public static Sessions.Session owning(Connection connection) {
+        return owning(connection, Sessions.Reach.THIS_PROCESS);
+    }
+
+    /** {@link #owning(Connection)} of a connection whose database runs where {@code reach} says (a backend's own: a
+     *  server backend's, the warehouse's or Postgres's, is a {@code SERVER}'s). */
+    public static Sessions.Session owning(Connection connection, Sessions.Reach reach) {
         purge();
-        Sessions.Session s = Sessions.owned(connection);
+        Sessions.Session s = Sessions.owned(connection, reach);
         OVER.put(connection, s);
         OF.put(Sessions.identity(s), connection);
         return s;

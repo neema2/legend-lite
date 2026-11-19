@@ -32,7 +32,7 @@ final class DuckDbConnector implements DatabaseConnector {
     @Override
     public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         if (def.specification() instanceof ConnectionSpecification.LocalFile(String path)) {
-            return new Sessions.Opening.Url("jdbc:duckdb:" + path);
+            return new Sessions.Opening.Url("jdbc:duckdb:" + path, Sessions.Reach.THIS_PROCESS);
         }
         if (def.specification() instanceof ConnectionSpecification.InMemory) {
             return new Sessions.Opening.Held(this);
@@ -57,18 +57,6 @@ final class DuckDbConnector implements DatabaseConnector {
     }
 
     /** {@inheritDoc} Yes: DuckDB aborts the whole transaction on a failed statement and refuses every statement after it until a rollback (measured: "Current transaction is aborted (please ROLLBACK)"). */
-    /** DuckDB's own JDBC driver's name ({@code DatabaseMetaData.getDriverName}; measured on its drivers 1.5.5.1 and
-     *  1.5.6.0, 2026-11-19). */
-    private static final String OWN_DRIVER = "DuckDBJ";
-
-    /** {@inheritDoc} DuckDB's own driver opens DuckDB in this process ({@link #opening}); a session on another driver
-     *  that reports DuckDB -- the warehouse's, over HTTP -- reaches a DuckDB on a server, whose files are not this
-     *  runner's (the warehouse's are its import folder's alone). */
-    @Override
-    public boolean readsRunnerFiles(Connection session) throws SQLException {
-        return Connectors.driver(session).equals(OWN_DRIVER);
-    }
-
     @Override
     public boolean abortsTransactionOnError() {
         return true;

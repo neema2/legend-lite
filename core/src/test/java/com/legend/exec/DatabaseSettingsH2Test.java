@@ -89,7 +89,7 @@ class DatabaseSettingsH2Test {
         List<String> sent = new ArrayList<>();
         try (Connection c = RecordingConnection.wrap(TestBackends.of(DatabaseType.H2).open(), sent);
                 var run = com.legend.base.RunScope.enter()) {
-            JdbcStatements st = new JdbcStatements(c, new SessionState());
+            JdbcStatements st = new JdbcStatements(c, new SessionState(), Sessions.Reach.THIS_PROCESS);
             long before = StatementOrigin.snapshot()[StatementOrigin.SESSION.ordinal()];
             st.check(target);
             st.check(target);
@@ -107,7 +107,7 @@ class DatabaseSettingsH2Test {
         try (Connection other = DriverManager.getConnection("jdbc:h2:mem:settings_other;MODE=LEGACY;"
                 + "DEFAULT_NULL_ORDERING=HIGH", "sa", "");
                 var run = com.legend.base.RunScope.enter()) {
-            JdbcStatements st = new JdbcStatements(other, new SessionState());
+            JdbcStatements st = new JdbcStatements(other, new SessionState(), Sessions.Reach.THIS_PROCESS);
             com.legend.error.NotImplementedException refused = assertThrows(
                     com.legend.error.NotImplementedException.class, () -> st.check(target));
             assertEquals("the session's database does not have the settings the plan's target declares (it has"
@@ -266,7 +266,7 @@ class DatabaseSettingsH2Test {
     @Test
     void aDeclaredDatabaseIsNeverOpenedWithSettingsToWrite() {
         IllegalStateException refused = assertThrows(IllegalStateException.class, () -> Sessions.open(
-                new Sessions.Opening.Url("jdbc:h2:mem:never_opened"), H2Connector.INSTANCE, h2Target().settings()));
+                new Sessions.Opening.Url("jdbc:h2:mem:never_opened", Sessions.Reach.THIS_PROCESS), H2Connector.INSTANCE, h2Target().settings()));
         assertTrue(refused.getMessage().startsWith("a H2 database a connection declares is opened as declared and"
                 + " never modified"), refused.getMessage());
     }
@@ -283,7 +283,7 @@ class DatabaseSettingsH2Test {
         ExecutionPlan.Target none = new ExecutionPlan.Target(h2Target().database(), h2Target().session(), List.of(),
                 null, null, null);
         try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter()) {
-            JdbcStatements st = new JdbcStatements(c, new SessionState());
+            JdbcStatements st = new JdbcStatements(c, new SessionState(), Sessions.Reach.THIS_PROCESS);
             com.legend.error.NotImplementedException refused = assertThrows(
                     com.legend.error.NotImplementedException.class, () -> st.check(none));
             assertEquals("a plan's target on H2 declares the settings its database must have, and this one declares"

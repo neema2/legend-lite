@@ -26,7 +26,7 @@ public final class PlantedMethodReference {
         private Borrows() {
         }
 
-        public static Function<java.sql.Connection, Sessions.Session> borrowing() {
+        public static java.util.function.BiFunction<java.sql.Connection, Sessions.Reach, Sessions.Session> borrowing() {
             return Sessions::borrowed;
         }
     }

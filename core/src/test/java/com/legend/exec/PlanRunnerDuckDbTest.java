@@ -38,7 +38,7 @@ class PlanRunnerDuckDbTest {
                 settings, null);
         try (java.sql.Connection c = com.legend.testbackend.TestBackends.of(DatabaseType.DuckDB).open();
                 var run = com.legend.base.RunScope.enter()) {
-            JdbcStatements st = new JdbcStatements(c, new SessionState());
+            JdbcStatements st = new JdbcStatements(c, new SessionState(), Sessions.Reach.THIS_PROCESS);
             com.legend.error.NotImplementedException refused = org.junit.jupiter.api.Assertions.assertThrows(
                     com.legend.error.NotImplementedException.class, () -> st.check(withSettings));
             assertEquals("a plan's target on DuckDB declares no settings, and this one declares"

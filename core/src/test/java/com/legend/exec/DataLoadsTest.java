@@ -90,23 +90,23 @@ class DataLoadsTest {
      *  connection first. */
     private static List<List<Object>> loaded(TestBackend b, DataStores stores, ExecutionPlan.Load load, String... setup)
             throws Exception {
-        return loaded(b, stores, load, c -> c, setup);
+        return loaded(b, stores, load, TestSessions::over, setup);
     }
 
-    /** {@link #loaded(TestBackend, DataStores, ExecutionPlan.Load, String...)} on the connection as {@code driver}
-     *  reports it (another driver of its product: {@link ReportedDriver}). */
+    /** {@link #loaded(TestBackend, DataStores, ExecutionPlan.Load, String...)} on the session {@code session} makes of the
+     *  connection (one said to run on a server: S371). */
     private static List<List<Object>> loaded(TestBackend b, DataStores stores, ExecutionPlan.Load load,
-            java.util.function.UnaryOperator<Connection> driver, String... setup) throws Exception {
+            java.util.function.Function<Connection, Sessions.Session> session, String... setup) throws Exception {
         try (Connection c = b.open(); Statement st = c.createStatement()) {
             for (String s : setup) {
                 st.execute(s);
             }
             st.execute("CREATE TABLE data_loads_people (FIRSTNAME VARCHAR(200), LASTNAME VARCHAR(200), AGE INT)");
             try {
-                Sessions.Session session = TestSessions.over(driver.apply(c));
+                Sessions.Session over = session.apply(c);
                 List<List<Boolean>> ran = new ArrayList<>();
                 try (var run = com.legend.base.RunScope.enter()) {
-                    PlanRunner.seed(load, session, PlanRunner.opened(session, load.target()), stores, ran::add);
+                    PlanRunner.seed(load, over, PlanRunner.opened(over, load.target()), stores, ran::add);
                 }
                 assertEquals(List.of(List.of(false)), ran, "the load ran its one step");
                 List<List<Object>> rows = new ArrayList<>();
@@ -217,34 +217,22 @@ class DataLoadsTest {
         }
     }
 
-    /** A file's load on a session whose database is on a server its driver reaches is refused by name before anything
-     *  is sent (S371, track Q2, 2026-11-19: the database reads the runner's copy, and the warehouse's DuckDB -- another
-     *  driver of DuckDB, over HTTP -- does not read this machine's files). */
+    /** A file's load on a session whose database runs on a server is refused by name before anything is sent (S371,
+     *  track Q2, 2026-11-19: the database reads the runner's copy, and a server -- an H2 server, the warehouse's DuckDB
+     *  -- does not read this machine's files): said where the session is made, never read off its driver. */
     @Test
     void aLoadOnADatabaseThatCannotReadTheRunnersFilesIsRefusedByName(@TempDir Path dir) throws Exception {
         Files.writeString(dir.resolve("employees.csv"), CSV);
-        Set<String> refusing = new java.util.TreeSet<>();
         for (TestBackend b : loading()) {
             ExecutionPlan.Load planned = load(b, file(b.dialect(), "employees.csv", CSV.getBytes(StandardCharsets.UTF_8)));
-            boolean reads;
-            try (Connection c = b.open()) {
-                reads = Connectors.of(b.planType()).readsRunnerFiles(ReportedDriver.as(c, "legend-lite warehouse"));
-            }
-            if (reads) {
-                continue;   // H2: every session is sent the load (S371's residual, its server not told apart)
-            }
-            refusing.add(b.name());
             DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir), planned,
-                    c -> ReportedDriver.as(c, "legend-lite warehouse")), b.name());
+                    c -> Sessions.borrowed(c, Sessions.Reach.SERVER)), b.name());
             assertTrue(e.getMessage().contains("the file 'employees.csv'") && e.getMessage().contains(
-                    "on a server its driver (legend-lite warehouse) reaches") && e.getMessage().contains("(S371)"),
-                    e.getMessage());
-            // the same load on the database's own driver reads the file: the refusal is the driver's, nothing else
+                    "runs on a server") && e.getMessage().contains("(S371)"), e.getMessage());
+            // the same load on a session in this process reads the file: the refusal is the session's fact alone
             assertEquals(List.of(List.of("Joe", "Bloggs", 21), List.of("Jill", "Smith", 31)),
                     loaded(b, DataStores.resources(dir), planned), b.name());
         }
-        // the warehouse's twin: another driver of DuckDB, which reaches it over HTTP
-        assertEquals(Set.of("duckdb"), refusing);
     }
 
     @Test

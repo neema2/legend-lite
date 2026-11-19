@@ -32,7 +32,7 @@ final class SqliteConnector implements DatabaseConnector {
     @Override
     public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         if (def.specification() instanceof ConnectionSpecification.LocalFile(String path)) {
-            return new Sessions.Opening.Url("jdbc:sqlite:" + path);
+            return new Sessions.Opening.Url("jdbc:sqlite:" + path, Sessions.Reach.THIS_PROCESS);
         }
         if (def.specification() instanceof ConnectionSpecification.InMemory) {
             return new Sessions.Opening.Held(this);

@@ -224,6 +224,58 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         return out;
     }
 
+    /** The files {@code plan}'s loads have their database read from the runner's copy
+     *  ({@code ExecutionPlan.LoadStep.Delivery.Reads}), in order: what a target that reads no file of the runner's
+     *  cannot take (S371; track Q2, 2026-11-19). */
+    public static List<com.legend.executionplan.DataRef> filesRead(TestPlan plan) {
+        List<com.legend.executionplan.DataRef> out = new java.util.ArrayList<>();
+        plan.steps().forEach(step -> filesRead(step, out));
+        return out;
+    }
+
+    private static void filesRead(TestStep step, List<com.legend.executionplan.DataRef> out) {
+        switch (step) {
+            case Run r -> filesRead(r.node(), out);
+            case FrameRun f -> filesRead(f.check(), out);
+            case Verdicts v -> statements(v).forEach(n -> filesRead(n, out));
+            // a branch's condition is a read (a Side), its loads its sides' steps
+            case Branch b -> {
+                b.then().forEach(s -> filesRead(s, out));
+                b.otherwise().forEach(s -> filesRead(s, out));
+            }
+            case Isolated p -> {
+                filesRead(p.host()).forEach(out::add);
+                filesRead(p.database()).forEach(out::add);
+            }
+        }
+    }
+
+    private static void filesRead(Node node, List<com.legend.executionplan.DataRef> out) {
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> filesRead(step, out));
+            case ExecutionPlan.Load l -> {
+                for (ExecutionPlan.LoadStep step : l.steps()) {
+                    if (step instanceof ExecutionPlan.LoadStep.File f
+                            && f.delivery() instanceof ExecutionPlan.LoadStep.Delivery.Reads) {
+                        out.add(f.ref());
+                    }
+                }
+            }
+            case ExecutionPlan.TdsResult t -> {
+            }
+            case ExecutionPlan.Keyed k -> {
+            }
+            case ExecutionPlan.Update u -> {
+            }
+            case ExecutionPlan.Check c -> {
+            }
+            case ExecutionPlan.Effect e -> {
+            }
+            case ExecutionPlan.Constant c -> {
+            }
+        }
+    }
+
     /** The texts of the statements {@code node} sends, in order. */
     private static void textsOf(Node node, List<String> into) {
         switch (node) {

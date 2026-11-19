@@ -108,7 +108,7 @@ class RaiseReadBackTest {
                     com.legend.testbackend.TestBackends.settings(DatabaseType.H2), null);
             com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
                     ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
-                    PlanSessions.of(Sessions.borrowed(c))));
+                    PlanSessions.of(Sessions.borrowed(c, Sessions.Reach.THIS_PROCESS))));
             int at = sent.indexOf(RAISING);
             assertTrue(at >= 0, "the plan's statement was sent: " + sent + " (failed: " + failed.getMessage() + ")");
             sentAfter.addAll(sent.subList(at + 1, sent.size()));
@@ -201,7 +201,7 @@ class RaiseReadBackTest {
                 SessionState state = new SessionState();
                 state.declareRaiseReadBack(readBack);
                 JdbcStatements.held(c, state, statements());
-                JdbcStatements session = new JdbcStatements(c, state);
+                JdbcStatements session = new JdbcStatements(c, state, Sessions.Reach.THIS_PROCESS);
                 if (readBack == MARIADB) {
                     session.execute(com.legend.testbackend.Unplanned.sql("SELECT 1"));   // reset: the session goes on
                     continue;
@@ -219,7 +219,7 @@ class RaiseReadBackTest {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
                     com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), unresettable,
                     com.legend.testbackend.TestBackends.settings(DatabaseType.H2), null);
-            PlanSessions.Source borrowed = PlanSessions.of(Sessions.borrowed(c));
+            PlanSessions.Source borrowed = PlanSessions.of(Sessions.borrowed(c, Sessions.Reach.THIS_PROCESS));
             com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
                     ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
                     borrowed));

@@ -136,6 +136,12 @@ public final class MongoDbConnector implements DatabaseConnector {
                     + " through its own statements (Sessions.Session.statements)");
         }
 
+        /** A MongoDB is a server its client reaches. */
+        @Override
+        Sessions.Reach reach() {
+            return Sessions.Reach.SERVER;
+        }
+
         /** The connector's statements, reached through the session's one guarded door ({@code Session.statements}:
          *  inside a plan's run alone, THE WALL's rule 3). */
         @Override

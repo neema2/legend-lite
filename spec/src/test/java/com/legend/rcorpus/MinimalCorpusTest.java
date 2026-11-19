@@ -187,6 +187,11 @@ public class MinimalCorpusTest {
         // failures are its own, held to its own roster below
         java.util.Map<String, String[]> acceptedRegister = !LaneHolder.LANE.reference() ? new java.util.HashMap<>()
                 : readAccepted(laneFile(ACCEPTED));
+        // a lane on the platform's database through another backend holds its own accepted rows beside them
+        String ownAccepted = ownAccepted();
+        if (ownAccepted != null) {
+            acceptedRegister.putAll(readAccepted(ownAccepted));
+        }
         // -Drcorpus.tests=<file>: the tests named there, one fully qualified name a line (a covering subset)
         java.util.Set<String> listed = testList();
         /** the strength census of the passes (Phase 0.7) */
@@ -433,7 +438,7 @@ public class MinimalCorpusTest {
         }
         pinRoster(only, ran, fail, "fail", laneFile("fail-roster"), true);
         pinRoster(only, ran, skipped, "skipped", laneFile("skipped-roster"), false);
-        pinRoster(only, ran, accepted, "accepted", laneFile(ACCEPTED), false);
+        pinRoster(only, ran, accepted, "accepted", laneFile(ACCEPTED), false, ownAccepted());
         java.util.Map<String, Integer> acceptedByBucket = new java.util.TreeMap<>();
         for (String a : accepted) {
             String bucket = a.substring(a.indexOf(" :: ") + 4);
@@ -895,10 +900,30 @@ public class MinimalCorpusTest {
         return new MinimalCorpus.Census(declared, excluded, declared - excluded);
     }
 
+    /**
+     * A REFERENCE LANE'S OWN ACCEPTED ROWS, where its backend is not its rosters' owner -- the platform's database
+     * through the warehouse ({@code -Drcorpus.backend=warehouse}, which holds DuckDB's rosters): what that backend alone
+     * refuses, each row's bucket naming why, read beside the platform's accepted rows ({@code
+     * /rcorpus/<the backend's name>-accepted-roster.txt}); null for a lane whose backend owns its rosters. Since
+     * 2026-11-19 (track Q2, the orchestrator's ruling: the warehouse's DuckDB reads no file the runner writes, so a file
+     * load there is refused by name at planning, S371 -- an expected refusal, never a roster line on DuckDB's own lane).
+     */
+    private static @com.legend.base.Nullable String ownAccepted() {
+        String backend = MinimalCorpus.BACKEND.name();
+        return backend.equals(LaneHolder.LANE.rosters()) ? null : "/rcorpus/" + backend + "-" + ACCEPTED + ".txt";
+    }
+
     /** The pin: the {@code kind} names == the committed roster (restricted
      * to the tests that ran when scoped); the denominator when not scoped. */
     private static void pinRoster(String only, List<String> ran, List<String> rows,
             String kind, String resource, boolean denominator) throws IOException {
+        pinRoster(only, ran, rows, kind, resource, denominator, null);
+    }
+
+    /** {@link #pinRoster(String, List, List, String, String, boolean)}, the roster {@code resource}'s rows and {@code
+     *  also}'s (a lane's own accepted rows, {@link #ownAccepted}) together. */
+    private static void pinRoster(String only, List<String> ran, List<String> rows,
+            String kind, String resource, boolean denominator, @com.legend.base.Nullable String also) throws IOException {
         String lane = LaneHolder.LANE.rosters();
         Set<String> failNames = new LinkedHashSet<>();
         for (String f : rows) {
@@ -919,7 +944,10 @@ public class MinimalCorpusTest {
         if (MEASURED.contains(resource) && !measuredOut.isEmpty() && only.isEmpty()) {
             return;   // written by writeMeasured, held to the committed copy by the lane's diff test
         }
-        List<String> roster = readRoster(resource);
+        List<String> roster = new ArrayList<>(readRoster(resource));
+        if (also != null) {
+            roster.addAll(readRoster(also));
+        }
         Set<String> rosterNames = new HashSet<>(roster);
         // LOST: failing now, not in the roster. GAINED: in the roster (and
         // ran), passing now. Both in discovery/roster order — no sort site.

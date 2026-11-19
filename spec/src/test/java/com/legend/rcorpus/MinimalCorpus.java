@@ -342,10 +342,17 @@ public final class MinimalCorpus {
         };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(),
-                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode)
+                targetOf(com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode))
                         // legend-engine's texts, spelled by the edge (phase D's D1.0)
                         .withStyle(com.legend.edge.PureText.UPSTREAM));
         sharedSetupPrograms.forEach(runner::registerSetup);
+    }
+
+    /** {@code options} for the lane's target, where its backend's database runs: a server's -- the warehouse's -- reads no
+     *  file the runner writes, so a body's file load is refused by name at planning (track Q2, the orchestrator's ruling
+     *  of 2026-11-19, U2(b); S371). */
+    static com.legend.ExecuteOptions targetOf(com.legend.ExecuteOptions options) {
+        return BACKEND.inProcess() ? options : options.withTargetOnAServer();
     }
 
     /** {@code parsed} plus the classes and enums of every SHAPE file. */
@@ -521,7 +528,9 @@ public final class MinimalCorpus {
     private static com.legend.exec.Sessions.Session openWorkspace() {
         try {
             // the corpus runs on the edge's database (the audit's J22, 2026-11-17)
-            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace(com.legend.edge.PureText.UPSTREAM));
+            // where the workspace's database runs, as the lane's backend knows it (the warehouse's is a server's: S371)
+            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace(com.legend.edge.PureText.UPSTREAM),
+                    BACKEND.inProcess() ? com.legend.exec.Sessions.Reach.THIS_PROCESS : com.legend.exec.Sessions.Reach.SERVER);
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
@@ -600,7 +609,7 @@ public final class MinimalCorpus {
             // the same stores the edge's: the referee's copy of a CSV load reads the bytes the plan's load read (B2b)
             com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
                     Corpus.RELATIONAL.getParent().getParent());
-            return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
+            return targetOf(com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores))
                     // backwards-compatibility mode, the judges' leniencies that meet legend-engine's goldens: the
                     // rules the CompatEdge names (census C1, 2026-11-17: Edge.rules(), the edge's CompatRules)
                     // legend-engine's texts, spelled by the edge (phase D's D1.0)

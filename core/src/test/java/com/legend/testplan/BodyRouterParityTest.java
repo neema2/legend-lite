@@ -1813,7 +1813,7 @@ class BodyRouterParityTest {
                 }
             }
             Capture capture = new Capture();
-            Sessions.Session session = Sessions.borrowed(c);
+            Sessions.Session session = Sessions.borrowed(c, Sessions.Reach.THIS_PROCESS);
             // the engine-text natives' answer is the compatibility edge's (S309, RULED by the user 2026-11-14: the
             // product refuses it by name), so the golden is read through the edge's style
             Execution.run(typed(ctx, query), runtime, com.legend.exec.SessionSource.given(session),
@@ -2063,7 +2063,7 @@ class BodyRouterParityTest {
             // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's
             // process-wide observer is gone)
             List<String> statements = new ArrayList<>();
-            Sessions.Session session = Sessions.borrowed(com.legend.testbackend.RecordingConnection.wrap(c, statements));
+            Sessions.Session session = Sessions.borrowed(com.legend.testbackend.RecordingConnection.wrap(c, statements), Sessions.Reach.THIS_PROCESS);
             com.legend.edge.SqlReplayReferee referee = new StubReferee(c);
             long[] before = StatementOrigin.snapshot();
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);

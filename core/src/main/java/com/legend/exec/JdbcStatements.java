@@ -39,9 +39,14 @@ final class JdbcStatements implements Statements {
      *  connector's, never re-derived from the driver's product name). */
     private @com.legend.base.Nullable DatabaseConnector declared;
 
-    JdbcStatements(Connection c, SessionState state) {
+    /** Where the session's database runs ({@link Sessions.Reach}), as the session was made: a file load is sent only to
+     *  one in this process (S371). */
+    private final Sessions.Reach reach;
+
+    JdbcStatements(Connection c, SessionState state, Sessions.Reach reach) {
         this.c = c;
         this.state = state;
+        this.reach = java.util.Objects.requireNonNull(reach, "reach");
     }
 
     /** The JDBC type number of {@code one}'s null: the plan's null types are {@code java.sql.JDBCType} names (the
@@ -331,26 +336,17 @@ final class JdbcStatements implements Statements {
         return out;
     }
 
-    /** {@inheritDoc} Refused by name, nothing sent, on a session whose database cannot read this runner's files
-     *  ({@link DatabaseConnector#readsRunnerFiles}: a server's), never sent to fail in its database's words or to read
-     *  another machine's file of the same name (track Q2, the orchestrator's ruling of 2026-11-19, option (2); S371). */
+    /** {@inheritDoc} Refused by name, nothing sent, on a session whose database runs on a server ({@link Sessions.Reach},
+     *  said where the session was made), which reads its own machine's files and never this runner's copy: never sent
+     *  to fail in its database's words or to read another machine's file of the same name (track Q2, the orchestrator's
+     *  rulings of 2026-11-19; S371). */
     @Override
     public void readsFile(PlannedSql statement, String path) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
-        DatabaseConnector declared = this.declared;
-        if (declared == null) {
-            throw new IllegalStateException("a file read on a session no plan target was checked against: whether its"
-                    + " database reads this runner's files is its connector's fact");
-        }
-        try {
-            if (!declared.readsRunnerFiles(c)) {
-                throw new com.legend.error.DataError("its database reads the runner's copy of the file, and this"
-                        + " session's " + declared.type() + " is on a server its driver (" + Connectors.driver(c)
-                        + ") reaches, which does not read this machine's files: a file load on it is refused by name"
-                        + " (S371)");
-            }
-        } catch (SQLException e) {
-            throw failed(e, statement);
+        if (reach != Sessions.Reach.THIS_PROCESS) {
+            throw new com.legend.error.DataError("its database reads the runner's copy of the file, and this session's"
+                    + " database runs on a server, which does not read this machine's files: a file load on it is refused"
+                    + " by name (S371)");
         }
         try {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);

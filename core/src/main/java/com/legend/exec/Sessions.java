@@ -65,6 +65,10 @@ public final class Sessions {
          *  (a connector's own, MongoDB's) refuses by name. */
         abstract Connection connection();
 
+        /** Where this session's database runs ({@link Reach}): said where the session is made -- by exec's openers from
+         *  how its database is declared, by a caller that hands one in -- and never read off its driver. */
+        abstract Reach reach();
+
         /** What a body driver established on this session ({@link SessionState}): the seeds it ran, the database's
          *  reported column types per statement, whether a write ran since, the session statements run -- facts that
          *  live exactly as long as the session, however many views of it are taken (B1b; D70: the owner's). */
@@ -84,7 +88,7 @@ public final class Sessions {
          *  plan's text as it is: no per-execution comment is written in front of it (C1, 2026-11-12, the user's ruling
          *  of 2026-11-10, "Agree with all": the execution id is bound plan data, ExecutionPlan.Sql#stamp). */
         Statements statementsOf() {
-            return new JdbcStatements(connection(), state());
+            return new JdbcStatements(connection(), state(), reach());
         }
 
         /** {@code work} in one transaction on this session ({@link Statements#inTransaction}: a caller's open one
@@ -111,16 +115,23 @@ public final class Sessions {
     private static final class Jdbc extends Session {
         private final Connection c;
         private final boolean owning;
+        private final Reach reach;
         private final SessionState state = new SessionState();
 
-        Jdbc(Connection c, boolean owning) {
+        Jdbc(Connection c, boolean owning, Reach reach) {
             this.c = c;
             this.owning = owning;
+            this.reach = java.util.Objects.requireNonNull(reach, "reach");
         }
 
         @Override
         Connection connection() {
             return c;
+        }
+
+        @Override
+        Reach reach() {
+            return reach;
         }
 
         @Override
@@ -152,6 +163,11 @@ public final class Sessions {
         @Override
         Connection connection() {
             return owner.connection();
+        }
+
+        @Override
+        Reach reach() {
+            return owner.reach();
         }
 
         @Override
@@ -222,6 +238,11 @@ public final class Sessions {
         }
 
         @Override
+        Reach reach() {
+            return opened().reach();
+        }
+
+        @Override
         public SessionState state() {
             return state;
         }
@@ -236,16 +257,27 @@ public final class Sessions {
         }
     }
 
-    /** A session that OWNS {@code connection}: closing it closes the connection (a close that fails is a
-     *  {@link com.legend.error.DataError}). */
-    public static Session owned(Connection connection) {
-        return new Jdbc(connection, true);
+    /**
+     * WHERE A SESSION'S DATABASE RUNS (track Q2, the orchestrator's ruling of 2026-11-19; S371): in THIS PROCESS (an
+     * embedded engine: DuckDB's, H2's, SQLite's), so it reads this machine's files -- a file load's copy, which the
+     * runner writes and binds by path ({@code ExecutionPlan.LoadStep.Delivery.Reads}) -- or on a SERVER its driver
+     * reaches (Postgres, an H2 server, the warehouse's DuckDB over HTTP), which reads its own machine's files and never
+     * the runner's. Said where the session is made, never read off its driver: exec's openers say it from how the
+     * database is declared ({@link Opening}), and a caller that hands a session in says it of what it opened.
+     */
+    public enum Reach { THIS_PROCESS, SERVER }
+
+    /** A session that OWNS {@code connection}, whose database runs where {@code reach} says: closing it closes the
+     *  connection (a close that fails is a {@link com.legend.error.DataError}). */
+    public static Session owned(Connection connection, Reach reach) {
+        return new Jdbc(connection, true, reach);
     }
 
-    /** A session over a connection its caller keeps: closing it closes nothing. One session per connection is the
-     *  caller's to keep (D70): a second session over the same connection has a state of its own. */
-    public static Session borrowed(Connection connection) {
-        return new Jdbc(connection, false);
+    /** A session over a connection its caller keeps, whose database runs where {@code reach} says: closing it closes
+     *  nothing. One session per connection is the caller's to keep (D70): a second session over the same connection
+     *  has a state of its own. */
+    public static Session borrowed(Connection connection, Reach reach) {
+        return new Jdbc(connection, false, reach);
     }
 
     /** A non-closing view of {@code session}: the same connection, state and version; closing it closes nothing
@@ -282,6 +314,11 @@ public final class Sessions {
         @Override
         Connection connection() {
             return owner.connection();
+        }
+
+        @Override
+        Reach reach() {
+            return owner.reach();
         }
 
         @Override
@@ -353,11 +390,12 @@ public final class Sessions {
         Connection open() throws SQLException;
     }
 
-    /** The session {@code opener} opens, owned: a failure of the open is a {@link com.legend.error.DataError}. */
+    /** The session {@code opener} opens, owned: a failure of the open is a {@link com.legend.error.DataError}. A
+     *  system connection is a server engine's ({@link Opener}): its database reads no file of this runner's. */
     public static Session open(Opener opener) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return owned(opener.open());
+            return owned(opener.open(), Reach.SERVER);
         } catch (SQLException e) {
             throw RaisedErrors.connectionError(e);
         }
@@ -501,8 +539,13 @@ public final class Sessions {
     /** How a declared connection is opened, as its database's connector answers: a JDBC URL opened fresh per use, or an
      *  in-memory database whose identity the opener keeps (its tables persist across uses — the server's feature). */
     public sealed interface Opening {
-        /** A database reached by URL; each use opens (and its lease closes) a connection. */
-        record Url(String url) implements Opening {
+        /** A database reached by URL, running where {@code reach} says (its connector's answer from the connection's
+         *  specification: a file in this process, a server's address); each use opens (and its lease closes) a
+         *  connection. */
+        record Url(String url, Reach reach) implements Opening {
+            public Url {
+                java.util.Objects.requireNonNull(reach, "reach");
+            }
         }
 
         /** An in-memory database a connector keeps by name: the user's name where the declaration gives one, else one
@@ -543,7 +586,7 @@ public final class Sessions {
                     + settings.required() + ": a planner defect");
         }
         try {
-            return opened(DriverManager.getConnection(url.url()), settings);
+            return opened(DriverManager.getConnection(url.url()), url.reach(), settings);
         } catch (SQLException e) {
             throw RaisedErrors.connectionError(e);
         }
@@ -552,8 +595,9 @@ public final class Sessions {
     /** {@code connection}, opened by this platform with {@code settings} written where the database is opened (the
      *  plan's target's; null for none): owned, its state holding them, so the session is not read back for them
      *  ({@code JdbcStatements.check}; the C checkpoint's SHOULD-FIX 3, 2026-11-12). */
-    private static Session opened(Connection connection, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
-        Session session = owned(connection);
+    private static Session opened(Connection connection, Reach reach,
+            com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
+        Session session = owned(connection, reach);
         session.state().settingsHeld(settings);
         return session;
     }
@@ -562,7 +606,7 @@ public final class Sessions {
     public static Session openNamed(Opening.Named named, String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return opened(named.memory().openNamed(name, settings), settings);
+            return opened(named.memory().openNamed(name, settings), Reach.THIS_PROCESS, settings);
         } catch (SQLException e) {
             throw RaisedErrors.connectionError(e);
         }
@@ -573,7 +617,7 @@ public final class Sessions {
     public static Session openKept(Opening.Named named, String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return opened(named.memory().openKept(name, settings), settings);
+            return opened(named.memory().openKept(name, settings), Reach.THIS_PROCESS, settings);
         } catch (SQLException e) {
             throw RaisedErrors.connectionError(e);
         }
@@ -584,7 +628,7 @@ public final class Sessions {
     public static Session joinKept(Opening.Named named, String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return opened(named.memory().joinKept(name, settings), settings);
+            return opened(named.memory().joinKept(name, settings), Reach.THIS_PROCESS, settings);
         } catch (SQLException e) {
             throw RaisedErrors.connectionError(e);
         }
@@ -594,7 +638,7 @@ public final class Sessions {
     public static Session openHeld(Opening.Held held, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return opened(held.connector().openPrivate(settings), settings);
+            return opened(held.connector().openPrivate(settings), Reach.THIS_PROCESS, settings);
         } catch (SQLException e) {
             throw RaisedErrors.connectionError(e);
         }
@@ -606,7 +650,7 @@ public final class Sessions {
     public static Session openPrivate(DatabaseType type, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
         com.legend.base.RunScope.opening("a session opened");
         try {
-            return opened(Connectors.of(type).openPrivate(settings), settings);
+            return opened(Connectors.of(type).openPrivate(settings), Reach.THIS_PROCESS, settings);
         } catch (SQLException e) {
             throw RaisedErrors.connectionError(e);
         }

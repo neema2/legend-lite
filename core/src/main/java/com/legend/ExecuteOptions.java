@@ -29,8 +29,9 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
             com.legend.testexecutionplan.Edge edge,
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
+        // the platform's own target, an embedded engine in this process, reads the runner's files (S371)
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
+                java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT, true),
                 stores);
     }
 
@@ -74,6 +75,13 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
      *  the product's own ({@code com.legend.database.PlanStyle.PRODUCT}) otherwise, which these options carry from their making. */
     public ExecuteOptions withStyle(com.legend.database.PlanStyle style) {
         return new ExecuteOptions(planning.withStyle(style), stores);
+    }
+
+    /** These options for a run whose target database runs on a server its sessions reach (a harness's: the warehouse
+     *  lane's), which reads no file this runner writes: a body's file load is refused by name at planning (track Q2,
+     *  the orchestrator's ruling of 2026-11-19; S371). */
+    public ExecuteOptions withTargetOnAServer() {
+        return new ExecuteOptions(planning.withTargetOnAServer(), stores);
     }
 
     /** The raw-SQL ledger this execution appends to (Phase 2b) and the data stores its loads resolve through

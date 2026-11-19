@@ -304,26 +304,30 @@ class ConnectorsTest {
         }
     }
 
-    /** Whether a session's database reads a file this runner wrote ({@link DatabaseConnector#readsRunnerFiles}; track Q2,
-     *  2026-11-19, S371): asked of the two connectors whose dialects plan a file's load, by the session -- DuckDB's own
-     *  driver yes, another driver of DuckDB (the warehouse's, on a server) no; H2 yes, its server S371's residual --
-     *  and refused by name by any other. */
+    /** WHERE A DECLARED DATABASE RUNS, as its connector's opening says it from the connection's specification (track
+     *  Q2, 2026-11-19, S371): a file the engine opens is in this process, a server's address a server's -- the fact a
+     *  file load is sent by (JdbcStatements.readsFile), never read off the session's driver. */
     @Test
-    void eachConnectorThatReadsAFileSaysWhetherItsSessionReadsTheRunners() throws Exception {
-        DatabaseConnector duckDb = Connectors.of(com.legend.executionplan.DatabaseType.DuckDB);
-        DatabaseConnector h2 = Connectors.of(com.legend.executionplan.DatabaseType.H2);
-        try (Connection d = java.sql.DriverManager.getConnection("jdbc:duckdb:");
-                Connection h = java.sql.DriverManager.getConnection("jdbc:h2:mem:reads_runner_files")) {
-            org.junit.jupiter.api.Assertions.assertTrue(duckDb.readsRunnerFiles(d));
-            org.junit.jupiter.api.Assertions.assertTrue(h2.readsRunnerFiles(h));
-            // the warehouse's driver reports DuckDB, and reaches it over HTTP
-            org.junit.jupiter.api.Assertions.assertFalse(duckDb.readsRunnerFiles(
-                    ReportedDriver.as(d, "legend-lite warehouse")));
-            // a database whose dialect plans no file's load is never asked: the question is refused by name
-            IllegalStateException e = assertThrows(IllegalStateException.class,
-                    () -> Connectors.of(com.legend.executionplan.DatabaseType.Postgres).readsRunnerFiles(d));
-            org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("plans no file"), e.getMessage());
+    void eachUrlOpeningSaysWhereItsDatabaseRuns() {
+        Map<String, Sessions.Reach> expected = new LinkedHashMap<>();
+        expected.put("DuckDB LocalFile", Sessions.Reach.THIS_PROCESS);
+        expected.put("H2 LocalFile", Sessions.Reach.THIS_PROCESS);
+        expected.put("SQLite LocalFile", Sessions.Reach.THIS_PROCESS);
+        expected.put("H2 StaticDatasource", Sessions.Reach.SERVER);
+        expected.put("Postgres StaticDatasource", Sessions.Reach.SERVER);
+        expected.put("MariaDB StaticDatasource", Sessions.Reach.SERVER);
+        Map<String, Sessions.Reach> answered = new LinkedHashMap<>();
+        for (String c : expected.keySet()) {
+            String[] parts = c.split(" ");
+            ConnectionSpecification spec = parts[1].equals("LocalFile") ? new ConnectionSpecification.LocalFile("/tmp/q2.db")
+                    : new ConnectionSpecification.StaticDatasource("db.example", 5432, "q2");
+            com.legend.executionplan.Connection def = com.legend.planner.ConnectionPlans.of(new ConnectionDefinition(
+                    Q, null, DatabaseType.valueOf(parts[0]), spec, new AuthenticationSpec.NoAuth()));
+            if (Sessions.openingFor(def) instanceof Sessions.Opening.Url u) {
+                answered.put(c, u.reach());
+            }
         }
+        assertEquals(expected, answered);
     }
 
     /** THE ONE RULE for a project's Data (the M1 tenets audit's finding 1, 2026-11-09): the planner plans the fill only

@@ -205,7 +205,7 @@ final class SeamBenchmark {
             paths.put("6 plan runner, no writer", crc -> () -> productDrain(c, plan, null, null));
             // the same, every fetch on ONE session (its session statements sent once, not per fetch): what a
             // request's own session costs is the difference from path 6
-            PlanSessions.Source held = PlanSessions.of(Sessions.borrowed(c));
+            PlanSessions.Source held = PlanSessions.of(Sessions.borrowed(c, Sessions.Reach.THIS_PROCESS));
             paths.put("6s  same, one session held", crc -> () -> productDrain(held, plan, null, null));
             paths.put("7 + JsonRowsWriter", crc -> () -> {
                 CountingWriter w = new CountingWriter();
@@ -273,7 +273,7 @@ final class SeamBenchmark {
         out.write(head);
         // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
-        new JdbcStatements(c, new SessionState()).query(com.legend.testbackend.Unplanned.sql(sql), List.of(), List.of(), row -> {
+        new JdbcStatements(c, new SessionState(), Sessions.Reach.THIS_PROCESS).query(com.legend.testbackend.Unplanned.sql(sql), List.of(), List.of(), row -> {
             try {
                 if (n[0] > 0) {
                     out.write(between);
@@ -295,7 +295,7 @@ final class SeamBenchmark {
     private static Drained productDrain(Connection c, ExecutionPlan plan,
             com.legend.result.@com.legend.base.Nullable ResultSink writer,
             java.util.function.@com.legend.base.Nullable LongSupplier written) throws Exception {
-        return productDrain(PlanSessions.of(Sessions.borrowed(c)), plan, writer, written);
+        return productDrain(PlanSessions.of(Sessions.borrowed(c, Sessions.Reach.THIS_PROCESS)), plan, writer, written);
     }
 
     private static Drained productDrain(PlanSessions.Source sessions, ExecutionPlan plan,
@@ -509,7 +509,7 @@ final class SeamBenchmark {
         StringBuilder sample = new StringBuilder();
         // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
         try (var run = com.legend.base.RunScope.enter()) {
-        new JdbcStatements(c, new SessionState()).query(com.legend.testbackend.Unplanned.sql(sql), List.of(), List.of(), row -> {
+        new JdbcStatements(c, new SessionState(), Sessions.Reach.THIS_PROCESS).query(com.legend.testbackend.Unplanned.sql(sql), List.of(), List.of(), row -> {
             if (SAMPLE > 0 && sample.length() < SAMPLE && row != null) {
                 sample.append(row).append('\n');
             }
