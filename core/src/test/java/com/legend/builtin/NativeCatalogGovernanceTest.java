@@ -174,7 +174,14 @@ class NativeCatalogGovernanceTest {
         // 37 -> 38 (PR #118 fix round, 2026-11-18: N2, the in-body assert's default message chosen by the plan's style
         // at lowering; the user's word "raise it"): assertFailedText, which LambdaBodies writes for fail's message where
         // the assert gives none -- the product's lite sentence, the compatibility edge's legend-pure "Assert failed"
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 38,
+        // 38 -> 40 (2026-11-19, A3 of the compatibility program, piece 1, the translator's: sqlSubstring and
+        // sqlPosition, SQL's SUBSTRING and POSITION by name, which the islands and the ###Relational dynaFunctions
+        // write; its own dated note replaces this line where piece 1 lands, claude/compat-a3-switch)
+        // 40 -> 41 (2026-11-19, A3, the user's ruling ~21:10 "Yes to all three for substring", relayed by the compat
+        // owner; the reviewer's D-S1 as corrected, ca8ea4a5): substringAsGiven, the database's own SUBSTRING over the
+        // arguments as given -- lite-internal, its one producer the legend-engine door's engine rewrite, its one
+        // product claimer Scalars (spec's ClaimRegistryTest.substringAsGivensOneProductClaimerIsScalars)
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 41,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -278,4 +285,5 @@ class NativeCatalogGovernanceTest {
         u.addAll(b);
         return u;
     }
+
 }

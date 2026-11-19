@@ -396,7 +396,7 @@ public final class PlanAllocations {
         }
         try {
             SqlQuery plan = Compiler.lowerResolved(ql, env.ctx(),
-                    runtimeFqn, false, mr.fullPath());
+                    runtimeFqn, mr.fullPath());
             var rows = ColumnLineageRows.rows(scope, env.ctx(),
                     mr.fullPath(), ScanColumns.entries(plan));
             env.planRows().put(scope, rows);

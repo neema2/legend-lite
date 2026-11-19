@@ -47,19 +47,6 @@ class RaiseTextTest {
 
     private static final SqlExpr OPERAND = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
 
-    /** legend-engine's text printers write legend-pure's sentence of a raise, as the edge's dialects do -- never the
-     *  product's kind name (the D part 1 audit's S2, 2026-11-15): toSQLString's and planToString's text unchanged by
-     *  D1.1. */
-    @Test
-    void theEngineTextPrintersWritePuresSentence() {
-        for (SqlDialect printer : List.<SqlDialect>of(new com.legend.edge.EngineStyleH2(),
-                new com.legend.edge.EngineStyleDB2(), new com.legend.edge.EngineStyleComposite())) {
-            String text = text(printer, select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of())));
-            assertTrue(text.contains("Division by zero"), printer.getClass().getSimpleName() + ": " + text);
-            assertFalse(text.contains("DIVIDE_BY_ZERO"), printer.getClass().getSimpleName() + ": " + text);
-        }
-    }
-
     @Test
     void aProductRaiseWritesItsSitesTokenAndNoOperand() {
         for (DatabaseType type : Databases.implemented()) {

@@ -463,7 +463,7 @@ public final class CypherToPure {
     private static Tx nodeProperties(NodeParts parts, Pos pos) {
         ValueSpecification text = parts.props().stream().allMatch(p -> p.getValue().kind() == Kind.NULL)
                 ? new CString("{}")
-                : plus(new CString("{"), call("substring", propertyPieces(parts, pos), new CInteger(2L)),
+                : plus(new CString("{"), call(SqlToPure.SQL_SUBSTRING, propertyPieces(parts, pos), new CInteger(2L)),
                         new CString("}"));
         return Tx.value(present(parts, call("fromJson", text)), Kind.JSON, parts.absent() != null);
     }
@@ -488,7 +488,7 @@ public final class CypherToPure {
         if (pieces == null) {
             return noKeys();
         }
-        ValueSpecification text = plus(new CString("["), call("substring", pieces, new CInteger(2L)),
+        ValueSpecification text = plus(new CString("["), call(SqlToPure.SQL_SUBSTRING, pieces, new CInteger(2L)),
                 new CString("]"));
         return new Coll(call("toMany", call("fromJson", text), SqlToPure.typeArg("String")), Kind.STRING, false);
     }
@@ -7985,7 +7985,7 @@ public final class CypherToPure {
     private static ValueSpecification temporalOfText(ValueSpecification text, Kind kind) {
         int open = kind == Kind.DATE ? "Date('".length() : kind == Kind.TIME ? "Time('".length()
                 : "DateTime('".length();
-        ValueSpecification inner = call("substring", text, lit(open + 1), integer(minus(call("length", text),
+        ValueSpecification inner = call(SqlToPure.SQL_SUBSTRING, text, lit(open + 1), integer(minus(call("length", text),
                 lit(open + 2))));
         return switch (kind) {
             case DATE -> call("datePart", call("parseDate", inner));
@@ -11671,10 +11671,10 @@ public final class CypherToPure {
             throw CypherErrors.invalid("Type mismatch: substring expects a String and Integers", c.pos());
         }
         if (length == null) {
-            return strict(Kind.STRING, List.of(s, start), x -> call("substring", x.get(0),
+            return strict(Kind.STRING, List.of(s, start), x -> call(SqlToPure.SQL_SUBSTRING, x.get(0),
                     AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L)))));
         }
-        return strict(Kind.STRING, List.of(s, start, length), x -> call("substring", x.get(0),
+        return strict(Kind.STRING, List.of(s, start, length), x -> call(SqlToPure.SQL_SUBSTRING, x.get(0),
                 AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L))), x.get(2)));
     }
 
@@ -13120,7 +13120,7 @@ public final class CypherToPure {
         for (int i = 1; i < pieces.size(); i++) {
             text = plus(text, pieces.get(i));
         }
-        text = plus(new CString("["), call("substring", text, new CInteger(2L)), new CString("]"));
+        text = plus(new CString("["), call(SqlToPure.SQL_SUBSTRING, text, new CInteger(2L)), new CString("]"));
         return scalar(Tx.value(call("fromJson", text), Kind.JSON, false));
     }
 
@@ -14452,7 +14452,7 @@ public final class CypherToPure {
         if (time) {
             return splitTime(clock);
         }
-        Tx date = strict(Kind.DATE, List.of(text), v -> call("datePart", call("parseDate", call("substring",
+        Tx date = strict(Kind.DATE, List.of(text), v -> call("datePart", call("parseDate", call(SqlToPure.SQL_SUBSTRING,
                 v.get(0), lit(1), lit(10)))));
         Tx parts = splitDateTime(date, clock);
         return switch (kind) {
@@ -14466,10 +14466,10 @@ public final class CypherToPure {
     /** The nanoseconds since midnight an ISO clock spells from the character {@code at} on ({@code HH:mm:ss}, then
      *  the fraction's digits after the point padded to nine), the database's parse of each field. */
     private static ValueSpecification clockOfIso(ValueSpecification text, int at) {
-        ValueSpecification fraction = call("substring", plus(call("substring", text, lit(at + 9L)),
+        ValueSpecification fraction = call(SqlToPure.SQL_SUBSTRING, plus(call(SqlToPure.SQL_SUBSTRING, text, lit(at + 9L)),
                 new CString("000000000")), lit(1), lit(9));
-        return clockNanos(call("parseInteger", call("substring", text, lit(at), lit(2))), call("parseInteger",
-                call("substring", text, lit(at + 3L), lit(2))), call("parseInteger", call("substring", text,
+        return clockNanos(call("parseInteger", call(SqlToPure.SQL_SUBSTRING, text, lit(at), lit(2))), call("parseInteger",
+                call(SqlToPure.SQL_SUBSTRING, text, lit(at + 3L), lit(2))), call("parseInteger", call(SqlToPure.SQL_SUBSTRING, text,
                 lit(at + 6L), lit(2))), call("parseInteger", fraction));
     }
 
@@ -14477,7 +14477,7 @@ public final class CypherToPure {
      *  {@code DateTime('...')}, {@link #splitSpelled}). */
     private static Tx splitOfSpelled(Tx spelled, Kind kind) {
         int open = kind == Kind.TIME ? "Time('".length() : "DateTime('".length();
-        Tx inner = strict(Kind.STRING, List.of(spelled), v -> call("substring", v.get(0), lit(open + 1L),
+        Tx inner = strict(Kind.STRING, List.of(spelled), v -> call(SqlToPure.SQL_SUBSTRING, v.get(0), lit(open + 1L),
                 integer(minus(call("length", v.get(0)), lit(open + 2L)))));
         return splitOfIso(inner, kind);
     }
@@ -14771,7 +14771,7 @@ public final class CypherToPure {
         ValueSpecification clock = plus(two(quotient(ofDay, 3_600L * NANOS)), new CString(":"),
                 two(quotient(past(ofDay, 3_600L * NANOS), 60L * NANOS)), new CString(":"),
                 two(quotient(past(ofDay, 60L * NANOS), NANOS)), new CString("."),
-                call("substring", call("toString", plus(past(ofDay, NANOS), lit(NANOS))), new CInteger(2L)));
+                call(SqlToPure.SQL_SUBSTRING, call("toString", plus(past(ofDay, NANOS), lit(NANOS))), new CInteger(2L)));
         if (date == null) {
             return clock;
         }
@@ -14790,7 +14790,7 @@ public final class CypherToPure {
      *  raise by name (the databases count those years apart: Postgres has no year zero, its year of 1 BC is -1
      *  where DuckDB's and Neo4j's is 0, measured 2026-10-18). */
     private static ValueSpecification yearText(ValueSpecification year, boolean expanded) {
-        ValueSpecification four = call("substring", call("toString", plus(year, lit(10000))), new CInteger(2L));
+        ValueSpecification four = call(SqlToPure.SQL_SUBSTRING, call("toString", plus(year, lit(10000))), new CInteger(2L));
         ValueSpecification spelled = expanded ? call("if", call("greaterThan", year, lit(9999)),
                 thunk(plus(new CString("+"), call("toString", year))), thunk(four)) : four;
         ValueSpecification beyond = expanded ? call("lessThan", year, lit(1)) : call("or", call("lessThan", year,
@@ -17778,7 +17778,7 @@ public final class CypherToPure {
             ValueSpecification ns = integer(AppliedFunction.infixRun("times", List.of(call("dateDiff",
                     call("firstMillisecondOfSecond", v), v, unit("MICROSECONDS")), new CInteger(1000L))));
             // (Neo4j trims the fraction's trailing zeros to the digit, as a duration's: 10 microseconds is .00001)
-            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
+            ValueSpecification digits = call("regexpReplace", call(SqlToPure.SQL_SUBSTRING, call("toString", plus(ns,
                     lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
             ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
                     thunk(plus(new CString("."), digits)));
@@ -17814,7 +17814,7 @@ public final class CypherToPure {
                             thunk(plus(new CString("["), call("toOne", zone.region()), new CString("]")))))
                     : zone.offsetSpelled();
             ValueSpecification ns = past(n, NANOS);
-            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(ns,
+            ValueSpecification digits = call("regexpReplace", call(SqlToPure.SQL_SUBSTRING, call("toString", plus(ns,
                     lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
             ValueSpecification fraction = call("if", call("equal", ns, lit(0)), thunk(new CString("")),
                     thunk(plus(new CString("."), digits)));
@@ -17830,7 +17830,7 @@ public final class CypherToPure {
 
     /** A number of at most two digits, zero-padded to two: the digits of 100 plus it, after the 1. */
     private static ValueSpecification two(ValueSpecification n) {
-        return call("substring", call("toString", plus(n, lit(100))), new CInteger(2L));
+        return call(SqlToPure.SQL_SUBSTRING, call("toString", plus(n, lit(100))), new CInteger(2L));
     }
 
     /** A field's name as Neo4j's messages spell it ({@code Year}). */
@@ -17878,7 +17878,7 @@ public final class CypherToPure {
             ValueSpecification secWhole = integer(call("floor", call("divide", magnitude, lit(NANOS))));
             ValueSpecification frac = call("rem", magnitude, lit(NANOS));
             // the fraction's nine digits (a leading 1 keeps the zeros, then dropped), the trailing zeros trimmed
-            ValueSpecification digits = call("regexpReplace", call("substring", call("toString", plus(frac,
+            ValueSpecification digits = call("regexpReplace", call(SqlToPure.SQL_SUBSTRING, call("toString", plus(frac,
                     lit(NANOS))), new CInteger(2L)), new CString("0+$"), new CString(""), new CBoolean(true));
             ValueSpecification secText = call("if", call("equal", frac, lit(0)), thunk(call("toString", secWhole)),
                     thunk(plus(call("toString", secWhole), new CString("."), digits)));
@@ -18961,7 +18961,7 @@ public final class CypherToPure {
          *  domain model's writes on H2 raised "Function REVERSE not found"). */
         private static ValueSpecification storeId(ValueSpecification identity) {
             ValueSpecification unpackaged = call("replace", identity, new CString("::"), new CString("/"));
-            return call("parseInteger", call("substring", unpackaged, plus(call("indexOf", unpackaged,
+            return call("parseInteger", call(SqlToPure.SQL_SUBSTRING, unpackaged, plus(call(SqlToPure.SQL_POSITION, unpackaged,
                     new CString(":")), new CInteger(1L))));
         }
 

@@ -307,7 +307,7 @@ class ScaleCostsDuckDbTest {
                 parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
                         ? lf.body() : List.of(parsed);
         var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(List.of()), ctx);
-        SqlQuery q = Compiler.lowerResolved(resolved, ctx, SqlIslandCases.RUNTIME, false);
+        SqlQuery q = Compiler.lowerResolved(resolved, ctx, SqlIslandCases.RUNTIME);
         return DUCKDB.dialect().render(q);
     }
 

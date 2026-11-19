@@ -145,7 +145,10 @@ public final class PeRatchets {
                     + " elements (a Database, two Mappings, a Connection, two Runtimes) parse on the reference grammar"
                     + " and match, 3315 + 6 = 3321; the class holding a function value (lite's own dialect, which"
                     + " the reference grammar refuses) is replaced by a lambda read from a collection; the merged value"
-                    + " is regenerated on the merged tree; UP)");
+                    + " is regenerated on the merged tree; UP)",
+            "own_corpus.matched 3310 -> 3311 (2026-11-19, A2 of the compatibility program: PureV1SqlTextTest's model, the"
+                    + " net's trades model with an empty mapping, matches the reference grammar; LegacyTextTest's left with"
+                    + " the printers; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

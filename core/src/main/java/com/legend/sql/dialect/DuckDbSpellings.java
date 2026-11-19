@@ -10,14 +10,12 @@ import com.legend.sql.SqlExpr;
 import java.util.List;
 
 /**
- * DuckDB's spellings of the functions only DuckDB runs, written once for the two dialects that name them: {@link DuckDb}
- * and the engine-H2 text ({@link EngineStyleH2}), which has carried them since they were the base renderer's. The engine
- * text keeps them because the corpus reads that text on DuckDB too: refusing them broke 14 passing corpus tests (the
- * dialect program's decision D1, measured 2026-10-13: 13 through {@code error()}, one through {@code to_base64}).
- * legend-engine's own H2 text spells none of them; that is the engine-text work's question, not D1's.
+ * DuckDB's spellings of the functions only DuckDB runs, written once for {@link DuckDb} (the engine-H2 text, which
+ * carried them too since they were the base renderer's, went with legend-engine's SQL text: A2 of the compatibility
+ * program, 2026-11-19, CP-4).
  */
-// public: the compatibility edge's engine-text printers (com.legend.edge.EngineStyle*, O3, 2026-11-12) use it; noted
-// 2026-11-15 (the D part 1 audit)
+// public: the compatibility edge's engine-text printers used it (O3, 2026-11-12; noted 2026-11-15, the D part 1 audit);
+// they went with A2, 2026-11-19
 public final class DuckDbSpellings {
 
     private DuckDbSpellings() {

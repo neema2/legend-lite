@@ -253,7 +253,7 @@ class StoreTypesTest {
     private static Map<String, SqlDdl.ColumnType> scanOf(String model, String query, String table) {
         SqlQuery lowered = Compiler.lowerResolved(
                 com.legend.compiler.NameResolver.resolveQuery(com.legend.testing.Own.spec(query)),
-                Compiler.compileModel(model), "s::RT", false);
+                Compiler.compileModel(model), "s::RT");
         List<SqlSource.Table> scans = new ArrayList<>();
         new SqlRewriter() {
             @Override

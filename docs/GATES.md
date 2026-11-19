@@ -164,6 +164,41 @@ seven-family "regression" that does not exist. It cost an hour and a false
 check the flag before reading the scoreboard. Prefer `tools/allgates.sh`,
 which cannot make this mistake.
 
+## A2 of the compatibility program, 2026-11-19 -- the corpus rosters' and registers' written reasons (branch `claude/compat-a2-printers`)
+
+Stage A ratified by the user 2026-11-19. A2 deletes legend-engine's SQL text printers (`EngineStyleH2`, `EngineStyleDB2`,
+`EngineStyleComposite`, `EngineTextDialect`) under CP-4: upstream's SQL text is never promised. A request that asks for
+SQL text now gets lite's own. The build spec, with every moved test by name and class, is `A2-shape-note.md` and
+`A2-roster.tsv` on `claude/census-b2`.
+
+**The fail rosters:**
+- H2: 276 -> 423 (+147). DuckDB: 108 -> 260 (+152).
+- Every added test is in `A2-roster.tsv`, with its class:
+  - a1: the text failed and the rows appeal declined;
+  - a2: a printed SQL, plan or DDL string compared with no appeal;
+  - a3: lite has no form for the construct printed;
+  - a4: SQL read from legend-engine's plan;
+  - b: a diverged appeal;
+  - c: legend-engine's plan structure.
+- 0 extra, 0 missing, 0 removed.
+
+**The unordered registers:**
+- H2 899 -> 1,329 (+434, -4). DuckDB 913 -> 1,348 (+440, -5).
+- An added line is a test that passed by its text before and is now judged by its rows, through the SQL-text appeal.
+  Its chain has no sort, so the rows compare as a multiset.
+- A removed line is a test that now fails (it is in `A2-roster.tsv`).
+
+**The engine-order register:** DuckDB -2, +1, with the same cause.
+
+**The ord registers:**
+- H2 3 -> 7 (+4), DuckDB 3 -> 8 (+5): `ordered-keys-unmappable` lines.
+- Each is a sorted chain whose sort keys the row compare cannot map, so it keeps the multiset compare, counted.
+- They passed by their text before A2. The four on both lanes are `testSortByLambdaColumnAddition`,
+  `testRenameColumnsAfterGroupBy`, `testSortByLambdaWithIfElseValue` and `testSortByLambdaWIthIfElseColumn`;
+  DuckDB's fifth is `testSortByLambdaDeepOptional`.
+
+**The skipped rosters:** unchanged.
+
 ## The total wall's M1, 2026-11-09 -- data in the plan, L2 and L3 (branch `claude/total-wall`, 34eeb5a8)
 
 What landed: `docs/DATA_IN_THE_PLAN_2026_11_09.md` "L2 and L3 as built" (the declared CSV format, upstream's rule, every

@@ -389,7 +389,11 @@ session's queries name it. The acceptance, `ReservedNamesGenerationTest`: a gene
 
 ---
 
-## PARK-18 — the legacy printer cannot write a query's explicit null placement
+## PARK-18 — CLOSED 2026-11-19: the legacy printer cannot write a query's explicit null placement
+
+**Closed** 2026-11-19 by A2 of the compatibility program (stage A, ratified by the user 2026-11-19): the legacy printer
+(`EngineStyleH2`) was deleted with legend-engine's SQL text, under CP-4 (upstream's SQL text is never promised). The
+compatibility routes print lite's own SQL, which writes every null placement. The row below is history.
 
 **Parked** 2026-10-09 by the Plan Gen / Exec Split session with E-4b, PROPOSED to the user for confirmation (the
 user's rule is "for backwards compatibility/legacy mode we need to be fully exact"; this is the one measured spelling E-4b

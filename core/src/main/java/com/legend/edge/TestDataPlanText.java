@@ -27,7 +27,7 @@ final class TestDataPlanText {
     /** planToString over a test-data carrier: the {@code plan} flavor prints the engine's MultiResultSequence text;
      *  any other flavor is not a plan (loud). */
     static String planTextResult(com.legend.compiler.spec.typed.TypedTestDataGen g, ModelContext ctx,
-            EngineTextDialect text, String connection) {
+            LiteSqlText text, String connection) {
         if (!"plan".equals(g.flavor())) {
             throw new com.legend.error.NotImplementedException(
                     "planToString over a non-plan test-data carrier ("
@@ -46,7 +46,7 @@ final class TestDataPlanText {
     }
 
     /** The plan text of the generator's {@code roots}. */
-    static String planText(List<TestDataFetches.FetchNode> roots, EngineTextDialect text, String connection) {
+    static String planText(List<TestDataFetches.FetchNode> roots, LiteSqlText text, String connection) {
         StringBuilder kids = new StringBuilder();
         for (TestDataFetches.FetchNode r : roots) {
             node(r, kids, text, connection);
@@ -58,7 +58,7 @@ final class TestDataPlanText {
                 + "  )\n)\n";
     }
 
-    private static void node(TestDataFetches.FetchNode n, StringBuilder out, EngineTextDialect text,
+    private static void node(TestDataFetches.FetchNode n, StringBuilder out, LiteSqlText text,
             String connection) {
         switch (n) {
             case TestDataFetches.Unidentified u -> out.append(unidentified(u, text, connection));
@@ -98,7 +98,7 @@ final class TestDataPlanText {
 
     /** The engine's Error node for a root without row identifiers: the assert message (primary key columns as
      *  name:TYPE) over the sampled {@code select top 5} of the root table. */
-    private static String unidentified(TestDataFetches.Unidentified u, EngineTextDialect text, String connection) {
+    private static String unidentified(TestDataFetches.Unidentified u, LiteSqlText text, String connection) {
         String relType = relationType(u.db(), u.schema(), u.table(), u.keys());
         String pk = u.keys().stream()
                 .map(c -> c.name() + ":" + PlanText.spell(c.type()))

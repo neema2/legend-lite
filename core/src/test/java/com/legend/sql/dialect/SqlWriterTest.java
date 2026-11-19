@@ -3,7 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleH2;
 
 import com.legend.sql.DialectCapability;
 
@@ -65,12 +64,6 @@ class SqlWriterTest {
             assertEquals(d.render(QUERY), s.sql(), type.name());
             assertEquals(List.of(), s.binds(), type.name());
         }
-    }
-
-    @Test
-    void theLegacyEngineTextPlanBindsNothing() {
-        var refused = assertThrows(DialectCapability.class, () -> new EngineStyleH2().renderStatement(QUERY));
-        assertTrue(refused.getMessage().contains("template variables"), refused.getMessage());
     }
 
     // ---- E-2: parameters bound where they are written ------------------------------------------------------------

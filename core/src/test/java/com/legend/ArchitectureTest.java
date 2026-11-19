@@ -244,59 +244,14 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
-    /**
-     * <strong>Invariant 4d — the golden-text renderer is quarantined.</strong>
-     * EngineStyleH2 exists ONLY for the engine's text natives (toSQLString, planToString, the DDL generators); an
-     * execution path reaching it would run engine-H2 TEXT semantics against a real session. Since phase D (2026-11-12,
-     * D1.7's move pulled forward) the printers are the compatibility edge's ({@code com.legend.edge}): no product class
-     * reaches one (the edge rule, {@code PRODUCT_REACHES_NO_EDGE}), and of the edge only the spelling that hands them to
-     * the planner ({@code PureText}) and the family itself construct them.
-     */
-    @Test
-    void engineStyleRendererIsQuarantinedToTheRootLayer() {
-        noClasses()
-            .that().resideInAPackage("com.legend..")
-            .and().doNotBelongToAnyOf(com.legend.edge.PureText.class)
-            // the engine-style FAMILY (H2 + DB2 golden-text renderers) may compose internally
-            .and().doNotBelongToAnyOf(
-                    com.legend.edge.EngineStyleDB2.class,
-                    com.legend.edge.EngineStyleComposite.class)
-            .should().dependOnClassesThat().belongToAnyOf(
-                    com.legend.edge.EngineStyleH2.class,
-                    com.legend.edge.EngineStyleDB2.class,
-                    com.legend.edge.EngineStyleComposite.class)
-            .as("Invariant 4d: engine-style golden-text renderers are the edge's, handed to the planner by its"
-                    + " spelling alone — audit 19; phase D, 2026-11-12")
-            .check(CORE_PROD_CLASSES);
-    }
-
-    /**
-     * Invariant 4d for the engine-text renderers' interface (the dialect program's Phase 3, the PR audit of
-     * 2026-10-16): {@code EngineTextDialect} is a {@code SqlDialect}, so the concrete-class rule above would let an
-     * execution path hold one through it. Root layer only, and the test-data generator, which prints its plan in the
-     * engine's text (TestDataGenerator.planText) while its session's own dialect runs every statement.
-     */
-    @Test
-    void engineTextDialectIsQuarantinedToTheRootLayerAndThePlanPrinter() {
-        noClasses()
-            // com.legend.driver since step C (D73, 2026-10-30): the root layer's execution side; the root's own
-            // exemption left the same day (no door holds the interface; the D73 audit)
-            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend.sql.dialect", "com.legend.testdatagen")
-            .and().resideInAPackage("com.legend..")
-            // 2026-10-31 (the seam program's S2g): the engine's plan text is planning work (D30: plan-time values) and
-            // left the driver for the planner -- the registry, the plan printer, the envelope and the plan-node
-            // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface.
-            // 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): the four exemptions GONE -- the registry,
-            // the printer and the envelope moved to the edge (planner.UpstreamPlans, the style's facet, is what the
-            // planner names), and PlanAllocations' activity no longer takes a printer: no planner class holds it
-            // 2026-11-12 (phase D, D1.7's move pulled forward): the spelling hook names the interface as the type it
-            // hands the planner (the product's refuses it by name), and the edge supplies its printers
-            .and().doNotBelongToAnyOf(com.legend.database.PlanStyle.class)
-            .and().resideOutsideOfPackage("com.legend.edge..")
-            .should().dependOnClassesThat().belongToAnyOf(com.legend.edge.EngineTextDialect.class)
-            .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
-            .check(CORE_PROD_CLASSES);
-    }
+    // Invariant 4d's two rules, the golden-text renderers quarantined (engineStyleRendererIsQuarantinedToTheRootLayer)
+    // and their interface quarantined to the root layer and the plan printer
+    // (engineTextDialectIsQuarantinedToTheRootLayerAndThePlanPrinter), went 2026-11-19 with their subjects: A2 of the
+    // compatibility program (stage A ratified by the user 2026-11-19) deleted legend-engine's SQL text printers
+    // (EngineStyleH2, EngineStyleDB2, EngineStyleComposite) and EngineTextDialect under CP-4 (upstream's SQL text is
+    // never promised). What prints SQL text on the compatibility routes now is the edge's package-private LiteSqlText
+    // over the edge's own dialect, which no class outside com.legend.edge can name; the edge rule
+    // (PRODUCT_REACHES_NO_EDGE) still holds every product class off the edge.
 
     /**
      * Sub-rule of Invariant 4 the top-level slices can't see: the typed HIR
@@ -1377,7 +1332,8 @@ final class ArchitectureTest {
             "com.legend.edge.EdgePureOnlyTexts",
             // EdgeLoweringForms builds the edge's Styled from the plan style's own date-time texts (2026-11-18, J40, the
             // orchestrator's ruling (7), E-SQL's c0093e9749: one forms source; LoweringShape's entries went with it)
-            "lowering.Styled#dateTimes()", "com.legend.edge.EdgeLoweringForms com.legend.edge.EdgePureOnlyTexts",
+            // EdgeLoweringForms left the callers 2026-11-19 (A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
+            "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
             // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
             // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
             // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
@@ -1436,11 +1392,8 @@ final class ArchitectureTest {
             // EnginePlans asks the Lowerer's own in place of LoweringShape#withExistsJoinable, gone (2026-11-18, J40, the
             // orchestrator's ruling (7), E-SQL's c0093e9749)
             "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler com.legend.edge.EnginePlans",
-            // legend-engine's statement shape as the edge's Styled (2026-11-18, J40, the orchestrator's ruling (7): one
-            // forms source; until then Lowerer#withShape and LoweringShape's two entries): the plan style's Styled with
-            // the edge's forms in place of its own
-            "lowering.Styled#<init>(java.util.function.Function, com.legend.lowering.LoweringForms, "
-                    + "com.legend.lowering.DateTimeTexts, com.legend.lowering.ListTexts)", "com.legend.edge.EdgeLoweringForms",
+            // (lowering.Styled#<init>, legend-engine's statement shape as the edge's Styled since 2026-11-18, J40, left
+            // 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
             // the product's building blocks the edge's forms compose with (2026-11-18, the lens audit's item 1 and the
             // orchestrator's ruling on L6: a two-form kind holds types only, the product hands its statement and sites,
             // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the subselect
@@ -1450,13 +1403,9 @@ final class ArchitectureTest {
             // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
             "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
             "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean)", "com.legend.edge.EdgeLoweringForms",
-            // L10 (2026-11-18, the orchestrator's GO on the shape): the engine shape's pruning keeps its union frame -- the
-            // lowering's building block, called from the edge
-            "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean, java.lang.String)",
-            "com.legend.edge.EdgeLoweringForms",
-            "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
-            "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
-            "lowering.Styled#pureOnly()", "com.legend.edge.EdgeLoweringForms",
+            // (SubselectPrune#prune(SqlQuery, boolean, String), the engine shape's union-frame pruning since L10,
+            // 2026-11-18, and Styled#forms(), #lists() and #pureOnly(), the shape's reads of the plan style's Styled, left
+            // 2026-11-19: A2 of the compatibility program, stage A ratified by the user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4)
             // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
             // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
             // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
@@ -4695,13 +4644,10 @@ final class ArchitectureTest {
             "com.legend.lowering.Scalars",
             // a model CSV cell matched against its ISO shape first
             "com.legend.setup.RowLoad",
-            // the engine-text seed: quoted by EngineStyleH2.seedCell -- a date's and a timestamp's cell (a TIMESTAMP_NS's
-            // too) a string literal, its quotes doubled; a TIME cell refused by name -- the one dialect every caller of
-            // setUpDataSqlsText passes (the edge's, PlanStyle.engineText). 2026-11-13, the orchestrator's item 3:
-            // "checked first" was wrong (its TIME and TIMESTAMP_NS literals come from unchecked text), and the finding-B
-            // refusal it named guarded nothing. Moved 2026-11-18 with J32 from setup.Ddl to the edge's EngineSeedText,
-            // the rule reading the edge's jars since (F's catch on J32)
-            "com.legend.edge.EngineSeedText",
+            // (com.legend.edge.EngineSeedText, the engine-text seed, left 2026-11-19 -- A2 of the compatibility program,
+            // stage A ratified by the user 2026-11-19: with legend-engine's printer gone, the seed writes a date's and a
+            // timestamp's cell as a string the dialect escapes, as legend-engine's text quoted it, and makes no temporal
+            // literal; a TIME cell stays refused by name)
             // a milestoning date: a date literal the lexer parsed (TestDataGenerationNatives.dateField)
             "com.legend.testdatagen.TestDataGenerator",
             // a row identifier's value checked against its column type's ISO shape first (iso: digits, separators and
@@ -5085,7 +5031,7 @@ final class ArchitectureTest {
     /**
      * ONE HOOK, ITS UPSTREAM SIDE THE EDGE'S (D's hook fold, 2026-11-16, agreed by D and E-Java: CompatForms, a second
      * road with a default, deleted; {@link com.legend.database.PlanStyle} the one hook): a class that implements the
-     * plan style, or prints legend-engine's text ({@link com.legend.edge.EngineTextDialect}), is the
+     * plan style (or, until A2 of 2026-11-19 deleted it, printed legend-engine's text, EngineTextDialect), is the
      * compatibility edge's ({@code com.legend.edge}) -- the product's own style, {@code PlanStyle.PRODUCT}, is the one
      * other, and it refuses every upstream form by name. A product class that spelled upstream's forms would be a mode.
      */
@@ -5094,8 +5040,9 @@ final class ArchitectureTest {
         for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
             // and each test-planning facet's implementer (W9's judge half, 2026-11-16: the facets are the edge's)
             boolean facet = com.legend.testplan.PlanStyleFacets.KINDS.stream().anyMatch(c::isAssignableTo);
-            if (c.isInterface() || !(c.isAssignableTo(com.legend.database.PlanStyle.class)
-                    || c.isAssignableTo(com.legend.edge.EngineTextDialect.class) || facet)) {
+            // (its EngineTextDialect clause went 2026-11-19 with the interface: A2 of the compatibility program, stage A
+            // ratified by the user 2026-11-19, CP-4)
+            if (c.isInterface() || !(c.isAssignableTo(com.legend.database.PlanStyle.class) || facet)) {
                 continue;
             }
             // the product's own style, exactly its class (the P2 checkpoint audit's S2, 2026-11-16: until then any

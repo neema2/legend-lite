@@ -545,7 +545,7 @@ public final class LiteralSpelling {
         java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(utcIso);
         // the engine's connection zones include the legacy SHORT ids ('EST',
         // the corpus's own test connection) — the same table the engine-text
-        // renderer resolves them through (EngineStyleH2)
+        // renderer resolved them through (legend-engine's SQL-text printer, deleted with A2, 2026-11-19)
         java.time.LocalDateTime shifted = ldt.atZone(java.time.ZoneOffset.UTC)
                 .withZoneSameInstant(java.time.ZoneId.of(zone, java.time.ZoneId.SHORT_IDS))
                 .toLocalDateTime();

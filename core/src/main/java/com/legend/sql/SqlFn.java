@@ -69,7 +69,15 @@ public enum SqlFn {
     IS_NUMERIC,
     MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT,
     // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
-    SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
+    SUBSTRING,
+    /** substringAsGiven(str, start[, length]): the database's OWN SUBSTRING over the arguments as given (A3 of the
+     *  compatibility program, 2026-11-19, docs/records/compat-homework/A3-engine-rewrite-design.md): every dialect
+     *  writes it as its plain SUBSTRING, and no pass rewrites it -- {@code SubstringClamp} raises a start below 1 on
+     *  {@link #SUBSTRING} alone -- so a start of 0 or below and a negative length answer as that database reads them,
+     *  which is legend-engine's answer by definition. Lowered from {@code meta::legend::lite::substringAsGiven}, which
+     *  the legend-engine door's {@code engine} rewrite alone writes. */
+    SUBSTRING_AS_GIVEN,
+    STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
     LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART,
     /** translate(str, from, to): each character of {@code from} in {@code str} becomes the character at its
      *  position in {@code to}, or is removed past {@code to}'s end. One pass, so a mapping never chains. The SQL

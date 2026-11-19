@@ -1,7 +1,6 @@
 engine-order meta::pure::alloy::connections::tests::relationalMapper::testRelationalMapperWithJoin
-engine-order meta::pure::executionPlan::tests::testMapWithOpenVariable
+engine-order meta::pure::executionPlan::tests::tdsJoinTwoDBWithColumnMappedViaJoins
 engine-order meta::pure::executionPlan::tests::testMapWithOpenVariableOutsideBlock
-engine-order meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
 engine-order meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
 engine-order meta::pure::executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping
 engine-order meta::pure::lineage::scanColumns::test::testAssociationMapping

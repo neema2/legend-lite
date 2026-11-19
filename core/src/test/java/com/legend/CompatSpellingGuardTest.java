@@ -479,13 +479,15 @@ class CompatSpellingGuardTest {
                 final class Planted {
                     static final String S = "Cannot divide " + "x" + " by zero";
                     static String at(String s) { return s + "+0000"; }
-                    static Object e() { return new com.legend.edge.EngineStyleH2(); }
+                    static Object e() { return com.legend.edge.EnginePlans.class; }
                     static char q() { return '"'; }
                     /* "Can't find " in a block comment is no hit */
                 }
                 """;
         Map<String, Integer> hits = hits(planted);
-        assertEquals(Map.of("Cannot divide ", 1, "+0000", 1, "EngineStyleH2", 1), hits);
+        // the plant's edge class: EnginePlans since 2026-11-19 (A2 of the compatibility program: EngineStyleH2, which it
+        // named until then, went with legend-engine's SQL text)
+        assertEquals(Map.of("Cannot divide ", 1, "+0000", 1, "EnginePlans", 1), hits);
     }
 
     /** Every product main source outside the edge, keyed by its path under core's java root (else under main). */

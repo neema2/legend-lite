@@ -1633,7 +1633,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case LEVENSHTEIN -> writer.function("EDIT_DISTANCE", c.args());
             case FLOOR_RAW -> writer.function("FLOOR", c.args());
             case MATCHES -> writer.function("REGEXP_CONTAINS", c.args());
-            case SUBSTRING -> writer.function("SUBSTR", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("SUBSTR", c.args());
             case LIST_REVERSE -> writer.function("ARRAY_REVERSE", c.args());
             case LIST_LENGTH -> writer.function("ARRAY_LENGTH", c.args());
             case IN -> in(writer, c, parentPrec);

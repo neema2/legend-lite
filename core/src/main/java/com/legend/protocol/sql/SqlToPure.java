@@ -5938,6 +5938,16 @@ public final class SqlToPure {
         return id.quoted() ? id.text() : fold(id.text());
     }
 
+    /** SQL's SUBSTRING by name (A3 of the compatibility program, PR1, 2026-11-19): lite's
+     *  {@code meta::legend::lite::sqlSubstring}, a 1-based start and a length, which the islands write wherever they mean
+     *  the database's SUBSTRING (the protocol layer names lite's natives by their text: it cannot import the catalog).
+     *  Pure's {@code substring} is 0-based and end-exclusive. */
+    public static final String SQL_SUBSTRING = "meta::legend::lite::sqlSubstring";
+
+    /** SQL's POSITION by name (A3, as {@link #SQL_SUBSTRING}): lite's {@code meta::legend::lite::sqlPosition}, 1-based,
+     *  0 when the text does not occur; Pure's {@code indexOf} is 0-based, -1 on a miss. */
+    public static final String SQL_POSITION = "meta::legend::lite::sqlPosition";
+
     public static AppliedFunction call(String fn, ValueSpecification... args) {
         return call(fn, List.of(args));
     }

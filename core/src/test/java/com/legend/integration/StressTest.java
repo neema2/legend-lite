@@ -351,7 +351,7 @@ class StressTest {
 
                 phase = "lower";
                 t = System.nanoTime();
-                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);
+                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT");
                 lowerUs = (System.nanoTime() - t) / 1000;
 
                 phase = "render";
@@ -384,7 +384,7 @@ class StressTest {
                         com.legend.testing.Own.spec(query));
                 parseNs += System.nanoTime() - t;
                 t = System.nanoTime();
-                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);
+                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT");
                 lowerNs += System.nanoTime() - t;
                 t = System.nanoTime();
                 String sql = dialect.render(sqlq);

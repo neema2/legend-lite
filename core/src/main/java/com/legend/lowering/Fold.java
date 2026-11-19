@@ -441,8 +441,8 @@ final class Fold {
      * placement (dbExtension.pure NullOrderingSupport.processSortItem), which the product dialects render for a bare
      * key (AnsiSqlRenderer.sortKey), so the old two-spec split (legacy TDS sorts bare, pure sorts stamped; §7
      * slice-2) is closed: L14, 2026-11-18, deleted TypedSort.pureNullOrder, its provenance flag. Only an aggregate's
-     * own ordering stays bare (AnsiSqlRenderer.aggOrderNullPlacement). The edge's engine text spells no NULLS clause
-     * either way (EngineStyleH2.sortKey). */
+     * own ordering stays bare (AnsiSqlRenderer.aggOrderNullPlacement). The edge's engine text spelled no NULLS clause
+     * either way (legend-engine's SQL-text printer, deleted with A2, 2026-11-19). */
     static SqlSelect.SortKey.@com.legend.base.Nullable NullOrder sortNulls(boolean ascending) {
         // PURE null ordering: null is LARGEST — ASC nulls last, DESC
         // nulls first (witness testRange_..._WithOrderByDESC). BOTH

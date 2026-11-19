@@ -3,7 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleH2;
 
 import com.legend.sql.DialectCapability;
 
@@ -62,8 +61,6 @@ class StoredReadsTest {
         // column's own name, quoted where Postgres would fold it (AnsiSqlRenderer#labeled)
         assertTrue(new Postgres().render(other).startsWith("SELECT CAST(\"t0\".v AS VARCHAR) AS \"V\""),
                 new Postgres().render(other));
-        // the engine-text printer spells what legend-engine would: every column bare (S26)
-        assertTrue(!new EngineStyleH2().render(other).contains("CAST"), new EngineStyleH2().render(other));
         // an array cannot be cast to jsonb on Postgres: it is converted; DuckDB reads it as stored
         SqlQuery array = selectV(table(Map.of("V", ARRAY)));
         assertTrue(new Postgres().render(array).startsWith("SELECT to_jsonb(\"t0\".v) AS \"V\""),
