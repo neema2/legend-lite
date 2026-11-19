@@ -190,3 +190,7 @@ need and/or fold them into existing sessions"): the Maven mirror (f183b784a, by 
 C3 and the judge-parity fixes (the A5 session, `claude/parity-a5`, for that alone), and the cross-kind `!=` (63421e0a,
 cherry-picked by its translator session onto a fresh branch from main). The window-in-a-list fix stays paused until its
 stage B, when it takes that too. Every other row above stays paused with this orchestrator.
+
+**Also taken over** (the user, ~21:40 UTC, in the compatibility session: "Q5 take it over"): the window-in-a-list fix
+(`session_0195rQEjkEZDfj2GjXCAhyJr`, `claude/window-list-lowering`), its two asks answered there (fixed in SelectMerge;
+SQLite's regexp refusal kept), to ride stage A's batch PR.
