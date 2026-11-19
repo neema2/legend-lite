@@ -306,3 +306,37 @@ spelling of a table until B2's Java formatter replaces it. Two ways, neither run
   the set `HookRulingTest` pins exactly: a guard row, for the user's word. No new hook: the facet exists (B17).
 - **Or land it with or after B2:** the compatibility edge prints a table in Java from lite's typed rows (H11: PCT 431
   of 431, the corpus byte-identical on DuckDB and +3 on H2), so it never reads the product's in-database text.
+
+**Ruled (the user, ~18:05, "Agree with all four table printing recommendations", relayed by the program's owner at
+18:15):** the second way, landing with B2. The ~18:12 ruling ("Yes record it", the rules of record on
+`claude/compat-program`) settles the edge's half: a `toString` that is the program's last step is legend-pure's text
+printed in Java from typed rows; one used further in the query is lite's own text, computed by the database; no SQL
+is kept for legend-pure's spelling. The slice's shape: `H14-slice-shape-note.md`.
+
+## 10. Lite's own suites at the ruled variant, V2 + D1 (one run, 18:17 to 18:26 UTC)
+
+**The branch put at V2 + D1:** `c604cd72` (D2's hunk in `Scalars.pureToString` reverted to D1's
+`styled.dateTimes().dateTimeText(x, null)`; the code is `9bcbd165`'s). One run: `//core:core_tests`, both core
+integration lanes, `//pct:pct_duckdb_lite` (channel A, lite's rules), the five `//pct:pct_channel_b_lite_*` (channel B,
+`duckdb-lite`), `--keep_going --nocache_test_results`. Every moved row and case, with its old and new text:
+`H14-data/v2d1-core-moves.tsv` and `H14-data/v2d1-channel-b-ledger-moves.tsv` (`H14-probes/junit_fails.py.txt`, `H14-probes/ledger_moves.py.txt`).
+
+**33 targets pass, 7 fail. What fails is exactly V2's set: D1 moves no core test and no channel A row.**
+
+| Where | Moves against the base (`f13e73c2`, green: V1's run showed no other failing case) | Why |
+|---|---|---|
+| Core, 9 cases in 3 targets | `FloatTextTest.aFloatsTextIsSixDecimalsTrimmed`, `TypeInferenceIntegrationTest.testFloatToStringWithNegativeExponent`, `AuditRound3Test.floatReprLargeBand`, `BigQueryDialectTest.aFloatsTextIsSixDecimalsTrimmed`, `SnowflakeDialectTest.aFloatsPrintFormsAreSpelledHere_theValueReadOnce` | V2: a whole Float's `2` is `2.0`, a value that rounds to zero `0` is `0.0`, the two dialects' pinned SQL gains the `'.000000'` mark |
+| | `RenderCsvIntegrationTest.theProductRefusesARelationsTextByName`, `TaggedListTest.anUntypedGridsCellsAreReadOnTheVariantLane` | the table text: the product's refusal is gone; a raw grid's text keeps a refusal, in the new lowering's words |
+| | `FloatTextTest.anEdgeRelationsTextPrintsAFloatCellAsLegendPure`, `DynamicPivotTextRefusalTest.aDynamicPivotsTextIsRefusedByNameAtLowering` | the spike's arm is unconditional, so the edge style's text goes through the product's lowering (`1e-05` for `0.00001`; a refusal's words). Under the ruled landing B2's Java takes both (a last step) |
+| Channel A, `pct_duckdb_lite_essential`, 3 rows | `testFloatToStringWithExcessTrailingZeros` (`17`) and `testFloatToStringWithPositiveExponent` (`134210000`) pass and leave; `testFloatToStringWithNegativeExponent` reads `0.0` where its row has `0` | V2 |
+| Channel B, `duckdb-lite`, **426 rows of `ledger.tsv`** | **392 leave** (Relation 335, Standard 55, Essential 2); **34 change their text** (the 33 abstract-`Date` tables, Relation 30 and Standard 3, from the refusal to `...T06:30:00.000000Z` against PCT's `.000+0000`; Essential 1, `0` to `0.0`) | the table text and V2; every one of the 423 refusal rows moves, and no other row |
+
+**PCT channel B under lite's rules (DuckDB, of 1,249): 1,179** (relation 435 of 469, standard 200 of 205, essential
+315 of 345, grammar 136 of 137, unclassified 93 of 93). The base: **787** (100, 145, 313, 136, 93). The rows left on
+`duckdb-lite` after the moves: Relation 34 (the 30 Date tables and 4 others), Standard 5, Essential 30, Grammar 1.
+
+**The SQL at V2 + D1** (DuckDB, the relation-text tests, the host judge's statements as §0 counts them: origin
+`OTHER`; `-Dlegend.diagnostics=sql-sizes`, one extra run of the two suites, `H14-probes/sizes.py.txt`): relation 365 tests **660,748** characters (V1 659,806; `main`'s edge builder 696,964;
+the rows alone, H11's Java print, 187,864), standard 58 tests **99,037** (V1 97,594; the edge builder 194,885). The
+body's fused verdict statements (origin `BODY`, the database judge's, under the lane's `BOTH`): 1,428,486 and 216,487
+(V1 1,427,400 and 215,044).

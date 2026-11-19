@@ -1,0 +1,26 @@
+"""Every ledger-mismatch line in channel B's five logs and channel A's lite logs: one TSV row per moved ledger row
+(lane, suite, kind, test), and the counts per lane/suite/kind."""
+import sys, os, re, collections
+root = sys.argv[1]
+kinds = {'PASSES, ledgered as failing': 'passes-ledgered-failing', 'FAILS DIFFERENTLY': 'fails-differently',
+         'FAILS, not ledgered': 'fails-not-ledgered'}
+rows = []
+for d, _, fs in sorted(os.walk(root)):
+    for f in fs:
+        if f != 'test.log': continue
+        rel = os.path.relpath(d, root)
+        seen = set()
+        for line in open(os.path.join(d, f), errors='replace'):
+            for k, v in kinds.items():
+                if k in line:
+                    m = re.search(r'(meta::[A-Za-z0-9_:]+|test[A-Za-z0-9_]+)', line.split(k, 1)[1])
+                    t = m.group(1) if m else line.strip()[:160]
+                    key = (v, t)
+                    if key in seen: continue
+                    seen.add(key)
+                    rows.append((rel, v, t, line.strip()[:600]))
+out = open(sys.argv[2], 'w')
+for r in rows: out.write('\t'.join(r) + '\n')
+c = collections.Counter((r[0], r[1]) for r in rows)
+for k in sorted(c): print(k[0], k[1], c[k])
+print('total', len(rows))
