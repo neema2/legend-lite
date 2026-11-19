@@ -181,6 +181,22 @@ class PureMeaningRewriteTest {
         assertEquals(1, r.in(w.query().body().get(2)));
     }
 
+    /** A value let whose own call is rewritten, read by a statement of its own: computed once, its call in its own SQL,
+     *  as legend-engine writes it (asked of legend-engine 4.145.0: `let d = ...->toOne().desk->substring(1, 3);
+     *  $d->toUpper()` plans `select substring(desk, 1, 3)` and answers "CRE"), so the later read is no reason to refuse
+     *  (the reviewer's R2-S2). */
+    @Test
+    void aValueLetRewrittenAndReadByAStatementOfItsOwnIsNotRefused() {
+        Recording r = new Recording();
+        ModelContext c = Compiler.compileModel(PureMeaningCheckTest.MODEL);
+        TypedQuery q = Compiler.query(c, "{|let d = t::Person.all()->filter(p|$p.name == 'abcdef')->from(t::M, t::RT)"
+                + "->toOne().name->substring(1, 3); $d->toUpper();}");
+        PureMeaningRewrite.Rewritten w = PureMeaningRewrite.rewrite(q, c, "t::RT", null, r);
+        assertEquals(List.of(PureMeaningCheck.Code.SUBSTRING_3), r.codes);
+        assertEquals(1, r.in(w.query().body().get(0)));
+        assertSame(q.body().get(1), w.query().body().get(1));
+    }
+
     /** Where a let that holds a flagged call is a root and a statement the rewrite does not touch reads it, the
      *  rewrite refuses by name rather than give the host-side read the database's meaning (the reviewer's E-S1). The
      *  typer substitutes a let-bound lambda into each use, and the detector walks a let only when its value is a lambda

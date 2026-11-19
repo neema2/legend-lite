@@ -113,6 +113,38 @@ class PureMeaningCheckTest {
         assertEquals("substring/3=1", check("|" + one + "->substring(1, 3)").header());
     }
 
+    /** A let whose value is a function computed some other way (here read out of a collection), evaluated by
+     *  store-bound code: the typer keeps the variable (it substitutes only a literal lambda let), so the walk cannot
+     *  read the function's body: unverified, never clean (the reviewer's R2-S1). Its partner: the literal lambda let is
+     *  read and flagged (aLetBoundLambdaTheQueryNamesIsStoreBound). */
+    @Test
+    void anEvaluatedLetWhoseValueIsNotALiteralLambdaIsUnverified() {
+        PureMeaningCheck.Result r = check("{|let f = [{s: String[1]|$s->indexOf('x')}]->toOne(); " + TABLE
+                + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}");
+        assertEquals("unverified=1", r.header());
+    }
+
+    /** A class collection a let reads, then a call over it in a statement of its own: legend-engine runs the let's query
+     *  and computes the call on the host, Pure's meaning (asked of legend-engine 4.145.0: `$ps->map(p|$p.desk->
+     *  substring(1, 3))` answers ["re"]), so it is not flagged; the same map in the one statement is SQL's ('Cre') and
+     *  flagged. A relation let read the same way legend-engine refuses ("No SQL translation exists for the PURE function
+     *  'letFunction...'"), so the detector follows no variable to a let. */
+    @Test
+    void aCallOverAStoreReadCollectionLetIsHostSide_andInTheOneStatementIsFlagged() {
+        String people = "t::Person.all()->filter(p|$p.name == 'abcdef')->from(t::M, t::RT)";
+        assertTrue(check("{|let ps = " + people + "; $ps->map(p|$p.name->substring(1, 3));}").clean());
+        assertEquals("substring/3=1", check("|" + people + "->map(p|$p.name->substring(1, 3))").header());
+    }
+
+    /** A let whose own value holds the call, then read by a statement of its own: legend-engine computes the let's call
+     *  in its SQL (asked: `let d = ...->toOne().desk->substring(1, 3); $d->toUpper()` plans
+     *  `select substring(desk, 1, 3)` and answers "CRE"), so the let is store-bound code and flagged. */
+    @Test
+    void aStoreBoundValueLetsOwnCallIsFlagged() {
+        assertEquals("substring/3=1", check("{|let d = t::Person.all()->filter(p|$p.name == 'abcdef')"
+                + "->from(t::M, t::RT)->toOne().name->substring(1, 3); $d->toUpper();}").header());
+    }
+
     @Test
     void aLetComputedWithALambdaIsHostSide_notStoreBound() {
         PureMeaningCheck.Result r = check("{|let n = ['ax', 'bx']->map(s|$s->indexOf('x')); " + TABLE

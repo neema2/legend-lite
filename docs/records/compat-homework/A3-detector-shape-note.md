@@ -417,3 +417,26 @@ against `aLetBoundLambdaTheQueryNamesIsStoreBound`. Plant P9 (a computed let wal
    body exists. That is a conservative refusal: legend-engine computes it in SQL, so `engine` could answer it once the
    rewrite reaches phase H. The test is `aGraphFetchsQualifiedPropertyIsRefusedByNameUnderEngine` on the review branch.
 
+**The reviewer's round on record 7b70932b3: a probe and R2-S1.**
+- **The probe: a statement that reads a store-bound let through a variable, with no store read of its own.** The
+  detector does not follow the variable. legend-engine (`let.rel.*`, `let.cls.*`, `let.value.*` in
+  `a3-engine-probes/`, H2 and DuckDB), shape by shape:
+  - a relation let read by a later `extend` or `select`, with `from` inside or after it: refused ("No SQL translation
+    exists for the PURE function 'letFunction...'", or "RelationStoreAccessor should be used with a from(Runtime)
+    expression");
+  - a class collection let read by a later `map(p|$p.desk->substring(1, 3))`: computed on the host, Pure's meaning,
+    `["re"]`;
+  - a value let whose own value holds the call (`let d = ...->toOne().desk->substring(1, 3); $d->toUpper()`): the
+    let's call in its SQL, `substring(desk, 1, 3)`, answering `"CRE"`.
+
+  So not following a variable is right. legend-engine either refuses the shape, or computes the later statement on
+  the host. A let whose own value holds the call is a store-bound statement, so it is flagged. Three tests pin these:
+  `aCallOverAStoreReadCollectionLetIsHostSide_andInTheOneStatementIsFlagged`,
+  `aCallOnAStoreReadLetInAStatementOfItsOwnIsHostSide_andInTheOneStatementIsFlagged` and
+  `aStoreBoundValueLetsOwnCallIsFlagged`.
+- **R2-S1:** an `eval` of a variable bound by a let the walk did not take is UNVERIFIED. The typer substitutes a
+  literal lambda let into its uses, so a variable left under an `eval` is a let whose value is a function computed some
+  other way (`[{s|...}]->toOne()`, a function's answer, a cast), and its body is never read.
+  - Only an `eval` met in the query's own tree counts. A followed function's own parameter is unaffected.
+  - Test `anEvaluatedLetWhoseValueIsNotALiteralLambdaIsUnverified`; plant P10 (the site gone) turns it red.
+
