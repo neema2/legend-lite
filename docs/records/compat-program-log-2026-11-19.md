@@ -2993,3 +2993,9 @@ who confirms or changes phases 1-3.
   from H13 §20 (the core is the record, the formatter and the lowering fixes, about +520 / −200 and 2.5 days; the rest
   is S1's groundwork, compile-time errors, tests and checks); a lean option 2 (run-time errors only) roughly 4 to 5
   days, unsized; offered to have H13 size it.
+- **~22:22 UTC, the judges: batch head `15110aa8e`** (the HISTORY line cites ~20:10 for the detector's +6 only; the
+  plant's +5 "listed for the user's word at the batch PR"; update_ratchets_test passes). **The batch-PR word list now
+  holds:** the PROPOSED register rows (S130, S134, S380, S382-S385), the lean-SQL baseline re-pin, the re-recorded
+  edge-net ledgers and rosters, A4's four narrowed ruled hooks, TestPlanJson 32 → 33, the `RootLoops.rejected`
+  allowlist entry, and own_corpus.matched's +5 from InCollectionSpliceRefusalTest. (LiteSqlText's closed-list entry
+  left the list with A2 PR 2; the `engine` opt-in's moves were ruled at ~22:20.)
