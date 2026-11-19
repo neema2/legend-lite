@@ -42,12 +42,16 @@ final class PctPlanRoute {
                 .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
-        java.util.Set<com.legend.platform.Feature> features =
-                java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
+        // H6 PROTOTYPE (claude/compat-judges-homework, MEASUREMENT ONLY, never to merge): -Dpct.channela.rules=LITE plans
+        // every query in the product's style with the product's default features (R4 not applied); LITE_R4 keeps the
+        // corrected substring indexing; COMPAT (the default) is today's route, unchanged
+        String rules = System.getProperty("pct.channela.rules", "COMPAT");
+        java.util.Set<com.legend.platform.Feature> features = rules.equals("LITE") ? java.util.Set.of()
+                : java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        ExecutionPlan plan = com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, style ->
+        com.legend.edge.RaisedWords.Run<ExecutionPlan, IOException> runIn = style ->
                 com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)
@@ -55,7 +59,10 @@ final class PctPlanRoute {
                 PctBackend.planSessions(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features,
                 // the PCT compares against legend-pure's texts: the plan is spelled by the edge (phase D's D1.0)
                 style,
-                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY));
+                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY);
+        ExecutionPlan plan = rules.equals("COMPAT")
+                ? com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, runIn)
+                : runIn.apply(com.legend.database.PlanStyle.PRODUCT);
         com.legend.result.Collector.Collected c = collector.collected();
         boolean relation = plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION;
         if (relation) {
