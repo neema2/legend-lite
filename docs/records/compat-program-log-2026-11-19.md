@@ -2119,3 +2119,9 @@ who confirms or changes phases 1-3.
   including `FloatTextTest.anEdgeRelationsTextPrintsAFloatCellAsLegendPure` (the edge style's table text now through the
   product lowering, `1e-05`): asked H14 to confirm the compatibility routes stay untouched in a real slice. **D1 and D2
   sent**, PCT only.
+- **~17:40 UTC, the PR batch proposed** (the user: "Should we combine these CI PRs in single PR so we don't have so much
+  CI waste and merge waste"). #124's branch already contains #123's (stacked); #125 (3 files) and #126 (3 files) touch
+  none of #124's 99. A local test merge of all four is clean (105 files, +12,013 / −1,930). Proposed: merge #125 and #126
+  into #124's branch (ordinary merges), close #123, #125, #126 pointing at #124, one CI run, the reviewer checks the
+  combination, one merge word; later stage-A PRs stacked the same way. Waiting for the user's go. H14 started D1 (first
+  count in about 10 minutes).
