@@ -415,8 +415,9 @@ against `aLetBoundLambdaTheQueryNamesIsStoreBound`. Plant P9 (a computed let wal
    **The compat owner's call (~23:14): no door refusal.** Lite computing a qualified property the serialize tree
    names and the fetch tree lacks is Pure's meaning, since legend-pure computes it. legend-engine's `null`, or its
    NullPointerException mid-stream, is legend-engine's quirk. Under the goal ("lite follows Pure ... the rest is
-   recorded"), it is a recorded difference, not a gap. B2 drafts a PROPOSED register row for the user's word at the
-   batch PR, with these probes as its witness.
+   recorded"), it is a recorded difference, not a gap. **Ruled by the user ~23:20 ("Yes to A", confirmed ~23:25,
+   "Keep it"): register row S388** (lite computes the property from its own Pure body; legend-engine serializes
+   `null` or fails), on `claude/compat-a3-docs`, with these probes as its witness.
 3. **Under `engine`, a qualified property a graph-fetch tree reads is REFUSED by name.** The detector reaches it through
    `follow`, a body the rewrite cannot reach, since the store resolver inlines a graph tree's properties after the
    body exists. That is a conservative refusal: legend-engine computes it in SQL, so `engine` could answer it once the
