@@ -1371,3 +1371,40 @@ who confirms or changes phases 1-3.
   `TypedQuery`; core's edge tests); (6) `RelationCounting` deleted in the same step, its guard rows
   (`HookLambdasTest` TWO_FORM_CALLERS, `HookRulingTest`, `JavaEvalLedgerTest`, any `PlanStyleSurfaceTest` row) moved
   with the user's word; `RelationCountAsserts.REFUSED` stays. H10 is done.
+- **~13:43 UTC, the translator's A3 shape note** (`A3-shape-note.md` at `13212fb2` on `claude/compat-translator-spike`;
+  no build, no PR, no pin moved).
+  - **PRs: 2.** PR1 the frontends and the dynaFunction split (about 1.5 days); PR2 the core switch and the detector
+    (about 3 days, plus 0.5 to 1 for the out-of-range raise). About 5 days.
+  - **Moves:** 17 lite tests, all named (9 old-meaning pins in PR2; 8 text goldens in PR1, 7 under option (a)); **63
+    PCT known-failure rows** leave (S134's 3 tests are ledgered per lane: 11 channel A classes, 33; 10 channel B lanes,
+    30; measured on DuckDB, the rest predicted from identical texts); 9 edge-net golden lines (3 answer lines each in
+    DuckDB's and SQLite's essential answers, 3 channel B outcomes ERROR to PASS; read from the pins); 12 ENGINE-lane
+    rows if #124 lands first; **31 corpus guarded lines** (H5 V2: the H2 fail roster +8, DuckDB +9, each unordered
+    register +6/-1); `NativeCatalogGovernanceTest` INTERNAL_DESUGAR 38 to 40 (option (a) only); register S130 and S134
+    rewritten plus 1 new row. New core hooks 0; pure/v1 net lines 0.
+  - **PR1, option (a), recommended and TAKEN:** two lite-internal natives keeping SQL's meaning verbatim for the
+    frontends (`meta::legend::lite::sqlSubstring`, `sqlPosition`), lowering to the same SQL main emits: PR1 lands alone
+    with byte-identical SQL, the frontends are immune to the raise, the detector never flags `#Cypher`/`#SQL`/`#IQ`
+    islands. Option (b), the spike's shift, would force one PR, make SQL less lean and turn every island's substring
+    into a false positive.
+  - **FeatureRules:** javadoc only (the plain rule becomes `CORRECTED_SUBSTRING`, so the flag's registration is a
+    no-op; removing it would make `requireConsumed` refuse a flag PCT and the corpus set). `LEGACY_SQL_NULL_UNSAFE_EQUALS`
+    and `Lowerer.withFeatures` untouched; the rest is B5's.
+  - **The detector:** `edge/PureMeaningCheck`, from `PureV1Routes` generatePlan and execute (Arrow included); reads
+    `TypedQuery.body()`, user bodies via `specs().compile`, positions via `TypedNativeCall.pos()`, the flag via
+    `TypedFrom.context().features()` and `ExecutionContext.treeFeatures`, all public; header
+    `x-legend-lite-pure-meaning` (plus `Access-Control-Expose-Headers`); one `WARNING:` line on stderr with no query
+    text; setting `LEGEND_LITE_PURE_MEANING=warn|refuse` in `EdgeServer.UPSTREAM` (any other value stops the start);
+    refuse answers 500 COMPILATION in legend-engine's envelope, "unverified" refused too. H5's 40 untraceable calls are
+    gone at this door; what remains is reported "unverified", never clean.
+  - **For the user's word:** (a) quiet under the option for `substring` only (`indexOf` has no flag,
+    `pureToSQLQuery.pure:10644`); (b) **the raise: legend-pure raises on start < 0, end > length and end < start**
+    (`SubString.java:56,61`; `CompiledSupport.java:1546-1556`, read at the pin), not only a negative start; (c) the
+    host-side rule assumes legend-engine plans a store-free `let` as a platform node: to be asked of the engine runner
+    at the slice; (d) the test-data routes run queries without the detector; (e) a one-time census of a deployed store.
+  - **This session's calls (14:05):** option (a) taken; the three raise conditions follow legend-pure, one register row;
+    the detector covers the test-data routes too. **Asked to add:** the fixed order A1-A4 (A3's corpus roster 7 per
+    database, with the 3 hidden text tests); the load-time report (design, cost on the corpus's 11,168 elements,
+    tests, size); the reach through qualified properties and the runtime's mapping; the H2 literal-0 measurement; and a
+    clarification of "DuckDB's 9th corpus move is the cross-kind != product defect (+8 if it is fixed first)". The final
+    plan's A3 row and §4a are updated.
