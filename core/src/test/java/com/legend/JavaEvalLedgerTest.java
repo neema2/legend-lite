@@ -1876,6 +1876,11 @@ class JavaEvalLedgerTest {
                             // site (its record) and one planning call's recorder of them -- words of literal operands at
                             // planning, the edge's data; nothing evaluated, no connection
                             "SiteWords.java", "SiteWordsRecorder.java",
+                            // 2026-11-19, A3 of the compatibility program (the user's word ~22:20 "Yes to all three" to
+                            // the guard moves for the engine opt-in, relayed by the compat owner): the engine rewrite's
+                            // substitutes, typed by the typer's own overload resolution over the registry; builds typed
+                            // nodes, plans and runs nothing
+                            "EngineSubstitutes.java",
                             // 2026-11-18, J40's only-edge-callers census: the bound context of legend-engine's test natives'
                             // runtime argument, moved from planner.BodyPlanner; a typed read, nothing evaluated
                             "RuntimeContexts.java",

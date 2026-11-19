@@ -233,8 +233,14 @@ class CatalogUpstreamDiffTest {
      *  resolver's run-time type dispatch raising its kind; permanent: Pure has no typed raise). 73 on 2026-11-18 (PR
      *  #118 fix round: N2, the in-body assert's default message chosen by the plan's style at lowering; the user's word
      *  "Okay", the same function the user's "raise it" let into Pure.INTERNAL_DESUGAR): meta::legend::lite::
-     *  assertFailedText, lite-INTERNAL -- the product's sentence, the compatibility edge's legend-pure "Assert failed". */
-    private static final int NOT_UPSTREAM_MAX = 73;
+     *  assertFailedText, lite-INTERNAL -- the product's sentence, the compatibility edge's legend-pure "Assert failed".
+     *  76 on 2026-11-19 (A3 of the compatibility program, piece 1, the translator's: sqlSubstring's two overloads and
+     *  sqlPosition, SQL's SUBSTRING and POSITION by name; carried here so the branch's ceiling is exact, its own dated
+     *  note replaces this sentence where piece 1 lands). 78 on 2026-11-19 (A3, the user's word ~22:20 "Yes to all three"
+     *  to the guard moves for the engine opt-in, relayed by the compat owner): meta::legend::lite::substringAsGiven's two
+     *  overloads, lite-INTERNAL and the compiler's own -- the database's own SUBSTRING over the arguments as given, which
+     *  the legend-engine door's engine rewrite alone writes; upstream declares no such function. */
+    private static final int NOT_UPSTREAM_MAX = 78;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 
