@@ -145,16 +145,13 @@ def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
     """One call of a store the native library answers over ``folder`` (``entry``: the product's ``lite_store_queries`` or
     ``lite_store_cubes``, lite's mount and words -- the edge program's H6, 2026-11-17; legend-engine's mount is the
     edge's, through the engine library: K2, 2026-11-18), under the lock every Python process takes on it, the library's call
-    on one of the compiler's threads: its status and its body. A failure of the library's raised (``OSError``)."""
+    on one of the compiler's threads: its status and its body. A failure of the library's raised (``OSError``), in the
+    words its refusal says (``_answered``)."""
     from ._library import library
     from ._pool import _on_compiler_threads
     with locked(folder):
         said = _on_compiler_threads(lambda: library().call(entry, str(folder), *asked))
-    tag, _, rest = said.partition('\n')
-    if tag != 'OK':
-        raise OSError(rest.partition('\n')[2] or rest)
-    status, _, answered = rest.partition('\n')
-    return int(status), answered
+    return _answered(said)
 
 
 def home_call(folder: Path, kind: str, method: str, path: str, body: str | None) -> tuple[int, str]:
@@ -171,8 +168,16 @@ def home_call(folder: Path, kind: str, method: str, path: str, body: str | None)
     from ._pool import _on_compiler_threads
     with locked(folder):
         said = _on_compiler_threads(lambda: library().call(f'lite_{kind}_handle', str(folder), method, path, body or ''))
-    tag, _, rest = said.partition('\n')
-    if tag != 'OK':
-        raise OSError(rest.partition('\n')[2] or rest)
-    status, _, answered = rest.partition('\n')
-    return int(status), answered
+    return _answered(said)
+
+
+def _answered(said: str) -> tuple[int, str]:
+    """A store's or the model home's folded HTTP answer, its status and body, read by the one reader (``_folded``; H4's
+    P3, 2026-11-19: until then by the layout retired on 2026-11-17, so a refusal surfaced as its raw JSON text); the
+    library's refusal in its place raised as a failure of the library's (``OSError``) in the words it says."""
+    from ._folded import LegendError, unfold_http
+    try:
+        status, _, answered = unfold_http(said)
+    except LegendError as refused:
+        raise OSError(f'{refused.kind}: {refused.message}') from None
+    return status, answered

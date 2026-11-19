@@ -8,6 +8,7 @@
 import type { PlannerWorker, Request } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { withLibrary } from '../pure-library.ts';
 import { OPERATION_PATHS, folded, withModel } from './lite-routes.ts';
+import { folded as foldedAnswer, foldedRefusal } from '../../../engine-client/src/folded.ts';
 
 /** The worker over legend-lite's server at `baseUrl` (its root: the routes are under /api/lite/v1). */
 export function liteServerWorker(baseUrl: string, fetcher: typeof fetch = globalThis.fetch.bind(globalThis)): PlannerWorker {
@@ -36,17 +37,17 @@ export function liteServerWorker(baseUrl: string, fetcher: typeof fetch = global
         case 'hold': {
           const handle = next++;
           held.set(handle, body.library === undefined ? body.model : withLibrary(body.model, body.library));
-          reply({ id, ok: true, answer: `OK\n${handle}` });
+          reply({ id, ok: true, answer: foldedAnswer(String(handle)) });
           return;
         }
         case 'release':
           held.delete(body.handle);
-          reply({ id, ok: true, answer: 'OK\n' });
+          reply({ id, ok: true, answer: foldedAnswer('') });
           return;
         case 'queryPlanHeld': case 'queryTypeHeld': {
           const model = held.get(body.handle);
           if (model === undefined) {
-            reply({ id, ok: true, answer: `ERR\n${JSON.stringify({ kind: 'internal', message: `no model held as ${body.handle} here` })}` });
+            reply({ id, ok: true, answer: foldedRefusal({ kind: 'internal', message: `no model held as ${body.handle} here` }) });
             return;
           }
           call(body.kind === 'queryPlanHeld' ? 'query/plan' : 'query/type', withModel(body.request, { model }));

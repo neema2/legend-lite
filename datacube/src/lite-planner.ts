@@ -43,6 +43,7 @@ import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../../engine-client/src/planned-sql.ts';
 import { planning } from '../../engine-client/src/plan-guard.ts';
+import { readFolded } from '../../engine-client/src/folded.ts';
 
 interface TeavmRuntime {
   load(
@@ -941,29 +942,15 @@ function typedColumns(answer: unknown): PlanColumn[] {
 
 /**
  * A module answer: "OK\n<json>", or "ERR\n<refusal>", lite API v1's one error shape {kind, message, where?, raise?}
- * (planner.Folded; docs/records/lite-api-v1-2026-11-17.md §3). Failure travels in the return value rather than as a
+ * (planner.Folded; docs/records/lite-api-v1-2026-11-17.md §3), read by the tab's one reader (engine-client's folded.ts;
+ * H4's P3, 2026-11-19: until then a reader of its own here). Failure travels in the return value rather than as a
  * thrown Java exception so that the answer does not depend on how TeaVM bridges throwables into JS -- see
- * wasm/README.md. A refusal keeps the compiler's own message: the same words every binding says.
+ * wasm/README.md. A refusal keeps the compiler's own words, and its kind, where and raise (until then the words
+ * alone): the same refusal every binding says.
  */
 function decode(answer: string, subject: Lambda | string): string {
-  const nl = answer.indexOf('\n');
-  const tag = nl < 0 ? answer : answer.slice(0, nl);
-  const rest = nl < 0 ? '' : answer.slice(nl + 1);
-  if (tag === 'OK') return rest;
-  if (tag === 'ERR') {
-    let refusal: { kind?: unknown; message?: unknown };
-    try {
-      refusal = JSON.parse(rest) as { kind?: unknown; message?: unknown };
-    } catch {
-      throw new PlannerUnavailableError(`the planner module returned an unreadable refusal: ${JSON.stringify(rest.slice(0, 120))}`);
-    }
-    // §3's shape, read as written: a refusal with no kind or no words is no refusal of lite's (no stand-in words)
-    if (typeof refusal.kind !== 'string' || typeof refusal.message !== 'string') {
-      throw new PlannerUnavailableError(`the planner module returned a refusal not in lite's shape: ${JSON.stringify(rest.slice(0, 120))}`);
-    }
-    throw new PlanError(refusal.message, subject);
-  }
-  throw new PlannerUnavailableError(
-    `the planner module returned an unrecognised answer: ${JSON.stringify(answer.slice(0, 120))}`,
-  );
+  const read = readFolded(answer);
+  if ('answer' in read) return read.answer;
+  if ('refusal' in read) throw new PlanError(read.refusal.message, subject, read.refusal);
+  throw new PlannerUnavailableError(`the planner module: ${read.malformed}`);
 }

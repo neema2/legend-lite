@@ -27,6 +27,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from . import _services
+from ._folded import LegendError, unfold
 from ._planned import PlannedSql, Unframed, require
 from ._runframe import current_run, runs
 
@@ -97,9 +98,11 @@ def set_library_thread(run: Callable[[Callable[[], str]], str]) -> None:
 
 def _binding(entry: str, *args: str) -> dict[str, Any] | list[Any]:
     # the service key (C5-P, A1): the warehouse's wire alone, no planner entry reachable through it
-    tag, _, rest = _on_library(lambda: _services.call(entry, *args)).partition('\n')
-    if tag != 'OK':
-        raise RuntimeError(f'the native library could not answer {entry}: {rest}')
+    # read by the one reader (_folded; H4's P3, 2026-11-19): a refusal said in its own words, never its raw JSON
+    try:
+        rest = unfold(_on_library(lambda: _services.call(entry, *args)))
+    except LegendError as refused:
+        raise RuntimeError(f'the native library could not answer {entry}: {refused.kind}: {refused.message}') from None
     return json.loads(rest)
 
 

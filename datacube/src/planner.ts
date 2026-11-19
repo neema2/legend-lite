@@ -4,6 +4,7 @@
 // lite-planner.ts.
 
 import type { Lambda } from '../../pure-protocol/src/index.ts';
+import type { LiteError } from '../../engine-client/src/lite-error.ts';
 
 /** How a planner reads a model besides its text and runtime. */
 export interface ModelOptions {
@@ -31,10 +32,14 @@ export interface ModelOptions {
 export class PlanError extends Error {
   /** What was asked: the query (a tree), or, for a parse, the text a person typed. */
   readonly subject: Lambda | string;
-  constructor(message: string, subject: Lambda | string) {
+  /** The planner's refusal as it said it (lite's one shape: its kind, words, where and raise), where the planner
+   *  refused (H4's P3, 2026-11-19: until then its words alone were kept). */
+  readonly refusal?: LiteError;
+  constructor(message: string, subject: Lambda | string, refusal?: LiteError) {
     super(message);
     this.name = 'PlanError';
     this.subject = subject;
+    if (refusal !== undefined) this.refusal = refusal;
   }
 }
 

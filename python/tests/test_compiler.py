@@ -125,6 +125,39 @@ class ThePlannerKinds(unittest.TestCase):
             self.ask({'kind': 'release', 'handle': int(handle)})
 
 
+class OneFoldedReader(unittest.TestCase):
+    """H4's P3 (the user's CP-13, 2026-11-19): the native library's answers are read by ONE reader (_folded), the planner's
+    and the run side's alike, and a host's folded refusal written by its one writer -- until then three readers read the
+    layout retired on 2026-11-17 (ERR, a kind, a message), so a refusal surfaced as its raw JSON text."""
+
+    def test_an_answer_a_refusal_and_an_http_answer_are_read_once(self):
+        from legend_lite import _folded
+        self.assertEqual(_folded.unfold('OK\n{"a":1}'), '{"a":1}')
+        with self.assertRaises(ll.LegendError) as refused:
+            _folded.unfold('ERR\n{"kind":"data","message":"division by zero","where":"[1:2]","raise":"divideByZero"}')
+        e = refused.exception
+        self.assertEqual((e.kind, e.message, e.where, e.raise_), ('data', 'division by zero', '[1:2]', 'divideByZero'))
+        self.assertEqual(_folded.unfold_http('OK\n404\napplication/json\n{"kind":"notFound"}'),
+                         (404, 'application/json', '{"kind":"notFound"}'))
+        # the retired layout is no refusal of lite's: said as the library's own failure, never read by a guess
+        for retired in ('ERR\nINTERNAL\nboom', 'NOPE', 'OK\nnot-a-status\ntype\nbody'):
+            with self.subTest(retired=retired), self.assertRaises(OSError):
+                _folded.unfold_http(retired)
+        # the one writer's refusal reads back as itself
+        written = _folded.refusal(ll.LegendError('no', 'request', None, None))
+        self.assertEqual(written, 'ERR\n{"kind":"request","message":"no"}')
+        with self.assertRaises(ll.LegendError) as back:
+            _folded.unfold(written)
+        self.assertEqual((back.exception.kind, back.exception.message), ('request', 'no'))
+
+    def test_a_stores_refusal_is_said_in_its_words_never_its_raw_json(self):
+        from legend_lite import _home
+        with self.assertRaises(OSError) as failed:
+            _home._answered('ERR\n{"kind":"internal","message":"IllegalStateException: the folder is gone"}')
+        self.assertEqual(str(failed.exception), 'internal: IllegalStateException: the folder is gone')
+        self.assertEqual(_home._answered('OK\n204\ntext/plain\n'), (204, ''))
+
+
 class TheProductsKinds(unittest.TestCase):
     """The lite API spec's §3 (2026-11-17): a refusal's kind is the product's (LiteV1Api.RefusalKind), read from the
     native library (lite_refusal_kinds), never a spelling of Python's own -- so a rename in the product needs no edit

@@ -8,7 +8,8 @@ import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { fromJson, readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import type { LiteOperation, RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
-import { liteError, LiteRefusal, type LiteError } from '../lite-error.ts';
+import { unfold } from '../folded.ts';
+import { liteError, type LiteError } from '../lite-error.ts';
 import type { QueryColumn } from '../relation-type.ts';
 import type { PureModelContext } from './wire.ts';
 import type {
@@ -55,24 +56,9 @@ export class WorkerPort implements PlannerPort {
   }
 }
 
-/**
- * An export's folded answer as its value or a refusal (planner.Folded): `OK\n<answer>`, or `ERR\n` and lite's refusal as
- * its JSON (`{kind, message, where?, raise?}`, lite's API v1 spec §3; core's LiteV1Api.refusal, the one classifier),
- * thrown as a LiteRefusal. An answer in neither form is a defect, said as one.
- */
-export function unfold(answer: string): string {
-  if (answer.startsWith('OK\n')) return answer.slice(3);
-  if (answer.startsWith('ERR\n')) {
-    let refusal: LiteError;
-    try {
-      refusal = liteError(JSON.parse(answer.slice(4)));
-    } catch (e) {
-      throw new LiteRefusal({ kind: 'internal', message: `the planner answered a refusal in no form it has (${(e as Error).message})` });
-    }
-    throw new LiteRefusal(refusal);
-  }
-  throw new LiteRefusal({ kind: 'internal', message: `the planner answered in no form it has: ${JSON.stringify(answer.slice(0, 120))}` });
-}
+// An export's folded answer as its value, or its refusal thrown (planner.Folded): the tab's one reader, folded.ts (H4's
+// P3, 2026-11-19), named here as its readers always took it
+export { unfold } from '../folded.ts';
 
 /**
  * LITE'S PLANNER IN THE TAB: lite's API v1 operations (spec §2), the plans the hosts' runner runs, and the models it

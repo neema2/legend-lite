@@ -37,6 +37,8 @@ _RECORDS = [
     # the raises the plans declare (phase D's option (D), 2026-11-15): a plan reader of either side declares them, the
     # run side words a failure from them -- no send, no plan
     "src/declared-raises.ts",
+    # the planner's folded answers, read and written once (H4's P3, 2026-11-19): a record both sides read
+    "src/folded.ts",
     # lite's error kinds and their statuses (H4's P2, 2026-11-19), generated: the record lite-error.ts reads
     "src/generated/lite-errors.ts",
     "src/generated/lite-facts.ts",

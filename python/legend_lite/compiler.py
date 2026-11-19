@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import _json
+from . import _folded, _json
 from ._library import library
 from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer
 from ._raised import declare_sites
@@ -21,18 +21,9 @@ from ._plans import (Column, Plan, PlanParamsRefused, host_rows, plan_binding, p
 Tree = dict[str, Any]
 
 
-class LegendError(Exception):
-    """The compiler refused, in lite's one error shape (the lite API spec's §3, 2026-11-17): its ``kind`` -- LITE'S OWN,
-    as the native library folds it (``LiteV1Api.RefusalKind``; never a constant of Python's: ``refusal_kinds``) --
-    its ``message`` in lite's words, and, where there is one, its ``where`` (a position or a site) and, for a run's
-    raise, the raise's own kind (``raise_``)."""
-
-    def __init__(self, message: str, kind: str, where: str | None = None, raise_: str | None = None) -> None:
-        super().__init__(message)
-        self.message = message
-        self.kind = kind
-        self.where = where
-        self.raise_ = raise_
+# lite's one error shape, the seam's (_folded: the native library's answers, read once; H4's P3, 2026-11-19), named here
+# as every caller always took it
+LegendError = _folded.LegendError
 
 
 # lite's error kinds by name, each its wire text, and the HTTP status a refusal of each kind is answered with, as the
@@ -44,10 +35,10 @@ _STATUSES: dict[str, int] | None = None
 def _said_kinds() -> dict[str, dict[str, Any]]:
     """LITE'S ERROR KINDS as the product says them (``lite_refusal_kinds``: the one Java type of §3's kinds,
     ``LiteV1Api.Kind`` -- each name, its wire text and its status)."""
-    tag, _, rest = library().call('lite_refusal_kinds').partition('\n')
-    if tag != 'OK':
-        raise OSError(f"the native library did not say lite's error kinds: {rest[:200]}")
-    return _json.loads(rest)
+    try:
+        return _json.loads(_folded.unfold(library().call('lite_refusal_kinds')))
+    except LegendError as refused:
+        raise OSError(f"the native library did not say lite's error kinds: {refused.message[:200]}") from None
 
 
 def refusal_kinds() -> dict[str, str]:
@@ -94,23 +85,20 @@ def refuses_the_text(refused: LegendError) -> bool:
 
 
 def _answer(text: str) -> str:
-    """The compiler's answer, or its refusal raised in lite's one error shape (``planner.Folded``: ``OK`` and the
-    answer, or ``ERR`` and §3's ``{kind, message, where?, raise?}``). A kind the product does not say is refused by
-    name (``_kind``)."""
-    tag, _, rest = text.partition('\n')
-    if tag == 'OK':
-        return rest
-    if tag == 'ERR':
-        try:
-            said = _json.loads(rest)
-        except ValueError:
-            said = None
-        if not (isinstance(said, dict) and isinstance(said.get('kind'), str) and isinstance(said.get('message'), str)):
-            raise OSError(f"the native library refused in no error shape lite's (§3): {rest[:200]!r}")
-        if said['kind'] not in refusal_kinds().values():
-            raise LegendError(f"an error kind this binding does not know: {said['kind']}", error_kind('INTERNAL'))
-        raise LegendError(said['message'], said['kind'], said.get('where'), said.get('raise'))
-    raise OSError(f'the native library answered something unrecognised: {text[:120]!r}')
+    """The compiler's answer, or its refusal raised in lite's one error shape, read by the one reader (``_folded``:
+    ``OK`` and the answer, or ``ERR`` and §3's ``{kind, message, where?, raise?}``). A kind the product does not say is
+    refused by name (``_known``)."""
+    try:
+        return _folded.unfold(text)
+    except LegendError as refused:
+        raise _known(refused) from None
+
+
+def _known(refused: LegendError) -> LegendError:
+    """``refused``, its kind one the product says; any other refused by name, kind internal."""
+    if refused.kind not in refusal_kinds().values():
+        return LegendError(f'an error kind this binding does not know: {refused.kind}', error_kind('INTERNAL'))
+    return refused
 
 
 def folded(text: str) -> str:
@@ -171,15 +159,13 @@ def lite_route(path: str, body: str, method: str = 'POST') -> tuple[int, str]:
 
 
 def answered_http(text: str) -> tuple[int, str, str]:
-    """A native entry's answer folded as an HTTP answer (``planner.Folded.http``: ``OK``, its status, its media type
-    and its body), its status, media type and body; a refusal folded in its place (``ERR`` and lite's error: the call
-    failed outside the route's own answer) raised as ``LegendError`` (``_answer``)."""
-    rest = _answer(text)
-    status, _, rest = rest.partition('\n')
-    media, _, body = rest.partition('\n')
-    if not status.isascii() or not status.isdigit() or not media:
-        raise OSError(f'the native library answered no HTTP answer: {text[:120]!r}')
-    return int(status), media, body
+    """A native entry's answer folded as an HTTP answer (``planner.Folded.http``), its status, media type and body, read
+    by the one reader (``_folded.unfold_http``); a refusal folded in its place (the call failed outside the route's own
+    answer) raised as ``LegendError``, its kind checked as ``_answer`` checks one."""
+    try:
+        return _folded.unfold_http(text)
+    except LegendError as refused:
+        raise _known(refused) from None
 
 
 def refused_route(refused: LegendError) -> tuple[int, str]:

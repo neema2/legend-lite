@@ -35,6 +35,7 @@
 // address others can open; Python's is this machine's loopback.
 
 import { hostAnswer } from '../../../engine-client/src/doors/host-answer.ts';
+import { folded as foldedAnswer, foldedRefusal } from '../../../engine-client/src/folded.ts';
 import { typedByPlan } from '../../../engine-client/src/query-engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import { hostOf, type Receipt } from '../../../engine-client/src/receipt.ts';
@@ -247,12 +248,12 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
         case 'hold': {
           const handle = next++;
           held.set(handle, body.library === undefined ? { model: body.model } : { model: body.model, library: body.library });
-          reply({ id, ok: true, answer: `OK\n${handle}` });
+          reply({ id, ok: true, answer: foldedAnswer(String(handle)) });
           return;
         }
         case 'release':
           held.delete(body.handle);
-          reply({ id, ok: true, answer: 'OK\n' });
+          reply({ id, ok: true, answer: foldedAnswer('') });
           return;
         // lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2): each on the host's own route, its request
         // the route's body, its answer the route's -- the same JSON the module answers -- folded as the module folds it
@@ -263,7 +264,7 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
         case 'queryPlanHeld': case 'queryTypeHeld': {
           const kept = held.get(body.handle);
           if (kept === undefined) {
-            reply({ id, ok: true, answer: `ERR\n${JSON.stringify({ kind: 'internal', message: `no model held as ${body.handle} on this page` })}` });
+            reply({ id, ok: true, answer: foldedRefusal({ kind: 'internal', message: `no model held as ${body.handle} on this page` }) });
             return;
           }
           if (body.kind === 'queryTypeHeld') {

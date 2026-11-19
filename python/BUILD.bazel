@@ -25,6 +25,9 @@ load(
 # text Python sends and its one send (_planned.py), the run frame (_runframe.py), the plan's own records and their readers
 # (_plans.py) and the exact JSON (_json.py). Python's standard library alone; it imports neither side
 _SEAM_SRCS = [
+    # the native library's answers, read once, and lite's one error shape (H4's P3, 2026-11-19): what the planner and
+    # the run side (the warehouse's wire) both read
+    "legend_lite/_folded.py",
     "legend_lite/_json.py",
     "legend_lite/_planned.py",
     "legend_lite/_plans.py",

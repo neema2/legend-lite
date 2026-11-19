@@ -58,7 +58,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc
 
-from . import _host, _json, compiler, warehouse
+from . import _folded, _host, _json, compiler, warehouse
 from ._planned import PlannedSql, across_the_bridge, connect
 from .compiler import LegendError
 from ._library import library
@@ -161,9 +161,10 @@ def _site_types() -> dict[str, str]:
     """The site's media types by suffix: the one table every host serving a site answers with (the native library's
     ``lite_site_types``, com.legend.site.SiteTypes: the warehouse's server's too; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md
     C4). Anything else is served as bytes."""
-    tag, _, table = library().call('lite_site_types').partition('\n')
-    if tag != 'OK':
-        raise RuntimeError(f'the native library has no site types: {table}')
+    try:
+        table = compiler.folded(library().call('lite_site_types'))
+    except LegendError as refused:
+        raise RuntimeError(f'the native library has no site types: {refused.message}') from None
     return {f'.{extension}': media for extension, media in json.loads(table).items()}
 
 _NO_HEADERS: Mapping[str, str] = MappingProxyType({})
@@ -468,15 +469,14 @@ class NativePlanner:
 
     def refused_plan(self, message: str) -> str:
         """A request this engine cannot plan for (its model not served, its library not DataCube's, a project with no
-        rows), refused as the planner refuses one: ``ERR`` and §3's error, the product's ``request`` kind."""
-        return 'ERR\n' + _json.dumps({'kind': compiler.error_kind('REQUEST'), 'message': message})
+        rows), refused as the planner refuses one (``_folded.refusal``, the one writer: H4's P3), the product's
+        ``request`` kind."""
+        return _folded.refusal(LegendError(message, compiler.error_kind('REQUEST')))
 
     def refused_by(self, refused: LegendError) -> str:
-        """The compiler's own refusal, as the planner answers one: ``ERR`` and §3's error, its kind and its words."""
-        said = {'kind': refused.kind, 'message': refused.message}
-        if refused.where is not None:
-            said['where'] = refused.where
-        return 'ERR\n' + _json.dumps(said)
+        """The compiler's own refusal, as the planner answers one (``_folded.refusal``): its kind, words, where and
+        raise (until then its raise dropped)."""
+        return _folded.refusal(refused)
 
 
 class _WarehouseTable:
