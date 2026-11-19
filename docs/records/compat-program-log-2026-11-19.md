@@ -1093,3 +1093,14 @@ who confirms or changes phases 1-3.
     value** (DuckDB 13, H2 9).
 - **~13:14 UTC, the product orchestrator:** H2 essential and standard join lite's own PCT lanes in both channels as
   step 0 of the H2 track (`claude/h2-dialect-gaps`), the known-failure list and the lane's minutes to the user first.
+- **~13:16 UTC, the user: "Kill both now and restart on opus"** (the two spike sessions, H11 and H13). Done:
+  - both interrupted and archived: H13 (`session_0195rQEoAgK9WB7AM5Cowp2f`, stopped mid-way through a guard-test run,
+    "27 of 31"; its unpushed work after `dad98589` is lost) and H11 (`session_0195rQEjVtMXfZdcaQdweUzf`, stopped
+    mid-way through the corpus half, "2 suites fail in measurement mode"; nothing pushed after `5c62ee85`);
+  - restarted from their branch heads, xhigh, each with a continuation brief (the record so far, the remaining
+    tasks, the same rules): **H11 continued `session_0195rQEnceykGKzTfRUo7XWp`** (the corpus half: the corpus on both
+    databases with the Java printers, the 41 calendar tests as a `CSVJOIN` form, the judge-side composed prints by
+    shape, the abstract-Date question); **H13 continued `session_0195rQEjNZoybxirC5uGba42`** (the six tests' three
+    lowering sites, the database judge's 4 tests, the defect cell's count and size, the size words as a `Hearing`
+    input, two pure/v1 golden requests drafted, the guarded files and the size estimate, the `lite_wire` shape check);
+  - the host-parity worker and the judges session were given H13's new address.
