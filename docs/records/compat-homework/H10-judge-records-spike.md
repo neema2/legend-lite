@@ -585,60 +585,77 @@ any caller may rewrite between the halves, but that is the doors' own model ("ca
 untouched but duplicates about 230 lines of the engine framework's rules. The preparer is the smallest change and the
 least honest.
 
-### 9.8 The door, for the owner's question to the user
+### 9.8 The door's conditions for the builder (the owner's call: §9.7's third shape, 2026-11-19)
 
-The owner is putting the door ((a) of §5) to the user, on the condition that it is a net shrink. The answers, checked
-in the code:
+**The shape.**
+- `PureTestRunner.prepare(TestCase)` returns a public `Prepared`: the resolved body, its one `TypedQuery`, its facts,
+  and the package's prepared setups.
+- `Prepared.withBody(List<TypedSpec>)` re-states the facts through `TestExecution.facts`.
+- `run(Prepared)` runs it.
+- The spec harness composes prepare, the edge's four rewrites and run, as `ChannelB` composes its own `TypedQuery`.
+- One runner, no callback, no hook. The parse-level alternative is not taken: it is fragile, and it cannot delete
+  `RelationCounting` alone.
 
-1. **All four rewrites (R-S137, R-S144, R-S131's typed half, R-S15) can run through the one door, and the
-   `RelationCounting` two-form can be deleted in the same step.**
-   - **Reach.** The slot runs on the typed body at `TestPlanner.lifted` (`:225-227`), before G½'s per-statement
-     inlining (`BodyDriver.java:305`). The door, on the typed body before `planBody`, sees the same body.
-     `countedAsOne` recurses the whole tree, so lifting before or after it changes nothing.
-   - **The product keeps lite's refusal:** `TestPlanner` calls `RelationCountAsserts.REFUSED`'s check directly.
-   - **The `assertEmpty($rel)` refusal moves to the door,** with the same text and phase, reported by the runner's
-     same catch.
-   - **Every edge-style test-body road applies the door:** the corpus (its observer) and `ChannelB` (which holds its
-     `TypedQuery`). Core's `RelationCountAssertsEdgeTest` becomes the door's test. Core's seven other UPSTREAM-style
-     test classes are checked for a relation-counted assert in the build.
-   - **Deleted:** `compiler.spec.RelationCounting`, `edge.UpstreamRelationCounting` (its body becomes R-S137),
-     `PlanStyleFacets.java:40`'s entry, `PureText.java:159-161`, `TestPlanner.java:227`'s `twoForm` call, and their
-     guard rows (`HookLambdasTest`'s `TWO_FORM_CALLERS`, `HookRulingTest`, `JavaEvalLedgerTest`).
-   - **Net:** one caller-supplied body transform in, one two-form mode facet out.
-2. **Placement: a `TestObserver` method with no default** (two observers: `TestObserver.NONE`, the identity, and
-   spec's `CorpusObserver`).
-   - **Applied once, where `run()` types the body** (`PureTestRunner.java:287-289`), the one `TypedQuery` handed to
-     both `TestExecution.facts` and `planBody` (`:349`). Today the runner types each body twice, so this both
-     guarantees the facts and the plan see the same rewritten body (R-S15 changes the assert count) and saves one
-     typing per body.
-   - **Also at `runSetup`** (`:231`), to match the slot, which runs for every `planBody`.
-   - No planner or exec class reads it.
-3. **Ordering.**
-   - R-S15 runs before R-S131.
-   - **R-S15's list form must be order-free where the actual is incidental:** `testProject`'s actual is both Float and
-     INCIDENTAL. Over an incidental actual, R-S15 pairs by sorting both sides (the expected literal sorted at the
-     door, `a->sort()`) before the per-element tolerance.
-   - R-S137 and R-S144 touch other asserts: no interaction.
-4. **The no-hook alternative (the harness rewrites the PARSED body, as H5's retarget did) can reach S131's typed
-   shape.**
-   - **How:** type each body with the public compiler, read the facts from the typed tree, map each typed assert to
-     its parsed node by source position (`TypedNativeCall.pos`), rewrite the parsed call, and hand the runner rebuilt
-     `PureTests.TestCase`s (a public record).
-   - **Its one loss:** `assertEmpty($rel)`'s compatibility text. Lite's refusal answers instead: the same verdict, a
-     different message.
-   - **Cost:** about 3-3.5 days against (a)'s 2.25-2.5. The position map, its refusal for a node without a position,
-     and its tests come to +1; rebuilding the TestCases to +0.25.
-   - **Run time:** one more typing per body, unmeasured, estimated at a few percent of the corpus pass.
-   - **Fragility:** two trees kept in step by source spans.
-   - **It deletes `RelationCounting` only if every other edge-style road does the same parsed rewrite.**
+**The conditions** (the owner's list, each stated against the shape):
 
-H13's reply (2026-11-19, `claude/compat-error-records-spike` at `538ab17d`): its two records pass through
-`Hearing.caughtMessage(RuntimeException)` unchanged, and no new member is needed.
-- `caughtMessage` supersedes H6 §7.6's `errorMatches(expected, raised)`: the match stays the product's, and the
-  audience only words.
-- H13's database-judge change binds a planned failure's words at the verdict's turn instead of planting them at
-  planning (+15/−4). It fixes the 4 `*_InvalidWindowFrameBoundary` channel B tests and ports to this spike's
-  `TestRun` as written. It is unneeded once 2.2a deletes the compatibility database judge.
+1. **Type once.**
+   - `prepare` types the body once, and that one `TypedQuery`, rewritten or not, feeds both `TestExecution.facts` and
+     `TestExecution.planBody`.
+   - Today the runner types each body twice: `Compiler.queryResolved` at `PureTestRunner.java:289` for the facts, and
+     again at `:349` for the plan. The split deletes the second typing, and the facts and the plan cannot see two
+     bodies (R-S15 changes the assert count).
+2. **Setups prepared the same way, to match today's slot,** which runs for every `planBody`, setups included
+   (`runSetup`, `:227-232`).
+   - A package's setups are typed once when the package is first prepared (`deriveSetups`, today at session start)
+     and carried in `Prepared` as prepared bodies.
+   - The harness rewrites them as it rewrites the body (`Prepared.withSetup(fqn, List<TypedSpec>)`).
+   - `run` plans and runs the carried setups through `runFixture` as today, `setupsDone` unchanged.
+   - Setups assert nothing in the corpus, so no lane moves on this. It keeps the move exact.
+3. **R-S15 runs before R-S131,** and R-S15 is order-free over an incidental actual. Where `OrderView.of(actual,
+   letPrefix) == INCIDENTAL` (`testProject`'s case), both sides are sorted before the per-element tolerance:
+   - the expected Float literal list sorted at the door;
+   - the actual as `a->sort()`;
+   - then `assertEquals(n, a->size())` and each `assertEqWithinTolerance(e_i, sorted(a)->at(i), d_i)`.
+
+   R-S137 and R-S144 touch other asserts and may run in any place after R-S131.
+4. **The `assertEmpty($rel)` refusal keeps its text and its phase, and is reported exactly as today.**
+   - Today it is a `ModelException` (phase TYPE, `UpstreamRelationCounting.java:71`) raised inside `planBody`. That
+     happens in `judge`'s try (`:345-392`), AFTER the package's setups ran (`:304-310`). The runner's catch turns it
+     into `Result(fqn, FAIL, [], e.getClass().getSimpleName() + ": " + whole(e.getMessage()), false)` (`:387-392`,
+     `:399-400`), with `bodyStarting`, `bodyFailed` and `bodyFinished` told.
+   - Under the split the harness does NOT report it itself. Its R-S137 catches the refusal and hands it to the runner
+     as data on the prepared test: `Prepared.refusedBy(RuntimeException)`.
+   - `run(Prepared)` runs the setups as for any test, then raises the carried refusal where `planBody` would be,
+     inside the same try. The same catch then produces the same `Result`, after the same setups, with the same
+     observer events. This supersedes §9.9's "reported before the setups".
+   - It meets no lane today (§9.9), so the check cannot see it. Core's `RelationCountAssertsEdgeTest` pins its
+     `Result`.
+5. **Every edge-style test-body road applies the same four rewrites, in the order above:**
+   - the corpus harness (`MinimalCorpus`, and `LeanSqlCorpusTest`, which plans in the same style), through the split;
+   - `ChannelB`, on the `TypedQuery` it already holds before `runProgram`;
+   - core's edge-style tests. `RelationCountAssertsEdgeTest` becomes the rewrite's own test. The build checks
+     `DatabaseHalfDe5Test`, `BodyRouterParityTest`, `EdgeLiveSourceTest`, `MixedRunRefusalTest`,
+     `GeneratedTestDataPrintingTest`, `GeneratedTestDataProgramTest` and `PlannerSurfaceTest` for a relation-counted
+     assert, and applies the rewrites where one exists.
+6. **`RelationCounting` is deleted in the same step:**
+   - `compiler/spec/RelationCounting.java`;
+   - `edge/UpstreamRelationCounting.java` (its `countedAsOne` becomes R-S137);
+   - `testplan/PlanStyleFacets.java:40`'s entry;
+   - `edge/PureText.java:159-161`'s facet answer;
+   - `TestPlanner.java:227-228`'s `twoForm` call, which becomes a direct call of `RelationCountAsserts.REFUSED`,
+     lite's own refusal, kept;
+   - their guard rows, with the user's word: `HookLambdasTest`'s `TWO_FORM_CALLERS`, `HookRulingTest`,
+     `JavaEvalLedgerTest`, and any `PlanStyleSurfaceTest` row naming the kind.
+
+   Net: the runner's public surface grows by `prepare`, `Prepared` and `run(Prepared)` (about 30 lines). One two-form
+   mode facet and its rows go.
+
+**The checks for the step:** §7.7's, plus the door's own:
+- both corpus lanes' rosters unchanged except R-S131's and R-S15's listed fixes (§4.2) and the JSON root's (by the
+  `Json` kind rule, §9.2);
+- the per-assert ledger's renames listed;
+- channel B unchanged on every lane;
+- core green with the moved tests.
 
 ### 9.9 The owner's calls (2026-11-19, 13:38) and R-S137 on the prepared body
 
@@ -651,11 +668,9 @@ step. B2's design takes H11's relation text as the product kind `Printed`, with 
 `List<TypedSpec>` walk: the relation argument of `assertSize` or `assertNotEmpty` is replaced by the literal 1.
 
 **Its one refusal, `assertEmpty($rel)`** (`UpstreamRelationCounting.java:71`, a `ModelException` with the
-compatibility text), is raised by the edge's rewrite in the harness, before `run(Prepared)`.
-- The harness reports it as the test's FAIL with the runner's own reason text: a public `Result`, built as
-  `"ModelException: " + PureTestRunner.whole(message)`.
-- The only difference is that it is reported before the package's setups run.
-- It meets no lane: no corpus FAIL line carries the text, and S137's 21 decisions per lane are all
-  `assertSize`/`assertNotEmpty`.
+compatibility text), is carried to the runner as data (`Prepared.refusedBy`). The runner raises it where `planBody`
+would be, so it is reported exactly as today (§9.8 condition 4; this replaces a first answer that had the harness
+report it before the setups). It meets no lane: no corpus FAIL line carries the text, and S137's 21 decisions per lane
+are all `assertSize`/`assertNotEmpty`.
 
 `RelationCountAsserts.REFUSED` stays, called directly by the test planner, as lite's own refusal.
