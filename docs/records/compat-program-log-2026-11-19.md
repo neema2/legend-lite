@@ -2355,3 +2355,12 @@ who confirms or changes phases 1-3.
   merge started:** the judges' session merges A2 (`6551c2036`) then A5 (`6f21bed29`, which already carries #124's
   branch) into A4's branch, measures once on the merged tree, pushes; A3 merges last, then the batch PR.
 - **~19:20 UTC, the detector's default ruled: refuse, for now** (§1's row); the load-time report not built. B1-R told; the final plan's §4a amended. The user also said: "I still like the FLAG concept for very narrow use cases - it like feature flags that we are going to want anyway for turning on/off features / We would have to very tightly guard how many flags so doesn't become a mess". A flag rule proposed to the user (below the reply), not yet ruled.
+- **~19:21 UTC, B2: A3 piece 4's first pass** (local, `claude/compat-a3-docs` from `6551c2036`, docs only):
+  `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md` (the ruled goal as its one rule; S380 for A2; the last-place maths on
+  Windows and macOS from #123's overlays, H2 matching); AGENTS.md's upstream-fidelity tenet replaced by the ~13:15 draft
+  with the six tenets and the two readings beside it; G8's first bullet amended; S382 (a Double's last digits by the
+  operating system). **Answered:** the batch carries a copy of the rules of record (refreshed from
+  `claude/compat-program` at the batch's assembly, after the pending switch rule); the provisional ids allocated by
+  this session alone (S380 A2, S381 A5's threads, S382 the maths row, S383-S385 A3's new rows; S130 and S134 rewritten
+  in place), in `compat-batch-register-rows-2026-11-19.md`. #127's CI: Linux 16/16 and Windows 16/16 green, macOS
+  queued.

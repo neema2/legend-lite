@@ -5,6 +5,20 @@ merge. Ids are provisional until landing, coordinated with the product track's r
 DECIMAL; S372 proposed, the warehouse's file-load refusal; S378 `currentUser`'s 405; S379 the pivot count; S380 A2's
 CP-4 row, SQL text never promised).
 
+## The provisional ids, allocated by the compat owner (one allocator, 2026-11-19 ~19:21)
+
+| id | row | drafted by |
+|---|---|---|
+| S380 | CP-4: upstream's SQL text never promised (supersedes S4) | B2 (A2) |
+| S381 | which error a failing DuckDB product plan raises; the database's threads | A5 |
+| S382 | a Double's last digits by the operating system (#123's overlays) | B2 (A3 piece 4) |
+| S383 | A3: the raise on the three conditions | the translator (A3 piece 2) |
+| S384 | A3: toOne of an empty collection | the translator |
+| S385 | A3: answering where legend-engine refuses | the translator |
+| S130, S134 | rewritten in place, ids kept | the translator |
+
+Any further row takes the next free id from this table, through the compat owner.
+
 ## S381 (provisional): which error a failing DuckDB product plan raises; the database's threads (A5)
 
 Ruled by the user, 2026-11-19 ~18:30: "Keep 1 thread for duckdb tests and multiple for product is good". Drafted by
