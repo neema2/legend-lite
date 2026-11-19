@@ -33,9 +33,10 @@ import java.util.Map;
  * each of {@code parsed.getElements()}, with
  * {@code ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports()}, the mapper all four made --
  * and the engine's object is let go. No class sees an object another could change: what is held is immutable strings. A
- * refusal is the same {@link Throwable} the referee threw, thrown again to each caller, which catches it as before; a
- * model the mapper could not write keeps that failure, thrown where the class asked for the text. Lite's own parser
- * still parses every source in every class: nothing of lite's is shared.
+ * refusal is the same {@link Throwable} the referee threw (a RuntimeException, or a StackOverflowError, which is the
+ * text's), thrown again to each caller, which catches it as before; any other Error, an OutOfMemoryError above all, is
+ * thrown on and never kept. A model the mapper could not write keeps that failure, thrown where the class asked for the
+ * text. Lite's own parser still parses every source in every class: nothing of lite's is shared.
  *
  * <p>The key is the whole text and the options: {@link #withSourceInformation} is {@code parseModel(text)},
  * {@link #withoutSourceInformation} is {@code parseModel(text, "", 0, 0, false)}. Each answer is held softly: the heap's
@@ -63,7 +64,7 @@ final class RefereeParses {
     private record Key(String text, boolean sourceInformation) {
     }
 
-    /** What the referee answered: its parse as text, or what it threw (never both). */
+    /** What the referee answered: its parse as text, or its refusal or StackOverflowError (never both). */
     private record Answer(Parse parse, Throwable refused) {
     }
 
@@ -150,8 +151,11 @@ final class RefereeParses {
             model = key.sourceInformation()
                     ? REFEREE.parseModel(key.text())
                     : REFEREE.parseModel(key.text(), "", 0, 0, false);
-        } catch (RuntimeException | Error t) {
-            // parseModel declares no checked exception: what it throws is one of these two, kept as thrown
+        } catch (RuntimeException | StackOverflowError t) {
+            // what the referee answers for this text, kept as thrown: a refusal (parseModel declares no checked
+            // exception), or a stack too deep for this text, the same every time. Any other Error -- an
+            // OutOfMemoryError is one moment's pressure, not the text's -- is thrown on and never kept, so a later
+            // class parses the text again, as it did before this memo (the review of 37ef44ff0, 2026-11-19)
             return new Answer(null, t);
         }
         try {
