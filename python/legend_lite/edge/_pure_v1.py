@@ -205,7 +205,7 @@ class EngineRoutes:
         if path == CURRENT_USER:
             # who a page's caller is: "anonymous", whom the stores keep queries for (there is no sign-in) -- GET only,
             # as upstream serves it (a JAX-RS @GET; its shipped AnonymousClient's profile is "anonymous"), any other method
-            # 405 in the body Java's edge answers (EdgeServer.currentUser; register S377): the user's ruling of
+            # 405 in the body Java's edge answers (EdgeServer.currentUser; register S378): the user's ruling of
             # 2026-11-19 ~11:27 UTC, "1 yes, 2 a1" -- until then the GET answered 'this user' and any other method fell
             # through to the product's 404
             if method != 'GET':

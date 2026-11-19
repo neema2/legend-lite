@@ -129,7 +129,7 @@ class EdgeServerTest {
             assertEquals(200, lambda.statusCode(), lambda.body());
             assertTrue(lambda.body().contains("\"_type\":\"lambda\""), lambda.body());
             // legend-engine's current user: GET alone, "anonymous" (its shipped AnonymousClient's profile), any other
-            // method 405 (the user's ruling of 2026-11-19 ~11:27 UTC, "1 yes"; register S377 for the 405's body)
+            // method 405 (the user's ruling of 2026-11-19 ~11:27 UTC, "1 yes"; register S378 for the 405's body)
             HttpResponse<String> user = send(server, "GET", "/api/server/v1/currentUser", null);
             assertEquals(200, user.statusCode(), user.body());
             assertEquals("\"anonymous\"", user.body());
