@@ -35,6 +35,7 @@ import java.util.function.Function;
  */
 public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         com.legend.sql.dialect.@Nullable SqlDialect dialect,
+        com.legend.database.PlanStyle style,
         Map<String, TypedSpec> queryLets,
         Map<String, String> tableReplace,
         ObjectSites instanceIds,
@@ -54,12 +55,14 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
      *  {@code generatorPlanText}: a test-data generator's plan text ({@code planToString} over the generator's
      *  carrier), which is the generator library's -- a library the planner does not reach, since it also runs the
      *  generator's statements -- handed in by the driver until the generator's planning moves (the seam program's
-     *  S2j: the generator's plan a plan of its own). */
+     *  S2j: the generator's plan a plan of its own). {@code spelling}: the door's (phase D, 2026-11-12), which hands
+     *  the engine-text natives their printers -- the edge's, or the product's refusal by name. */
     public static PlanEnv of(ModelContext ctx, @Nullable String runtimeFqn,
             com.legend.sql.dialect.@Nullable SqlDialect dialect,
+            com.legend.database.PlanStyle style,
             Set<Feature> features,
             Function<TypedTestDataGen, String> generatorPlanText) {
-        return new PlanEnv(ctx, runtimeFqn, dialect, new LinkedHashMap<>(), Map.of(),
+        return new PlanEnv(ctx, runtimeFqn, dialect, style, new LinkedHashMap<>(), Map.of(),
                 // the body is one program: one minter for its objects (B9); the test road's ids keep their own
                 // spelling until its layouts converge on the product's (the plan's M5)
                 new ObjectSites("i"), new LinkedHashMap<>(), List.of(), null,
@@ -70,14 +73,37 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     /** This environment reading and registering the plan rows {@code rows} (a program's, shared by its statements:
      *  the test-is-the-product plan's M3f). */
     public PlanEnv withPlanRows(Map<String, Map<String, List<List<String>>>> rows) {
-        return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, rows, protocolBody, frame,
+        return new PlanEnv(ctx, runtimeFqn, dialect, style, queryLets, tableReplace, instanceIds, rows, protocolBody, frame,
                 features, options, generatorPlanText, stamps);
     }
 
     /** This environment writing its statements in {@code d}: a test's program on the product's road, its runtime
      *  decided (the test door's effects, the test-is-the-product plan's M3d). */
+    /** How the target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  planning's dialect where it chose one, else the style's for the runtime's database; null where neither is
+     *  named. Data for the lowering, which imports no dialect. */
+    public com.legend.sql.SqlExpr.FloatLit.@Nullable Kind floatLiteralKind() {
+        SqlDialect d = dialect != null ? dialect : runtimeFqn == null ? null
+                : style.dialect(com.legend.Compiler.executesOn(ctx, runtimeFqn).type());
+        return d == null ? null : d.floatLiteralKind();
+    }
+
+    /** This environment recording its consumed lets in {@code lets}, its own: a planning that must leave none in the
+     *  body's accumulator -- the referee's made-up plan-parameter values, which an appeal's rows are planned under
+     *  (G10, 2026-11-16: the body's map took them, and a later read of the body's plan text resolved its parameter by
+     *  them, on whichever arm ran after). */
+    /** This environment with a copy of its query lets of its own (a planning that adds lets leaves this one's alone). */
+    public PlanEnv withOwnQueryLets() {
+        return withQueryLets(new LinkedHashMap<>(queryLets));
+    }
+
+    public PlanEnv withQueryLets(Map<String, TypedSpec> lets) {
+        return new PlanEnv(ctx, runtimeFqn, dialect, style, lets, tableReplace, instanceIds, planRows, protocolBody,
+                frame, features, options, generatorPlanText, stamps);
+    }
+
     public PlanEnv withDialect(SqlDialect d) {
-        return new PlanEnv(ctx, runtimeFqn, d, queryLets, tableReplace, instanceIds, planRows, protocolBody, frame,
+        return new PlanEnv(ctx, runtimeFqn, d, style, queryLets, tableReplace, instanceIds, planRows, protocolBody, frame,
                 features, options, generatorPlanText, stamps);
     }
 
@@ -92,13 +118,13 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
 
     /** This environment lowering under lite's own planning options ({@link com.legend.platform.PlanOption}). */
     public PlanEnv withOptions(Set<com.legend.platform.PlanOption> o) {
-        return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
+        return new PlanEnv(ctx, runtimeFqn, dialect, style, queryLets, tableReplace, instanceIds, planRows, protocolBody,
                 frame, features, o.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(o)),
                 generatorPlanText, stamps);
     }
 
     public PlanEnv withFeatures(Set<Feature> f) {
-        return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
+        return new PlanEnv(ctx, runtimeFqn, dialect, style, queryLets, tableReplace, instanceIds, planRows, protocolBody,
                 frame, f, options, generatorPlanText, stamps);
     }
 
@@ -113,19 +139,19 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     /** The executing frame's bound context (post-processors, time zone, options) -- set where an execute frame is
      *  entered. */
     public PlanEnv withFrame(ExecutionContext f) {
-        return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody, f,
+        return new PlanEnv(ctx, runtimeFqn, dialect, style, queryLets, tableReplace, instanceIds, planRows, protocolBody, f,
                 features, options, generatorPlanText, stamps);
     }
 
     public PlanEnv withTableReplace(Map<String, String> tr) {
-        return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tr, instanceIds, planRows, protocolBody, frame,
+        return new PlanEnv(ctx, runtimeFqn, dialect, style, queryLets, tr, instanceIds, planRows, protocolBody, frame,
                 features, options, generatorPlanText, stamps);
     }
 
     /** The query's PROTOCOL statements (the source-shaped lets a handle's rows are built from -- the lineage scan
      *  walks the raw query lambda). */
     public PlanEnv withProtocolBody(List<ValueSpecification> body) {
-        return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, body, frame,
+        return new PlanEnv(ctx, runtimeFqn, dialect, style, queryLets, tableReplace, instanceIds, planRows, body, frame,
                 features, options, generatorPlanText, stamps);
     }
 
@@ -137,5 +163,34 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     /** The frame connection's time zone (every DateTime literal spells in it). */
     public @Nullable String timeZone() {
         return frame == null ? null : frame.timeZone();
+    }
+
+    /** A Lowerer configured by this environment: its frame's time zone, and a relation's text asked of its plan
+     *  style's facet with the call's own refusal (B17 of the separation census, 2026-11-17: the product's style
+     *  refuses a {@code toCSV}, a TDS's {@code csv} and a relation's {@code toString} at lowering, by name; and the
+     *  texts only legend-pure writes, B8 (i); legend-engine's result envelope, Phase 6's B5). */
+    /** An execution's trace text in a TDS cell: {@code id} with the style's comment around it, if it writes one. */
+    private com.legend.sql.SqlExpr traceText(com.legend.sql.SqlExpr id) {
+        com.legend.database.PlanStyle.TraceCell comment = style.traceCell();
+        return comment == null ? id : new com.legend.sql.SqlExpr.Call(com.legend.sql.SqlFn.CONCAT, java.util.List.of(
+                new com.legend.sql.SqlExpr.StringLit(comment.before()), id,
+                new com.legend.sql.SqlExpr.StringLit(comment.after())));
+    }
+
+    /** The style's text facets as the lowering's static helpers read them (a judge's lowering, which holds no
+     *  Lowerer; the Lowerer's own, {@link #configure}): each asked with its call's refusal (B8, 2026-11-17). */
+    public com.legend.lowering.Styled styled() {
+        return new com.legend.lowering.Styled(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r),
+                style.twoForm(com.legend.lowering.LoweringForms.class, com.legend.lowering.ProductLoweringForms.INSTANCE),
+                style.twoForm(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.Styled.LITE_DATE_TIMES),
+                style.twoForm(com.legend.lowering.ListTexts.class, com.legend.lowering.ProductListTexts.INSTANCE));
+    }
+
+    public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {
+        return lowerer.withDbTimeZone(timeZone())
+                .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r))
+                .withStyled(styled())
+                .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r))
+                .withTraceText(this::traceText);
     }
 }

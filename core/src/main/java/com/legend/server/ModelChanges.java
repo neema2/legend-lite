@@ -53,6 +53,7 @@ public final class ModelChanges {
     /** {@code createClass}: {@code {"project", "package", "class"}} -- one class ({@link CreateClass}'s request). */
     public static Map<String, Object> createClass(Json.Obj request) {
         only(request, "a createClass request", "project", "package", "class");
+        needs(request, "a createClass request", "project", "package", "class");
         return made(request, List.of(request.getObj("class")), List.of(), null);
     }
 
@@ -63,6 +64,7 @@ public final class ModelChanges {
      */
     public static Map<String, Object> createAssociation(Json.Obj request) {
         only(request, "a createAssociation request", "project", "package", "classes", "association");
+        needs(request, "a createAssociation request", "project", "package");
         Json.Obj association = request.getObjOr("association", null);
         return made(request, items(request, "classes"), association == null ? List.of() : List.of(association), null);
     }
@@ -70,6 +72,7 @@ public final class ModelChanges {
     /** {@code createDataSpace}: {@code {"project", "package", "classes"?, "associations"?, "dataSpace"}}. */
     public static Map<String, Object> createDataSpace(Json.Obj request) {
         only(request, "a createDataSpace request", "project", "package", "classes", "associations", "dataSpace");
+        needs(request, "a createDataSpace request", "project", "package", "dataSpace");
         return made(request, items(request, "classes"), items(request, "associations"), request.getObj("dataSpace"));
     }
 
@@ -81,13 +84,13 @@ public final class ModelChanges {
         // no one here, admitted, closed over its own keys (the C4 audit's M4, 2026-11-13: it was refused by name)
         only(project, "a project's model", "_type", "code", "serializer");
         serializer(project);
-        ModelChanges m = new ModelChanges(PureV1Api.modelText(project));
+        ModelChanges m = new ModelChanges(LiteV1Api.modelText(project));
         List<CreateClass.Made> madeClasses = new ArrayList<>();
         for (Json.Obj c : classes) {
             Json.Obj source = c.getObj("source");
             only(source, "a class's source model", "_type", "code", "serializer");
             serializer(source);
-            madeClasses.add(CreateClass.apply(m, pkg, c, PureV1Api.modelText(source)));
+            madeClasses.add(CreateClass.apply(m, pkg, c, LiteV1Api.modelText(source)));
         }
         List<CreateAssociation.Made> madeAssociations = new ArrayList<>();
         for (Json.Obj a : associations) {
@@ -633,8 +636,18 @@ public final class ModelChanges {
                 // its own words: a model change's request carries values (model text, documentation, a sample's rows),
                 // so the boundary doors' "names and fields only, never a value" is not its rule (the C4 final fix
                 // round's nit, 2026-11-14)
-                throw new IllegalArgumentException(what + " has no key " + key + " (a model change's request holds the"
+                throw new LiteV1Api.MalformedRequest(what + " has no key " + key + " (a model change's request holds the"
                         + " keys its wire writes, model-changes/src/wire.ts, and no other)");
+            }
+        }
+    }
+
+    /** {@code o}'s required {@code keys}: one it lacks refused by name, a malformed request (lite's API v1 spec §3, kind
+     *  {@code request}; 2026-11-17: until then the JSON reader's "Missing required field", a defect's 500). */
+    static void needs(Json.Obj o, String what, String... keys) {
+        for (String key : keys) {
+            if (!o.fields().containsKey(key)) {
+                throw new LiteV1Api.MalformedRequest(what + " names no " + key);
             }
         }
     }

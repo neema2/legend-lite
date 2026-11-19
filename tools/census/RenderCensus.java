@@ -6,7 +6,7 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.EngineStyleH2;
+import com.legend.edge.EngineStyleH2;
 import com.legend.sql.dialect.SqlDialect;
 import com.legend.testbackend.StorelessRuntime;
 
@@ -76,7 +76,7 @@ public final class RenderCensus {
                 }
                 ModelContext ctx = (ModelContext) built;
                 // through the parse door, which asks the run's wall (C5-J's last round, A2, 2026-11-15)
-                var parsed = com.legend.door.Parse.query(expression, com.legend.parser.Dialect.LEGEND_LITE);
+                var parsed = com.legend.door.Parse.query(expression, com.legend.parser.GrammarLevel.LEGEND_LITE);
                 List<com.legend.protocol.spec.ValueSpecification> statements =
                         parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
                                 ? lf.body() : List.of(parsed);

@@ -1506,7 +1506,7 @@ public final class SystemMetamodel {
      * (the {@code Pure} native-catalog discipline). */
     private static final List<PackageableElement> ELEMENTS =
             com.legend.door.ModelFromText.parse(SOURCE,
-                    com.legend.parser.Dialect.LEGEND_LITE).elements();
+                    com.legend.parser.GrammarLevel.LEGEND_LITE).elements();
 
     /** The system elements as parsed — THE BOOT LAYER's input (user
      * ruling 2026-09-02: compiled once per process, content-addressed by

@@ -86,7 +86,9 @@ builtin	base door error model parser protocol
 platform	base builtin error model
 compiler_element_type	base builtin model platform protocol sql
 sql_dialect	base sql
-database	base error model sql_dialect
+# 2026-11-17 (B7, the pure/v1 match-engine build): `database` names `sql` directly -- PlanStyle.plainRaises answers a
+# set of sql.RaiseKind; it reached `sql` through `sql_dialect` already, so no new reach.
+database	base error model sql sql_dialect
 # 2026-11-15 (C5-J's last round, A1, the embedded languages' readers): `compiler` reaches `door` -- an island's text
 # (#SQL, #IQ, #TS, #Cypher) is read through the parse doors (door.Parse), each asking the run's wall first; the readers
 # sit in `protocol`, which cannot ask (invariant 7b). `compiler` reached `door` through `builtin` already.
@@ -116,7 +118,32 @@ exec_program	base error exec execution_plan result
 # reaches it not at all (G5), the harnesses do. 2026-11-11 (B2b, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): it reaches
 # the plan's records (execution_plan) -- a seed's referee's copy is a load, its steps the plan's, written by the plan's
 # codec, a file's bytes verified against the plan's reference.
-edge	base execution_plan json sql_dialect test_plan
+# 2026-11-12 (phase D's D1.0, the spelling hook): it reaches `database` (the SqlSpelling it supplies) and `model` (the
+# declared database type it answers a dialect for): the edge's dialects, com.legend.edge.PureText.
+# 2026-11-12 (phase D's D1.0b): legend-engine's pure/v1 routes and the test-data routes are the edge's -- over the
+# product's API kit (pure_v1), its compiler, protocol, planner and generator -- and the shipped server's root is
+# `edge_server`, lite's server with those routes mounted, its run the product's door in the edge's dialects.
+# 2026-11-15 (#104 merged with main's C5-J, #106): door -- the parse doors (door.Parse) the edge's pure/v1 routes ask
+# before they parse, as C5-J made every parse entry ask the run's wall
+# 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): values -- legend-engine's and legend-pure's cell text, moved
+# from result.CellText to edge.Presenter, reads a date's own value
+# 2026-11-16 (W9's judge half, E-Java; the orchestrator's ruling): edge reaches testplan, to answer the plan style's
+# test-planning facets (testplan.EngineTestText); the edge depends on the product, never the reverse (G5).
+# 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): builtin lineage lowering platform resolver setup --
+# legend-engine's plan text (edge.EnginePlans, EngineAllocations) moved from the planner lowers and renders a query in
+# the engine's text through the product's lowering, its natives' catalog, its scan relations and its DDL generator
+# 2026-11-17 (E-Java's isolated-BOTH stack, census C2: the referee and the appeals moved to com.legend.edge, run
+# through the product's run hook testexec.EdgeRun/EdgeHearing): `edge` reaches diagnostics, exec and testexec -- the
+# edge depending on the product, the allowed direction (G5); no product target reaches the edge.
+edge	arrow_ipc base builtin compiler compiler_element_type database diagnostics door error exec execution_plan json lineage lite_v1 lowering model parser plan planner platform protocol resolver result setup sql sql_dialect test_plan testdatagen testexec testplan values
+# 2026-11-16 (the P2 checkpoint audit's M2): edge_store_words -- legend-engine's query-store sentences, their own target
+edge_server	base edge edge_store_words execution lite_v1 saved_queries server_lib
+# 2026-11-18 (J40.SavedQueries): edge_store_words reads lite's refusal answer itself (SavedQueries.reshaped moved
+# to the edge), so json directly -- already in its closure through saved_queries
+edge_store_words	json saved_queries
+# 2026-11-15 (phase D's D1.4): legend-engine's service tests at the edge, the runner and its PURE_TDSOBJECT writer
+# 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): edge_service_tests reaches edge -- PureV1Writer moved there
+edge_service_tests	base compiler edge error exec execution_plan json model planner protocol result sql test test_execution test_plan testexec values
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
@@ -125,7 +152,9 @@ testdatagen	base builtin compiler compiler_element_type error lineage model plan
 # 2026-11-10 (docs/DATA_IN_THE_PLAN_2026_11_09.md L6c): `execution_plan` reaches `cache` -- a load verifies its bundle
 # against each text's digest with the one portable SHA-256 (cache.Hash: the planner runs on WebAssembly, which has no
 # MessageDigest).
-execution_plan	base cache json sql
+# 2026-11-15 (phase D's option (D), the orchestrator's go): `execution_plan` reaches `error` -- a plan words its raises
+# from the one source, ErrorKind (PlanJson.raises), so every host reads them from the plan it runs; `error` is a leaf.
+execution_plan	base cache error json sql
 # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md, step 2): `test_plan`, a test body's plan as data (base, error); judge and
 # driver reach it (a planning failure recorded as data, raised at its turn). Step 3: it holds the test plan around the
 # product's (execution_plan) and its JSON (json); testplan reaches it (the test door builds the test plan).
@@ -147,7 +176,11 @@ planner	base builtin cache compiler compiler_element_type database door error ex
 # `model` already.
 # 2026-11-15 (C5-J item 1, the Java lock-down): `pure_v1` reaches `door` -- its parses through the parse doors
 # (door.Parse), each asking the run's wall before the parser runs.
-pure_v1	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
+# 2026-11-15 (main 0c9032f56 merged into claude/total-wall-e, E): `edge` reaches `door` -- pure/v1's grammar routes, moved to the edge by D1.0b, parse through the parse door as C5-J item 1 made pure_v1's do.
+# 2026-11-17 (B7 of the separation census, D's split by content): `pure_v1` is `lite_v1` -- the product's API kit
+# (server/LiteV1Api, lite's own routes, answer and refusal kinds); legend-engine's ExecuteInput binding moved to the edge
+# (edge.ExecuteInputs). The same reach, renamed.
+lite_v1	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
 # 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5): `driver` deleted. Its planning classes are
@@ -158,10 +191,11 @@ pure_v1	arrow_ipc base compiler compiler_element_type database door error execut
 # planned by its one entry and run by exec's product run -- and reaches no test library; `test_execution` is the test
 # body's door and its options, the one library that sees both halves of a test. `test` (the harness) reaches the test
 # door; the server the product's.
-execution	base compiler exec execution_plan planner platform result
+execution	base compiler database exec execution_plan planner platform result
 # 2026-11-09 (the user's question "why do we have any callbacks?"): the test door takes the answer's Output, the
 # result library's data, where it took a factory of testexec's.
-test_execution	base exec execution_plan planner platform result test_plan testexec testplan
+# 2026-11-12 (phase D's D1.0): the two doors reach `database` -- the spelling hook (SqlSpelling) a caller hands them.
+test_execution	base database exec execution_plan planner platform result test_plan testexec testplan
 # 2026-10-31, the test-is-the-product plan's M3c (B4 brought forward by R17 C7; brief B12 items 1 and 3): `testplan`, the
 # test-planning library -- the test door and a test's kinds on the product's program road, through the planner's
 # extension point; nothing on the plan side reaches it.
@@ -179,4 +213,4 @@ test	base compiler error exec execution_plan json model planner protocol result 
 saved_queries	base json
 # 2026-11-09 (the full audit): `server_lib` reaches no runtime library -- the server hands pure/v1 the product door;
 # `cache`, `lowering` and `setup` were declared and unused.
-server_lib	base compiler compiler_element_type database error execution execution_plan json model parser plan planner protocol pure_v1 result saved_queries sql_dialect
+server_lib	base compiler compiler_element_type database error execution execution_plan json lite_v1 model parser plan planner protocol result saved_queries sql_dialect

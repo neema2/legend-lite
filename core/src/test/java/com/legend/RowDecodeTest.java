@@ -122,12 +122,17 @@ class RowDecodeTest {
         assertTrue(noObject.getMessage().contains("no JSON object"), noObject.getMessage());
     }
 
+    /** Columns are read by name, never by position (E1 item 6, G7, 2026-11-12: until then a row naming no column
+     *  whose counts agreed was read by position): a row whose one member is not the plan's column is refused. */
     @Test
-    void columnsAreReadByName_orByPositionWhenNoNameMatches() {
+    void columnsAreReadByName_neverByPosition() {
         List<Column> cols = List.of(col("b", "Integer", "INTEGER"), col("a", "String", "VARCHAR"));
         assertEquals(List.of(2L, "x"), com.legend.result.RowDecode.cells("{\"a\":\"x\",\"b\":2}", cols));
-        // a value root's one column is named `value` by the plan and after its output by the wire
-        assertEquals(List.of(2L), com.legend.result.RowDecode.cells("{\"_v\":2}", List.of(col("value", "Integer", "INTEGER"))));
+        var unnamed = assertThrows(IllegalStateException.class,
+                () -> com.legend.result.RowDecode.cells("{\"_v\":2}", List.of(col("value", "Integer", "INTEGER"))));
+        assertTrue(unnamed.getMessage().contains("no field for the plan's column 'value'"), unnamed.getMessage());
+        assertThrows(IllegalStateException.class,
+                () -> com.legend.result.RowDecode.cells("{\"x\":\"x\",\"y\":2}", cols));
         ExecutionPlan.Column optional = new Column("v", "Integer", new Multiplicity(0, 1), "INTEGER", null, null);
         assertEquals(java.util.Collections.singletonList(null), com.legend.result.RowDecode.cells("{\"v\":null}", List.of(optional)));
     }

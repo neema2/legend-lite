@@ -35,19 +35,7 @@ public final class QueryParameters {
 
         /** The type's Pure name: a primitive's ({@code String}, {@code StrictDate}, ...) or an enumeration's path. */
         public String pureType() {
-            return com.legend.plan.PlanText.pureTypeName(type);
-        }
-
-        /** {@code Type[multiplicity]}, as legend-engine's plans and messages spell a parameter. */
-        public String signature() {
-            return pureType() + "[" + com.legend.plan.PurePrint.sizeRange(multiplicity) + "]";
-        }
-
-        /** The legacy plan's template parameter: the placeholder kind its type spells, whether it is optional, and
-         *  for an enum the template function that maps it ({@code enumMapFn}, the printer's; null otherwise). */
-        public com.legend.sql.SqlExpr.PlanParam planParam(@com.legend.base.Nullable String enumMapFn) {
-            return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type), optional(),
-                    enumMapFn);
+            return com.legend.plan.PureSpelling.typeName(type);
         }
 
         /** The lite plan's slot: the value the statement binds where the parameter is used, typed as a literal of its
@@ -63,8 +51,8 @@ public final class QueryParameters {
             }
             com.legend.sql.TypeFact value = valueType();
             if (multiplicity instanceof Multiplicity.Bounded b && Integer.valueOf(1).equals(b.upper())) {
-                return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type),
-                        optional(), null, value, declaredKind());
+                return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.valueTypeOf(type),
+                        optional(), value, declaredKind());
             }
             // a list: ONE array of its values, its element type named for the driver
             if (!(value instanceof com.legend.sql.TypeFact.Typed element)) {
@@ -72,7 +60,7 @@ public final class QueryParameters {
                         + "[*]): a list of decimals, Dates or Numbers has no one element type a driver's array keeps"
                         + " exactly (DuckDB's rounds a decimal to 3 places): not bound (PARK-20)");
             }
-            return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type), false, null,
+            return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.valueTypeOf(type), false,
                     com.legend.sql.SqlTyping.typed(new com.legend.sql.SqlType.Array(element.type())), null);
         }
 

@@ -557,8 +557,14 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  RoutedEngine -- generatePlan, relationType, compile, compileErrors, returnType -- and planner.ts's UpstreamPlanner,
  *  the final audit of 9af16fbe58's T2 and its last list), and the run frame's NOT_PLANNING (T6): 63 bytes, 436,935
  *  without them. Measured 436,998 on Linux; Windows' 28 bytes more are its own build's -- the startup files name 305
- *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here. */
-const BUDGET = 437_300;
+ *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here.
+ *  437,300 -> 438,100 (2026-11-16, the user's ruling U2 (a), relayed by the orchestrator: a product raise worded in
+ *  lite's words on every host, phase D's option (D): raised.ts, declared-raises.ts and the envelope's marks; lazily
+ *  loaded measured worse on two pages). Measured 438,076 over main's 437,233.
+ *  438,100 -> 438,250 (2026-11-17, the user's word typed in D's session, 2026-11-17: "raise the three datacube bundle budgets to 438,250 / 425,800 / 454,150"; re-measured on d-stage b27bfa1a7 first, still over:
+ *  the separation stream's edge moves since 2026-11-16). Measured 438,206 on Linux; the same Windows headroom as before.
+ *  438,250 -> 439,800 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 439,767 on Linux (the TS host, the merge point with J9 and query/parse at LEGEND_LITE). */
+const BUDGET = 439_800;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -795,8 +801,13 @@ const BUDGET = 437_300;
  *  frame -- engine-client's run-frame.ts, the grid road's run marker in runner.ts and the planner's guard in
  *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108.
  *  422,500, 425,500 -> 425,500 (2026-11-14, merged main 3a217086a (#81) into the separation stream: both sides' growth
- *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382. */
-const ENGINE_BUDGET = 425_500;
+ *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382.
+ *  425,500 -> 425,650 (2026-11-16, the user's ruling U2 (a), relayed by the orchestrator: option (D)'s raise
+ *  wording, as the grid's note). Measured 425,638 over main's 425,473.
+ *  425,650 -> 425,800 (2026-11-17, the user's word typed in D's session, 2026-11-17: "raise the three datacube bundle budgets to 438,250 / 425,800 / 454,150"; re-measured on d-stage b27bfa1a7, as the grid's note).
+ *  Measured 425,750 on Linux.
+ *  425,800 -> 426,250 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 426,192 on Linux. */
+const ENGINE_BUDGET = 426_250;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1315,8 +1326,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  ruled. The run layers' split left the module at the line: Linux 453,806 after T1, 453,807 after T4 (this test's
  *  own measure; T2-T4 move no product byte but the page modules' types), and CI's Windows 18 bytes over Linux in run
  *  43692166249 (453,809 there, at 8e4648d02e). Grid 437,261 and engine 425,448 at the same head, under their pins).
- *  Measured 453,807. */
-const WIDGET_BUDGET = 454_100;
+ *  Measured 453,807.
+ *  454,100 -> 454,150 (2026-11-17, the user's word typed in D's session, 2026-11-17: "raise the three datacube bundle budgets to 438,250 / 425,800 / 454,150"; re-measured on d-stage b27bfa1a7, as the grid's note).
+ *  Measured 454,117 on Linux.
+ *  454,150 -> 454,600 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 454,563 on Linux. */
+const WIDGET_BUDGET = 454_600;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

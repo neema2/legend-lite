@@ -18,22 +18,11 @@ import java.util.List;
  * @param source  the relation or class collection being projected
  * @param columns the projected columns (alias + checked lambda each), in output order
  * @param info    the result &mdash; {@code Relation<Z>} resolved to the concrete schema
- * @param wireForm the ENGINE-WIRE provenance (RelationalRootForm's flat
- *                 class form): the engine's plan pins WIRE-typed result
- *                 columns with decode-side coercion for this shape, so
- *                 the lowering's mapping-read conformance must NOT
- *                 emit casts here (T4 leg 1 referee) — the lane fact
- *                 is carried, never re-derived
  */
 public record TypedProject(TypedSpec source, List<TypedFuncCol> columns,
-        ExprType info, boolean wireForm) implements TypedRelationOp {
+        ExprType info) implements TypedRelationOp {
     public TypedProject {
         columns = List.copyOf(columns);
-    }
-
-    public TypedProject(TypedSpec source, List<TypedFuncCol> columns,
-            ExprType info) {
-        this(source, columns, info, false);
     }
 
     @Override
@@ -73,10 +62,10 @@ public record TypedProject(TypedSpec source, List<TypedFuncCol> columns,
             TypedFuncCol c = columns.get(i);
             cs.add(new TypedFuncCol(c.name(), (TypedLambda) kids.get(1 + i), c.documentation()));
         }
-        return new TypedProject(kids.get(0), cs, info, wireForm);
+        return new TypedProject(kids.get(0), cs, info);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedProject(source, columns, info, wireForm);
+        return new TypedProject(source, columns, info);
     }
 }

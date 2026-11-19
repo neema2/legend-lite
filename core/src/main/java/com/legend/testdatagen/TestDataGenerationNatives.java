@@ -37,41 +37,6 @@ public final class TestDataGenerationNatives {
 
     /** Package-visible for the harness's DEFERRED plan-text arm (the
      * alloy lane) — ONE argument classifier, no test-side twin. */
-    /** planToString over a TDG carrier: the {@code plan} flavor prints
-     * the engine's MultiResultSequence text; any other flavor is not a
-     * plan (loud). */
-    public static String planTextResult(
-            com.legend.compiler.spec.typed.TypedTestDataGen g,
-            ModelContext ctx, com.legend.sql.dialect.EngineTextDialect text, String connection) {
-        if (!"plan".equals(g.flavor())) {
-            throw new com.legend.error.NotImplementedException(
-                    "planToString over a non-plan test-data carrier ("
-                            + g.flavor() + ")");
-        }
-        return planText(g, ctx, text, connection);
-    }
-
-    /** The TDG plan text for a {@code plan}-flavored carrier: query,
-     * mapping, then the row identifiers / hash flag / milestoning dates
-     * from the remaining arguments (runtime and exeCtx skipped). */
-    public static String planText(
-            com.legend.compiler.spec.typed.TypedTestDataGen g,
-            ModelContext ctx, com.legend.sql.dialect.EngineTextDialect text, String connection) {
-        List<ValueSpecification> ps = g.params();
-        LambdaFunction query = (LambdaFunction) ps.get(0);
-        String mappingFqn = ((com.legend.protocol.spec
-                .PackageableElementPtr) ps.get(1)).fullPath();
-        List<TestDataGenerator.TableRowIds> rowIds = new ArrayList<>();
-        TestDataGenerator.MilestoningDates[] dates =
-                new TestDataGenerator.MilestoningDates[1];
-        boolean[] hash = new boolean[1];
-        for (int i = 4; i < ps.size(); i++) {
-            classifyArg(ps.get(i), rowIds, dates, hash);
-        }
-        return TestDataGenerator.planText(ctx, query, mappingFqn, rowIds,
-                dates[0], text, connection);
-    }
-
     public static void classifyArg(ValueSpecification arg,
             List<TestDataGenerator.TableRowIds> rowIds,
             TestDataGenerator.MilestoningDates[] dates, boolean[] hash) {
@@ -125,7 +90,7 @@ public final class TestDataGenerationNatives {
                             i++) {
                         ValueSpecification pv = af.parameters().get(i);
                         if (pv instanceof com.legend.protocol.spec.CDate cd) {
-                            d[i] = cd.value().toEngineString();
+                            d[i] = cd.value().canonicalText();
                         } else if (!(pv instanceof com.legend.protocol.spec
                                         .PureCollection pc2)
                                 || !pc2.values().isEmpty()) {
@@ -223,7 +188,7 @@ public final class TestDataGenerationNatives {
             return null;
         }
         if (v instanceof com.legend.protocol.spec.CDate cd) {
-            return cd.value().toEngineString();
+            return cd.value().canonicalText();
         }
         throw new com.legend.error.NotImplementedException(
                 "generateTestData: non-literal milestoning date");
@@ -286,7 +251,7 @@ public final class TestDataGenerationNatives {
             case com.legend.protocol.spec.CInteger c -> out.add(c.value());
             case com.legend.protocol.spec.CBoolean c -> out.add(c.value());
             case com.legend.protocol.spec.CDate c ->
-                    out.add(c.value().toEngineString());
+                    out.add(c.value().canonicalText());
             default -> throw new com.legend.error.NotImplementedException(
                     "generateTestData: non-literal row-identifier value "
                             + v.getClass().getSimpleName());

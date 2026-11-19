@@ -140,16 +140,6 @@ public sealed interface SqlSource {
     record Cte(String name, String alias, List<OutputCol> outputs) implements SqlSource {
     }
 
-    /** The engine's cross-store VarSetPlaceHolder: a PLAN VARIABLE
-     * standing in for another execution node's result set — spelled
-     * {@code (${varName}) as "alias"} in plan SQL (freemarker splice at
-     * execution); the reAlias grouping keys by the lowercased varName
-     * (tdsvar_0/tdsvar_1 goldens). PLAN-TEXT ONLY today: reaching a
-     * DuckDB execution renderer is a caller bug. */
-    record VarSetPlaceholder(String varName, String alias,
-            List<OutputCol> outputs) implements SqlSource {
-    }
-
     /** The FROM-less scalar select's source ({@code SELECT <expr>} — the
      * executeInDb value channel). A REAL variant rather than a null
      * {@code from}: an absent source is a different KIND of source, and

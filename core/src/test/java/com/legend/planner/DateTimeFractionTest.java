@@ -207,12 +207,14 @@ class DateTimeFractionTest {
             String nanos = answer(type, dt, Map.of("t", LocalDateTime.parse("2024-01-02T23:59:59.999999999")));
             if (type == DatabaseType.DuckDB) {
                 // DuckDB's slot is its microsecond TIMESTAMP: refused, never cut to .999999
-                assertTrue(nanos.contains("the DateTime parameter 't' has more fraction digits than DuckDb keeps (6):"
-                        + " refused, never cut (S181)"), nanos);
+                // the product's raise is its kind, in lite's words (phase D's D1.1), and its where: the parameter's
+                // name and the digits DuckDB keeps (the D part 1 audit's S5, 2026-11-15)
+                assertTrue(nanos.contains(com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), nanos);
+                assertTrue(nanos.contains("parameter 't'") && nanos.contains("DuckDb keeps (6)"), nanos);
                 String date = answer(type, "{d: Date[1]|$d}", Map.of("d",
                         LocalDateTime.parse("2024-01-02T10:00:00.0000001")));
-                assertTrue(date.contains("the Date parameter 'd' has more fraction digits than DuckDb keeps (6)"),
-                        date);
+                assertTrue(date.contains(com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), date);
+                assertTrue(date.contains("Date parameter 'd'") && date.contains("DuckDb keeps (6)"), date);
             } else {
                 // H2's TIMESTAMP(9) and SQLite's text keep nine
                 assertEquals(answer(type, "|%2024-01-02T23:59:59.999999999", Map.of()), nanos, type.name());
@@ -241,8 +243,9 @@ class DateTimeFractionTest {
             String half = answer(type, param, Map.of("s", 1.5));
             assertTrue(half.contains("2024-01-02T10:00:01.5"), type + ": " + half);
             String computed = answer(type, param, Map.of("s", 1.123456789));
-            assertTrue(computed.contains("has more than 6 fraction digits, which a date()'s fractional second keeps:"
-                    + " refused, never cut (S181)"), type + ": " + computed);
+            assertTrue(computed.contains(com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), type + ": " + computed);
+            // its where: the digits a date()'s second keeps (the D part 1 audit's S5, 2026-11-15)
+            assertTrue(computed.contains("a date()'s second keeps 6 fraction digits"), type + ": " + computed);
         }
         var mongo = assertThrows(com.legend.sql.DialectCapability.class, () -> Databases.dialect(DatabaseType.MongoDB)
                 .render(com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Dual()).withWhere(

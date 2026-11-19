@@ -134,14 +134,15 @@ final class MatchChecker {
             // real pure compiles it and fails when the value arrives
             // ("Match failure", Match.java): the RAISE typed at the branches'
             // LUB — the spec's testMatch*Fail bodies; lowering emits fail()
-            var fail = t.model().findFunction("meta::pure::functions::asserts::fail").stream()
-                    .filter(f -> f.parameters().size() == 1).findFirst()
-                    .orElseThrow(() -> new TypeInferenceException("fail(message) is not registered"));
+            // a kind (W7, 2026-11-16): the value's type its operand, legend-pure's sentence the edge's
+            var raise = t.model().findFunction(com.legend.builtin.Pure.Lite.TYPE_RAISE).stream().findFirst()
+                    .orElseThrow(() -> new TypeInferenceException("typeRaise is not registered"));
             ExprType str = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
-            return new com.legend.compiler.spec.typed.TypedNativeCall(fail, List.of(
-                    new com.legend.compiler.spec.typed.TypedCString("Match failure: "
-                            + input.info().type().typeName() + input.info().multiplicity().text()
-                            + " matches no branch", str)),
+            return new com.legend.compiler.spec.typed.TypedNativeCall(raise, List.of(
+                    new com.legend.compiler.spec.typed.TypedCString(com.legend.sql.RaiseKind.MATCH_FAILURE.name(), str),
+                    new com.legend.compiler.spec.typed.TypedCString(input.info().type().typeName()
+                            + input.info().multiplicity().text(), str),
+                    new com.legend.compiler.spec.typed.TypedCString("", str)),
                     new ExprType(java.util.Objects.requireNonNull(lub),
                             java.util.Objects.requireNonNull(lubMult)));
         }

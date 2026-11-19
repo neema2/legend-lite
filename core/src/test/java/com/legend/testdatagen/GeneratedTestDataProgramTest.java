@@ -146,7 +146,7 @@ class GeneratedTestDataProgramTest {
                 new TestDataGenerator.TableRowIds("default", "PERSON", List.of(
                         new TestDataGenerator.RowId(List.of("ID"), List.of(2L)),
                         new TestDataGenerator.RowId(List.of("ID"), List.of(3L))))), null, false,
-                PlannerViews.of(ctx), TestDataPlanner.Printing.CLEAN).fetches()) {
+                PlannerViews.of(ctx), LitePrinting.INSTANCE).fetches()) {
             texts.add(backend.dialect().render(f));
         }
         assertEquals(2, texts.size(), "one text per fetch");
@@ -254,8 +254,10 @@ class GeneratedTestDataProgramTest {
                     compare(backend, judge, ctx, LETS, e.getKey()));
         }
         // two constant texts: their load statements, compared as they always were
+        // (legend-engine's DDL text: the edge's style, S309)
         expect(wrong, "two constants", List.of("assertSameElements true"), run(backend, judge, ctx,
-                "{|t::assertTestData('" + pure(SLICE) + "', '" + pure(SLICE) + "', t::DB);}"));
+                "{|t::assertTestData('" + pure(SLICE) + "', '" + pure(SLICE) + "', t::DB);}", new ArrayList<>(),
+                com.legend.edge.PureText.UPSTREAM));
         assertEquals(List.of(), wrong, what);
     }
 
@@ -306,8 +308,10 @@ class GeneratedTestDataProgramTest {
     /** {@code t::assertTestData(expected, $testData.dataCsvString, t::DB)} after {@code lets}, run. */
     private static List<String> compare(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
             String lets, String expected) throws Exception {
+        // upstream's helper compares the two texts' load statements in legend-engine's DDL text: the compatibility
+        // edge's style (S309, RULED by the user 2026-11-14: the product refuses engine text by name)
         return run(backend, judge, ctx, "{|" + lets + "t::assertTestData('" + pure(expected)
-                + "', $testData.dataCsvString, t::DB);}");
+                + "', $testData.dataCsvString, t::DB);}", new ArrayList<>(), com.legend.edge.PureText.UPSTREAM);
     }
 
     /**
@@ -552,7 +556,8 @@ class GeneratedTestDataProgramTest {
         com.legend.testexecutionplan.TestPlan plan = TestExecution.planBody(typed(ctx, "{|" + LETS
                 + "t::assertTestData('" + pure(SLICE) + "', $testData.dataCsvString, t::DB);\n"
                 + "t::loadAndTestExecution($query, [], $mapping, $runtime, $testData.dataCsvString, t::DB);}"), "t::RT",
-                ExecuteOptions.NONE.withJudgeMode(judge));
+                // the edge's style: the generator's body binds legend-engine's plan handle (as run's, 2026-11-16)
+                ExecuteOptions.NONE.withJudgeMode(judge).withStyle(com.legend.edge.PureText.UPSTREAM));
         org.junit.jupiter.api.Assertions.assertNull(com.legend.testexecutionplan.TestPlanJson.roundTripDifference(plan),
                 backend.name() + " " + judge);
     }
@@ -576,35 +581,49 @@ class GeneratedTestDataProgramTest {
      *  body's session recorded in {@code sent}. */
     private static List<String> run(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
             String body, List<String> sent) throws Exception {
+        // the edge's style: a generated slice's body binds legend-engine's plan handle (the test data generator plans
+        // through executionPlan), which only the edge plans (the hook fold, 2026-11-16; the first full CI on D's stage
+        // found it planned on the product's, refused by name)
+        return run(backend, judge, ctx, body, sent, com.legend.edge.PureText.UPSTREAM);
+    }
+
+    /** {@link #run(TestBackend, PlanningOptions.JudgeMode, ModelContext, String, List)} planned in {@code style}. */
+    private static List<String> run(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
+            String body, List<String> sent, com.legend.database.PlanStyle style) throws Exception {
         List<String> verdicts = new ArrayList<>();
         boolean[] failed = new boolean[1];
-        try (Connection c = backend.open()) {
+        // a fresh, seeded session per judge (isolated BOTH runs each judge's plan alone; the orchestrator's (b'), 2026-11-17)
+        // the seed's text rendered before the run (the runtime wall: a run renders nothing)
+        List<String> seed = CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect());
+        com.legend.exec.Sessions.Opener seeded = () -> {
+            Connection c = backend.open(style);   // the style's database (the audit's J22, 2026-11-17)
             try (Statement s = c.createStatement()) {
-                for (String sql : CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect())) {
+                for (String sql : seed) {
                     s.execute(sql);
                 }
                 s.execute("INSERT INTO PERSON (ID, NAME, MANAGERID) VALUES (6, '', 1)");
             }
-            com.legend.testexecutionplan.AssertListener listener = new com.legend.testexecutionplan.AssertListener() {
-                @Override
-                public void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
-                    verdicts.add(assertName.substring(assertName.lastIndexOf(':') + 1) + " " + pass
-                            + (pass ? "" : " " + detail));
-                    failed[0] = !pass;
-                }
-            };
-            try {
-                TestExecution.runProgram(typed(ctx, body), "t::RT",
-                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(
-                                com.legend.testbackend.RecordingConnection.wrap(c, sent))), listener, null,
-                        ExecuteOptions.NONE.withJudgeMode(judge));
-            } catch (com.legend.error.NotImplementedException e) {
-                verdicts.add("NotImplementedException: " + e.getMessage());
-            } catch (AssertionError | RuntimeException e) {
-                // a failed verdict ends the body (the listener told it); anything else is the test's failure
-                if (!failed[0]) {
-                    throw e;
-                }
+            return com.legend.testbackend.RecordingConnection.wrap(c, sent);
+        };
+        com.legend.testexecutionplan.AssertListener listener = new com.legend.testexecutionplan.AssertListener() {
+            @Override
+            public void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
+                verdicts.add(assertName.substring(assertName.lastIndexOf(':') + 1) + " " + pass
+                        + (pass ? "" : " " + detail));
+                failed[0] = !pass;
+            }
+        };
+        try {
+            TestExecution.runProgram(typed(ctx, body), "t::RT", new com.legend.exec.SessionSource.Fresh(seeded),
+                    // the run's hook goes with its style (census C1, the orchestrator's ruling of 2026-11-17)
+                    listener, style == com.legend.database.PlanStyle.PRODUCT ? com.legend.testexec.NoEdgeRun.NONE
+                            : com.legend.edge.AppealRun.with(null), ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
+        } catch (com.legend.error.NotImplementedException e) {
+            verdicts.add("NotImplementedException: " + e.getMessage());
+        } catch (AssertionError | RuntimeException e) {
+            // a failed verdict ends the body (the listener told it); anything else is the test's failure
+            if (!failed[0]) {
+                throw e;
             }
         }
         return verdicts;

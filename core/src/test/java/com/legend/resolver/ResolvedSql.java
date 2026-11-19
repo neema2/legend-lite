@@ -28,6 +28,17 @@ public final class ResolvedSql {
         return of(model, query, null);
     }
 
+    /** {@code query} over {@code model} as a statement with its raise sites (phase D's Phase 2: a raise the statement
+     *  sends is a site's token, read back through them). */
+    public static com.legend.sql.dialect.RenderedStatement statement(String model, String query) {
+        var ctx = Compiler.compileModel(model);
+        SpecCompiler specs = new SpecCompiler(ctx);
+        List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(Own.spec(query)));
+        List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
+        return TestBackends.platform().dialect().renderStatement(
+                new Lowerer(PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(resolved));
+    }
+
     /** {@code query} over {@code model}, resolved against {@code runtime} (the driver's runtime: a query with no
      *  {@code ->from(...)}), or the query's own when it is null. */
     public static String of(String model, String query, String runtime) {
@@ -36,6 +47,6 @@ public final class ResolvedSql {
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, runtime);
         return TestBackends.platform().dialect().render(
-                new Lowerer(PlatformRegistrations.catalogTable()).lower(resolved));
+                new Lowerer(PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(resolved));
     }
 }

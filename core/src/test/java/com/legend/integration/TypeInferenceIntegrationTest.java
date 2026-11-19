@@ -22,6 +22,19 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
+        /** A Decimal's arithmetic, or null where the lane's database holds no exact decimal and refuses it BY NAME (D2a,
+         *  the orchestrator's ruling (c) of 2026-11-17: on such a database the refusal IS the expected outcome, never an
+         *  approximate value) -- the refusal asserted here. */
+        private Lean.Result decimalOrRefused(String query) {
+                try {
+                        return Lean.run(getCompletePureModelWithRuntime(), query, "test::TestRuntime", connection);
+                } catch (com.legend.sql.DialectCapability refused) {
+                        assertTrue(String.valueOf(refused.getMessage()).contains("holds no exact decimal"),
+                                        refused.getMessage());
+                        return null;
+                }
+        }
+
         @BeforeEach
         void setUp() throws SQLException {
                 connection = backend().open();
@@ -155,9 +168,16 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testFloatToStringWithNegativeExponent() throws SQLException {
                 // PCT: 0.000000013421->toString() → '0.000000013421' (fixed-point, not
-                // scientific notation)
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|0.000000013421->toString()", "test::TestRuntime", connection);
-                assertEquals("0.000000013421", result.rows().get(0).get(0).toString());
+                // scientific notation) at the compatibility edge, legend-engine's SQL (Phase 5, 2026-11-16): the literal
+                // bare, an exact numeric -- except where legend-engine writes it CAST(%s AS FLOAT), a double, whose text
+                // its own H2 manifest expects ('1.3421E-8'; edge/PurePrintForms, FloatTextTest)
+                var result = Lean.runInStyle(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
+                        "test::TestRuntime", backend(), com.legend.edge.PureText.UPSTREAM);
+                boolean floatLiteralCast = com.legend.testing.LaneFloor.backend().name().equals("h2");
+                assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", result.rows().get(0).get(0).toString());
+                // the product's text (register S311): six decimals, trimmed -- below 0.0000005, 0
+                assertEquals("0", Lean.run(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
+                        "test::TestRuntime", connection).rows().get(0).get(0).toString());
         }
 
         @Test
@@ -350,18 +370,18 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testDateFromHourPrecision() throws SQLException {
-                // PCT: date(1973, 11, 13, 23) → %1973-11-13T23 (hour precision, not full
-                // timestamp); legend-pure prints an hour-only date without a zone (DateFormat.append:
-                // +0000 from a minute on; S1.5, 2026-10-29)
+                // PCT: date(1973, 11, 13, 23) → %1973-11-13T23 (hour precision); the product's JSON
+                // writes a time-bearing value as register S312's six digits and Z (W4, 2026-11-16), so it
+                // reads back at microseconds (legend-pure's own form is the edge's)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:00:00.000000", result.rows().get(0).get(0).toString());
         }
 
         @Test
         void testDateFromMinutePrecision() throws SQLException {
                 // PCT: date(1973, 11, 13, 23, 9) → %1973-11-13T23:09 (minute precision)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23, 9)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:09+0000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:09:00.000000", result.rows().get(0).get(0).toString());
         }
 
         @Test
@@ -369,7 +389,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // PCT: date(1973, 11, 13, 23, 9, 11.0) → %1973-11-13T23:09:11.0 (subsecond
                 // precision)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23, 9, 11.0)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:09:11.0+0000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:09:11.000000", result.rows().get(0).get(0).toString());
         }
 
         @Test
@@ -735,7 +755,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // PCT G6 receipt, disagree-9 burn: the nine-digit
                 // decode is a STORE-READ fact, never a computed one)
                 assertEquals(com.legend.values.PureDateLiteral.parse(
-                                "2024-01-31T00:00:00"), value);
+                                "2024-01-31T00:00:00.000000"), value);
                 // Verify nanosecond precision is preserved (TIMESTAMP_NS)
                 assertInstanceOf(com.legend.values.PureDateLiteral.class, value);
                 assertEquals(0, ((com.legend.values.PureDateLiteral) value).toInstantFloor().getNano(),
@@ -755,7 +775,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // timeBucket(2, WEEKS) on DateTime should return Monday of that week
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|%2024-01-31T00:32:34+0000->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)", "test::TestRuntime", connection);
                 assertEquals(com.legend.values.PureDateLiteral.parse(
-                                "2024-01-29T00:00:00"),
+                                "2024-01-29T00:00:00.000000"),
                                 result.rows().get(0).get(0));
         }
 
@@ -842,14 +862,18 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testIntToDecimal() throws SQLException {
                 // PCT: |8->meta::pure::functions::math::toDecimal()
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|8->toDecimal()", "test::TestRuntime", connection);
-                assertEquals("Decimal(38,18)", result.columns().get(0).type(), "toDecimal should produce Decimal(38,18) Pure type");
+                assertEquals("Decimal", result.columns().get(0).type(), "toDecimal should produce a Decimal");
+                // the plan's type is the plain path (2026-11-17): a computed decimal's precision is the compiler's, not the plan's
                 assertEquals(8.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.001);
         }
 
         @Test
         void testDecimalLiteralTracking() throws SQLException {
                 // Pure Decimal literal 3.0D should be tracked as DECIMAL through IR
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|1.0D + 2.0D + 3.0D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|1.0D + 2.0D + 3.0D");
+                if (result == null) {
+                        return;
+                }
                 assertTrue(result.columns().get(0).type().startsWith("Decimal"), "Decimal literals should produce Decimal Pure type");
                 assertEquals(6.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 1e-10);
         }
@@ -902,7 +926,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testParseDecimalWithSuffix() throws SQLException {
                 // PCT: |'3.14159d'->parseDecimal() - d suffix stripped, value parsed
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|'3.14159d'->parseDecimal()", "test::TestRuntime", connection);
-                assertEquals("Decimal(38,18)", result.columns().get(0).type(), "parseDecimal should produce Decimal(38,18) Pure type");
+                assertEquals("Decimal", result.columns().get(0).type(), "parseDecimal should produce a Decimal");
+                // the plan's type is the plain path (2026-11-17): a computed decimal's precision is the compiler's, not the plan's
                 // DuckDB DECIMAL(18,3) truncates to 3.142 - known limitation
             assertInstanceOf(BigDecimal.class, result.rows().get(0).get(0));
         }
@@ -911,7 +936,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testParseDecimalSimple() throws SQLException {
                 // PCT: |'3.14'->parseDecimal() - no suffix
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|'3.14'->parseDecimal()", "test::TestRuntime", connection);
-                assertEquals("Decimal(38,18)", result.columns().get(0).type(), "parseDecimal should produce Decimal(38,18) Pure type");
+                assertEquals("Decimal", result.columns().get(0).type(), "parseDecimal should produce a Decimal");
+                // the plan's type is the plain path (2026-11-17): a computed decimal's precision is the compiler's, not the plan's
                 assertEquals(3.14, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }
 
@@ -954,7 +980,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testDecimalTimes() throws SQLException {
                 // PCT: |19.905D * 17774D => 353791.470D
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|19.905D * 17774D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|19.905D * 17774D");
+                if (result == null) {
+                        return;
+                }
                 assertTrue(result.columns().get(0).type().startsWith("Decimal"), "Decimal multiplication should produce Decimal Pure type");
                 assertEquals(353791.47, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }
@@ -1101,8 +1130,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testDateTimeToString() throws SQLException {
                 // PCT: |%2014-01-01T00:00:00.000+0000->toString() =>
                 // '2014-01-01T00:00:00.000+0000'
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|%2014-01-01T00:00:00.000+0000->toString()", "test::TestRuntime", connection);
+                // legend-pure's text, at the written precision: the compatibility edge's since D1.2 (2026-11-15)
+                var result = Lean.runInStyle(getCompletePureModelWithRuntime(), "|%2014-01-01T00:00:00.000+0000->toString()",
+                        "test::TestRuntime", backend(), com.legend.edge.PureText.UPSTREAM);
                 assertEquals("2014-01-01T00:00:00.000+0000", result.rows().get(0).get(0));
+                // the product's text (the user's ruling of 2026-11-10): ISO 8601 in UTC, six fraction digits and Z
+                assertEquals("2014-01-01T00:00:00.000000Z", Lean.run(getCompletePureModelWithRuntime(),
+                        "|%2014-01-01T00:00:00.000+0000->toString()", "test::TestRuntime", connection)
+                        .rows().get(0).get(0));
         }
 
         @Test
@@ -2212,7 +2247,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // PCT test: testDecimalTimes - 19.905D * 17774D should produce 353791.470D
                 // (scale 3)
                 // not 353791.4700D (scale 4) from spurious .0 on integer-valued decimals
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|19.905D * 17774D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|19.905D * 17774D");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 // Should be 353791.470 with scale 3, not 353791.4700 with scale 4
@@ -2234,7 +2272,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testDivideWithScale() throws SQLException {
                 // PCT test: testDecimalDivide - divide(3.1415D, 0.1D, 2) should give 31.42
                 // Pure's divide(a, b, scale) divides and rounds to scale decimal places
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|meta::pure::functions::math::divide(3.1415D, 0.1D, 2)", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|meta::pure::functions::math::divide(3.1415D, 0.1D, 2)");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 assertEquals(0, new java.math.BigDecimal("31.42")
@@ -2681,7 +2722,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testDecimalLiteralWithExplicitScale() throws SQLException {
                 // Regression guard: 1.0D must preserve scale 1 and return DECIMAL, not INTEGER
                 // (stripTrailingZeros approach would strip to "1" → DuckDB returns INTEGER)
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|1.0D + 0.0D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|1.0D + 0.0D");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 assertInstanceOf(java.math.BigDecimal.class, value, "1.0D should return BigDecimal, not Integer");
@@ -2690,7 +2734,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testIntegerValuedDecimalPreservesType() throws SQLException {
                 // Regression guard: 17774D (no decimal point in source) must stay DECIMAL type
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|17774D + 0.0D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|17774D + 0.0D");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 assertInstanceOf(java.math.BigDecimal.class, value, "17774D should return BigDecimal, not Integer");
@@ -2701,7 +2748,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testMixedDecimalIntegerArithmetic() throws SQLException {
                 // Regression guard: mixing decimals with integers should produce correct scale
                 // |19.905D * 17774 should give scale 3 (from 19.905)
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|19.905D * 17774", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|19.905D * 17774");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 assertEquals(new java.math.BigDecimal("353791.470"), value);

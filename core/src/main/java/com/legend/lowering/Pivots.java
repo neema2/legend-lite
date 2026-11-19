@@ -45,7 +45,7 @@ final class Pivots {
             for (String c : pv.pivotColumns()) {
                 SqlExpr col = new SqlExpr.Cast(
                         Objects.requireNonNull(Fold.sourceColumn(inner, c), c),
-                        SqlType.Scalar.VARCHAR);
+                        SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR);
                 key = key == null ? col
                         : SqlExpr.Call.of(SqlFn.CONCAT,
                                 SqlExpr.Call.of(SqlFn.CONCAT, key,

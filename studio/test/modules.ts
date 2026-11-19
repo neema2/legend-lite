@@ -9,8 +9,11 @@ import { MemoryRecords } from '../../sdlc-client/src/records.ts';
 import { SdlcClient } from '../../sdlc-client/src/client.ts';
 import { WASM_API, WASM_DEPOT_API, wasmSdlcServer, type SdlcModule } from '../../sdlc-client/src/wasm-server.ts';
 import { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
+import { WasmEdgeGrammar } from '../../engine-client/src/legend/wasm-edge.ts';
 import { Compiler, type PlannerPort } from '../src/backend/planner.ts';
 import { answer, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
+import { ENGINE, answerEngine, loadEngineModule, type EngineModule, type EnginePort, type EngineRequest }
+  from '../../engine-client/src/legend/engine-module.ts';
 import type { RequestBody } from '../../engine-client/src/legend/planner-protocol.ts';
 import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 
@@ -36,8 +39,22 @@ class DirectPort implements PlannerPort {
   }
 }
 
+let engine: Promise<EngineModule> | undefined;
+
+/** The engine module in this process, loaded the first time legend-engine's routes are asked, as an app configured
+ *  engine: 'legend-engine' loads it (engine-module.ts; the user's K2 ruling, 2026-11-18). */
+class DirectEnginePort implements EnginePort {
+  async ask(r: EngineRequest): Promise<string> {
+    engine ??= loadEngineModule(ENGINE, runfileDirUrl('WASM_ENGINE_PLANNER'), (dir) => load<EngineModule>(new URL(dir)));
+    return answerEngine(await engine, r);
+  }
+}
+
 /** legend-lite's planner, in this process: the grammar Studio reads elements and queries with. */
 export const grammar = new WasmGrammar(new DirectPort());
+/** legend-engine's shapes over the same planner and the engine module, the edge's (wasm-edge.ts): what the edge's
+ *  BrowserEngine asks. */
+export const edge = new WasmEdgeGrammar(new DirectPort(), new DirectEnginePort());
 export const compiler = new Compiler(grammar);
 
 /** A fresh in-page SDLC (its own module, its own records) and a client over it. */

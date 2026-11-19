@@ -27,7 +27,52 @@ class SavedQueriesTest {
 
     private SavedQueries.Answer call(String method, String rest, String query, String body, String user) {
         clock.addAndGet(10);
-        return SavedQueries.answer(new SavedQueries(new FileRecords(dir), clock::get), method, rest, query, body, user);
+        // legend-engine's query API, its refusals in its words as the edge mounts it (D1.8, W8 of
+        // docs/records/d-plan-2026-11-16.md: the product's own path speaks lite's, theProductsPathSpeaksLitesWords)
+        return SavedQueries.answer(new SavedQueries(new FileRecords(dir), clock::get), method, rest, query, body, user,
+                com.legend.edge.EdgeServer::storeWords);
+    }
+
+    @Test
+    void theProductsPathSpeaksLitesWords() {
+        SavedQueries.Answer gone = SavedQueries.answer(new SavedQueries(new FileRecords(dir), clock::get), "GET", "/q9",
+                null, "", "a");
+        assertEquals(404, gone.status());
+        assertEquals("no saved query has the ID 'q9'", obj(gone).getString("message"));
+        // J9 of the edge audit (2026-11-17): every refusal a kind, lite's sentence on the product's path (legend-engine's
+        // the edge's, StoreWords, which the rest of this class reads)
+        java.util.function.BiFunction<String, String, SavedQueries.Answer> lite = (method, body) -> SavedQueries.answer(
+                new SavedQueries(new FileRecords(dir), clock::get), method, "", null, body, "a");
+        SavedQueries.Answer noName = lite.apply("POST", query("q2", ""));
+        assertEquals(400, noName.status());
+        assertEquals("field_missing", obj(noName).getString("kind"));
+        assertEquals("the name is missing or empty", obj(noName).getString("message"));
+        SavedQueries.Answer malformed = lite.apply("POST", "[1]");
+        // a body the store cannot read: its own kind (PR #118 fix round, 2026-11-18; lite's route answers it 400 request)
+        assertEquals("unreadable", obj(malformed).getString("kind"));
+        assertTrue(obj(malformed).getString("message").startsWith("the request could not be read: "),
+                obj(malformed).getString("message"));
+        SavedQueries.Answer unconfigured = SavedQueries.answer(null, "GET", "/q1", null, "", "a");
+        assertEquals(500, unconfigured.status());
+        assertEquals("{\"kind\":\"store_not_configured\",\"message\":\"the query store is not configured: start the"
+                + " server with --query-store DIR\"}", unconfigured.json());
+    }
+
+    /** The store's own file it cannot read is ITS failure, never the request's: lite's route answers any search 500
+     *  {@code internal} (PR #118 fix round, 2026-11-18, F6; the re-review that day: a malformed request is refused
+     *  where the request is read, so a fault reading the store's own files stays a 500). */
+    @Test
+    void aStoreFileItCannotReadIsInternalNotTheRequests() throws Exception {
+        SavedQueries store = new SavedQueries(new FileRecords(dir), clock::get);
+        assertEquals(200, SavedQueries.answer(store, "POST", "", null, query("q1", "Q1"), "a").status());
+        java.nio.file.Files.writeString(dir.resolve("q1.json"), "{}");
+        LegendHttpServer.Routes lite = LegendHttpServer.storeRoutes("/api/lite/v1/queries", store, null);
+        for (String body : List.of("{}", "{\"searchTerm\":\"Q\"}")) {
+            LiteV1Api.Answer searched = lite.answer("POST", "/api/lite/v1/queries/search", null, body);
+            String said = new String(searched.body(), java.nio.charset.StandardCharsets.UTF_8);
+            assertEquals(500, searched.status(), said);
+            assertEquals("internal", Json.parseObject(said).getString("kind"), said);
+        }
     }
 
     private static String query(String id, String name) {
@@ -157,9 +202,10 @@ class SavedQueriesTest {
 
     @Test
     void withoutAStoreEveryCallIsRefused_andTheCubeStoreIsNotServed() {
-        SavedQueries.Answer a = SavedQueries.answer(null, "GET", "/q1", null, "", "a");
+        SavedQueries.Answer a = SavedQueries.answer(null, "GET", "/q1", null, "", "a", com.legend.edge.EdgeServer::storeWords);
         assertEquals(500, a.status());
-        assertTrue(obj(a).getString("message").contains("--query-store"));
+        assertEquals("Query store has not been configured properly (legend-lite: start the server with --query-store"
+                + " DIR)", obj(a).getString("message"));
         assertEquals(404, call("GET", "/dataCube/x", null, "", "a").status());
     }
 }

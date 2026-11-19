@@ -257,7 +257,7 @@ class ModelReaderParityTest {
                 .computeIfAbsent(stripped ? "stripped" : "kept", k -> new int[4]);
         String emitted;
         try {
-            emitted = ProtocolEmitter.emit(ModelReader.read(doc));
+            emitted = ProtocolEmitter.emit(ModelReader.read(com.legend.json.Json.parse(doc, new com.legend.json.Json.Config(4096))));
         } catch (IllegalArgumentException refused) {
             counts[2]++;
             refusals.merge("documents: " + refused.getMessage(), 1, Integer::sum);

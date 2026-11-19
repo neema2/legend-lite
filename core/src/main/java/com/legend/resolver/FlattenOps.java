@@ -284,7 +284,7 @@ final class FlattenOps {
         if (pipe instanceof com.legend.compiler.spec.typed.TypedProject p) {
             TypedSpec src = innerizeOrNull(p.source(), prefix, acc);
             return src == null ? null : new com.legend.compiler.spec.typed
-                    .TypedProject(src, p.columns(), p.info(), p.wireForm());
+                    .TypedProject(src, p.columns(), p.info());
         }
         if (pipe instanceof com.legend.compiler.spec.typed.TypedLimit l) {
             TypedSpec src = innerizeOrNull(l.source(), prefix, acc);
@@ -540,6 +540,6 @@ final class FlattenOps {
         }
         return new com.legend.compiler.spec.typed.TypedSort(pipeline,
                 List.of(new com.legend.compiler.spec.typed.TypedSort.TypedSortKey(col, true, null)),
-                false, pipeline.info());
+                pipeline.info());
     }
 }

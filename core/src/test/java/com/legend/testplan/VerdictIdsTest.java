@@ -44,13 +44,15 @@ class VerdictIdsTest {
         ModelContext ctx = Compiler.compileModel(StorelessRuntime.with("", Databases.PLATFORM));
         TypedQuery typed = typed(ctx, BODY);
         String rt = StorelessRuntime.RUNTIME;
-        for (com.legend.testplan.PlanningOptions.JudgeMode mode : com.legend.testplan.PlanningOptions.JudgeMode.values()) {
+        // (BOTH plans each judge alone: the HOST and DATABASE plans, measured here; the fused agreement is deleted)
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
+                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
             ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
             BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, rt, Databases.dialect(Databases.PLATFORM), options.planning());
             TestDoor.Asserts asserts = switch (mode) {
                 case HOST -> HostAsserts.plan(typed, rt, env);
                 case DATABASE -> DatabaseAsserts.plan(typed, rt, env);
-                case BOTH -> AgreementAsserts.plan(typed, rt, env, null, false);
+                case BOTH -> throw new IllegalStateException("BOTH is planned isolated");
             };
             assertNotNull(asserts, mode + ": the body's asserts planned");
             TestPlan plan = TestDoor.planned(typed, rt, options.planning().features(), asserts);

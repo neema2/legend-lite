@@ -147,7 +147,7 @@ public final class Pure {
     static ClassDefinition nativeClass(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
         var parsed = ModelFromText.parse(pureSource,
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSource
@@ -318,7 +318,7 @@ public final class Pure {
     static EnumDefinition nativeEnum(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
         var parsed = ModelFromText.parse(pureSource,
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSource
@@ -465,6 +465,22 @@ public final class Pure {
          * toOne is CHECKED (raises on size != 1, pure's semantics);
          * this spelling is how the lowering tells them apart. */
         public static final String TRUST_ONE = PKG + "trustOne";
+        /** A TDS cell's text ({@code $r.get('c')->toString()}, TdsDesugars): the product's is the text, EMPTY where
+         *  the cell is (the user's ruling of 2026-11-10, relayed 2026-11-15: the same rule as makeString's "skips empty
+         *  elements"); legend-engine prints an empty cell as {@code TDSNull}, the compatibility edge's. Lowers to
+         *  {@code SqlFn.CELL_TEXT} (phase D's D1.3, 2026-11-15). */
+        public static final String CELL_TEXT = PKG + "cellText";
+        /** A run-time type check's failure as the product's raise (W5 of docs/records/d-plan-2026-11-16.md,
+         *  2026-11-16): {@code typeRaise(kind, from, to)}, {@code kind} a {@code sql.RaiseKind}'s name
+         *  ({@code CAST_IMPOSSIBLE}, {@code INSTANCE_NOT_OF}) and the two types' paths its operands -- what the
+         *  resolver's chain dispatch and subtype reads raised as legend-pure's sentence through {@code fail} until
+         *  then; the sentence is the edge's ({@code edge.PureMessages}). Lowers to {@code SqlFn.ERROR}. */
+        public static final String TYPE_RAISE = PKG + "typeRaise";
+        /** An in-body assert's message where its caller gave none (the user's R1, 2026-11-18, PR #118's fix round, N2):
+         *  {@code assertFailedText()}, which {@code compiler.spec.LambdaBodies} writes for {@code fail}'s message; the
+         *  plan's style words it at lowering ({@code lowering.LoweringForms#assertFailed}): the product's lite sentence,
+         *  "expected true, got false"; the compatibility edge's legend-pure's. */
+        public static final String ASSERT_FAILED_TEXT = PKG + "assertFailedText";
         /** A SQL island's INLINE VIEW (2026-10-16, docs/LITE_INVENTION_CENSUS.md): a derived table or a common table
          *  expression whose own query computes window functions. SQL computes those windows over all of the view's
          *  rows, before the enclosing query's WHERE; Pure's relation composition folds a later filter under them
@@ -611,6 +627,13 @@ public final class Pure {
         }
     }
 
+    /** The compiler's own natives, which only the compiler writes (PR #118 fix round, 2026-11-18, N1; the edge
+     *  follow-ups' F32): a call born with its record after the name resolver ({@code compiler.spec.Calls}) -- the type
+     *  check's raise, a TDS cell's text and an in-body assert's default message. A user's call to any of the three, by
+     *  any name, is refused where the user's names are resolved ({@code compiler.NameResolver}). */
+    public static final java.util.Set<String> COMPILER_OWN = java.util.Set.of(Lite.TYPE_RAISE, Lite.CELL_TEXT,
+            Lite.ASSERT_FAILED_TEXT);
+
     private static String liteLocalName(String fqn) {
         return fqn.substring(Lite.PKG.length());
     }
@@ -623,7 +646,7 @@ public final class Pure {
                     Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE, Lite.ROUTE,
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
                     Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
-                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE,
+                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.CELL_TEXT, Lite.TYPE_RAISE, Lite.ASSERT_FAILED_TEXT,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.STAGE, Lite.WRITE_INSTANCES,
@@ -874,7 +897,7 @@ public final class Pure {
      */
     private static NativeFunctionDefinition signature(String pureSignature) {
         var parsed = ModelFromText.parse(pureSignature,
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSignature
@@ -953,6 +976,20 @@ public final class Pure {
      * types like toOne, lowers as IDENTITY — no runtime guard; the
      * checked semantics belong to USER toOne alone. */
     public static final NativeFunctionDefinition TRUST_ONE__T_MANY = signature("native function meta::legend::lite::trustOne<T>(values:T[*]):T[1];");
+    /** A TDS cell's text (see {@link Lite#CELL_TEXT}): the text, empty where the cell is; the edge's TDSNull. */
+    public static final NativeFunctionDefinition CELL_TEXT__STRING_0_1 = signature("native function meta::legend::lite::cellText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::String[1];");
+    /** An in-body assert's default message, worded by the plan's style (see {@link Lite#ASSERT_FAILED_TEXT}). */
+    public static final NativeFunctionDefinition ASSERT_FAILED_TEXT = signature("native function meta::legend::lite::assertFailedText():meta::pure::metamodel::type::String[1];");
+    /** A run-time type check's failure (see {@link Lite#TYPE_RAISE}): its kind's name and the two types' paths. */
+    public static final NativeFunctionDefinition TYPE_RAISE__STRING_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::typeRaise(kind:meta::pure::metamodel::type::String[1], from:meta::pure::metamodel::type::String[1], to:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    /** The engine id of every overload of the compiler's own natives ({@link #COMPILER_OWN}), each to its function's
+     *  name -- a lookup table only, beside the declarations it is read off ({@code SignatureMangle.mangle}): the name
+     *  resolver refuses a call or a reference by a signature id by it, never by cutting the user's name
+     *  (IdentityGuardrailTest; an id no overload spells is no function at all, refused as unknown). */
+    public static final java.util.Map<String, String> COMPILER_OWN_IDS = java.util.Map.of(
+            com.legend.model.SignatureMangle.mangle(TYPE_RAISE__STRING_1__STRING_1__STRING_1), Lite.TYPE_RAISE,
+            com.legend.model.SignatureMangle.mangle(CELL_TEXT__STRING_0_1), Lite.CELL_TEXT,
+            com.legend.model.SignatureMangle.mangle(ASSERT_FAILED_TEXT), Lite.ASSERT_FAILED_TEXT);
     /** A SQL island's inline view (see {@link Lite#INLINE_VIEW}): types as its relation, its windows a boundary. */
     public static final NativeFunctionDefinition INLINE_VIEW__RELATION_1 = signature("native function meta::legend::lite::inlineView<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     /** A recursion over a relation ({@link Lite#RECURSE}): the base's rows and, repeatedly, the step's over the previous
@@ -2511,6 +2548,22 @@ public final class Pure {
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__BOOLEAN_1__BOOLEAN_0_1 = signature("native function meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Boolean[1], right:meta::pure::metamodel::type::Boolean[0..1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Boolean[1], right:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONNECTION_STORE_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], connectionStore:meta::core::runtime::ConnectionStore[1]):meta::relational::metamodel::execute::ResultSet[1];");
+    public static final NativeFunctionDefinition ASSERT_IS_NOT__ANY_1__ANY_1 = signature("native function meta::pure::functions::asserts::assertIsNot(notExpected:meta::pure::metamodel::type::Any[1], actual:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_IS_NOT__ANY_1__ANY_1__FN_1 = signature("native function meta::pure::functions::asserts::assertIsNot(notExpected:meta::pure::metamodel::type::Any[1], actual:meta::pure::metamodel::type::Any[1], message:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::String[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_IS_NOT__ANY_1__ANY_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertIsNot(notExpected:meta::pure::metamodel::type::Any[1], actual:meta::pure::metamodel::type::Any[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_IS_NOT__ANY_1__ANY_1__STRING_1__ANY_MANY = signature("native function meta::pure::functions::asserts::assertIsNot(notExpected:meta::pure::metamodel::type::Any[1], actual:meta::pure::metamodel::type::Any[1], formatString:meta::pure::metamodel::type::String[1], formatArgs:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1 = signature("native function meta::pure::functions::asserts::assertNotContains(collection:meta::pure::metamodel::type::Any[*], value:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__FN_1 = signature("native function meta::pure::functions::asserts::assertNotContains(collection:meta::pure::metamodel::type::Any[*], value:meta::pure::metamodel::type::Any[1], message:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::String[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertNotContains(collection:meta::pure::metamodel::type::Any[*], value:meta::pure::metamodel::type::Any[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__STRING_1__ANY_MANY = signature("native function meta::pure::functions::asserts::assertNotContains(collection:meta::pure::metamodel::type::Any[*], value:meta::pure::metamodel::type::Any[1], formatString:meta::pure::metamodel::type::String[1], formatArgs:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_EQ__ANY_1__ANY_1 = signature("native function meta::pure::functions::asserts::assertNotEq(notExpected:meta::pure::metamodel::type::Any[1], actual:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_EQ__ANY_1__ANY_1__FN_1 = signature("native function meta::pure::functions::asserts::assertNotEq(notExpected:meta::pure::metamodel::type::Any[1], actual:meta::pure::metamodel::type::Any[1], message:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::String[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_EQ__ANY_1__ANY_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertNotEq(notExpected:meta::pure::metamodel::type::Any[1], actual:meta::pure::metamodel::type::Any[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_EQ__ANY_1__ANY_1__STRING_1__ANY_MANY = signature("native function meta::pure::functions::asserts::assertNotEq(notExpected:meta::pure::metamodel::type::Any[1], actual:meta::pure::metamodel::type::Any[1], formatString:meta::pure::metamodel::type::String[1], formatArgs:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1 = signature("native function meta::pure::functions::asserts::assertNotSize(collection:meta::pure::metamodel::type::Any[*], size:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__FN_1 = signature("native function meta::pure::functions::asserts::assertNotSize(collection:meta::pure::metamodel::type::Any[*], size:meta::pure::metamodel::type::Integer[1], message:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::String[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertNotSize(collection:meta::pure::metamodel::type::Any[*], size:meta::pure::metamodel::type::Integer[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__STRING_1__ANY_MANY = signature("native function meta::pure::functions::asserts::assertNotSize(collection:meta::pure::metamodel::type::Any[*], size:meta::pure::metamodel::type::Integer[1], formatString:meta::pure::metamodel::type::String[1], formatArgs:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     // ---- OVERLOAD GROUPS, generated: the IDENTITIES of every constant declared at one FQN, in constant order, computed once here. A lowering rule registers against these, never a bare name ----
     public static final List<com.legend.model.FunctionId> AT_ALLOY_OBJECT_REFERENCE_DECODE_OBJECT_REFERENCES_AND_GET_PK_MAP = com.legend.model.FunctionId.ofAll(DECODE_OBJECT_REFERENCES__3);
     public static final List<com.legend.model.FunctionId> AT_ALLOY_OBJECT_REFERENCE_GENERATE_OBJECT_REFERENCES = com.legend.model.FunctionId.ofAll(GENERATE_OBJECT_REFERENCES__6);
@@ -2531,8 +2584,10 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(AS_OF_JOIN_WITH_PREFIX__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_DECODE_PK_MAP = com.legend.model.FunctionId.ofAll(ASOR_DECODE_PK_MAP__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_PK_VALUE = com.legend.model.FunctionId.ofAll(ASOR_PK_VALUE__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASSERT_FAILED_TEXT = com.legend.model.FunctionId.ofAll(ASSERT_FAILED_TEXT);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AT_TIME = com.legend.model.FunctionId.ofAll(AT_TIME__DATE_1__STRICT_TIME_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CAST_AS_DECLARED = com.legend.model.FunctionId.ofAll(CAST_AS_DECLARED__ANY_01__T_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CELL_TEXT = com.legend.model.FunctionId.ofAll(CELL_TEXT__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);
@@ -2579,6 +2634,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_RAISE = com.legend.model.FunctionId.ofAll(TYPE_RAISE__STRING_1__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_UNLINK = com.legend.model.FunctionId.ofAll(UNLINK__RELATION_1__CLASS_1__COL_SPEC_1__COL_SPEC_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_UPDATE = com.legend.model.FunctionId.ofAll(UPDATE__ACCESSOR_1__FUNCTION_1__FUNC_COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_WITHOUT = com.legend.model.FunctionId.ofAll(WITHOUT__RELATION_1__COL_SPEC_1, WITHOUT__RELATION_1__COL_SPEC_ARRAY_1);
@@ -2600,9 +2656,13 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_FALSE = com.legend.model.FunctionId.ofAll(ASSERT_FALSE__BOOLEAN_1, ASSERT_FALSE__BOOLEAN_1__STRING_1, ASSERT_FALSE__BOOLEAN_1__STRING_1__ANY_MANY, ASSERT_FALSE__BOOLEAN_1__FN_1);
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_INSTANCE_OF = com.legend.model.FunctionId.ofAll(ASSERT_INSTANCE_OF__ANY_1__TYPE_1, ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1, ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1__ANY_MANY, ASSERT_INSTANCE_OF__ANY_1__TYPE_1__FN_1);
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_IS = com.legend.model.FunctionId.ofAll(ASSERT_IS__ANY_1__ANY_1, ASSERT_IS__ANY_1__ANY_1__STRING_1, ASSERT_IS__ANY_1__ANY_1__STRING_1__ANY_MANY, ASSERT_IS__ANY_1__ANY_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_IS_NOT = com.legend.model.FunctionId.ofAll(ASSERT_IS_NOT__ANY_1__ANY_1, ASSERT_IS_NOT__ANY_1__ANY_1__FN_1, ASSERT_IS_NOT__ANY_1__ANY_1__STRING_1, ASSERT_IS_NOT__ANY_1__ANY_1__STRING_1__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_JSON_STRINGS_EQUAL = com.legend.model.FunctionId.ofAll(ASSERT_JSON_STRINGS_EQUAL__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_NOT_CONTAINS = com.legend.model.FunctionId.ofAll(ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1, ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__FN_1, ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__STRING_1, ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__STRING_1__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_NOT_EMPTY = com.legend.model.FunctionId.ofAll(ASSERT_NOT_EMPTY__ANY_MANY, ASSERT_NOT_EMPTY__ANY_MANY__STRING_1, ASSERT_NOT_EMPTY__ANY_MANY__STRING_1__ANY_MANY, ASSERT_NOT_EMPTY__ANY_MANY__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_NOT_EQ = com.legend.model.FunctionId.ofAll(ASSERT_NOT_EQ__ANY_1__ANY_1, ASSERT_NOT_EQ__ANY_1__ANY_1__FN_1, ASSERT_NOT_EQ__ANY_1__ANY_1__STRING_1, ASSERT_NOT_EQ__ANY_1__ANY_1__STRING_1__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_NOT_EQUALS = com.legend.model.FunctionId.ofAll(ASSERT_NOT_EQUALS__ANY_MANY__ANY_MANY, ASSERT_NOT_EQUALS__ANY_MANY__ANY_MANY__STRING_1, ASSERT_NOT_EQUALS__ANY_MANY__ANY_MANY__STRING_1__ANY_MANY, ASSERT_NOT_EQUALS__ANY_MANY__ANY_MANY__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_NOT_SIZE = com.legend.model.FunctionId.ofAll(ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1, ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__FN_1, ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__STRING_1, ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__STRING_1__ANY_MANY);
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_SAME_ELEMENTS = com.legend.model.FunctionId.ofAll(ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY, ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY__STRING_1, ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY__STRING_1__ANY_MANY, ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY__FN_1);
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_SIZE = com.legend.model.FunctionId.ofAll(ASSERT_SIZE__ANY_MANY__INTEGER_1, ASSERT_SIZE__ANY_MANY__INTEGER_1__STRING_1, ASSERT_SIZE__ANY_MANY__INTEGER_1__STRING_1__ANY_MANY, ASSERT_SIZE__ANY_MANY__INTEGER_1__FN_1);
     public static final List<com.legend.model.FunctionId> AT_ASSERTS_FAIL = com.legend.model.FunctionId.ofAll(FAIL, FAIL__STRING_1);

@@ -3,6 +3,10 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.edge.EngineStyleComposite;
+import com.legend.edge.EngineStyleDB2;
+import com.legend.edge.EngineStyleH2;
+
 import com.legend.sql.DialectCapability;
 
 import com.legend.sql.NameQuoting;
@@ -123,7 +127,7 @@ class StoreWritesTest {
 
     /** A plan's parameter, typed as the planner types an {@code Integer[1]} (QueryParameters.Declared.slot). */
     private static SqlExpr.PlanParam integer(String name) {
-        return new SqlExpr.PlanParam(name, SqlExpr.PlanParam.Kind.OTHER, false, null,
+        return new SqlExpr.PlanParam(name, SqlExpr.PlanParam.ValueType.OTHER, false,
                 SqlTyping.typed(SqlType.Scalar.BIGINT), null);
     }
 

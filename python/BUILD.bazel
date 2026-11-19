@@ -28,7 +28,11 @@ _SEAM_SRCS = [
     "legend_lite/_json.py",
     "legend_lite/_planned.py",
     "legend_lite/_plans.py",
+    # a product raise worded at the one send, from the generated facts -- pure data, no import (#104's M2(b), 2026-11-15:
+    # _type_facts.py moved here from the run side, which depends on the seam)
+    "legend_lite/_raised.py",
     "legend_lite/_runframe.py",
+    "legend_lite/_type_facts.py",
 ]
 
 py_library(
@@ -58,11 +62,12 @@ py_library(
 # //python:run_closure_test imports it with these deps alone, and reads every import of the package's modules for the
 # rule both ways
 _RUN_SRCS = [
+    # a plan's parameters, checked and bound at run (the lite API spec's §4, 2026-11-17)
+    "legend_lite/_params.py",
     "legend_lite/_reads.py",
     "legend_lite/_runs.py",
     # the service key, the warehouse's wire alone, and the warehouse's client over it (C5-P, A1: :compiler's until then)
     "legend_lite/_services.py",
-    "legend_lite/_type_facts.py",
     "legend_lite/_types.py",
     "legend_lite/warehouse.py",
 ]
@@ -96,6 +101,10 @@ _COMPILER_SRCS = glob(
         # the host's doors over both sides (:host) -- C5-P, 2026-11-15
         "legend_lite/_host.py",
         "legend_lite/projects.py",
+        # the engine's seam for the edge's routes (:legend_lite's), and the edge itself (:edge) -- the edge program's
+        # H5 groundwork, 2026-11-17
+        "legend_lite/_edge_seam.py",
+        "legend_lite/edge/**",
         # :seam's, :run's and the loader's (C5-P, 2026-11-15)
     ] + _SEAM_SRCS + _RUN_SRCS + _LOADER_SRCS,
 )
@@ -160,6 +169,8 @@ py_library(
     srcs = [
         "legend_lite/datacube.py",
         "legend_lite/engine.py",
+        # the product's seam for the edge's routes: its Protocol and its own refusal (the edge program's H5 groundwork)
+        "legend_lite/_edge_seam.py",
         "legend_lite/frames.py",
         # the one copy of each page, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
         "legend_lite/keeper.py",
@@ -177,6 +188,19 @@ py_library(
         "@pypi//duckdb",
         "@pypi//pyarrow",
     ],
+)
+
+# LEGEND-ENGINE COMPATIBILITY, AT THE EDGE (the edge program's H5, its groundwork 2026-11-17): the one package that
+# serves legend-engine's API, on top of the product. It depends on the product; no product library depends on it, and no
+# product module imports it (//python:run_closure_test's layer rule).
+py_library(
+    name = "edge",
+    srcs = glob(["legend_lite/edge/**/*.py"]),
+    imports = ["."],
+    # //datacube's engine_fixture (testonly) serves the browser lane's legend-engine checks at the edge's door (H5, the
+    # orchestrator's ruling of 2026-11-18): a test fixture, never a product library
+    visibility = ["//datacube:__pkg__"],
+    deps = [":legend_lite"],
 )
 
 # DataCube's own non-screen code in V8 (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md; the wheel's `datacube` extra,
@@ -272,12 +296,15 @@ py_test(
         "test_corpus",
     ],
     data = [
+        "//engine-client:test/fixtures/lite-api-cases.json",
         "//native:compiler",
         "//wasm:corpus/model.pure",
         "//wasm:corpus/queries.tsv",
         "//wasm:jvm_answers",
     ],
     env = _ENV | {
+        # lite API v1's conformance suite, one file every binding reads (the spec's §5, 2026-11-17)
+        "LEGEND_LITE_API_CASES": "$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)",
         "LEGEND_LITE_CORPUS_MODEL": "$(rlocationpath //wasm:corpus/model.pure)",
         "LEGEND_LITE_CORPUS_QUERIES": "$(rlocationpath //wasm:corpus/queries.tsv)",
         "LEGEND_LITE_JVM_ANSWERS": "$(rlocationpath //wasm:jvm_answers)",
@@ -338,11 +365,14 @@ py_test(
     # and the load runners' fixture, which the unfiltered witness runs (H13, 2026-11-12)
     data = [
         "//engine-client:test/fixtures/keyed-expansion.json",
+        # a product raise's envelope, read by Java's and the tab's readers too (#104's M2(b), 2026-11-15)
+        "//engine-client:test/fixtures/raise-envelopes.json",
         "//engine-client:test/fixtures/run-load-conformance.json",
         "//native:compiler",
     ],
     env = _ENV | {
         "LEGEND_LITE_KEYED_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/keyed-expansion.json)",
+        "LEGEND_LITE_RAISE_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/raise-envelopes.json)",
         "LEGEND_LITE_RUN_LOAD_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/run-load-conformance.json)",
     },
     main = "tests/main.py",
@@ -454,7 +484,8 @@ py_test(
     # at 4a8e448917; Linux 5-8 s) -- `_SLOW_ON_CI_TESTS` in datacube/BUILD.bazel
     size = "medium",
     srcs = ["tests/test_planned_guard.py"],
-    data = glob(["legend_lite/*.py"]),
+    # the package and its subpackages (legend_lite.edge: the edge program's H5, 2026-11-18)
+    data = glob(["legend_lite/**/*.py"]),
     env = {"PLANNED_PACKAGE": "$(rlocationpath legend_lite/__init__.py)"},
     main = "tests/test_planned_guard.py",
     deps = ["@rules_python//python/runfiles"],
@@ -492,6 +523,34 @@ py_test(
     target_compatible_with = _PLATFORMS,
     deps = [
         ":run",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+# THE EDGE'S TESTS (the edge program's H5 groundwork, 2026-11-17): the one test target that depends on //python:edge;
+# the product's tests carry no edge library, so a product test cannot reach it
+py_test(
+    name = "edge_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_edge.py",
+        # its fixtures (a frame, a project's model): imported, its tests not run here (args)
+        "tests/test_engine.py",
+    ],
+    args = ["test_edge"],
+    # the product library, and the engine library the edge's key loads (K2, the user's "product root, edge opt-in",
+    # 2026-11-18): legend-engine's routes on, byte-exact (EdgeOn)
+    data = [
+        "//native:compiler",
+        "//native:engine",
+    ],
+    env = _ENV | {"LEGEND_LITE_ENGINE_LIBRARY": "$(rlocationpath //native:engine)"},
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":edge",
+        "@pypi//pandas",
         "@rules_python//python/runfiles",
     ],
 )
@@ -539,6 +598,7 @@ py_test(
         "//datacube:headless_tab_bundle",
         "//datacube:test/fixtures/chart-rules.json",
         "//datacube:test/fixtures/pages/trades.page.json",
+        "//engine-client:test/fixtures/lite-api-cases.json",
         "//engine-client:test/fixtures/run-load-conformance.json",
         "//native:compiler",
         "//warehouse:sqlapi_corpus",
@@ -554,6 +614,8 @@ py_test(
         "LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)",
         # the load runners' shared conformance fixture (B3): the tab's runLoad runs it too (engine-client)
         "LEGEND_LITE_RUN_LOAD_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/run-load-conformance.json)",
+        # lite API v1's shared suite: its host-route cases, Python's server's (test_engine HostRoutesConformance)
+        "LEGEND_LITE_API_CASES": "$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)",
     },
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
@@ -834,6 +896,8 @@ py_package(
     name = "wheel_package",
     packages = ["python.legend_lite"],
     deps = [
+        # legend_lite.edge's Python (K2, 2026-11-18): its native half, the engine library, is legend-lite-engine's
+        ":edge",
         ":headless",
         ":legend_lite",
         ":notebook",
@@ -877,6 +941,9 @@ py_wheel(
         ],
         "pandas": ["pandas>=3.0.6"],
         "polars": ["polars>=2.0.0"],
+        # legend-engine's routes (legend_lite.edge), opt-in: their native library is legend-lite-engine's (K2, the
+        # user's "product root, edge opt-in", 2026-11-18); without it the edge's door is refused by name
+        "engine": ["legend-lite-engine==0.1.0"],
     },
     license = "Apache-2.0",
     platform = select({
@@ -910,6 +977,79 @@ py_wheel(
     }),
 )
 
+# THE ENGINE WHEEL (K2, the user's "product root, edge opt-in", 2026-11-18; packaging the orchestrator's): `pip install
+# legend-lite[engine]` installs legend-lite-engine, which carries the engine library alone (//native:engine:
+# legend-engine's entry points over the product), in legend_lite_engine/_native/, where legend_lite.edge finds it. The
+# product wheel above carries no edge binary.
+copy_file(
+    name = "engine_wheel_library_macos",
+    src = "//native:engine",
+    out = "legend_lite_engine/_native/libcompiler_engine.dylib",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+copy_file(
+    name = "engine_wheel_library_linux",
+    src = "//native:engine",
+    out = "legend_lite_engine/_native/libcompiler_engine.so",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+copy_file(
+    name = "engine_wheel_library_windows",
+    src = "//native:engine",
+    out = "legend_lite_engine/_native/libcompiler_engine.dll",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+py_library(
+    name = "engine_package",
+    srcs = ["legend_lite_engine/__init__.py"],
+    imports = ["."],
+)
+
+py_package(
+    name = "engine_wheel_package",
+    packages = ["python.legend_lite_engine"],
+    deps = [":engine_package"],
+)
+
+py_wheel(
+    name = "engine_wheel",
+    abi = "none",
+    description_file = "README.md",
+    distribution = "legend-lite-engine",
+    extra_distinfo_files = {
+        "//:LICENSE": "LICENSE",
+        "//:NOTICE": "NOTICE",
+        "//:THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+        "@graalvm//:LICENSE.txt": "GRAALVM-LICENSE.txt",
+        "@graalvm//:LICENSE_NATIVEIMAGE.txt": "GRAALVM-LICENSE-NATIVEIMAGE.txt",
+        "@graalvm//:THIRD_PARTY_LICENSE.txt": "GRAALVM-THIRD-PARTY-LICENSE.txt",
+    },
+    license = "Apache-2.0",
+    platform = select({
+        "//tools/platforms:linux_aarch64": "manylinux_2_17_aarch64",
+        "//tools/platforms:linux_x86_64": "manylinux_2_17_x86_64",
+        "//tools/platforms:macos_arm64": "macosx_14_0_arm64",
+        "//tools/platforms:macos_x86_64": "macosx_14_0_x86_64",
+        "//tools/platforms:windows_x86_64": "win_amd64",
+    }, no_match_error = "the engine wheel is built where the compiler's library is (COMPILER_LIBRARY_PLATFORMS)"),
+    python_requires = ">=3.12",
+    python_tag = "py3",
+    # the edge's Python is the product wheel's (legend_lite.edge); this is its native half alone
+    requires = ["legend-lite==0.1.0"],
+    strip_path_prefixes = ["python"],
+    summary = "legend-engine's routes for legend-lite (opt-in: the legend-lite[engine] extra)",
+    target_compatible_with = _PLATFORMS,
+    version = "0.1.0",
+    deps = [":engine_wheel_package"] + select({
+        "@platforms//os:linux": [":engine_wheel_library_linux"],
+        "@platforms//os:macos": [":engine_wheel_library_macos"],
+        "@platforms//os:windows": [":engine_wheel_library_windows"],
+    }),
+)
+
 # the packages the wheel needs, pandas with its own, the datacube extra's (mini-racer) and the notebook extra's
 # (anywidget, ipywidgets, IPython), as the test installs them (the pinned wheels, offline)
 _WHEEL_TEST_PACKAGES = ["duckdb", "mini_racer", "numpy", "pandas", "pyarrow", "python_dateutil", "six", "tzdata"] + _NOTEBOOK_PACKAGES
@@ -921,6 +1061,9 @@ _WHEEL_TEST_PACKAGES_WINDOWS = _WHEEL_TEST_PACKAGES + _NOTEBOOK_PACKAGES_WINDOWS
 
 _WHEEL_TEST_ENV = {
     "LEGEND_LITE_WHEEL": "$(rlocationpath :wheel)",
+    # the [engine] extra's wheel: the edge's door installed beside the product (PR #118's fix round, 2026-11-18: the
+    # shipped wheel's legend-engine currentUser, edge off and edge on)
+    "LEGEND_LITE_ENGINE_WHEEL": "$(rlocationpath :engine_wheel)",
     "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONUTF8": "1",
 }
@@ -937,7 +1080,10 @@ py_test(
         "tests/test_wheel.py",
     ],
     args = ["test_wheel"],
-    data = [":wheel"] + select({
+    data = [
+        ":engine_wheel",
+        ":wheel",
+    ] + select({
         "@platforms//os:windows": ["@pypi//%s:whl" % p for p in _WHEEL_TEST_PACKAGES_WINDOWS],
         "//conditions:default": ["@pypi//%s:whl" % p for p in _WHEEL_TEST_PACKAGES_POSIX],
     }),

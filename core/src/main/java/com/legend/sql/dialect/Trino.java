@@ -44,7 +44,9 @@ import java.util.Set;
  * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
  * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
-public final class Trino extends AnsiSqlRenderer {
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class Trino extends AnsiSqlRenderer {
 
     /** Trino (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): double quotes; Trino's documented reserved
      *  keywords. The {@code Trino} dialect quotes every identifier, so the list decides no spelling there. */
@@ -70,13 +72,6 @@ public final class Trino extends AnsiSqlRenderer {
     // ==================================================================
     // Session and structure
     // ==================================================================
-
-    /** The engine's H2 text is refused here: Trino has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
-    }
 
     /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal is typed by the digits it is written with (measured) (S181,
      *  A7, 2026-11-10). Kept at nine by the user's rule, "refuse if the db cannot handle" (round 34, 2026-11-11): Trino's
@@ -252,8 +247,8 @@ public final class Trino extends AnsiSqlRenderer {
             // a ROW itself (a struct carried as text, a metamodel element by its name, is already text)
             if (label instanceof SqlType.Struct st && typeOf(p.expr()) instanceof SqlType.Struct
                     && !(p.expr() instanceof SqlExpr.StringLit)) {
-                ps.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Cast(p.expr(), st, false),
-                        SqlType.Scalar.JSON, false), name, p.out()));
+                ps.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Cast(p.expr(), st, SqlExpr.Reason.DIALECT),
+                        SqlType.Scalar.JSON, SqlExpr.Reason.DIALECT), name, p.out()));
                 changed = true;
             } else {
                 ps.add(p);
@@ -443,16 +438,6 @@ public final class Trino extends AnsiSqlRenderer {
             return w -> w.append("CAST(").expr(e, 0).append(" AS " + type + ")");
         }
         return w -> w.expr(e, 0);
-    }
-
-    /** A Float literal is its digits, a DECIMAL (the numeric charter's Rule 1); past a DECIMAL's 38 digits Trino
-     *  refuses it ("not a valid DECIMAL literal", measured: a double's exact expansion, 48 digits; DuckDB reads such a
-     *  literal as a DOUBLE): it is the double's shortest text instead (a DOUBLE where that is in exponent form). */
-    @Override
-    protected String floatLiteral(double v) {
-        String plain = super.floatLiteral(v);
-        return plain.replace("-", "").replace(".", "").replaceFirst("^0+", "").length() > 38 ? Double.toString(v)
-                : plain;
     }
 
     /** An integer past a signed BIGINT: a bare one is refused ("Invalid numeric literal", measured); a DECIMAL's
@@ -848,6 +833,15 @@ public final class Trino extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: a refusal raised Trino's own "Cannot cast" (round 72): legend-pure's grammar in Java regex (\s for
+        // the POSIX class), the trailing f stripped and the text trimmed before the cast, else lite's kind (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x,
+                    w -> w.append("regexp_like(").expr(x, 0)
+                            .append(", '" + FLOAT_GRAMMAR.replace("[[:space:]]", "\\s") + "')"),
+                    w -> w.append("CAST(trim(regexp_replace(").expr(x, 0).append(", '[fF]\\s*$', '')) AS DOUBLE)"));
+        }
         if (c.target() == SqlType.Scalar.TEMPORAL_TEXT || c.target() == SqlType.Scalar.DECIMAL_TEXT) {
             return super.variantAwareCast(writer, c);
         }
@@ -917,6 +911,8 @@ public final class Trino extends AnsiSqlRenderer {
             return writer.append("CAST(NULL AS ").append(castTypeName(t.type())).append(")");
         }
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -937,7 +933,9 @@ public final class Trino extends AnsiSqlRenderer {
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.append("regexp_like(").expr(c.args().get(0), 0).append(", '^[+-]?[0-9]+$')"),
+                    w -> castAs(w, c.args().get(0), "BIGINT"));
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -952,8 +950,10 @@ public final class Trino extends AnsiSqlRenderer {
             case TODAY -> writer.append("current_date");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1027,6 +1027,8 @@ public final class Trino extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat (Trino's concat is NULL if any argument is)
             case CONCAT -> writer.append("concat_ws('', ").join(flattenConcat(a), ", ", this::asText).append(")");
             case CONCAT_JOIN -> writer.append("concat_ws('', ").join(a, ", ", this::asText).append(")");
+            // the product's join of a row's cells: concat_ws skips a NULL part with its separator (as concat above)
+            case CONCAT_WS -> writer.append("concat_ws(").join(a, ", ", this::asText).append(")");
             // integer division truncates toward zero, as DuckDB's //
             // a zero divisor is NULL, as DuckDB's: Trino folds a constant division by zero to its own error even in a
             // CASE's untaken arm (the platform's own raise, measured), and nullif breaks inside a lambda
@@ -1149,7 +1151,8 @@ public final class Trino extends AnsiSqlRenderer {
 
     /** The {@code ERROR} arm of {@link #call}. */
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
-        List<SqlExpr> a = c.args();
+        // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence)
+        List<SqlExpr> a = raised(c).args();
         writer.append("fail(chr(31) || ");
         if (a.size() > 1) {
             writer.expr(a.get(1), 0).append(" || chr(30) || ");
@@ -2102,5 +2105,12 @@ public final class Trino extends AnsiSqlRenderer {
     @Override
     public boolean deliversOwn(SqlType label, String wire) {
         return label instanceof SqlType.Struct && wire.equals("JSON");
+    }
+
+    /** {@inheritDoc} {@code format}'s six decimals (Java's, NaN and the infinities by name), trimmed by the standard's trailing trim (measured on 483, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return trimmedSixStandard(writer, w -> w.append("format('%.6f', ").expr(asDouble(x), 0).append(")"));
     }
 }

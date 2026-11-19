@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.edge.EngineStyleH2;
+
 import com.legend.sql.SqlDdl;
 import org.junit.jupiter.api.Test;
 

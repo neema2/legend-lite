@@ -75,7 +75,8 @@ class PreQuotedNamesTest {
     /** The engine-text printers: in the golden (unchanged), not in the hostile fuzz (their spelling is the engine
      *  text's, decision D's). */
     static List<SqlDialect> engineText() {
-        return List.of(new EngineStyleH2(), new EngineStyleDB2(), new EngineStyleComposite());
+        return List.of(new com.legend.edge.EngineStyleH2(), new com.legend.edge.EngineStyleDB2(),
+                new com.legend.edge.EngineStyleComposite());
     }
 
     /** The places a name is written, each one statement around {@code name}. */

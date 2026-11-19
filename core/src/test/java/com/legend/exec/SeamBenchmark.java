@@ -133,8 +133,8 @@ final class SeamBenchmark {
         });
         measure(db, "10 product runner + PureV1Writer (the server's engine-format answer)", rows, mustDrain, () -> {
             CountingWriter w = new CountingWriter();
-            return productDrain(c, plan, com.legend.result.PureV1Writer.relation(w, columns ->
-                    new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
+            return productDrain(c, plan, com.legend.edge.PureV1Writer.relation(w, columns ->
+                    new com.legend.edge.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
                             columns.stream().map(ExecutionPlan.Column::name).toList()), java.util.UUID.randomUUID()), w::count);
         });
         measure(db, "9 product runner + ArrowWriter (bytes)", rows, mustDrain, () -> {
@@ -219,8 +219,8 @@ final class SeamBenchmark {
             });
             paths.put("10 + PureV1Writer", crc -> () -> {
                 CountingWriter w = new CountingWriter();
-                return productDrain(c, plan, com.legend.result.PureV1Writer.relation(w, columns ->
-                        new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
+                return productDrain(c, plan, com.legend.edge.PureV1Writer.relation(w, columns ->
+                        new com.legend.edge.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
                                 columns.stream().map(ExecutionPlan.Column::name).toList()), java.util.UUID.randomUUID()), crc ? w::count : null);
             });
             paths.put("9 + ArrowWriter", crc -> () -> {

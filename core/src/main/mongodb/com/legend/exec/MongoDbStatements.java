@@ -74,7 +74,7 @@ final class MongoDbStatements implements Statements {
         try (Replies ignored = send(statement, List.of(), List.of())) {
             return false;
         } catch (MongoException e) {
-            throw failure(e);
+            throw failure(e, statement);
         }
     }
 
@@ -155,7 +155,7 @@ final class MongoDbStatements implements Statements {
                 rows.row(text(replies.next()));
             }
         } catch (MongoException e) {
-            throw failure(e);
+            throw failure(e, statement);
         }
     }
 
@@ -170,7 +170,7 @@ final class MongoDbStatements implements Statements {
                 cells.row(MongoDbDecode.row(replies.next(), columns));
             }
         } catch (MongoException e) {
-            throw failure(e);
+            throw failure(e, statement);
         }
     }
 
@@ -283,9 +283,10 @@ final class MongoDbStatements implements Statements {
     }
 
     /** The server's failure as the platform's data error: a raise's message unwrapped from the server's text. */
-    private static com.legend.error.DataError failure(MongoException e) {
-        String unwrapped = RaisedErrors.unwrap(e.getMessage());
-        return new com.legend.error.DataError(unwrapped == null ? String.valueOf(e.getMessage()) : unwrapped, e);
+    private static com.legend.error.DataError failure(MongoException e, PlannedSql statement) {
+        // a site's token read through the sites the plan declares for the statement (phase D's Phase 2, 2026-11-16),
+        // its raise carried beside the statement's text (K10b, 2026-11-17)
+        return RaisedErrors.dataError(String.valueOf(e.getMessage()), e, statement);
     }
 
     /** A key slot's value: the key's text, as the runner's expansion gives it (J7, 2026-11-12). */

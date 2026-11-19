@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { QueryStoreClient, QueryStoreError } from '../src/client.ts';
 import { MemoryRecords, type Records } from '../src/records.ts';
 import { LOCAL_API, loadQueriesModule, wasmQueryServer } from '../src/wasm-server.ts';
-import { conformance } from './conformance.ts';
+import { conformance, LITE } from './conformance.ts';
 import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 
 const DIR = runfileDirUrl('QUERIES_PAGE');
@@ -20,7 +20,8 @@ const module = await loadQueriesModule(DIR, async (runtimeUrl) => {
 });
 const records = new MemoryRecords();
 const server = wasmQueryServer({ load: async () => module, records, user: 'anonymous' });
-conformance("the page's own store, legend-lite's rules in WebAssembly", () => ({ api: LOCAL_API, fetch: server.fetch, user: 'anonymous' }));
+// lite's dialect alone: the page answers lite's own route (H6, 2026-11-17); legend-engine's is the server's edge's
+conformance("the page's own store, legend-lite's rules in WebAssembly", () => ({ api: LOCAL_API, fetch: server.fetch, user: 'anonymous' }), LITE);
 
 describe("the page's own store: what a server here cannot be asked", () => {
   it('only the owner updates or deletes', async () => {
@@ -31,18 +32,39 @@ describe("the page's own store: what a server here cannot be asked", () => {
       id: 'owned', name: 'Owned', groupId: 'demo', artifactId: 'trading', versionId: '0.0.0', content: '|1',
     });
     await assert.rejects(theirs.update({ ...q, name: 'Taken' }), (e: unknown) => e instanceof QueryStoreError && e.status === 403
-      && e.message === 'Only owner can update the query');
+      && e.message === 'only the owner can update it');
     await assert.rejects(theirs.delete('owned'), (e: unknown) => e instanceof QueryStoreError && e.status === 403
-      && e.message === 'Only owner can delete the query');
+      && e.message === 'only the owner can delete it');
     // and "mine only" is the caller's
     assert.deepEqual((await theirs.search({ showCurrentUserQueriesOnly: true })).map((x) => x.id), []);
     assert.deepEqual((await mine.search({ showCurrentUserQueriesOnly: true })).map((x) => x.id), ['owned']);
   });
 
-  it('a body that is not JSON: the engine 500, naming the error, as the server answers it', async () => {
-    const r = await server.fetch(`${LOCAL_API}/pure/v1/query`, { method: 'POST', body: '{not json' });
-    assert.equal(r.status, 500);
-    assert.match(((await r.json()) as { message: string }).message, /^\w+(Exception|Error): /);
+  // J9's sentences (the edge audit, 2026-11-17): the store's refusals in lite's words on lite's mount
+  // a malformed request: lite's request, 400 (its API v1 spec §3; PR #118 fix round, 2026-11-18)
+  it("a body that is not JSON: lite's refusal, kind request, naming what was wrong, as the server answers it", async () => {
+    const r = await server.fetch(`${LOCAL_API}/lite/v1/queries`, { method: 'POST', body: '{not json' });
+    assert.equal(r.status, 400);
+    const said = (await r.json()) as { kind: string; message: string };
+    assert.equal(said.kind, 'request');
+    assert.match(said.message, /^the request could not be read: \S/);
+  });
+
+  it("lite's user operation: the page's configured user; a request holding a key, or not a POST, refused, kind request", async () => {
+    const r = await server.fetch(`${LOCAL_API}/lite/v1/user`, { method: 'POST', body: '{}' });
+    assert.deepEqual(await r.json(), { user: 'anonymous' });
+    const keyed = await server.fetch(`${LOCAL_API}/lite/v1/user`, { method: 'POST', body: '{"who":"me"}' });
+    assert.equal(keyed.status, 400);
+    assert.deepEqual(await keyed.json(), { kind: 'request', message: 'a user request has no key who (it holds none)' });
+    const got = await server.fetch(`${LOCAL_API}/lite/v1/user`);
+    assert.equal(got.status, 400);
+    assert.equal(((await got.json()) as { kind: string }).kind, 'request');
+  });
+
+  it("legend-engine's path is not the page's: refused by name, kind request (the server's edge answers it)", async () => {
+    const r = await server.fetch(`${LOCAL_API}/pure/v1/query`, { method: 'POST', body: '{}' });
+    assert.equal(r.status, 404);
+    assert.deepEqual(await r.json(), { kind: 'request', message: 'no such legend-lite API: /api/pure/v1/query' });
   });
 
   it('records it cannot read: the engine 500, naming them, and nothing written', async () => {
@@ -54,7 +76,7 @@ describe("the page's own store: what a server here cannot be asked", () => {
         return said.answer;
       },
     };
-    const r = await wasmQueryServer({ load: async () => module, records: odd, user: 'me' }).fetch(`${LOCAL_API}/pure/v1/query/x`);
+    const r = await wasmQueryServer({ load: async () => module, records: odd, user: 'me' }).fetch(`${LOCAL_API}/lite/v1/queries/x`);
     assert.equal(r.status, 500);
     assert.match(((await r.json()) as { message: string }).message, /the records of query 'x' are not a list of versions/);
     assert.equal(wrote, 0);

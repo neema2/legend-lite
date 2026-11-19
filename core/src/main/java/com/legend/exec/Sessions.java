@@ -136,7 +136,7 @@ public final class Sessions {
             try {
                 c.close();
             } catch (SQLException e) {
-                throw RaisedErrors.dataError(e);
+                throw RaisedErrors.connectionError(e);
             }
         }
     }
@@ -359,7 +359,7 @@ public final class Sessions {
         try {
             return owned(opener.open());
         } catch (SQLException e) {
-            throw RaisedErrors.dataError(e);
+            throw RaisedErrors.connectionError(e);
         }
     }
 
@@ -428,7 +428,7 @@ public final class Sessions {
             unwind(session, state, failure);
             throw failure;
         } catch (SQLException e) {
-            com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> JdbcStatements.held(session, state, e));
+            com.legend.error.DataError failure = RaisedErrors.dataError(e, java.util.List.of(), () -> JdbcStatements.held(session, state, e));
             unwind(session, state, failure);
             throw failure;
         } finally {
@@ -545,7 +545,7 @@ public final class Sessions {
         try {
             return opened(DriverManager.getConnection(url.url()), settings);
         } catch (SQLException e) {
-            throw RaisedErrors.dataError(e);
+            throw RaisedErrors.connectionError(e);
         }
     }
 
@@ -564,7 +564,7 @@ public final class Sessions {
         try {
             return opened(named.memory().openNamed(name, settings), settings);
         } catch (SQLException e) {
-            throw RaisedErrors.dataError(e);
+            throw RaisedErrors.connectionError(e);
         }
     }
 
@@ -575,7 +575,7 @@ public final class Sessions {
         try {
             return opened(named.memory().openKept(name, settings), settings);
         } catch (SQLException e) {
-            throw RaisedErrors.dataError(e);
+            throw RaisedErrors.connectionError(e);
         }
     }
 
@@ -586,7 +586,7 @@ public final class Sessions {
         try {
             return opened(named.memory().joinKept(name, settings), settings);
         } catch (SQLException e) {
-            throw RaisedErrors.dataError(e);
+            throw RaisedErrors.connectionError(e);
         }
     }
 
@@ -596,7 +596,7 @@ public final class Sessions {
         try {
             return opened(held.connector().openPrivate(settings), settings);
         } catch (SQLException e) {
-            throw RaisedErrors.dataError(e);
+            throw RaisedErrors.connectionError(e);
         }
     }
 
@@ -608,7 +608,7 @@ public final class Sessions {
         try {
             return opened(Connectors.of(type).openPrivate(settings), settings);
         } catch (SQLException e) {
-            throw RaisedErrors.dataError(e);
+            throw RaisedErrors.connectionError(e);
         }
     }
 }

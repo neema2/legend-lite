@@ -13,7 +13,7 @@ import type { QueryBuilder } from '../backend/query-builder.ts';
 import type { EditorHandle } from '../../../query/src/embed.ts';
 import type { Playground, Runner, TableState } from '../backend/run.ts';
 import type { RawTable } from '../../../engine-client/src/query-engine.ts';
-import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
+import type { RunAnswer } from '../backend/run.ts';
 import { renamePath } from '../model/rename.ts';
 import { joinFiles, splitElements } from '../model/split.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
@@ -1066,18 +1066,21 @@ function kindOf(text: string): string | undefined {
   return DECLARES.exec(text.replace(/\/\/.*$/gm, ''))?.[0]?.trim().split(/\s/)[0];
 }
 
-/** A run's answer: a TDS as a table -- how many rows, how long, the SQL the tab ran -- else its JSON. */
-function resultView(r: ExecutionResult, ms: number): HTMLElement {
-  if (!isTds(r)) return h('pre', { class: 'run-result__json' }, JSON.stringify(r, null, 2));
-  const sql = r.activities?.find((a) => a.sql)?.sql;
-  const rows = r.result.rows;
+/** A run's answer (lite's: its shape, its typed rows, its statement): a relation as a table -- how many rows, how long,
+ *  the SQL it ran -- else its values as JSON. */
+function resultView(r: RunAnswer, ms: number): HTMLElement {
+  if (r.shape !== 'RELATION') {
+    const values = r.rows.map((row) => (row.length === 1 ? row[0] : row));
+    return h('pre', { class: 'run-result__json' }, JSON.stringify(values, (_, v: unknown) => (typeof v === 'bigint' ? v.toString() : v), 2));
+  }
+  const rows = r.rows;
   return h('div', { class: 'run-result' },
     h('div', { class: 'run-result__bar', 'data-testid': 'run-status' },
       `${rows.length} row${rows.length === 1 ? '' : 's'} in ${ms} ms`,
-      sql ? h('span', { class: 'run-result__sql', title: sql }, 'SQL') : null),
+      r.sql ? h('span', { class: 'run-result__sql', title: r.sql }, 'SQL') : null),
     h('table', { class: 'run-result__table', 'data-testid': 'run-rows' },
-      h('thead', {}, h('tr', {}, ...r.result.columns.map((c) => h('th', {}, c)))),
-      h('tbody', {}, ...rows.map((row) => h('tr', {}, ...row.values.map((v) => h('td', {}, v === null || v === undefined ? '' : String(v))))))));
+      h('thead', {}, h('tr', {}, ...r.columns.map((c) => h('th', {}, c.name)))),
+      h('tbody', {}, ...rows.map((row) => h('tr', {}, ...row.map((v) => h('td', {}, v === null || v === undefined ? '' : String(v))))))));
 }
 
 /** A hint of how a value of `type` is written in Pure, for the parameter dialog's field. */

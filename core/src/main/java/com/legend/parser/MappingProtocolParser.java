@@ -22,18 +22,18 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     private final TokenStream tokens;
     private int pos;
 
-    /** The three-level {@link Dialect} — carried from the
+    /** The three-level {@link GrammarLevel} — carried from the
      *  constructing parser so m2-only mapping forms and body-level dialect
      *  constructs gate on the drop-in surface. */
-    private final Dialect dialect;
+    private final GrammarLevel dialect;
 
     @Override
-    public Dialect dialect() {
+    public GrammarLevel dialect() {
         return dialect;
     }
 
     MappingProtocolParser(TokenStream tokens, int pos,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         this.tokens = tokens;
         this.pos = pos;
         this.dialect = dialect;
@@ -56,15 +56,15 @@ public final class MappingProtocolParser implements TokenStreamCursor {
 
     /** Parse one {@code Mapping qn ( ... )} at {@code tokenIndex}. */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         return parse(ts, tokenIndex, -1, null, dialect);
     }
 
-    /** As {@link #parse(TokenStream, int, Dialect)} with the SECTION's
+    /** As {@link #parse(TokenStream, int, GrammarLevel)} with the SECTION's
      *  first content line — AggregationAware nested-CM spans shift by
      *  {@code memberLine - sectionStartLine + 2} (probe agg-off-A/B). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
-            int sectionStartLine, Dialect dialect) {
+            int sectionStartLine, GrammarLevel dialect) {
         return parse(ts, tokenIndex, sectionStartLine, null, dialect);
     }
 
@@ -75,7 +75,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  parser (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
             int sectionStartLine, int @com.legend.base.Nullable [] endOut,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         MappingProtocolParser p = new MappingProtocolParser(ts, tokenIndex,
                 dialect);
         p.sectionStartLine = sectionStartLine;
@@ -96,14 +96,14 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** Parse one {@code Data [decorations] qn { <body> }} at
      *  {@code tokenIndex} (probe data-section). */
     public static Protocol.PDataElement parseData(TokenStream ts,
-            int tokenIndex, Dialect dialect) {
+            int tokenIndex, GrammarLevel dialect) {
         return parseData(ts, tokenIndex, dialect, null);
     }
 
     /** As above, reporting where the element ENDED (the strict document
      *  walk resumes there). */
     public static Protocol.PDataElement parseData(TokenStream ts,
-            int tokenIndex, Dialect dialect,
+            int tokenIndex, GrammarLevel dialect,
             int @com.legend.base.Nullable [] endOut) {
         MappingProtocolParser p =
                 new MappingProtocolParser(ts, tokenIndex, dialect);

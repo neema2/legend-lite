@@ -22,12 +22,17 @@ public final class Failures {
     /** {@code e}, raised while {@code where} planned, as data: its class one of the closed list (any other fails the
      *  planning here, by name -- never recorded as a stand-in class). */
     public static Failure of(RuntimeException e, String where) {
-        Failure.Kind kind = Failure.Kind.named(e.getClass().getName());
+        return of(e, where, e.getMessage());
+    }
+
+    /** {@link #of(RuntimeException, String)}, its message as {@code message} words it (a plan style's words of the
+     *  error, {@code PlanStyle.errorWords}: 2026-11-16). */
+    public static Failure of(RuntimeException e, String where, @Nullable String message) {
+        Failure.Kind kind = e instanceof Failure.Kinded k ? k.failureKind() : Failure.Kind.named(e.getClass().getName());
         if (kind == null) {
             throw new IllegalStateException("a planning failure of a class the test plan does not name ("
                     + e.getClass().getName() + ", planned at " + where + "): " + e.getMessage(), e);
         }
-        String message = e.getMessage();
         if (message == null && needsMessage(kind)) {
             // these classes are built with a message (their constructors take one): a null is a defect of the site
             throw new IllegalStateException("a planning failure with no message (" + e.getClass().getName()

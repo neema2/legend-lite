@@ -56,6 +56,13 @@ public final class Program {
         return run(model, body, runtime, c, ExecuteOptions.NONE.withJudgeMode(laneJudge()));
     }
 
+    /** The platform's default options, a body's judge the lane's: the base an edge test sets its plan style on
+     *  ({@code testing.EdgeProgram.upstream()}, Phase 7's build half, 2026-11-17: the product's test harness names no
+     *  edge class). */
+    public static ExecuteOptions defaults() {
+        return ExecuteOptions.NONE.withJudgeMode(laneJudge());
+    }
+
     /** The lane's judge for a body whose test names none ({@code -Dlegend.test.judge=HOST|DATABASE|BOTH}; the host
      *  with no property): core's tests of verdicts run under each judge alone and under both, as channel B's suites
      *  do (the core parity program, 2026-11-03: the user's "100% parity on host+database on our core tests"). A test
@@ -79,7 +86,37 @@ public final class Program {
     /** {@link #run(String, String, String, Connection)} with the caller's execute {@code options} (a judge mode). */
     public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
             ExecuteOptions options) {
-        ModelContext ctx = Compiler.compileModel(LaneFloor.model(model, c));
+        return run(model, body, runtime, c, options, com.legend.testexec.NoEdgeRun.NONE);
+    }
+
+    /** {@link #run(String, String, String, Connection, ExecuteOptions)} heard by {@code edgeRun}: the product's
+     *  {@code NoEdgeRun.NONE}, or the edge's run for a test of the compatibility rules (an edge test, census C1's K14). */
+    public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
+            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
+        return run(Compiler.compileModel(LaneFloor.model(model, c)), body, runtime,
+                com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), options, edgeRun);
+    }
+
+    /** {@code body} run with a session of its own per use, each opened on the platform's database (isolated BOTH: a
+     *  connection's declared test data is a load each judge's plan makes on its own session, as JudgesOnPlansTest's;
+     *  PR #118 fix round, 2026-11-18). */
+    public static Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
+            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
+        return runFresh(model, body, runtime, com.legend.database.Databases.PLATFORM, options, edgeRun);
+    }
+
+    /** {@link #runFresh(String, String, String, ExecuteOptions, com.legend.testexec.EdgeRun)}, each session opened on
+     *  {@code database}. */
+    public static Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
+            com.legend.model.ConnectionDefinition.DatabaseType database, ExecuteOptions options,
+            com.legend.testexec.EdgeRun edgeRun) {
+        return run(Compiler.compileModel(model), body, runtime,
+                new com.legend.exec.SessionSource.Fresh(com.legend.testbackend.TestBackends.of(database)::open), options,
+                edgeRun);
+    }
+
+    private static Report run(ModelContext ctx, String body, @com.legend.base.Nullable String runtime,
+            com.legend.exec.SessionSource sessions, ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
         List<Verdict> verdicts = new ArrayList<>();
         AssertListener listener = new AssertListener() {
             @Override
@@ -99,7 +136,7 @@ public final class Program {
         // reader a query's answer is read by (the doors, 2026-10-29; until then the collected side re-read here)
         java.io.StringWriter out = new java.io.StringWriter();
         Lean.Capturing sink = new Lean.Capturing(out);
-        TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener, null,
+        TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, sessions, listener, edgeRun,
                 options, new com.legend.result.Output.Rows(sink));
         return new Report(List.copyOf(verdicts), sink.answered());
     }

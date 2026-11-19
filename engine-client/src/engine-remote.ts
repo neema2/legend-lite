@@ -13,10 +13,14 @@
 // of the mode: a cube over a database the tab cannot reach.
 //
 // So this is not a planner. Pure in, ROWS out.
+//
+// legend-engine's executor, the edge's (H11, 2026-11-17: //engine-client:edge); the executor's shape, the product's own,
+// is remote-executor.ts.
 
 import { tableFromIPC } from 'apache-arrow';
 
 import type { ResultColumn, ResultTable, Scalar } from './result.ts';
+import { RemoteExecutionError, type RemoteExecutor, type RemoteResult } from './remote-executor.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { toRawTable, type ArrowishTable } from './duckdb.ts';
 import { hostOf } from './receipt.ts';
@@ -24,39 +28,6 @@ import { PureV1Client, type PrintStyle, type PureV1Options } from './pure-v1.ts'
 import { pureType, relationColumns, type PlanColumn } from './relation-type.ts';
 import { hasTimeOfDay } from './types.ts';
 import { timestampFromText } from './values.ts';
-
-/** What a remote engine answers with. */
-export interface RemoteResult {
-  readonly rows: ResultTable;
-  /**
-   * The SQL the engine REPORTS having run, for display only.
-   *
-   * It arrives as an execution activity, after the fact. Running it
-   * here would need the engine's own connection, which is the thing
-   * this mode exists to avoid.
-   */
-  readonly sql: string;
-}
-
-export interface RemoteExecutor {
-  execute(query: Lambda, epoch: number, signal?: AbortSignal): Promise<RemoteResult>;
-  /** The compiler's type of a query's result: the engine's `lambdaRelationType`. */
-  relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]>;
-  /** What a person typed, as its lambda: the engine's `grammarToJson`. */
-  parse(text: string, signal?: AbortSignal): Promise<Lambda>;
-  /** A query as Pure text for a person: the engine's `jsonToGrammar`. */
-  print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
-}
-
-export class RemoteExecutionError extends Error {
-  /** What was asked: the query, or, for a parse, the text. */
-  readonly subject: Lambda | string;
-  constructor(message: string, subject: Lambda | string) {
-    super(message);
-    this.name = 'RemoteExecutionError';
-    this.subject = subject;
-  }
-}
 
 export type LegendEngineOptions = PureV1Options;
 

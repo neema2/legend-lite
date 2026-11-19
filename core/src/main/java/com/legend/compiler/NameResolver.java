@@ -696,6 +696,28 @@ public final class NameResolver {
                 : new TypeExpression.Column(c.name(), nn(t), c.multiplicity());
     }
 
+    /** A user's call to one of the compiler's own natives ({@link com.legend.builtin.Pure#COMPILER_OWN}), by its full
+     *  name or a bare name an import reaches, refused by name: only the compiler writes them, born resolved
+     *  ({@code compiler.spec.Calls}), so a call this resolver names is the user's (PR #118 fix round, 2026-11-18, N1). */
+    private static void refuseCompilersOwn(String fn, List<String> candidates) {
+        for (String name : candidates.isEmpty() ? List.of(fn) : candidates) {
+            refuseCompilersOwn(name);
+        }
+    }
+
+    /** {@code name} refused where it names one of the compiler's own natives: by its name, or by an overload's
+     *  signature id ({@code cellText_String_$0_1$__String_1_}) -- a call, or a function reference (an {@code eval}'s;
+     *  the re-review of the batch, 2026-11-18). The typer's lookups past here are the compiler's own calls' too, so
+     *  the user's names are refused here alone. */
+    private static void refuseCompilersOwn(String name) {
+        String own = com.legend.builtin.Pure.COMPILER_OWN.contains(name) ? name
+                : com.legend.builtin.Pure.COMPILER_OWN_IDS.get(name);
+        if (own != null) {
+            throw new com.legend.error.ResolutionException("'" + own
+                    + "' is the compiler's own function: a query or a model cannot call it");
+        }
+    }
+
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
     private static String resolveName(String name, Scope scope) {
         List<String> matches = resolveNameMulti(name, scope, "type");
@@ -1879,6 +1901,7 @@ public final class NameResolver {
                 // 2026-10-10; before, the typer walked the tiers from the bare base at every read). A resolved
                 // or qualified spelling matches no tier and comes back as it is.
                 String r = qualifyIdByBase(resolveName(ptr.fullPath(), scope), scope);
+                refuseCompilersOwn(r);
                 yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);
             }
             case EnumValue ev -> {
@@ -1897,6 +1920,7 @@ public final class NameResolver {
                         scope.prelude(), af.parameters().size());
                 String fn = named.function();
                 List<String> candidates = named.referents();
+                refuseCompilersOwn(fn, candidates);
                 List<ValueSpecification> params = resolveVsList(af.parameters(), scope);
                 yield (fn.equals(af.function()) && params == af.parameters() && candidates.isEmpty()) ? af
                         // preserve pos + every written form: infix is load-bearing downstream (the emitter's

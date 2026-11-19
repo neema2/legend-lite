@@ -111,7 +111,7 @@ public final class AssertMessages {
         return switch (fn) {
             case ASSERT, ASSERT_FALSE, ASSERT_EMPTY, ASSERT_NOT_EMPTY -> 1;
             case ASSERT_EQUALS, ASSERT_NOT_EQUALS, ASSERT_SAME_ELEMENTS, ASSERT_SIZE, ASSERT_CONTAINS, ASSERT_EQ,
-                    ASSERT_INSTANCE_OF, ASSERT_IS -> 2;
+                    ASSERT_INSTANCE_OF, ASSERT_IS, ASSERT_NOT_EQ, ASSERT_IS_NOT, ASSERT_NOT_CONTAINS, ASSERT_NOT_SIZE -> 2;
             case ASSERT_EQ_WITHIN_TOLERANCE -> 3;
             // no message overloads: the JSON strings' (two Strings), the grid equivalence (its fourth argument a
             // second tolerance), toCSV (an operand form)

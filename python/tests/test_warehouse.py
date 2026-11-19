@@ -65,7 +65,10 @@ def act(scenario: dict) -> dict:
             receipt: dict = {}
             # the test plays the run side, which sends a plane's statement in a run (C5-P, 2026-11-15)
             with in_run("a test's run"):
-                chunks = [base64.b64encode(c).decode() for c in engine().arrow_chunks(PlannedSql(a['sql']), receipt.update)]
+                # a run's values, bound at run: the scenario's parameters carried as the statement API's (the host
+                # train, 2026-11-17)
+                chunks = [base64.b64encode(c).decode() for c in engine().arrow_chunks(
+                    PlannedSql(a['sql']), receipt.update, a.get('parameters', ()))]
             return {'chunks': chunks, 'statementId': receipt.get('statementId'), 'rowCount': receipt.get('serverRows')}
         if a['kind'] == 'firstChunk':
             # the read stops after its first chunk: the driver closes what it leaves
@@ -109,6 +112,44 @@ class TheCorpus(unittest.TestCase):
                     self.assertRegex(got['said'], r"^On the warehouse's record for rita: statement s1, succeeded, 3 rows")
                 else:
                     self.assertEqual(got, want)
+
+
+class ParametersCarried(unittest.TestCase):
+    """A run's values as the statement API carries them (the host train, 2026-11-17, the orchestrator's ruling (a)):
+    positional, each a JSON string, a whole number of 64 bits, another number, a boolean or null -- bound by the server
+    at run, never pasted into the statement's text; anything else refused by name before anything is sent."""
+
+    def test_each_kind_of_value_is_carried_as_the_api_takes_it(self):
+        import datetime
+        from decimal import Decimal
+        p = warehouse._parameter
+        self.assertEqual([p(v) for v in (3, 'desk-a', 1.5, True, None, 2 ** 63 - 1, -2 ** 63)],
+                         [3, 'desk-a', 1.5, True, None, 2 ** 63 - 1, -2 ** 63])
+        self.assertIs(p(True), True)
+        # a Decimal its exact text, a StrictDate its ISO text
+        self.assertEqual((p(Decimal('12.30')), p(datetime.date(2024, 1, 2))), ('12.30', '2024-01-02'))
+
+    def test_a_value_the_api_does_not_take_is_refused_by_name(self):
+        for wrong, said in ((2 ** 63, '64 bits'), (-2 ** 63 - 1, '64 bits'), ([1], 'list'), ({'a': 1}, 'dict'),
+                            (b'x', 'bytes')):
+            with self.subTest(wrong=wrong), self.assertRaisesRegex(warehouse.WarehouseError, said):
+                warehouse._parameter(wrong)
+
+    def test_a_statement_that_binds_nothing_sends_no_parameters(self):
+        sent = []
+
+        class Recording(warehouse.Warehouse):
+            def _call(self, op, args, refresh=True):
+                sent.append((op, args))
+                if op == 'submit':
+                    return {'step': 'failed', 'error': {'code': 'X', 'message': 'stop'}}
+                return {}
+
+        for params, want in (((), None), ((1, 'a'), [1, 'a'])):
+            sent.clear()
+            with in_run("a test's run"), self.assertRaises(warehouse.WarehouseError):
+                list(Recording(session('t'), 'main').arrow_chunks(PlannedSql('SELECT ?'), None, params))
+            self.assertEqual(sent[0][1].get('parameters'), want)
 
 
 class Addresses(unittest.TestCase):

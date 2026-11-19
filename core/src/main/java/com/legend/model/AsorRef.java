@@ -29,26 +29,20 @@ public final class AsorRef {
      *  encoder spells it as {@code lpad(.., SEG_LEN_WIDTH, '0')}. */
     public static final int SEG_LEN_WIDTH = 10;
 
-    /** The engine protocol's canonical connection segment for its test database (H2's, as the goldens pin it) —
-     * part of the WIRE FORMAT (both producer and consumer are ours;
-     * the goldens pin these exact bytes), not an execution choice. */
-    public static final String ENGINE_TEST_CONNECTION =
-            "{\"_type\":\"RelationalDatabaseConnection\","
-            + "\"authenticationStrategy\":{\"_type\":\"h2Default\"},"
-            + "\"datasourceSpecification\":{\"_type\":\"h2Local\"},"
-            + "\"element\":\"\",\"postProcessorWithParameter\":[],"
-            + "\"postProcessors\":[],\"timeZone\":\"GMT\","
-            + "\"type\":\"H2\"}";
+    // (ENGINE_TEST_CONNECTION, legend-engine's H2 test-connection JSON as the reference's connection segment: moved
+    // 2026-11-17 to the edge's lowering form, the audit's J12 -- the product's reference names no connection, an EMPTY
+    // segment, LoweringForms#objectReferenceConnection)
 
     public static String seg(String v) {
         return String.format(java.util.Locale.ROOT, "%010d", v.length()) + ":" + v + ":";
     }
 
-    /** The STATIC prefix — everything before the per-row pk segment. */
-    public static String prefix(String definingMapping, String rootSetId,
+    /** The STATIC head -- everything before the connection segment, which the plan style writes (the audit's J12,
+     *  2026-11-17: {@code LoweringForms#objectReferenceConnection}, the product's empty, the edge's legend-engine's). */
+    public static String head(String definingMapping, String rootSetId,
             String setId) {
         return "001:010:" + seg(KIND) + seg(definingMapping)
-                + seg(rootSetId) + seg(setId) + seg(ENGINE_TEST_CONNECTION);
+                + seg(rootSetId) + seg(setId);
     }
 
     /** The COMPLETE reference for one row — prefix + the per-row
@@ -57,8 +51,8 @@ public final class AsorRef {
      *  the SQL-side emitter (SnapshotEnvelope) both follow this shape;
      *  the harness delegates here (F3.4b). */
     public static String ref(String definingMapping, String rootSetId,
-            String setId, String pkJson) {
-        String full = prefix(definingMapping, rootSetId, setId)
+            String setId, String connection, String pkJson) {
+        String full = head(definingMapping, rootSetId, setId) + seg(connection)
                 + String.format(java.util.Locale.ROOT, "%0" + SEG_LEN_WIDTH + "d", pkJson.length())
                 + ":" + pkJson;
         return MARKER + java.util.Base64.getEncoder().withoutPadding()

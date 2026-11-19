@@ -55,6 +55,6 @@ public final class StringCountsAsInt extends SqlRewriter {
 
     /** {@code x} as an {@code integer}. */
     private static SqlExpr narrowed(SqlExpr x) {
-        return new SqlExpr.Cast(x, SqlType.Scalar.INTEGER);
+        return new SqlExpr.Cast(x, SqlType.Scalar.INTEGER, SqlExpr.Reason.DIALECT);
     }
 }

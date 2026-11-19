@@ -21,9 +21,9 @@ EPOCH = datetime.datetime(1970, 1, 1)
 
 
 def instant_nanos(text):
-    """A JSON instant text (+0000, any count of fraction digits: a tagged cell's written digits) as nanoseconds since
-    the epoch, or None where the text is no instant."""
-    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,9}))?\+0000", text)
+    """A JSON instant text (+0000 or Z, any count of fraction digits: a tagged cell's written digits, or the product's
+    six -- S312, 2026-11-16) as nanoseconds since the epoch, or None where the text is no instant."""
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,9}))?(?:\+0000|Z)", text)
     if not m:
         return None
     y, mo, d, h, mi = (int(m.group(i)) for i in range(1, 6))
@@ -92,7 +92,12 @@ def same(got, want, column, metadata):
         return got is None and want is None
     if isinstance(got, tuple) and got[0] == "timestamp":
         # the INSTANT spelling (nine digits), or the same instant at the digits a tagged cell was written with
-        return isinstance(want, str) and (instant_text(got[1]) == want or instant_nanos(want) == got[1])
+        # (the product's text, S312: the instant cut to its six digits -- Arrow carries the value's own nanoseconds)
+        if not isinstance(want, str):
+            return False
+        if instant_text(got[1]) == want or instant_nanos(want) == got[1]:
+            return True
+        return want.endswith("Z") and instant_nanos(want) == got[1] - got[1] % 1_000
     if isinstance(got, tuple) and got[0] == "time":
         return isinstance(want, str) and got[1] == time_nanos(want)
     if isinstance(got, str) and isinstance(want, (dict, list)):

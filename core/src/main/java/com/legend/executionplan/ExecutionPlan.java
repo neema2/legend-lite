@@ -130,16 +130,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
     }
 
-    /** An execution's trace comment, as legend-engine's executor writes one per execution: the run stamps a
-     *  statement with one, and planning writes the one a frame's activity row names (2026-11-09: one spelling for
-     *  both halves). */
-    public static String traceComment(java.util.UUID id) {
-        return "-- \"executionTraceID\" : \"" + id + "\"";
-    }
-
-    /** The prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the trace
-     *  comment of the execution it names ({@link Sql#stamp}, and a slot reading one: an activity row's comment). The
-     *  planner's names spell it ({@code planner.ProgramFrames.STAMP}). */
+    /** The prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the id of
+     *  the execution it names ({@link Sql#stamp}, and a slot reading one: an activity row's comment; legend-engine's
+     *  comment around the id is the edge's plan's, phase D's D1.4, 2026-11-15). The planner's names spell
+     *  it ({@code planner.ProgramFrames.STAMP}). */
     public static final String STAMP = "#stamp";
 
     /** The executions {@code node}'s statements read, by stamp, in the order first met, added to {@code into}: each
@@ -660,11 +654,18 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. */
     public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
             com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType store,
-            @com.legend.base.Nullable Precision precision) {
+            @com.legend.base.Nullable Precision precision, @com.legend.base.Nullable DecimalDigits decimal) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(multiplicity, "multiplicity");
+        }
+
+        /** A column whose type is no precise decimal: no {@link #decimal}. */
+        public Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
+                com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType store,
+                @com.legend.base.Nullable Precision precision) {
+            this(name, type, multiplicity, slot, store, precision, null);
         }
 
         /** The physical column holding slot {@code i} of a tagged column ({@code TAGGED<kind slot, ...>},
@@ -676,12 +677,22 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
     }
 
+    /** A precise decimal column's digits, the compiler's {@code Decimal(precision, scale)} written as data beside the
+     *  column's plain {@code type} ("Decimal"): v57, 2026-11-17 (the orchestrator's ruling: the type as data, never a
+     *  spelling a reader parses; until then the type's name carried them). Null on a column whose type is no precise
+     *  decimal -- a plain {@code Decimal} carries none. Its {@code slot} is the database's own type, which may differ
+     *  (a computed {@code toDecimal()}'s {@code DECIMAL(38,0)}); this is the compiler's. */
+    public record DecimalDigits(int precision, int scale) {
+    }
+
     /**
      * How a temporal cell's WRITTEN precision is known (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R2: a fact that only
      * Pure knows travels in the plan or in the data, never in a text; the start page's S1.4 item 1, 2026-10-28). A
      * column's fact, set by {@link ColumnFacts#precision} from its Pure type, its slot and its result's shape, read
-     * by the writers ({@code result/CellText}) in place of the slot's spelling they matched until then. The spellings
-     * are upstream's, read from the pinned sources 2026-10-29 (the upstream-fidelity tenet, AGENTS.md).
+     * by the writers ({@code result/CellText}) in place of the slot's spelling they matched until then. Each constant
+     * says what a cell IS, in the product's vocabulary; how it is spelled is its writer's (the product's
+     * {@code result.CellText}; legend-engine's and legend-pure's spellings of it are the compatibility edge's,
+     * {@code edge.Presenter}: J14 of the edge audit, 2026-11-17).
      */
     public enum Precision {
         /** The cell carries its own precision, as the value was written (a literal's spelling, a temporal-text
@@ -692,11 +703,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          *  {@code ValueTransformer} for a {@code java.sql.Date}, legend-pure's StrictDate). */
         DAY,
         /** A relation's time-bearing cell, whatever carried it (a TIMESTAMP's nine digits as the driver hands them,
-         *  a literal's text): spelled as legend-engine's TDS spells it, nine fraction digits and {@code +0000}
-         *  ({@code ValueTransformer}: its JSON and its transformed CSV, {@code yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ};
-         *  legend-pure reads a SQL timestamp the same way, {@code DateFunctions.fromSQLTimestamp}), never as a day.
-         *  The product's spelling of a relation; the PCT's in-memory relation ({@code TestTDS}, millisecond dates,
-         *  three digits) is its harness's. */
+         *  a literal's text): an instant held at the database's full precision, never a day (the product writes it
+         *  as its time text, {@code result.CellText}; an Arrow column carries it as timestamp[ns, UTC]). legend-engine's
+         *  TDS spelling of such a cell (nine fraction digits and {@code +0000}, its {@code ValueTransformer}) is the
+         *  compatibility edge's ({@code edge.Presenter}; J14 of the edge audit, 2026-11-17). */
         INSTANT,
         /** A value root's cell the database computed (the plan's VALUE shape: a scalar, a collection's element): an
          *  instant whose written precision the database lost, spelled at the precision its digits show (the
@@ -721,11 +731,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * bytes once in the plan's data, inline in its JSON below {@code PlanJson.INLINE_LIMIT_BYTES}, beside it above,
      * every text verified against its digest where a plan is read): exactly the digests its slots name, a payload slot
      * whose digest it lacks or a text no slot binds refused by name here, as a load's bundle is.
+     * {@code sites}: the raise sites the statement can send, numbered 1..k as the dialect's render wrote them (phase
+     * D's Phase 2, raises as SITES, 2026-11-16; the kinds alone since the D-P1 audit's MUST 1): the token {@code LG#<n>}
+     * its text raises is site {@code n} here, read back at run ({@code exec.RaisedErrors}), never out of the text --
+     * the plan's declared raises ({@code PlanJson.raises}) are theirs.
      */
     public record Sql(String statement, List<Slot> slots, Target target,
             com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
-            @com.legend.base.Nullable String stamp, java.util.Map<String, String> content) {
+            @com.legend.base.Nullable String stamp, java.util.Map<String, String> content,
+            List<Site> sites) {
         public Sql {
+            sites = Site.numbered(sites);
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
             Objects.requireNonNull(target, "target");
@@ -750,7 +766,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         /** The statement, as the plan holds it: what a session sends ({@link PlannedSql}). A statement with per-key
          *  regions is sent as the runner's keyed expansion writes it, never as this. */
         public PlannedSql planned() {
-            return PlannedSql.fromPlan(statement);
+            return PlannedSql.fromPlan(statement, sites);
         }
 
         /** The executions this statement reads, added to {@code into}: its own stamp, and each slot's that reads one
@@ -764,6 +780,18 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                     into.add(slot.parameter());
                 }
             }
+        }
+
+        /** A statement whose render wrote no raise (a setup's, a session's, a probe's). */
+        public Sql(String statement, List<Slot> slots, Target target,
+                com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
+                @com.legend.base.Nullable String stamp, java.util.Map<String, String> content) {
+            this(statement, slots, target, tree, regions, stamp, content, List.of());
+        }
+
+        /** This statement, sending the raise sites {@code planned} (its render's, planned). */
+        public Sql raising(List<Site> planned) {
+            return new Sql(statement, slots, target, tree, regions, stamp, content, planned);
         }
 
         /** A statement binding no payload. */
@@ -787,18 +815,57 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** This statement, its own execution-trace stamp bound under {@code name}. */
         public Sql stamped(String name) {
-            return new Sql(statement, slots, target, tree, regions, name, content);
+            return new Sql(statement, slots, target, tree, regions, name, content, sites);
         }
 
         /** This statement minting no stamp. */
         public Sql unstamped() {
-            return new Sql(statement, slots, target, tree, regions, null, content);
+            return new Sql(statement, slots, target, tree, regions, null, content, sites);
         }
 
         /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session
          *  statement's (the doors, 2026-10-29: every statement a body or a seed sends is a plan statement). */
         public static Sql of(String statement, Target target) {
             return new Sql(statement, List.of(), target, null, List.of());
+        }
+    }
+
+    /**
+     * ONE RAISE SITE OF A STATEMENT, PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16;
+     * docs/records/d-phase2-raise-marker-2026-11-16.md): the statement raises the bare token {@code LG#<n>}
+     * ({@link com.legend.sql.dialect.RaiseSite#token}) and this says what it means -- its kind, its where (a fixed text known at
+     * planning, or none), and its words RENDERED AT PLANNING: {@code message}, the product's sentence
+     * ({@code error.ErrorKind}'s, then {@code ": "} and the where). Run time is a lookup: nothing is worded there, and
+     * exec says {@code message} alone (K10a of the edge audit, 2026-11-17). Legend-pure's words of a site are no
+     * component of it: they are the compatibility edge's records, keyed by the statement's text and {@code n}, held by a
+     * test plan's edge data (K10b, 2026-11-17).
+     */
+    public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where, String message) {
+        public Site {
+            if (n < 1) {
+                throw new IllegalArgumentException("a raise site is numbered from 1: " + n);
+            }
+            Objects.requireNonNull(kind, "a raise site's kind");
+            Objects.requireNonNull(message, "a raise site's message");
+        }
+
+        /** The product's sentence of a site of {@code kind} placed by {@code where}: the error layer's
+         *  ({@link com.legend.error.ErrorKind#sentence}), then {@code ": "} and the where, as {@code error.DataError} has
+         *  spelled it. */
+        public static String sentence(com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where) {
+            return com.legend.error.ErrorKind.valueOf(kind.name()).sentence() + (where == null ? "" : ": " + where);
+        }
+
+        /** {@code sites} as a statement holds them: numbered 1..k in order, refused by name otherwise. */
+        static List<Site> numbered(List<Site> sites) {
+            List<Site> out = List.copyOf(sites);
+            for (int i = 0; i < out.size(); i++) {
+                if (out.get(i).n() != i + 1) {
+                    throw new IllegalArgumentException("a statement's raise sites are numbered 1..k in order: site "
+                            + out.get(i).n() + " at " + (i + 1));
+                }
+            }
+            return out;
         }
     }
 
@@ -1222,10 +1289,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              * the session (H2's path variable), run on every exit, a failed load's too (the A checkpoint's tenets
              * audit, 14).
              */
-            record Reads(List<String> statements, List<String> after) implements Delivery {
+            record Reads(List<String> statements, List<String> after, List<Site> sites) implements Delivery {
                 public Reads {
                     statements = List.copyOf(statements);
                     after = List.copyOf(after);
+                    sites = Site.numbered(sites);
                     if (statements.isEmpty()) {
                         throw new IllegalArgumentException("a file's load of no statement");
                     }
@@ -1233,7 +1301,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
                 /** The reading statements, as the plan holds them: what a session sends ({@link PlannedSql}). */
                 public List<PlannedSql> plannedStatements() {
-                    return PlannedSql.allFromPlan(statements);
+                    return statements.stream().map(text -> PlannedSql.fromPlan(text, sites)).toList();
                 }
 
                 /** The undoing statements, as the plan holds them. */

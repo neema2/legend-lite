@@ -10,17 +10,22 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
+import { checkParameters, ConnectionSettings, establish, PLAN_VERSION, expandKeyed, inLoadsTransaction, ParameterRefusal, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
 import { currentRun, frameKept, inRun } from '../src/run-frame.ts';
+import { DatabaseError, failure, PlanRaise } from '../src/raised.ts';
+import { declareStatementSites, type Site } from '../src/declared-raises.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
-import { relationColumns } from '../src/relation-type.ts';
-import { BrowserEngine } from '../src/legend/browser-engine.ts';
+import type { PlanColumn } from '../src/relation-type.ts';
+import { statementOf, TabEngine } from '../src/legend/browser-engine.ts';
+import { BrowserEngine } from '../src/legend/edge-engine.ts';
 import { QueryError } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
-import { loadPlanner, loadPlannerModule } from './planner.ts';
+import { loadPlanner, loadPlannerModule, loadPlannerPort } from './planner.ts';
+import { loadEnginePort } from './engine.ts';
+import { WasmEdgeGrammar } from '../src/legend/wasm-edge.ts';
 import { accessor, eq, fn, lambda, lit, property, toJson, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { arrowIpcStream } from '../src/arrow-ipc.ts';
@@ -68,9 +73,17 @@ const ok = (tagged: string): string => {
   if (tag !== 'OK') throw new Error(rest.join('\n'));
   return rest.join('\n');
 };
-/** A program planned as an execution plan (the planner protocol's executionPlan kind): its statements in order. */
+/** query/plan's answer (`{"plan":<PlanJson>}`) as its plan's own text, its numbers' digits whole. */
+const planJsonOf = (answered: string): string => {
+  assert.ok(answered.startsWith('{"plan":') && answered.endsWith('}'), answered.slice(0, 120));
+  return answered.slice('{"plan":'.length, -1);
+};
+/** `lambdaJson` planned over the model held as `h` (lite API v1's query/plan, held): its plan's text. */
+const heldPlan = (h: number, lambdaJson: string, runtime: string): string =>
+  planJsonOf(ok(answer(m, { kind: 'queryPlanHeld', handle: h, request: `{"query":${lambdaJson},"runtime":${JSON.stringify(runtime)}}` })));
+/** A program planned as an execution plan (the planner protocol's queryPlanHeld kind): its statements in order. */
 const planned = (...body: ValueSpecification[]): PlanText =>
-  unplannedPlan(ok(answer(m, { kind: 'executionPlan', handle, lambda: toJson(lambda([], ...body)), runtime: 'w::RT' })));
+  unplannedPlan(heldPlan(handle, toJson(lambda([], ...body)), 'w::RT'));
 const src = (): ValueSpecification => accessor('w::DB', 'SRC');
 const target = (): ValueSpecification => accessor('w::DB', 'T');
 /** A host's session over a held connection: its statements sent one at a time, its transactions the plan's (S8). */
@@ -292,10 +305,14 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     const plan = looseJson(planned(fn('write', src(), target()))) as Record<string, unknown>;
     const session: PlanSession = { databaseType: 'Postgres', run: async () => { throw new Error('ran'); } };
     await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify(plan)), session), (e: unknown) => e instanceof PlanRefusal && /not run on this Postgres one/.test(e.message));
-    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] })), session), /takes parameters/);
+    // a parameter's declaration without its type and multiplicity (2026-11-17, the edge program's H3: a plan's parameters
+    // are bound at run, so their declarations are read -- until then any plan that took parameters was refused whole)
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] })), session),
+      (e: unknown) => e instanceof PlanRefusal && e.message === 'a plan parameter declared without its name, type, multiplicity and enumeration\'s values: {"name":"p"}');
     await assert.rejects(() => runPlan(unplannedPlan('{"format":"other"}'), session), /not a legend-lite execution plan/);
     // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 19): refused, never run (the version the runner reads, PLAN_VERSION: the A checkpoint's audit made it 42, 2026-11-10)
-    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session), /not a legend-lite execution plan of version 51/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session),
+      new RegExp(`not a legend-lite execution plan of version ${PLAN_VERSION}:`));
     const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };
@@ -333,22 +350,84 @@ Runtime x::RT { mappings: []; connections: [ x::DB: [ c: x::Conn ] ]; }
 Runtime x::BareRT { mappings: []; connections: [ x::DB: [ c: x::Bare ] ]; }
 `;
 
+describe("lite's query/run in the tab on lite's own plan, its parameters bound at run (lite's API v1 spec §2, §4)", () => {
+  // a query of the tab's DuckDB: SRC's rows past an id, the id a parameter the plan declares and the run binds
+  // (its id and name: an earlier test's write changes SRC's amounts)
+  const PAST = '{n: Integer[1]|#>{w::DB.SRC}#->filter(r|$r.id > $n)->select(~[id, name])->sort(~id->ascending())->from(w::RT)}';
+
+  it("answers the database's rows typed by the plan's columns, the same plan bound to each run's value", async () => {
+    const tab = new TabEngine(grammar, asTest(engine), engine.databaseType);
+    const query = await grammar.queryParse(PAST);
+    const one = await tab.queryRun(MODEL, query, 'w::RT', { n: 1 });
+    assert.equal(one.shape, 'RELATION');
+    assert.deepEqual(one.columns, [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }]);
+    assert.deepEqual(one.rows, [[2, 'b']]);
+    assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 0 })).rows, [[1, 'a'], [2, 'b']]);
+    // an Integer parameter given as a bigint (spec §4): within 2^53 bound exactly; past it the tab's DuckDB, which binds
+    // through JSON, refuses it by name before anything is sent (a server binds it exactly: lite-api-server.test.ts)
+    assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 1n })).rows, [[2, 'b']]);
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 9223372036854775806n }), (e: unknown) =>
+      e instanceof RangeError && e.message.includes('9223372036854775806 is not bound (a legend-lite server binds it exactly)'));
+    // the value is bound, never written: query/plan's statement carries its placeholder
+    const sql = statementOf(await tab.queryPlan(MODEL, query, 'w::RT'));
+    assert.match(sql, /\?/);
+    assert.ok(!sql.includes('9223372036854775806'), sql);
+  });
+
+  it('refuses by name, before anything is sent, a parameter with no value and a value its type does not take', async () => {
+    const seen = witnessed(database.connect() as ArrowishConnection);
+    const tab = new TabEngine(grammar, asTest(seen.engine), seen.engine.databaseType);
+    const query = await grammar.queryParse(PAST);
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT'), (e: unknown) => e instanceof ParameterRefusal
+      && e.message === 'no value for the parameter(s) n:Integer[1]');
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 'one' }), (e: unknown) => e instanceof ParameterRefusal
+      && e.message === 'values their parameters do not take: [parameter \'n\' (Integer[1]): given "one" (string): an Integer is a whole number: a safe integer, or a bigint]');
+    // a whole number past 2^53 as a number has lost its digits: refused by name, never bound as the nearest double
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 2 ** 60 }), (e: unknown) => e instanceof ParameterRefusal
+      && e.message.includes('is a whole number past 2^53, which a number cannot hold exactly: give it as a bigint'));
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 2n ** 63n }), (e: unknown) => e instanceof ParameterRefusal
+      && e.message.includes('9223372036854775808n is beyond the 64-bit range an Integer holds'));
+    assert.deepEqual(seen.received, [], 'nothing sent for a refused run');
+  });
+});
+
+describe("a run's parameter values checked against the plan's declarations, as Java's PlanParameters checks them", () => {
+  const declared = (name: string, type: string, lower: number, upper?: number, enumValues: readonly string[] = []) =>
+    ({ name, type, multiplicity: upper === undefined ? { lower } : { lower, upper }, enumValues });
+
+  it('converts each value for binding: a date-time to its text at the nanosecond, a list, an optional absence', () => {
+    const checked = checkParameters([
+      declared('at', 'DateTime', 1, 1), declared('day', 'StrictDate', 1, 1), declared('d', 'Decimal', 1, 1),
+      declared('ids', 'Integer', 0), declared('maybe', 'String', 0, 1), declared('c', 'p::Colour', 1, 1, ['RED', 'GREEN']),
+    ], { at: '2024-06-01T09:30:00', day: '2024-06-01', d: '1.25', ids: [1, 2], c: 'RED' });
+    assert.deepEqual(Object.fromEntries(checked), {
+      at: { _type: 'one', value: '2024-06-01 09:30:00.000000000' }, day: { _type: 'one', value: '2024-06-01' },
+      d: { _type: 'one', value: '1.25' }, ids: { _type: 'many', values: [1, 2] }, maybe: { _type: 'none' },
+      c: { _type: 'one', value: 'RED' },
+    });
+  });
+
+  it('names every problem at once: the missing first, then each value its parameter does not take', () => {
+    assert.throws(() => checkParameters([declared('a', 'Integer', 1, 1), declared('b', 'p::Colour', 1, 1, ['RED']),
+      declared('c', 'StrictDate', 1, 1), declared('d', 'Integer', 1, 1)], { b: 'BLUE', c: '2024-13', d: [1, 2] }),
+    (e: unknown) => e instanceof ParameterRefusal && e.message === 'no value for the parameter(s) a:Integer[1]; values their'
+      + ' parameters do not take: [parameter \'b\' (p::Colour[1]): "BLUE" is not a value of p::Colour [RED];'
+      + ' parameter \'c\' (StrictDate[1]): given "2024-13" (string): a StrictDate is its text YYYY-MM-DD;'
+      + ' parameter \'d\' (Integer[1]): takes one value, given a list of 2]');
+  });
+});
+
 describe("a plan's loads, established on a database the host made for its target", () => {
   let loaded: number;
-  /** A text query planned over the held model: the execution plan its text renders from (Boundary.planned's `plan`). */
-  const executionPlanOf = (query: string, runtime: string): PlanText => {
-    const planned = looseJson(ok(answer(m, { kind: 'plan', handle: loaded, query, runtime }))) as { plan?: unknown };
-    assert.ok(planned.plan !== undefined, 'a text that does not run alone carries its execution plan');
-    return unplannedPlan(JSON.stringify(planned.plan));
+  /** A text query's tree, as lite API v1 reads one (query/parse), its JSON whole. */
+  const parsed = (query: string): string => {
+    const answered = ok(answer(m, { kind: 'queryParse', request: JSON.stringify({ text: query }) }));
+    return answered.slice('{"query":'.length, -1);
   };
-  /** A text query's execution plan, asked as the planner's executionPlan kind (its lambda read from the text). */
-  const executionPlanOfLambda = (query: string, runtime: string): PlanText => {
-    // the http answer: its status, its media type, then the body
-    const [status, , ...body] = ok(answer(m, { kind: 'pureV1', path: '/api/pure/v1/grammar/grammarToJson/lambda', query: '', body: query })).split('\n');
-    assert.equal(status, '200', body.join('\n'));
-    const lambdaJson = body.join('\n');
-    return unplannedPlan(ok(answer(m, { kind: 'executionPlan', handle: loaded, lambda: lambdaJson, runtime })));
-  };
+  /** A text query planned over the held model (query/parse, then query/plan held: lite API v1, no text entry). */
+  const executionPlanOf = (query: string, runtime: string): PlanText => unplannedPlan(heldPlan(loaded, parsed(query), runtime));
+  /** The same, asked as a host asks it (the two were one road's two entries until lite API v1). */
+  const executionPlanOfLambda = executionPlanOf;
   /** A database of its own, as a host makes one for a target: a fresh DuckDB-WASM. */
   const fresh = async (): Promise<{ readonly engine: DuckDbEngine; readonly on: <T>(work: (s: PlanSession) => Promise<T>) => Promise<T> }> => {
     const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
@@ -407,10 +486,11 @@ describe("a plan's loads, established on a database the host made for its target
       + "->pivot(~[city], ~[names:r|$r.name:y|$y->joinStrings(',')])->sort(~dept->ascending())->from(x::BareRT)}", 'x::BareRT');
     assert.match(plan, /"_type":"keyed"/);
     assert.equal(targetKey(plan), null, "it loads nothing: the host's own session serves it");
-    // each key's column named as the plan's keys statement names it (Java's runner reads the same name)
+    // each key's column named as the plan's keys statement names it, bare (D1.4, 2026-11-15; Java's runner reads the
+    // same name)
     assert.deepEqual(looseJson(await run(plan)), [
-      { dept: 'A', "'NYC__|__names'": 'x', "'SAN__|__names'": 'y' },
-      { dept: 'B', "'NYC__|__names'": 'z', "'SAN__|__names'": null },
+      { dept: 'A', 'NYC__|__names': 'x', 'SAN__|__names': 'y' },
+      { dept: 'B', 'NYC__|__names': 'z', 'SAN__|__names': null },
     ]);
     // H8: exactly the plan's statements, as the database itself received them (the unfiltered witness, H13) -- its
     // target's session, then its keys statement and its body written for the keys read (expandKeyed, the one form a
@@ -441,7 +521,7 @@ describe("a remote file's mount, a planned load whose bearer URL the host binds 
     // the host's store: the URL it holds (a registered file here: a Node test makes no HTTP request)
     const store = new SecretStore();
     store.hold('datacube_url_t', new Map([['URL', 'held.csv']]));
-    const route = (e: DuckDbEngine) => (sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown> =>
+    const route = (e: DuckDbEngine) => (sql: string, params: readonly (string | number | bigint | boolean | null)[]): Promise<unknown> =>
       (params.length === 0 ? e.run(unplanned(sql), 0) : e.exclusive((held) => held.rows(unplanned(sql), params)));
     const { settings } = await runLoad(unplannedPlan(plan), route(first), { secrets: store });
     const count = (e: DuckDbEngine): Promise<string> => asTest(e).exclusive(async (held) => String((await held.rows(unplanned('SELECT count(*) FROM remote_t'), []))[0]![0]));
@@ -524,19 +604,23 @@ Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonMod
 `;
   };
   const QUERY = '|m::P.all()->project(~[name: p|$p.name])';
-  const planOf = async (model: string): Promise<{ sql: string; type: unknown; plan?: { root: { sql: { content: Record<string, string> } } } }> =>
-    looseJson(ok(answer(m, { kind: 'planModel', model, lambda: toJson(await grammar.lambda(QUERY)), runtime: 'm::RT' })));
+  /** query/plan (lite API v1, unheld): its statement, its columns, and its plan (which carries the payload). */
+  const planOf = async (model: string): Promise<{ sql: string; columns: PlanColumn[]; plan: { root: { sql: { content: Record<string, string> } } } }> => {
+    const plan = looseJson(planJsonOf(ok(answer(m, { kind: 'queryPlan', request: `{"model":${JSON.stringify(model)},"query":${toJson(await grammar.lambda(QUERY))},"runtime":"m::RT"}` })))) as {
+      root: { columns: PlanColumn[]; sql: { statement: string; content: Record<string, string> } } };
+    return { sql: plan.root.sql.statement, columns: plan.root.columns.map((c) => ({ name: c.name, type: c.type })), plan };
+  };
 
   it('the text plan binds the payload: read from its content by digest, bound, its records back in payload order', async () => {
     const body = await planOf(jsonModel(RECORDS));
     assert.ok(body.sql.includes('?') && !body.sql.includes('back') && !body.sql.includes('data:'), body.sql);
     const params = planParams(body.plan);
     assert.deepEqual(params.map((p) => looseJson(p) as unknown), [RECORDS]);
-    const answered = await inRun('a test', () => asTest(engine).execute({ sql: unplanned(body.sql), columns: relationColumns(body.type), params }, 0));
+    const answered = await inRun('a test', () => asTest(engine).execute({ sql: unplanned(body.sql), columns: body.columns, params }, 0));
     assert.deepEqual(answered.columns[0]!.values, RECORDS.map((r) => r.name));
     // an empty array: no record, no row
     const empty = await planOf(jsonModel([]));
-    const none = await inRun('a test', () => asTest(engine).execute({ sql: unplanned(empty.sql), columns: relationColumns(empty.type), params: planParams(empty.plan) }, 0));
+    const none = await inRun('a test', () => asTest(engine).execute({ sql: unplanned(empty.sql), columns: empty.columns, params: planParams(empty.plan) }, 0));
     assert.equal(none.rowCount, 0);
   });
 
@@ -550,7 +634,7 @@ Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonMod
   });
 
   it("the tab's pure/v1 execute (BrowserEngine) binds it too: the answer's rows are the records", async () => {
-    const browser = new BrowserEngine(grammar, engine, 'tester');
+    const browser = new BrowserEngine(new WasmEdgeGrammar(await loadPlannerPort(), await loadEnginePort()), engine, 'tester');
     const text = await browser.executeText({
       clientVersion: 'vX_X_X', function: await grammar.lambda(QUERY),
       model: { _type: 'text', code: jsonModel(RECORDS) } as never, runtime: { runtime: 'm::RT' },
@@ -685,8 +769,8 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     const source = plane([chunkOf(1, 4), chunkOf(5, 3)]);
     const { landed } = await snap(plan, source);
     // the plane's statement is the planner's own plan of the pull, made in the call that answered the plan
-    const pulled = ok(answer(m, { kind: 'planJson', handle, lambda: PULL.lambda, runtime: PULL.runtime }));
-    assert.equal(step['sql'], (looseJson(pulled) as { sql: string }).sql);
+    const pulled = looseJson(heldPlan(handle, PULL.lambda, PULL.runtime)) as { root: { sql: { statement: string } } };
+    assert.equal(step['sql'], pulled.root.sql.statement);
     assert.deepEqual(source.asked, [step['sql']], 'the plane ran the plan\'s statement');
     assert.equal(landed.length, 1);
     assert.equal(landed[0]!.rows, 7);
@@ -944,5 +1028,55 @@ describe("a statement's slots and a payload's digest, required", () => {
     refused({ slots: [{ parameter: 'p', binding: { _type: 'payload' } }], content: {} }, /'p' binds a payload its statement does not carry/);
     refused({ slots: [{ parameter: 'p', binding: { _type: 'payload', digest: 'ab' } }] }, /'p' binds a payload its statement does not carry/);
     assert.deepEqual(statementParams({ slots: [] }), []);
+  });
+});
+
+// a product raise in lite's words (#104's M2(b), 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16): the
+// statement raises a bare token LG#<n>, read through the sites its plan declares for its text (declared as the plan
+// is read), its words planned -- at the tab's ONE send (DuckDbEngine's failure), so every route says the same words;
+// the envelope's cases one fixture Java's and Python's readers read too
+describe('a raise, worded', () => {
+  it('reads each envelope of the shared fixture as Java and Python read it', () => {
+    const fixture = looseJson(readFileSync(runfileFromEnv('RAISE_FIXTURE'), 'utf8')) as {
+      statement: string; sites: Site[];
+      cases: { name: string; message: string; words?: string; kind?: string; where?: string; refused?: boolean }[] };
+    // the sites are the statement's (PlanJson v56): declared first, as a plan read does
+    declareStatementSites(fixture.statement, fixture.sites, 'the fixture');
+    const cases = fixture.cases;
+    assert.ok(cases.length > 5);
+    for (const c of cases) {
+      const e = failure(c.message, fixture.statement, {});
+      assert.ok(e instanceof QueryError, c.name);
+      if (c.refused === true) {
+        assert.ok(!(e instanceof PlanRaise), c.name);
+        assert.match(e.message, /which the statement does not declare/, c.name);
+        continue;
+      }
+      assert.equal(e.message, c.words, c.name);
+      assert.equal(e instanceof PlanRaise || e instanceof DatabaseError ? e.kind : undefined, c.kind, c.name);
+      assert.equal(e instanceof PlanRaise ? e.where : undefined, c.where, c.name);
+    }
+  });
+
+  it('refuses a token its statement does not declare by name, the database error kept as its cause', () => {
+    const db = new Error('Invalid Input Error: \u001f\u001cLG#1\u001f');
+    const e = failure(db.message, 'SELECT a statement no plan declared', { cause: db });
+    assert.ok(e instanceof QueryError && !(e instanceof PlanRaise));
+    assert.match(e.message, /LG#1, which the statement does not declare/);
+    assert.equal(e.cause, db);
+  });
+
+  it('words a raise at the send, on every route: a statement run, and a plan run', async () => {
+    // a planned query dividing by zero, run by runPlan over the engine's held session: worded from its plan's raises
+    const plan = planned(fn('divide', lit.integer(1), lit.integer(0)));
+    assert.deepEqual((JSON.parse(plan) as { raises: unknown }).raises, { DIVIDE_BY_ZERO: 'division by zero' });
+    await assert.rejects(() => inRun('a test', () => engine.exclusive((held) => runPlan(plan, sessionOn('DuckDB', held)))),
+      (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero');
+    // the envelope a product statement raises, sent as the database's own error() writes it: read through the sites
+    // the plans the tab read declared for that text
+    const sent = "SELECT error(chr(31) || chr(28) || 'LG#1' || chr(31))";
+    declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO', where: null, message: 'division by zero' }], 'a test');
+    await assert.rejects(() => inRun('a test', () => asTest(engine).run(unplanned(sent), 0)),
+      (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero' && e.kind === 'DIVIDE_BY_ZERO');
   });
 });

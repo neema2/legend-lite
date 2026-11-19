@@ -29,6 +29,12 @@ public enum SqlFn {
     // joinStrings unit nested inside a '+' chain; DB2 spells it as a
     // parenthesized infix chain).
     CONCAT_JOIN,
+    /** Texts joined by a separator ({@code sep}, then two or more parts), an empty ({@code NULL}) part skipped with its
+     *  separator: the product's join of a row's cells, where an empty cell is skipped (the user's ruling of 2026-11-10,
+     *  "makeString skips empty elements"; D1.3's join form as one call, Phase 3 of
+     *  docs/records/total-wall-edge-program-2026-11-16.md, 2026-11-16). {@code CONCAT_WS} where the database's skips a
+     *  {@code NULL} (measured per database); another correct form where it does not ({@code dialect.CellTexts}). */
+    CONCAT_WS,
     // Lists — SEMANTIC operations (encodings are the dialect's: DuckDB uses
     // list lambdas; Postgres would use unnest subqueries; SQLite json_each).
     // LIST_EXISTS/LIST_FOR_ALL carry (collection, predicate-lambda) and
@@ -56,6 +62,11 @@ public enum SqlFn {
     CEILING, FLOOR, ROUND, SIGN, XOR,
     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
     REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH,
+    /** isNumeric(s): whether the whole of {@code s} is a decimal number -- an optional sign, digits with an optional
+     *  fraction (or a fraction alone), an optional exponent; no space, no other character; NULL on NULL. One rule on
+     *  every database (the user's ruling of 2026-11-17 23:05, census J20): each dialect writes it as a full match of
+     *  {@link #NUMERIC_TEXT}. */
+    IS_NUMERIC,
     MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT,
     // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
     SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
@@ -124,14 +135,59 @@ public enum SqlFn {
      *  as the VARCHAR cast they wrote until then; H2 with its number printer for every such operand (its DECFLOAT's
      *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
     DECIMAL_TO_TEXT,
-    /** A Float's Pure literal spelling (2026-10-11): every zero {@code 0.0}, the exponent unfolded to fixed point, at
-     *  least one fraction digit -- the kind-faithful carrier's text of a double (lowering/LiteralSpelling). One call
-     *  per value, which each dialect spells (dialect/FloatCanonText the portable decomposition). */
-    FLOAT_CANON,
-    /** A Float's text as Pure's {@code toString} prints it (2026-10-22): the shortest digits, plain within the
-     *  database's plain range and fixed point past it where exact, at least one fraction digit (lowering/LiteralSpelling).
-     *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). */
-    FLOAT_PRINT,
+    /** LITE'S CANONICAL TEXT OF A FLOAT, its shortest round-trip digits (renamed from FLOAT_PRINT 2026-11-17, census B9,
+     *  the orchestrator's ruling: measured equal to lite's writers' text, result.CellText.carriedFloat, inside its
+     *  windows): plain within the database's plain range and fixed point past it where exact (whole values below 1e38,
+     *  fractional ones from 1e-17 below 2^53), at least one fraction digit, NaN and the infinities by name. One call per
+     *  value, which each dialect spells (dialect/FloatShortestText the portable decomposition; a dialect whose text of a
+     *  double is long reads it once). A message's text of a Float (the judges', both judges alike, G2); legend-pure's
+     *  print form is the same text, so the compatibility edge writes this node for a relation text's Float cell
+     *  (edge/RelationTextLowering), legend-engine's in-query cast for {@link #FLOAT_TO_TEXT} elsewhere. Outside the
+     *  windows the database's own exponent notation stays, which differs per database: logged for after separation
+     *  ("one canonical Float text outside the windows"). */
+    FLOAT_SHORTEST_TEXT,
+    /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
+     *  zeros and a trailing point trimmed, NaN and the infinities by name (the user's ruling of 2026-11-10, D_BRIEF
+     *  §1; phase D's D1.2, 2026-11-15) -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
+     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms) and
+     *  {@link #FLOAT_SHORTEST_TEXT}, legend-pure's print form, for a relation text's cell (edge/RelationTextLowering;
+     *  PR #118 fix round, 2026-11-18). */
+    FLOAT_TO_TEXT,
+    /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
+     *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
+     *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
+     *  a literal's written text, which legend-pure prints at its written precision, is the edge's alone, through the
+     *  style's two-form DateTimeTexts). The compatibility edge's dialects print it legend-pure's way
+     *  (edge.PureDateTimePrint; census B12, 2026-11-17). */
+    DATETIME_TO_TEXT,
+    // (DATETIME_PRINT, legend-pure's print form of a DateTime: gone 2026-11-17, census B12 -- the edge composes it from
+    // the product's nodes, edge.PureDateTimePrint, at lowering and in its print pass)
+    /** THE JUDGES' CANON OF A TIMESTAMP (census C5's step C, 2026-11-17): {@code T}-separated, the fraction's digits
+     *  with their trailing zeros trimmed (a timestamp carries no written precision), {@code Z} -- lite's spelling, which
+     *  every side of a comparison is written in, so lite's date equality (A1) is kept and no message reads it.
+     *  Expanded before every other pass by the base renderer ({@code dialect.DateTimeCanonText}), from STRFTIME at
+     *  nine digits, which every SQL dialect spells; one node in a plan's tree. */
+    DATETIME_CANON_TEXT,
+    /** An element's text in a {@code makeString} ({@code x}, one operand, {@code NULL} where the element is empty): the
+     *  product's join skips an empty element (the user's ruling of 2026-11-10, D_BRIEF §1: "makeString skips empty
+     *  elements"; phase D's D1.3, 2026-11-15) -- the base renderer writes the text alone ({@code dialect.CellTexts}),
+     *  the join's {@code STRING_AGG} drops a {@code NULL}. legend-engine prints an empty TDS cell as {@code TDSNull}: the
+     *  compatibility edge writes that (edge/PurePrintForms). */
+    CELL_TEXT,
+    // (FORMAT_PADDED, format's %0<w>d: gone 2026-11-17, the separation census's B8 (i) -- the edge composes it at
+    // lowering through the plan style's PureOnlyTexts facet, edge.EdgePureOnlyTexts; the product refuses at lowering)
+    // (an instance's toString: gone 2026-11-17, the separation census's B8 -- the edge writes '@_' and
+    // the id at lowering through the plan style's PureOnlyTexts facet, read by Scalars.pureToString under the caller's
+    // explicit Styled; the product refuses at lowering)
+    // (a relation's text: gone 2026-11-17, the separation census's B8 -- the edge's
+    // RelationTextLowering writes the text itself at lowering (B17's facet); the product refuses at lowering)
+    // (a user's toRepresentation: gone 2026-11-17, the separation census's B8 (i) -- the edge
+    // writes legend-pure's representation at lowering through the plan style's PureOnlyTexts facet; the product
+    // refuses at lowering)
+    // (a value's text in two forms: gone 2026-11-17, the separation census's B8 -- a list's text is the
+    // plan style's two-form kind lowering.ListTexts: the product's JSON array, the edge's legend-pure [a, b])
+    // (an execution's trace text: gone 2026-11-17, the separation census's B8 (ii) -- the plan style's
+    // traceText, the product's the id, the edge's legend-engine's comment, written at lowering)
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */
@@ -139,12 +195,48 @@ public enum SqlFn {
     /** The pretty-printed JSON text (meta::json::toPrettyJSONString). */
     JSON_PRETTY;
 
+    /** {@link #IS_NUMERIC}'s rule as a regular expression every dialect's full match reads alike (classes and groups
+     *  alone, no backslash: a backslash is an escape in some databases' string literals). */
+    public static final String NUMERIC_TEXT = "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?";
+
     /** The functions that raise, or answer a fresh value, when evaluated (an ERROR, a parse, a domain or range check, a
      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
      *  SubselectPrune). */
     public static final java.util.Set<SqlFn> RAISING = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(ERROR,
             PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
             MAKE_TIMESTAMP));
+
+    /** The functions that may leave an argument unevaluated on SOME dialect: AND, OR and COALESCE (SQL promises no
+     *  order of evaluation), and every function a dialect renders with a branch -- a CASE, ClickHouse's
+     *  {@code if}/{@code multiIf} (its short_circuit_function_evaluation), an IIF, an IF or a DECODE -- read from each
+     *  dialect's render arms (2026-11-15). Any other function evaluates all its arguments on every dialect: the
+     *  lowering's LetBinding binds a raising repeat only through those (the always-evaluated set). A render arm that
+     *  starts branching joins this set. */
+    public static final java.util.Set<SqlFn> MAY_SKIP_AN_ARGUMENT = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(AND, OR, COALESCE, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, ASCII_CODE, BIT_SHIFT_RIGHT,
+                    BOOL_TO_TEXT, CBRT, FLOOR_RAW, INT_DIVIDE, JSON_TYPE, LIST_BOOL_AND, LIST_BOOL_OR, LIST_CONCAT,
+                    LIST_DISTINCT, LIST_GET, LIST_POSITION, LIST_PRODUCT, MAP_EXTRACT, MAP_FROM_ENTRIES, MAP_FROM_LISTS,
+                    MAP_KEYS, MAP_VALUES, MOD, PARSE_INT, REM, REPEAT_STR, REPEAT_VALUE, RIGHT, SPLIT, SPLIT_PART,
+                    // SQLite's pad helper branches on the length (the PR1 re-review's B6, 2026-11-16: in a helper, not
+                    // an arm, which the arm census missed; MaySkipCensusTest renders whole calls)
+                    LPAD, RPAD,
+                    // SQLite writes isNumeric as its regular expression's walk, NULL on NULL by a CASE (census J20, 2026-11-18)
+                    IS_NUMERIC,
+                    // every function some dialect renders with a branch, found by MaySkipCensusTest (the PR1 re-review's
+                    // A6, 2026-11-16, made conservative: a strict function read as may-skip costs a missed binding, the
+                    // reverse a wrong raise; E-SQL may take one out with a per-dialect proof that it never skips)
+                    ACOS, ASIN, CONCAT, CONCAT_JOIN, DAYNAME, DECIMAL_TO_TEXT, DECODE_BASE64, ENCODE_BASE64,
+                    EPOCH_MS, EPOCH_SECONDS, FLOAT_SHORTEST_TEXT, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
+                    LIST_APPEND, LIST_AVG, LIST_FLATTEN, LIST_INIT, LIST_MEDIAN, LIST_MODE, LIST_REVERSE, LIST_SLICE,
+                    LIST_SORT, LIST_SORT_DESC, LIST_TAIL, MD5, MONTHNAME, PARSE_DATE, PURE_SPLIT_PART, RANGE_FN,
+                    REGEXP_EXTRACT_ALL, ROUND, ROUND_HALF_UP, SHA1, SHA256, TO_VARIANT, UNNEST, VARIANT_ELEMENTS,
+                    VARIANT_GET,
+                    // a Float's and a DateTime's text, branching on the value's magnitude and kind (D's W3, its
+                    // instrument, and S312's form, 2026-11-16; found by MaySkipCensusTest at the merge of PR1's head)
+                    FLOAT_TO_TEXT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
+                    // the product's join of a row's cells skips a NULL part by design (Phase 3, 2026-11-17; found by
+                    // MaySkipCensusTest: MariaDB, MySQL, SQLite, BigQuery and MongoDB branch or skip)
+                    CONCAT_WS));
 
     /** Whether this function draws afresh at every place it is written -- the database's random float ({@link #RANDOM})
      *  or uuid ({@link #GUID}) -- so two places of it are two values: a value holding one is computed once, in its own

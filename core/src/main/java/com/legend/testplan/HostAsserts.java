@@ -65,6 +65,9 @@ final class HostAsserts implements TestDoor.Asserts {
 
     /** The planned asserts by the statement's place in the body. */
     private final Map<Integer, Planned> byStatement;
+    /** The host side batches' steps by statement (the orchestrator's (1), 2026-11-17): a batched run's merged step at
+     *  its last statement, nothing at the others; absent where the statement's own step stands. */
+    private final Map<Integer, List<TestPlan.TestStep>> batched;
     /** The branches planned, by the statement's place. */
     private final Map<Integer, Branched> branches;
     /** The stamp parameter minted for each frame let, by the let's place (M9c): the comment the let's eager run
@@ -72,8 +75,9 @@ final class HostAsserts implements TestDoor.Asserts {
     private final Map<Integer, String> frameStamps;
 
     private HostAsserts(Map<Integer, Planned> byStatement, Map<Integer, String> frameStamps,
-            Map<Integer, Branched> branches) {
+            Map<Integer, Branched> branches, Map<Integer, List<TestPlan.TestStep>> batched) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
+        this.batched = Collections.unmodifiableMap(new LinkedHashMap<>(batched));
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
         // (the plan-as-data design's step 5, 2026-11-08: no map by verdict -- the run reads a verdict's host facts
@@ -218,7 +222,7 @@ final class HostAsserts implements TestDoor.Asserts {
                 raisedByAnAssert = true;
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env, env);
-                if (p != null && bodyEnv != null && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
+                if (p != null && bodyEnv != null && AssertVerdicts.holdsEdgeJudged(p.assertion().check().judgment())) {
                     // an engine-text assert of a system-routed body: its arm planned on the program's environment, its
                     // compatibility APPEAL on the body's -- the user's tables, the referee, the store provision
                     // (ExecEnv.appealOn: the database judge's split, the host's since 2026-11-06; until then the whole
@@ -250,7 +254,7 @@ final class HostAsserts implements TestDoor.Asserts {
         if (pendingLet != null && !raisedByAnAssert) {
             throw pendingLet;
         }
-        return new HostAsserts(planned, frameStamps, branches);
+        return new HostAsserts(planned, frameStamps, branches, HostSideBatching.steps(planned, env));
     }
 
     /** A branch statement planned: its condition a side (the lets before it), each side's statements a body of their
@@ -462,7 +466,7 @@ final class HostAsserts implements TestDoor.Asserts {
         try {
             sides = HostSides.plan(name, asks, before, specs, at);
         } catch (RuntimeException e) {
-            caught = AssertErrorNative.caught(e, "HostAsserts.planAssertError: f's sides");
+            caught = AssertErrorNative.caught(e, "HostAsserts.planAssertError: f's sides", env.options().style());
             if (caught == null) {
                 // no error the arm takes (a wall): raised at the assert's turn, loud, as the walk's arm raises it
                 return planned(AssertVerdicts.HostAssert.raising(name, null,
@@ -495,7 +499,6 @@ final class HostAsserts implements TestDoor.Asserts {
     /** {@code env}: the body's environment -- the rules its verdicts are judged by, and its verdict ids. */
     private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides,
             TestPlan.Verdicts.@Nullable Savepoint savepoint, BodyDriver.ExecEnv env) {
-        TestPlan.JudgingRules rules = env.options().judgingRules();
         // a caller's message, the check's last side (HostJudge.messaged), is the verdict's MESSAGE: the runner never
         // reads it on its own, the judge asks for it only where the assert fails (upstream evaluates it only there)
         List<TestPlan.Side> base = sides.base();
@@ -509,12 +512,12 @@ final class HostAsserts implements TestDoor.Asserts {
         // judgment and each side's shape, read by the run from the plan alone
         List<com.legend.testexecutionplan.SideShape> shapes = new java.util.ArrayList<>(sides.sides().size());
         for (JudgePlans.PlannedSide p : sides.sides()) {
-            shapes.add(JudgePlans.shapeOf(p));
+            shapes.add(JudgePlans.shapeOf(p, env.options().style()));
         }
         TestPlan.Verdict verdict = new TestPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
                 assertion.name(), base, null, message).withHost(new TestPlan.Host(AssertVerdicts.assertionOf(assertion),
                 assertion.check().judgment(), shapes));
-        return new Planned(assertion, sides, new TestPlan.Verdicts(List.of(verdict), null, savepoint, rules));
+        return new Planned(assertion, sides, new TestPlan.Verdicts(List.of(verdict), null, savepoint));
     }
 
     @Override
@@ -522,6 +525,10 @@ final class HostAsserts implements TestDoor.Asserts {
         Branched b = branches.get(statement);
         if (b != null) {
             return List.of(b.node());
+        }
+        List<TestPlan.TestStep> merged = batched.get(statement);
+        if (merged != null) {
+            return merged;
         }
         Planned p = byStatement.get(statement);
         return p == null ? null : List.of(p.step());

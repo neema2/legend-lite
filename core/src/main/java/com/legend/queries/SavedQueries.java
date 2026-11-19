@@ -39,12 +39,94 @@ public final class SavedQueries {
     /** An {@code ApplicationQueryException}: its status and the engine's {@code {"message"}} body. */
     public static final class Refusal extends RuntimeException {
         final int status;
+        private final @com.legend.base.Nullable Kind kind;
+        private final List<String> operands;
+
+        /** A refusal's kind, where the store names one (D1.8, W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+         *  its message is lite's sentence; legend-engine's is the compatibility edge's ({@code edge.PureMessages.store}),
+         *  for the routes mounted at legend-engine's path. */
+        public enum Kind {
+            /** No saved query has the ID: the ID. */
+            QUERY_NOT_FOUND("no saved query has the ID '%1$s'"),
+            /** Some of several IDs name no saved query: those IDs, one per line. */
+            QUERIES_NOT_FOUND("no saved query has the ID(s):\n%1$s"),
+            /** A saved query has no such version: the version, the ID. */
+            VERSION_NOT_FOUND("the saved query '%2$s' has no version '%1$s'"),
+            /** A path the store does not serve: the path under the store, its mount's (B7, the orchestrator's ruling (3)
+             *  of 2026-11-17: lite's words for lite's mount; legend-engine's path and words the edge's, StoreWords). */
+            NO_SUCH_ROUTE("no such legend-lite API: /api/lite/v1/queries%1$s"),
+            // J9 of the edge audit (2026-11-17): every refusal a kind with its facts, lite's sentence here,
+            // legend-engine's the edge's (StoreWords); a page's refusals are a query's
+            /** A required field missing or empty: its name in lite's words, its field (the edge's key). */
+            FIELD_MISSING("the %1$s is missing or empty"),
+            /** An execution context of a _type the store does not serve: the _type, the served ones. */
+            UNSERVED_CONTEXT("the execution context of _type '%1$s' is not served (%2$s)"),
+            /** The project group ID is not a Java name. */
+            INVALID_GROUP_ID("the project group ID is invalid"),
+            /** The project artifact ID is not an artifact ID. */
+            INVALID_ARTIFACT_ID("the project artifact ID is invalid"),
+            /** The ID is taken: the ID. */
+            ID_TAKEN("the ID '%1$s' is already taken"),
+            /** An update would change the ID. */
+            ID_CHANGED("the ID cannot be changed"),
+            /** Only the owner may do it: the act (update, delete). */
+            NOT_OWNER("only the owner can %1$s it"),
+            /** A search's limit of 0 or less. */
+            LIMIT_NOT_POSITIVE("the limit must be greater than 0"),
+            /** More IDs asked at once than the store serves: the most it serves. */
+            TOO_MANY("at most %1$s can be fetched at once"),
+            /** A search specification with no search term. */
+            NO_SEARCH_TERM("the search specification has no search term"),
+            /** A body's field the store cannot read -- missing, or not of its kind (PR #118 fix round, 2026-11-18: lite's
+             *  words name the request's field, never legend-engine's class): legend-engine's class, the field, the
+             *  problem in legend-engine's words, the field's path in the request, the problem in lite's words. */
+            FIELD_UNREAD("the request's %4$s %5$s"),
+            /** A request the store cannot read otherwise -- its body not JSON of the shape the store takes, a parameter or
+             *  an option no value of it names -- raised where the request is read (PR #118 fix round, 2026-11-18: a
+             *  malformed request, lite's {@code request}; any other failure stays {@link #MALFORMED}): the exception's
+             *  class and message legend-engine names, lite's words of the problem. */
+            UNREADABLE("the request could not be read: %3$s"),
+            /** The store is not configured: which store (query, page). */
+            STORE_NOT_CONFIGURED("the %1$s store is not configured: start the server with --query-store DIR"),
+            /** A request the store could not read, or its disk failing: the exception's class, its message. */
+            MALFORMED("the request could not be served: %2$s");
+
+            private final String sentence;
+
+            Kind(String sentence) {
+                this.sentence = sentence;
+            }
+
+            String sentence(List<String> operands) {
+                return String.format(java.util.Locale.ROOT, sentence, operands.toArray());
+            }
+        }
 
         Refusal(String message, int status) {
             super(message);
             this.status = status;
+            this.kind = null;
+            this.operands = List.of();
+        }
+
+        Refusal(Kind kind, List<String> operands, int status) {
+            super(kind.sentence(operands));
+            this.status = status;
+            this.kind = kind;
+            this.operands = List.copyOf(operands);
+        }
+
+        public @com.legend.base.Nullable Kind kind() {
+            return kind;
+        }
+
+        public List<String> operands() {
+            return operands;
         }
     }
+
+    /** A refusal in the product's words: its own message. */
+    public static final java.util.function.Function<Refusal, String> LITES_WORDS = r -> String.valueOf(r.getMessage());
 
     private static final Pattern VALID_ARTIFACT_ID = Pattern.compile("^[a-z][a-z0-9_]*+(-[a-z][a-z0-9_]*+)*+$");
     private static final Pattern JAVA_NAME = Pattern.compile("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$");
@@ -66,17 +148,17 @@ public final class SavedQueries {
             "versionId", "originalVersionId", "executionContext", "content", "taggedValues", "stereotypes",
             "defaultParameterValues", "gridConfig");
 
-    /** The execution contexts served, each with its required fields and the engine's message for one missing. */
+    /** The execution contexts served, each with its required fields and the field's name in lite's words. */
     private static final Map<String, Map<String, String>> CONTEXT_FIELDS = orderedContexts();
 
     private static Map<String, Map<String, String>> orderedContexts() {
         Map<String, String> explicit = new LinkedHashMap<>();
-        explicit.put("mapping", "Query mapping is missing or empty");
-        explicit.put("runtime", "Query runtime is missing or empty");
+        explicit.put("mapping", "execution context's mapping");
+        explicit.put("runtime", "execution context's runtime");
         Map<String, Map<String, String>> out = new LinkedHashMap<>();
         out.put("explicitExecutionContext", java.util.Collections.unmodifiableMap(explicit));
         out.put("dataSpaceExecutionContext",
-                Map.of("dataSpacePath", "Query data Space execution context dataSpace path is missing or empty"));
+                Map.of("dataSpacePath", "execution context's data space path"));
         return java.util.Collections.unmodifiableMap(out);
     }
 
@@ -105,20 +187,26 @@ public final class SavedQueries {
      */
     public static Answer answer(@com.legend.base.Nullable SavedQueries store, String method, String rest,
             @com.legend.base.Nullable String rawQuery, String body, String user) {
+        return answer(store, method, rest, rawQuery, body, user, LITES_WORDS);
+    }
+
+    /** {@link #answer(SavedQueries, String, String, String, String, String)}, a refusal worded by {@code words} (the
+     *  edge's route at legend-engine's path: legend-engine's words; D1.8). */
+    public static Answer answer(@com.legend.base.Nullable SavedQueries store, String method, String rest,
+            @com.legend.base.Nullable String rawQuery, String body, String user,
+            java.util.function.Function<Refusal, String> words) {
         if (store == null) {
-            return new Answer(500, "{\"code\":-1,\"message\":\"Query store has not been configured properly"
-                    + " (legend-lite: start the server with --query-store DIR)\",\"status\":\"error\"}");
+            return refused(new Refusal(Refusal.Kind.STORE_NOT_CONFIGURED, List.of("query"), 500), words);
         }
-        try {
+        return served(() -> {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
             String id = parts.length > 0 ? java.net.URLDecoder.decode(parts[0], StandardCharsets.UTF_8) : "";
             if (parts.length > 0 && "dataCube".equals(parts[0])) {
-                return new Answer(404, "{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: "
-                        + "/api/pure/v1/query" + rest + "\",\"status\":\"error\"}");
+                return notFound(rest, words);
             }
             return switch (method + " " + parts.length + " " + (parts.length > 1 ? parts[1] : "")) {
                 case "POST 0 " -> ok(store.create(body, user));
-                case "POST 1 " -> "search".equals(id) ? ok(store.search(body, user)) : notFound(rest);
+                case "POST 1 " -> "search".equals(id) ? ok(store.search(body, user)) : notFound(rest, words);
                 case "GET 1 " -> "batch".equals(id) ? ok(store.batch(queryParams(rawQuery, "queryIds"))) : ok(store.get(id));
                 case "PUT 1 " -> ok(store.update(id, body, user));
                 case "DELETE 1 " -> {
@@ -127,36 +215,100 @@ public final class SavedQueries {
                 }
                 case "GET 2 history" -> {
                     List<String> v = queryParams(rawQuery, "version");
-                    yield ok(store.history(id, v.isEmpty() ? null : Integer.valueOf(v.get(0))));
+                    yield ok(store.history(id, v.isEmpty() ? null : version(v.get(0))));
                 }
                 case "PUT 2 patchQuery" -> ok(store.patch(id, body, user));
-                default -> notFound(rest);
+                default -> notFound(rest, words);
             };
+        }, words);
+    }
+
+    /** A route served, its refusal or failure answered in {@code words} -- the one catch both stores share (J9 of the
+     *  edge audit, 2026-11-17): a {@link Refusal} is its kind's answer -- a request the store cannot read is one,
+     *  raised where it is read ({@link Refusal.Kind#UNREADABLE}, {@link Refusal.Kind#FIELD_UNREAD}; lite's route answers
+     *  it as a malformed request: PR #118 fix round, 2026-11-18); any other failure, the store's disk failing among
+     *  them, is {@link Refusal.Kind#MALFORMED}: each a 500 naming the exception, as legend-engine answers both. */
+    static Answer served(java.util.function.Supplier<Answer> route, java.util.function.Function<Refusal, String> words) {
+        try {
+            return route.get();
         } catch (Refusal r) {
-            return new Answer(r.status, Json.toCompact(Map.of("message", String.valueOf(r.getMessage()))));
+            return refused(r, words);
         } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
-            // the store's disk failing, or a body that is not the JSON the engine takes (a bad
-            // integer, a field of the wrong kind): the engine's 500, naming the exception
-            return failed(e);
+            return failed(e, words);
         }
     }
 
-    /** The engine's 500 for an exception, naming it: {@code {"code", "message", "status"}}, in that order. */
-    static Answer failed(RuntimeException e) {
+    /** A body's field the store cannot read ({@link Refusal.Kind#FIELD_UNREAD}): legend-engine's class {@code where},
+     *  its {@code field} and {@code problem}; lite's words name the field by its {@code path} in the request and say
+     *  the problem as {@code liteProblem}. */
+    static Refusal unread(String where, String field, String problem, String path, String liteProblem) {
+        return new Refusal(Refusal.Kind.FIELD_UNREAD, List.of(where, field, problem, path, liteProblem), 500);
+    }
+
+    /** {@link #unread(String, String, String, String, String)} where lite says the problem in the same words. */
+    static Refusal unread(String where, String field, String problem, String path) {
+        return unread(where, field, problem, path, problem);
+    }
+
+    /** A request the store cannot read ({@link Refusal.Kind#UNREADABLE}), raised where it is read: the class and
+     *  message legend-engine names ({@code engineClass}, {@code engineMessage}), lite's words of it. */
+    static Refusal unreadable(String engineClass, String engineMessage, String liteWords) {
+        return new Refusal(Refusal.Kind.UNREADABLE, List.of(engineClass, engineMessage, liteWords), 500);
+    }
+
+    /** The request's {@code body} as the JSON object the store reads, or refused where it is not one (a malformed
+     *  request, {@link Refusal.Kind#UNREADABLE}): read where the request is read, so a failure anywhere else -- the
+     *  store reading its own files -- stays the store's fault. */
+    static Json.Obj requestBody(String body) {
+        Json.Node parsed;
+        try {
+            parsed = Json.parse(body);
+        } catch (IllegalArgumentException e) {
+            throw unreadable(e.getClass().getSimpleName(), String.valueOf(e.getMessage()),
+                    "its body is not JSON: " + e.getMessage());
+        }
+        if (!(parsed instanceof Json.Obj o)) {
+            // the words Json.parseObject refused it in until then, so the edge's answer is unchanged byte for byte
+            throw unreadable("IllegalArgumentException", "Expected top-level JSON object, got "
+                    + parsed.getClass().getSimpleName(), "its body is not a JSON object");
+        }
+        return o;
+    }
+
+    /** The {@code version} parameter as a number, or refused where it is none ({@link Refusal.Kind#UNREADABLE}). */
+    private static int version(String text) {
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            throw unreadable(e.getClass().getSimpleName(), String.valueOf(e.getMessage()),
+                    "its version '" + text + "' is not a number");
+        }
+    }
+
+    /** A refusal answered: its status, and {@code {"kind", "message"}} -- its kind as data (lower case; {@code refused}
+     *  where it names none) and its words its mount's ({@code words}: lite's on lite's route; the edge's mount at
+     *  legend-engine's path rewrites the shape too, edge.StoreWords). J9 of the edge audit, 2026-11-17: the engine's
+     *  envelope ({@code code}, {@code status}) is the edge's alone. */
+    static Answer refused(Refusal r, java.util.function.Function<Refusal, String> words) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("code", -1);
-        out.put("message", e.getClass().getSimpleName() + ": " + e.getMessage());
-        out.put("status", "error");
-        return new Answer(500, Json.toCompact(out));
+        out.put("kind", r.kind() == null ? "refused" : r.kind().name().toLowerCase(java.util.Locale.ROOT));
+        out.put("message", words.apply(r));
+        return new Answer(r.status, Json.toCompact(out));
+    }
+
+    /** A 500 for an exception: {@link Refusal.Kind#MALFORMED}, naming it. */
+    static Answer failed(RuntimeException e, java.util.function.Function<Refusal, String> words) {
+        return refused(new Refusal(Refusal.Kind.MALFORMED, List.of(e.getClass().getSimpleName(),
+                String.valueOf(e.getMessage())), 500), words);
     }
 
     private static Answer ok(String json) {
         return new Answer(200, json);
     }
 
-    private static Answer notFound(String rest) {
-        return new Answer(404, "{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: "
-                + "/api/pure/v1/query" + rest + "\",\"status\":\"error\"}");
+    /** A path the store does not serve ({@code rest}, under the store), worded by its mount's {@code words}. */
+    static Answer notFound(String rest, java.util.function.Function<Refusal, String> words) {
+        return refused(new Refusal(Refusal.Kind.NO_SUCH_ROUTE, List.of(rest), 404), words);
     }
 
     private static List<String> queryParams(@com.legend.base.Nullable String rawQuery, String name) {
@@ -178,7 +330,7 @@ public final class SavedQueries {
 
     /** {@code POST query/search}. */
     public synchronized String search(String body, String currentUser) {
-        Json.Obj spec = Json.parseObject(body.strip().isEmpty() ? "{}" : body);
+        Json.Obj spec = requestBody(body.strip().isEmpty() ? "{}" : body);
         searchShape(spec);
         List<Json.Obj> matches = new ArrayList<>();
         for (Json.Obj q : latestOfAll()) {
@@ -193,13 +345,14 @@ public final class SavedQueries {
                 case "SORT_BY_CREATE" -> "createdAt";
                 case "SORT_BY_VIEW" -> "lastOpenAt";
                 case "SORT_BY_UPDATE" -> "lastUpdatedAt";
-                default -> throw new IllegalArgumentException("Unknown sort-by value");
+                default -> throw unreadable("IllegalArgumentException", "Unknown sort-by value",
+                        "its sort option '" + sortBy + "' is none of SORT_BY_CREATE, SORT_BY_VIEW and SORT_BY_UPDATE");
             };
             matches.sort(Comparator.comparingLong((Json.Obj q) -> longOr(q, field, Long.MIN_VALUE)).reversed());
         }
         Integer limit = spec.has("limit") && !(spec.get("limit") instanceof Json.Null) ? spec.getInt("limit") : null;
         if (limit != null && limit <= 0) {
-            throw new Refusal("Limit should be greater than 0", 400);
+            throw new Refusal(Refusal.Kind.LIMIT_NOT_POSITIVE, List.of(), 400);
         }
         int max = Math.min(MAX_NUMBER_OF_QUERIES, limit == null ? Integer.MAX_VALUE : limit);
         List<Json.Obj> limited = new ArrayList<>(matches.subList(0, Math.min(max, matches.size())));
@@ -215,7 +368,7 @@ public final class SavedQueries {
     /** {@code GET query/batch?queryIds=...}. */
     public synchronized String batch(List<String> queryIds) {
         if (queryIds.size() > GET_QUERIES_LIMIT) {
-            throw new Refusal("Can't fetch more than " + GET_QUERIES_LIMIT + " queries", 400);
+            throw new Refusal(Refusal.Kind.TOO_MANY, List.of(Integer.toString(GET_QUERIES_LIMIT)), 400);
         }
         List<Object> out = new ArrayList<>();
         TreeSet<String> notFound = new TreeSet<>();
@@ -228,7 +381,7 @@ public final class SavedQueries {
             }
         }
         if (!notFound.isEmpty()) {
-            throw new Refusal("Can't find queries for the following ID(s):\n" + String.join("\n", notFound), 500);
+            throw new Refusal(Refusal.Kind.QUERIES_NOT_FOUND, List.of(String.join("\n", notFound)), 500);
         }
         return Json.toCompact(out);
     }
@@ -238,7 +391,7 @@ public final class SavedQueries {
         List<Json.Obj> versions = versions(id);
         Json.Obj q = current(versions);
         if (q == null) {
-            throw new Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         Json.Obj opened = with(q, "lastOpenAt", Json.num(clock.getAsLong()));
         versions.set(versions.indexOf(q), opened);
@@ -256,9 +409,9 @@ public final class SavedQueries {
                 }
             }
             if (versions.isEmpty()) {
-                throw new Refusal("Can't find query with ID '" + id + "'", 404);
+                throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
             }
-            throw new Refusal("Can't find version '" + version + "' for query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.VERSION_NOT_FOUND, List.of(String.valueOf(version), id), 404);
         }
         List<Object> out = new ArrayList<>();
         for (Json.Obj v : versions) {
@@ -267,20 +420,20 @@ public final class SavedQueries {
             }
         }
         if (out.isEmpty() && current(versions) == null) {
-            throw new Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         return Json.toCompact(out);
     }
 
     /** {@code POST query}: a new query, owned by the caller, version 1. */
     public synchronized String create(String body, String currentUser) {
-        Json.Obj query = Json.parseObject(body);
+        Json.Obj query = requestBody(body);
         queryShape(query);
         validate(query);
         String id = query.getString("id");
         List<Json.Obj> versions = versions(id);
         if (current(versions) != null) {
-            throw new Refusal("Query with ID '" + id + "' already existed", 400);
+            throw new Refusal(Refusal.Kind.ID_TAKEN, List.of(id), 400);
         }
         long now = clock.getAsLong();
         Map<String, Json.Node> fields = clientFields(query);
@@ -297,18 +450,18 @@ public final class SavedQueries {
 
     /** {@code PUT query/{id}}: the owner's new version; the old one becomes history. */
     public synchronized String update(String id, String body, String currentUser) {
-        Json.Obj query = Json.parseObject(body);
+        Json.Obj query = requestBody(body);
         queryShape(query);
         validate(query);
         if (!id.equals(query.getString("id"))) {
-            throw new Refusal("Updating query ID is not supported", 400);
+            throw new Refusal(Refusal.Kind.ID_CHANGED, List.of(), 400);
         }
         return Json.toCompact(view(newVersion(id, clientFields(query), currentUser), List.of()));
     }
 
     /** {@code PUT query/{id}/patchQuery}: the fields the body sets over the current version, as a new version. */
     public synchronized String patch(String id, String body, String currentUser) {
-        Json.Obj patch = Json.parseObject(body);
+        Json.Obj patch = requestBody(body);
         queryShape(patch);
         get(id); // the engine patches what getQuery answers, which marks it opened
         Json.Obj current = java.util.Objects.requireNonNull(current(versions(id)), id);
@@ -326,10 +479,10 @@ public final class SavedQueries {
         List<Json.Obj> versions = versions(id);
         Json.Obj q = current(versions);
         if (q == null) {
-            throw new Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         if (!(q.get("owner") instanceof Json.Null) && !currentUser.equals(q.getString("owner"))) {
-            throw new Refusal("Only owner can delete the query", 403);
+            throw new Refusal(Refusal.Kind.NOT_OWNER, List.of("delete"), 403);
         }
         long now = clock.getAsLong();
         Json.Obj deleted = with(with(q, "deletedAt", Json.num(now)), "validUntil", Json.num(now));
@@ -343,10 +496,10 @@ public final class SavedQueries {
         List<Json.Obj> versions = versions(id);
         Json.Obj prior = current(versions);
         if (prior == null) {
-            throw new Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         if (!(prior.get("owner") instanceof Json.Null) && !currentUser.equals(prior.getString("owner"))) {
-            throw new Refusal("Only owner can update the query", 403);
+            throw new Refusal(Refusal.Kind.NOT_OWNER, List.of("update"), 403);
         }
         long now = clock.getAsLong();
         versions.set(versions.indexOf(prior), with(prior, "validUntil", Json.num(now)));
@@ -363,34 +516,36 @@ public final class SavedQueries {
 
     /** The engine's {@code validateQuery}. */
     private static void validate(Json.Obj q) {
-        nonEmpty(q, "id", "Query ID is missing or empty");
-        nonEmpty(q, "name", "Query name is missing or empty");
-        nonEmpty(q, "groupId", "Query project group ID is missing or empty");
-        nonEmpty(q, "artifactId", "Query project artifact ID is missing or empty");
-        nonEmpty(q, "versionId", "Query project version is missing or empty");
+        nonEmpty(q, "id", "ID");
+        nonEmpty(q, "name", "name");
+        nonEmpty(q, "groupId", "project group ID");
+        nonEmpty(q, "artifactId", "project artifact ID");
+        nonEmpty(q, "versionId", "project version");
         Json.Node ctx = q.has("executionContext") ? q.get("executionContext") : Json.nil();
         if (ctx instanceof Json.Obj c) {
             String ctxType = String.valueOf(stringOr(c, "_type"));
             Map<String, String> required = CONTEXT_FIELDS.get(ctxType);
             if (required == null) {
-                throw new Refusal("Query execution context of _type '" + ctxType
-                        + "' is not served by legend-lite (" + String.join(", ", CONTEXT_FIELDS.keySet()) + ")", 400);
+                throw new Refusal(Refusal.Kind.UNSERVED_CONTEXT, List.of(ctxType,
+                        String.join(", ", CONTEXT_FIELDS.keySet())), 400);
             }
             required.forEach((field, message) -> nonEmpty(c, field, message));
         }
-        nonEmpty(q, "content", "Query content is missing or empty");
+        nonEmpty(q, "content", "content");
         if (!JAVA_NAME.matcher(q.getString("groupId")).matches()) {
-            throw new Refusal("Query project group ID is invalid", 400);
+            throw new Refusal(Refusal.Kind.INVALID_GROUP_ID, List.of(), 400);
         }
         if (!VALID_ARTIFACT_ID.matcher(q.getString("artifactId")).matches()) {
-            throw new Refusal("Query project artifact ID is invalid", 400);
+            throw new Refusal(Refusal.Kind.INVALID_ARTIFACT_ID, List.of(), 400);
         }
     }
 
-    private static void nonEmpty(Json.Obj o, String field, String message) {
+    /** {@code field} of {@code o} refused where it is missing or empty: {@link Refusal.Kind#FIELD_MISSING}, its name
+     *  in lite's words ({@code name}) and the field (the edge's key to legend-engine's sentence). */
+    private static void nonEmpty(Json.Obj o, String field, String name) {
         String v = stringOr(o, field);
         if (v == null || v.isEmpty()) {
-            throw new Refusal(message, 400);
+            throw new Refusal(Refusal.Kind.FIELD_MISSING, List.of(name, field), 400);
         }
     }
 
@@ -398,7 +553,7 @@ public final class SavedQueries {
         if (spec.has("searchTermSpecification") && spec.get("searchTermSpecification") instanceof Json.Obj term) {
             String searchTerm = stringOr(term, "searchTerm");
             if (searchTerm == null) {
-                throw new Refusal("Query search spec expecting a search term", 500);
+                throw new Refusal(Refusal.Kind.NO_SEARCH_TERM, List.of(), 500);
             }
             boolean includeOwner = term.getBoolOr("includeOwner", false);
             String owner = stringOr(q, "owner");
@@ -526,22 +681,25 @@ public final class SavedQueries {
     private static final Predicate<Json.Node> NUMBER = n -> n instanceof Json.Num;
     private static final Predicate<Json.Node> OBJECT = n -> n instanceof Json.Obj;
 
+    /** A search term's fields' place in the request, lite's words of it. */
+    private static final String TERM = "searchTermSpecification.";
+
     /** The engine's {@code QuerySearchSpecification}, as far as the rules read it. */
     private static void searchShape(Json.Obj spec) {
         String where = "QuerySearchSpecification";
-        if (field(spec, "searchTermSpecification", OBJECT, "an object", false, where) instanceof Json.Obj term) {
-            field(term, "searchTerm", TEXT, "a string", false, "QuerySearchTermSpecification");
-            field(term, "exactMatchName", FLAG, "a boolean", false, "QuerySearchTermSpecification");
-            field(term, "includeOwner", FLAG, "a boolean", false, "QuerySearchTermSpecification");
+        if (field(spec, "searchTermSpecification", OBJECT, "an object", false, where, "") instanceof Json.Obj term) {
+            field(term, "searchTerm", TEXT, "a string", false, "QuerySearchTermSpecification", TERM);
+            field(term, "exactMatchName", FLAG, "a boolean", false, "QuerySearchTermSpecification", TERM);
+            field(term, "includeOwner", FLAG, "a boolean", false, "QuerySearchTermSpecification", TERM);
         }
-        field(spec, "showCurrentUserQueriesOnly", FLAG, "a boolean", false, where);
-        field(spec, "combineTaggedValuesCondition", FLAG, "a boolean", false, where);
-        field(spec, "sortByOption", TEXT, "a string", false, where);
-        field(spec, "limit", NUMBER, "a number", false, where);
+        field(spec, "showCurrentUserQueriesOnly", FLAG, "a boolean", false, where, "");
+        field(spec, "combineTaggedValuesCondition", FLAG, "a boolean", false, where, "");
+        field(spec, "sortByOption", TEXT, "a string", false, where, "");
+        field(spec, "limit", NUMBER, "a number", false, where, "");
         for (Json.Obj c : objects(spec, "projectCoordinates", where, "QueryProjectCoordinates")) {
-            field(c, "groupId", TEXT, "a string", true, "QueryProjectCoordinates");
-            field(c, "artifactId", TEXT, "a string", true, "QueryProjectCoordinates");
-            field(c, "version", TEXT, "a string", false, "QueryProjectCoordinates");
+            field(c, "groupId", TEXT, "a string", true, "QueryProjectCoordinates", "projectCoordinates[].");
+            field(c, "artifactId", TEXT, "a string", true, "QueryProjectCoordinates", "projectCoordinates[].");
+            field(c, "version", TEXT, "a string", false, "QueryProjectCoordinates", "projectCoordinates[].");
         }
         tagsShape(spec, where);
     }
@@ -553,29 +711,30 @@ public final class SavedQueries {
 
     private static void tagsShape(Json.Obj o, String where) {
         for (Json.Obj tv : objects(o, "taggedValues", where, "TaggedValue")) {
-            if (field(tv, "tag", OBJECT, "an object", true, "TaggedValue") instanceof Json.Obj tag) {
-                field(tag, "profile", TEXT, "a string", true, "TagPtr");
-                field(tag, "value", TEXT, "a string", true, "TagPtr");
+            if (field(tv, "tag", OBJECT, "an object", true, "TaggedValue", "taggedValues[].") instanceof Json.Obj tag) {
+                field(tag, "profile", TEXT, "a string", true, "TagPtr", "taggedValues[].tag.");
+                field(tag, "value", TEXT, "a string", true, "TagPtr", "taggedValues[].tag.");
             }
         }
         for (Json.Obj s : objects(o, "stereotypes", where, "StereotypePtr")) {
-            field(s, "profile", TEXT, "a string", true, "StereotypePtr");
-            field(s, "value", TEXT, "a string", true, "StereotypePtr");
+            field(s, "profile", TEXT, "a string", true, "StereotypePtr", "stereotypes[].");
+            field(s, "value", TEXT, "a string", true, "StereotypePtr", "stereotypes[].");
         }
     }
 
-    /** {@code o}'s {@code field}, of its kind; null when it is absent or null and need not be there. */
+    /** {@code o}'s {@code field}, of its kind; null when it is absent or null and need not be there. {@code in}: the
+     *  field's place in the request ("" at its top, {@code searchTermSpecification.} inside it), lite's words of it. */
     private static Json.@com.legend.base.Nullable Node field(Json.Obj o, String field, Predicate<Json.Node> kind,
-            String kindName, boolean required, String where) {
+            String kindName, boolean required, String where, String in) {
         Json.Node n = o.has(field) ? o.get(field) : Json.nil();
         if (n instanceof Json.Null) {
             if (required) {
-                throw new IllegalArgumentException(where + "." + field + " is missing");
+                throw unread(where, field, "is missing", in + field);
             }
             return null;
         }
         if (!kind.test(n)) {
-            throw new IllegalArgumentException(where + "." + field + " is not " + kindName);
+            throw unread(where, field, "is not " + kindName, in + field);
         }
         return n;
     }
@@ -587,12 +746,12 @@ public final class SavedQueries {
             return List.of();
         }
         if (!(n instanceof Json.Arr a)) {
-            throw new IllegalArgumentException(where + "." + field + " is not a list");
+            throw unread(where, field, "is not a list", field);
         }
         List<Json.Obj> out = new ArrayList<>();
         for (Json.Node i : a.items()) {
             if (!(i instanceof Json.Obj each)) {
-                throw new IllegalArgumentException(where + "." + field + " holds something not " + item);
+                throw unread(where, field, "holds something not " + item, field, "holds something that is not an object");
             }
             out.add(each);
         }

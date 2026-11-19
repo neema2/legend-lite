@@ -9,6 +9,17 @@
 
 import type { PlannedSql, PlanText } from './planned-sql.ts';
 
+/** A value a plan's statement binds, as the runner hands it to a database. */
+export type PlanValue = string | number | bigint | boolean | null;
+
+/**
+ * A run's value for one of the plan's declared parameters (lite's API v1 spec §2's `params`): a string, a number, a
+ * boolean, null, or a list of them -- an Integer a whole number in the 64-bit range, a safe integer or a bigint (spec §4:
+ * an unsafe number is refused by name). A record (2026-11-17, the host train): the apps, the doors and the runner read it
+ * here, so no app module reaches the runner for its type.
+ */
+export type ParameterValue = string | number | bigint | boolean | null | readonly (string | number | bigint | boolean)[];
+
 /** A relation's name. `declared`: a model's own table, spelled as its seed made it; any other name is quoted. */
 export interface HostName {
   readonly database?: string;

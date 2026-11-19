@@ -15,7 +15,8 @@ js_library(
 # builder makes is byte-identical to what the grammar gives the same query.
 node_test(
     name = "twins_test",
-    wasm = True,
+    # legend-engine's pure/v1 grammar in the tab: the engine module's (the user's K2 ruling, 2026-11-18)
+    engine = True,
     size = "small",
     data = [
         ":pure_protocol",

@@ -112,21 +112,33 @@ final class LambdaBodies {
             return null;
         }
         List<ValueSpecification> condIn = af.parameters().subList(0, condArgs);
-        ValueSpecification condVs = switch (fqn.substring(fqn.lastIndexOf(':') + 1)) {
-            case "assert", "assertTrue" -> condIn.get(0);
-            case "assertFalse" -> Calls.platform("not", condIn);
-            case "assertEquals" -> Calls.platform("equal", condIn);
-            case "assertNotEquals" -> Calls.platform("not",
-                    List.of(Calls.platform("equal", condIn)));
-            case "assertEmpty" -> Calls.platform("isEmpty", condIn);
-            case "assertNotEmpty" -> Calls.platform("isNotEmpty", condIn);
+        // each guard's condition, and whether its default message is the plan style's (assert's alone: the user's R1,
+        // 2026-11-18) -- decided by the one switch over the guard, never a second compare of its name
+        record Guard(ValueSpecification condition, boolean styledDefault) {
+        }
+        Guard guard = switch (fqn.substring(fqn.lastIndexOf(':') + 1)) {
+            case "assert" -> new Guard(condIn.get(0), true);
+            case "assertTrue" -> new Guard(condIn.get(0), false);
+            case "assertFalse" -> new Guard(Calls.platform("not", condIn), false);
+            case "assertEquals" -> new Guard(Calls.platform("equal", condIn), false);
+            case "assertNotEquals" -> new Guard(Calls.platform("not",
+                    List.of(Calls.platform("equal", condIn))), false);
+            case "assertEmpty" -> new Guard(Calls.platform("isEmpty", condIn), false);
+            case "assertNotEmpty" -> new Guard(Calls.platform("isNotEmpty", condIn), false);
             default -> throw new IllegalStateException(fqn);
         };
+        ValueSpecification condVs = guard.condition();
         TypedSpec cond = t.synth(condVs, scope);
         ExprType str = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
         List<ValueSpecification> msgArgs = af.parameters().subList(condArgs, af.parameters().size());
         TypedSpec message;
-        if (msgArgs.isEmpty()) {
+        if (msgArgs.isEmpty() && guard.styledDefault()) {
+            // assert's default alone is the plan style's, at lowering (the user's R1, 2026-11-18): lite's sentence, or
+            // legend-pure's on the edge (Pure.Lite.ASSERT_FAILED_TEXT); the six other guards keep their text below
+            var text = t.model().findFunction(com.legend.builtin.Pure.Lite.ASSERT_FAILED_TEXT).stream().findFirst()
+                    .orElseThrow(() -> new TypeInferenceException("assertFailedText is not registered"));
+            message = new TypedNativeCall(text, List.of(), str);
+        } else if (msgArgs.isEmpty()) {
             message = new com.legend.compiler.spec.typed.TypedCString("Assert failed", str);
         } else if (msgArgs.get(0) instanceof LambdaFunction thunk
                 && thunk.parameters().isEmpty()) {

@@ -24,7 +24,7 @@ final class PureSql {
      * {@code RaisedErrors} parses it back off — production text stays clean
      * (the funnel strips the whole envelope). A synthesized call (no span)
      * raises position-free, exactly as before. */
-    static com.legend.sql.SqlExpr raise(com.legend.sql.SqlExpr message,
+    static com.legend.sql.SqlExpr raise(com.legend.sql.SqlExpr.RaiseText message,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         return pos == null
                 ? com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, message)
@@ -59,8 +59,8 @@ final class PureSql {
                         com.legend.sql.SqlExpr.Call.of(
                                 com.legend.sql.SqlFn.VARIANT_GET, elem,
                                 new com.legend.sql.SqlExpr.StringLit("$")),
-                        SqlType.Scalar.VARCHAR)
-                : new com.legend.sql.SqlExpr.Cast(elem, SqlType.Scalar.VARCHAR);
+                        SqlType.Scalar.VARCHAR, com.legend.sql.SqlExpr.Reason.CARRIER)
+                : new com.legend.sql.SqlExpr.Cast(elem, SqlType.Scalar.VARCHAR, com.legend.sql.SqlExpr.Reason.CARRIER);
     }
 
     /**
@@ -209,7 +209,7 @@ final class PureSql {
         SqlType t = carrierOrNull(elemPure);
         return t == null ? list
                 : new com.legend.sql.SqlExpr.Cast(list,
-                        new com.legend.sql.SqlType.Array(t));
+                        new com.legend.sql.SqlType.Array(t), com.legend.sql.SqlExpr.Reason.CARRIER);
     }
 
     /** The element's SQL carrier when one certainly exists — an

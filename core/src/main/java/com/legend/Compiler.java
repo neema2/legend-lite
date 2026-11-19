@@ -36,14 +36,23 @@ public final class Compiler {
      *  router: which level users get is decided HERE. */
     public static ParsedModel parseModel(String source) {
         return ModelFromText.parse(source,
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
     /** Parse one query/expression at the PRODUCT level. */
     public static com.legend.protocol.spec.ValueSpecification
             parseQuery(String query) {
         // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15)
-        return com.legend.door.Parse.query(query, com.legend.parser.Dialect.LEGEND_LITE);
+        return com.legend.door.Parse.query(query, com.legend.parser.GrammarLevel.LEGEND_LITE);
+    }
+
+    /** A query's text as its lambda's protocol JSON at the PRODUCT level, without source information: text with no
+     *  leading {@code |} reads as a lambda of no parameters. Lite's API v1 {@code query/parse} (2026-11-17: lite's own
+     *  grammar, its islands included -- {@code #Cypher{...}#}, {@code #SQL}, {@code #TS}; legend-engine's grammarToJson,
+     *  the edge's, reads legend-engine's). Through the parse door's product entry, which reads legend-lite's one grammar
+     *  (J21 of the edge audit, 2026-11-17). */
+    public static String parseQueryJson(String query) {
+        return com.legend.door.Parse.lambdaJson(query, false);
     }
 
 
@@ -74,8 +83,13 @@ public final class Compiler {
      */
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        return buildPositioned(ModelFromText.parse(model,
-                com.legend.parser.Dialect.LEGEND_LITE));
+        ModelContext ctx = buildPositioned(ModelFromText.parse(model,
+                com.legend.parser.GrammarLevel.LEGEND_LITE));
+        com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+        if (seen != null) {
+            seen.modelCompiled(ctx, model);   // a test harness's observer (E-1): none in the product
+        }
+        return ctx;
     }
 
     /**
@@ -94,7 +108,7 @@ public final class Compiler {
     public static ModelContext compileModel(String model, String library) {
         Objects.requireNonNull(model, "model");
         Library lib = library(Objects.requireNonNull(library, "library"));
-        ParsedModel parsed = ModelFromText.parse(model, com.legend.parser.Dialect.LEGEND_LITE);
+        ParsedModel parsed = ModelFromText.parse(model, com.legend.parser.GrammarLevel.LEGEND_LITE);
         try {
             java.util.Set<String> known = new java.util.HashSet<>(bootFqns());
             known.addAll(lib.names());
@@ -118,7 +132,7 @@ public final class Compiler {
             if (where.isEmpty()) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, where.get());
         }
     }
 
@@ -159,7 +173,7 @@ public final class Compiler {
 
     private static Library library(String text) {
         return LIBRARIES.getOrCompute(com.legend.cache.Hash.ofUtf8(text), () -> {
-            ParsedModel parsed = ModelFromText.parse(text, com.legend.parser.Dialect.LEGEND_LITE);
+            ParsedModel parsed = ModelFromText.parse(text, com.legend.parser.GrammarLevel.LEGEND_LITE);
             // the library alone over the boot layer, checked strictly (a library that does not compile is refused
             // whole, as compileModel refuses a model): the layer's own elements, then the boot layer's
             Layer layer;
@@ -175,7 +189,7 @@ public final class Compiler {
                 if (where.isEmpty()) {
                     throw e;
                 }
-                throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+                throw com.legend.error.ModelException.placed(e, where.get());
             }
             NormalizedModel own = new NormalizedModel(List.copyOf(layer.model().elements().subList(0, layer.own())),
                     layer.model().imports(), layer.model().legacySurfaces());
@@ -235,7 +249,7 @@ public final class Compiler {
             if (where.isEmpty()) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, where.get());
         }
     }
 
@@ -285,7 +299,7 @@ public final class Compiler {
     public static ParsedModule parseSources(List<ModelSource> sources,
             java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink) {
         return parseSources(sources, parseWallSink,
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
     /** As above, DIALECT-EXPLICIT: the caller declares its sources'
@@ -293,7 +307,7 @@ public final class Compiler {
      *  LEGEND_PLATFORM; user batches are LEGEND_LITE). */
     public static ParsedModule parseSources(List<ModelSource> sources,
             java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink,
-            com.legend.parser.Dialect dialect) {
+            com.legend.parser.GrammarLevel dialect) {
         Objects.requireNonNull(sources, "sources");
         List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
         java.util.Map<String, Integer> offsets = new java.util.HashMap<>();
@@ -706,10 +720,8 @@ public final class Compiler {
             if (srcName == null || off == null) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(),
-                    srcName + " " + ParsedModel.positionIn(java.util.Objects.requireNonNull(
-                                    module.sourceTexts().get(srcName)), off)
-                            + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, srcName + " " + ParsedModel.positionIn(
+                    java.util.Objects.requireNonNull(module.sourceTexts().get(srcName)), off));
         }
     }
 
@@ -736,7 +748,12 @@ public final class Compiler {
      * model is compiled once ({@link #compileModel}) and never again per question.
      */
     public static TypedQuery query(ModelContext ctx, String query) {
-        return query(ctx, parseQuery(query));
+        TypedQuery typed = query(ctx, parseQuery(query));
+        com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+        if (seen != null) {
+            seen.queryTyped(typed, query);   // a test harness's observer (E-1): none in the product
+        }
+        return typed;
     }
 
     /** {@link #query(ModelContext, String)} for a query that arrives ALREADY PARSED — an upstream {@code pure/v1}
@@ -951,9 +968,15 @@ public final class Compiler {
                 t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
-                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf);
+                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf)
+                // the product's text facets and raises, chosen explicitly (the audit's K6, 2026-11-17)
+                .withStyled(com.legend.lowering.Styled.PRODUCT)
+                // a Float literal as the runtime's database computes it in the product (register S20, Phase 5b)
+                .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
+                        .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());
         if (!temporalRoot) {
-            lw = lw.withEngineExistsJoinForm();
+            // the style's forms decide its shape (J19, S367): the product's keeps the EXISTS
+            lw = lw.withExistsJoinable();
         }
         return lw.lower(body);
     }
@@ -970,6 +993,13 @@ public final class Compiler {
      * signature-broken walls under the plain FQN.
      */
     public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
+        return compileAllBodies(ctx, e -> String.valueOf(e.getMessage()));
+    }
+
+    /** {@link #compileAllBodies(ModelContext)}, each wall worded by {@code words} (a compile error's kind in the
+     *  product's sentence, or the edge's: D1.6, W7 of docs/records/d-plan-2026-11-16.md). */
+    private static java.util.Map<String, String> compileAllBodies(ModelContext ctx,
+            java.util.function.Function<Throwable, String> words) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
         // the MODULE's own bodies: the boot layer's (the system metamodel's
@@ -986,7 +1016,8 @@ public final class Compiler {
             try {
                 overloads = ctx.findFunction(fqn);
             } catch (RuntimeException e) {
-                walls.put(fqn, String.valueOf(e.getMessage()));
+                // the caller's words (the P2 checkpoint audit's S7, 2026-11-16: the edge's are upstream's)
+                walls.put(fqn, words.apply(e));
                 continue;
             }
             for (com.legend.compiler.element.TypedFunction tf : overloads) {
@@ -999,7 +1030,7 @@ public final class Compiler {
                 try {
                     specs.compile(tf);
                 } catch (RuntimeException e) {
-                    walls.put(tf.id().qualified(), String.valueOf(e.getMessage()));
+                    walls.put(tf.id().qualified(), words.apply(e));
                 }
             }
         }
@@ -1016,24 +1047,37 @@ public final class Compiler {
      * listed as one of its errors.
      */
     public static java.util.List<String> compileErrors(String model) {
-        return compileErrorsOf(() -> compileModel(model));
+        return compileErrorsOf(() -> compileModel(model), e -> String.valueOf(e.getMessage()));
+    }
+
+    /** {@link #compileErrors(String)}, each error worded by {@code words}: the compatibility edge's route words a compile
+     *  error's kind as legend-engine does ({@code edge.PureMessages.compile}; D1.6, W7). */
+    public static java.util.List<String> compileErrors(String model, java.util.function.Function<Throwable, String> words) {
+        return compileErrorsOf(() -> compileModel(model), words);
     }
 
     /** {@link #compileErrors(String)} for a model given as protocol records ({@link
      *  #compileModel(com.legend.protocol.Protocol.PureModelContextData)}, leg 8 step 3: a client's
      *  {@code PureModelContextData}). */
     public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model) {
-        return compileErrorsOf(() -> compileModel(model));
+        return compileErrorsOf(() -> compileModel(model), e -> String.valueOf(e.getMessage()));
     }
 
-    private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model) {
+    /** {@link #compileErrors(com.legend.protocol.Protocol.PureModelContextData)}, each error worded by {@code words}. */
+    public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model,
+            java.util.function.Function<Throwable, String> words) {
+        return compileErrorsOf(() -> compileModel(model), words);
+    }
+
+    private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model,
+            java.util.function.Function<Throwable, String> words) {
         ModelContext ctx;
         try {
             ctx = model.get();
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
-            return java.util.List.of(String.valueOf(e.getMessage()));
+            return java.util.List.of(words.apply(e));
         }
-        return java.util.List.copyOf(compileAllBodies(ctx).values());
+        return java.util.List.copyOf(compileAllBodies(ctx, words).values());
     }
 
 }

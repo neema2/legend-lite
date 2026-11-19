@@ -5,7 +5,7 @@ package com.legend.ide;
 
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.parser.ElementParser;
 import com.legend.model.PackageableElement;
 
@@ -31,13 +31,13 @@ public final class DocumentParse {
 
     /** One element from a slice of a document's tokens (phase B): its record, made the compiler's model by the text's
      *  door ({@code door.ModelFromText.element}, which asks as well). */
-    public static PackageableElement element(TokenStream slice, Dialect dialect) {
+    public static PackageableElement element(TokenStream slice, GrammarLevel dialect) {
         com.legend.base.RunScope.planning("parse a model's element (phase B)");
         return com.legend.door.ModelFromText.element(ElementParser.parseSingle(slice, dialect));
     }
 
     /** One {@code import} statement from a slice of a document's tokens (phase B). */
-    public static String importOf(TokenStream slice, Dialect dialect) {
+    public static String importOf(TokenStream slice, GrammarLevel dialect) {
         com.legend.base.RunScope.planning("parse a model's import (phase B)");
         return ElementParser.parseSingleImport(slice, dialect);
     }

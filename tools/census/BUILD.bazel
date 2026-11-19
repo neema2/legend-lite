@@ -31,7 +31,8 @@ legend_java_library(
     tags = ["manual"],
     testonly = True,
     visibility = ["//core:__pkg__"],
-    deps = ["//core", "//core:test_backends"],
+    # //core:edge (2026-11-15, the merge of #106 into #104): the census renders through the edge's dialects too
+    deps = ["//core", "//core:edge", "//core:test_backends"],
 )
 
 # The execution census, compared (README.md): two runs' lane logs as multisets of lines after removing run-to-run noise.

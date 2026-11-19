@@ -178,5 +178,6 @@ class ChannelBRelationTest {
         // ledger only with a dated reason (ChannelBLedger)
         ChannelBLedger.judge("Relation", out, ChannelBLedger.of(
                 org.finos.legend.lite.pct.extension.PctBackend.name(), "Relation"));
+        ChannelBLane.judgeSqlHeld("Relation");
     }
 }

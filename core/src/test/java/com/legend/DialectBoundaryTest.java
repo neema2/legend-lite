@@ -97,7 +97,12 @@ class DialectBoundaryTest {
             // every declared type now, and Sessions also named the in-memory SQLite and, on one line, MariaDB and
             // MySQL (raisedMessage's product check); 3 -> 0, row deleted (2026-10-16, the program's Phase 5): each is
             // its connector's (an in-process instance, a held raise), and Sessions asks Connectors
-            "EngineText.java", 1);          // ENGINE_TEST_DATABASE
+            "EngineText.java", 1,           // ENGINE_TEST_DATABASE
+            // PureText.java 0 -> 1 (2026-11-16, W9's judge half, E-Java): the edge's own name for legend-engine's test
+            // database, which the judges' engine-test methods on the one hook (PlanStyle.engineTestText and the plan
+            // text and connection beside it) read; the edge may not reach the planner's EngineText (the planner-entries
+            // rule), and the knowledge is the edge's -- W9 moves EngineText's copy there too
+            "PureText.java", 1);
 
     /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
      *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a
@@ -118,13 +123,19 @@ class DialectBoundaryTest {
             // connector's; Connectors is the registry, one arm per type, as Databases is the dialects'
             // 12 -> 13 (2026-10-22, main's merge): MongoDB's arm, its connector found beside the drivers
             "Connectors.java", 13,
-            "EngineText.java", 9,           // legend-engine's text and IN-list facts per database, root layer only
+            // 9 -> 2 (2026-11-13, phase D's O3): the engine's text printers moved to the edge (PureText.engineText and
+            // enginePlanText, below); EngineText keeps legend-engine's IN-list facts per database
+            "EngineText.java", 2,
             // a connection specification's tag (same names as the types) when a plan's JSON is read: each
             // specification's own fields. PlanJson.java -> ConnectionWire.java (2026-10-16, the dialect program's
             // Phase 5): the codec is the model's, the vocabulary that carries every database's name (D9), and the
             // plan format names none; the arms are the specification tags, not the declared types
             // 4 -> 5 (2026-10-22, main's merge): the Trino specification's tag (the branch's step 9, 2026-10-19)
-            "ConnectionWire.java", 5);
+            "ConnectionWire.java", 5,
+            // 0 -> 13 (2026-11-12, phase D's D1.0): the edge's dialect registry, one arm per type as Databases has
+            // 13 -> 20 (2026-11-13, phase D's O3): legend-engine's text printers, which EngineText chose per type until
+            // they moved to the edge (engineText's and enginePlanText's arms)
+            "PureText.java", 20);
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
@@ -168,7 +179,13 @@ class DialectBoundaryTest {
             // 11 -> 12 (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D2 and D4): the MongoDb target, a dialect class
             // like the others, constructed by the owner for the MongoDB type
             "Databases.java", 12,
-            "EngineText.java", 5);          // legend-engine's text printers, root layer only (invariant 4d)
+            // EngineText.java 5 -> 0, row deleted (2026-11-13, phase D's O3): legend-engine's text printers are the
+            // edge's, constructed by PureText (below), never by the planner
+            // 0 -> 12 (2026-11-12, phase D's D1.0, the spelling hook approved by the orchestrator): the edge's dialect
+            // registry, one subclass of each product dialect, the dialect source PCT, the corpus and pure/v1 plan with
+            // 12 -> 17 (2026-11-13, phase D's O3): and legend-engine's text printers (EngineStyleH2, DB2, Composite),
+            // which the edge's plan style hands the planner
+            "PureText.java", 17);
 
     /** Lines spelling a JDBC URL, by file: only a database's connector opens it (C3b; connectors since 2026-10-16). */
     // Sessions.java 9 -> 10 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): a MariaDB connection's
@@ -185,7 +202,7 @@ class DialectBoundaryTest {
                         + "|SQLite|Databricks|Snowflake|BigQuery|MariaDb|MySql|Trino|ClickHouse|MongoDb"
                         + "|AnsiSqlRenderer|EngineStyleH2|EngineStyleDB2|EngineStyleComposite)\\s*\\(")),
                 "a dialect constructed outside its owner — ask com.legend.database.Databases (the SQL a"
-                        + " query runs) or com.legend.driver.EngineText (legend-engine's golden text)");
+                        + " query runs) or com.legend.edge.PureText (the edge's dialects and legend-engine's golden text)");
         assertEquals(new TreeMap<>(JDBC_URLS), census(Pattern.compile("\"jdbc:")),
                 "a JDBC URL outside a database's connector (exec/<Db>Connector.java) — it opens that database's"
                         + " sessions");

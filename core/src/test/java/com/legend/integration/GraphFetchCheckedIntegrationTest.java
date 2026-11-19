@@ -117,17 +117,17 @@ class GraphFetchCheckedIntegrationTest {
         // evaluate — the engine's catch-branch defect, NOT a clean
         // envelope (pure lane: [] > 0 raises; generated-Java lane:
         // unboxing NPE)
-        assertTrue(json.contains("Unable to evaluate constraint"
-                        + " [posInt]: data not available - check your"
-                        + " mappings"),
+        // the product's defect is its kind's sentence and where, worded at planning (CONSTRAINT_UNEVALUABLE: phase
+        // D's D1.1, the orchestrator's Q3 ruling; the D part 1 audit's S3, 2026-11-15: never the bare kind name in an
+        // answer); the engine's sentence is the edge's
+        assertTrue(json.contains("\"id\":\"posInt\",\"externalId\":null,\"message\":\"constraint not evaluable: data not available (constraint posInt)\""),
                 "NULL predicate must defect (posInt): " + json);
         // the EQUALITY constraint is pure-faithful null-safe: [] != ''
         // is TRUE, so the absent string SATISFIES nonEmptyStr — its
         // predicate is true, not NULL, and no defect is correct (both
         // referees agree: pure equal is size-aware, the engine's
         // generated equal is null-safe)
-        assertFalse(json.contains("Unable to evaluate constraint"
-                        + " [nonEmptyStr]"),
+        assertFalse(json.contains("\"id\":\"nonEmptyStr\",\"externalId\":null,\"message\":\"constraint not evaluable"),
                 "null-safe equality must not defect: " + json);
         assertFalse(json.contains("\"defects\":[],\"value\":{\"id\":5"),
                 "the all-NULL object must not report clean: " + json);
@@ -152,7 +152,8 @@ class GraphFetchCheckedIntegrationTest {
                         && json.contains("\"enforcementLevel\":\"Error\""),
                 "defect shape must stay engine-shaped: " + json);
         // exactly the all-NULL row's one unable-to-evaluate defect
-        assertEquals(1, json.split("Unable to evaluate", -1).length - 1,
+        assertFalse(json.contains("CONSTRAINT_UNEVALUABLE"), "no bare kind name in an answer: " + json);
+        assertEquals(1, json.split("constraint not evaluable", -1).length - 1,
                 "only the NULL row's comparison constraint carries"
                         + " unable-to-evaluate: " + json);
     }

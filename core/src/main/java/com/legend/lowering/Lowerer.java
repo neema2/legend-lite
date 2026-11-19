@@ -106,21 +106,6 @@ public final class Lowerer {
 
     private int aliasCounter = 0;
 
-    /** The DEFERRED relation-toString registry (dynamic-pivot inners
-     * whose '#TDS' column list only exists at the execution boundary):
-     * id → the typed relation schema the boundary resolver needs for
-     * per-column print forms. The SQL IR node itself is TYPES-FREE
-     * (the sql package's standalone wall); this side channel is the
-     * lowering layer's own. */
-    private final java.util.Map<Integer,
-            com.legend.compiler.element.type.Type.RelationType>
-            deferredTds = new java.util.LinkedHashMap<>();
-
-    public java.util.Map<Integer,
-            com.legend.compiler.element.type.Type.RelationType>
-            deferredTds() {
-        return deferredTds;
-    }
     private int tdsCounter;
 
     /**
@@ -198,6 +183,19 @@ public final class Lowerer {
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
 
+    /** How the target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  target dialect's, passed by the planner as data (the lowering imports no dialect); a user's Float literal is
+     *  built with it, asked only where one is lowered (naming the target can need the runtime's database); none (no
+     *  target named) refuses one by name. */
+    private java.util.function.Supplier<com.legend.sql.SqlExpr.FloatLit.@com.legend.base.Nullable Kind> floatLiteralKind =
+            () -> null;
+
+    public Lowerer withFloatLiteralKind(
+            java.util.function.Supplier<com.legend.sql.SqlExpr.FloatLit.@com.legend.base.Nullable Kind> kind) {
+        this.floatLiteralKind = kind;
+        return this;
+    }
+
     public Lowerer withDbTimeZone(@com.legend.base.Nullable String zone) {
         this.dbTimeZone = zone;
         return this;
@@ -209,12 +207,14 @@ public final class Lowerer {
     /** Pre-bind a free variable to an execution-plan TEMPLATE parameter
      * ({@code ${name}} — the plan printer's vocabulary): the variable
      * resolves through the ordinary let-binding channel. */
-    /** The two lowering MODES (batch 136): VERBATIM equality under the mapping's
-     * own definition (NullSemantics.verbatim); ENGINE-TEXT (CastPolicy). */
+    /** VERBATIM equality under the mapping's own definition (NullSemantics.verbatim). */
     private boolean verbatimEquality;
-    private boolean engineText;
+    /** A filter's correlated EXISTS over a to-many join may be written as a join to the distinct keys, where the plan
+     *  style's forms choose ({@link LoweringForms#existsJoin}): the planner's own fact of the statement (the edge audit's
+     *  J19; a LoweringShape's field until J40, 2026-11-18, when the shape's forms became the plan style's alone). */
+    private boolean existsJoinable;
     /** The query's execution feature flags (FeatureRules): builder-style like
-     *  engineText; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
+     *  the style; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
      *  form (plain {@code =}) at the four scalar sites. */
     private java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
     private boolean legacyNullUnsafeEquals;
@@ -235,15 +235,84 @@ public final class Lowerer {
         return this;
     }
 
-    public Lowerer withEngineText() {
-        this.engineText = true;
+    /** A RELATION'S TEXT ({@link RelationTexts}, the separation census's B17, 2026-11-17): the plan style's facet,
+     *  asked only when a {@code toCSV}, a TDS's {@code csv} or a relation's {@code toString} is lowered, with that call's
+     *  own refusal (the product's style throws it, at lowering, by name). A Lowerer no planner handed a style refuses
+     *  each the same way. */
+    private Function<Supplier<? extends RuntimeException>, RelationTexts> relationTexts = refusal -> {
+        throw refusal.get();
+    };
+
+    /** An execution's trace text in a TDS cell (the separation census's B8 (ii), 2026-11-17): the plan style's
+     *  {@code traceText}, the id in the product's. A Lowerer no planner handed a style refuses one by name. */
+    private java.util.function.Function<SqlExpr, SqlExpr> traceText = id -> {
+        throw new IllegalStateException("an execution's trace text in a TDS cell: a Lowerer no planner handed a plan"
+                + " style (PlanEnv.configure) has none");
+    };
+
+    /** The plan style's trace text ({@code style.traceText}). */
+    public Lowerer withTraceText(java.util.function.Function<SqlExpr, SqlExpr> style) {
+        this.traceText = style;
+        return this;
+    }
+
+    /** The plan style's text facets and plain raises (the separation census's B8 and B7, 2026-11-17): the texts only
+     *  legend-pure writes ({@link PureOnlyTexts}), asked only when a native's rule meets one, with that call's own
+     *  refusal; a DateTime's text in a message and a list's text, the style's forms of the two-form {@link DateTimeTexts}
+     *  and {@link ListTexts}; and THE RAISES THE STYLE WRITES
+     *  PLAIN ({@link LoweringForms#raise}, the audit's K5): a check of a kind there is the operation alone, the database's own error
+     *  passing through (the edge's pure/v1 style, legend-engine's census class A). A Lowerer no planner handed a style
+     *  has none and refuses by name when a rule asks (the audit's K6, 2026-11-17: no implicit "no edge" default, G7);
+     *  the product's is {@link Styled#PRODUCT}, chosen explicitly. */
+    private @com.legend.base.Nullable Styled styled;
+
+    /** The planner's style's text facets and plain raises ({@code PlanEnv.styled}). */
+    public Lowerer withStyled(Styled style) {
+        this.styled = style;
+        return this;
+    }
+
+    /** The style's text facets a native's rule reads ({@link Styled}). */
+    private Styled styled() {
+        Styled s = styled;
+        if (s == null) {
+            throw new IllegalStateException("a native's text facets and plain raises: a Lowerer no planner handed a"
+                    + " plan style (PlanEnv.configure, or withStyled(Styled.PRODUCT) explicitly) has none");
+        }
+        return s;
+    }
+
+    /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,
+     *  asked only when an {@code executeLegendQuery} envelope is lowered, with its refusal. A Lowerer no planner handed a
+     *  style refuses it the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes>
+            resultEnvelopes = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The plan style's result-envelope facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withResultEnvelopes(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes> style) {
+        this.resultEnvelopes = style;
+        return this;
+    }
+
+    /** The result-envelope facet, the product's refusal {@code refusal}. */
+    ResultEnvelopes resultEnvelopes(java.util.function.Supplier<? extends RuntimeException> refusal) {
+        return resultEnvelopes.apply(refusal);
+    }
+
+    /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withRelationTexts(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {
+        this.relationTexts = style;
         return this;
     }
 
     /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
      *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
-     *  __let<n>}) at the statement's head that each read names. Off in engine-text mode (legend-engine's own SQL, which
-     *  pastes it) and where the frame extracts the statement's subqueries as its own expressions (the engine's
+     *  __let<n>}) at the statement's head that each read names. Off where the shape asks
+     *  (the shape's form, {@link LoweringForms#relations}) and where the frame extracts the statement's subqueries as its own expressions (the engine's
      *  cteExtractionPostProcessor: {@link #sharingRelations}). */
     private boolean shareRelations = true;
     /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
@@ -285,12 +354,10 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
-    /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
-     * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
-    private boolean engineExistsJoinForm;
-
-    public Lowerer withEngineExistsJoinForm() {
-        this.engineExistsJoinForm = true;
+    /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
+     *  keys ({@link LoweringForms#existsJoin}; the edge audit's J19: the product's form keeps the EXISTS). */
+    public Lowerer withExistsJoinable() {
+        this.existsJoinable = true;
         return this;
     }
 
@@ -356,7 +423,7 @@ public final class Lowerer {
             return null;
         }
         if (objectIdentity && (!evaluation.complete() || !evaluation.tracked())) {
-            return new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR);
+            return new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
         }
         String id = instanceIdOf.apply(evaluation.complete() ? evaluation.site() : node);
         if (evaluation.iterations().isEmpty()) {
@@ -380,7 +447,7 @@ public final class Lowerer {
             }
             String position = iterationPositions.get(k)[1];
             positionsRead.add(position);
-            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived(null, position), SqlType.Scalar.VARCHAR));
+            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived(null, position), SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR));
             from = k + 1;
         }
         return new SqlExpr.Call(SqlFn.CONCAT, parts);
@@ -416,11 +483,6 @@ public final class Lowerer {
             Function<Type, com.legend.compiler.element
                     .@com.legend.base.Nullable EqualityKeys> keys) {
         this.instanceKeysOf = keys;
-        return this;
-    }
-
-    public Lowerer bindPlanParam(String name, boolean stringTyped) {
-        letBindings.put(name, new SqlExpr.PlanParam(name, stringTyped));
         return this;
     }
 
@@ -466,25 +528,36 @@ public final class Lowerer {
         }
         TypedSpec root = withQueryLets(body);
         SqlQuery q;
-        if (sharing == null && shareRelations && !engineText) {
-            // a relation read more than once, written once (SharedRelations): the statement's own names are its
-            // query lets and plan parameters, which its head reads as every part of it does
-            SharedRelations.Frame frame =
-                    new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
-            sharing = frame;
-            try {
-                SqlQuery reads = lower(root);   // first: the reads write the expressions
-                q = SqlWith.prepend(List.copyOf(frame.written), reads);
-            } finally {
-                sharing = null;
-            }
+        if (sharing == null && shareRelations) {
+            // a relation read more than once, written once (SharedRelations), as the shape's form chooses (J23)
+            q = styled().forms().relations(() -> sharedLower(root), () -> lower(root));
         } else {
             q = lower(root);
         }
         // J-tail: demand-driven subselect column pruning (engine parity —
         // isolated composites enumerate only consumed columns)
+        if (scalarRootShape(root)) {
+            // P1a (E3, ruled 2026-11-12): what the root's FROM-less select writes more than once, computed once
+            // under it (LetBinding); the query as it was where nothing repeats
+            q = LetBinding.bindRepeats(q);
+        }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        return SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
+        SqlQuery counted = styled().forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
+        return styled().forms().computedPruning(counted);
+    }
+
+    /** {@code root} lowered with each relation it reads more than once written once (SharedRelations): the statement's
+     *  own names are its query lets and plan parameters, which its head reads as every part of it does. */
+    private SqlQuery sharedLower(TypedSpec root) {
+        SharedRelations.Frame frame =
+                new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
+        sharing = frame;
+        try {
+            SqlQuery reads = lower(root);   // first: the reads write the expressions
+            return SqlWith.prepend(List.copyOf(frame.written), reads);
+        } finally {
+            sharing = null;
+        }
     }
 
     /**
@@ -539,7 +612,8 @@ public final class Lowerer {
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), !engineText));
+        SqlQuery lowered = lower(source);
+        SqlQuery rows = namedColumns(styled().forms().computedPruning(lowered));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -705,6 +779,17 @@ public final class Lowerer {
         return com.legend.compiler.spec.typed.TypedSubst.renameBinders(body.get(body.size() - 1), reserved, queryScope);
     }
 
+    /** Whether {@code spec} lowers through the scalar root ({@link #lower(TypedSpec)}'s last arm): not a graph, a
+     *  concatenation, a relation, or a map over a relation's rows. */
+    private static boolean scalarRootShape(TypedSpec spec) {
+        if (spec instanceof TypedFrom from) {
+            return scalarRootShape(from.source());
+        }
+        return !(spec instanceof TypedSerializeGraph) && !(spec instanceof TypedConcatenate)
+                && !(Type.schemaView(spec.info().type()) instanceof Type.RelationType)
+                && !(spec instanceof TypedMap m && CollectionRelations.rowSource(m.source()));
+    }
+
     /** The value of the plan parameter {@code name} (bound by {@link #bindPlanParam}), of {@code type}, as the query
      *  whose value it is: a query that reads the parameter alone (a write plan's count, which the plan binds after
      *  its write runs, docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). */
@@ -736,16 +821,13 @@ public final class Lowerer {
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
         if (spec instanceof TypedSerializeGraph g) {
-            // the value of an engine execute(...) (the splice's mark): the
-            // engine JsonBuilder's cardinality rule, exactly one object bare
-            // and zero or several as the array -- the scalar position's fold
-            // (SnapshotEnvelope). COMPATIBILITY ONLY (the user, 2026-11-03:
-            // "the right clean thing in lite, the backward-compatible thing
-            // in compatibility mode"): lite's own root stays the array, and
-            // the streaming root (one object per row) never folds
-            if (g.engineExecuteCardinality() && !streamingGraphRoot) {
-                return conformJsonEgress(SnapshotEnvelope.fold(
-                        serializeGraph(g.asArrayWrapped(), false)));
+            // the value of an engine execute(...) (the splice's mark), the style's form (the audit's J3, 2026-11-17:
+            // LoweringForms#executeValues): the product's lite's own root, the array (the user, 2026-11-03: "the right
+            // clean thing in lite, the backward-compatible thing in compatibility mode"); the edge's the engine
+            // JsonBuilder's cardinality rule, exactly one object bare -- the scalar position's fold (SnapshotEnvelope).
+            // The streaming root (one object per row) never folds
+            if (g.readThroughExecuteValues() && !streamingGraphRoot) {
+                return conformJsonEgress(styled().forms().executeValues(serializeGraph(g, false)));
             }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
@@ -843,7 +925,8 @@ public final class Lowerer {
         // truthfully -- the TREE carries the carrier through element-preserving ops (the stored type IS the
         // authority, the judge is gone from this site)
         com.legend.sql.TypeFact rootJudge = e.type();
-        if (anyStamp && !Stamps.isMany(spec)
+        // (a tagged value -- a mixed selection's winner -- is projected as its tag and slots below, never boxed: O2's D2)
+        if (anyStamp && !Stamps.isMany(spec) && !(e instanceof SqlExpr.Tagged)
                 && rootJudge instanceof com.legend.sql.TypeFact.Typed t
                 && t.type() != SqlType.Scalar.JSON) {
             e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);
@@ -946,7 +1029,7 @@ public final class Lowerer {
         // the tag column is TYPED as the tagged carrier by a cast every dialect writes as the identity (the slot is
         // the wire, SqlTyping.reconcileSlot: a label rides on the expression's own type, as LITERAL's does)
         SqlType.Tagged carrier = new SqlType.Tagged(slots);
-        out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null), carrier), "value",
+        out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null, SqlExpr.Reason.CARRIER), carrier, SqlExpr.Reason.CARRIER), "value",
                 new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
         for (int i = 0; i < slots.size(); i++) {
             List<SqlExpr.Case.When> whens = new ArrayList<>();
@@ -957,10 +1040,10 @@ public final class Lowerer {
                 SqlType own = owns.get(k);
                 SqlExpr read = SqlExpr.Column.of(inner, "__c" + k, own, true, OutputCol.Origin.DERIVED);
                 whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
-                        own.equals(slots.get(i).type()) ? read : new SqlExpr.Cast(read, slots.get(i).type())));
+                        own.equals(slots.get(i).type()) ? read : new SqlExpr.Cast(read, slots.get(i).type(), SqlExpr.Reason.CARRIER)));
             }
             String name = SqlType.Tagged.slotColumn("value", i);
-            out.add(new SqlSelect.Projection(new SqlExpr.Case(whens, null), name,
+            out.add(new SqlSelect.Projection(new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER), name,
                     new OutputCol(name, slots.get(i).type(), true)));
         }
         return new SqlSelect(out, false, new SqlSource.Subselect(once, inner, null), null, List.of(), null, null,
@@ -1148,13 +1231,9 @@ public final class Lowerer {
             case TypedTableReference t -> tableRead(t);
 
             case TypedTds tds -> tdsLiteral(tds);
-            // a VIEW at relation position: the engine plans it as an inline
-            // derived table aliased by the view (ViewSelectSQLQuery —
-            // personview_0, its root table "root" inside); the product
-            // render is lean — the body lowers flat, a name is not a nesting
-            case TypedViewRelation v -> engineText
-                    ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
-                    : relation(v.body());
+            // a VIEW at relation position, the shape's form (the audit's K5, 2026-11-17: LoweringForms#view): the
+            // product's body lowered flat (a name is not a nesting); legend-engine's an aliased derived table
+            case TypedViewRelation v -> styled().forms().view(relation(v.body()), this::nextAlias, v.view());
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
             case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
@@ -1250,7 +1329,7 @@ public final class Lowerer {
                             this::sqlTypeOf);
 
             case TypedProject p -> project(relation(p.source()),
-                    p.columns(), p.info(), p.wireForm());
+                    p.columns(), p.info());
 
             case TypedConcatenate c -> SqlSelect.starOf(
                     new SqlSource.Subselect(union(c), nextAlias(), null));
@@ -1384,13 +1463,13 @@ public final class Lowerer {
             // constant key is an expression only where it is typed (Postgres,
             // ConstantKeysAsExpressions), and the type is the plan's own
             keys.add(key instanceof SqlExpr.NullLit
-                    ? new SqlExpr.Cast(key, Fold.named(contract, k.column()).type())
+                    ? new SqlExpr.Cast(key, Fold.named(contract, k.column()).type(), SqlExpr.Reason.DECLARED)
                     : key);
             // a self-aliased key drops the alias (view-frame goldens) —
             // EXCEPT reads of a union frame's outputs, which keep it
             // ("unionalias_0"."lastName" as "lastName")
             boolean unionRead = base.from() instanceof SqlSource.Subselect sub
-                    && "unionAlias".equals(sub.frameName())
+                    && unionFrame(sub)
                     && e instanceof SqlExpr.Column uc
                     && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,
@@ -1429,7 +1508,7 @@ public final class Lowerer {
      * at the STATEMENT egress where the contract says String. A
      * synth-conformance cast: execution SQL spells the database's own
      * JSON&rarr;text serialization (probed byte-identical on 1.5.0,
-     * empty case included), engine TEXT elides it (the conform()
+     * empty case included), engine TEXT elides it (the CONFORM reason
      * suppression). Identity on non-JSON results. */
     private static SqlSelect conformJsonEgress(SqlSelect s) {
         if (s.projections().size() != 1) {
@@ -1442,7 +1521,7 @@ public final class Lowerer {
         }
         return s.withProjections(
                 List.of(new SqlSelect.Projection(new SqlExpr.Cast(
-                        p.expr(), SqlType.Scalar.VARCHAR, true),
+                        p.expr(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.CONFORM),
                         p.outputName(), p.out())));
     }
 
@@ -1532,7 +1611,7 @@ public final class Lowerer {
                 whens.add(new SqlExpr.Case.When(member,
                         new SqlExpr.JsonObject(pkv)));
             }
-            obj = new SqlExpr.Case(whens, obj);
+            obj = new SqlExpr.Case(whens, obj, SqlExpr.Reason.CARRIER);
         }
         // CHECKED envelope: {defects: [...], value: obj} — extracted rule
         if (g.checkedConstraints() != null) {
@@ -1540,7 +1619,7 @@ public final class Lowerer {
                     cc -> envelopeScalar(cc, fr[0], "checked constraint"), hoists);
         }
         if (g.objectRefPrefix() != null) {   // ASOR {objectReference, value}
-            obj = SnapshotEnvelope.asorWrap(g, obj,
+            obj = SnapshotEnvelope.asorWrap(g, styled().forms().objectReferenceConnection(), obj,
                     k -> envelopeScalar(k, fr[0], "objectReference pk"));
         }
         SqlSelect envelope = fr[0];
@@ -1742,7 +1821,7 @@ public final class Lowerer {
                     new TypedLambda(a.reduce().parameters(),
                             List.of(rc.source()), a.reduce().info()),
                     a.order()));
-            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire());
+            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire(), styled().forms());
         }
         // A CONDITION OVER REDUCERS (y|if($y->count() < 21, |[], |$y->average()): a figure given once its window holds
         // enough values, the DataCube timeseries library's ramp, 2026-10-26) -- each reducer the aggregate it is
@@ -1893,7 +1972,7 @@ public final class Lowerer {
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
             value = CastPolicy.castByPolicy(value,
-                    valueCast.source().info().type(), valueCast.target(), valueCast.wire());
+                    valueCast.source().info().type(), valueCast.target(), valueCast.wire(), styled().forms());
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) (engine testGroupByIsDistinct)
         if (fn == SqlAgg.Fn.IS_DISTINCT_MARK) {
@@ -1960,7 +2039,7 @@ public final class Lowerer {
         // pure percentile RENDERS AS FLOAT (engine golden 12.0, not 12) —
         // the discrete quantile keeps the input's integer type, so cast
         return fn == SqlAgg.Fn.QUANTILE_DISC
-                ? new SqlExpr.Cast(red, SqlType.Scalar.DOUBLE) : red;
+                ? new SqlExpr.Cast(red, SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR) : red;
     }
 
     /**
@@ -1972,7 +2051,7 @@ public final class Lowerer {
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
                              ExprType info) {
         SqlSelect base = Fold.extendFolds(src) ? src : extendOver(src);
-        return computedColumns(base, columns, info, true, false);
+        return computedColumns(base, columns, info, true);
     }
 
     /** The select an extend that does not fold computes its columns in: {@code src} isolated. Over a truncated
@@ -1991,26 +2070,23 @@ public final class Lowerer {
         return Sorts.keepsOrder(src) ? Sorts.isolateOrdered(this, src) : src;
     }
 
-    /** project(~cols): the computed columns REPLACE the projection list.
-     * {@code wireForm} — the flat class form's engine-wire provenance
-     * (TypedProject.wireForm): conformance casts are suppressed there. */
+    /** project(~cols): the computed columns REPLACE the projection list. */
     private SqlSelect project(SqlSelect src, List<TypedFuncCol> columns,
-                              ExprType info, boolean wireForm) {
+                              ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
-        return computedColumns(base, columns, info, false, wireForm);
+        return computedColumns(base, columns, info, false);
     }
 
     /** Lower computed columns over {@code base}: one attempt, isolate ONCE on
      * an unfoldable ref, then loud (isolation is idempotent for resolution). */
     private SqlSelect computedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                       ExprType info,
-                                      boolean keepExisting,
-                                      boolean wireForm) {
+                                      boolean keepExisting) {
         String[] miss = new String[2];
         SqlSelect a1 = tryComputedColumns(base, columns, info, keepExisting,
-                wireForm, miss);
+                miss);
         SqlSelect a2 = a1 != null ? a1 : tryComputedColumns(isolate(base),
-                columns, info, keepExisting, wireForm, miss);
+                columns, info, keepExisting, miss);
         if (a2 != null) {
             return a2;
         }
@@ -2025,7 +2101,7 @@ public final class Lowerer {
     private @com.legend.base.Nullable SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                          ExprType info,
                                          boolean keepExisting,
-                                         boolean wireForm, String[] miss) {
+                                         String[] miss) {
         // E2 (JAVA_EVICTION_PLAN): a TO-MANY scalar funcCol EXPLODES ROWS
         // IN SQL — the engine's scalar-stream rule (one row per element,
         // row-major; an EMPTY stream keeps one parent row with a NULL
@@ -2166,10 +2242,9 @@ public final class Lowerer {
             case WHERE -> {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
-                yield engineExistsJoinForm
-                        ? ExistsJoinForm.rewrite(m, this::nextAlias,
-                                whereZones::get)
-                        : m;
+                // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S367)
+                yield existsJoinable ? styled().forms().existsJoin(m,
+                        new ExistsSites(this::nextAlias, whereZones()::keysWhere)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));
@@ -2210,7 +2285,7 @@ public final class Lowerer {
         for (TypedSpec arg : call.args()) {
             wrapped.add(arg instanceof TypedCollection run ? listLiteral(run, operand) : operand.apply(arg));
         }
-        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations));
+        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations, styled()));
     }
 
     /** A reduce body of SEVERAL REDUCERS under a condition: each reducer of the reduce's collection lowers as the
@@ -2234,7 +2309,7 @@ public final class Lowerer {
                     args.add(arg instanceof TypedCollection run && !run.elements().isEmpty()
                             ? listLiteral(run, x -> overReducers(base, a, x)) : overReducers(base, a, arg));
                 }
-                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations));
+                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations, styled()));
             }
             default -> scalar(e, noScope());
         };
@@ -2247,16 +2322,21 @@ public final class Lowerer {
         return new SqlExpr.ArrayLit(c.elements().stream().map(element).toList());
     }
 
-    /** whereExpr identity -> its {@link WhereMerge.Zones} split — written
-     * whenever a resolver-stamped filter folds, consumed as later filters
-     * fold onto the same WHERE (see {@link WhereMerge}). */
-    private final java.util.IdentityHashMap<SqlExpr, WhereMerge.Zones>
-            whereZones = new java.util.IdentityHashMap<>();
+    /** This lowering's WHERE merges, the style's (L10): made at the first merge, one per lowering. */
+    private @com.legend.base.Nullable WhereZones whereZones;
+
+    private WhereZones whereZones() {
+        if (whereZones == null) {
+            whereZones = styled().forms().whereZones();
+        }
+        return whereZones;
+    }
 
     private SqlExpr mergeWhere(@com.legend.base.Nullable SqlExpr existing,
             SqlExpr predicate,
             com.legend.compiler.spec.typed.TypedFilter.Stamp stamp) {
-        return WhereMerge.merge(whereZones, existing, predicate, stamp);
+        // the style's merge (L10): the product's append, legend-engine's zones (kept for its exists form)
+        return whereZones().merge(existing, predicate, stamp);
     }
 
     /** The isolate-terminal boundary: the select was JUST isolated, so an
@@ -2506,11 +2586,12 @@ public final class Lowerer {
     private SqlSelect projectColumns(SqlSelect base, List<String> columns,
                                      ExprType info) {
         List<OutputCol> contract = outputsOf(info);
+        String frame = styled().forms().unionFrame();
         List<SqlSelect.Projection> ps = Fold.tryProjectAll(base, columns,
-                contract);
+                contract, frame);
         if (ps == null) {
             base = isolate(base);
-            ps = Fold.tryProjectAll(base, columns, contract);
+            ps = Fold.tryProjectAll(base, columns, contract, frame);
             if (ps == null) {
                 throw new IsolationWall("select/distinct columns " + columns
                         + " cannot all be resolved even after isolation");
@@ -2528,7 +2609,7 @@ public final class Lowerer {
 
     private SqlSelect distinct(TypedDistinct d) {
         // TDS union (the Typer's distinct-over-concatenation desugar):
-        // the engine form — subselect(A union B) named by the unionAlias
+        // the engine form — subselect(A union B) named by the style's union frame
         // frame, plain outer re-projection of the output columns (SQL
         // UNION dedups; never a distinct wrapper)
         // whole-row iff columns cover the SOURCE schema (output row is narrowed)
@@ -2539,7 +2620,7 @@ public final class Lowerer {
             SqlUnion u = union(tc);
             SqlUnion dedup = new SqlUnion(u.branches(), false, u.outputs());
             SqlSource.Subselect sub = new SqlSource.Subselect(
-                    dedup, nextAlias(), "unionAlias");
+                    dedup, nextAlias(), styled().forms().unionFrame());
             List<SqlSelect.Projection> projs = new ArrayList<>();
             for (Type.Column c : (Type.requireRelationSchema(d.info().type()))
                     .columns()) {
@@ -2571,6 +2652,10 @@ public final class Lowerer {
         // reads the original TDS aliases); an already-framed source
         // absorbs chained renames; a BARE SCAN renames in place (the
         // relation-channel flat pin — nothing projected to frame)
+        // a rename of a PROJECTED source is framed (its computed projections read once through the frame, never
+        // inlined again: ScaleCostsDuckDbTest's doubling chain stays linear; L10, 2026-11-18, measured -- the product's
+        // rule, as legend-engine's SQL frames it too); an already-framed source absorbs chained renames; a bare scan
+        // renames in place
         SqlSelect base = Fold.projectionFolds(src)
                 && (src.from() instanceof SqlSource.Subselect
                         || src.projections().isEmpty())
@@ -2796,7 +2881,9 @@ public final class Lowerer {
                         throw new IllegalStateException("a TDS cell is the plan parameter '" + parameter + "', which"
                                 + " the statement's lowering does not bind (bindPlanParam)");
                     }
-                    cells.add(bound);
+                    // an execution's trace text: the id in the product, legend-engine's comment at the edge (D1.4;
+                    // the plan style's two-form hook since B8 (ii), 2026-11-17)
+                    cells.add(traceText.apply(bound));
                     continue;
                 }
                 cells.add(Scalars.tdsCell(row.get(i), schema.columns().get(i).type()));
@@ -2880,15 +2967,15 @@ public final class Lowerer {
         } else {
             // a UNION-FRAMED operand keeps its frame identity through
             // join isolation (engine: joins against a union wrap it as
-            // another unionAlias frame)
+            // another union frame, the style's)
             left = unionFramed(leftSel)
                     ? new SqlSource.Subselect(leftSel, nextAlias(),
-                            "unionAlias")
+                            styled().forms().unionFrame())
                     : asLeftJoinSide(leftSel);
         }
         SqlSelect rightSel = relation(j.right());
         SqlSource right = asRightSide(rightSel,
-                unionFramed(rightSel) ? "unionAlias" : j.frameName());
+                unionFramed(rightSel) ? styled().forms().unionFrame() : j.frameName());
         // a USER join lambda's ON keeps pure's null-safe equality (testJoinOnNullKey);
         // a RESOLVER-SYNTHESIZED join is the mapping's definition — plain '=' (slotDemandJoins)
         SqlExpr on;
@@ -2921,19 +3008,24 @@ public final class Lowerer {
             // Subselect; re-asserting outputsOf(info) here would
             // re-echo the kind-blind contract (the SqlUnion ctor lesson)
             return SqlSelect.starOf(new SqlSource.Subselect(out, nextAlias(),
-                    "unionAlias"));
+                    styled().forms().unionFrame()));
         }
         return out;
     }
 
-    private static boolean unionFramed(SqlSelect s) {
-        return s.from() instanceof SqlSource.Subselect sub
-                && "unionAlias".equals(sub.frameName());
+    /** Whether {@code s} reads a union frame the style names (L10: the product names none). */
+    private boolean unionFramed(SqlSelect s) {
+        return s.from() instanceof SqlSource.Subselect sub && unionFrame(sub);
     }
 
-    private static boolean unionSide(SqlSource s) {
-        return s instanceof SqlSource.Subselect sub
-                && "unionAlias".equals(sub.frameName());
+    private boolean unionSide(SqlSource s) {
+        return s instanceof SqlSource.Subselect sub && unionFrame(sub);
+    }
+
+    /** Whether {@code sub} is a union frame the style names: never where it names none (the product's). */
+    private boolean unionFrame(SqlSource.Subselect sub) {
+        String frame = styled().forms().unionFrame();
+        return frame != null && frame.equals(sub.frameName());
     }
 
     /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */
@@ -3437,7 +3529,7 @@ public final class Lowerer {
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
-                return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations));
+                return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations, styled()));
             }
             // The EMPTY collection is no run: none, the scalar rule's NULL (2026-10-26: an if's |[] arm in a window
             // column, the DataCube library's returns, had been an empty array, which a CASE beside a number refuses)
@@ -3469,7 +3561,7 @@ public final class Lowerer {
                                 windowScalar(i.condition(), base, over),
                                 windowScalar(PureSql.thunkBody(i.thenBranch()), base, over))),
                         i.elseBranch().map(e -> windowScalar(PureSql.thunkBody(e), base, over))
-                                .orElse(new SqlExpr.NullLit()));
+                                .orElse(new SqlExpr.NullLit()), SqlExpr.Reason.USER);
             }
             default -> {
                 return scalar(body, (v, name) -> resolveOrThrow(base, name));
@@ -3489,7 +3581,7 @@ public final class Lowerer {
             List<SqlExpr.Case.When> whens = new ArrayList<>(c.whens().size() + inner.whens().size());
             whens.addAll(c.whens());
             whens.addAll(inner.whens());
-            return new SqlExpr.Case(whens, inner.otherwise());
+            return new SqlExpr.Case(whens, inner.otherwise(), c.reason());
         }
         return e;
     }
@@ -3586,13 +3678,17 @@ public final class Lowerer {
                     ? new SqlExpr.DecimalLit(new java.math.BigDecimal(big))
                     : new SqlExpr.IntLit(c.value().longValue());
             case TypedCString c -> new SqlExpr.StringLit(c.value());
+            // an expected present null cell (C5 step C): lite's null-cell marker, which the judges' canon reads as null
+            case com.legend.compiler.spec.typed.TypedNullCell ignoredCell -> new SqlExpr.StringLit(CanonicalRenderSql.NULL_CELL_WIRE);
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
             // a value a planned statement answers (B2d.2, 2026-11-11): its statement, read where the value stands
             case com.legend.compiler.spec.typed.TypedPlannedValue v -> new SqlExpr.ScalarSubquery(v.statement());
             // B8: exact digits emit as DecimalLit under the Float label (see CFloat)
             case TypedCFloat c -> c.exact() != null
                     ? new SqlExpr.DecimalLit(c.exact())
-                    : new SqlExpr.FloatLit(c.value());
+                    : SqlExpr.FloatLit.of(c.value(), java.util.Objects.requireNonNull(floatLiteralKind.get(),
+                            "a Float literal lowered with no target named: how its database computes it is the"
+                            + " target's (SqlDialect.floatLiteralKind)"));
             case TypedCDecimal c ->
                     new SqlExpr.DecimalLit(c.value());
             // Date literals: full dates/timestamps render typed; PARTIAL
@@ -3605,7 +3701,7 @@ public final class Lowerer {
             case com.legend.compiler.spec.typed.TypedCLatestDate ignored ->
                     new SqlExpr.Cast(new SqlExpr.StringLit(
                             "9999-12-31T00:00:00.0000"),
-                            com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT);
+                            com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.DECLARED);
             // The EMPTY collection [] (Nil[0]) in scalar position IS SQL
             // NULL — a [0] value has no cell representation other than null
             // (the mapping enum decode chain's tail: CASE ... ELSE NULL). An empty typed as the Variant
@@ -3614,7 +3710,7 @@ public final class Lowerer {
             // arm of a class lacking a property typed two ways, docs/CYPHER_STUDY_2026_10_15.md §12.62)
             case TypedCollection c when c.elements().isEmpty() ->
                     c.info().type() instanceof Type.ClassType ct && PlatformTypes.isVariant(ct)
-                            ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.JSON) : new SqlExpr.NullLit();
+                            ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.JSON, SqlExpr.Reason.DECLARED) : new SqlExpr.NullLit();
             // A HETEROGENEOUS literal — element LUB Any ([1, 'a']) or a class
             // LUB with NO canonical layout (mixed instance kinds meeting at
             // an abstract ancestor): each element wraps as variant JSON, the
@@ -3736,12 +3832,7 @@ public final class Lowerer {
                     && letBindings.containsKey(v.name()) -> {
                 SqlExpr bound = Objects.requireNonNull(
                         letBindings.get(v.name()));
-                // a field read through a plan parameter IS a dotted
-                // placeholder — its KIND follows the FIELD type
-                yield bound instanceof SqlExpr.PlanParam pp
-                        ? new SqlExpr.PlanParam(pp.name() + "." + p.property(),
-                                Fold.planKindOf(p.info().type()))
-                        : new SqlExpr.StructGet(bound, p.property());
+                yield new SqlExpr.StructGet(bound, p.property());
             }
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
                     -> Objects.requireNonNull(
@@ -3780,8 +3871,8 @@ public final class Lowerer {
                 }
                 yield p.info().multiplicity().isMany()
                         ? new SqlExpr.Cast(e,
-                                new SqlType.Array(PureSql.type(leaf)))
-                        : new SqlExpr.Cast(e, PureSql.type(leaf));
+                                new SqlType.Array(PureSql.type(leaf)), SqlExpr.Reason.DECLARED)
+                        : new SqlExpr.Cast(e, PureSql.type(leaf), SqlExpr.Reason.DECLARED);
             }
             case TypedPropertyAccess p when p.source()
                         instanceof TypedNewInstance ni -> {
@@ -3810,12 +3901,7 @@ public final class Lowerer {
                     manyPropertyMap(p, columns);
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     -> {
-                SqlExpr base = scalar(p.source(), columns);
-                // a read THROUGH a plan parameter = the dotted placeholder
-                String dotted = PlanParams.dottedPlanParam(base, p.property());
-                yield dotted != null && !(p.info().type() instanceof Type.ClassType)
-                        ? new SqlExpr.PlanParam(dotted, Fold.planKindOf(p.info().type()))
-                        : new SqlExpr.StructGet(base, p.property());
+                yield new SqlExpr.StructGet(scalar(p.source(), columns), p.property());
             }
             // ^Class(prop=value, …) as a VALUE: a struct with the MODEL's
             // canonical layout (declared stored properties, declaration
@@ -4090,7 +4176,7 @@ public final class Lowerer {
                             PureSql.asList(scalar(s.source(), columns),
                                     !CollectionLanes.c1Literal(s.source())),
                             scalar(s.start(), columns),
-                            scalar(s.stop(), columns));
+                            scalar(s.stop(), columns), styled().forms());
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !Type.relationValued(d.source().info()) -> {
                 SqlExpr src = PureSql.asList(scalar(d.source(), columns),
@@ -4174,7 +4260,8 @@ public final class Lowerer {
         return switch (spec) {
             // makeString/joinStrings over the $r.values TDSRow-cells
             // synthesis (construction-declared — tc.rowCells()): stringify each
-            // cell (TDSNull print convention, audit 9); hand-written
+            // cell, an empty one skipped (CELL_TEXT, D1.3 2026-11-15:
+            // legend-engine's TDSNull is the edge's); hand-written
             // cell lists never match the roster test.
             case TypedNativeCall n
                     when (isFamily(n, Pure.AT_STRING_MAKE_STRING) || isFamily(n, Pure.AT_STRING_JOIN_STRINGS, Pure.AT_RELATION_JOIN_STRINGS))
@@ -4188,10 +4275,8 @@ public final class Lowerer {
                 // TWO owners for one encoding).
                 List<SqlExpr> cells = new ArrayList<>(tc.elements().size());
                 for (TypedSpec e : tc.elements()) {
-                    cells.add(SqlExpr.Call.of(SqlFn.COALESCE,
-                            Fold.cellText(e.info().type(), scalar(e, columns)),
-                            new SqlExpr.StringLit(com.legend.compiler.element.type
-                                        .PlatformTypes.TDS_NULL_CELL)));
+                    cells.add(SqlExpr.Call.of(SqlFn.CELL_TEXT,
+                            Fold.cellText(e.info().type(), scalar(e, columns))));
                 }
                 List<SqlExpr> rest = new ArrayList<>();
                 for (int i = 1; i < n.args().size(); i++) {
@@ -4211,9 +4296,11 @@ public final class Lowerer {
                     scalar(Objects.requireNonNull(
                             ValueCollectionOps.relationSpaceRewrite(n)), columns);
             // F4.2 (RENDER): toCSV is a plan PROJECTION the DB executes
+            // a relation's text is legend-pure's and legend-engine's: RELATION_TEXT, refused by the product's renderer
+            // (its rows are the result writers'), written by the edge (phase D's D1.3, 2026-11-15)
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                Render.lowerToCsv(tc, this::relation, nextAlias(), deferredTds);
+                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(styled(), tc, this::relation, nextAlias());
             // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
             // over a relation: the csv TEXT the engine prints for a TDS —
             // header names joined ', ', ','-joined cells with TDSNull, no
@@ -4221,13 +4308,14 @@ public final class Lowerer {
             case TypedPropertyAccess csvRead
                     when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && Render.csvOverRelation(csvRead) ->
-                Render.lowerTdsCsvProperty(csvRead, this::relation, nextAlias());
+                relationTexts.apply(() -> TextRefusals.relation("a TDS's csv")).csvProperty(styled(), csvRead, this::relation,
+                        nextAlias());
             // F4.2c (RENDER): relation toString — the '#TDS' text form
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
-                Render.lowerToString(tc, this::relation, nextAlias(),
-                        deferredTds);
+                relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(styled(), tc, this::relation,
+                        nextAlias());
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
@@ -4250,14 +4338,14 @@ public final class Lowerer {
             // read as the row's column is, and tests them -- no list is made (Scalars.overCells)
             case TypedNativeCall n when Scalars.overCells(n) -> NullSemantics.verbatim(
                     verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n, n.args().get(0).children().stream()
-                            .map(c -> scalar(c, columns)).toList(), features, implementations));
+                            .map(c -> scalar(c, columns)).toList(), features, implementations, styled()));
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
             // preceding list's element wire, so dispatch inside bodies
             // sees the carrier at construction
             case TypedNativeCall n -> NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
-                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar), features, implementations));
+                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar), features, implementations, styled()));
             // write(rel, accessor) returns the COUNT of rows written (the
             // PCT contract) — Render.writeCount; a REAL store destination
             // stays loud until the insert path exists.
@@ -4375,10 +4463,13 @@ public final class Lowerer {
                     enclosing.pop();
                 }
             }
-            // scalar-position graph value (H4 snapshot; SnapshotEnvelope)
-            case TypedSerializeGraph g -> new SqlExpr.ScalarSubquery(
-                    conformJsonEgress(SnapshotEnvelope.fold(
-                            serializeGraph(g.asArrayWrapped(), false))));
+            // scalar-position graph value (H4 snapshot): the style's form (the lens audit's L6, 2026-11-18: until then
+            // legend-engine's one-object-bare fold applied unconditionally) -- the product's lite's array, the edge's
+            // the JsonBuilder rule (LoweringForms#executeValues)
+            case TypedSerializeGraph g -> {
+                yield new SqlExpr.ScalarSubquery(conformJsonEgress(styled().forms().executeValues(
+                        serializeGraph(g.asArrayWrapped(), false))));
+            }
             // static-dispatch match fold (MatchFold doc)
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
                     scalar(MatchFold.fold(mr), columns);
@@ -4403,7 +4494,7 @@ public final class Lowerer {
         TypedCollection slots = (TypedCollection) n.args().get(1);
         return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
                 List.of(scalar(n.args().get(0), columns), listLiteral(slots, e -> scalar(e, columns))),
-                features, implementations));
+                features, implementations, styled()));
     }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */
@@ -4475,7 +4566,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), engineText);
+        return CastPolicy.lower(c, value, Stamps.isMany(c), styled().forms());
     }
 
     /**
@@ -4686,7 +4777,7 @@ public final class Lowerer {
                     SqlExpr v = from.equals(tc.type())
                             || !CastPolicy.isSqlPrimitive(tc.type()) || !CastPolicy.isSqlPrimitive(from)
                             ? r.expr()
-                            : new SqlExpr.Cast(r.expr(), PureSql.type(tc.type()));
+                            : new SqlExpr.Cast(r.expr(), PureSql.type(tc.type()), SqlExpr.Reason.USER);
                     ps.add(new SqlSelect.Projection(v, tc.name(),
                             Fold.slot(tc, sqlTypeOf(tc.type()))));
                 }

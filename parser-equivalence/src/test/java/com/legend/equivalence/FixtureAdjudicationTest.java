@@ -255,7 +255,7 @@ class FixtureAdjudicationTest {
             boolean liteAccepts;
             try {
                 com.legend.door.ModelFromText.parse(f.source(),
-                        com.legend.parser.Dialect.LEGEND_LITE);
+                        com.legend.parser.GrammarLevel.LEGEND_LITE);
                 liteAccepts = true;
             } catch (com.legend.parser.ParseException e) {
                 liteAccepts = false;

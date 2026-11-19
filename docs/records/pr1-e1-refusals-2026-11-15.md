@@ -1,0 +1,13 @@
+# PR1's records: E1's ruled refusals (2026-11-15)
+
+These are the register rows for the three refusals that E1 (P3's decode repairs) put in exec. Each was ruled with
+`docs/data-delivery-homework/C_E_BRIEF_2026_11_10.md` §E, which the user ruled whole on 2026-11-10 ("Agree with all";
+the brief's E is "every item ruled"). They are written here rather than in the shared register, per the process rule
+of 2026-11-15: a record lands with its PR. PR1's review (item 11) asked for them. Each row gives the expression,
+upstream's answer, lite's answer, the ruling and the pin.
+
+| row | the expression | upstream's answer | lite's answer | ruling | pin |
+|---|---|---|---|---|---|
+| E1-R3a: a zoned date-time at a non-UTC offset (`exec/JdbcDecode.java`, the `OffsetDateTime` arm) | a column the driver hands as an `OffsetDateTime` at an offset other than UTC (DuckDB's TIMESTAMPTZ under a read-only catalog source's declared TIMESTAMP, on a session not at UTC) | the driver's own value, read by legend-engine's result reader; DuckDB and Postgres hand UTC, H2 the original offset | refused by name: "the database answered a zoned date-time at offset ..., not UTC: cast it to TIMESTAMP at UTC in the SQL". A UTC value is carried as the wall clock it is; nothing is shifted between zones in Java (every session runs in UTC, `SqlDialect.sessionSetup`) | C_E_BRIEF §E item 3 (the user, 2026-11-10); `LEAN_PRODUCT_P3_2026_11_10.md` site 3, Q3 (c) | exec's decode tests; site 3 measured unreached on every lane |
+| E1-R3b: a raw grid's zoned column (`exec/WireTypes.java`, `column`) | a raw grid (SQL whose columns the database reports at run) whose column the database reports as zoned (pgjdbc reports `timestamptz` as code 93) | the driver's value, by the type the database reports (`SQLResultDBColumnsMetaData.java` :52-60) | refused by name before any row: "a raw grid's column ... is the database's zoned type ...: cast it to TIMESTAMP at UTC in the SQL" | C_E_BRIEF §E item 3 (the user, 2026-11-10); Q3 (c) | the brief's new test on the raw grid's zoned column |
+| E1-R5: a slotless Number given as text (`exec/JdbcDecode.java`, the Number arm's `String` case) | a column declared Number with no slot whose cell the driver hands as text | the cell as the driver types it; legend-engine never chooses a kind from a cell's characters | refused by name: "declared Number with no slot, and the driver answered its cell as text: a Number's kind is never chosen from its text -- give the column a numeric type in the SQL". Until 2026-11-12 a '.', 'e' or 'E' chose a Decimal | C_E_BRIEF §E item 5 (the user, 2026-11-10); site 5, Q5 | the brief's refusal tests; site 5 measured unreached on every lane |

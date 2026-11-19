@@ -178,25 +178,47 @@ class PlannerSurfaceTest {
 
     /** THE BOUNDARY'S DOORS, each listed with its fields' kinds (2026-11-13). */
     static final Map<String, Door> BOUNDARY = listed(
+            // lite's API v1, the browser binding (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of
+            // 2026-11-17; the HOST/DataCube stream, step 2c): each operation's request JSON through the one road
+            // (LiteV1Api.operate, whose closures the server's rows read: LITE_ROUTES), the held forms over a handle
+            // (§7a). Until then planSql, plan, relationType, planJson, planHeld, planJsonHeld, executionPlanJsonHeld,
+            // relationTypeJsonHeld, relationTypeHeld and refusal (legend-engine's envelope, the edge's
+            // EngineEnvelope.refused); pureV1 and execute's halves are the edge's EdgeBoundary since F's A1
+            // (2026-11-17), their rows stale here until this step
+            // the edge's doors (EDGE_DOORS: in com.legend.edge.wasm.EdgeBoundary since A1 and E-P5, 2026-11-17), listed so
+            // the hosts' exports that reach them stay checked
             door("pureV1", p("path", ROUTE), p("rawQuery", OPTION), p("body", ROUTE_BODY)),
             door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
             door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
             door("executeJsonAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
             door("executeArrowAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
-            door("refusal", p("message", MESSAGE)),
-            door("planSql", p("model", MODEL_TEXT), p("query", LAMBDA), p("runtime", NAME)),
-            door("plan", p("model", MODEL_TEXT), p("query", LAMBDA), p("runtime", NAME)),
-            door("relationType", p("model", MODEL_TEXT), p("query", LAMBDA)),
-            door("planJson", p("model", MODEL_TEXT), p("lambdaJson", LAMBDA), p("runtime", NAME)),
+            // legend-engine's refusal envelope for a host's failed call, the edge's (EdgeBoundary.refused; the TS host,
+            // 2026-11-17: Python's native edge half calls it)
+            door("refused", p("message", MESSAGE)),
             door("holdModel", p("model", MODEL_TEXT)),
+            // a request's model text compiled once by this host's held models, for the edge's routes (EdgeBoundary; F's
+            // A1, 2026-11-17): unlisted until step 2c, which found it so
+            new Door("withModelText", List.of(p("text", MODEL_TEXT),
+                    new Param("use", java.util.function.Function.class, CALLBACK)), Map.of()),
             // merged main 3a217086a (#81), 2026-11-14: a model held over a library (both Pure text, compiled by the planner)
             door("holdModelOver", p("model", MODEL_TEXT), p("library", MODEL_TEXT)),
             door("releaseModel", handle()),
-            door("planHeld", handle(), p("query", LAMBDA), p("runtime", NAME)),
-            door("planJsonHeld", handle(), p("lambdaJson", LAMBDA), p("runtime", NAME)),
-            door("executionPlanJsonHeld", handle(), p("lambdaJson", LAMBDA), p("runtime", NAME)),
-            door("relationTypeJsonHeld", handle(), p("lambdaJson", LAMBDA)),
-            door("relationTypeHeld", handle(), p("query", LAMBDA)),
+            new Door("queryPlanHeld", List.of(handle(), p("request", REQUEST)),
+                    new TreeMap<>(fields("query", LAMBDA, "runtime", NAME))),
+            new Door("queryTypeHeld", List.of(handle(), p("request", REQUEST)), new TreeMap<>(fields("query", LAMBDA))),
+            // each operation's request closed by the one road's read(body, ...), the server's own: LITE_ROUTES' rows
+            door("modelCheck", p("request", REQUEST)),
+            door("modelElements", p("request", REQUEST)),
+            door("queryParse", p("request", REQUEST)),
+            door("queryPrint", p("request", REQUEST)),
+            door("queryType", p("request", REQUEST)),
+            door("queryPlan", p("request", REQUEST)),
+            door("modelCreateClass", p("request", REQUEST)),
+            door("modelCreateAssociation", p("request", REQUEST)),
+            door("modelCreateDataSpace", p("request", REQUEST)),
+            door("tsItem", p("request", REQUEST)),
+            door("tsStatement", p("request", REQUEST)),
+            door("refusalKinds"),
             // a host's file read into its database: the file by the name the host keeps it under, its digest
             door("fileLoad", p("request", REQUEST), fields("databaseType", NAME, "file", OBJECT, "name",
                     DATA_REFERENCE, "digest", DATA_REFERENCE, "size", VALUE, "format", OPTION, "into", OBJECT,
@@ -237,6 +259,426 @@ class PlannerSurfaceTest {
             door("resolveBootLayer"),
             door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)));
 
+    /** The doors the edge's boundary holds, not the planner's: moved from planner.Boundary to
+     *  com.legend.edge.wasm.EdgeBoundary with A1 and E-P5 (2026-11-17; the drift found when this test first ran in a
+     *  target, //core:census_edge, on d-int6). Their rows stay in {@link #BOUNDARY}, each a public static of the edge's
+     *  boundary source, so the tab's, the native library's and Python's exports that reach them are still checked. */
+    // 2026-11-17 (the TS host, merging d-stage into the host train): refused, legend-engine's refusal envelope for a host's
+    // failed call (EdgeBoundary.refused, which Python's native edge half calls)
+    static final Set<String> EDGE_DOORS = Set.of("pureV1", "executePlan", "executeJsonPlan", "executeJsonAnswer",
+            "executeArrowAnswer", "refused");
+
+    private static final String EDGE_BOUNDARY_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/EdgeBoundary.java";
+
+    /** {@code text} with its balanced {@code open}...{@code close} groups left out (generics' arguments,
+     *  annotations' values), string literals read as text. */
+    private static String withoutGroups(String text, char open, char close) {
+        StringBuilder out = new StringBuilder();
+        int depth = 0;
+        boolean string = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (string) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    string = false;
+                }
+            } else if (c == '"') {
+                string = true;
+            } else if (c == open) {
+                depth++;
+            } else if (c == close) {
+                depth--;
+            } else if (depth == 0) {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    /** {@code params} split at its top-level commas (none inside a generic's {@code <...>} or an annotation's
+     *  {@code (...)}). */
+    private static List<String> topLevel(String params) {
+        List<String> out = new ArrayList<>();
+        int depth = 0;
+        int from = 0;
+        for (int i = 0; i < params.length(); i++) {
+            char c = params.charAt(i);
+            if (c == '<' || c == '(') {
+                depth++;
+            } else if (c == '>' || c == ')') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                out.add(params.substring(from, i));
+                from = i + 1;
+            }
+        }
+        out.add(params.substring(from));
+        return out;
+    }
+
+    /** A run of modifiers and annotations, in any order (a door is a run holding both public and static). */
+    private static final Pattern MODIFIERS = Pattern.compile("(?:\\b(?:public|protected|private|static|final|synchronized"
+            + "|native|strictfp|abstract|default|sealed|non-sealed)\\b\\s*|@[\\w.]+(?:\\s*\\([^()]*\\))?\\s*)+");
+
+    /** {@code source} read lexically once: its comments, and the contents of its strings, text blocks and characters,
+     *  blanked (each kept character a space, each line break kept), so neither a comment nor a string can hide or fake a
+     *  declaration (the review of 260fdb147f, 2026-11-17: a "/*" inside a string swallowed code to the next comment). */
+    static String blanked(String source) {
+        StringBuilder out = new StringBuilder(source.length());
+        int i = 0;
+        while (i < source.length()) {
+            char c = source.charAt(i);
+            if (source.startsWith("//", i)) {
+                while (i < source.length() && source.charAt(i) != '\n') {
+                    out.append(' ');
+                    i++;
+                }
+            } else if (source.startsWith("/*", i)) {
+                int end = source.indexOf("*/", i + 2);
+                end = end < 0 ? source.length() : end + 2;
+                for (; i < end; i++) {
+                    out.append(source.charAt(i) == '\n' ? '\n' : ' ');
+                }
+            } else if (source.startsWith("\"\"\"", i)) {
+                // the block ends at the first """ no backslash escapes (the third review, 2026-11-17, S8: a \""" inside
+                // the block ended it early, and the next """ swallowed code to the one after)
+                int end = source.length();
+                for (int j = i + 3; j < source.length(); j++) {
+                    if (source.charAt(j) == '\\') {
+                        j++;
+                    } else if (source.startsWith("\"\"\"", j)) {
+                        end = j + 3;
+                        break;
+                    }
+                }
+                out.append("\"\"\"");
+                for (i += 3; i < end - 3; i++) {
+                    out.append(source.charAt(i) == '\n' ? '\n' : ' ');
+                }
+                out.append("\"\"\"");
+                i = end;
+            } else if (c == '"' || c == '\'') {
+                out.append(c);
+                i++;
+                while (i < source.length() && source.charAt(i) != c && source.charAt(i) != '\n') {
+                    if (source.charAt(i) == '\\' && i + 1 < source.length()) {
+                        out.append(' ');
+                        i++;
+                    }
+                    out.append(' ');
+                    i++;
+                }
+                if (i < source.length() && source.charAt(i) == c) {
+                    out.append(c);
+                    i++;
+                }
+            } else {
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    /** {@code source} (already {@link #blanked}) with each annotation's arguments blanked, its balanced parentheses
+     *  kept as {@code ()} and every character between them a space (each line break kept), however deep they nest (the
+     *  third review, 2026-11-17, S9: {@code @Ann(x = @B(1))} split the modifier run, and a door went unread). */
+    static String annotationArgumentsBlanked(String source) {
+        StringBuilder out = new StringBuilder(source);
+        Matcher at = Pattern.compile("@\\s*[\\w.]+\\s*\\(").matcher(source);
+        int from = 0;
+        while (at.find(from)) {
+            int open = at.end() - 1;
+            int depth = 0;
+            int close = source.length() - 1;
+            for (int i = open; i < source.length(); i++) {
+                char c = source.charAt(i);
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')' && --depth == 0) {
+                    close = i;
+                    break;
+                }
+            }
+            for (int i = open + 1; i < close; i++) {
+                if (out.charAt(i) != '\n') {
+                    out.setCharAt(i, ' ');
+                }
+            }
+            from = close + 1;
+            if (from >= source.length()) {
+                break;
+            }
+        }
+        return out.toString();
+    }
+
+    private static final Pattern NESTED_TYPE = Pattern.compile(
+            "\\s*((final|abstract|sealed|non-sealed|strictfp)\\s+)*(class|record|interface|enum)\\s+\\w+[\\s\\S]*");
+
+    private static final Pattern FIELD = Pattern.compile("\\s*(final\\s+)?[\\w.\\[\\]]+\\s+\\w+\\s*");
+
+    private static final Pattern PARAM = Pattern.compile("(\\w+(?:\\.\\w+)*(?:\\[\\])*)(\\.\\.\\.)?\\s+\\w+");
+
+    /** The edge boundary's public static methods in {@code edgeSource} (comments left out), each its parameters'
+     *  simple types (a generic's arguments dropped, varargs as an array, annotations and {@code final} left out); a
+     *  public static the check cannot read as a method, a field or a nested type is put to {@code unread}. */
+    static Map<String, List<List<String>>> edgeDoorMethods(String edgeSource, List<String> unread) {
+        // a unicode escape is read by javac before anything else (a line break, a quote): the check does not read one,
+        // so it fails by name (the review of 5911e970e1, 2026-11-17)
+        if (edgeSource.contains("\\u")) {
+            unread.add("a unicode escape (\\u), which javac reads first and this check does not");
+        }
+        // an annotation's name spelled with blanks or a comment around "@" or its dots ("@ Deprecated",
+        // "@/*c*/Deprecated", "@java.lang .Deprecated"), read as written tight (the same review: the run of modifiers
+        // read only "@name")
+        String tight = blanked(edgeSource).replaceAll("@\\s+", "@");
+        // every spaced dot of an annotation's name, one per pass (the review of 11de9ae229, 2026-11-18: a single pass
+        // tightened only the first, "@java .lang .Deprecated")
+        for (String prev = null; !tight.equals(prev); ) {
+            prev = tight;
+            tight = tight.replaceAll("(@[\\w.]*\\w)\\s*\\.\\s*(?=\\w)", "$1.");
+        }
+        String source = annotationArgumentsBlanked(tight);
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        Matcher m = MODIFIERS.matcher(source);
+        while (m.find()) {
+            List<String> words = List.of(m.group().replaceAll("@[\\w.]+(\\s*\\([^()]*\\))?", " ").trim().split("\\s+"));
+            if (!words.contains("public") || !words.contains("static")) {
+                continue;
+            }
+            String rest = source.substring(m.end());
+            int head = rest.length();
+            int nesting = 0;
+            boolean string = false;
+            for (int i = 0; i < rest.length() && head == rest.length(); i++) {
+                char c = rest.charAt(i);
+                if (string) {
+                    if (c == '\\') {
+                        i++;
+                    } else if (c == '"') {
+                        string = false;
+                    }
+                } else if (c == '"') {
+                    string = true;
+                } else if (c == '(') {
+                    nesting++;
+                } else if (c == ')') {
+                    nesting--;
+                } else if (nesting == 0 && (c == '{' || c == ';' || c == '=')) {
+                    head = i;
+                }
+            }
+            String declaration = rest.substring(0, head);
+            int open = declaration.indexOf('(');
+            String snippet = declaration.strip().replaceAll("\\s+", " ");
+            if (open < 0) {
+                String bare = withoutGroups(declaration, '<', '>');
+                if (!NESTED_TYPE.matcher(bare).matches() && !FIELD.matcher(bare).matches()) {
+                    unread.add(snippet);
+                }
+                continue;
+            }
+            int close = -1;
+            int depth = 0;
+            for (int i = open; i < declaration.length() && close < 0; i++) {
+                if (declaration.charAt(i) == '(') {
+                    depth++;
+                } else if (declaration.charAt(i) == ')' && --depth == 0) {
+                    close = i;
+                }
+            }
+            Matcher name = Pattern.compile("(\\w+)\\s*$").matcher(declaration.substring(0, open));
+            if (close < 0 || !name.find()) {
+                unread.add(snippet);
+                continue;
+            }
+            List<String> types = new ArrayList<>();
+            boolean read = true;
+            for (String param : topLevel(declaration.substring(open + 1, close))) {
+                String p = withoutGroups(withoutGroups(param, '<', '>'), '(', ')')
+                        .replaceAll("@[\\w.]+", " ").replaceAll("\\bfinal\\b", " ").strip().replaceAll("\\s+", " ");
+                if (p.isEmpty() && types.isEmpty() && param.isBlank()) {
+                    continue;
+                }
+                Matcher t = PARAM.matcher(p);
+                if (!t.matches()) {
+                    read = false;
+                    break;
+                }
+                String type = t.group(1).substring(t.group(1).lastIndexOf('.') + 1);
+                types.add(t.group(2) != null ? type + "[]" : type);
+            }
+            if (!read) {
+                unread.add(snippet);
+                continue;
+            }
+            out.computeIfAbsent(name.group(1), k -> new ArrayList<>()).add(types);
+        }
+        return out;
+    }
+
+    /** What is wrong with the edge's doors in {@code edgeSource} (the edge's boundary, read as text: no product target
+     *  carries its class): a public static no {@link #EDGE_DOORS} entry names, an entry it does not declare or
+     *  {@code boundary} does not list, a door declared twice, a door whose parameters' types differ from its row (the
+     *  review of 589168a9b3, 2026-11-17), and a public static the check cannot read (the re-review of 60aa31029b:
+     *  read, never skipped). */
+    static List<String> edgeDoorViolations(String edgeSource, Map<String, Door> boundary) {
+        List<String> out = new ArrayList<>();
+        List<String> unread = new ArrayList<>();
+        Map<String, List<List<String>>> declared = edgeDoorMethods(edgeSource, unread);
+        unread.forEach(u -> out.add("an edge boundary public static the check does not read: " + u));
+        declared.keySet().stream().filter(n -> !EDGE_DOORS.contains(n))
+                .forEach(n -> out.add("an edge boundary door no EDGE_DOORS entry names: " + n));
+        for (String name : new TreeSet<>(EDGE_DOORS)) {
+            if (!declared.containsKey(name)) {
+                out.add("an edge door the edge's boundary no longer has: " + name);
+            } else if (declared.get(name).size() != 1) {
+                out.add("an edge door declared more than once (its row names one): " + name);
+            } else if (!boundary.containsKey(name)) {
+                out.add("an edge door no row lists: " + name);
+            } else if (!declared.get(name).get(0).equals(boundary.get(name).params().stream()
+                    .map(p -> p.type().getSimpleName()).toList())) {
+                out.add("an edge door's parameters differ from its row: " + name + " " + declared.get(name).get(0));
+            }
+        }
+        return out;
+    }
+
+    /** Planted: an edge door whose parameters changed, a public static no entry names, an entry the source lost, an
+     *  overloaded door and a public static the check cannot read are each named; a generic's comma, an annotation, a
+     *  {@code final}, a multi-line parameter list, a field, a nested type and a commented-out door are read as what
+     *  they are; varargs read as an array; the real source is clean. */
+    @Test
+    void theEdgeDoorsAreChecked() {
+        String planted = "class EdgeBoundary {\n"
+                + "    public static final String ROUTE = \"/api/pure/v1\";\n"
+                + "    public static final class Holder { }\n"
+                + "    // public static Answer commentedOut(String x) {}\n"
+                + "    /** public static Answer inJavadoc(String x) */\n"
+                + "    public static Answer pureV1(String path, String rawQuery, String body) {}\n"
+                + "    public static Answer executePlan(String body) {}\n"
+                + "    public static Answer executeJsonPlan(String body, String modelsJson) {}\n"
+                + "    public static Answer executeJsonPlan(String body) {}\n"
+                + "    public static Answer runSqlHere(String sql) {}\n"
+                + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                // the review of 260fdb147f: modifiers in another order, and a "/*" or "//" inside a string, hide no door
+                + "    static public Answer orderSwapped(String s) {}\n"
+                + "    public final @Deprecated static Answer finalStatic(String s) {}\n"
+                + "    public static final String GLOB = \"/api/*\", URL = \"http://x\";\n"
+                + "    public static Answer afterGlob(String s) {}\n"
+                // the third review (2026-11-17): a text block holding an escaped \""" (S8) and an annotation whose
+                // arguments nest parentheses (S9) hide no door
+                + "    static final String T = \"\"\"\n        a \\\"\"\" b\n        \"\"\";\n"
+                + "    public static Answer afterBlock(String s) {}\n"
+                + "    static final String U = \"\"\"\n        x\n        \"\"\";\n"
+                + "    public @Ann(x = @B(1), y = {@C(\"(\")}) static Answer nestedAnnotation(String s) {}\n"
+                // the review of 5911e970e1 (2026-11-17): an annotation's name spelled with blanks or a comment
+                + "    public @ Deprecated static Answer spacedAt(String s) {}\n"
+                + "    public @/*c*/Deprecated static Answer commentedAt(String s) {}\n"
+                + "    public @java.lang .Deprecated static Answer spacedDot(String s) {}\n"
+                + "    public @ java . lang . Deprecated static Answer twoDots(String s) {}\n"
+                + "    /** a doc */\n"
+                + "    public static Answer broken(String a\n}\n";
+        assertEquals(List.of("an edge boundary public static the check does not read: Answer broken(String a }",
+                "an edge boundary door no EDGE_DOORS entry names: afterBlock",
+                "an edge boundary door no EDGE_DOORS entry names: afterGlob",
+                "an edge boundary door no EDGE_DOORS entry names: commentedAt",
+                "an edge boundary door no EDGE_DOORS entry names: finalStatic",
+                "an edge boundary door no EDGE_DOORS entry names: nestedAnnotation",
+                "an edge boundary door no EDGE_DOORS entry names: orderSwapped",
+                "an edge boundary door no EDGE_DOORS entry names: runHeaders",
+                "an edge boundary door no EDGE_DOORS entry names: runSqlHere",
+                "an edge boundary door no EDGE_DOORS entry names: spacedAt",
+                "an edge boundary door no EDGE_DOORS entry names: spacedDot",
+                "an edge boundary door no EDGE_DOORS entry names: twoDots",
+                "an edge door the edge's boundary no longer has: executeArrowAnswer",
+                "an edge door the edge's boundary no longer has: executeJsonAnswer",
+                "an edge door declared more than once (its row names one): executeJsonPlan",
+                "an edge door's parameters differ from its row: executePlan [String]",
+                // 2026-11-17 (the TS host, merging d-stage into the host train): refused, an EDGE_DOORS entry the
+                // planted boundary does not declare
+                "an edge door the edge's boundary no longer has: refused"),
+                edgeDoorViolations(planted, BOUNDARY));
+        List<String> unread = new ArrayList<>();
+        assertEquals(Map.of("runHeaders", List.of(List.of("Map", "String[]")), "executeJsonAnswer",
+                List.of(List.of("String", "String"))), edgeDoorMethods("class E {\n"
+                + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                + "    public static Answer executeJsonAnswer(\n            @Deprecated(since = \"1, 2\") final String plan,\n"
+                + "            final String rows) {}\n}\n", unread));
+        assertEquals(List.of(), unread);
+        List<String> escaped = new ArrayList<>();
+        edgeDoorMethods("class E {\n    // x \\u000a public static Answer hidden(String s) {}\n}\n", escaped);
+        assertEquals(List.of("a unicode escape (\\u), which javac reads first and this check does not"), escaped,
+                "a unicode escape fails the read by name");
+        assertEquals(List.of(), edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
+    }
+
+    /** THE EDGE'S DOORS ({@code com.legend.edge.wasm.EdgeBoundary}, F's census line A1, 2026-11-17: legend-engine's
+     *  pure/v1 API and execute's halves left planner.Boundary for the edge), each with its fields' kinds -- the rows that
+     *  stood in {@link #BOUNDARY} until the HOST/DataCube stream's step 2c (2026-11-17), where they had gone stale. */
+    static final Map<String, Door> EDGE_BOUNDARY = listed(
+            door("pureV1", p("path", ROUTE), p("rawQuery", OPTION), p("body", ROUTE_BODY)),
+            door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
+            door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
+            door("executeJsonAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            door("executeArrowAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            // a host's refusal in legend-engine's envelope (EngineEnvelope.refused): planner.Boundary's refusal went
+            // to the edge with 2c, its native entry with it (the edge program's H5, 2026-11-17)
+            door("refused", p("message", MESSAGE)));
+
+    /** THE ENGINE MODULE'S EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; step 2c,
+     *  2026-11-17). The tab's edge exports until the user's K2 ruling (2026-11-18, "Product root, edge opt-in": the
+     *  orchestrator's option A), when they left the product module ({@code planner.TabExports}, which may hold none of
+     *  them) for the engine module's entry ({@code com.legend.edge.wasm.EngineExports}, which may hold nothing else). */
+    static final Map<String, String> ENGINE_EXPORTS = new TreeMap<>(Map.of(
+            "pureV1OrError", "pureV1", "executeJsonPlanOrError", "executeJsonPlan",
+            "executeJsonAnswerOrError", "executeJsonAnswer", "executeArrowAnswerOrError", "executeArrowAnswer"));
+
+    /** The edge boundary's public statics, as its bytecode holds them (javac's own reading of the source): each name to
+     *  its overloads' parameters' simple types, an array as {@code X[]}. */
+    static Map<String, List<List<String>>> edgeDoorBytecode() {
+        List<java.util.jar.JarFile> jars = new ArrayList<>();
+        try {
+            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed("legend.authored.jars")) {
+                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        com.tngtech.archunit.core.domain.JavaClass boundary = new com.tngtech.archunit.core.importer.ClassFileImporter()
+                .importJars(jars).get("com.legend.edge.wasm.EdgeBoundary");
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaMethod m : boundary.getMethods()) {
+            if (m.getModifiers().containsAll(Set.of(com.tngtech.archunit.core.domain.JavaModifier.PUBLIC,
+                    com.tngtech.archunit.core.domain.JavaModifier.STATIC))) {
+                out.computeIfAbsent(m.getName(), k -> new ArrayList<>()).add(m.getRawParameterTypes().stream()
+                        .map(t -> t.isArray() ? t.getComponentType().getSimpleName() + "[]" : t.getSimpleName())
+                        .toList());
+            }
+        }
+        return out;
+    }
+
+    /** The source reader agrees with javac: the edge boundary's public static methods read from its source are exactly
+     *  its bytecode's (the review of 5911e970e1, 2026-11-17, MUST-FIX 2: a door the lexer misses, however it is spelled,
+     *  is a difference here). */
+    @Test
+    void theEdgeDoorsReadEqualTheBytecode() {
+        List<String> unread = new ArrayList<>();
+        Map<String, List<List<String>>> source = edgeDoorMethods(read(EDGE_BOUNDARY_SOURCE), unread);
+        assertEquals(List.of(), unread);
+        Map<String, List<List<String>>> bytecode = edgeDoorBytecode();
+        Map<String, Set<List<String>>> s = new TreeMap<>();
+        Map<String, Set<List<String>>> b = new TreeMap<>();
+        source.forEach((k, v) -> s.put(k, new java.util.HashSet<>(v)));
+        bytecode.forEach((k, v) -> b.put(k, new java.util.HashSet<>(v)));
+        assertTrue(b.keySet().containsAll(EDGE_DOORS), "the boundary's bytecode is read: " + b.keySet());
+        assertEquals(b, s, "the edge boundary's public statics, read from its source, differ from its bytecode's");
+    }
+
     /** THE HOST OPERATIONS' FIELDS ({@code HostOperationsJson}: every operation closed by its {@code op}). */
     static final Map<String, Kind> HOST_OPERATION_FIELDS = new TreeMap<>(fields("op", OPTION, "kind", OPTION,
             "target", OBJECT, "replace", OPTION, "from", OBJECT, "relation", OBJECT, "database", NAME, "schema", NAME,
@@ -248,16 +690,18 @@ class PlannerSurfaceTest {
 
     /** THE TAB'S EXPORTS: each the one boundary door it delegates to. */
     static final Map<String, String> TAB_EXPORTS = new TreeMap<>(Map.ofEntries(
-            Map.entry("pureV1OrError", "pureV1"), Map.entry("executeJsonPlanOrError", "executeJsonPlan"),
-            Map.entry("executeJsonAnswerOrError", "executeJsonAnswer"),
-            Map.entry("executeArrowAnswerOrError", "executeArrowAnswer"), Map.entry("plan", "planSql"),
-            Map.entry("planOrError", "plan"), Map.entry("relationTypeOrError", "relationType"),
-            Map.entry("planJsonOrError", "planJson"), Map.entry("holdModelOrError", "holdModel"),
+            // lite's API v1, the browser binding (2026-11-17, step 2c): <op>OrError per operation (the spec's rule: a/b
+            // is aB), the held forms over a handle; pureV1 and execute's halves the edge's own (EdgeBoundary, F's A1)
+            Map.entry("holdModelOrError", "holdModel"),
             Map.entry("holdModelOverOrError", "holdModelOver"), // merged main 3a217086a (#81), 2026-11-14: the held model over a library
-            Map.entry("releaseModelOrError", "releaseModel"), Map.entry("planHeldOrError", "planHeld"),
-            Map.entry("planJsonHeldOrError", "planJsonHeld"),
-            Map.entry("executionPlanJsonHeldOrError", "executionPlanJsonHeld"),
-            Map.entry("relationTypeHeldOrError", "relationTypeHeld"), Map.entry("fileLoadOrError", "fileLoad"),
+            Map.entry("releaseModelOrError", "releaseModel"), Map.entry("queryPlanHeldOrError", "queryPlanHeld"),
+            Map.entry("queryTypeHeldOrError", "queryTypeHeld"), Map.entry("modelCheckOrError", "modelCheck"),
+            Map.entry("modelElementsOrError", "modelElements"), Map.entry("queryParseOrError", "queryParse"),
+            Map.entry("queryPrintOrError", "queryPrint"), Map.entry("queryTypeOrError", "queryType"),
+            Map.entry("queryPlanOrError", "queryPlan"), Map.entry("modelCreateClassOrError", "modelCreateClass"),
+            Map.entry("modelCreateAssociationOrError", "modelCreateAssociation"),
+            Map.entry("modelCreateDataSpaceOrError", "modelCreateDataSpace"), Map.entry("tsItemOrError", "tsItem"),
+            Map.entry("tsStatementOrError", "tsStatement"), Map.entry("fileLoadOrError", "fileLoad"),
             Map.entry("remoteMountOrError", "remoteMount"), Map.entry("snapStreamOrError", "snapStream"),
             Map.entry("snapCopyOrError", "snapCopy"), Map.entry("outputPlanOrError", "outputPlan"),
             Map.entry("authoredOrError", "authored"), Map.entry("synthesizeOrError", "synthesize"),
@@ -269,40 +713,71 @@ class PlannerSurfaceTest {
             Map.entry("touchSystemMetamodel", "touchSystemMetamodel"), Map.entry("hashBootSource", "hashBootSource"),
             Map.entry("resolveBootLayer", "resolveBootLayer"), Map.entry("zoneProbe", "zoneProbe")));
 
+    /** THE NATIVE LIBRARY'S EDGE EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; the
+     *  HOST/DataCube stream, 2026-11-17, as the tab's were: {@link #ENGINE_EXPORTS}). */
+    static final Map<String, String> NATIVE_EDGE_EXPORTS = new TreeMap<>(Map.of(
+            "lite_pure_v1", "pureV1", "lite_execute_plan", "executePlan", "lite_execute_json_plan", "executeJsonPlan",
+            "lite_execute_json_answer", "executeJsonAnswer", "lite_execute_arrow_answer", "executeArrowAnswer",
+            // with Boundary.refusal's deletion (2c), the edge's envelope (the edge program's H5, 2026-11-17)
+            "lite_pure_v1_refusal", "refused"));
+
     /** THE NATIVE LIBRARY'S EXPORTS: each the one boundary door it delegates to. */
     static final Map<String, String> NATIVE_EXPORTS = new TreeMap<>(Map.ofEntries(
-            Map.entry("lite_plan_json", "planJson"), Map.entry("lite_plan_text", "plan"),
             Map.entry("lite_hold_model", "holdModel"), Map.entry("lite_release_model", "releaseModel"),
             Map.entry("lite_hold_model_over", "holdModelOver"), // merged main 3a217086a (#81), 2026-11-14: the held model over a library
-            Map.entry("lite_plan_json_held", "planJsonHeld"),
-            Map.entry("lite_execution_plan_json_held", "executionPlanJsonHeld"),
-            Map.entry("lite_relation_type_held", "relationTypeJsonHeld"), Map.entry("lite_plan_text_held", "planHeld"),
-            Map.entry("lite_relation_type_text_held", "relationTypeHeld"), Map.entry("lite_file_load", "fileLoad"),
+            Map.entry("lite_file_load", "fileLoad"),
             Map.entry("lite_remote_mount", "remoteMount"), Map.entry("lite_snap_stream", "snapStream"),
             Map.entry("lite_snap_copy", "snapCopy"), Map.entry("lite_output_plan", "outputPlan"),
             Map.entry("lite_synthesize", "synthesize"), Map.entry("lite_frame_load", "frameLoad"),
             Map.entry("lite_database_from_catalog", "databaseFromCatalog"),
             Map.entry("lite_table_model", "tableModel"), Map.entry("lite_catalog_columns_sql", "catalogColumnsSql"),
             Map.entry("lite_session_setup", "sessionSetup"), Map.entry("lite_host_operations", "hostOperations"),
-            Map.entry("lite_project_data", "projectData"), Map.entry("lite_pure_v1", "pureV1"),
-            Map.entry("lite_execute_plan", "executePlan"), Map.entry("lite_execute_json_plan", "executeJsonPlan"),
-            Map.entry("lite_execute_json_answer", "executeJsonAnswer"),
-            Map.entry("lite_execute_arrow_answer", "executeArrowAnswer"), Map.entry("lite_warm_model", "warmModel"),
-            Map.entry("lite_pure_v1_refusal", "refusal")));
+            Map.entry("lite_project_data", "projectData"),                                     Map.entry("lite_warm_model", "warmModel"),
+            // LITE'S OWN API, v1 (docs/records/lite-api-v1-2026-11-17.md §5, §7; the host train, 2026-11-17): one entry
+            // per operation by the spec's one rule (a/b -> lite_a_b), its request JSON in, the Boundary member of the
+            // same operation; no lite_query_run (Python runs a plan itself); and the held model's two (§7a)
+            Map.entry("lite_model_check", "modelCheck"), Map.entry("lite_model_elements", "modelElements"),
+            Map.entry("lite_query_parse", "queryParse"), Map.entry("lite_query_print", "queryPrint"),
+            Map.entry("lite_query_type", "queryType"), Map.entry("lite_query_plan", "queryPlan"),
+            Map.entry("lite_model_create_class", "modelCreateClass"),
+            Map.entry("lite_model_create_association", "modelCreateAssociation"),
+            Map.entry("lite_model_create_data_space", "modelCreateDataSpace"),
+            Map.entry("lite_ts_item", "tsItem"), Map.entry("lite_ts_statement", "tsStatement"),
+            Map.entry("lite_query_plan_held", "queryPlanHeld"), Map.entry("lite_query_type_held", "queryTypeHeld"),
+            // the lite API spec's §3 (2026-11-17): lite's error kinds by name, read by a host, never its own constant
+            Map.entry("lite_refusal_kinds", "refusalKinds")));
+
 
     /** The native library's exports that are no planner door, each with what it is instead. */
-    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.of(
-            "lite_site_types", "the site's types, a constant of the build (Folded's answer of them)",
-            "lite_free", "the answer's memory freed",
-            "lite_unfreed", "the count of answers not yet freed (a leak's witness)",
-            "lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)",
-            "lite_depot_handle", "the model home's depot, opened on a folder",
-            "lite_saved_queries", "the saved queries' rules over a folder",
-            "lite_saved_cubes", "the saved cubes' rules over a folder",
-            "lite_warehouse_call", "the warehouse's SQL API, a database server of its own, as its binding speaks it",
-            "lite_warehouse_read", "the warehouse's SQL API's read"));
+    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.ofEntries(
+            Map.entry("lite_site_types", "the site's types, a constant of the build (Folded's answer of them)"),
+            Map.entry("lite_free", "the answer's memory freed"),
+            Map.entry("lite_unfreed", "the count of answers not yet freed (a leak's witness)"),
+            Map.entry("lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)"),
+            Map.entry("lite_depot_handle", "the model home's depot, opened on a folder"),
+            // the product's twins at lite's mount, in lite's words (the edge program's H6, 2026-11-17)
+            Map.entry("lite_store_queries", "the saved queries' rules over a folder, at lite's mount"),
+            Map.entry("lite_store_cubes", "the saved cubes' rules over a folder, at lite's mount"),
+            Map.entry("lite_warehouse_call",
+                    "the warehouse's SQL API, a database server of its own, as its binding speaks it"),
+            Map.entry("lite_warehouse_read", "the warehouse's SQL API's read")));
 
-    /** THE SERVER'S ROUTES ({@code PureV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
+    /** THE ENGINE LIBRARY'S SERVICES (//native:engine; K2, the user's "product root, edge opt-in", 2026-11-18):
+     *  legend-engine's saved-query store at its mount, in its words -- no planner door, and the engine library's
+     *  alone, so no service of the product library's run frame ({@code _library._NOT_PLANNING}): the edge's key lets
+     *  them through ({@code _loader.ENGINE_NOT_PLANNING}). */
+    static final Map<String, String> NATIVE_EDGE_SERVICES = new TreeMap<>(Map.of(
+            "lite_saved_queries", "the saved queries' rules over a folder, at legend-engine's mount",
+            "lite_saved_cubes", "the saved cubes' rules over a folder, at legend-engine's mount"));
+
+    /** The native exports that are no planner door, the product library's and the engine library's together. */
+    static Map<String, String> allServices() {
+        Map<String, String> out = new TreeMap<>(NATIVE_SERVICES);
+        out.putAll(NATIVE_EDGE_SERVICES);
+        return out;
+    }
+
+    /** THE SERVER'S ROUTES ({@code LiteV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
      *  whose fields are {@link #SERVER_FIELDS}'s. */
     static final Map<String, String> ROUTES = new TreeMap<>(Map.ofEntries(
             Map.entry("/api/pure/v1/grammar/grammarToJson/lambda", "a lambda's text"),
@@ -321,10 +796,20 @@ class PlannerSurfaceTest {
             Map.entry("/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed",
                     "a test-data request"),
             Map.entry("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", "a model and a query"),
-            Map.entry("/api/lite/v1/compilation/compile", "a model"),
-            // merged main 3a217086a (#81), 2026-11-14: #TS's two lite routes (upstream has no #TS)
-            Map.entry("/api/lite/v1/grammar/jsonToTs/lambda", "a model and a lambda's protocol JSON, shown as #TS"),
-            Map.entry("/api/lite/v1/grammar/tsItem", "one #TS item's text, read by core's parser"),
+            // lite's API v1 (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17; the HOST stream):
+            // its operations by their names, one step (§8) -- until then compilation/compile, grammar/jsonToTs/lambda
+            // and grammar/tsItem, and grammar/*, compilation/lambdaRelationType and execution/* unread by this census
+            Map.entry("/api/lite/v1/model/check", "a model's text: every error"),
+            Map.entry("/api/lite/v1/model/elements", "a model's text: its protocol elements"),
+            Map.entry("/api/lite/v1/query/parse", "a query's text"),
+            Map.entry("/api/lite/v1/query/print", "a query's protocol JSON and a style"),
+            Map.entry("/api/lite/v1/query/type", "a model's text and a query's protocol JSON"),
+            Map.entry("/api/lite/v1/query/plan", "a model's text, a query's protocol JSON and a runtime"),
+            Map.entry("/api/lite/v1/query/run", "a model's text, a query's protocol JSON, a runtime, its parameters'"
+                    + " values and a format"),
+            // #TS's two lite operations (upstream has no #TS; merged main 3a217086a (#81), 2026-11-14)
+            Map.entry("/api/lite/v1/ts/item", "one #TS item's text, read by core's parser"),
+            Map.entry("/api/lite/v1/ts/statement", "a model's text and a query's protocol JSON, shown as #TS"),
             Map.entry("/api/lite/v1/model/createClass", "a project's model and the classes to make"),
             Map.entry("/api/lite/v1/model/createAssociation", "a project's model and the associations to make"),
             Map.entry("/api/lite/v1/model/createDataSpace", "a project's model and the data space to make")));
@@ -338,7 +823,10 @@ class PlannerSurfaceTest {
     static final Map<String, Map<String, Kind>> SERVER_FIELDS = new TreeMap<>(Map.of(
             // the pure/v1 routes; planned.* are read of the plan half a host hands back with its rows (jsonAnswer,
             // its variable `planned`): the planner's own, echoed into the answer, never sent
-            "PureV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
+            // (body, fullPath, genericType, lowerBound, multiplicity, name, parameters, rawType, upperBound, value: read
+            // by upstream's ExecuteInput binding, which moved to the edge with B7's split -- edge.ExecuteInputs, read as
+            // part of this surface by routeFiles(), 2026-11-17)
+            "LiteV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
                     "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA, "connectionValue",
                     OBJECT, "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
                     "lambda", LAMBDA, "lowerBound", VALUE, "model", MODEL_TEXT, "multiplicity", OBJECT, "name", NAME,
@@ -346,7 +834,11 @@ class PlannerSurfaceTest {
                     "planned.resultColumns", PLAN_DATA, "runtime", NAME, "serializationFormat", OPTION,
                     "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA, "upperBound", VALUE, "value", VALUE,
                     // merged main 3a217086a (#81), 2026-11-14: tsItem's one #TS item, a query's text core's parser reads
-                    "text", LAMBDA)),
+                    "text", LAMBDA,
+                    // lite's API v1 (2026-11-17, the HOST stream): a query's tree, query/print's style, query/run's
+                    // parameters' values and its format; elements the parse door's document, read back, never the
+                    // request's
+                    "query", LAMBDA, "style", OPTION, "params", VALUE, "format", OPTION, "elements", INTERNAL)),
             "TestDataRoutes.java", new TreeMap<>(fields("_type", OPTION, "columnValuePairs", OBJECT, "function",
                     LAMBDA, "hashStrings", OPTION, "mapping", NAME, "model", MODEL_TEXT, "name", NAME,
                     "parameterValues", VALUE, "query", LAMBDA, "rowIdentifiers", OBJECT, "runtime", NAME, "schema",
@@ -387,8 +879,12 @@ class PlannerSurfaceTest {
      *  service that plans nothing, with what it is instead. */
     static final Map<String, String> HTTP_ROUTES = new TreeMap<>(Map.of(
             "/api/pure/v1/", "the pure/v1 dispatcher (ROUTES)",
-            "/api/lite/v1/", "the pure/v1 dispatcher (ROUTES)",
+            "/api/lite/v1/", "lite's operations, one POST each (ROUTES)",
             "/api/pure/v1/query", "the saved queries' and saved cubes' store: no planner",
+            // lite's API v1 (2026-11-17): the store at queries/, and the user its own operation (until then the store
+            // at /api/lite/v1/query, its user GET query/currentUser)
+            "/api/lite/v1/queries", "lite's own path to the same store: no planner",
+            "/api/lite/v1/user", "the current user's name, the store's: no planner",
             "/api/server/v1/currentUser", "the current user's name: no planner",
             "/engine/diagram", "a model's diagrams laid out: no planner",
             "/health", "the server's health: no planner",
@@ -411,7 +907,7 @@ class PlannerSurfaceTest {
             "pureV1(body)", "a pure/v1 route's body, dispatched by its path (ROUTES)",
             "executePlan(body)", "an ExecuteInput, planned as its plan half in upstream's Arrow format",
             "executeJsonPlan(body)", "an ExecuteInput, planned as its plan half in the engine's JSON",
-            "PureV1Api.java", "the pure/v1 routes' bodies: an ExecuteInput, a lambda's or a model's text or JSON (lite's "
+            "LiteV1Api.java", "the pure/v1 routes' bodies: an ExecuteInput, a lambda's or a model's text or JSON (lite's "
                     + "own routes in it each by their reason: LITE_ROUTES)",
             "TestDataRoutes.java", "the test-data generator's requests: an ExecuteInput, its mapping, its row "
                     + "identifiers",
@@ -428,22 +924,33 @@ class PlannerSurfaceTest {
             "CreateAssociation.java", "CreateDataSpace.java");
 
     /** LITE'S OWN ROUTES, EACH BY ITS REASON (the final audit of 9af16fbe58's J4, 2026-11-14: #TS's two sat under the
-     *  {@code PureV1Api.java} row of {@link #UPSTREAM_PROTOCOL}, open, though upstream has no #TS): every
-     *  {@code /api/lite/} route, CLOSED -- by its method's {@code only(...)} over exactly the keys listed, or by its
-     *  route file ({@link #CLOSED_ROUTE_FILES}) -- or OPEN because its body is upstream's own shape, said why.
-     *  {@link #liteRouteViolations} holds each row to the route switch and each closed method to its {@code only}. */
-    static final Map<String, String> LITE_ROUTES = new TreeMap<>(Map.of(
-            "/api/lite/v1/compilation/compile", "OPEN: its body is a model, upstream's PureModelContext, read as"
-                    + " upstream's compile reads one (ModelInput)",
-            "/api/lite/v1/grammar/jsonToTs/lambda", "CLOSED jsonToTsLambda: model, lambda",
-            "/api/lite/v1/grammar/tsItem", "CLOSED tsItem: text",
-            "/api/lite/v1/model/createClass", "CLOSED FILE ModelChanges.java",
-            "/api/lite/v1/model/createAssociation", "CLOSED FILE ModelChanges.java",
-            "/api/lite/v1/model/createDataSpace", "CLOSED FILE ModelChanges.java"));
+     *  {@code LiteV1Api.java} row of {@link #UPSTREAM_PROTOCOL}, open, though upstream has no #TS): every
+     *  {@code /api/lite/} route CLOSED -- by its request's {@code read(body, "<what>", Set.of(<optional>), <keys>)} over
+     *  exactly the keys listed ({@code CLOSED "<what>": keys[; optional keys]}), or by its route file
+     *  ({@link #CLOSED_ROUTE_FILES}). Lite's API v1 (2026-11-17, the user's go; spec §2): every operation's request is
+     *  lite's own shape -- a model as its text, a query as its tree -- so none is open (until then compilation/compile
+     *  read upstream's PureModelContext, open). {@link #liteRouteViolations} holds each row to the route switch and each
+     *  closed route to its {@code read}. */
+    static final Map<String, String> LITE_ROUTES = new TreeMap<>(Map.ofEntries(
+            Map.entry("/api/lite/v1/model/check", "CLOSED \"a model/check request\": model"),
+            Map.entry("/api/lite/v1/model/elements", "CLOSED \"a model/elements request\": model"),
+            Map.entry("/api/lite/v1/query/parse", "CLOSED \"a query/parse request\": text"),
+            Map.entry("/api/lite/v1/query/print", "CLOSED \"a query/print request\": query; optional style"),
+            Map.entry("/api/lite/v1/query/type", "CLOSED \"a query/type request\": model, query"),
+            Map.entry("/api/lite/v1/query/plan", "CLOSED \"a query/plan request\": model, query, runtime"),
+            // 2026-11-17 (the orchestrator's ruling on lite's API v1 §4: format is the caller's ask, never defaulted): format
+            // required
+            Map.entry("/api/lite/v1/query/run", "CLOSED \"a query/run request\": model, query, runtime, format; optional"
+                    + " params"),
+            Map.entry("/api/lite/v1/ts/item", "CLOSED \"a ts/item request\": text"),
+            Map.entry("/api/lite/v1/ts/statement", "CLOSED \"a ts/statement request\": model, query"),
+            Map.entry("/api/lite/v1/model/createClass", "CLOSED FILE ModelChanges.java"),
+            Map.entry("/api/lite/v1/model/createAssociation", "CLOSED FILE ModelChanges.java"),
+            Map.entry("/api/lite/v1/model/createDataSpace", "CLOSED FILE ModelChanges.java")));
 
     /** Every violation of {@link #LITE_ROUTES} in {@code pureV1Source}: a lite route its switch dispatches that no row
-     *  names, a row for no such route, and a closed method whose {@code ModelChanges.only(...)} is not over exactly its
-     *  row's keys. */
+     *  names, a row for no such route, and a closed route whose {@code read(body, "<what>", ...)} is not over exactly its
+     *  row's keys and optional keys. */
     static List<String> liteRouteViolations(String pureV1Source, Map<String, String> rows) {
         List<String> out = new ArrayList<>();
         Set<String> routes = new TreeSet<>();
@@ -460,23 +967,29 @@ class PlannerSurfaceTest {
             if (!routes.contains(route)) {
                 out.add("a row for no lite route: " + route);
             }
-            Matcher c = Pattern.compile("CLOSED (\\w+): (.*)").matcher(reason);
+            Matcher c = Pattern.compile("CLOSED \"([^\"]+)\": ([\\w, ]+?)(?:; optional ([\\w, ]+))?").matcher(reason);
             if (c.matches()) {
-                String method = c.group(1);
-                int at = pureV1Source.indexOf("public static Answer " + method + "(");
-                int end = at < 0 ? -1 : pureV1Source.indexOf("\n    }\n", at);
-                Matcher only = Pattern.compile("ModelChanges\\.only\\(request, \"[^\"]*\"((?:, \"\\w+\")*)\\);")
-                        .matcher(at < 0 ? "" : pureV1Source.substring(at, end));
+                String what = c.group(1);
+                Matcher read = Pattern.compile("read\\(body, \"" + Pattern.quote(what)
+                        + "\", (?:java\\.util\\.)?Set\\.of\\(([^)]*)\\)((?:,\\s*\"\\w+\")*)\\)").matcher(pureV1Source);
                 List<String> keys = new ArrayList<>();
-                if (only.find()) {
-                    Matcher k = Pattern.compile("\"(\\w+)\"").matcher(only.group(1));
+                Set<String> optional = new TreeSet<>();
+                boolean found = read.find();
+                if (found) {
+                    Matcher k = Pattern.compile("\"(\\w+)\"").matcher(read.group(2));
                     while (k.find()) {
                         keys.add(k.group(1));
                     }
+                    Matcher o = Pattern.compile("\"(\\w+)\"").matcher(read.group(1));
+                    while (o.find()) {
+                        optional.add(o.group(1));
+                    }
                 }
-                if (!keys.equals(List.of(c.group(2).split(", ")))) {
-                    out.add("a closed lite route whose method is not closed over its keys: " + route + " (" + method
-                            + " closes " + keys + ")");
+                Set<String> rowOptional = c.group(3) == null ? Set.of() : new TreeSet<>(List.of(c.group(3).split(", ")));
+                if (!found || !keys.equals(List.of(c.group(2).split(", "))) || !optional.equals(rowOptional)) {
+                    out.add("a closed lite route whose request is not closed over its keys: " + route + " (" + what
+                            + (found ? " closes " + keys + ", optional " + optional : " is read by no read(body, ...)")
+                            + ")");
                 }
             }
         });
@@ -484,11 +997,11 @@ class PlannerSurfaceTest {
     }
 
     /** The fields named for a statement that are the plan's own, read back: where, and why. */
-    private static final Set<String> PLAN_STATEMENTS = Set.of("PureV1Api.java.planned.sql");
+    private static final Set<String> PLAN_STATEMENTS = Set.of("LiteV1Api.java.planned.sql");
 
     /** The variables through which a file reads the planner's own JSON back, never a request's: their keys are read
      *  as {@code variable.key}. */
-    private static final Map<String, Set<String>> INTERNAL_RECEIVERS = Map.of("PureV1Api.java", Set.of("planned"));
+    private static final Map<String, Set<String>> INTERNAL_RECEIVERS = Map.of("LiteV1Api.java", Set.of("planned"));
 
     /** THE ROOT DOORS (AGENTS.md: {@code Compiler}, {@code TypedQuery}, {@code HeldModels} the plan side's,
      *  {@code Execution} and {@code TestExecution} the runs'): every public method, by its signature, with its
@@ -516,6 +1029,8 @@ class PlannerSurfaceTest {
             Map.entry("Compiler.Target#store()", List.of()),
             Map.entry("Compiler#parseModel(String)", List.of(MODEL_TEXT)),
             Map.entry("Compiler#parseQuery(String)", List.of(LAMBDA)),
+            // 2026-11-17 (lite's API v1, query/parse: lite's own grammar, the level the compiler's -- ParserBoundaryArchTest)
+            Map.entry("Compiler#parseQueryJson(String)", List.of(LAMBDA)),
             Map.entry("Compiler#compileModel(String)", List.of(MODEL_TEXT)),
             // merged main 3a217086a (#81), 2026-11-14: a model compiled over a library's text
             Map.entry("Compiler#compileModel(String, String)", List.of(MODEL_TEXT, MODEL_TEXT)),
@@ -525,13 +1040,18 @@ class PlannerSurfaceTest {
             // the parser's warnings to the caller, and the dialect a section is parsed in
             Map.entry("Compiler#parseSources(List<Compiler.ModelSource>, BiConsumer<String, String>)",
                     List.of(MODEL_TEXT, CALLBACK)),
-            Map.entry("Compiler#parseSources(List<Compiler.ModelSource>, BiConsumer<String, String>, Dialect)",
+            Map.entry("Compiler#parseSources(List<Compiler.ModelSource>, BiConsumer<String, String>, GrammarLevel)",
                     List.of(MODEL_TEXT, CALLBACK, OPTION)),
             Map.entry("Compiler#buildModel(ParsedModel)", List.of(MODEL)),
             Map.entry("Compiler#buildModule(ParsedModel)", List.of(MODEL)),
             Map.entry("Compiler#compileAllBodies(ModelContext)", List.of(MODEL)),
             Map.entry("Compiler#compileErrors(String)", List.of(MODEL_TEXT)),
             Map.entry("Compiler#compileErrors(Protocol.PureModelContextData)", List.of(MODEL)),
+            // each error worded by the caller (the edge's route: legend-engine's words of a compile error's kind; D1.6,
+            // W7 of docs/records/d-plan-2026-11-16.md, 2026-11-16)
+            Map.entry("Compiler#compileErrors(String, Function<Throwable, String>)", List.of(MODEL_TEXT, CALLBACK)),
+            Map.entry("Compiler#compileErrors(Protocol.PureModelContextData, Function<Throwable, String>)",
+                    List.of(MODEL, CALLBACK)),
             Map.entry("Compiler#query(ModelContext, String)", List.of(MODEL, LAMBDA)),
             Map.entry("Compiler#query(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),
             Map.entry("Compiler#queryResolved(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),
@@ -558,7 +1078,6 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#body()", List.of()),
             Map.entry("TypedQuery#resultType()", List.of()),
             Map.entry("TypedQuery#parameters()", List.of()),
-            Map.entry("TypedQuery#answersADiagnostic()", List.of()),
             Map.entry("TypedQuery#expression()", List.of()),
             Map.entry("TypedQuery#target()", List.of()),
             Map.entry("TypedQuery#writes()", List.of()),
@@ -571,6 +1090,11 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#executionPlan(String)", List.of(NAME)),
             Map.entry("TypedQuery#executionPlan(String, Set<Feature>)", List.of(NAME, OPTION)),
             Map.entry("TypedQuery#projectPlan(String)", List.of(NAME)),
+            // phase D (D1.0, 2026-11-12; merged 2026-11-15): the same doors in a plan style, the edge's supplier of
+            // upstream's spellings (PureText.UPSTREAM) or the product's own
+            Map.entry("TypedQuery#plan(String, PlanStyle)", List.of(NAME, OPTION)),
+            Map.entry("TypedQuery#executionPlan(String, Set<Feature>, PlanStyle)", List.of(NAME, OPTION, OPTION)),
+            Map.entry("TypedQuery#projectPlan(String, PlanStyle)", List.of(NAME, OPTION)),
             // HeldModels: a model's text held by its handle, its compiled model handed to the caller's function
             // a host's own holder, empty (its constructor read since the follow-up audit's G1, 2026-11-14)
             Map.entry("HeldModels#new()", List.of()),
@@ -594,21 +1118,31 @@ class PlannerSurfaceTest {
             Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output, int)",
                     List.of(MODEL_TEXT, LAMBDA, NAME, SESSION, SESSION, OUTPUT, OPTION)),
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)", List.of(LAMBDA, NAME, OUTPUT)),
+            // phase D (D1.0; merged 2026-11-15): the same doors in a plan style (the edge's mount runs upstream's)
+            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                    + " Set<Feature>, PlanStyle, Output, int)", List.of(LAMBDA, NAME, SESSION, SESSION, SESSION, OPTION,
+                    OPTION, OUTPUT, OPTION)),
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, PlanStyle, Output)",
+                    List.of(LAMBDA, NAME, OPTION, OPTION, OUTPUT)),
             // the sources a server admits: its configuration's text
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
                     List.of(LAMBDA, NAME, OPTION, OUTPUT)),
+            // the run's parameter values, bound at run (the edge program's H7, 24ac6394a8, 2026-11-17: lite's query/run;
+            // this row added 2026-11-17 by the HOST stream, the overload having landed without it)
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Map<String, ?>, Output)",
+                    List.of(LAMBDA, NAME, OPTION, VALUE, OUTPUT)),
             // TestExecution: a test body planned, then run, its verdicts to the caller's listener and the referee
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", List.of(LAMBDA, NAME, OPTION)),
             // a test body's facts, data, before it is planned (C5-J item 2, 2026-11-15): the record its plan carries
             Map.entry("TestExecution#facts(TypedQuery)", List.of(LAMBDA)),
-            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun,"
                     + " ExecuteOptions)", List.of(LAMBDA, NAME, SESSION, CALLBACK, CALLBACK, OPTION)),
-            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun,"
                     + " ExecuteOptions, Output)", List.of(LAMBDA, NAME, SESSION, CALLBACK, CALLBACK, OPTION, OUTPUT)),
-            Map.entry("TestExecution#runBody(TestPlan, Sessions.Session, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runBody(TestPlan, Sessions.Session, AssertListener, EdgeRun,"
                     + " ExecuteOptions, Output)", List.of(PLAN_DATA, SESSION, CALLBACK, CALLBACK, OPTION, OUTPUT)),
-            Map.entry("TestExecution#runFixture(TestPlan, Sessions.Session, ExecuteOptions)",
-                    List.of(PLAN_DATA, SESSION, OPTION)),
+            Map.entry("TestExecution#runFixture(TestPlan, Sessions.Session, EdgeRun, ExecuteOptions)",
+                    List.of(PLAN_DATA, SESSION, CALLBACK, OPTION)),
             // ExecuteOptions, the test door's options (the follow-up audit's G1, 2026-11-14: a parameter of three root
             // doors that no row read): its constructors, accessors and withers, each a closed word, a data store or the
             // compatibility edge's callback -- no field a statement's text
@@ -617,13 +1151,13 @@ class PlannerSurfaceTest {
             Map.entry("ExecuteOptions#planning()", List.of()),
             Map.entry("ExecuteOptions#stores()", List.of()),
             Map.entry("ExecuteOptions#edge()", List.of()),
-            Map.entry("ExecuteOptions#judgingRules()", List.of()),
             Map.entry("ExecuteOptions#judgeMode()", List.of()),
             Map.entry("ExecuteOptions#judgedAs(ExecuteOptions)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withJudgeMode(PlanningOptions.JudgeMode)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withFeatures(Set<Feature>)", List.of(OPTION)),
+            Map.entry("ExecuteOptions#withStyle(PlanStyle)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withOptions(Set<PlanOption>)", List.of(OPTION)),
-            Map.entry("ExecuteOptions#withEngineCompat(boolean)", List.of(OPTION)),
+            // (ExecuteOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge hook's)
             Map.entry("ExecuteOptions#recording(Edge, DataStores)", List.of(CALLBACK, DATA_REFERENCE))));
 
     /** The root doors' classes. */
@@ -650,6 +1184,7 @@ class PlannerSurfaceTest {
             // a record of a query the planner lowered: no public door takes one back
             Map.entry("Compiler.LoweredQuery#new(SqlQuery, TypedSpec, ModelContext)", QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#parseQuery(String)", QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#parseQueryJson(String)", QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#query(ModelContext, String)", QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#query(ModelContext, ValueSpecification)", QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#queryResolved(ModelContext, ValueSpecification)", QueryRoad.PLANS_NOTHING),
@@ -674,7 +1209,6 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#body()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#resultType()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#parameters()", QueryRoad.PLANS_NOTHING),
-            Map.entry("TypedQuery#answersADiagnostic()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#expression()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#target()", QueryRoad.PLANS_NOTHING),
             Map.entry("TypedQuery#writes()", QueryRoad.PLANS_NOTHING),
@@ -683,6 +1217,13 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#executionPlan(String)", QueryRoad.REFUSES_RAW_SQL),
             Map.entry("TypedQuery#executionPlan(String, Set<Feature>)", QueryRoad.REFUSES_RAW_SQL),
             Map.entry("TypedQuery#projectPlan(String)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("TypedQuery#plan(String, PlanStyle)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("TypedQuery#executionPlan(String, Set<Feature>, PlanStyle)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("TypedQuery#projectPlan(String, PlanStyle)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                    + " Set<Feature>, PlanStyle, Output, int)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, PlanStyle, Output)",
+                    QueryRoad.REFUSES_RAW_SQL),
             Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
                     + " Output)", QueryRoad.REFUSES_RAW_SQL),
             Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
@@ -696,12 +1237,15 @@ class PlannerSurfaceTest {
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)", QueryRoad.REFUSES_RAW_SQL),
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
                     QueryRoad.REFUSES_RAW_SQL),
+            // H7's values-taking overload (24ac6394a8; its row 2026-11-17, the HOST stream)
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Map<String, ?>, Output)",
+                    QueryRoad.REFUSES_RAW_SQL),
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", QueryRoad.TEST_ROAD),
             // it reads facts of the body and plans nothing (C5-J item 2, 2026-11-15)
             Map.entry("TestExecution#facts(TypedQuery)", QueryRoad.PLANS_NOTHING),
-            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun,"
                     + " ExecuteOptions)", QueryRoad.TEST_ROAD),
-            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun,"
                     + " ExecuteOptions, Output)", QueryRoad.TEST_ROAD)));
 
     /** Every violation of {@link #QUERY_ROADS} over {@code doors} (a signature to its kinds): a door that takes a
@@ -741,16 +1285,10 @@ class PlannerSurfaceTest {
             // merged main 3a217086a (#81), 2026-11-14: Python holds a model over its library
             Map.entry("hold", List.of("lite_hold_model_over", "model", "library")),
             Map.entry("release", List.of("lite_release_model", "handle")),
-            Map.entry("plan", List.of("lite_plan_text_held", "handle", "query", "runtime")),
-            Map.entry("relationType", List.of("lite_relation_type_text_held", "handle", "query")),
             Map.entry("tableModel", List.of("lite_table_model", "table")),
             Map.entry("catalogColumnsSql", List.of("lite_catalog_columns_sql", "schema", "table")),
-            Map.entry("planJson", List.of("lite_plan_json_held", "handle", "lambda", "runtime")),
-            Map.entry("executionPlan", List.of("lite_execution_plan_json_held", "handle", "lambda", "runtime")),
-            Map.entry("planModel", List.of("lite_plan_json", "model", "lambda", "runtime")),
-            Map.entry("pureV1", List.of("lite_pure_v1", "path", "query", "body")),
-            Map.entry("executePlan", List.of("lite_execute_json_plan", "body", "models")),
-            Map.entry("executeAnswer", List.of("lite_execute_json_answer", "plan", "rows")),
+            // no pureV1, executePlan, executeAnswer: legend-engine's, the engine library's and the edge's engine module's
+            // (K2, the user's "product root, edge opt-in", 2026-11-18)
             Map.entry("fileLoad", List.of("lite_file_load", "request")),
             Map.entry("remoteMount", List.of("lite_remote_mount", "request")),
             Map.entry("snapStream", List.of("lite_snap_stream", "request")),
@@ -760,7 +1298,23 @@ class PlannerSurfaceTest {
             Map.entry("sessionSetup", List.of("lite_session_setup", "databaseType")),
             Map.entry("projectData", List.of("lite_project_data", "model", "databaseType")),
             Map.entry("hostOperations", List.of("lite_host_operations", "databaseType", "operations")),
-            Map.entry("warm", List.of("lite_warm_model", "model"))));
+            Map.entry("warm", List.of("lite_warm_model", "model")),
+            // LITE'S OWN API, v1 (the spec's §5, §7; the host train, 2026-11-17): each operation's kind (a/b -> aB), its
+            // native entry, the request carried whole; and the held model's two (§7a)
+            Map.entry("modelCheck", List.of("lite_model_check", "request")),
+            Map.entry("modelElements", List.of("lite_model_elements", "request")),
+            Map.entry("queryParse", List.of("lite_query_parse", "request")),
+            Map.entry("queryPrint", List.of("lite_query_print", "request")),
+            Map.entry("queryType", List.of("lite_query_type", "request")),
+            Map.entry("queryPlan", List.of("lite_query_plan", "request")),
+            Map.entry("modelCreateClass", List.of("lite_model_create_class", "request")),
+            Map.entry("modelCreateAssociation", List.of("lite_model_create_association", "request")),
+            Map.entry("modelCreateDataSpace", List.of("lite_model_create_data_space", "request")),
+            Map.entry("tsItem", List.of("lite_ts_item", "request")),
+            Map.entry("tsStatement", List.of("lite_ts_statement", "request")),
+            Map.entry("queryPlanHeld", List.of("lite_query_plan_held", "handle", "request")),
+            Map.entry("queryTypeHeld", List.of("lite_query_type_held", "handle", "request"))));
+
 
     /** The kinds Python's planner refuses by name ({@code _planner.REFUSED}). */
     static final Set<String> PY_REFUSED = Set.of("authored");
@@ -803,7 +1357,7 @@ class PlannerSurfaceTest {
      *  from {@code boundarySource}), the host operations' source, the tab's adapter's source and the native library's
      *  sources -- each named. */
     static List<String> violations(Class<?> boundary, String boundarySource, String hostOperationsSource,
-            String tabSource, List<String> nativeSources) {
+            String tabSource, String engineSource, List<String> nativeSources) {
         List<String> out = new ArrayList<>();
         // the registry's own rule: SQL at the playground alone, and a name that names a statement nowhere else
         BOUNDARY.forEach((name, d) -> {
@@ -811,6 +1365,11 @@ class PlannerSurfaceTest {
                 sqlRule(out, name + "(" + p.name() + ")", p.name(), p.kind());
             }
             d.fields().forEach((f, k) -> sqlRule(out, name + "." + f, f, k));
+        });
+        EDGE_BOUNDARY.forEach((name, d) -> {
+            for (Param p : d.params()) {
+                sqlRule(out, name + "(" + p.name() + ")", p.name(), p.kind());
+            }
         });
         HOST_OPERATION_FIELDS.forEach((f, k) -> sqlRule(out, "a host operation's " + f, f, k));
 
@@ -828,10 +1387,13 @@ class PlannerSurfaceTest {
                 out.add("a door no row lists: " + boundary.getSimpleName() + "." + name);
             }
         }
+        out.addAll(edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
         for (Door d : BOUNDARY.values()) {
             Method m = found.get(d.name());
             if (m == null) {
-                out.add("a listed door the boundary no longer has: " + d.name());
+                if (!EDGE_DOORS.contains(d.name())) {
+                    out.add("a listed door the boundary no longer has: " + d.name());
+                }
                 continue;
             }
             List<Class<?>> types = d.params().stream().<Class<?>>map(Param::type).toList();
@@ -872,10 +1434,13 @@ class PlannerSurfaceTest {
         closed(out, "the host operations", opRead, opAdmitted, HOST_OPERATION_FIELDS);
 
         // the exports: each delegates to the one listed door its row names
-        exports(out, "the tab's export", Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\("),
-                List.of(tabSource), TAB_EXPORTS, Map.of());
+        // the product module's entry holds lite's own exports and no edge export, the engine module's legend-engine's
+        // routes and nothing else (the user's K2 ruling, 2026-11-18: "Product root, edge opt-in")
+        Pattern jsExport = Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\(");
+        exports(out, "the tab's export", jsExport, List.of(tabSource), TAB_EXPORTS, Map.of(), Map.of());
+        exports(out, "the engine module's export", jsExport, List.of(engineSource), Map.of(), Map.of(), ENGINE_EXPORTS);
         exports(out, "the native export", Pattern.compile("@CEntryPoint\\(name = \"(\\w+)\"\\)"), nativeSources,
-                NATIVE_EXPORTS, NATIVE_SERVICES);
+                NATIVE_EXPORTS, allServices(), NATIVE_EDGE_EXPORTS);
         return out;
     }
 
@@ -928,6 +1493,13 @@ class PlannerSurfaceTest {
     /** Every door {@link #UPSTREAM_PROTOCOL} and {@link #CLOSED_ROUTE_FILES} do not name, and every row that names no
      *  such door: the doors are {@code boundary}'s parameters of kind {@link Kind#ROUTE_BODY} ({@code door(param)}) and
      *  the server's route files ({@code routeFiles}) -- each open by upstream's reason, or closed. */
+    /** The planner's doors and the edge's together: the open doors live on both (step 2c, 2026-11-17). */
+    static Map<String, Door> withEdge() {
+        Map<String, Door> out = new TreeMap<>(BOUNDARY);
+        out.putAll(EDGE_BOUNDARY);
+        return out;
+    }
+
     static List<String> openViolations(Map<String, Door> boundary, Set<String> routeFiles) {
         List<String> out = new ArrayList<>();
         Set<String> open = new TreeSet<>(routeFiles);
@@ -1122,16 +1694,20 @@ class PlannerSurfaceTest {
                 out.add("a Python planner kind's row differs from its listing: " + kind + " " + r);
             }
         });
+        // a kind answered by a planner door or by an edge door (NATIVE_EDGE_EXPORTS; step 2c, 2026-11-17)
+        Map<String, Door> doors = withEdge();
+        Map<String, String> natives = new TreeMap<>(NATIVE_EXPORTS);
+        natives.putAll(NATIVE_EDGE_EXPORTS);
         PY_KINDS.forEach((kind, r) -> {
-            String door = NATIVE_EXPORTS.get(r.get(0));
-            if (door == null || !BOUNDARY.containsKey(door)) {
+            String door = natives.get(r.get(0));
+            if (door == null || !doors.containsKey(door)) {
                 out.add("a Python planner kind answered by no listed door: " + kind + " (" + r.get(0) + ")");
-            } else if (BOUNDARY.get(door).params().size() != r.size() - 1) {
+            } else if (doors.get(door).params().size() != r.size() - 1) {
                 out.add("a Python planner kind's fields are not its door's parameters: " + kind + " -> " + door);
             } else {
                 for (int i = 1; i < r.size(); i++) {
                     sqlRule(out, "python " + kind + "." + r.get(i), r.get(i),
-                            BOUNDARY.get(door).params().get(i - 1).kind());
+                            doors.get(door).params().get(i - 1).kind());
                 }
             }
         });
@@ -1145,7 +1721,8 @@ class PlannerSurfaceTest {
         for (String name : names) {
             Set<String> expands = PY_PATTERNS.getOrDefault(name, Set.of(name));
             for (String e : expands) {
-                if (!NATIVE_EXPORTS.containsKey(e) && !NATIVE_SERVICES.containsKey(e)) {
+                if (!NATIVE_EXPORTS.containsKey(e) && !NATIVE_EDGE_EXPORTS.containsKey(e)
+                        && !NATIVE_SERVICES.containsKey(e) && !NATIVE_EDGE_SERVICES.containsKey(e)) {
                     out.add("a native name Python spells that no row lists: " + name);
                 }
             }
@@ -1248,7 +1825,7 @@ class PlannerSurfaceTest {
     }
 
     private static void exports(List<String> out, String what, Pattern export, List<String> sources,
-            Map<String, String> listed, Map<String, String> services) {
+            Map<String, String> listed, Map<String, String> services, Map<String, String> edge) {
         Set<String> seen = new TreeSet<>();
         for (String source : sources) {
             Matcher m = export.matcher(source);
@@ -1257,11 +1834,20 @@ class PlannerSurfaceTest {
                 seen.add(name);
                 String body = bodyAfter(source, m.end());
                 Set<String> delegates = new TreeSet<>();
-                Matcher call = Pattern.compile("Boundary\\.(\\w+)\\(").matcher(body);
+                // a call, or a method reference (Folded.of(Boundary::refusalKinds); step 2c, 2026-11-17)
+                Matcher call = Pattern.compile("Boundary(?:\\.(\\w+)\\(|::(\\w+))").matcher(body);
                 while (call.find()) {
-                    delegates.add(call.group(1));
+                    delegates.add(call.group(1) != null ? call.group(1) : call.group(2));
                 }
-                if (services.containsKey(name)) {
+                if (edge.containsKey(name)) {
+                    // an edge export reaches its one edge door (EdgeBoundary.<door>, which the pattern reads as well)
+                    if (!delegates.equals(Set.of(edge.get(name)))) {
+                        out.add(what + " " + name + " delegates to " + delegates + ", not its edge row's "
+                                + edge.get(name));
+                    } else if (!EDGE_BOUNDARY.containsKey(edge.get(name))) {
+                        out.add(what + " " + name + " delegates to an unlisted edge door: " + edge.get(name));
+                    }
+                } else if (services.containsKey(name)) {
                     if (!delegates.isEmpty()) {
                         out.add(what + " " + name + " is listed as no planner door, and reaches " + delegates);
                     }
@@ -1282,6 +1868,11 @@ class PlannerSurfaceTest {
             }
         }
         for (String name : services.keySet()) {
+            if (!seen.contains(name)) {
+                out.add(what + " listed and gone: " + name);
+            }
+        }
+        for (String name : edge.keySet()) {
             if (!seen.contains(name)) {
                 out.add(what + " listed and gone: " + name);
             }
@@ -1335,6 +1926,10 @@ class PlannerSurfaceTest {
     private static final Pattern CALL = Pattern.compile("(?<![\\w.])(\\w+)\\(");
     /** An operation's keys, {@code Map.entry("op", List.of("op", ...))}: what {@code HostOperationsJson} admits. */
     private static final Pattern ENTRY = Pattern.compile("Map\\.entry\\(\\s*\"\\w+\"\\s*,\\s*List\\.of\\(([^)]*)\\)\\)");
+    /** Lite's API v1 closure, {@code LiteV1Api.read(body, "<what>", Set.of(<optional>), <keys>)}: what the one road's
+     *  request admits, its optional keys and its required ones (the held forms' closure; step 2c, 2026-11-17). */
+    private static final Pattern LITE_READ = Pattern.compile(
+            "\\bread\\(\\s*\\w+\\s*,\\s*\"[^\"]*\"\\s*,\\s*((?:java\\.util\\.)?Set\\.of\\([^)]*\\)(?:\\s*,\\s*\"[^\"]*\")*)\\)");
 
     /** What a scan collects: the keys a body reads, the keys its {@code only(...)} lists admit, or both. */
     private enum Scan { READS, ADMITS, BOTH }
@@ -1366,7 +1961,7 @@ class PlannerSurfaceTest {
             }
         }
         if (scan != Scan.READS) {
-            for (Pattern admits : List.of(ONLY, ENTRY)) {
+            for (Pattern admits : List.of(ONLY, ENTRY, LITE_READ)) {
                 Matcher only = admits.matcher(body);
                 while (only.find()) {
                     Matcher key = Pattern.compile("\"([^\"]*)\"").matcher(only.group(1));
@@ -1398,7 +1993,10 @@ class PlannerSurfaceTest {
 
     private static List<String> nativeSources() {
         List<String> out = new ArrayList<>();
-        for (var f : SourceFiles.under("native/src/main/java/com/legend/nativelib")) {
+        // the edge's native entries too (the separation census's A2, 2026-11-17: SavedQueriesHome moved there; it calls
+        // the boundary's surface as before)
+        for (var f : SourceFiles.under("native/src/main/java/com/legend/nativelib",
+                "native/src/edge/java/com/legend/edge/nativelib")) {
             if (f.getFileName().toString().endsWith(".java")) {
                 try {
                     out.add(Files.readString(f, StandardCharsets.UTF_8));
@@ -1413,7 +2011,10 @@ class PlannerSurfaceTest {
 
     private static final String BOUNDARY_SOURCE = "wasm/src/main/java/planner/Boundary.java";
     private static final String HOST_OPERATIONS_SOURCE = "wasm/src/main/java/planner/HostOperationsJson.java";
+    // the product module's entry, and the engine module's (the user's K2 ruling, 2026-11-18: the tab's entry was
+    // com.legend.edge.wasm.TabExports from F's census line A1, 2026-11-17, until its four legend-engine routes left it)
     private static final String TAB_SOURCE = "wasm/src/main/java/planner/TabExports.java";
+    private static final String ENGINE_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/EngineExports.java";
 
     // ---- the tests
 
@@ -1422,7 +2023,7 @@ class PlannerSurfaceTest {
     @Test
     void thePlannerSurfaceIsClosed() {
         assertEquals(List.of(), violations(planner.Boundary.class, read(BOUNDARY_SOURCE), read(HOST_OPERATIONS_SOURCE),
-                read(TAB_SOURCE), nativeSources()), "the planner surface is not closed");
+                read(TAB_SOURCE), read(ENGINE_SOURCE), nativeSources()), "the planner surface is not closed");
     }
 
     /** The check names a listed door whose request reads a statement, and a door no row lists
@@ -1431,7 +2032,7 @@ class PlannerSurfaceTest {
     void theSurfaceRefusesAPlantedDoor() {
         List<String> found = violations(com.legend.planner.PlantedBoundary.class,
                 read("core/src/test/java/com/legend/planner/PlantedBoundary.java"), read(HOST_OPERATIONS_SOURCE),
-                read(TAB_SOURCE), nativeSources());
+                read(TAB_SOURCE), read(ENGINE_SOURCE), nativeSources());
         assertTrue(found.contains("snapCopy reads the field sql, which no row declares (a field that can carry SQL)"),
                 String.join("\n", found));
         assertTrue(found.contains("a door no row lists: PlantedBoundary.runSql"), String.join("\n", found));
@@ -1451,7 +2052,7 @@ class PlannerSurfaceTest {
         assertTrue(ops.contains(relation), "the splice's anchor");
         List<String> found = violations(planner.Boundary.class, boundary.replace(open, ""),
                 ops.replace(relation, "List.of(\"op\", \"kind\", \"target\", \"replace\", \"from\")"),
-                read(TAB_SOURCE), nativeSources());
+                read(TAB_SOURCE), read(ENGINE_SOURCE), nativeSources());
         assertEquals(List.of("fileLoad reads the field digest, which none of its only(...) lists admits",
                 "fileLoad reads the field format, which none of its only(...) lists admits",
                 "fileLoad reads the field name, which none of its only(...) lists admits",
@@ -1568,50 +2169,119 @@ class PlannerSurfaceTest {
                 }
                 """);
         List<String> found = violations(planner.Boundary.class, read(BOUNDARY_SOURCE), read(HOST_OPERATIONS_SOURCE),
-                tab, natives);
+                tab, read(ENGINE_SOURCE), natives);
         assertEquals(List.of("the tab's export no row lists: runSqlOrError (reaches [authored])",
                 "the native export no row lists: lite_run_sql (reaches [authored])"), found);
     }
 
-    private static final List<String> SERVER_FILES = List.of("PureV1Api.java", "TestDataRoutes.java",
+    /** The product module's entry holds no legend-engine route, and the engine module's no product export (the user's
+     *  K2 ruling, 2026-11-18): an edge route planted back in the tab's adapter, and a lite operation planted in the
+     *  engine module's entry, are each named. */
+    @Test
+    void eachModuleHoldsItsOwnExportsAlone() {
+        String anchor = "    @JSExport\n    public static String zoneProbe(";
+        String tab = read(TAB_SOURCE);
+        assertTrue(tab.contains(anchor), "the splice's anchor");
+        String plantedTab = tab.replace(anchor, """
+                    @JSExport
+                    public static String pureV1OrError(String path, String rawQuery, String body) {
+                        return Folded.http(() -> EdgeBoundary.pureV1(path, rawQuery, body));
+                    }
+
+                    @JSExport
+                    public static String zoneProbe(""");
+        String engine = read(ENGINE_SOURCE);
+        String engineAnchor = "    /** TeaVM's entry point";
+        assertTrue(engine.contains(engineAnchor), "the splice's anchor");
+        String plantedEngine = engine.replace(engineAnchor, """
+                    @JSExport
+                    public static String queryPlanOrError(String request) {
+                        return Folded.of(() -> Boundary.queryPlan(request));
+                    }
+
+                    /** TeaVM's entry point""");
+        List<String> found = violations(planner.Boundary.class, read(BOUNDARY_SOURCE), read(HOST_OPERATIONS_SOURCE),
+                plantedTab, plantedEngine, nativeSources());
+        assertEquals(List.of("the tab's export no row lists: pureV1OrError (reaches [pureV1])",
+                "the engine module's export no row lists: queryPlanOrError (reaches [queryPlan])"), found);
+    }
+
+    private static final List<String> SERVER_FILES = List.of("LiteV1Api.java", "TestDataRoutes.java",
             "ModelChanges.java", "ModelInput.java", "CreateClass.java", "CreateAssociation.java",
             "CreateDataSpace.java");
 
+    /** The server's route files by name. Phase D's D1.0b (2026-11-12) moved pure/v1's upstream routes and
+     *  TestDataRoutes to the compatibility edge ({@code com.legend.edge}): a file is read where it lives, and pure/v1's
+     *  one surface -- the product's {@code LiteV1Api} and the edge's {@code PureV1Routes}, which it hands upstream's
+     *  paths -- is read as the one file it was (merged with C4's surface check, 2026-11-15). */
     private static Map<String, String> routeFiles() {
         Map<String, String> out = new TreeMap<>();
         for (String f : SERVER_FILES) {
-            out.put(f, read("core/src/main/java/com/legend/server/" + f));
+            String server = "core/src/main/java/com/legend/server/" + f;
+            out.put(f, SourceFiles.has(server) ? read(server) : read("core/src/main/java/com/legend/edge/" + f));
         }
+        // W8 (docs/records/d-plan-2026-11-16.md, 2026-11-16): the host answer halves (arrowPlan, jsonPlan, jsonAnswer)
+        // moved to the edge's HostAnswers; read as part of the same surface, so its planned.* reads stay censused
+        // lite's API v1 (the HOST stream, 2026-11-17, the user's go): the operations LiteV1Api.route calls,
+        // LiteV1Planning's, read as part of the same surface -- unread by this census until then
+        // and pure/v1's ExecuteInput reader, edge/ExecuteInputs (moved there by B7, 1898bc0ddb, 2026-11-17: its reads --
+        // body, multiplicity, lowerBound, upperBound, value -- left this census's surface and their rows stood unread;
+        // read again here, 2026-11-17, the HOST stream)
+        out.put("LiteV1Api.java", out.get("LiteV1Api.java") + "\n"
+                + read("core/src/main/java/com/legend/server/LiteV1Planning.java") + "\n"
+                + read("core/src/main/java/com/legend/edge/PureV1Routes.java") + "\n"
+                + read("core/src/main/java/com/legend/edge/ExecuteInputs.java") + "\n"
+                + read("core/src/main/java/com/legend/edge/HostAnswers.java"));
         return out;
     }
 
     private static final String HTTP_SOURCE = "core/src/main/java/com/legend/server/LegendHttpServer.java";
+
+    /** The server's HTTP routes as one source: the product's ({@code LegendHttpServer}'s {@code route(...)}s) and the
+     *  compatibility edge's mount ({@code edge.EdgeServer.UPSTREAM}), each of the edge's routes read from its real
+     *  declaration -- the mount asked for its routes and each route for its prefix, as the server itself registers them
+     *  ({@code LegendHttpServer}: {@code route(module.prefix(), ...)}) -- and written as a route of the one surface
+     *  (phase D's D1.0b moved them, 2026-11-12; read so since the D part 1 audit's S8, 2026-11-15: a regex over
+     *  {@code EdgeServer}'s text missed a prefix spelled any other way). */
+    private static String httpSource() {
+        StringBuilder edge = new StringBuilder();
+        for (com.legend.server.LegendHttpServer.Routes r : com.legend.edge.EdgeServer.UPSTREAM.routes(
+                new com.legend.server.LegendHttpServer.Context(com.legend.server.LegendHttpServer.NO_SOURCES, null,
+                        null))) {
+            edge.append("\n        route(\"").append(r.prefix()).append("\", edge);");
+        }
+        return read(HTTP_SOURCE) + edge;
+    }
 
     /** The server's surface is closed: every route listed, every key a route file reads declared with its kind, no
      *  field that carries SQL but the plan half's own statement read back. */
     @Test
     void theServersSurfaceIsClosed() {
         Map<String, String> files = routeFiles();
-        assertEquals(List.of(), serverViolations(files.get("PureV1Api.java"), files, read(HTTP_SOURCE)),
+        assertEquals(List.of(), serverViolations(files.get("LiteV1Api.java"), files, httpSource()),
                 "the server's surface is not closed");
     }
 
-    /** Lite's own routes, each closed over exactly its keys or open by its reason; a route whose closure is removed,
-     *  widened, or a new lite route, is named. */
+    /** Lite's own routes, each closed over exactly its keys; a route whose closure is removed, widened, given an
+     *  optional key, or a new lite route, is named (lite's API v1, 2026-11-17: the closures are its read(body, ...)). */
     @Test
     void liteRoutesAreEachClosedOrOpenByTheirReason() {
-        String source = routeFiles().get("PureV1Api.java");
+        String source = routeFiles().get("LiteV1Api.java");
         assertEquals(List.of(), liteRouteViolations(source, LITE_ROUTES));
-        String unclosed = source.replace("ModelChanges.only(request, \"a tsItem request\", \"text\");", "");
-        String widened = source.replace("\"a jsonToTs/lambda request\", \"model\", \"lambda\");",
-                "\"a jsonToTs/lambda request\", \"model\", \"lambda\", \"sql\");");
-        String added = source.replace("case \"/api/lite/v1/grammar/tsItem\" ->",
-                "case \"/api/lite/v1/grammar/planted\" -> tsItem(body);\n            case \"/api/lite/v1/grammar/tsItem\" ->");
-        assertEquals(List.of("a closed lite route whose method is not closed over its keys: /api/lite/v1/grammar/tsItem"
-                + " (tsItem closes [])"), liteRouteViolations(unclosed, LITE_ROUTES));
-        assertEquals(List.of("a closed lite route whose method is not closed over its keys: /api/lite/v1/grammar/jsonToTs"
-                + "/lambda (jsonToTsLambda closes [model, lambda, sql])"), liteRouteViolations(widened, LITE_ROUTES));
-        assertEquals(List.of("a lite route no row names: /api/lite/v1/grammar/planted"),
+        String closure = "read(body, \"a ts/item request\", java.util.Set.of(), \"text\");";
+        assertTrue(source.contains(closure), "the splices' anchor");
+        String unclosed = source.replace(closure, "request(body);");
+        String widened = source.replace(closure, "read(body, \"a ts/item request\", java.util.Set.of(), \"text\", \"sql\");");
+        String optional = source.replace(closure, "read(body, \"a ts/item request\", java.util.Set.of(\"sql\"), \"text\");");
+        String added = source.replace("case \"/api/lite/v1/ts/item\" ->",
+                "case \"/api/lite/v1/ts/planted\" -> tsItem(body);\n            case \"/api/lite/v1/ts/item\" ->");
+        assertEquals(List.of("a closed lite route whose request is not closed over its keys: /api/lite/v1/ts/item"
+                + " (a ts/item request is read by no read(body, ...))"), liteRouteViolations(unclosed, LITE_ROUTES));
+        assertEquals(List.of("a closed lite route whose request is not closed over its keys: /api/lite/v1/ts/item"
+                + " (a ts/item request closes [text, sql], optional [])"), liteRouteViolations(widened, LITE_ROUTES));
+        assertEquals(List.of("a closed lite route whose request is not closed over its keys: /api/lite/v1/ts/item"
+                + " (a ts/item request closes [text], optional [sql])"), liteRouteViolations(optional, LITE_ROUTES));
+        assertEquals(List.of("a lite route no row names: /api/lite/v1/ts/planted"),
                 liteRouteViolations(added, LITE_ROUTES));
     }
 
@@ -1619,15 +2289,15 @@ class PlannerSurfaceTest {
     @Test
     void theServersSurfaceRefusesAPlantedRoute() {
         Map<String, String> files = routeFiles();
-        String pureV1 = files.get("PureV1Api.java").replace(
-                "            case \"/api/lite/v1/compilation/compile\" ->",
-                "            case \"/api/lite/v1/runSql\" -> runSql(PureV1Api.request(body).getString(\"sql\"));\n"
-                        + "            case \"/api/lite/v1/compilation/compile\" ->");
-        files.put("PureV1Api.java", pureV1);
-        String http = read(HTTP_SOURCE).replace("        route(\"/health\",",
+        String pureV1 = files.get("LiteV1Api.java").replace(
+                "            case \"/api/lite/v1/model/check\" ->",
+                "            case \"/api/lite/v1/runSql\" -> runSql(LiteV1Api.request(body).getString(\"sql\"));\n"
+                        + "            case \"/api/lite/v1/model/check\" ->");
+        files.put("LiteV1Api.java", pureV1);
+        String http = httpSource().replace("        route(\"/health\",",
                 "        route(\"/api/lite/v1/sql\", exchange -> { });\n        route(\"/health\",");
         assertEquals(List.of("a route no row lists: /api/lite/v1/runSql (named for a statement)",
-                "PureV1Api.java reads the field sql, which no row declares (a field that can carry SQL)",
+                "LiteV1Api.java reads the field sql, which no row declares (a field that can carry SQL)",
                 "an HTTP route no row lists: /api/lite/v1/sql (named for a statement)"),
                 serverViolations(pureV1, files, http));
     }
@@ -1636,14 +2306,14 @@ class PlannerSurfaceTest {
      *  {@link #UPSTREAM_PROTOCOL}'s reason or closed ({@link #CLOSED_ROUTE_FILES}), and each row names such a door. */
     @Test
     void theOpenDoorsAreNamedByTheirReason() {
-        assertEquals(List.of(), openViolations(BOUNDARY, routeFiles().keySet()), "an open door is not named");
+        assertEquals(List.of(), openViolations(withEdge(), routeFiles().keySet()), "an open door is not named");
     }
 
     /** The check names a door planted with a route's body and a route file planted beside the listed ones, and a row
      *  whose door is gone (the boundary without {@code executePlan}). */
     @Test
     void anOpenDoorNoRowNamesIsNamed() {
-        Map<String, Door> boundary = new TreeMap<>(BOUNDARY);
+        Map<String, Door> boundary = withEdge();
         boundary.put("runBody", door("runBody", p("body", ROUTE_BODY)));
         boundary.remove("executePlan");
         Set<String> files = new TreeSet<>(routeFiles().keySet());
@@ -1665,7 +2335,7 @@ class PlannerSurfaceTest {
                 "\"name\", \"description\", \"classes\");"));
         assertEquals(List.of("CreateDataSpace.java reads the field title, which none of the closed routes' only(...)"
                 + " lists admits"),
-                serverViolations(files.get("PureV1Api.java"), files, read(HTTP_SOURCE)));
+                serverViolations(files.get("LiteV1Api.java"), files, httpSource()));
     }
 
     /** The root doors are closed: every public method of the five listed, by signature, its parameters' kinds. */
@@ -1715,6 +2385,18 @@ class PlannerSurfaceTest {
                 Map.entry("TypedQuery#executionPlan(String, Set<Feature>)",
                         () -> typed.get().executionPlan(runtime, Set.of())),
                 Map.entry("TypedQuery#projectPlan(String)", () -> typed.get().projectPlan(runtime)),
+                Map.entry("TypedQuery#plan(String, PlanStyle)",
+                        () -> typed.get().plan(runtime, com.legend.edge.PureText.UPSTREAM)),
+                Map.entry("TypedQuery#executionPlan(String, Set<Feature>, PlanStyle)",
+                        () -> typed.get().executionPlan(runtime, Set.of(), com.legend.edge.PureText.UPSTREAM)),
+                Map.entry("TypedQuery#projectPlan(String, PlanStyle)",
+                        () -> typed.get().projectPlan(runtime, com.legend.edge.PureText.UPSTREAM)),
+                Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                        + " Set<Feature>, PlanStyle, Output, int)", () -> Execution.run(typed.get(), runtime, null, null,
+                        declared, Set.of(), com.legend.edge.PureText.UPSTREAM, null, 1)),
+                Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, PlanStyle, Output)",
+                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null,
+                                com.legend.edge.PureText.UPSTREAM, null)),
                 Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
                         + " Output)", () -> Execution.run(typed.get(), runtime, null, null, declared, null)),
                 Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
@@ -1729,7 +2411,9 @@ class PlannerSurfaceTest {
                 Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)",
                         () -> Execution.runOnProjectDatabases(typed.get(), runtime, null)),
                 Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
-                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, null))));
+                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, null)),
+                Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Map<String, ?>, Output)",
+                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, Map.of(), null))));
         Set<String> refusing = new TreeSet<>();
         QUERY_ROADS.forEach((sig, road) -> {
             if (road == QueryRoad.REFUSES_RAW_SQL) {

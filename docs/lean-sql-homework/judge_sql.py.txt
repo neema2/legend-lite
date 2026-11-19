@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""The test road's statements, measured (E-5 of the total-wall program, design and measurement only).
+
+Reads a PCT channel B test.log run with -Dlegend.diagnostics=sql-sizes,dump-sql and reports, per origin: statements,
+characters, per test; how much of the statements' text is a SIDE's text sent again inside another statement of the
+same test (the host's sides beside the database's fused verdict); and how much is a printed value repeated inside one
+statement (what a bind-once would save: the longest repeated literal or bracketed group, greedily).
+
+usage: judge_sql.py <test.log> [<test.log> ...]
+"""
+import re, sys, collections
+
+SIZE = re.compile(r"^\[sql-size\] (\d+) (\S+) (\S+)\s*$")
+DUMP = re.compile(r"^\[sql:([^\]]+)\] ", re.M)
+LIT = re.compile(r"'(?:[^']|'')*'")
+
+
+def dumps(text):
+    """[(origin, sql)] in order, from the dump-sql lines (multi-line statements)."""
+    out = []
+    starts = [(m.start(), m.end(), m.group(1)) for m in DUMP.finditer(text)]
+    for i, (s, e, origin) in enumerate(starts):
+        end = starts[i + 1][0] if i + 1 < len(starts) else len(text)
+        body = text[e:end]
+        # a statement ends at the next diagnostic or test line
+        cut = re.search(r"\n(?=\[sql-size\]|\[[a-z-]+\] |\s*JUnit|\S+Test)", body)
+        out.append((origin.split()[0], (body[:cut.start()] if cut else body).rstrip("\n")))
+    return out
+
+
+def groups(sql):
+    out, stack, instr = [], [], False
+    for i, ch in enumerate(sql):
+        if ch == "'":
+            instr = not instr
+        elif not instr:
+            if ch == "(":
+                stack.append(i)
+            elif ch == ")" and stack:
+                out.append((stack.pop(), i + 1))
+    return out
+
+
+def repeated_waste(sql, minlen=24):
+    """Characters a bind-once of repeated text would save: greedy, longest repeated group or literal first, each
+    occurrence after the first costing a short reference (8 chars), occurrences never overlapping a taken one."""
+    cands = collections.defaultdict(list)
+    for s, e in groups(sql):
+        if e - s >= minlen:
+            cands[sql[s:e]].append(s)
+    for m in LIT.finditer(sql):
+        if m.end() - m.start() >= minlen:
+            cands[m.group()].append(m.start())
+    taken = []
+    saved = 0
+    for text, pos in sorted(cands.items(), key=lambda kv: -len(kv[0]) * (len(kv[1]) - 1)):
+        if len(pos) < 2:
+            continue
+        free = [p for p in pos if not any(a <= p < b or a < p + len(text) <= b for a, b in taken)]
+        if len(free) < 2:
+            continue
+        saved += (len(free) - 1) * len(text) - 8 * len(free) - 16   # n copies become one binding and n references
+        taken += [(p, p + len(text)) for p in free]
+    return max(saved, 0)
+
+
+def report(path):
+    text = open(path, encoding="utf-8", errors="replace").read()
+    by_origin = collections.Counter()
+    chars = collections.Counter()
+    tests = set()
+    per_test = collections.defaultdict(list)
+    for line in text.splitlines():
+        m = SIZE.match(line)
+        if m:
+            n, test, origin = int(m.group(1)), m.group(2), m.group(3)
+            by_origin[origin] += 1
+            chars[origin] += n
+            tests.add(test)
+    stmts = dumps(text)
+    waste = collections.Counter()
+    lits = collections.Counter()
+    for origin, sql in stmts:
+        waste[origin] += repeated_waste(sql)
+        lits[origin] += sum(len(m.group()) for m in LIT.finditer(sql))
+    # a side's text inside another statement: consecutive statements, side then a later one holding it
+    contained = 0
+    contained_chars = 0
+    window = []
+    for origin, sql in stmts:
+        for o2, s2 in window:
+            if len(s2) >= 40 and s2 in sql and s2 != sql:
+                contained += 1
+                contained_chars += len(s2)
+        window = (window + [(origin, sql)])[-12:]
+    t = max(len(tests), 1)
+    print(f"== {path}: {len(tests)} tests, {sum(by_origin.values())} statements ({sum(by_origin.values())/t:.1f}/test),"
+          f" {sum(chars.values())} chars ({sum(chars.values())/t:.0f}/test); dumped {len(stmts)}")
+    print(f"{'origin':16} {'stmts':>7} {'per test':>8} {'chars':>11} {'avg':>7} {'literal%':>8} {'repeat%':>8}")
+    for o, n in by_origin.most_common():
+        c = chars[o]
+        print(f"{o:16} {n:7} {n/t:8.2f} {c:11} {c//max(n,1):7} {100*lits[o]/max(c,1):7.1f}% {100*waste[o]/max(c,1):7.1f}%")
+    print(f"statement text sent again inside a later statement of the window: {contained} times, {contained_chars} chars")
+
+
+for p in sys.argv[1:]:
+    report(p)

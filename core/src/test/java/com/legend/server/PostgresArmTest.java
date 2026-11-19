@@ -192,12 +192,13 @@ class PostgresArmTest {
                             () -> plan(ctx, q.withLets()));
                     assertTrue(String.valueOf(literal.getMessage()).contains("fraction digits; Postgres keeps 6"),
                             literal.getMessage());
+                    // the statement's raise writes its kind (FRACTION_NOT_KEPT), its sentence lite's own -- phase D's
+                    // D1.1, merged with main's #81 2026-11-14; the former "Postgres keeps (6)" text is the edge's
                     var parameter = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                             () -> com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),
                                     com.legend.testcases.PlanCases.Written.JSON::writer));
-                    assertTrue(String.valueOf(parameter.getMessage()).contains("the DateTime parameter 't' has more"
-                            + " fraction digits than Postgres keeps (6): refused, never cut (S181)"),
-                            parameter.getMessage());
+                    assertTrue(String.valueOf(parameter.getMessage()).contains(
+                            com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), parameter.getMessage());
                     continue;
                 }
                 assertPlanAnswersAsToday(model, ctx, q, c);
@@ -213,7 +214,9 @@ class PostgresArmTest {
                     () -> com.legend.testcases.PlanCases.write(plan(ctx, dt), c, java.util.Map.of("t",
                             java.time.LocalDateTime.parse("2024-01-02T23:59:59.9999995")),
                             com.legend.testcases.PlanCases.Written.JSON::writer));
-            assertTrue(String.valueOf(rounded.getMessage()).contains("refused, never cut (S181)"), rounded.getMessage());
+            // the statement's raise: its kind's sentence (phase D's D1.1, merged with main's #81 2026-11-14)
+            assertTrue(String.valueOf(rounded.getMessage()).contains(
+                    com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), rounded.getMessage());
             // an enumeration parameter, compared through a value table of the column's codes
             String enums = com.legend.testcases.PlanCases.enumModel(POSTGRES.connectionBody(), "PLAN_E");
             var enumCtx = com.legend.Compiler.compileModel(enums);
@@ -317,13 +320,17 @@ class PostgresArmTest {
                     + " 'default', 'SEED_CODES', [\n" + String.join(",\n", line.formatted("B"), line.formatted("Z"),
                             line.formatted("a"), line.formatted("b")) + "\n  ])\n"), column(c, POSTGRES.dialect().render(
                                     com.legend.testdatagen.TestDataPlanner.seedString(ctx, seed))));
-            String json = column(c, POSTGRES.dialect().render(com.legend.testdatagen.TestDataPlanner.seedJson(ctx, seed)))
-                    .get(0);
-            assertTrue(json.replace(" ", "").endsWith("\"rowIdentifiers\":["
-                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"B\"}]},"
-                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"Z\"}]},"
-                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a\"}]},"
-                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"b\"}]}]}"), json);
+            // the seed's identifiers are ordered by the product's key order (R2, register S198): by code point, whatever
+            // the column's collation -- the seed's facts (J40 of the edge audit: legend-engine's seed JSON, written in that
+            // order, is the edge's, edge.TestDataRoutes)
+            com.legend.testdatagen.TestDataPlanner.SeedKey key =
+                    com.legend.testdatagen.TestDataPlanner.seedFacts(ctx, seed).keys().get(0);
+            com.legend.sql.SqlSelect ordered = new com.legend.sql.SqlSelect(
+                    java.util.List.of(new com.legend.sql.SqlSelect.Projection(key.cell(), "k", null)), false,
+                    new com.legend.sql.SqlSource.Subselect(seed.rows(), "_k", null), null, java.util.List.of(), null,
+                    null, java.util.List.of(new com.legend.sql.SqlSelect.SortKey(key.order(), true, null, null)), null,
+                    null, java.util.List.of());
+            assertEquals(binary, column(c, POSTGRES.dialect().render(ordered)));
         }
     }
 

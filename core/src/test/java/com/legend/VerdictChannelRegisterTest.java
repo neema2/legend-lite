@@ -18,8 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * JUDGING_TWO_MODES §5a — ONE JUDGE. (a) Exactly one class decides host
- * equality: the leniency ({@code Math.ulp}) lives in {@code Equality.java}
- * and nowhere else in the product; (b) the judge's callers are a closed
+ * equality: the leniency ({@code Math.ulp}) lives in one class and nowhere
+ * else in the product -- compiled legend-pure's 2 ULP, the edge's
+ * {@code CompiledPureHostForms} since 2026-11-18 (train 17 item 4: lite
+ * compares a Float exactly; {@code Equality.java} until then); (b) the judge's callers are a closed
  * register — the verdict seam and the delegating message facades; a new
  * caller registers consciously with its tenet argument (the Charter's
  * Clause 2c: product equality is World 2, it lowers to SQL).
@@ -41,20 +43,30 @@ class VerdictChannelRegisterTest {
             // and since 2026-09-20 its float cell rule is the judge's own
             // (Equality.withinTwoUlp; the printed-precision tolerance deleted)
             "core/src/main/java/com/legend/testexec/TdsCompare.java",
-            // the service-test runner's EqualToJson routes to serviceJson
-            "core/src/main/java/com/legend/test/TestAssertions.java",
-            // 2026-09-20 (one float rule): the corpus REFEREE's float cell
-            // rule is the judge's own — its 2-ULP pairing of leftover rows
-            // calls the one home (the ten-digit normalization it replaced
-            // was a second definition of "equal float"; deleted)
-            "spec/src/test/java/com/legend/harness/RefereeVerify.java",
             // the judges and their tests under com.legend.judge since 2026-10-30 (D71), the test's run's since slice 5
             "core/src/test/java/com/legend/testexec/EqualityJsonStrictTest.java",
             // 2026-11-03, the user's ruling "no sort can be multiset compare" restored: an unsorted chain's root
             // array a multiset again, its test back beside the strict object-vs-array one
             "core/src/test/java/com/legend/testexec/EqualityJsonUnorderedRootTest.java",
             "core/src/test/java/com/legend/testexec/EqualityWorldsConformanceTest.java",
-            "core/src/test/java/com/legend/testexec/PureAssertsTest.java");
+            "core/src/test/java/com/legend/testexec/PureAssertsTest.java",
+            // (EqualityCompatEdgeTest, 2026-11-17 K14's temporary entry: gone with step 2c -- it judges through the edge's
+            // door now, the run hook's HostForms, and calls no equality of the judge's)
+            // (EqualToJson, RefereeVerify and UpstreamRenderedTexts: gone 2026-11-18, train 17 item 4 -- the 2-ULP bound
+            // they read is the edge's CompiledPureHostForms.withinUlps, no longer Equality's)
+            // 2026-11-17 (census C1's step 2c): compiled legend-pure's cross-kind rule moved from Equality to the
+            // edge's HostForms -- it names the judge's kinds (Equality.Kind), never a second equality
+            "core/src/main/java/com/legend/edge/CompiledPureHostForms.java",
+            // the hook's signature and lite's form name the judge's kinds (Equality.Kind) -- the same 2026-11-17 move
+            "core/src/main/java/com/legend/testexec/HostForms.java",
+            // its product form's own class (GUARD's C.9, 2026-11-17)
+            "core/src/main/java/com/legend/testexec/LiteHostForms.java",
+            // 2026-11-18 (census J29): the host judge's words, a hook over the verdict's own facts -- its signature names
+            // the typed grids (Equality.Typed), lite's form words them, the edge's legend-pure form sorts them by the
+            // judge's own order (PureAsserts.sorted) and decides nothing
+            "core/src/main/java/com/legend/testexec/HostWords.java",
+            "core/src/main/java/com/legend/testexec/LiteHostWords.java",
+            "core/src/main/java/com/legend/edge/EdgeHostWords.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");
@@ -90,7 +102,8 @@ class VerdictChannelRegisterTest {
                     if (JUDGE_REF.matcher(src).find()) {
                         callers.add(rel);
                     }
-                    if (root.startsWith("core/src/main/") && src.contains("Math.ulp(")) {
+                    if (root.startsWith("core/src/main/") && src.contains("Math.ulp(")
+                            && !name.equals("CompiledPureHostForms.java")) {
                         ulpSites.add(rel);
                     }
                 }
@@ -104,7 +117,7 @@ class VerdictChannelRegisterTest {
                 + " register (JUDGING_TWO_MODES §5a): register it consciously"
                 + " with its tenet argument, or route through the verdict seam");
         assertEquals(List.of(), ulpSites,
-                "the Float leniency has ONE home, Equality.java (§5a): a second"
+                "the Float leniency has ONE home, the edge's CompiledPureHostForms.java (§5a): a second"
                 + " Math.ulp site is a second judge");
     }
 }

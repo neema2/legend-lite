@@ -19,21 +19,23 @@ public sealed interface SqlExpr
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
                 SqlExpr.CheckedDefects, SqlExpr.CheckedChildValue,
                 SqlExpr.InSubquery, SqlExpr.Quantified,
-                SqlExpr.CompactList, SqlExpr.Tagged, SqlExpr.TaggedList,
-                SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
+                SqlExpr.CompactList, SqlExpr.Tagged, SqlExpr.TaggedList, SqlExpr.RaiseText,
+                SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
                 SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
-                SqlExpr.TempTableInSplice, SqlExpr.StoredRead,
+                SqlExpr.StoredRead,
                 SqlAgg.Reducer {
 
     /**
-     * The TDS null-cell sentinel text, {@code "TDSNull"}: real pure's {@code ^TDSNull()} instance prints as this
-     * string (tds.pure), and lowering emits it as a string literal where TDS-row semantics apply. It lives here, in
-     * the leaf {@code sql} package, so a dialect can recognise it without depending on the compiler;
-     * {@code PlatformTypes.TDS_NULL_CELL} is this same constant.
+     * A PRESENT NULL CELL's value on the wire (census C5's step C, C-2, 2026-11-17, the orchestrator's ruling (B);
+     * legend-pure's {@code "TDSNull"} sentinel until then): an expected side's {@code TypedNullCell} lowers to it, a
+     * marker no expected String is written as (U+2400, the symbol for null), which the judges' canon reads as its bare
+     * {@code null} token ({@code lowering.CanonicalRenderSql.NULL_CELL}) and the host judge as the null cell it stands
+     * for. An ABSENT element is SQL NULL, a different thing. Here, in the leaf {@code sql} package, so the host judge
+     * reads it without reaching the lowering.
      */
-    public static final String TDS_NULL_CELL = "TDSNull";
+    public static final String NULL_CELL_WIRE = "\u2400";
 
     /** An identity layout's synthetic fields, as a class instance's JSON object carries them: its identity
      *  ({@code __id}) and its class ({@code __type}). The compiler's {@code ClassLayouts.SYNTHETIC_ID} and
@@ -68,8 +70,6 @@ public sealed interface SqlExpr
             case Quantified q -> false;
             case Star st -> false;
             case StarExcept st -> false;
-            case DeferredTdsString d -> false;
-            case TempTableInSplice t -> false;
             // an aggregate of any record (SqlAgg's, OrderedListAgg, JsonArrayAgg: SqlAgg.aggregatesSelect) keeps no row
             // of its own: dropped unread, its select's rows would be its source's (the final review of PR #81)
             default -> !(e instanceof SqlAgg) && !SqlAgg.aggregatesSelect(e) && allRaiseNothing(e.children());
@@ -146,10 +146,10 @@ public sealed interface SqlExpr
             case FormatLit ignored -> List.of();
             case DatePartLit ignored -> List.of();
             case JsonKindLit ignored -> List.of();
+            case RaiseText r -> r.operands();
             case TypeNameLit ignored -> List.of();
             case PlanParam ignored -> List.of();
             case KeyCell ignored -> List.of();
-            case TempTableInSplice ignored -> List.of();
             case Group g -> List.of(g.inner());
             case ArrayLit a -> a.elements();
             case OrderedListAgg o -> List.of(o.value(), o.orderBy());
@@ -198,7 +198,6 @@ public sealed interface SqlExpr
                 }
                 yield out;
             }
-            case DeferredTdsString ignored -> List.of();
             case WindowCall w -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
                 if (w.fn() instanceof SqlExpr fe) {
@@ -269,10 +268,10 @@ public sealed interface SqlExpr
             case FormatLit ignored -> this;
             case DatePartLit ignored -> this;
             case JsonKindLit ignored -> this;
+            case RaiseText r -> new RaiseText(r.kind(), cs, r.asData(), r.where());
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
             case KeyCell ignored -> this;
-            case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
             case InSubquery i -> new InSubquery(cs.get(0), i.subquery());
@@ -300,7 +299,6 @@ public sealed interface SqlExpr
                 yield new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels, tl.rows() == null ? null : cs.get(n),
                         tl.order(), SqlTyping.UNKNOWN);
             }
-            case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
             case ArrayLit a -> new ArrayLit(cs, a.type());
             case OrderedListAgg ignored ->
@@ -322,7 +320,7 @@ public sealed interface SqlExpr
                     ws.add(new Case.When(cs.get(i), cs.get(i + 1)));
                     i += 2;
                 }
-                yield new Case(ws, old.otherwise() == null ? null : cs.get(i));
+                yield new Case(ws, old.otherwise() == null ? null : cs.get(i), old.reason());
             }
             case WindowCall w -> {
                 int base = w.fn() instanceof SqlExpr ? 1 : 0;
@@ -342,7 +340,7 @@ public sealed interface SqlExpr
             // supplied-leaf knowledge (the builder's, like Column's
             // type): a body swap keeps it — recomputable by no rule
             case Lambda l -> new Lambda(l.params(), cs.get(0), l.type());
-            case Cast c -> new Cast(cs.get(0), c.target(), c.conform());
+            case Cast c -> new Cast(cs.get(0), c.target(), c.reason());
             case FoldCall f -> new FoldCall(cs.get(0), (Lambda) cs.get(1),
                     cs.get(2), f.accIsList(), f.homogeneous());
             case JsonObject ignored -> new JsonObject(cs);
@@ -655,16 +653,44 @@ public sealed interface SqlExpr
 
     record FloatLit(double value, TypeFact type)
             implements SqlExpr {
+        /** How a target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+         *  target's dialect says ({@code SqlDialect.floatLiteralKind}), the lowering builds the literal with it, and
+         *  the dialect writes the literal by it ({@link #isDouble}) -- one source for the fact and the text. */
+        public enum Kind {
+            /** The double: the product's literal (S20, "IEEE everywhere"). */
+            DOUBLE,
+            /** The DECIMAL of its digits (the numeric charter's Rule 1): legend-engine's bare literal at the edge, and
+             *  the databases whose DOUBLE literal their lanes have not measured yet. */
+            DECIMAL
+        }
+
         public FloatLit {
-            // NUMERIC CHARTER Rule 1: a float literal renders BARE and the
-            // database types it — a DECIMAL of the digits' own precision
-            // (DuckDB `19.75` is DECIMAL(4,2); H2 NUMERIC). The fact says
-            // what the wire IS, so the declared-kind envelope converts it.
-            type = SqlTyping.decimalLitType(BigDecimal.valueOf(value));
+            // a DOUBLE fact is the target's kind (Kind.DOUBLE); any other is the DECIMAL of the digits' own precision
+            // (DuckDB `19.75` is DECIMAL(4,2); H2 NUMERIC), the numeric charter's Rule 1, which a literal the lowering
+            // writes for itself (an average's 1.0, a judge's zero) keeps
+            type = SqlTyping.T_DOUBLE.equals(type) ? SqlTyping.T_DOUBLE : SqlTyping.decimalLitType(BigDecimal.valueOf(value));
         }
 
         public FloatLit(double value) {
             this(value, SqlTyping.UNKNOWN);
+        }
+
+        /** A user's Float literal on a target that computes with {@code kind}. */
+        public static FloatLit of(double value, Kind kind) {
+            return new FloatLit(value, switch (kind) {
+                case DOUBLE -> SqlTyping.T_DOUBLE;
+                case DECIMAL -> SqlTyping.UNKNOWN;
+            });
+        }
+
+        /** Whether the database computes with this literal as a double: the dialect writes it so. */
+        public boolean isDouble() {
+            return SqlTyping.T_DOUBLE.equals(type);
+        }
+
+        /** The literal negated, of its kind. */
+        public FloatLit negated() {
+            return new FloatLit(-value, type);
         }
     }
 
@@ -743,47 +769,25 @@ public sealed interface SqlExpr
         }
     }
 
-    /** A query's parameter, where it is used: in a statement that executes, a value the statement binds (a dialect
-     * writes it as a placeholder, typed by {@code type}: what a literal of the parameter's declared type carries,
-     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2); in the legacy engine-text printer, the
-     * engine's template placeholder ({@code ${name}} — its freemarker placeholder for a function parameter or an
-     * Allocation-bound variable), its {@code type} unknown. */
-    record PlanParam(String name, Kind kind, boolean optional,
-            @com.legend.base.Nullable String enumMapFn,
+    /** A query's parameter, where it is used: a value the statement binds (a dialect writes it as a placeholder,
+     * typed by {@code type}: what a literal of the parameter's declared type carries,
+     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). The product's bound slot alone (the audit's
+     * J31, 2026-11-18): legend-engine's plan-template placeholder ({@code ${name}}, its enumeration-mapping function,
+     * the temp-table protocol's bare splice) is the compatibility edge's, held in its own table
+     * ({@code edge/EngineParams}), never here; a template parameter's {@code type} is {@code UNKNOWN}. */
+    record PlanParam(String name, ValueType valueType, boolean optional,
             TypeFact type, @com.legend.base.Nullable DeclaredKind declared) implements SqlExpr {
-        /** {@code RAW} splices {@code ${name}} bare — the temp-table IN
-         * protocol's {@code inFilterClause_X} wrapper variable
-         * (processInOperation.pure); plan-text vocabulary only. */
-        /** {@code DATE} is pure Date (the h2New surface spells it with the
-         * TIMESTAMP keyword, like DATETIME); {@code STRICT_DATE} is pure
-         * StrictDate, spelled with the DATE keyword ({@code
-         * DATE'${startDate}'} — testGroupByWithTwoOpenVariablesInAggAndFilter). */
-        public enum Kind { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
-            OTHER, RAW }
+        /** The parameter's declared Pure type, as a value class (L-B.PlanParam, the orchestrator's ruling of 2026-11-18:
+         *  a product fact; EnumValueTables decides by ENUM, and legend-engine's template spellings of each are the edge's
+         *  dialects'): {@code DATE} pure Date, {@code STRICT_DATE} StrictDate, {@code DATETIME} DateTime, {@code OTHER}
+         *  exactly the declared types with no value class of their own (lowering.Fold#planValueTypeOf names them). */
+        public enum ValueType { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM, OTHER }
 
         /** {@code declared}: set when each database types the parameter's placeholder by its declared Pure type (a
          *  Float's, a Decimal's, a Number's and a Date's fact is {@code UNKNOWN}; a DateTime's is {@code TIMESTAMP}:
-         *  {@link DeclaredKind}, D1); null when its type is the fact's alone, or when it is a legacy plan's template
-         *  parameter (the four-argument and shorter forms). */
+         *  {@link DeclaredKind}, D1); null when its type is the fact's alone. */
         public PlanParam {
             java.util.Objects.requireNonNull(type, "type");
-        }
-
-        public PlanParam(String name, Kind kind, boolean optional,
-                @com.legend.base.Nullable String enumMapFn) {
-            this(name, kind, optional, enumMapFn, SqlTyping.UNKNOWN, null);
-        }
-
-        public PlanParam(String name, Kind kind, boolean optional) {
-            this(name, kind, optional, null);
-        }
-
-        public PlanParam(String name, Kind kind) {
-            this(name, kind, false);
-        }
-
-        public PlanParam(String name, boolean stringTyped) {
-            this(name, stringTyped ? Kind.STRING : Kind.OTHER, false);
         }
     }
 
@@ -975,17 +979,73 @@ public sealed interface SqlExpr
         }
     }
 
+    /**
+     * WHY a {@link Cast} or a {@link Case} is in the SQL (E-4 of the total-wall program, the user's cast-and-case rule,
+     * ruled 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md §5.8). Every one traces to the user's own Pure call
+     * or to a NAMED product rule that keeps the answer typed and the same on every database; anything else is a
+     * defect. The node that makes it names the reason: there is no constructor without one, and the census
+     * ({@code leansql.CastCaseCensusTest}) pins the counts per reason and dialect, shrink-only. {@code code} is its
+     * spelling in a plan ({@code executionplan.MirJson}).
+     */
+    enum Reason {
+        /** The user's own Pure call: {@code cast}, {@code to*}, {@code parse*}, {@code if}, {@code match}. */
+        USER("user"),
+        /** The type the plan DECLARES for a value: a literal's, a NULL's, a parameter's, a store column's, a load's. */
+        DECLARED("declared"),
+        /** The mapping read's conformance: the engine's decode-side coercion (the engine-text channel elides it). */
+        CONFORM("conform"),
+        /** A Pure operator's semantics, the same on every database: a floored mod, an integer division, a scale kept,
+         *  a date's arithmetic, an instance's equality, a window's frame. */
+        OPERATOR("operator"),
+        /** A value carried and read back: a list, JSON, tagged or graph carrier's encoding. */
+        CARRIER("carrier"),
+        /** Pure's printed text of a value: its canon, a Float's spelling, {@code toRepresentation}, a result's text. */
+        PRINT("print"),
+        /** A raise's carrier: the condition a raise is written under (D's). */
+        RAISE("raise"),
+        /** A database's own requirement, made by its dialect: an argument type its function needs, its encoding. */
+        DIALECT("dialect"),
+        /** The test road's verdict statement (the judges'; never a product query's). */
+        JUDGE("judge"),
+        /** A fused verdict row's UNUSED slot (E-5c; 2026-11-15, ClickHouse's round 53): another member's column, held
+         *  by this member's row as a placeholder of that column's type and never read. A NULL where the database can
+         *  hold one; the type's own default where it cannot (ClickHouse's Map and Tuple). */
+        SLOT("slot");
+
+        private final String code;
+
+        Reason(String code) {
+            this.code = code;
+        }
+
+        /** Its spelling in a plan. */
+        public String code() {
+            return code;
+        }
+
+        /** The reason a plan spells {@code code}; an unknown spelling is refused by name. */
+        public static Reason of(String code) {
+            for (Reason r : values()) {
+                if (r.code.equals(code)) {
+                    return r;
+                }
+            }
+            throw new IllegalArgumentException("no cast-or-case reason is spelled '" + code + "'");
+        }
+    }
+
     /** {@code CASE WHEN ... THEN ... [WHEN ...] ELSE ... END}. */
-    /** {@code otherwise} null = no ELSE branch (SQL semantics: NULL). */
-    record Case(List<When> whens, @com.legend.base.Nullable SqlExpr otherwise,
+    /** {@code otherwise} null = no ELSE branch (SQL semantics: NULL). {@code reason}: why it is in the SQL. */
+    record Case(List<When> whens, @com.legend.base.Nullable SqlExpr otherwise, Reason reason,
             TypeFact type) implements SqlExpr {
         public Case {
+            java.util.Objects.requireNonNull(reason, "a CASE without a reason (E-4)");
             type = SqlTyping.caseType(whens, otherwise);
         }
 
         public Case(List<When> whens,
-                @com.legend.base.Nullable SqlExpr otherwise) {
-            this(whens, otherwise, SqlTyping.UNKNOWN);
+                @com.legend.base.Nullable SqlExpr otherwise, Reason reason) {
+            this(whens, otherwise, reason, SqlTyping.UNKNOWN);
         }
 
         public record When(SqlExpr condition, SqlExpr then) {
@@ -1152,6 +1212,47 @@ public sealed interface SqlExpr
 
         public CompactList(SqlExpr list) {
             this(list, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /**
+     * A RAISE'S MESSAGE (phase D's D1.1, 2026-11-12): the kind of what a guard refuses ({@link RaiseKind}) and its
+     * operands -- the values the refusal is about, typed SQL. The product's dialects write the kind's name alone, never
+     * an operand (a product error is its kind and where, never the value: no text built in SQL); the compatibility
+     * edge's dialects write legend-pure's sentence of the kind from its operands. Only {@link RaiseKind#USER_FAIL}'s one
+     * operand, the user's own message, is the product's to write. The message argument of {@code Call(ERROR, ...)}.
+     * {@code asData}: where the kind's text is DATA in an answer rather than raised -- a checked graph's defect row --
+     * the product's words for it, a fixed text known at planning (the error layer's {@code ErrorKind} sentence and
+     * where, worded by the lowering: the D part 1 audit's S3, 2026-11-15); null for a raise, which exec words.
+     * {@code where}: the fixed text placing the raise ({@link #placed}), or null. Its
+     * type is a text's (its record field went that day: the audit's nit, a type the constructor discarded).
+     */
+    record RaiseText(RaiseKind kind, List<SqlExpr> operands, @com.legend.base.Nullable String asData,
+            @com.legend.base.Nullable String where) implements SqlExpr {
+        public RaiseText {
+            java.util.Objects.requireNonNull(kind, "a raise's kind");
+            operands = List.copyOf(operands);
+        }
+
+        public RaiseText(RaiseKind kind, List<SqlExpr> operands) {
+            this(kind, operands, null, null);
+        }
+
+        public RaiseText(RaiseKind kind, List<SqlExpr> operands, @com.legend.base.Nullable String asData) {
+            this(kind, operands, asData, null);
+        }
+
+        /** A raise of {@code kind} placed by {@code where}, a fixed text composed at planning -- a parameter's name, the
+         *  digits a database keeps, a table's width; never a value (the D part 1 audit's S4, 2026-11-15: the user's
+         *  ruling, "its kind and where it happened in the query, a fixed text known at planning"). The product writes
+         *  it after the kind; the edge reads it as the one operand, as before. */
+        public static RaiseText placed(RaiseKind kind, String where) {
+            return new RaiseText(kind, List.of(new StringLit(where)), null, where);
+        }
+
+        @Override
+        public TypeFact type() {
+            return SqlTyping.T_VARCHAR;
         }
     }
 
@@ -1358,55 +1459,6 @@ public sealed interface SqlExpr
                 out.add(new Tagged.Candidate(ch.kind(), ch.slot(), values.get(k).elements().get(i)));
             }
             return out;
-        }
-    }
-
-    /** A relation-toString whose COLUMN LIST is dynamic (a pivot with
-     * runtime-discovered keys): the '#TDS' text cannot compose at
-     * lowering — it is refused by name where it reaches a statement (the body driver: the pivot's keyed plan writes no
-     * text; until 2026-10-31 a staticizer read the keys at planning; the lowering layer records the typed
-     * schema by {@code id}). Types-free by design — the sql package
-     * never carries compiler types. A node reaching a renderer is a
-     * routing bug and walls loudly there. */
-    record DeferredTdsString(SqlSelect inner, String alias, int id,
-            Form form, boolean renderTdsNull,
-            TypeFact type) implements SqlExpr {
-        /** The relation TEXT form the boundary composes (batch 82: a
-         * LATE-BOUND raw grid — executeInDbToTDS — defers its toCSV the
-         * same way a pivot inner defers its '#TDS' toString). */
-        public enum Form { TDS_STRING, CSV }
-
-        public DeferredTdsString {
-            type = SqlTyping.T_VARCHAR;   // a relation-text cell
-        }
-
-        public DeferredTdsString(SqlSelect inner, String alias, int id) {
-            this(inner, alias, id, Form.TDS_STRING, false, SqlTyping.UNKNOWN);
-        }
-
-        public DeferredTdsString(SqlSelect inner, String alias, int id,
-                Form form, boolean renderTdsNull) {
-            this(inner, alias, id, form, renderTdsNull, SqlTyping.UNKNOWN);
-        }
-    }
-
-    /**
-     * The temp-table IN splice (the engine's
-     * {@code generateTempTableSelectSQLQuery} — processInOperation's
-     * over-threshold arm): renders as the fixed temp-select template
-     * {@code select "<t>_0".ColumnForStoringInCollection as
-     * ColumnForStoringInCollection from <t> as "<t>_0"} inside
-     * {@code in (...)}. Plan-text vocabulary only — a loud error in any
-     * executable dialect.
-     */
-    record TempTableInSplice(String tempTableName,
-            TypeFact type) implements SqlExpr {
-        public TempTableInSplice {
-            type = SqlTyping.UNKNOWN;   // plan-text vocabulary — no rule
-        }
-
-        public TempTableInSplice(String tempTableName) {
-            this(tempTableName, SqlTyping.UNKNOWN);
         }
     }
 
@@ -1706,18 +1758,16 @@ public sealed interface SqlExpr
      * the engine-TEXT channel elides it (the goldens pin the engine's
      * own no-cast spelling — the wire-coercion precedent). User casts
      * are never conform. */
-    record Cast(SqlExpr value, SqlType target, boolean conform,
+    /** {@code reason}: why it is in the SQL ({@link Reason}); {@link Reason#CONFORM} is the conformance cast. */
+    record Cast(SqlExpr value, SqlType target, Reason reason,
             TypeFact type) implements SqlExpr {
         public Cast {
+            java.util.Objects.requireNonNull(reason, "a CAST without a reason (E-4)");
             type = SqlTyping.castType(value, target);
         }
 
-        public Cast(SqlExpr value, SqlType target, boolean conform) {
-            this(value, target, conform, SqlTyping.UNKNOWN);
-        }
-
-        public Cast(SqlExpr value, SqlType target) {
-            this(value, target, false);
+        public Cast(SqlExpr value, SqlType target, Reason reason) {
+            this(value, target, reason, SqlTyping.UNKNOWN);
         }
     }
 

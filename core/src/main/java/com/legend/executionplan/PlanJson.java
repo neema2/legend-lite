@@ -147,8 +147,28 @@ public final class PlanJson {
      *  with on its database (DuckDB's), written only where the database has them -- a host's runner reads them from the
      *  plan, never asking the planner at run. 51 since 2026-11-12 (the user's ruling: "that is a real off platform
      *  problem"): a stream step's {@code sql} is the planner's own plan of the snapshot's pull (its model, runtime and
-     *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. */
-    public static final int VERSION = 51;
+     *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. 52 since
+     *  2026-11-13 (phase D's D1.1, merged onto 51): a statement's tree may hold a {@code raiseText}, a raise's message as
+     *  its {@code kind} and its {@code operands}. 53 since 2026-11-13 (E-4, the cast-and-case rule, its number after
+     *  D's): every {@code cast} and {@code caseExpr} of a statement's tree names its {@code reason}
+     *  ({@code SqlExpr.Reason}'s code), the cast's {@code conform} flag folded into it. 54 since 2026-11-15 (phase D's option
+     *  (D), the orchestrator's go; its number after E's, renumbered at landing): a plan carries {@code raises}, each
+     *  product raise its statements can send, its kind's name to the kind's sentence ({@link #raises}) -- a host words a
+     *  raise from the plan it runs, never from a table of its own. 55 since 2026-11-16 (the P2 checkpoint audit's S1:
+     *  80f69d4cf added it unbumped): each statement carries {@code raises}, the kinds its renderer wrote, and the plan's
+     *  {@code raises} is their union -- a v54 plan, whose statements carry none, is refused by its version. 56 since
+     *  2026-11-16 (phase D's Phase 2, raises as SITES: docs/records/d-phase2-raise-marker-2026-11-16.md): a statement
+     *  raises a bare token {@code LG#<n>} and carries {@code sites} instead of {@code raises}, each {@code n}, its
+     *  {@code kind}, its {@code where}, its {@code message} (the product's sentence) and, in a plan the compatibility edge
+     *  wrote, its {@code upstream} (legend-pure's sentence), worded at planning; a CSV file's reading carries its
+     *  {@code sites} too; the plan's {@code raises} is derived from them -- a v55 plan, whose statements raise a kind's
+     *  name, is refused by its version. 57 since 2026-11-17 (the host train, the orchestrator's ruling; Python's
+     *  finding): a column's {@code type} is its plain path ({@code Decimal}, never {@code Decimal(10,2)}), a precise
+     *  decimal's digits data, its {@code decimal: {precision, scale}} (absent for any other type: omitted when null, read back as null -- a codec form, not a format change, 2026-11-18, the orchestrator's ruling (A) after the host train's gate pass found {@code "decimal":null} on every column against lean SQL's shrink-only G3) -- a v56 plan, whose types may carry arguments, is
+     *  refused by its version. 58 since 2026-11-18 (K10 of the edge audit, riding the host train after 57): a site carries no
+     *  {@code upstream} -- legend-pure's words of a site are the compatibility edge's records, never the product plan's
+     *  -- a v57 plan, whose edge sites carry them, is refused by its version. */
+    public static final int VERSION = 58;
 
     private PlanJson() {
     }
@@ -218,7 +238,66 @@ public final class PlanJson {
         out.put("root", node(plan.root()));
         out.put("writes", plan.writes());
         out.put("loads", hoistLoads(out));
+        out.put("raises", raises(plan));
         return out;
+    }
+
+    /**
+     * THE PLAN'S RAISES (phase D's option (D), the orchestrator's go of 2026-11-15: "the plan-level raises map ... One
+     * source: ErrorKind through the planner"): each product raise a statement of {@code plan} can send -- a text opening
+     * with {@link com.legend.sql.RaiseKind#MARK} and a kind's name, as the renderer writes it
+     * ({@code AnsiSqlRenderer.raiseMessage}), in a statement, a script, a load's step or its bundle, or a MongoDB
+     * pipeline's JSON (the mark escaped there) -- by the kind's name, to its sentence, the error layer's
+     * ({@link com.legend.error.ErrorKind#sentence}): derived from the statements' sites since v56 (a site's own words,
+     * upstream's in an edge plan, are the site's). A site the edge words in SQL (the interim) is no site, and has none. The hosts read it from the plan's JSON ({@code raises}); exec, which holds the plan, asks
+     * here when a statement fails (a raise the plan does not declare is refused by name).
+     */
+    public static java.util.SortedMap<String, String> raises(ExecutionPlan plan) {   // a fresh map each call
+        java.util.Set<com.legend.sql.RaiseKind> kinds = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
+        raisesOf(plan.root(), kinds);
+        java.util.SortedMap<String, String> out = new java.util.TreeMap<>();
+        for (com.legend.sql.RaiseKind kind : kinds) {
+            out.put(kind.name(), com.legend.error.ErrorKind.valueOf(kind.name()).sentence());
+        }
+        return out;
+    }
+
+    /** The raises {@code node}'s statements can send: each statement's sites' kinds, as its renderer recorded them
+     *  ({@link Sql#sites}), and a CSV file's read's, whose record check raises {@code CSV_TOO_WIDE}
+     *  ({@code AnsiSqlRenderer.csvRecordCheck}). Typed, never read from a statement's text (audit B's item 1,
+     *  2026-11-16: the text scan missed a raise whose text a dialect spells in its own escape). */
+    private static void raisesOf(ExecutionPlan.Node node, java.util.Set<com.legend.sql.RaiseKind> kinds) {
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> raisesOf(step, kinds));
+            case ExecutionPlan.TdsResult t -> raisesOf(t.sql(), kinds);
+            case ExecutionPlan.Keyed k -> {
+                raisesOf(k.keys(), kinds);
+                raisesOf(k.body(), kinds);
+            }
+            case ExecutionPlan.Update u -> raisesOf(u.sql(), kinds);
+            case ExecutionPlan.Check c -> raisesOf(c.sql(), kinds);
+            case ExecutionPlan.Effect e -> raisesOf(e.sql(), kinds);
+            case ExecutionPlan.Load l -> {
+                for (LoadStep step : l.steps()) {
+                    if (step instanceof LoadStep.File f && f.delivery() instanceof LoadStep.Delivery.Reads r) {
+                        r.sites().forEach(site -> kinds.add(site.kind()));
+                    }
+                }
+                raisesOf(l.target(), kinds);
+            }
+            case ExecutionPlan.Constant c -> {
+                // rows, no statement
+            }
+        }
+    }
+
+    private static void raisesOf(Sql sql, java.util.Set<com.legend.sql.RaiseKind> kinds) {
+        sql.sites().forEach(site -> kinds.add(site.kind()));
+        raisesOf(sql.target(), kinds);
+    }
+
+    private static void raisesOf(Target target, java.util.Set<com.legend.sql.RaiseKind> kinds) {
+        target.loads().forEach(load -> raisesOf(load, kinds));
     }
 
     /** The field of a load holding its bundle inline (L6c). */
@@ -599,12 +678,14 @@ public final class PlanJson {
     }
 
     /** {@code columns} with their three type facts, as a JSON array's text: a result's columns handed to a host that
-     *  runs its statement, and read back with its rows ({@link #readColumns}). */
+     *  runs its statement, and read back with its rows ({@link #readColumns}). A PRODUCT API, stated (J40 of the edge
+     *  audit, 2026-11-18): the lite plan format's own spelling of a plan's columns, which a host's answer carries; the
+     *  edge's host answers reuse it rather than spell the format a second time. */
     public static String writeColumns(List<ExecutionPlan.Column> columns) {
         return Json.toCompact(columns(columns));
     }
 
-    /** {@link #writeColumns}'s text read back. */
+    /** {@link #writeColumns}'s text read back (a product API, as {@link #writeColumns}: J40, 2026-11-18). */
     public static List<ExecutionPlan.Column> readColumns(String json) {
         if (!(Json.parse(json) instanceof Json.Arr columns)) {
             throw new IllegalArgumentException("a plan's columns are a JSON array: " + json);
@@ -628,6 +709,15 @@ public final class PlanJson {
             co.put("slot", c.slot());
             co.put("store", store(c.store()));   // null: computed, no declared type
             co.put("precision", c.precision() == null ? null : c.precision().name());   // null: no temporal of its own
+            // null: no precise decimal (v57: a Decimal(p,s)'s digits as data, its type the plain path)
+            Map<String, Object> digits = null;
+            if (c.decimal() != null) {
+                digits = new LinkedHashMap<>();
+                digits.put("precision", c.decimal().precision());
+                digits.put("scale", c.decimal().scale());
+            }
+            // omitted when null (2026-11-18, ruling (A): lean SQL's G3; the reader reads it absent as null)
+            if (digits != null) co.put("decimal", digits);
             cols.add(co);
         }
         return cols;
@@ -661,6 +751,10 @@ public final class PlanJson {
             o.put("regions", regions);
         }
         o.put("target", target(s.target()));
+        if (!s.sites().isEmpty()) {
+            // the raise sites its text can send, as the renderer numbered them (typed at render, never read from the text)
+            o.put("sites", sitesJson(s.sites()));
+        }
         if (s.stamp() != null) {
             o.put("stamp", s.stamp());
         }
@@ -832,7 +926,8 @@ public final class PlanJson {
     }
 
     /** A load step's JSON, as a plan's load writes it: the compatibility edge's record of the referee's copy of a load
-     *  writes its steps so (B2b, 2026-11-11). */
+     *  writes its steps so (B2b, 2026-11-11). A PRODUCT API, stated (J40 of the edge audit, 2026-11-18): the lite plan
+     *  format's own spelling of a load step; the edge's records reuse it rather than spell the format a second time. */
     public static Map<String, Object> loadStepJson(LoadStep step) {
         return setupStep(step);
     }
@@ -880,6 +975,9 @@ public final class PlanJson {
                         delivery.put("_type", "reads");
                         delivery.put("statements", r.statements());
                         delivery.put("after", r.after());
+                        if (!r.sites().isEmpty()) {
+                            delivery.put("sites", sitesJson(r.sites()));
+                        }
                     }
                 }
                 o.put("delivery", delivery);
@@ -952,7 +1050,19 @@ public final class PlanJson {
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(readParameter((Json.Obj) n));
         }
-        return new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
+        ExecutionPlan plan = new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
+        // the raises the plan carries are its statements' (v53, phase D's option (D)): a map that says otherwise is
+        // refused by name, never trusted over the statements
+        Map<String, String> carried = new java.util.TreeMap<>();
+        for (Map.Entry<String, Json.Node> e : o.getObj("raises").fields().entrySet()) {
+            carried.put(e.getKey(), ((Json.Str) e.getValue()).value());
+        }
+        java.util.SortedMap<String, String> stated = raises(plan);
+        if (!stated.equals(carried)) {
+            throw new IllegalArgumentException("a plan's raises are its statements' raises " + stated
+                    + ", and this one carries " + carried);
+        }
+        return plan;
     }
 
     /** Each holder of a bundle in {@code tree} given back the blobs it names that it does not hold inline (L6c): a
@@ -1191,9 +1301,14 @@ public final class PlanJson {
             cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
                     readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null),
                     readStore(c.getObjOr("store", null)),
-                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision)));
+                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision),
+                    readDecimal(c.getObjOr("decimal", null))));
         }
         return cols;
+    }
+
+    private static ExecutionPlan.@com.legend.base.Nullable DecimalDigits readDecimal(@com.legend.base.Nullable Json.Obj o) {
+        return o == null ? null : new ExecutionPlan.DecimalDigits(o.getInt("precision"), o.getInt("scale"));
     }
 
     private static ExecutionPlan.Binding readBinding(Json.Obj o) {
@@ -1233,9 +1348,96 @@ public final class PlanJson {
                         r.getInt("slotCount"), counters));
             }
         }
+        if (o.getOr("raises", null) != null) {
+            throw new IllegalArgumentException("a statement's raises are its sites (v56), and this one carries"
+                    + " kinds");
+        }
+        List<ExecutionPlan.Site> raised = readSites(o);
         return new Sql(o.getString("statement"), slots, readTarget(o.getObj("target")),
                 tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null),
-                contentOf(o.getObjOr(CONTENT, null), "the statement"));
+                contentOf(o.getObjOr(CONTENT, null), "the statement")).raising(raised);
+    }
+
+    /** THE SITES OF {@code statement}, one of {@code plan}'s statements, as JSON (v56): what a host that runs that text
+     *  alone (a text plan's {@code sql}) reads a token it raises through. None where the statement declares none; a text
+     *  that raises a token and is none of the plan's statements refused by name; two statements of the text declaring different sites refused by name. */
+    public static List<Map<String, Object>> sitesOf(ExecutionPlan plan, String statement) {
+        List<List<ExecutionPlan.Site>> found = new ArrayList<>();
+        statementsOf(plan.root(), statement, found);
+        java.util.Set<List<ExecutionPlan.Site>> distinct = new java.util.LinkedHashSet<>(found);
+        if (distinct.size() > 1) {
+            throw new IllegalStateException("two statements of one text declare different raise sites: " + distinct);
+        }
+        if (distinct.isEmpty() && statement.contains(com.legend.sql.RaiseKind.TOKEN)) {
+            throw new IllegalStateException("a text that raises a site's token is none of its plan's statements, so no"
+                    + " site table declares its tokens: " + statement);
+        }
+        return distinct.isEmpty() ? List.of() : sitesJson(distinct.iterator().next());
+    }
+
+    private static void statementsOf(ExecutionPlan.Node node, String statement, List<List<ExecutionPlan.Site>> into) {
+        java.util.function.Consumer<Sql> each = sql -> {
+            if (sql.statement().equals(statement)) {
+                into.add(sql.sites());
+            }
+        };
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> statementsOf(step, statement, into));
+            case ExecutionPlan.TdsResult t -> each.accept(t.sql());
+            case ExecutionPlan.Keyed k -> {
+                each.accept(k.keys());
+                each.accept(k.body());
+            }
+            case ExecutionPlan.Update u -> each.accept(u.sql());
+            case ExecutionPlan.Check c -> each.accept(c.sql());
+            case ExecutionPlan.Effect e -> each.accept(e.sql());
+            case ExecutionPlan.Load l -> {
+                // a load's statements raise no site of a text plan's statement
+            }
+            case ExecutionPlan.Constant c -> {
+                // rows, no statement
+            }
+        }
+    }
+
+    /** A statement's raise sites as JSON (v57): each {@code n}, {@code kind}, its {@code where} where it has one, and its
+     *  {@code message}. */
+    private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites) {
+        List<Map<String, Object>> out = new ArrayList<>(sites.size());
+        for (ExecutionPlan.Site site : sites) {
+            Map<String, Object> so = new LinkedHashMap<>();
+            so.put("n", site.n());
+            so.put("kind", site.kind().name());
+            if (site.where() != null) {
+                so.put("where", site.where());
+            }
+            so.put("message", site.message());
+            out.add(so);
+        }
+        return out;
+    }
+
+    /** The raise sites {@code o} carries ({@link #sitesJson}), none where it has none; a site's product sentence that is
+     *  not its kind's (and its where) refused by name: the words are the error layer's, never trusted over it. */
+    private static List<ExecutionPlan.Site> readSites(Json.Obj o) {
+        Json.Node ss = o.getOr("sites", null);
+        if (ss == null) {
+            return List.of();
+        }
+        List<ExecutionPlan.Site> out = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) ss).items()) {
+            Json.Obj so = (Json.Obj) n;
+            only(so, "a raise site", "n", "kind", "where", "message");
+            ExecutionPlan.Site site = new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
+                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"));
+            String sentence = ExecutionPlan.Site.sentence(site.kind(), site.where());
+            if (!sentence.equals(site.message())) {
+                throw new IllegalArgumentException("raise site " + site.n() + " of " + site.kind() + " says '"
+                        + site.message() + "', and its kind's sentence is '" + sentence + "'");
+            }
+            out.add(site);
+        }
+        return out;
     }
 
     private static Target readTarget(Json.Obj t) {
@@ -1327,7 +1529,7 @@ public final class PlanJson {
                 Json.Obj d = o.getObj("delivery");
                 LoadStep.Delivery delivery = switch (d.getString("_type")) {
                     case "reads" -> new LoadStep.Delivery.Reads(d.getStringArray("statements"),
-                            d.getStringArray("after"));
+                            d.getStringArray("after"), readSites(d));
                     default -> throw new IllegalArgumentException("a file load's delivery is the database's reading of"
                             + " it: " + d.getString("_type"));
                 };

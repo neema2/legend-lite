@@ -323,8 +323,15 @@ final class JdbcDecode {
             case LocalDateTime t -> PureDateLiteral.fromDatabaseTimestamp(t);
             // a structure's leaf, never re-read, or a driver that re-reads no timestamp: its wall clock, its era kept
             case java.sql.Timestamp ts -> PureDateLiteral.fromDatabaseTimestamp(wallClock(ts));
-            case OffsetDateTime o -> PureDateLiteral.fromDatabaseTimestamp(
-                    o.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime());
+            // a zoned value a driver hands (DuckDB's TIMESTAMPTZ under a read-only catalog source's declared
+            // TIMESTAMP): carried as the UTC wall clock it already is -- every session runs in UTC
+            // (SqlDialect.sessionSetup) -- and any other offset refused by name, never shifted in Java (E1 item 3,
+            // docs/LEAN_PRODUCT_P3_2026_11_10.md site 3, 2026-11-12: until then withOffsetSameInstant moved it here)
+            case OffsetDateTime o when o.getOffset().equals(ZoneOffset.UTC) ->
+                    PureDateLiteral.fromDatabaseTimestamp(o.toLocalDateTime());
+            case OffsetDateTime o -> throw new com.legend.error.NotImplementedException("column '" + c.name()
+                    + "': the database answered a zoned date-time at offset " + o.getOffset() + ", not UTC: cast it to"
+                    + " TIMESTAMP at UTC in the SQL (a date-time is carried, never shifted between zones)");
             // a DATE the database holds is a day, whichever slot declares it (the canon's own dispatch: a column
             // declared DATE may hold timestamps, and the driver's kind says which)
             case LocalDate d -> PureDateLiteral.fromLocalDate(d);
@@ -608,8 +615,11 @@ final class JdbcDecode {
                 case BigDecimal d -> d;
                 case Double d -> d;
                 case Float f -> Double.parseDouble(Float.toString(f));
-                case String s -> s.contains(".") || s.contains("e") || s.contains("E") ? new BigDecimal(s.trim())
-                        : integral(s, c);
+                // a Number the driver hands as text: its kind is not read from its characters (E1 item 5, Q5,
+                // 2026-11-12: until then a '.', 'e' or 'E' chose a Decimal) -- refused by name
+                case String s -> throw new com.legend.error.NotImplementedException("column '" + c.name()
+                        + "' is declared Number with no slot, and the driver answered its cell as text: a Number's"
+                        + " kind is never chosen from its text -- give the column a numeric type in the SQL");
                 default -> throw refused(v, c);
             };
         }
@@ -628,11 +638,10 @@ final class JdbcDecode {
         // a class instance, an enumeration's value, Any: the driver's own kind -- a structure's JSON text read as a
         // document's cell (the declared kind, a class or Any, says it is a structure), a scalar as it is
         return switch (v) {
-            case String s -> {
-                String t = s.trim();
-                yield t.startsWith("{") || t.startsWith("[") ? com.legend.result.RowDecode.cell(Json.parse(t), c) : s;
-            }
-            case byte[] b -> com.legend.result.RowDecode.cell(Json.parse(new String(b, StandardCharsets.UTF_8)), c);
+            // a text is the String it is, as upstream writes a String cell (E1 item 5, Q5, 2026-11-12: until then a
+            // text starting '{' or '[' was parsed as a structure, a kind chosen from the value; a structure's column
+            // is read by its slot, JSON or STRUCT)
+            case String s -> s;
             case Boolean b -> b;
             case Long l -> l;
             case Integer n -> (long) n;

@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""pct-cases.tsv (-Dlegend.diagnostics=pct-cases: each line the Base64 model, a tab, the Base64 expression) as the
+lean-SQL set's JSON lines ({"model", "expression"}), each distinct case once, in first-seen order.
+
+usage: pct_cases_to_jsonl.py.txt <out.jsonl> <pct-cases.tsv>...
+"""
+import base64, json, sys
+
+seen, out = set(), []
+for path in sys.argv[2:]:
+    for line in open(path, encoding="utf-8"):
+        if not line.strip():
+            continue
+        m, e = line.rstrip("\n").split("\t")
+        case = (base64.b64decode(m).decode("utf-8"), base64.b64decode(e).decode("utf-8"))
+        if case not in seen:
+            seen.add(case)
+            out.append(json.dumps({"model": case[0], "expression": case[1]}, ensure_ascii=False))
+open(sys.argv[1], "w", encoding="utf-8").write("\n".join(out) + "\n")
+print(len(out), "cases")

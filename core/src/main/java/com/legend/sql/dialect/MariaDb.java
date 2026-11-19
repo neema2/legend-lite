@@ -185,13 +185,6 @@ public class MariaDb extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: MariaDB has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
-    }
-
     /** {@inheritDoc} 6: its {@code DATETIME(6)}, its finest (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
@@ -284,13 +277,6 @@ public class MariaDb extends AnsiSqlRenderer {
                 + "NO_ENGINE_SUBSTITUTION'", "SET SESSION time_zone = '+00:00'", "SET NAMES utf8mb4 COLLATE utf8mb4_bin",
                 "SET SESSION group_concat_max_len = 1073741824", "SET SESSION max_recursive_iterations = 100000000",
                 "SET SESSION div_precision_increment = 30");
-    }
-
-    /** A Float's literal spelling is this dialect's own, the value read once ({@link #floatLayout}): the portable one
-     *  reads the value's text some fifty times, each read a long expression here (2026-10-11). */
-    @Override
-    protected boolean spellsFloatCanon() {
-        return true;
     }
 
     /** No native pivot: a static pivot is emulated by the carrier strategies, so a dynamic one is discovered first. */
@@ -687,7 +673,7 @@ public class MariaDb extends AnsiSqlRenderer {
             return e;
         }
         if (label == SqlType.Scalar.DOUBLE && typeOf(e) != SqlType.Scalar.DOUBLE) {
-            return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE);
+            return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
         }
         // a value that claims no type (an empty list's element: a JSON_TABLE text column, or JSON_VALUE of a NULL,
         // which is binary) is its label's type
@@ -695,7 +681,7 @@ public class MariaDb extends AnsiSqlRenderer {
                 || label == SqlType.Scalar.INTEGER || label == SqlType.Scalar.HUGEINT
                 || label == SqlType.Scalar.BOOLEAN || label == SqlType.Scalar.DATE
                 || label == SqlType.Scalar.TIMESTAMP || label == SqlType.Scalar.VARCHAR)) {
-            return new SqlExpr.Cast(e, label);
+            return new SqlExpr.Cast(e, label, SqlExpr.Reason.DIALECT);
         }
         return e;
     }
@@ -1730,7 +1716,25 @@ public class MariaDb extends AnsiSqlRenderer {
         if (target == SqlType.Scalar.VARCHAR) {
             return writer.piece(asText(v));
         }
-        return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
+        // a Float parsed from text (parseFloat), legend-pure's grammar with one rule on every database (the
+        // orchestrator, 2026-11-16): surrounding whitespace and one trailing f accepted (legend-pure's compiled mode;
+        // this CAST reads ' 1 ' and '1f' as 1, measured), any other text raising TEXT_NOT_FLOAT where this CAST read it as
+        // 0 with only a warning (round 70: 'NaN' answered 0); NaN and the infinities, which a DOUBLE here cannot hold,
+        // raise VALUE_NOT_HELD by name (S138) (Phase 8)
+        if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
+            return writer.append("(CASE WHEN ").expr(v, 4).append(" REGEXP '^[[:space:]]*[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)"
+                            + "([eE][+-]?[0-9]+)?[fF]?[[:space:]]*$' THEN CAST(").expr(v, 0).append(" AS DOUBLE) WHEN ")
+                    .expr(v, 4).append(" REGEXP '^[[:space:]]*[+-]?(NaN|Infinity)[[:space:]]*$' THEN ")
+                    .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                            "NaN or an infinity")), SqlType.Scalar.DOUBLE))
+                    .append(" WHEN ").expr(v, 4).append(" IS NOT NULL THEN ")
+                    .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, List.of(v))),
+                            SqlType.Scalar.DOUBLE))
+                    .append(" END)");
+        }
+        // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
+        boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT);
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code JSON_VALUE}: a string unquoted), as text a
@@ -1839,12 +1843,11 @@ public class MariaDb extends AnsiSqlRenderer {
      * laid out again, the value bound once through a one-row JSON_TABLE (a derived table could not correlate).
      */
     private SqlWriter.Piece floatText(SqlWriter.Piece value) {
-        return floatLayout(value, false);
+        return floatLayout(value);
     }
 
-    /** {@link #floatText}, or with {@code canon} Pure's literal spelling ({@code SqlFn.FLOAT_CANON}): fixed point at
-     *  every exponent (Pure never writes one) and every zero {@code 0.0}. */
-    private SqlWriter.Piece floatLayout(SqlWriter.Piece value, boolean canon) {
+    /** {@link #floatText}'s layout (its canon form went with {@code SqlFn.FLOAT_CANON}, 2026-11-16, W10 (b)). */
+    private SqlWriter.Piece floatLayout(SqlWriter.Piece value) {
         // __f.t: |v| as MariaDB's text; __f.n: v < 0
         String t = "__f.\"t\"";
         String mant = "SUBSTRING_INDEX(" + t + ", 'e', 1)";
@@ -1863,8 +1866,8 @@ public class MariaDb extends AnsiSqlRenderer {
                 + " ELSE '0' END) ELSE CONCAT('0.', REPEAT('0', -" + x + " - 1), " + d + ") END";
         String sci = "CONCAT(LEFT(" + d + ", 1), CASE WHEN CHAR_LENGTH(" + d + ") > 1 THEN CONCAT('.', SUBSTRING(" + d
                 + ", 2)) ELSE '' END, 'e', CASE WHEN " + x + " < 0 THEN '-' ELSE '+' END, LPAD(ABS(" + x + "), 2, '0'))";
-        String zero = canon ? "'0.0'" : "CASE WHEN __f.\"n\" THEN '-0.0' ELSE '0.0' END";
-        String layout = canon ? fixed : "CASE WHEN " + x + " BETWEEN -4 AND 15 THEN " + fixed + " ELSE " + sci + " END";
+        String zero = "CASE WHEN __f.\"n\" THEN '-0.0' ELSE '0.0' END";
+        String layout = "CASE WHEN " + x + " BETWEEN -4 AND 15 THEN " + fixed + " ELSE " + sci + " END";
         return w -> w.append("(SELECT CASE WHEN __f.\"t\" IS NULL THEN NULL WHEN __f.\"t\" = '0' THEN " + zero)
                 .append(" ELSE CONCAT(CASE WHEN __f.\"n\" THEN '-' ELSE '' END, (SELECT " + layout + " FROM ")
                 .piece(jsonTable(v -> v.append("JSON_ARRAY(" + digits + ", " + exp + ")"),
@@ -1883,6 +1886,8 @@ public class MariaDb extends AnsiSqlRenderer {
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -1982,8 +1987,10 @@ public class MariaDb extends AnsiSqlRenderer {
             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads
             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
             // mixed list, measured 2026-10-11)
-            case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
             case LEAST -> writer.piece(nullSkipping("LEAST", a));
@@ -1993,6 +2000,9 @@ public class MariaDb extends AnsiSqlRenderer {
             case CONCAT -> writer.append("CONCAT_WS('', ").join(flattenConcat(a), ", ", (w, x) -> w.piece(asText(x)))
                     .append(")");
             case CONCAT_JOIN -> writer.append("CONCAT_WS('', ").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (as CONCAT above)
+            // each part is already a text: written as it is (asText would cast it again, round 75's lean note)
+            case CONCAT_WS -> writer.append("CONCAT_WS(").list(a).append(")");
             case LENGTH -> writer.append("CHAR_LENGTH(").piece(asText(a.get(0))).append(")");
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
             case LPAD -> pad(writer, "LPAD", a);
@@ -2053,7 +2063,8 @@ public class MariaDb extends AnsiSqlRenderer {
             // past the years 1000-9999 a date function answers NULL (measured): raised, never a NULL value
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("(CASE WHEN ").expr(a.get(1), 4)
                     .append(" IS NULL OR ").expr(a.get(2), 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                    .piece(addInterval(a, c)).append(", ").piece(raise(List.of(new SqlExpr.StringLit(
+                    .piece(addInterval(a, c)).append(", ").piece(raise(raiseArgs(SqlExpr.RaiseText.placed(
+                            com.legend.sql.RaiseKind.VALUE_NOT_HELD,
                             "a date past the year 9999 has no " + product() + " value")), typeOf(c))).append(") END)");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
@@ -2102,7 +2113,8 @@ public class MariaDb extends AnsiSqlRenderer {
                 .append("(").expr(a.get(0), 0).append("), ")
                 // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
                 // engine's answer), and says so -- not DuckDB's words
-                .piece(raise(List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
+                .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                        c.fn().name().toLowerCase(java.util.Locale.ROOT)
                         + " of a value outside [-1, 1] is NaN, which this database cannot hold")),
                         SqlType.Scalar.DOUBLE))
                 .append(") END)");
@@ -2220,7 +2232,7 @@ public class MariaDb extends AnsiSqlRenderer {
 
     private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot) {
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.ERROR) {
-            return raise(c.args(), slot != null ? slot : typeOf(c));
+            return raise(raised(c).args(), slot != null ? slot : typeOf(c));
         }
         return w -> w.expr(e, 0);
     }
@@ -2267,10 +2279,11 @@ public class MariaDb extends AnsiSqlRenderer {
 
     /** DuckDB's 64-bit parse: an optional sign and digits, else an error (a CAST reads 'abc' as 0 here). */
     private SqlWriter.Piece parseInt(SqlExpr s) {
-        return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN TRIM(").expr(s, 0)
-                .append(") REGEXP '^[+-]?[0-9]+$' THEN CAST(TRIM(").expr(s, 0).append(") AS SIGNED) ELSE ")
-                .piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("Could not convert string '"),
-                        s, new SqlExpr.StringLit("' to INT64"))), SqlType.Scalar.BIGINT)).append(" END)");
+        // no TRIM: legend-pure's parseInteger raises on surrounding whitespace in both modes (Phase 8, 2026-11-16)
+        return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").expr(s, 4)
+                .append(" REGEXP '^[+-]?[0-9]+$' THEN CAST(").expr(s, 0).append(" AS SIGNED) ELSE ")
+                .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))),
+                        SqlType.Scalar.BIGINT)).append(" END)");
     }
 
     /** GREATEST/LEAST over the arguments, each replaced by the next non-NULL one when it is NULL: NULL only when every
@@ -2779,9 +2792,8 @@ public class MariaDb extends AnsiSqlRenderer {
     /** Pure's parseDate of a text: its date-time ({@link #utcOf}); a text that is no date raises. */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
         return w -> w.append("(CASE WHEN ").expr(x, 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                .piece(utcOf(v -> v.expr(x, 0))).append(", ").piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT,
-                        new SqlExpr.StringLit("Could not parse '"), x, new SqlExpr.StringLit("' as a date"))),
-                        SqlType.Scalar.TIMESTAMP))
+                .piece(utcOf(v -> v.expr(x, 0))).append(", ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))), SqlType.Scalar.TIMESTAMP))
                 .append(") END)");
     }
 
@@ -3601,5 +3613,17 @@ public class MariaDb extends AnsiSqlRenderer {
                 || label instanceof SqlType.Decimal d && wire.startsWith("DECIMAL(")
                         && wire.endsWith("," + d.scale() + ")")
                 || composite && (wire.equals("JSON") || wire.equals("VARCHAR"));
+    }
+
+    /** {@inheritDoc} {@code FORMAT}'s six decimals in the {@code en_US} locale, its grouping commas taken out, trimmed
+     *  by the standard's trailing trim: the same text as the other databases at every magnitude (measured 2026-11-15 on
+     *  the embedded MariaDB and MySQL, from 1e-7 to 1.7976931348623157e308: a DECIMAL(65, 6) cast saturates past
+     *  10^59, and MySQL's text of ROUND writes an exponent from 10^15; the orchestrator's rule, the same text on every
+     *  database). No NaN or infinity is stored. MySQL inherits it. */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return trimmedSixStandard(writer, w -> w.append("REPLACE(FORMAT(").expr(asDouble(x), 0)
+                .append(", 6, 'en_US'), ',', '')"));
     }
 }

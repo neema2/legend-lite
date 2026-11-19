@@ -32,29 +32,29 @@ class PureDateSpellingTest {
                 int day = Math.max(1, Math.min(28, f));
                 int hour = Math.min(23, f);
                 assertEquals(String.format(Locale.ROOT, "%d-%02d", y, month),
-                        new PureDateLiteral.YearMonth(y, month).toEngineString());
+                        new PureDateLiteral.YearMonth(y, month).canonicalText());
                 assertEquals(String.format(Locale.ROOT, "%d-%02d-%02d", y, month, day),
-                        new PureDateLiteral.StrictDate(y, month, day).toEngineString());
+                        new PureDateLiteral.StrictDate(y, month, day).canonicalText());
                 assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d", y, month, day, hour),
-                        new PureDateLiteral.DateWithHour(y, month, day, hour).toEngineString());
+                        new PureDateLiteral.DateWithHour(y, month, day, hour).canonicalText());
                 assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d", y, month, day, hour, f),
-                        new PureDateLiteral.DateWithMinute(y, month, day, hour, f).toEngineString());
+                        new PureDateLiteral.DateWithMinute(y, month, day, hour, f).canonicalText());
                 assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d", y, month, day, hour, f, f),
-                        new PureDateLiteral.DateWithSecond(y, month, day, hour, f, f).toEngineString());
+                        new PureDateLiteral.DateWithSecond(y, month, day, hour, f, f).canonicalText());
                 for (String s : SUBSECONDS) {
                     PureDateLiteral.DateWithSubsecond ss =
                             new PureDateLiteral.DateWithSubsecond(y, month, day, hour, f, f, s);
                     assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s", y, month, day, hour, f,
-                            f, s), ss.toEngineString());
-                    assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s+0000", y, month, day,
-                            hour, f, f, (s + "000000000").substring(0, 9)), ss.toEngineJson());
+                            f, s), ss.canonicalText());
+                    assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s", y, month, day,
+                            hour, f, f, (s + "000000000").substring(0, 9)), ss.toNineDigits());
                 }
-                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:00:00.000000000+0000", y, month, day,
-                        hour), new PureDateLiteral.DateWithHour(y, month, day, hour).toEngineJson());
-                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:00.000000000+0000", y, month, day,
-                        hour, f), new PureDateLiteral.DateWithMinute(y, month, day, hour, f).toEngineJson());
-                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.000000000+0000", y, month, day,
-                        hour, f, f), new PureDateLiteral.DateWithSecond(y, month, day, hour, f, f).toEngineJson());
+                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:00:00.000000000", y, month, day,
+                        hour), new PureDateLiteral.DateWithHour(y, month, day, hour).toNineDigits());
+                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:00.000000000", y, month, day,
+                        hour, f), new PureDateLiteral.DateWithMinute(y, month, day, hour, f).toNineDigits());
+                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.000000000", y, month, day,
+                        hour, f, f), new PureDateLiteral.DateWithSecond(y, month, day, hour, f, f).toNineDigits());
             }
         }
     }
@@ -64,11 +64,11 @@ class PureDateSpellingTest {
         for (int nanos : List.of(0, 1, 7, 10, 123_000_000, 123_456_000, 999_999_999, 500_000_001)) {
             LocalDateTime t = LocalDateTime.of(2024, 1, 2, 3, 4, 5, nanos);
             PureDateLiteral read = PureDateLiteral.fromDatabaseTimestamp(t);
-            assertEquals(String.format(Locale.ROOT, "2024-01-02T03:04:05.%09d", nanos), read.toEngineString());
+            assertEquals(String.format(Locale.ROOT, "2024-01-02T03:04:05.%09d", nanos), read.canonicalText());
             PureDateLiteral canonical = PureDateLiteral.fromLocalDateTime(t);
             assertEquals(nanos == 0 ? "2024-01-02T03:04:05"
                     : "2024-01-02T03:04:05." + String.format(Locale.ROOT, "%09d", nanos).replaceFirst("0+$", ""),
-                    canonical.toEngineString());
+                    canonical.canonicalText());
         }
     }
 }

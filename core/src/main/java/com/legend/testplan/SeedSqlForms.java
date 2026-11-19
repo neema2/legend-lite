@@ -9,7 +9,7 @@ import com.legend.testexecutionplan.TypedSide;
 /**
  * The TWO faces of {@code setUpDataSQLs} (engine toDDL.pure): the
  * ASSERT surface carries the engine's H2 statement TEXT verbatim
- * ({@link com.legend.setup.Ddl#setUpDataSqlsText}); the EXECUTION surface
+ * ({@code edge.EngineSeedText.setUpDataSqlsText}, the edge's since J32, 2026-11-18); the EXECUTION surface
  * keeps the DuckDB-safe {@link com.legend.setup.CsvSeed} forms — the
  * engine runs its text on EPHEMERAL per-connection H2 dbs, while our
  * DuckDB catalog is SHARED across a family's seeds, where the text's
@@ -36,9 +36,8 @@ final class SeedSqlForms {
                     : env.ctx().findDatabase(dbFqn2).orElse(null);
             if (seedDb != null) {
                 return new TypedSide.Collection(new java.util.ArrayList<>(
-                        com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(
-                                records, seedDb,
-                                f -> env.ctx().findDatabase(f), com.legend.planner.EngineText.engineText())),
+                        env.plan().style().facet(com.legend.planner.UpstreamPlans.class)
+                                .engineSeedSqlFromRecords(records, seedDb, f -> env.ctx().findDatabase(f))),
                         "String");
             }
         }
@@ -49,8 +48,8 @@ final class SeedSqlForms {
         var dbDef = dbFqn == null ? null
                 : env.ctx().findDatabase(dbFqn).orElse(null);
         return new TypedSide.Collection(new java.util.ArrayList<>(
-                dbDef != null ? com.legend.setup.Ddl.setUpDataSqlsText(csv,
-                        dbDef, f -> env.ctx().findDatabase(f), com.legend.planner.EngineText.engineText())
+                dbDef != null ? env.plan().style().facet(com.legend.planner.UpstreamPlans.class)
+                        .engineSeedSql(csv, dbDef, f -> env.ctx().findDatabase(f))
                         : com.legend.setup.CsvSeed.sqls(csv, dbFqn, env.ctx(), env.dialect())),
                 "String");
     }

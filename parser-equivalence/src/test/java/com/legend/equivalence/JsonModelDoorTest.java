@@ -186,7 +186,7 @@ class JsonModelDoorTest {
         // 1. THE JSON HOP: the records written as JSON and read back are the same records, field by field
         com.legend.protocol.Protocol.PureModelContextData read;
         try {
-            read = ModelReader.read(com.legend.protocol.ProtocolEmitter.emit(records));
+            read = ModelReader.read(com.legend.json.Json.parse(com.legend.protocol.ProtocolEmitter.emit(records), new com.legend.json.Json.Config(4096)));
         } catch (RuntimeException e) {
             fail(t, id, "hop: unread " + e.getClass().getSimpleName(), "lite's reader refuses its own JSON: " + e);
             return;
@@ -214,7 +214,7 @@ class JsonModelDoorTest {
         // 3. RULE A: the dialects read the text differently -- only by what the engine's parser drops and lite's dialect
         // keeps. Lite's records, written as JSON, are refused by name, or carry it whole and read back exactly.
         com.legend.protocol.Protocol.PureModelContextData liteRecords =
-                PmcdParser.parse(text, com.legend.parser.Dialect.LEGEND_LITE).model();
+                PmcdParser.parse(text, com.legend.parser.GrammarLevel.LEGEND_LITE).model();
         String liteJson;
         try {
             liteJson = com.legend.protocol.ProtocolEmitter.emit(liteRecords);
@@ -231,7 +231,7 @@ class JsonModelDoorTest {
         }
         com.legend.protocol.Protocol.PureModelContextData liteRead;
         try {
-            liteRead = ModelReader.read(liteJson);
+            liteRead = ModelReader.read(com.legend.json.Json.parse(liteJson, new com.legend.json.Json.Config(4096)));
         } catch (RuntimeException e) {
             fail(t, id, "lite hop: unread " + e.getClass().getSimpleName(), "lite's reader refuses its own JSON: " + e);
             return;

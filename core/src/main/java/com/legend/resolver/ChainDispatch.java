@@ -202,11 +202,8 @@ final class ChainDispatch {
         TypedSpec test = new TypedNativeCall(instanceOfCallee(), List.of(var,
                 new TypedTypeRef(to, ExprType.one(to))),
                 boolOne);
-        TypedSpec raise = new TypedNativeCall(failCallee.get(), List.of(
-                new TypedCString("Cast exception: " + from.fqn() + " is not a "
-                        + to.fqn(), new ExprType(Type.Primitive.STRING,
-                        Multiplicity.Bounded.ONE))),
-                boolOne);
+        // the product's raise of its kind (W5 of docs/records/d-plan-2026-11-16.md): legend-pure's sentence is the edge's
+        TypedSpec raise = typeRaise(com.legend.sql.RaiseKind.INSTANCE_NOT_OF, from.fqn(), to.fqn(), boolOne);
         TypedSpec body = new TypedIf(test, new TypedCBoolean(true, boolOne),
                 Optional.of(raise), boolOne);
         TypedLambda pred = new TypedLambda(List.of(v), List.of(body),
@@ -217,6 +214,19 @@ final class ChainDispatch {
                                 Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
         return new TypedFilter(source, pred, source.info(), TypedFilter.Stamp.NONE /* runtime-if branch */);
+    }
+
+    /** {@code typeRaise(kind, from, to)} ({@link com.legend.builtin.Pure.Lite#TYPE_RAISE}): the product's raise of a
+     *  run-time type check that failed, typed {@code as}. */
+    static TypedSpec typeRaise(com.legend.sql.RaiseKind kind, String from, String to, ExprType as) {
+        ExprType text = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
+        List<com.legend.compiler.element.TypedParameter> params = java.util.stream.Stream.of("kind", "from", "to")
+                .map(n -> new com.legend.compiler.element.TypedParameter(n, Type.Primitive.STRING,
+                        Multiplicity.Bounded.ONE)).toList();
+        TypedFunction callee = ObjectReferenceArms.liteCallee(com.legend.builtin.Pure.Lite.TYPE_RAISE, params,
+                Type.Primitive.BOOLEAN);
+        return new TypedNativeCall(callee, List.of(new TypedCString(kind.name(), text), new TypedCString(from, text),
+                new TypedCString(to, text)), as);
     }
 
     private TypedFunction instanceOfCallee() {

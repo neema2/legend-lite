@@ -127,23 +127,6 @@ public final class TypedQuery {
         return List.copyOf(out);
     }
 
-    /**
-     * Whether the query answers a diagnostic's call ({@code print}, {@code println}): a value the program wrote that
-     * legend-engine refuses when the lambda is built (register S128), where a String or Boolean literal or a model's DDL
-     * text is a value it folds (generatePlan answers upstream's ConstantExecutionNode for those: M5, the user's ruling of
-     * 2026-11-11). Read off the last statement's typed root, as the planner's statement road reads it
-     * ({@code BodyPlanner}'s effect dispatch).
-     */
-    public boolean answersADiagnostic() {
-        List<TypedSpec> b = body();
-        TypedSpec root = b.get(b.size() - 1);
-        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
-            root = fr.source();
-        }
-        return root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(nc.callee().id());
-    }
-
     /** The query typed as ONE expression (Phase G): its typed HIR, the front half only. */
     public TypedSpec expression() {
         return specs.typeExpression(resolved);
@@ -195,7 +178,14 @@ public final class TypedQuery {
      * value the program wrote) is refused by name: its text would not be what runs.
      */
     public com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime) {
-        com.legend.executionplan.ExecutionPlan plan = executionPlan(runtime);
+        return plan(runtime, com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** {@link #plan(String)} with its statement written in {@code dialects}' dialects (the spelling hook, D1.0:
+     *  pure/v1's generatePlan, at the edge). */
+    public com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime,
+            com.legend.database.PlanStyle style) {
+        com.legend.executionplan.ExecutionPlan plan = executionPlan(runtime, java.util.Set.of(), style);
         if (!plan.answers() || !plan.sendsTheAnswer() || plan.root() instanceof com.legend.executionplan.ExecutionPlan.Sequence) {
             throw new com.legend.error.NotImplementedException("a text plan is the statement that answers, and this"
                     + " query's execution plan " + (!plan.answers() ? "answers nothing"
@@ -231,7 +221,15 @@ public final class TypedQuery {
      *  it does not survive its JSON (G11) -- a product query pays nothing for the check. */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
             java.util.Set<com.legend.platform.Feature> features) {
-        return planned(runtime, features, false);
+        return planned(runtime, features, false, com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** {@link #executionPlan(String, Set)} with its statements written in {@code dialects}' dialects: THE SPELLING
+     *  HOOK (phase D's D1.0) -- the compatibility edge's ({@code com.legend.edge.PureText}), for the harnesses and
+     *  routes that answer upstream's texts. The product's own doors plan with the product's dialects, above. */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
+            java.util.Set<com.legend.platform.Feature> features, com.legend.database.PlanStyle style) {
+        return planned(runtime, features, false, style);
     }
 
     /** The query planned as the server runs it (legend-engine's {@code pure/v1/execution/execute}): its target names
@@ -239,13 +237,26 @@ public final class TypedQuery {
      *  ({@code ExecutionPlan.Project}). Every other road plans {@link #executionPlan}: the database itself (the full
      *  audit, 2026-11-09). */
     public com.legend.executionplan.ExecutionPlan projectPlan(@com.legend.base.Nullable String runtime) {
-        return planned(runtime, java.util.Set.of(), true);
+        return planned(runtime, java.util.Set.of(), true, com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** {@link #projectPlan(String)} with its statements written in {@code dialects}' dialects (the spelling hook,
+     *  D1.0: pure/v1's upstream routes, the edge's). */
+    public com.legend.executionplan.ExecutionPlan projectPlan(@com.legend.base.Nullable String runtime,
+            com.legend.database.PlanStyle style) {
+        return planned(runtime, java.util.Set.of(), true, style);
     }
 
     private com.legend.executionplan.ExecutionPlan planned(@com.legend.base.Nullable String runtime,
-            java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase) {
+            java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase,
+            com.legend.database.PlanStyle style) {
         try (var planning = com.legend.base.RunScope.plans("a query")) {
-            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase);
+            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase,
+                    style);
+            com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+            if (seen != null) {
+                seen.planned(this, runtime);   // a test harness's observer (E-1): none in the product
+            }
             if (Boolean.getBoolean("legend.plan.roundtrip")) {
                 com.legend.executionplan.PlanJson.requireRoundTrip(plan);
             }

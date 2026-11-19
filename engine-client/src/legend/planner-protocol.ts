@@ -10,16 +10,21 @@
 export const REQUEST_KINDS = [
   'hold',
   'release',
-  'plan',
-  'relationType',
+  'queryPlanHeld',
+  'queryTypeHeld',
   'tableModel',
   'catalogColumnsSql',
-  'planJson',
-  'executionPlan',
-  'planModel',
-  'pureV1',
-  'executePlan',
-  'executeAnswer',
+  'modelCheck',
+  'modelElements',
+  'queryParse',
+  'queryPrint',
+  'queryType',
+  'queryPlan',
+  'modelCreateClass',
+  'modelCreateAssociation',
+  'modelCreateDataSpace',
+  'tsItem',
+  'tsStatement',
   'fileLoad',
   'remoteMount',
   'snapStream',
@@ -35,6 +40,11 @@ export const REQUEST_KINDS = [
 
 export type RequestKind = (typeof REQUEST_KINDS)[number];
 
+/** Lite API v1's operations, as planner kinds (operation `a/b` is kind `aB`: the spec's naming rule). */
+export const LITE_OPERATIONS = ['modelCheck', 'modelElements', 'queryParse', 'queryPrint', 'queryType', 'queryPlan', 'modelCreateClass', 'modelCreateAssociation', 'modelCreateDataSpace', 'tsItem', 'tsStatement'] as const;
+
+export type LiteOperation = (typeof LITE_OPERATIONS)[number];
+
 /** A request, as the planner writes it. */
 export type RequestBody =
   // a model held: compiled the first time its text is, the answer its handle
@@ -42,23 +52,17 @@ export type RequestBody =
   // model held over it (core's Compiler.compileModel(model, library); docs/TS_V1_PROGRAM_2026_11_01.md A5)
   | { readonly kind: 'hold'; readonly model: string; readonly library?: string }
   | { readonly kind: 'release'; readonly handle: number }
-  // a query's Pure text planned against a model held
-  | { readonly kind: 'plan'; readonly handle: number; readonly query: string; readonly runtime: string }
-  | { readonly kind: 'relationType'; readonly handle: number; readonly query: string }
+  // lite API v1's query/plan and query/type over a model held (§7a: a held model is the binding's cache): the
+  // operation's request without its model, {query, runtime} and {query}
+  | { readonly kind: 'queryPlanHeld' | 'queryTypeHeld'; readonly handle: number; readonly request: string }
   | { readonly kind: 'tableModel'; readonly table: string }
   | { readonly kind: 'catalogColumnsSql'; readonly schema: string; readonly table: string }
-  // a query's protocol JSON planned against a model held
-  | { readonly kind: 'planJson'; readonly handle: number; readonly lambda: string; readonly runtime: string }
-  // a query's protocol JSON planned against a model held as an execution plan (PlanJson's text): a program that writes
-  | { readonly kind: 'executionPlan'; readonly handle: number; readonly lambda: string; readonly runtime: string }
-  // a query's protocol JSON planned against a model's text, none held (Query's and Studio's: each request its model)
-  | { readonly kind: 'planModel'; readonly model: string; readonly lambda: string; readonly runtime: string }
-  // one pure/v1 call: its path (`/api/pure/v1/...`), its raw query string ('' for none) and its body
-  | { readonly kind: 'pureV1'; readonly path: string; readonly query: string; readonly body: string }
-  // an ExecuteInput's plan half (its body) over the only models the host runs (a JSON array of their texts); then that
-  // plan's answer from the rows the host's database answered running it, a JSON array of objects (HostRows)
-  | { readonly kind: 'executePlan'; readonly body: string; readonly models: string }
-  | { readonly kind: 'executeAnswer'; readonly plan: string; readonly rows: string }
+  // (legend-engine's pure/v1 and execute's plan and answer halves left the protocol with the user's K2 ruling, 2026-11-18,
+  // "Product root, edge opt-in": the engine module's requests, the edge's -- legend/engine-module.ts)
+  // lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17): each its
+  // operation's request JSON, answered by the boundary's member of the same name with its answer JSON -- the same JSON the
+  // server's /api/lite/v1 routes take and answer
+  | { readonly kind: LiteOperation; readonly request: string }
   // a host's own file read into its database, as a plan (B3): the request's JSON (Boundary.fileLoad)
   | { readonly kind: 'fileLoad'; readonly request: string }
   // a remote file mounted, as a plan (B3's Q3): the request's JSON, names and fields only (Boundary.remoteMount)

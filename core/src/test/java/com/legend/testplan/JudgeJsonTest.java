@@ -6,7 +6,6 @@ package com.legend.testplan;
 import com.legend.testexecutionplan.JudgeJson;
 
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.testexecutionplan.TestPlan;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -25,11 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class JudgeJsonTest {
 
     private static Object compat(String text) {
-        return JudgeJson.read(text, TestPlan.JudgingRules.COMPILED_PURE_COMPAT);
+        return com.legend.edge.JsonSimpleGrammar.INSTANCE.read(text);
     }
 
     private static Object lite(String text) {
-        return JudgeJson.read(text, TestPlan.JudgingRules.LITE);
+        return JudgeJson.STRICT.read(text);
     }
 
     @Test

@@ -10,17 +10,17 @@ import com.legend.parser.TokenStreamCursor;
 final class SliceCursor implements TokenStreamCursor {
 
     private final com.legend.lexer.TokenStream tokens;
-    private final com.legend.parser.Dialect dialect;
+    private final com.legend.parser.GrammarLevel dialect;
     private int pos;
 
     SliceCursor(com.legend.lexer.TokenStream tokens,
-            com.legend.parser.Dialect dialect) {
+            com.legend.parser.GrammarLevel dialect) {
         this.tokens = tokens;
         this.dialect = dialect;
     }
 
     @Override
-    public com.legend.parser.Dialect dialect() {
+    public com.legend.parser.GrammarLevel dialect() {
         return dialect;
     }
 

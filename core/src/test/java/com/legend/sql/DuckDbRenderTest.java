@@ -259,7 +259,7 @@ class DuckDbRenderTest {
                 new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(18)),
                         new SqlExpr.StringLit("adult"))),
-                new SqlExpr.StringLit("minor"));
+                new SqlExpr.StringLit("minor"), SqlExpr.Reason.USER);
         assertEquals("CASE WHEN t0.AGE > 18 THEN 'adult' ELSE 'minor' END", renderExpr(c));
         assertEquals("COUNT(DISTINCT t0.FIRM)",
                 renderExpr(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col("FIRM")), true, java.util.List.of())));
@@ -312,7 +312,7 @@ class DuckDbRenderTest {
         assertEquals("CASE WHEN t0.A = 1 THEN 'x' END",
                 renderExpr(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.EQUAL, col("A"), new SqlExpr.IntLit(1)),
-                        new SqlExpr.StringLit("x"))), null)));
+                        new SqlExpr.StringLit("x"))), null, SqlExpr.Reason.USER)));
     }
 
     @Test

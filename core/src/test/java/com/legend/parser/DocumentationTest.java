@@ -32,12 +32,12 @@ class DocumentationTest {
     private static final String DOC = "meta::pure::profiles::doc";
 
     private static ParsedModel model(String src) {
-        return com.legend.door.ModelFromText.parse(src, Dialect.LEGEND_ENGINE);
+        return com.legend.door.ModelFromText.parse(src, GrammarLevel.LEGEND_ENGINE);
     }
 
     private static String wire(String src) {
         var ts = com.legend.lexer.Lexer.tokenize(src);
-        ElementParser p = ElementParser.at(ts, 0, Dialect.LEGEND_ENGINE);
+        ElementParser p = ElementParser.at(ts, 0, GrammarLevel.LEGEND_ENGINE);
         Protocol.Element el = switch (ts.type(ts.type(0) == com.legend.lexer.TokenType.DOC_STRING ? 1 : 0)) {
             case CLASS -> p.parseClassDefinition(false);
             case ENUM -> p.parseEnumDefinition();

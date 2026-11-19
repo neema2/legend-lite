@@ -41,14 +41,9 @@ import java.util.Set;
  * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a
  * guessed spelling is a silent wrong answer.
  */
-public final class Databricks extends AnsiSqlRenderer {
-
-    /** The engine's H2 text is refused here: Databricks has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached Databricks, which has no translation of it");
-    }
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class Databricks extends AnsiSqlRenderer {
 
     /** A Date and a DateTime parameter as upstream's literal processor writes them (databricksExtension.pure): a Date
      *  {@code to_date('%s')}, a {@code DATE} (a date-time value's time dropped, as upstream's), a DateTime
@@ -993,6 +988,15 @@ public final class Databricks extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: legend-pure's grammar, lite's TEXT_NOT_FLOAT by name, never CAST_INVALID_INPUT (Phase 8); Spark's
+        // regex is Java's, without POSIX bracket classes: \p{Space}, its backslash escaped for the string literal
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            String grammar = FLOAT_GRAMMAR.replace("[[:space:]]", "\\\\p{Space}");
+            return guardedParseFloat(writer, x, w -> w.expr(x, 6).append(" RLIKE '" + grammar + "'"),
+                    w -> w.append("CAST(trim(regexp_replace(").expr(x, 0)
+                            .append(", '[fF]\\\\p{Space}*$', '')) AS DOUBLE)"));
+        }
         if (c.target() == SqlType.Scalar.TEMPORAL_TEXT || c.target() == SqlType.Scalar.DECIMAL_TEXT) {
             return super.variantAwareCast(writer, c);
         }
@@ -1053,6 +1057,8 @@ public final class Databricks extends AnsiSqlRenderer {
             return writer.append("CAST(NULL AS ").append(castTypeName(t.type())).append(")");
         }
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -1068,7 +1074,10 @@ public final class Databricks extends AnsiSqlRenderer {
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never CAST_INVALID_INPUT (Phase 8)
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.expr(c.args().get(0), 6).append(" RLIKE '^[+-]?[0-9]+$'"),
+                    w -> castAs(w, c.args().get(0), "BIGINT"));
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -1092,8 +1101,10 @@ public final class Databricks extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1164,6 +1175,8 @@ public final class Databricks extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat (Spark's concat is NULL if any argument is)
             case CONCAT -> writer.append("concat_ws('', ").join(flattenConcat(a), ", ", this::asText).append(")");
             case CONCAT_JOIN -> writer.append("concat_ws('', ").join(a, ", ", this::asText).append(")");
+            // the product's join of a row's cells: concat_ws skips a NULL part with its separator (as concat above)
+            case CONCAT_WS -> writer.append("concat_ws(").join(a, ", ", this::asText).append(")");
             case INT_DIVIDE -> writer.append("(").expr(a.get(0), 6).append(" div ").expr(a.get(1), 6).append(")");
             // the base spells VARCHAR, which needs a length here
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
@@ -1951,4 +1964,12 @@ public final class Databricks extends AnsiSqlRenderer {
         }
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Databricks");
     }
+
+    /** {@inheritDoc} {@code format_string}'s six decimals (Java's, NaN and the infinities by name), trimmed by the standard's trailing trim (the brief's measurement, D_BRIEF §1). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return trimmedSixStandard(writer, w -> w.append("format_string('%.6f', ").expr(asDouble(x), 0).append(")"));
+    }
+
 }

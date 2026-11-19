@@ -1181,13 +1181,13 @@ public final class PersistenceSectionGrammar
     private static final class OffsetCursor implements TokenStreamCursor {
 
         private final com.legend.lexer.TokenStream tokens;
-        private final com.legend.parser.Dialect dialect;
+        private final com.legend.parser.GrammarLevel dialect;
         private int pos;
         private final int lineOffset;
         private final int colOffset;
 
         OffsetCursor(com.legend.lexer.TokenStream tokens, int lineOffset,
-                int colOffset, com.legend.parser.Dialect dialect) {
+                int colOffset, com.legend.parser.GrammarLevel dialect) {
             this.tokens = tokens;
             this.lineOffset = lineOffset;
             this.colOffset = colOffset;
@@ -1195,7 +1195,7 @@ public final class PersistenceSectionGrammar
         }
 
         @Override
-        public com.legend.parser.Dialect dialect() {
+        public com.legend.parser.GrammarLevel dialect() {
             return dialect;
         }
 

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 /**
  * The wall, and other structural invariants for {@code core/}.
@@ -44,12 +45,19 @@ final class ArchitectureTest {
      */
     private static final JavaClasses CORE_PROD_CLASSES = importJars("legend.product.jars");
 
-    /** The classes of the jars a declared list names (java_jars): a jar is imported as a jar, not as a file path. */
-    private static JavaClasses importJars(String property) {
+    /** The product's classes and the compatibility edge's ({@code com.legend.edge}, its own jar since phase D's D1.0b):
+     *  the JDBC funnel rules hold the edge as they hold the product (the D part 1 audit's S6, 2026-11-15: until then
+     *  PureV1Routes, TestDataRoutes and EdgeServer escaped them). */
+    private static final JavaClasses CORE_AND_EDGE_CLASSES = importJars("legend.product.jars", "legend.edge.jars");
+
+    /** The classes of the jars the declared lists name (java_jars): a jar is imported as a jar, not as a file path. */
+    private static JavaClasses importJars(String... properties) {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
-            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
-                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            for (String property : properties) {
+                for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
+                    jars.add(new java.util.jar.JarFile(jar.toFile()));
+                }
             }
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
@@ -94,7 +102,7 @@ final class ArchitectureTest {
             java.util.Map.entry("exec_program", "com.legend.exec.ProgramRunner"),
             java.util.Map.entry("result", "com.legend.result.Batch"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
-            java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
+            java.util.Map.entry("lite_v1", "com.legend.server.LiteV1Api"),
             // the test-planning library (the test-is-the-product plan's M3c, R17 C7, 2026-10-31)
             java.util.Map.entry("testplan", "com.legend.testplan.TestDoor"),
             // the door (the driver until slice 5, 2026-11-09)
@@ -238,34 +246,27 @@ final class ArchitectureTest {
 
     /**
      * <strong>Invariant 4d — the golden-text renderer is quarantined.</strong>
-     * EngineStyleH2 exists ONLY for the toSQLString golden surface; an
-     * execution path reaching it (dialectOf returning it, a lowering
-     * import) would run engine-H2 TEXT semantics against DuckDB. Only the
-     * root layer (the harness bridge) may construct it.
+     * EngineStyleH2 exists ONLY for the engine's text natives (toSQLString, planToString, the DDL generators); an
+     * execution path reaching it would run engine-H2 TEXT semantics against a real session. Since phase D (2026-11-12,
+     * D1.7's move pulled forward) the printers are the compatibility edge's ({@code com.legend.edge}): no product class
+     * reaches one (the edge rule, {@code PRODUCT_REACHES_NO_EDGE}), and of the edge only the spelling that hands them to
+     * the planner ({@code PureText}) and the family itself construct them.
      */
     @Test
     void engineStyleRendererIsQuarantinedToTheRootLayer() {
         noClasses()
-            // the root layer's execution side was com.legend.driver from step C (D73, 2026-10-30) to slice 5
-            // (2026-11-09: deleted); its planning is the test's planner's now, which holds no engine-style renderer
-            .that().resideOutsideOfPackage("com.legend.testplan")
-            .and().resideInAPackage("com.legend..")
-            // 2026-10-31 (the seam program's S2g): the engine-text registry is planning work and left the driver for
-            // the planner; it alone constructs the renderers, so it alone of the planner is exempt (a plan the runner
-            // executes is never written by it: PlanMaker and the body planner's lowering hold no engine-style class)
-            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class)
-            // the engine-style FAMILY (H2 + DB2 golden-text renderers)
-            // may compose internally; the quarantine is against the
-            // execution path, not against sibling dialects
+            .that().resideInAPackage("com.legend..")
+            .and().doNotBelongToAnyOf(com.legend.edge.PureText.class)
+            // the engine-style FAMILY (H2 + DB2 golden-text renderers) may compose internally
             .and().doNotBelongToAnyOf(
-                    com.legend.sql.dialect.EngineStyleDB2.class,
-                    com.legend.sql.dialect.EngineStyleComposite.class)
+                    com.legend.edge.EngineStyleDB2.class,
+                    com.legend.edge.EngineStyleComposite.class)
             .should().dependOnClassesThat().belongToAnyOf(
-                    com.legend.sql.dialect.EngineStyleH2.class,
-                    com.legend.sql.dialect.EngineStyleDB2.class,
-                    com.legend.sql.dialect.EngineStyleComposite.class)
-            .as("Invariant 4d: engine-style golden-text renderers are root"
-                    + " layer only — audit 19")
+                    com.legend.edge.EngineStyleH2.class,
+                    com.legend.edge.EngineStyleDB2.class,
+                    com.legend.edge.EngineStyleComposite.class)
+            .as("Invariant 4d: engine-style golden-text renderers are the edge's, handed to the planner by its"
+                    + " spelling alone — audit 19; phase D, 2026-11-12")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -284,10 +285,15 @@ final class ArchitectureTest {
             .and().resideInAPackage("com.legend..")
             // 2026-10-31 (the seam program's S2g): the engine's plan text is planning work (D30: plan-time values) and
             // left the driver for the planner -- the registry, the plan printer, the envelope and the plan-node
-            // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface
-            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class, com.legend.planner.EnginePlans.class,
-                    com.legend.planner.PlanEnvelope.class, com.legend.planner.PlanAllocations.class)
-            .should().dependOnClassesThat().belongToAnyOf(com.legend.sql.dialect.EngineTextDialect.class)
+            // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface.
+            // 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): the four exemptions GONE -- the registry,
+            // the printer and the envelope moved to the edge (planner.UpstreamPlans, the style's facet, is what the
+            // planner names), and PlanAllocations' activity no longer takes a printer: no planner class holds it
+            // 2026-11-12 (phase D, D1.7's move pulled forward): the spelling hook names the interface as the type it
+            // hands the planner (the product's refuses it by name), and the edge supplies its printers
+            .and().doNotBelongToAnyOf(com.legend.database.PlanStyle.class)
+            .and().resideOutsideOfPackage("com.legend.edge..")
+            .should().dependOnClassesThat().belongToAnyOf(com.legend.edge.EngineTextDialect.class)
             .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
             .check(CORE_PROD_CLASSES);
     }
@@ -621,6 +627,72 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>The planner writes no file (E-1 of the total-wall program, the user's ruling of 2026-11-12: the lean-SQL
+     * sets' capture OUT of the product).</strong> The planner's library -- its doors, {@code com.legend.planner}, lowering,
+     * the compilers, the resolver, the normalizer, the parser and the lexer, the SQL tree and its dialects -- opens no
+     * file for writing: no {@code FileOutputStream}, {@code FileWriter} or
+     * {@code RandomAccessFile}, and no {@code java.nio.file.Files} write. It compiles to WebAssembly too, where there is
+     * no file to write. A capture is a test harness's, installed as a {@code planner.PlanningObserver}
+     * ({@code com.legend.leansql.QueryCaptureListener}).
+     */
+    @Test
+    void thePlannerWritesNoFile() {
+        PLANNER_WRITES_NO_FILE.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #thePlannerWritesNoFile} fails on a planner class that writes a file, by EACH of its clauses alone
+     *  ({@code planner.PlantedFileWrite.EACH}, test classes in the planner's package, one write each: the file streams,
+     *  the print streams over a file or its name, every {@code Files} writer, copy, move, create and channel, a
+     *  {@code FileChannel} opened) -- the rule bites (2026-11-15, PR1's review: it had no planted violator; the PR1
+     *  re-review's A3, 2026-11-16: one violator per clause, since the rule fails when any one fires). */
+    @Test
+    void thePlannerFileRuleBitesAPlantedWrite() {
+        for (Class<?> planted : com.legend.planner.PlantedFileWrite.EACH) {
+            bites(PLANNER_WRITES_NO_FILE, planted);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(17, com.legend.planner.PlantedFileWrite.EACH.size(),
+                "one planted violator per clause of the rule");
+    }
+
+    /** The calls that write a file: {@code java.nio.file.Files}' writers, copies, moves and channels, and a
+     *  {@code FileChannel} opened. */
+    private static final java.util.Set<String> FILES_WRITES = java.util.Set.of("write", "writeString", "newOutputStream",
+            "newBufferedWriter", "copy", "move", "createFile", "createTempFile", "newByteChannel");
+
+    /** The planner's library (its doors, {@code com.legend.planner}, lowering, the compilers, the resolver, the
+     *  normalizer, the parser and the lexer, the SQL tree and its dialects, the test planner and the diagnostics
+     *  switchboard planning reads) opens no file for writing. */
+    private static final com.tngtech.archunit.lang.ArchRule PLANNER_WRITES_NO_FILE = noClasses()
+            .that().haveFullyQualifiedName("com.legend.Compiler")
+            .or().haveFullyQualifiedName("com.legend.TypedQuery")
+            .or().haveFullyQualifiedName("com.legend.HeldModels")
+            .or().resideInAnyPackage("com.legend.planner..", "com.legend.lowering..", "com.legend.compiler..",
+                    "com.legend.resolver..", "com.legend.normalizer..", "com.legend.parser..", "com.legend.lexer..",
+                    "com.legend.sql..", "com.legend.testplan..", "com.legend.diagnostics..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("java.io.FileOutputStream")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.FileWriter")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.RandomAccessFile")
+            .orShould().callConstructorWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a PrintWriter or PrintStream over a file",
+                    (com.tngtech.archunit.core.domain.JavaConstructorCall call) -> {
+                        String owner = call.getTargetOwner().getFullName();
+                        if (!owner.equals("java.io.PrintWriter") && !owner.equals("java.io.PrintStream")) {
+                            return false;
+                        }
+                        var params = call.getTarget().getRawParameterTypes();
+                        return !params.isEmpty() && (params.get(0).getFullName().equals("java.io.File")
+                                || params.get(0).getFullName().equals("java.lang.String"));
+                    }))
+            .orShould().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a java.nio.file.Files write or a FileChannel opened",
+                    (com.tngtech.archunit.core.domain.JavaMethodCall call) ->
+                            call.getTargetOwner().getFullName().equals("java.nio.file.Files")
+                                    && FILES_WRITES.contains(call.getName())
+                            || call.getTargetOwner().getFullName().equals("java.nio.channels.FileChannel")
+                                    && call.getName().equals("open")))
+            .as("E-1: the planner writes no file; a capture is a test harness's observer");
+
+    /**
      * <strong>The test-planning library is the driver's alone (the test-is-the-product plan's B4, brought forward to
      * M3 by R17 C7, 2026-10-31).</strong> The kinds only a test's program holds -- effects, seeds, the eager run,
      * asserts -- are planned by {@code com.legend.testplan} through the planner's extension point
@@ -711,13 +783,14 @@ final class ArchitectureTest {
 
     /** {@link #aProductStatementIsPreparedByThePlannersAlone} over the hosts' doors as well (the follow-up audit's G1,
      *  2026-11-14): the boundary ({@code //wasm:boundary}, its package {@code planner}, outside the planners'), the
-     *  tab's adapter ({@code //wasm:tab}) and the native entry ({@code //native:entry}) prepare no product statement
-     *  either. */
+     *  tab's adapter ({@code //wasm:tab}), the engine module's entry ({@code //wasm:edge_tab}, the user's K2 ruling,
+     *  2026-11-18) and the native entry ({@code //native:entry}) prepare no product statement either. */
     @Test
     void theHostsDoorsPrepareNoProductStatement() {
         JavaClasses classes = coreAndTheHostsDoors();
         // each host's door is held by the rule: none resides in the planners' packages, which the rule exempts
-        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.nativelib.Compiler")) {
+        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.edge.wasm.EngineExports",
+                "com.legend.nativelib.Compiler")) {
             org.junit.jupiter.api.Assertions.assertFalse(classes.get(door).getPackageName().matches(
                     "com\\.legend\\.(planner|testplan)(\\..*)?"), door + " is exempt from the rule");
         }
@@ -1122,14 +1195,19 @@ final class ArchitectureTest {
      *  is checked as every class is, its own entries listed (QueryDoor's (List, SpecCompiler) overload among them, which
      *  the key by name admitted to every caller). {@link #thePlannerEntriesAreTheMeasuredOnesExactly} pins the list to
      *  what is reached, so an entry no class reaches any more goes. Moves only with a dated note naming the task.
-     *  2026-11-15 (C5-J item 6): 70 entries -> 61, still exactly what is measured over core and the hosts' doors. Item 3
+     *  2026-11-15 (C5-J item 6): 70 entries -> 61, still exactly what is measured over core and the hosts' doors;
+     *  61 -> 62 (2026-11-15, the merge of #106 into #104: phase D's PlanningOptions#withStyle, the test door's plan
+     *  style; D's two re-keyed entries, PlanMaker#plan's and ExecuteOptions' signatures, count the same).
+     *  And (2026-11-16, E's PR1 merged into D's stage, W1): E-1's PlanningObserver listed (the capture's hook, reached
+     *  from the root's Compiler and TypedQuery). Item 3
      *  took out the resolver's 7 (its reads of the lowering's helpers moved below both); item 2 took out 4 (the PCT
      *  runner's reads of ProgramFacts' seedsInlineCsv, shape and verdicts, and the constructor's entry; effects() keeps
      *  its Compiler caller alone) and added 2, ProgramFacts#of (Compiler) and TestPlanner#facts (the test door). */
     static final java.util.Map<String, java.util.Set<String>> PLANNER_ENTRIES = entries(
             // the query door, from the root's TypedQuery: a query's plan (QueryDoor first), its runtime, its parameters
-            "planner.PlanMaker#plan(com.legend.TypedQuery, java.lang.String, java.util.Set, boolean)",
-            "com.legend.TypedQuery",
+            // its plan style the fifth parameter (phase D's D1.0: the product's or the edge's; merged 2026-11-15)
+            "planner.PlanMaker#plan(com.legend.TypedQuery, java.lang.String, java.util.Set, boolean, "
+                    + "com.legend.database.PlanStyle)", "com.legend.TypedQuery",
             "planner.PlanMaker#runtimeOf(com.legend.TypedQuery, java.lang.String)", "com.legend.TypedQuery",
             "planner.QueryParameters$Declared#<init>(java.lang.String, com.legend.compiler.element.type.Type, "
                     + "com.legend.compiler.element.type.Multiplicity)", "com.legend.TypedQuery",
@@ -1138,33 +1216,259 @@ final class ArchitectureTest {
             "testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String, com.legend.testplan.PlanningOptions)",
             "com.legend.TestExecution",
             "testplan.TestPlanner#facts(com.legend.TypedQuery)", "com.legend.TestExecution",
-            // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
+            // W9's judge half, S2c (2026-11-16; the orchestrator's ruling (b), one facade, one row): the engine-text arm
+            // is the edge's (edge.SqlTextVerdicts), and every read it makes of the test planner, the planner or the
+            // lowering is the facade's (testplan.EngineTextPlanning), each of its members admitted (until 2026-11-17) by one row --
+            // S2b's EngineTestText#arm allowance gone with the arm's move (docs/records/e-java-w9-judge-half-2026-11-16.md)
+            // C4 (2026-11-17, the orchestrator's ruling (b)): the hook's routing gates moved to the edge's
+            // implementation, EdgeEngineTestText, which reads the test planner through the same facade.
+            // Its members LISTED, no "#*" (2026-11-17, the GUARD stream's C.4; the edge audit's C.4 and the
+            // orchestrator's step-A ruling, "one named facade, members listed, no #*"): a member the edge newly reaches
+            // is a row here, by its full signature and callers; OpenClassMembersTest pins the facade's whole member set
+            "testplan.EngineTextPlanning#active(com.legend.testplan.VerdictBatch)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#appeal(com.legend.testplan.BodyDriver$ExecEnv, "
+                    + "java.util.function.IntFunction)",
+            "com.legend.edge.SqlTextVerdicts",
+            // 11 forwarders gone with train 16 b836ff636f (2026-11-18, re-measured by the GUARD stream): F's J40 census
+            // (e92c465d: SqlTextInputs to the edge, boundContext to edge.RuntimeContexts -- boundContext, sqlTextInputs,
+            // query, mapping, dialect, runtime) and E-Java's J40 (185d54a494: the referee's ReplayGates computed by the
+            // edge -- replayFacts, noReplayGates, extentSubset, ordered, sortKeys)
+            "testplan.EngineTextPlanning#appealOn(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, "
+                    + "com.legend.testplan.AssertVerdicts$SpliceHook)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, "
+                    + "com.legend.testplan.AssertVerdicts$SpliceHook, com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#bare(com.legend.testplan.TextAsk)",
+            "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#calleeFqn(com.legend.compiler.spec.typed.TypedSpec)",
+            "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#check(java.util.List, com.legend.testexecutionplan.HostJudgment)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#collector(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#ctx(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, "
+                    + "com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target, int, "
+                    + "java.lang.String)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#enumsOf(com.legend.compiler.element.ModelContext, java.lang.String, "
+                    + "java.lang.String, com.legend.testexecutionplan.SideShape)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#env(com.legend.testplan.TextAsk)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#evalSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
+                    + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, "
+                    + "boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#frame(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#hook(com.legend.testplan.TextAsk)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#inZone(java.lang.String, java.lang.String)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#isoTimestamp(com.legend.values.PureDateLiteral)",
+            "com.legend.edge.SqlTextVerdicts",
+            // the appeal asked of the style, never the judging rules (E-Java's c732a61c4, train 18, 2026-11-18: the
+            // orchestrator's ruling -- EngineTextPlanning#judgingRules replaced by the facade's style forwarder, its one
+            // edge caller SqlTextVerdicts.appeals; the rules deleted whole, 070c4ea3e)
+            "testplan.EngineTextPlanning#style(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#judgment(com.legend.testplan.HostSides$Check)",
+            "com.legend.edge.EdgeEngineTestText",
+            "testplan.EngineTextPlanning#letPrefix(com.legend.testplan.TextAsk)",
+            "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#marking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String, "
+                    + "boolean)",
+            "com.legend.edge.SqlTextVerdicts",
+            // (EngineTextPlanning#notAConstantError: deleted 2026-11-18 by E-Java's train-17 item 5, 645c3e4464 -- the
+            // refusal of a text side that is no constant is the edge collector's, edge.NotAConstant)
+            "testplan.EngineTextPlanning#planSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
+                    + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, "
+                    + "com.legend.testplan.AssertVerdicts$SpliceHook)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#planned(com.legend.testplan.HostSides$Check)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#plannedSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
+                    + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, "
+                    + "boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#restoreMarking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#scalarRow(com.legend.testplan.DatabaseJudge$SideRows)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#shapeOf(com.legend.testplan.JudgePlans$PlannedSide, "
+                    + "com.legend.database.PlanStyle)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#side(com.legend.testplan.JudgePlans$PlannedSide)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#specs(com.legend.testplan.TextAsk)",
+            "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#splice(com.legend.testplan.AssertVerdicts$SpliceHook, "
+                    + "com.legend.compiler.spec.typed.TypedSpec, java.util.Set)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#tableReplace(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#target(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#textEquals(java.lang.String, com.legend.sql.SqlQuery)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#textEquals(java.lang.String, java.lang.String)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#unpagedRead(com.legend.compiler.spec.typed.TypedSpec)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#values(com.legend.testplan.JudgePlans$PlannedSide)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#verdictBatch(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#why(com.legend.testplan.DatabaseJudge$SideRows)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#withCollector(com.legend.testplan.BodyDriver$ExecEnv, "
+                    + "com.legend.testplan.TextCollector)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#withFrame(com.legend.testplan.BodyDriver$ExecEnv, "
+                    + "com.legend.compiler.spec.typed.ExecutionContext)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#withOwnLets(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#withTableReplace(com.legend.testplan.BodyDriver$ExecEnv, java.util.Map)",
+            "com.legend.edge.SqlTextVerdicts",
+            // J41 (2026-11-18, the orchestrator's): the database judge's gate, the engine-text hook's answer
+            // (EngineTestText.gate) -- census C3's TextsHeld and the product's two engine-text gate constants gone; data
+            "testplan.DatabaseGate#PLANS", "com.legend.edge.EdgeEngineTestText",
+            "testplan.DatabaseGate#UNPLANNED", "com.legend.edge.EdgeEngineTestText",
+            "testplan.DatabaseGate#appealed(boolean)", "com.legend.edge.EdgeEngineTestText",
+            // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
+            // 2026-11-16): data, a list of classes
+            "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
+            // B17 of the separation census (2026-11-17, the precedent above's one facade, one row): a relation's
+            // legend-pure text is the edge's (edge.RelationTextLowering), and each lowering read it makes -- a cell's
+            // print, a date-time's text -- is the facade's (lowering.RelationTexts), each member admitted by this row
+            // (and the edge's list text, PureListTexts, a mixed list's elements printed by the same facade: B8's TEXT_FORMS,
+            // 2026-11-17)
+            // (listed by member, no "#*", 2026-11-17, the GUARD stream's C.4, as the engine-text facade above)
+            "lowering.RelationTexts#kindType(java.lang.String)", "com.legend.edge.RelationTextLowering",
+            // its signature takes the planner's Styled in place of the two facets (2026-11-17, train 7's J26 and pforms,
+            // 449c51793a; re-cut on d-stage c37207858)
+            "lowering.RelationTexts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
+                    + "com.legend.sql.SqlExpr)",
+            "com.legend.edge.PureListTexts com.legend.edge.RelationTextLowering",
+            // C5 step A (2026-11-17, the orchestrator's ruling: one facade, each member listed, no #*): legend-pure's
+            // representation (toRepresentation, an assert's message) is the edge's (edge.EdgePureOnlyTexts), and the
+            // product parts it is built from -- a concatenation, a Pure toString, an integer's held kind, a date
+            // literal's text -- are the facade's (lowering.ReprParts); a date-time's text and the style's date-time
+            // facet are the lowering's own readers, the same as RelationTextLowering's
+            "lowering.ReprParts#cat([Lcom.legend.sql.SqlExpr;)", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
+                    + "com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.ReprParts#heldAsInteger(com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+            // the styled string entry's parts, asked by the edge's ResultEnvelopes facet (L-B.TypedJsonResult, the
+            // orchestrator's ruling (A) of 2026-11-18, E-Java's ef7ee2b69d: the product hands its own parts -- a
+            // relation's names, types' simple names and cells, the product's toJSON vocabulary, or a class root's objects
+            // -- and the facet writes legend-engine's envelope over them; until then the facet took them as arguments)
+            "lowering.EnvelopeParts#relation()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.EnvelopeParts#objects()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.RelationParts#names()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.RelationParts#typeNames()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.RelationParts#cells()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.ReprParts#dateLiteralText(com.legend.compiler.spec.typed.TypedSpec)",
+            "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",
+            "com.legend.edge.EdgePureOnlyTexts",
+            // EdgeLoweringForms builds the edge's Styled from the plan style's own date-time texts (2026-11-18, J40, the
+            // orchestrator's ruling (7), E-SQL's c0093e9749: one forms source; LoweringShape's entries went with it)
+            "lowering.Styled#dateTimes()", "com.legend.edge.EdgeLoweringForms com.legend.edge.EdgePureOnlyTexts",
+            // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
+            // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
+            // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
+            // the frame's shape it reads, the canons
+            "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
+                    + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            // (VerdictWords$Reads#CANONS until 2026-11-18: the enum left the two-form kind for its own type, the GUARD
+            // stream's re-cut on train 15 1931d419b1 -- PlanStyleSurfaceTest's criterion (a); the same member, renamed)
+            "lowering.VerdictReads#CANONS", "com.legend.edge.UpstreamVerdictWords",
+            // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words (its
+            // PlanStyle parameter 2026-11-15, phase D's D1.0, merged with main's #101 in ca5c4338f9; dated 2026-11-17 by
+            // the GUARD stream's C.13-CI, which found the row changed with no note)
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
-                    + "com.legend.testexecutionplan.TestPlan$JudgingRules, java.util.Set)", "com.legend.ExecuteOptions",
+                    + "java.util.Set, com.legend.database.PlanStyle)",
+            "com.legend.ExecuteOptions",
+            // phase D's D1.0 (merged 2026-11-15): the test door's plan style, the product's or the edge's
+            "testplan.PlanningOptions#withStyle(com.legend.database.PlanStyle)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#edge()", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#judgeMode()", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#judgingRules()", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#rules(boolean)", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#withEngineCompat(boolean)", "com.legend.ExecuteOptions",
+            // (testplan.PlanningOptions#judgingRules() gone 2026-11-18, train 17: the judging rules deleted)
+            // testplan.PlanningOptions#rules(boolean) from ExecuteOptions gone (2026-11-17, census C1: the edge hook names
+            // its run's rules, Edge.rules())
+            // (testplan.PlanningOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge
+            // hook's, Edge.rules())
             "testplan.PlanningOptions#withFeatures(java.util.Set)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withJudgeMode(com.legend.testplan.PlanningOptions$JudgeMode)",
             "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withOptions(java.util.Set)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions$JudgeMode#HOST", "com.legend.ExecuteOptions",
-            // the test-data routes (server.TestDataRoutes): the raw-SQL refusal of a typed query, and the seed's one
-            // entry, which refuses
+            // the test-data routes (edge.TestDataRoutes since phase D's D1.0b, merged 2026-11-15 in ca5c4338f9: the
+            // callers moved from server.TestDataRoutes; dated 2026-11-17 by C.13-CI): the raw-SQL refusal of a typed
+            // query, and the seed's one entry, which refuses
             "planner.ProductStatements#lowerTestDataSeed(com.legend.TypedQuery, java.lang.String)",
-            "com.legend.server.TestDataRoutes",
-            "planner.QueryDoor#refuseRawSql(com.legend.TypedQuery)", "com.legend.server.TestDataRoutes",
+            "com.legend.edge.TestDataRoutes",
+            "planner.QueryDoor#refuseRawSql(com.legend.TypedQuery)", "com.legend.edge.TestDataRoutes",
+            // the planning observer (E-1's capture hook), from the root's Compiler and TypedQuery: told, never asked
+            // (listed 2026-11-15 with the merge of main's #101, c2d5fa3650; dated 2026-11-17 by C.13-CI)
+            "planner.PlanningObserver#installed()", "com.legend.Compiler com.legend.TypedQuery",
+            "planner.PlanningObserver#modelCompiled(com.legend.compiler.element.ModelContext, java.lang.String)",
+            "com.legend.Compiler",
+            "planner.PlanningObserver#planned(com.legend.TypedQuery, java.lang.String)", "com.legend.TypedQuery",
+            "planner.PlanningObserver#queryTyped(com.legend.TypedQuery, java.lang.String)", "com.legend.Compiler",
             // the root's Compiler, the lowering of a resolved query (lowerResolved): QueryDoor's refusal of a typed
             // body's executeInDb read (its (List, SpecCompiler) overload, the G1 follow-up audit's, 2026-11-14), the
             // cross-store guard, the Lowerer and its object sites, the platform's registrations, and a program's facts
-            // (stated by ProgramFacts.of since C5-J item 2, 2026-11-15; the PCT runner reads the test plan's instead)
+            // (stated by ProgramFacts.of since C5-J item 2, 2026-11-15; the PCT runner reads the test plan's instead);
+            // the edge's EnginePlans lowers legend-engine's plan text through the same two (W9's planner half,
+            // d4bab2df66, 2026-11-16; its note written 2026-11-18, when the shrink-only check read notes by blame)
             "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
-                    + "com.legend.platform.ImplementationTable)", "com.legend.Compiler",
-            "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler",
-            "lowering.Lowerer#withEngineExistsJoinForm()", "com.legend.Compiler",
+                    + "com.legend.platform.ImplementationTable)", "com.legend.Compiler com.legend.edge.EnginePlans",
+            "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
+            // the planner's fact that a statement's EXISTS may take the style's join form (the edge audit's J19, 2026-11-17:
+            // withExistsAsJoinDistinct renamed, the choice the plan style's forms')
+            // EnginePlans asks the Lowerer's own in place of LoweringShape#withExistsJoinable, gone (2026-11-18, J40, the
+            // orchestrator's ruling (7), E-SQL's c0093e9749)
+            "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler com.legend.edge.EnginePlans",
+            // legend-engine's statement shape as the edge's Styled (2026-11-18, J40, the orchestrator's ruling (7): one
+            // forms source; until then Lowerer#withShape and LoweringShape's two entries): the plan style's Styled with
+            // the edge's forms in place of its own
+            "lowering.Styled#<init>(java.util.function.Function, com.legend.lowering.LoweringForms, "
+                    + "com.legend.lowering.DateTimeTexts, com.legend.lowering.ListTexts)", "com.legend.edge.EdgeLoweringForms",
+            // the product's building blocks the edge's forms compose with (2026-11-18, the lens audit's item 1 and the
+            // orchestrator's ruling on L6: a two-form kind holds types only, the product hands its statement and sites,
+            // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the subselect
+            // pruning (lean, or legend-engine's computed projections kept) and the statement's EXISTS sites
+            "lowering.ExistsSites#alias()", "com.legend.edge.EdgeLoweringForms",
+            // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
+            // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
+            "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean)", "com.legend.edge.EdgeLoweringForms",
+            // L10 (2026-11-18, the orchestrator's GO on the shape): the engine shape's pruning keeps its union frame -- the
+            // lowering's building block, called from the edge
+            "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean, java.lang.String)",
+            "com.legend.edge.EdgeLoweringForms",
+            "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.Styled#pureOnly()", "com.legend.edge.EdgeLoweringForms",
+            // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
+            // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
+            // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
+            "lowering.Lowerer#withFloatLiteralKind(java.util.function.Supplier)",
+            "com.legend.Compiler com.legend.edge.EnginePlans",
+            "planner.PlanEnv#floatLiteralKind()", "com.legend.edge.EnginePlans",
+            // the audit's K6 (2026-11-17, the orchestrator's ruling (a)): a Lowerer's style is chosen, never an implicit
+            // product default -- the product's lowerResolved chooses the product's, the edge's engine SQL its plan
+            // environment's (it ran with the implicit product default until then)
+            "lowering.Lowerer#withStyled(com.legend.lowering.Styled)", "com.legend.Compiler com.legend.edge.EnginePlans",
+            "lowering.Styled#PRODUCT", "com.legend.Compiler",
+            "planner.PlanEnv#styled()", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withInstanceKeys(java.util.function.Function)", "com.legend.Compiler",
             "lowering.Lowerer#withObjectIdentity(java.util.function.Function)", "com.legend.Compiler",
             "lowering.ObjectSites#<init>()", "com.legend.Compiler",
@@ -1181,7 +1485,9 @@ final class ArchitectureTest {
             // body's test plan)
             // the boundary's doors (//wasm:boundary's planner.Boundary, its anonymous classes included): each request
             // door's planner
-            "lowering.LiteralSpelling#inZone(java.lang.String, java.lang.String)", "planner.Boundary",
+            // + planner.ZoneMain (2026-11-17, found by the GUARD stream's C.5 when //wasm:zone_main joined the hosts' doors
+            // the rules read: the zone probe's main asks the same zone rule as Boundary.zoneProbe)
+            "lowering.LiteralSpelling#inZone(java.lang.String, java.lang.String)", "planner.Boundary planner.ZoneMain",
             "planner.Authored#plan(com.legend.sql.dialect.SqlDialect, com.legend.executionplan.DatabaseType, "
                     + "java.lang.String)", "planner.Boundary",
             "planner.ConnectionPlans#type(com.legend.model.ConnectionDefinition$DatabaseType)", "planner.Boundary",
@@ -1232,7 +1538,54 @@ final class ArchitectureTest {
                     + "com.legend.planner.LoadPlanner$DeclaredTable, long, java.util.Map)", "planner.Boundary",
             "planner.Synthesize$Knob$Range#<init>(java.lang.String, java.lang.String, java.lang.Integer)",
             "planner.Boundary",
-            "planner.Synthesize$Knob$Values#<init>(java.util.List)", "planner.Boundary"
+            "planner.Synthesize$Knob$Values#<init>(java.util.List)", "planner.Boundary",
+            // W9's planner half (2026-11-16, docs/records/d-plan-2026-11-16.md): upstream's plan text moved to the edge
+            // (edge.EnginePlans, PlanEnvelope, EngineAllocations: the planner's own until then), reached as the style's
+            // facet planner.UpstreamPlans; it lowers and renders a query in legend-engine's text through the product's
+            // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
+            "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
+            // (Lowerer#withShape, LoweringShape#<init> and #withExistsJoinable: GONE 2026-11-18, J40, the orchestrator's
+            // ruling (7) -- one forms source, the plan style's; legend-engine's shape the edge's Styled,
+            // EdgeLoweringForms.engineSql, read through the Styled entries below, and the planner's fact the
+            // Lowerer's own withExistsJoinable)
+            "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
+            "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
+            // its caller edge.EnginePlans -> edge.EngineParams (2026-11-18, the audit's J31: legend-engine's template
+            // parameters are the edge's own table, which kinds each slot; one entry, moved); kindOf -> valueTypeOf
+            // (2026-11-18, train 18, L-B.PlanParam: E-Java's df50405375 renames it with the component; the same entry)
+            "lowering.PlanParams#valueTypeOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EngineParams",
+            "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.Map)", "com.legend.edge.EnginePlans",
+            "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.function.UnaryOperator)",
+            "com.legend.edge.EnginePlans",
+            "lowering.SqlPostProcessors#applyRecorded(com.legend.sql.SqlQuery, java.util.Map, boolean, boolean)",
+            "com.legend.edge.EnginePlans",
+            "lowering.SqlPostProcessors#nonExecutable(com.legend.sql.SqlQuery)", "com.legend.edge.EnginePlans",
+            // (planner.BodyPlanner#boundContext left 2026-11-18, J40's only-edge-callers census: edge.RuntimeContexts)
+            "planner.BodyPlanner#featuresOf(com.legend.planner.PlanEnv, java.util.List)", "com.legend.edge.EnginePlans",
+            // (planner.BodyPlanner#pushDownEnums left 2026-11-18, J40: the edge's, EnginePlans.pushDownEnums, over featuresOf)
+            "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
+            "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#ctx()",
+            "com.legend.edge.EngineAllocations com.legend.edge.EnginePlans com.legend.edge.PlanEnvelope",
+            "planner.PlanEnv#features()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#generatorPlanText()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#options()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#postProcessors()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#queryLets()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#runtimeFqn()", "com.legend.edge.EnginePlans",
+            // planner.PlanEnv#style() GONE 2026-11-17 (Phase 6's A, the orchestrator's approved method list): the edge
+            // reaches its own engine-text printers (edge.PureText), no longer the plan style's engine methods
+            "planner.PlanEnv#tableReplace()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters#of(com.legend.compiler.spec.typed.TypedLambda)", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#multiplicity()", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#name()", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#optional()", "com.legend.edge.EnginePlans",
+            // Declared#planParam(String) and #signature() GONE 2026-11-18 (the audit's J31): legend-engine's template
+            // parameter is the edge's (edge.EngineParams), which reads the declared multiplicity and optionality
+            "planner.QueryParameters$Declared#type()", "com.legend.edge.EnginePlans"
+            // (planner.SqlTextInputs's six rows left 2026-11-18, J40's only-edge-callers census: the record moved to
+            // the edge, edge.SqlTextInputs)
             // 2026-11-15 (C5-J item 3): the resolver's seven reads of the lowering's helpers left this list -- the
             // reducer table moved to compiler.element.Reducers and the object reference's protocol to model.AsorRef, below
             // both; the resolver reaches the lowering no more (tools/deps/core-layers.txt)
@@ -1286,6 +1639,9 @@ final class ArchitectureTest {
         return packageName.matches("com\\.legend\\.(planner|testplan|lowering)(\\..*)?");
     }
 
+    // The facades' one-row keys ("owner#*": testplan.EngineTextPlanning, W9's judge half, S2c, 2026-11-16; and
+    // lowering.RelationTexts, B17, 2026-11-17) were deleted 2026-11-17 (the GUARD stream's C.4, the edge audit's C.4):
+    // a "#*" row admitted any member the facade grew, so each facade's members are rows of PLANNER_ENTRIES now.
     /** An access's entry, as {@link #PLANNER_ENTRIES} lists it: its owner's binary name past {@code com.legend.}, then
      *  {@code #} and the member's name, and for a method or a constructor its parameters' binary names in parentheses --
      *  the full signature, so a new overload of a listed name is no entry until it is listed (the C4 final fix round's
@@ -1336,7 +1692,7 @@ final class ArchitectureTest {
         String byQuery = "planner.QueryDoor#refuseRawSql(com.legend.TypedQuery)";
         String byBody = "planner.QueryDoor#refuseRawSql(java.util.List, com.legend.compiler.spec.SpecCompiler)";
         // the test-data routes may refuse a typed query, never a typed body: the overload is the root Compiler's alone
-        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("com.legend.server.TestDataRoutes"),
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("com.legend.edge.TestDataRoutes"),
                 PLANNER_ENTRIES.get(byQuery));
         org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("com.legend.Compiler"), PLANNER_ENTRIES.get(byBody));
         org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of(byBody, java.util.Set.of(
@@ -1545,7 +1901,7 @@ final class ArchitectureTest {
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("F1.3: java.sql AND the driver-native APIs are funnelled to the chartered JDBC classes, the census"
                     + " register's rows (JdbcSurfaceCensusTest.REGISTER) — Charter clauses C1/C2")
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -1601,7 +1957,7 @@ final class ArchitectureTest {
                     }
                 }
             })
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -1620,7 +1976,7 @@ final class ArchitectureTest {
             .should().beAssignableTo(com.legend.exec.Sessions.Session.class)
             .as("D70: a session is made by com.legend.exec (Sessions.owned, borrowed, view, the openers) and nowhere"
                     + " else")
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -1683,6 +2039,10 @@ final class ArchitectureTest {
      * ratified adjudication's mechanical guard: a database VALUE can
      * never be produced inside the channel, because the channel cannot
      * reach a connection.
+     *
+     * <p>The channel left the product for the compatibility edge (2026-11-17: PlanText with J4/K3 of the edge audit,
+     * AggAwareActivities with J5), so the rule checks the product's and the edge's classes together: it would fail on an
+     * empty set if it read the product's alone, and the channel still must not reach a connection.
      */
     @Test
     void theInterpreterPerformsNoJdbc() {
@@ -1693,7 +2053,7 @@ final class ArchitectureTest {
             .as("E4: the metamodel channel evaluates model constants"
                     + " only — grid chains compile to SQL at the"
                     + " GridReads.tryLower exec seam")
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -1723,6 +2083,22 @@ final class ArchitectureTest {
                     + " batch -- executionplan, values, json, base, error, the Arrow framer -- and no compiler,"
                     + " lowering, sql, exec, resolver, setup, plan or server class")
             .check(CORE_PROD_CLASSES);
+        // the edge's writers are carriage too (the P2 checkpoint audit's S4, 2026-11-16): legend-engine's tokens and
+        // envelope over the same typed batch, reading what com.legend.result's writers read, and each other
+        noClasses()
+            .that().haveNameMatching("com\\.legend\\.edge\\.(PureV1Writer|TdsObjectsWriter|Presenter)(\\$.*)?")
+            .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage(
+                    "com.legend..")
+                    .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
+                            .Predicates.resideInAnyPackage("com.legend.result..", "com.legend.executionplan..",
+                                    "com.legend.values..", "com.legend.json..", "com.legend.base..",
+                                    "com.legend.error..", "com.legend.arrowipc..")))
+                    .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
+                            .Predicates.belongToAnyOf(com.legend.edge.PureV1Writer.class,
+                                    com.legend.edge.TdsObjectsWriter.class, com.legend.edge.Presenter.class))))
+            .as("the edge's writers are carriage only (R3, S4): the plan's column facts and the typed batch, no planning"
+                    + " or server class")
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -1970,7 +2346,8 @@ final class ArchitectureTest {
      *  caller owns and hands a door), and the types a door's run takes from it (the referee; the answer's output is the
      *  result library's, a record type: 2026-11-09). */
     private static final java.util.Set<String> RUN_API = java.util.Set.of("com.legend.exec.Sessions",
-            "com.legend.exec.SessionSource", "com.legend.testexec.SqlReplayReferee");
+            // the run hook in the referee's slot (census C2, 2026-11-17: the referee's slot retyped, the orchestrator's P2)
+            "com.legend.exec.SessionSource", "com.legend.testexec.EdgeRun", "com.legend.testexec.NoEdgeRun");
 
     /**
      * WHAT A RUN TAKES FROM ITS CALLER IS DATA (2026-11-09, the user's question "why do we have any callbacks, esp
@@ -2016,7 +2393,8 @@ final class ArchitectureTest {
     private static final java.util.Set<Class<?>> CALLER_INTERFACES = java.util.Set.of(
             com.legend.result.ResultSink.class, com.legend.testexecutionplan.AssertListener.class,
             java.io.Writer.class, java.io.OutputStream.class,
-            com.legend.testexecutionplan.Edge.class, com.legend.testexec.SqlReplayReferee.class,
+            // EdgeRun: the referee's slot retyped (census C2, 2026-11-17: the referee's slot retyped, the orchestrator's P2)
+            com.legend.testexecutionplan.Edge.class, com.legend.testexec.EdgeRun.class,
             com.legend.testexecutionplan.Extension.class, com.legend.exec.Sessions.Opener.class,
             com.legend.exec.Sessions.Session.class);
 
@@ -2232,11 +2610,101 @@ final class ArchitectureTest {
      *  build's twin is {@code tools/deps/core-layers.txt} (no product library lists {@code edge}). */
     @Test
     void noProductClassReachesTheEdge() {
-        noClasses()
+        PRODUCT_REACHES_NO_EDGE.check(CORE_PROD_CLASSES);
+    }
+
+    /** G5 (rule E2 of docs/GOALS_OF_RECORD_2026_11_07.md §2): the edge depends on the product, never the reverse. */
+    private static final com.tngtech.archunit.lang.ArchRule PRODUCT_REACHES_NO_EDGE = noClasses()
             .that().resideOutsideOfPackage("com.legend.edge..")
             .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
-            .as("G5: the edge depends on the product, never the reverse")
-            .check(CORE_PROD_CLASSES);
+            .as("G5: the edge depends on the product, never the reverse");
+
+    /**
+     * THE SPELLING HOOK'S DIALECTS (phase D's D1.0, guard (a), 2026-11-12): a dialect is a class of the product's dialect
+     * package or of the edge (its {@code PureText}, the product's dialects subclassed to spell upstream's text) -- no
+     * other product class writes SQL as a dialect, so no compatibility spelling hides in one. Held over the hosts' doors
+     * as {@link #hostDoorRules}' row {@code dialectsAreTheProductsOrTheEdges}; {@link #theDialectRuleBitesAPlantedDialect}
+     * shows it bites.
+     */
+    static final com.tngtech.archunit.lang.ArchRule DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES = classes()
+            .that().areAssignableTo(com.legend.sql.dialect.SqlDialect.class)
+            .should().resideInAnyPackage("com.legend.sql.dialect..", "com.legend.edge..")
+            .as("a dialect is the product's (sql.dialect) or the edge's (PureText)");
+
+    /** The dialect rule fails on a dialect outside both ({@code planner.PlantedDialect}, a test class planted for this
+     *  alone): a violation, never the empty selection's failure (the C.5 review's NOTE, 2026-11-17). */
+    @Test
+    void theDialectRuleBitesAPlantedDialect() {
+        bites(DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES, com.legend.planner.PlantedDialect.class);
+    }
+
+    /**
+     * ONLY THE EDGE IMPLEMENTS A STYLE'S FACET (the terminal-hook criteria, the orchestrator's ruling relayed to E-SQL,
+     * 2026-11-17): every kind of the closed list ({@code testplan.PlanStyleFacets.KINDS}: {@code planner.UpstreamPlans},
+     * {@code testplan.EngineTestText}) is a product hook whose types are the product's, which the product's style refuses
+     * by name ({@code PlanStyle.PRODUCT.facet}, pinned by {@code EdgeSpellingHookTest}), and which only
+     * {@code com.legend.edge} implements -- this rule, held over the hosts' doors as {@link #hostDoorRules}' rows
+     * {@code onlyTheEdgeImplementsAStylesFacet <kind>}. {@link #theFacetRuleBitesAPlantedImplementer} shows it bites.
+     */
+    static com.tngtech.archunit.lang.ArchRule facetImplementersAreTheEdges(Class<?> kind) {
+        return classes().that().areAssignableTo(kind).and().areNotInterfaces()
+                .should().resideInAnyPackage("com.legend.edge..")
+                .as("a plan style's facet " + kind.getSimpleName() + " is implemented by the compatibility edge alone");
+    }
+
+    /** The facet rule fails on an implementer outside the edge ({@code planner.PlantedDialect.Facet}, a test class
+     *  planted for this alone). */
+    @Test
+    void theFacetRuleBitesAPlantedImplementer() {
+        bites(facetImplementersAreTheEdges(com.legend.planner.UpstreamPlans.class),
+                com.legend.planner.PlantedDialect.Facet.class);
+    }
+
+    /**
+     * ONLY THE EDGE SPELLS A PLAN UPSTREAM'S WAY (phase D's D1.0, guard (b), 2026-11-12): the doors that take a
+     * {@link com.legend.database.PlanStyle} -- {@code TypedQuery.executionPlan}/{@code projectPlan},
+     * {@code Execution.run}/{@code runOnProjectDatabases}, {@code ExecuteOptions}/{@code PlanningOptions.withDialects}
+     * -- are called from the edge alone (the harnesses outside core call them too; they are not product). The product's
+     * doors plan with the product's dialects ({@code com.legend.database.PlanStyle.PRODUCT}) and nothing in the product picks another
+     * source; {@code ExecuteOptions.withDialects} hands its argument to the planning half's. A lambda passed as a source
+     * is a call's argument, never a call of these: the rule pins the callers. Held over the hosts' doors as
+     * {@link #hostDoorRules}' row {@code onlyTheEdgeCallsTheSpellingDoors};
+     * {@link #theSpellingDoorRuleBitesAPlantedCaller} shows it bites.
+     */
+    private static final java.util.Set<String> SPELLING_DOOR_OWNERS = java.util.Set.of("com.legend.TypedQuery",
+            "com.legend.Execution", "com.legend.ExecuteOptions", "com.legend.testplan.PlanningOptions");
+
+    static final com.tngtech.archunit.lang.ArchRule ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS = noClasses()
+            .that().resideOutsideOfPackage("com.legend.edge..")
+            // the doors' own overloads hand the source on, one door to the next (ExecuteOptions to the planning half's)
+            .and().doNotHaveFullyQualifiedName("com.legend.ExecuteOptions")
+            .and().doNotHaveFullyQualifiedName("com.legend.TypedQuery")
+            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            // (LiteV1Api's exemption, 2026-11-15's M2, went 2026-11-16 with the P2 checkpoint audit's S3: its host plan
+            // halves moved to the edge's HostAnswers, so it calls no door taking a style)
+            .should().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a PlanStyle") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
+                    return SPELLING_DOOR_OWNERS.contains(call.getTargetOwner().getFullName())
+                            && call.getTarget().getRawParameterTypes().stream().anyMatch(
+                                    t -> t.isEquivalentTo(com.legend.database.PlanStyle.class));
+                }
+            })
+            .as("only the edge spells a plan upstream's way: the doors taking a PlanStyle are the edge's to call");
+
+    /** The spelling-door rule fails on a product class calling such a door ({@code planner.PlantedDialect.Spells}, a
+     *  test class planted for this alone). */
+    @Test
+    void theSpellingDoorRuleBitesAPlantedCaller() {
+        bites(ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS, com.legend.planner.PlantedDialect.Spells.class);
+    }
+
+    /** {@link #noProductClassReachesTheEdge} fails on a product class that names an edge type
+     *  ({@code planner.PlantedEdgeReach}, a test class planted for this alone; phase D step 1, 2026-11-12). */
+    @Test
+    void theEdgeRuleBitesAPlantedProductClass() {
+        bites(PRODUCT_REACHES_NO_EDGE, com.legend.planner.PlantedEdgeReach.class);
     }
 
     /** No thread-scoped state (the user's ruling of 2026-11-09, "remove all thread local"): every value a step needs is
@@ -2417,7 +2885,7 @@ final class ArchitectureTest {
     @Test
     void theRunRereadsNoRule() {
         // engineCompat too: the judging rules are derived from it (the slice 3 follow-up audit, 2026-11-08)
-        java.util.Set<String> planningFacts = java.util.Set.of("judgingRules", "judgeMode", "features", "resources",
+        java.util.Set<String> planningFacts = java.util.Set.of("judgeMode", "features", "resources",
                 "engineCompat");
         java.util.Set<String> reads = new java.util.TreeSet<>();
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(RUN_ENTRIES)) {
@@ -2440,7 +2908,14 @@ final class ArchitectureTest {
      * {@link #PLANNING_ENTRIES}) calls the listener, the held appeals' thread-local listener or hold, the engine-text
      * arms' decline reporters, the edge's run half (a ledger written), the referee, or the verdict census's outcome
      * counters (a verdict's outcome is counted at its turn in the run); no planning entry takes a listener or a
-     * referee, and no planning environment holds one.
+     * referee, and no planning environment holds one. FIVE TELLS STAND (measured 2026-11-18, pinned exactly as
+     * {@code toldStanding}, counted as the audit's line J39, EdgeAuditOpenTest): planning counts a verdict it decides
+     * statically -- {@code VerdictCensus.sqlJudgedInDatabase} from {@code AssertVerdicts#renderedRows} and
+     * {@code DatabaseJudge#databaseVerdict}, {@code #databaseTdsEquivalent} and {@code #staticallyDecided} -- and an
+     * assert no arm planned, {@code VerdictCensus.sqlFellThrough} from {@code AssertVerdicts#adjudicate}; ruled (b), 2026-11-18:
+     * the counts move to the run, at the static verdict's turn (J39, F's); the pin shrinks as each lands. NONE STANDS
+     * since train 12 (f2fe8b3e91, 2026-11-18): F's J39 (3a28d39b28..87a61d7fb4) counts a static verdict at its turn in
+     * the run (a RootLoop.Judged step) and the fell-through count at the run's assert (testexec.AssertRuns).
      */
     @Test
     void theListenerIsOutputOnly() {
@@ -2449,7 +2924,7 @@ final class ArchitectureTest {
                 "verdict(java.lang.String,boolean,java.lang.String)", "declined(java.lang.String,java.lang.String)",
                 "unjudged(java.lang.String,java.lang.String)", "refereed(java.lang.String,java.lang.String)");
         java.util.Set<String> handed = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
-                "com.legend.testexec.SqlReplayReferee");
+                "com.legend.testexec.EdgeRun", "com.legend.testexec.EdgeHearing");
         java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.testplan.BodyDriver$ExecEnv",
                 "com.legend.planner.PlanEnv");
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
@@ -2474,12 +2949,27 @@ final class ArchitectureTest {
                 }
             }
         }
+        // the run's census calls are VerdictCensus's since 2026-11-09 (moved from CanonicalDivergence, slice 5): named
+        // there 2026-11-17 (the edge audit's K16 -- the four rows named members CanonicalDivergence no longer had, so
+        // the rule read nothing for them); Appeals#listenerNow, Appeals#hold, SqlTextVerdicts#declinedNow and
+        // #declinedTo gone from the product with the referee's move to the edge (census C2, 2026-11-17), their rows with
+        // them
         java.util.Set<String> told = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
-                "com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals#listenerNow", "com.legend.testexec.Appeals#hold",
-                "com.legend.testplan.SqlTextVerdicts#declinedNow", "com.legend.testplan.SqlTextVerdicts#declinedTo",
+                "com.legend.testexec.EdgeRun", "com.legend.testexec.EdgeHearing",
                 "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
-                "com.legend.testexec.CanonicalDivergence#sqlUnjudged", "com.legend.testexec.CanonicalDivergence#sqlRaised",
-                "com.legend.testexec.CanonicalDivergence#sqlRaisedAt", "com.legend.testexec.CanonicalDivergence#sqlEnter");
+                "com.legend.diagnostics.VerdictCensus#sqlUnjudged", "com.legend.diagnostics.VerdictCensus#sqlRaised",
+                "com.legend.diagnostics.VerdictCensus#sqlRaisedAt", "com.legend.diagnostics.VerdictCensus#sqlEnter",
+                // the census's other run-time counters (the review of 11de9ae229, 2026-11-18: the K16 repoint renamed
+                // the list without re-measuring it -- planning calls these two, which VerdictCensus's own javadoc puts
+                // at the run)
+                "com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "com.legend.diagnostics.VerdictCensus#sqlFellThrough");
+        // THE PLANNING TELLS STANDING (measured 2026-11-18, when the two counters joined the list): each exact, reported
+        // to the orchestrator, who ruled (b): the counts move to the run (J39, F's); a new one fails here; counted as the
+        // audit's line J39 (EdgeAuditOpenTest). 5 -> 0 on train 12 f2fe8b3e91 (2026-11-18, F's J39, 3a28d39b28..
+        // 87a61d7fb4): AssertVerdicts#renderedRows, #adjudicate and DatabaseJudge#databaseVerdict,
+        // #databaseTdsEquivalent, #staticallyDecided tell the census nothing; the run counts each at its turn
+        java.util.Set<String> toldStanding = java.util.Set.of();
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(PLANNING_ENTRIES)) {
             String at = u.getOwner().getName() + "#" + u.getName();
             if (PLANNING_ENTRIES.contains(at)) {
@@ -2496,8 +2986,14 @@ final class ArchitectureTest {
                 }
             }
         }
-        org.junit.jupiter.api.Assertions.assertTrue(found.isEmpty(), "the listener answers, or planning tells someone"
-                + " (the run tells, at each verdict's turn; planning tells no one): " + found);
+        // the standing tells are the audit's line J39 while any stands, and the line goes when the last does (the review
+        // of dd5deb781f, 2026-11-18, NOTE: the line was tied to nothing)
+        org.junit.jupiter.api.Assertions.assertEquals(!toldStanding.isEmpty(), EdgeAuditOpenTest.AUDIT_OPEN.stream()
+                .anyMatch(i -> i.id().equals("J39")), "the standing planning tells are counted as the audit's J39, and"
+                + " J39 closes with the last of them");
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(toldStanding), new java.util.TreeSet<>(found),
+                "the listener answers, or planning tells someone (the run tells, at each verdict's turn; planning tells no"
+                + " one but the standing pins, each awaiting its ruling)");
     }
 
     @Test
@@ -2569,8 +3065,8 @@ final class ArchitectureTest {
     }
 
     /**
-     * <strong>The pure/v1 API is plan side (2026-10-08, //core:pure_v1).</strong>
-     * {@code PureV1Api} lives in {@code com.legend.server}, which the
+     * <strong>The pure/v1 API is plan side (2026-10-08, //core:pure_v1; //core:lite_v1 since B7, 2026-11-17).</strong>
+     * {@code LiteV1Api} lives in {@code com.legend.server}, which the
      * JDBC funnel above exempts, but it is the plan side's: the compiler's
      * boundary answers with it (Python's engine for DataCube,
      * docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md), and its one run is
@@ -2581,7 +3077,7 @@ final class ArchitectureTest {
     @Test
     void thePureV1ApiReachesNoDatabase() {
         noClasses()
-            .that().haveNameMatching("com\\.legend\\.server\\.PureV1Api(\\$.*)?")
+            .that().haveNameMatching("com\\.legend\\.server\\.LiteV1Api(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("the pure/v1 API is plan side: its host runs its queries")
@@ -2617,22 +3113,32 @@ final class ArchitectureTest {
      */
     @Test
     void compileSideLayersAreDialectBlind() {
-        noClasses()
+        COMPILE_SIDE_DIALECT_BLIND.check(CORE_PROD_CLASSES);
+    }
+
+    // the Scalars exemption removed 2026-11-12 (phase D, the orchestrator's guard addition, the user's "everyone was
+    // using dialect in IF statements in the compiler"): Scalars reaches no sql.dialect class any more, so the rule is
+    // total, as its javadoc says
+    static final com.tngtech.archunit.lang.ArchRule COMPILE_SIDE_DIALECT_BLIND = noClasses()
             .that().resideInAnyPackage("com.legend.parser..",
                     "com.legend.compiler..", "com.legend.lowering..",
                     "com.legend.resolver..", "com.legend.normalizer..",
                     "com.legend.lineage..", "com.legend.plan..",
                     "com.legend.protocol..", "com.legend.model..",
                     "com.legend.door..")
-            .and().haveNameNotMatching(
-                    "com\\.legend\\.lowering\\.Scalars(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("com.legend.sql.dialect..")
             .as("single-compiler tenet: compile-side layers are"
                     + " DIALECT-BLIND — backend differences are dialect"
                     + " rewrite/render rules, never branches in the"
-                    + " compiler (zero exceptions since Phase 1)")
-            .check(CORE_PROD_CLASSES);
+                    + " compiler (zero exceptions since Phase 1)");
+
+    /** {@link #compileSideLayersAreDialectBlind} fails on a lowering class that asks a dialect
+     *  ({@code lowering.PlantedDialectBranch}, a test class planted for this alone; 2026-11-12). */
+    @Test
+    void theDialectBlindRuleBitesAPlantedBranch() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> COMPILE_SIDE_DIALECT_BLIND.check(
+                new ClassFileImporter().importClasses(com.legend.lowering.PlantedDialectBranch.class)));
     }
 
     /**
@@ -2667,15 +3173,12 @@ final class ArchitectureTest {
                     + " TypedRawSqlRelation case) — it carries authored text, never"
                     + " platform-composed SQL");
 
-    @Test
-    void reflectionIsBannedInProduction() {
-        REFLECTION_BANNED.check(CORE_PROD_CLASSES);
-    }
-
-    /** F1.11 (the rule of {@link #reflectionIsBannedInProduction}): a Class method's call or reference
-     *  ({@link #invokesWhere}). */
+    /** F1.11: a Class method's call or reference ({@link #invokesWhere}); held over core, the hosts' doors and the edge
+     *  as {@link #hostDoorRules}' row {@code reflectionIsBannedInProduction}. */
     static final com.tngtech.archunit.lang.ArchRule REFLECTION_BANNED = noClasses()
-            .that().resideInAPackage("com.legend..")
+            // every class outside the edge, not com.legend's alone: the hosts' doors live in planner and nativelib
+            // packages (C.5, 2026-11-17)
+            .that().resideOutsideOfPackage("com.legend.edge..")
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.lang.reflect..", "java.lang.invoke..")
             // and the reflective doors on Class itself (no java.lang.reflect
@@ -2737,8 +3240,12 @@ final class ArchitectureTest {
             // DynamicPivot 2026-10-31, the seam program's S3: no probe is left)
             // the whole driver package since 2026-10-30 (D73, step C: the execution side's machinery -- the body driver
             // and compiler, the judges' arms, the seeds, the probes, the system database -- is com.legend.driver)
-            .that().haveNameMatching("com\\.legend\\.(driver\\.[A-Za-z0-9_]+"
-                    + "|judge\\.[A-Za-z0-9_]+"
+            // repointed 2026-11-18 (the review of 11de9ae229, MUST-FIX 2: the driver and judge packages were deleted by
+            // slice 5, 2026-11-09, so the rule had read the test-data generator's two classes alone): the body's planner
+            // and the judges' planning halves are com.legend.testplan, the runner and the judges' run halves
+            // com.legend.testexec
+            .that().haveNameMatching("com\\.legend\\.(testplan\\.[A-Za-z0-9_]+"
+                    + "|testexec\\.[A-Za-z0-9_]+"
                     + "|testdatagen\\.TestDataGenerationNatives|testdatagen\\.TestDataGenerator)"
                     + "(\\$.*)?")
             .should().dependOnClassesThat()
@@ -2762,7 +3269,7 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsTheOneCallerOfTheSessionsStatements() {
-        RUNNER_IS_THE_ONE_CALLER.check(CORE_PROD_CLASSES);
+        RUNNER_IS_THE_ONE_CALLER.check(CORE_AND_EDGE_CLASSES);
     }
 
     /** The seam: the runners, the session owners and the implementations (ProgramRunner since 2026-11-08, the
@@ -2958,15 +3465,17 @@ final class ArchitectureTest {
 
     /** THE SERVER'S MINTS (the rule of {@link #theServersMintsAreItsHostDoorsAlone}). */
     static final com.tngtech.archunit.lang.ArchRule SERVER_MINTS_AT_ITS_HOST_DOORS = noClasses()
-            .that().resideInAPackage("com.legend.server..")
-            .should().accessTargetWhere(invokesWhere("UUID.randomUUID outside PureV1Api's jsonPlan and arrowPlan",
+            .that().resideInAnyPackage("com.legend.server..", "com.legend.edge..")
+            .should().accessTargetWhere(invokesWhere("UUID.randomUUID outside HostAnswers' jsonPlan and arrowPlan",
                     a -> a.getTargetOwner().isEquivalentTo(java.util.UUID.class) && a.getName().equals("randomUUID")
-                            && !(a.getOriginOwner().getName().equals("com.legend.server.PureV1Api")
+                            && !(a.getOriginOwner().getName().equals("com.legend.edge.HostAnswers")
                                     && a.getOrigin().getName().matches(SERVER_DOOR_MINTS))))
-            .as("the server mints an execution's id at its two host doors alone (PureV1Api.jsonPlan, arrowPlan)");
+            // the host doors moved to the edge with legend-engine's writers (W8 of docs/records/d-plan-2026-11-16.md,
+            // 2026-11-16): the server and the edge mint at those two alone
+            .as("the server mints an execution's id at its two host doors alone (edge.HostAnswers.jsonPlan, arrowPlan)");
 
     /**
-     * THE SERVER'S MINTS ARE ITS HOST DOORS' (the C final audit's J5, 2026-11-12): {@code PureV1Api.jsonPlan} and
+     * THE SERVER'S MINTS ARE ITS HOST DOORS' (the C final audit's J5, 2026-11-12): {@code LiteV1Api.jsonPlan} and
      * {@code arrowPlan} answer a HOST that runs the plan's statement itself (Python's engine), so no run of the
      * platform's has a door to mint the execution's id: each mints the one id its plan half reports (jsonPlan's, which
      * {@code jsonAnswer} and {@code arrowAnswer} report back with the host's rows; arrowPlan's, in its activities).
@@ -2977,10 +3486,10 @@ final class ArchitectureTest {
      */
     @Test
     void theServersMintsAreItsHostDoorsAlone() {
-        SERVER_MINTS_AT_ITS_HOST_DOORS.check(CORE_PROD_CLASSES);
+        SERVER_MINTS_AT_ITS_HOST_DOORS.check(CORE_AND_EDGE_CLASSES);
         // and each door mints once
         org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("arrowPlan", 1, "jsonPlan", 1),
-                doorMints(CORE_PROD_CLASSES.get("com.legend.server.PureV1Api")),
+                doorMints(CORE_AND_EDGE_CLASSES.get("com.legend.edge.HostAnswers")),
                 "the server's two host doors, one mint each");
     }
 
@@ -3151,6 +3660,8 @@ final class ArchitectureTest {
                         return !madeFrom(access, "planner.Boundary", "authored");
                     }
                     if (target.equals("planner.Boundary#authored")) {
+                        // the tab's adapter, planner.TabExports again since the user's K2 ruling (2026-11-18; the
+                        // edge's com.legend.edge.wasm.TabExports from F's census line A1, 2026-11-17, until then)
                         return !madeFrom(access, "planner.TabExports", "authoredOrError");
                     }
                     return false;
@@ -3174,12 +3685,96 @@ final class ArchitectureTest {
         AUTHORED_DOOR.check(coreAndTheHostsDoors());
     }
 
-    /** The classes of core and of the hosts' doors ({@code //core:product_jars} and {@code //core:authored_door_jars}:
-     *  the boundary, the tab's adapter and the native entry), the import checked to hold each door. */
+    /**
+     * THE PURE/V1 STYLE'S CALLERS (B7, the orchestrator's condition (2) on the {@code plainRaises} hook, 2026-11-17):
+     * {@code edge.PureText.PURE_V1} -- legend-engine's unchecked raises written plain, the user's ruling "pure/v1
+     * matches engine" -- is selected by the pure/v1 routes alone: the route module, the shipped server's runner and the
+     * embedded hosts' execute halves. PCT and the corpus keep {@code UPSTREAM}; a new caller is a ruling, not an edit.
+     */
+    @Test
+    void thePureV1StyleIsSelectedByThePureV1RoutesAlone() {
+        java.util.Set<String> callers = new java.util.TreeSet<>();
+        // the shipped server's runner stands in its own target (//core:edge_server), outside the imported jars: read from
+        // the edge's test classpath, which holds it
+        java.util.List<com.tngtech.archunit.core.domain.JavaClass> classes = new java.util.ArrayList<>();
+        coreAndTheHostsDoors().forEach(classes::add);
+        try {
+            new ClassFileImporter().importClasses(Class.forName("com.legend.edge.EdgeServer")).forEach(classes::add);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("the shipped server's runner (//core:edge_server) is not on this test's"
+                    + " classpath", e);
+        }
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
+                if (a.getTargetOwner().getName().equals("com.legend.edge.PureText") && a.getName().equals("PURE_V1")
+                        && !a.getOriginOwner().getName().startsWith("com.legend.edge.PureText")) {
+                    callers.add(a.getOriginOwner().getName().replaceAll("\\$.*$", ""));
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(java.util.Set.of(
+                "com.legend.edge.EdgeServer", "com.legend.edge.PureV1Routes", "com.legend.edge.wasm.EdgeBoundary")),
+                callers, "PureText.PURE_V1 is selected by the pure/v1 routes alone (B7, 2026-11-17)");
+    }
+
+    /**
+     * THE PRODUCT HAS ONE GRAMMAR (J21 of the edge audit, 2026-11-17, the user's ruling "yes to the rule"): legend-lite's
+     * (the platform's own sources have theirs). Legend-engine's level -- its
+     * refusals and its shapes -- is the parser's to define and the edge's to ask for, where the edge parses legend-engine's
+     * protocol: no product parse is made at it. (1) Outside the parser and the edge nothing names
+     * legend-engine's level. (2) The parsers' level-less text-to-JSON entries, which are legend-engine's
+     * ({@code PmcdParser.parseDocument}/{@code parseModel}/{@code parseSections}, {@code SpecParser.parseLambda}/
+     * {@code lambdaJson}), are reached outside the parser through the parse door's engine entries alone, and (3) those
+     * ({@code door.Parse.engineDocumentJson}/{@code engineLambdaJson}) by the edge alone. A new caller is a ruling.
+     */
+    @Test
+    void legendEnginesGrammarIsTheEdgesAlone() {
+        java.util.Set<String> engineEntries = java.util.Set.of(
+                "com.legend.parser.PmcdParser.parseDocument(java.lang.String)",
+                "com.legend.parser.PmcdParser.parseDocument(java.lang.String, boolean)",
+                "com.legend.parser.PmcdParser.parseModel(java.lang.String)",
+                "com.legend.parser.PmcdParser.parseSections(java.lang.String)",
+                "com.legend.parser.SpecParser.parseLambda(java.lang.String)",
+                "com.legend.parser.SpecParser.lambdaJson(java.lang.String, boolean)");
+        java.util.Set<String> edgeDoor = java.util.Set.of(
+                "com.legend.door.Parse.engineRecords(java.lang.String)",
+                "com.legend.door.Parse.engineDocumentJson(java.lang.String)",
+                "com.legend.door.Parse.engineLambdaJson(java.lang.String)");
+        java.util.List<String> bad = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
+            String origin = c.getName().replaceAll("\\$.*$", "");
+            boolean parser = origin.startsWith("com.legend.parser.");
+            boolean edge = origin.startsWith("com.legend.edge.");
+            for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
+                if (!parser && !edge && a.getTargetOwner().getName().equals("com.legend.parser." + "GrammarLevel")
+                        && a.getName().equals("LEGEND" + "_ENGINE")) {
+                    bad.add(origin + " names legend-engine's grammar level");
+                }
+            }
+            for (com.tngtech.archunit.core.domain.JavaMethodCall call : c.getMethodCallsFromSelf()) {
+                String target = call.getTarget().getFullName().replace(",", ", ");
+                if (!parser && engineEntries.contains(target)
+                        && !(origin.equals("com.legend.door.Parse") && call.getOrigin().getName().startsWith("engine"))) {
+                    bad.add(origin + "." + call.getOrigin().getName() + " calls " + target);
+                }
+                if (!edge && edgeDoor.contains(target)) {
+                    bad.add(origin + "." + call.getOrigin().getName() + " calls " + target);
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), bad,
+                "legend-engine's grammar is the edge's alone: the product has one grammar (J21, 2026-11-17)");
+    }
+
+    /** The classes of core, of the hosts' doors and of the edge ({@code //core:product_jars},
+     *  {@code //core:authored_door_jars} -- the boundary, the tab's adapter, the native entry, the JVM's and the zone
+     *  probe's mains, the SDLC's grammar, the edge's boundary and tab -- and {@code //core:edge_jars}), the import
+     *  checked to hold each door. */
     private static JavaClasses coreAndTheHostsDoors() {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
-            for (String property : java.util.List.of("legend.product.jars", "legend.authored.jars")) {
+            // the edge's jar too (phase D's D1.0b, merged with C4's rule 2026-11-15): a caller outside the planners
+            for (String property : java.util.List.of("legend.product.jars", "legend.authored.jars", "legend.edge.jars")) {
                 for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
                     jars.add(new java.util.jar.JarFile(jar.toFile()));
                 }
@@ -3188,7 +3783,12 @@ final class ArchitectureTest {
             throw new java.io.UncheckedIOException(e);
         }
         JavaClasses classes = new ClassFileImporter().importJars(jars);
-        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.nativelib.Compiler")) {
+        // each door of //core:authored_door_jars (the JVM's and the zone probe's mains and the SDLC's grammar since the C.5
+        // review, 2026-11-17: a jar dropped from the list turned nothing red); the tab's adapter planner.TabExports again,
+        // the engine module's entry beside it (the user's K2 ruling, 2026-11-18: "Product root, edge opt-in")
+        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports",
+                "com.legend.edge.wasm.EngineExports", "com.legend.nativelib.Compiler", "planner.JvmMain", "planner.ZoneMain",
+                "com.legend.sdlc.grammar.CoreGrammar", "com.legend.edge.wasm.EdgeBoundary")) {
             org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
         }
         return classes;
@@ -3363,8 +3963,9 @@ final class ArchitectureTest {
                     // sanctioned here; each parses through a door now
                     "com.legend.door")
             .should().dependOnClassesThat().haveNameMatching(
+                    // (MappingGrammarParser and RelationalGrammarParser: deleted 2026-08-08, b23f687579 -- their
+                    // alternatives named nothing; gone 2026-11-18, the review of 11de9ae229)
                     "com\\.legend\\.parser\\.(ElementParser|SpecParser"
-                    + "|MappingGrammarParser|RelationalGrammarParser"
                     + "|TokenStreamCursor)(\\$.*)?")
             .as("Invariant 6i: grammar parsers/cursors live and die at parse"
               + " time (the parse doors and the IDE are the sanctioned users)")
@@ -3415,23 +4016,46 @@ final class ArchitectureTest {
     // slot, and no cell is parsed by its text's shape.)
 
     /** Register S144's reader of upstream's JSON grammar is the two judges' alone (the user, 2026-11-07: "keep it
-     *  isolated"): no product class, and no other judging class, reads JSON through it. It moves to the edge (P2). */
+     *  isolated"): no product class reads JSON through it. It moved to the edge (census C1, 2026-11-17:
+     *  {@code com.legend.edge.JsonSimpleGrammar}; the product's form, {@code testexecutionplan.JudgeJson}, reads strict
+     *  JSON), so no product class may name it -- the judges included. Until 2026-11-17 the rule named the deleted driver
+     *  package's JudgeJson and so read nothing (the edge audit's K16); repointed then at the grammar where it lives.
+     *  Redundant by design (the review of 11de9ae229, 2026-11-18): the BUILD wall and EdgeSeparationTest's CODE guard
+     *  already refuse any product dependency on an edge class; this keeps S144's own name on it. Which EDGE classes may
+     *  read the lenient grammar (PureText, Appeals today) is not scoped here. */
     @Test
     void theCompatibilityJsonReaderIsTheJudgesAlone() {
-        noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.testplan.HostJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.testplan.DatabaseJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple$Kind")
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.JudgeJson(\\$.*)?")
-            .as("S144: json-simple's grammar is read by the two judges alone")
-            .check(CORE_PROD_CLASSES);
+        compatibilityJsonRule().check(CORE_PROD_CLASSES);
+    }
+
+    static com.tngtech.archunit.lang.ArchRule compatibilityJsonRule() {
+        return noClasses()
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.edge\\.JsonSimpleGrammar(\\$.*)?")
+            .as("S144: json-simple's grammar is the edge's, read by no product class");
+    }
+
+    /** The two rules repointed by the edge audit's K16 (2026-11-17) each bite a planted product class: one that reads a
+     *  canonical instrument outside the verdict seam, one that reads the edge's json-simple grammar
+     *  ({@code planner.PlantedVerdictReach}). Each failure names the planted class. */
+    @Test
+    void theRepointedJudgeRulesBite() {
+        JavaClasses planted = new ClassFileImporter().importClasses(com.legend.planner.PlantedVerdictReach.class);
+        org.junit.jupiter.api.Assertions.assertEquals(1, planted.size(), "the planted class is imported");
+        for (com.tngtech.archunit.lang.ArchRule rule : java.util.List.of(compatibilityJsonRule(), hostVerdictRule())) {
+            AssertionError e = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                    () -> rule.check(planted), rule.getDescription());
+            org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("com.legend.planner.PlantedVerdictReach"),
+                    rule.getDescription() + ": " + e.getMessage());
+        }
     }
 
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
-        noClasses()
+        hostVerdictRule().check(CORE_PROD_CLASSES);
+    }
+
+    static com.tngtech.archunit.lang.ArchRule hostVerdictRule() {
+        return noClasses()
             .that().doNotHaveFullyQualifiedName("com.legend.testplan.AssertVerdicts")
             // task #27 (2026-09-21): the verdict seam's two arms — the host judge
             // (Java compare over database rows) and the database judge (the verdict
@@ -3443,6 +4067,22 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.TdsCompare")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalDivergence")
+            // the four's own nested classes (CanonicalForm$Result's variants implement it; PureAsserts has none)
+            .and().haveNameNotMatching("com\\.legend\\.testexec\\.(CanonicalForm|CanonicalDivergence|Equality)\\$.*")
+            // THE SEAM'S RUN HALF (measured 2026-11-17, when the rule was repointed from the deleted judge package -- the
+            // edge audit's K16): since slice 5 (2026-11-09) the judges are planned in testplan and run in testexec, and
+            // these are the run's judges -- the host judge's judgments, an assert's run, the database judge's verdicts --
+            // and the host forms that say how the host judge compares numbers across kinds (a hook, HOOK-RULED)
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostJudgments")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.AssertRuns")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.DatabaseVerdicts")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostForms")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostForms")
+            // the host judge's words of a failed assert (census J29, train 14's 21a9734475; registered 2026-11-18 by the
+            // GUARD stream's re-cut on train 15 1931d419b1, where this rule first met them): the run hook HostForms
+            // names, the kind and lite's form; each words a verdict over Equality's typed grids, never decides one
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostWords")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostWords")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
             // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
@@ -3450,10 +4090,10 @@ final class ArchitectureTest {
             // was deleted long before -- the ledger's Equality row records it gone -- and the D71 audit found the
             // exemption naming nothing; deleted, a dated note)
             // JUDGING_TWO_MODES step 2: the host judge and the service-test
-            // judge are the seam's own (Equality decides; TestAssertions
-            // routes EqualToJson to it)
+            // judge are the seam's own (Equality decides; the edge's EqualToJson, moved from test.TestAssertions
+            // 2026-11-17 with J11's residue, reads its one float bound)
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.Equality")
-            .and().doNotHaveFullyQualifiedName("com.legend.test.TestAssertions")
+            .and().doNotHaveFullyQualifiedName("com.legend.edge.EqualToJson")
             // leg 3.4 (2026-09-20): the verdict seam's SENDING arm — the
             // body's deferred verdict statements as one statement; it
             // counts the census rows the arm counted at the assert
@@ -3466,18 +4106,16 @@ final class ArchitectureTest {
             // (com.legend.testexec.DatabaseVerdicts.verdictOf), its appeal heard by number
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops$Run")
-            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is the edge's, decided after the body's
-            // run): a body's held appeals, the verdict seam's after the run -- a failed appeal counted as raised, as a
-            // failure at its step is (the census call); the appeal's own judgment is SqlTextVerdicts', nothing here
-            .and().doNotHaveFullyQualifiedName("com.legend.testexec.Appeals")
-            // the four live in com.legend.judge since 2026-10-30 (D71, the seam-and-wall program's B1: the judge
-            // layer out of exec); the rule's exemptions name them there too
+            // (com.legend.testexec.Appeals, a body's held appeals: moved to the edge with the referee, census C2,
+            // 2026-11-17 -- its exemption named nothing here, deleted with the K16 repoint)
+            // the four live in com.legend.testexec since the judge package's deletion (slice 5, 2026-11-09); the rule
+            // read com.legend.judge until 2026-11-17, a package no class is in -- it named nothing (the edge audit's
+            // K16, CanonicalDivergence among the four); its exemptions already named them in testexec
             .should().dependOnClassesThat().haveNameMatching(
-                "com\\.legend\\.judge\\.(PureAsserts|CanonicalForm|CanonicalDivergence|Equality)")
+                "com\\.legend\\.testexec\\.(PureAsserts|CanonicalForm|CanonicalDivergence|Equality)(\\$.*)?")
             .as("V3: host-verdict classes are reachable only from the"
                     + " verdict/referee seam — register a new dependent"
-                    + " consciously or route through the DB byte verdict")
-            .check(CORE_PROD_CLASSES);
+                    + " consciously or route through the DB byte verdict");
     }
 
     /**
@@ -3552,6 +4190,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.arrowipc.ArrowIpc.END", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.arrowipc.ZstdFrame.MAGIC", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.diagnostics.Census.UNPLANNED_ASSERTS", StaticKind.MEASUREMENT),
+            // 2026-11-12 (E-1, the user's ruling: the lean-SQL sets' capture out of the product): the planner's one typed
+            // observer, none in the product, a test harness's installed (com.legend.leansql.QueryCaptureListener)
+            java.util.Map.entry("com.legend.planner.PlanningObserver$Installed.OBSERVER", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.base.Attribution.LABEL", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CURRENT_FAMILY", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.SQL_CENSUS", StaticKind.MEASUREMENT),
@@ -3568,7 +4209,7 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.probe.Shadow.SEEN", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.probe.Shadow.TABLES", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.probe.Shadow.ROWS", StaticKind.MEASUREMENT),
-            java.util.Map.entry("com.legend.sql.dialect.StableScanOrder.FIRINGS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.edge.StableScanOrder.FIRINGS", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.sql.dialect.SQLite.MONTHS", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.sql.dialect.SQLite.DAYS", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.MD5_K", StaticKind.CONSTANT_ARRAY),
@@ -3602,16 +4243,11 @@ final class ArchitectureTest {
     void staticStateIsConstantOrRegistered() throws Exception {
         java.util.List<String> violations = new java.util.ArrayList<>();
         java.util.Set<String> seen = new java.util.TreeSet<>();
-        for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_PROD_CLASSES) {
-            Class<?> cls;
-            try {
-                cls = Class.forName(jc.getName());
-            } catch (ExceptionInInitializerError e) {
-                // a class whose initialiser fails is a finding, never a class skipped (the follow-up audit, 2026-11-09)
-                violations.add(jc.getName() + "'s class initialiser fails: " + e.getCause());
+        // the edge's classes too (W6, 2026-11-16: StableScanOrder's census moved to com.legend.edge, its own jar)
+        for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_AND_EDGE_CLASSES) {
+            Class<?> cls = loadedOrFound(jc.getName(), ArchitectureTest.class.getClassLoader(), violations);
+            if (cls == null) {
                 continue;
-            } catch (NoClassDefFoundError | ClassNotFoundException e) {
-                continue; // a class whose driver is not on the test JVM's classpath: nothing to inspect
             }
             for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
                 if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.isSynthetic()
@@ -3646,6 +4282,40 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertTrue(violations.isEmpty(),
                 "no static state but the register's (constant, sealed, or registered by kind):\n  "
                         + String.join("\n  ", violations));
+    }
+
+    /**
+     * The class {@code name} as {@code loader} loads it, or null with the finding added: a class whose initialiser fails,
+     * or one the test JVM cannot load at all, is judged by no one, so it is a finding, never a class skipped (the
+     * initialiser: the follow-up audit, 2026-11-09; an unloadable class: the review of C.11, S7, 2026-11-18 -- the rule
+     * skipped it as "a class whose driver is not on the classpath", which let an imported jar go unjudged; measured
+     * that day, no class of the product's and the edge's jars is unloadable on :guardrails_edge's classpath).
+     */
+    static Class<?> loadedOrFound(String name, ClassLoader loader, java.util.List<String> violations) {
+        try {
+            return Class.forName(name, true, loader);
+        } catch (ExceptionInInitializerError e) {
+            violations.add(name + "'s class initialiser fails: " + e.getCause());
+        } catch (NoClassDefFoundError | ClassNotFoundException e) {
+            violations.add(name + " cannot be loaded on the test's classpath (" + e + "): put its library on the"
+                    + " runtime classpath, or its static state is judged by no one");
+        }
+        return null;
+    }
+
+    /** Planted: a class the loader cannot see is a finding, not a class skipped. */
+    @Test
+    void anUnloadableClassIsAFinding() {
+        java.util.List<String> violations = new java.util.ArrayList<>();
+        ClassLoader blind = new java.net.URLClassLoader(new java.net.URL[0], ClassLoader.getPlatformClassLoader());
+        org.junit.jupiter.api.Assertions.assertNull(loadedOrFound("com.legend.ArchitectureTest", blind, violations));
+        org.junit.jupiter.api.Assertions.assertEquals(1, violations.size(), violations.toString());
+        org.junit.jupiter.api.Assertions.assertTrue(violations.get(0).startsWith(
+                "com.legend.ArchitectureTest cannot be loaded on the test's classpath"), violations.get(0));
+        java.util.List<String> none = new java.util.ArrayList<>();
+        org.junit.jupiter.api.Assertions.assertEquals(ArchitectureTest.class,
+                loadedOrFound("com.legend.ArchitectureTest", ArchitectureTest.class.getClassLoader(), none));
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), none);
     }
 
     /** Why {@code v} is mutable, or null for a constant. */
@@ -3863,7 +4533,9 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.compiler.spec.SortChecker", 8),
                     java.util.Map.entry("com.legend.compiler.spec.SourceSubst", 10),
                     java.util.Map.entry("com.legend.compiler.spec.StaticFold", 12),
-                    java.util.Map.entry("com.legend.compiler.spec.TdsDesugars", 58),
+                    // 58 -> 55 (2026-11-16, W1 of docs/records/d-plan-2026-11-16.md: D1.3's merge -- a TDS cell's text is
+                    // one cellText call, the TDSNull desugar the edge's -- shrinkage, ratcheted down)
+                    java.util.Map.entry("com.legend.compiler.spec.TdsDesugars", 55),
                     java.util.Map.entry("com.legend.compiler.spec.TdsNullForms", 1),
                     java.util.Map.entry("com.legend.compiler.spec.TypeAnnotations", 1),
                     java.util.Map.entry("com.legend.compiler.spec.Typer", 17),
@@ -3874,7 +4546,8 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.lineage.ScanRelations", 2),
                     java.util.Map.entry("com.legend.model.MappingFromProtocol", 4),
                     java.util.Map.entry("com.legend.test.PureTestRunner", 2),
-                    java.util.Map.entry("com.legend.test.ServiceTestRunner", 2),
+                    // com.legend.edge.ServiceTestRunner (2): gone from the scan 2026-11-16 (W1's merge of D1.4): the
+                    // runner is //core:edge_service_tests, the compatibility edge's own library, outside core's classes
                     java.util.Map.entry("com.legend.validation.ValidateDesugar", 22)
             ));
 
@@ -4008,7 +4681,9 @@ final class ArchitectureTest {
      */
     @Test
     void onlyCheckedSitesMakeATemporalLiteral() {
-        ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL.check(CORE_PROD_CLASSES);
+        // the edge's jars too (F's catch on J32, 2026-11-18: the engine-text seed moved to the edge, out of a rule that
+        // read the product's alone; a literal the edge writes reaches a statement the same way)
+        ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL.check(CORE_AND_EDGE_CLASSES);
     }
 
     /** The classes that construct a typed temporal literal, each from text it may write as it is. */
@@ -4020,12 +4695,13 @@ final class ArchitectureTest {
             "com.legend.lowering.Scalars",
             // a model CSV cell matched against its ISO shape first
             "com.legend.setup.RowLoad",
-            // the engine-text seed: quoted by EngineStyleH2.seedCell -- a date's and a timestamp's cell (a
-            // TIMESTAMP_NS's too) a string literal, its quotes doubled; a TIME cell refused by name -- the one dialect
-            // every caller of Ddl.setUpDataSqlsText passes (EngineText.engineText()). 2026-11-13, the orchestrator's
-            // item 3: "checked first" was wrong (its TIME and TIMESTAMP_NS literals come from unchecked text), and the
-            // finding-B refusal it named guarded nothing
-            "com.legend.setup.Ddl",
+            // the engine-text seed: quoted by EngineStyleH2.seedCell -- a date's and a timestamp's cell (a TIMESTAMP_NS's
+            // too) a string literal, its quotes doubled; a TIME cell refused by name -- the one dialect every caller of
+            // setUpDataSqlsText passes (the edge's, PlanStyle.engineText). 2026-11-13, the orchestrator's item 3:
+            // "checked first" was wrong (its TIME and TIMESTAMP_NS literals come from unchecked text), and the finding-B
+            // refusal it named guarded nothing. Moved 2026-11-18 with J32 from setup.Ddl to the edge's EngineSeedText,
+            // the rule reading the edge's jars since (F's catch on J32)
+            "com.legend.edge.EngineSeedText",
             // a milestoning date: a date literal the lexer parsed (TestDataGenerationNatives.dateField)
             "com.legend.testdatagen.TestDataGenerator",
             // a row identifier's value checked against its column type's ISO shape first (iso: digits, separators and
@@ -4068,7 +4744,8 @@ final class ArchitectureTest {
     /** {@code name}, or a class nested in it, calls a constructor of a class {@code made} matches. */
     private static void assertMakes(String name, String made, String list) {
         boolean makes = false;
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        // the product's and the edge's (the temporal-literal rule reads both since F's catch on J32, 2026-11-18)
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_AND_EDGE_CLASSES) {
             if (c.getName().equals(name) || c.getName().startsWith(name + "$")) {
                 makes |= constructsAny(c, made);
             }
@@ -4403,5 +5080,157 @@ final class ArchitectureTest {
                 + " parser — build it in the parser or the normalizer instead; SHRINKAGE"
                 + " means a desugaring site went home — ratchet the row down in the same"
                 + " commit");
+    }
+
+    /**
+     * ONE HOOK, ITS UPSTREAM SIDE THE EDGE'S (D's hook fold, 2026-11-16, agreed by D and E-Java: CompatForms, a second
+     * road with a default, deleted; {@link com.legend.database.PlanStyle} the one hook): a class that implements the
+     * plan style, or prints legend-engine's text ({@link com.legend.edge.EngineTextDialect}), is the
+     * compatibility edge's ({@code com.legend.edge}) -- the product's own style, {@code PlanStyle.PRODUCT}, is the one
+     * other, and it refuses every upstream form by name. A product class that spelled upstream's forms would be a mode.
+     */
+    static java.util.List<String> upstreamSidesOutsideTheEdge(JavaClasses classes) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            // and each test-planning facet's implementer (W9's judge half, 2026-11-16: the facets are the edge's)
+            boolean facet = com.legend.testplan.PlanStyleFacets.KINDS.stream().anyMatch(c::isAssignableTo);
+            if (c.isInterface() || !(c.isAssignableTo(com.legend.database.PlanStyle.class)
+                    || c.isAssignableTo(com.legend.edge.EngineTextDialect.class) || facet)) {
+                continue;
+            }
+            // the product's own style, exactly its class (the P2 checkpoint audit's S2, 2026-11-16: until then any
+            // PlanStyle$* class, so a second style nested in PlanStyle passed as the product's)
+            boolean product = c.getName().equals(com.legend.database.PlanStyle.PRODUCT.getClass().getName());
+            if (!product && !c.getPackageName().equals("com.legend.edge")) {
+                out.add(c.getName());
+            }
+        }
+        java.util.Collections.sort(out);
+        return out;
+    }
+
+    /** THE STYLES THE FACET TESTS HOLD ARE EVERY STYLE (the P2 checkpoint audit's S2, 2026-11-16):
+     *  {@code PlanStyleFacetsTest.STYLES} names a class for each concrete {@link com.legend.database.PlanStyle}
+     *  implementer in the product's and the edge's jars, so a new style is held to the closed facet list. */
+    @Test
+    void theFacetTestsHoldEveryStyle() {
+        java.util.Set<String> implementers = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_AND_EDGE_CLASSES) {
+            if (!c.isInterface() && c.isAssignableTo(com.legend.database.PlanStyle.class)) {
+                implementers.add(c.getName());
+            }
+        }
+        java.util.Set<String> held = new java.util.TreeSet<>();
+        PlanStyleFacetsTest.STYLES.forEach(s -> held.add(s.getClass().getName()));
+        org.junit.jupiter.api.Assertions.assertEquals(implementers, held,
+                "a plan style the facet tests do not hold: add it to PlanStyleFacetsTest.STYLES");
+    }
+
+    /** The rule bites a planted plan style outside the edge ({@link PlantedUpstreamStyle}, a test class planted for
+     *  this alone). */
+    /** The rule bites a planted test-planning facet outside the edge ({@link PlantedEngineTestText}). */
+    @Test
+    void theHookRuleBitesAPlantedFacet() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(PlantedEngineTestText.class.getName()),
+                upstreamSidesOutsideTheEdge(new ClassFileImporter().importClasses(PlantedEngineTestText.class)));
+    }
+
+    /** A rule held over core, the hosts' doors and the edge: its name (the test it was, which the docs cite), its check
+     *  over an import, and the class planted in a host's package that it bites. */
+    record HostDoorRule(String name, java.util.function.Consumer<JavaClasses> check, Class<?> planted) {
+    }
+
+    /** The test-planning facets' planted host implementers, one per kind of {@code PlanStyleFacets.KINDS}. */
+    private static final java.util.Map<Class<?>, Class<?>> FACET_PLANTS = java.util.Map.of(
+            com.legend.planner.UpstreamPlans.class, planner.PlantedHostDoors.Facet.class,
+            com.legend.testplan.EngineTestText.class, planner.PlantedHostDoors.TestText.class,
+            com.legend.lowering.RelationTexts.class, planner.PlantedHostDoors.RelationText.class,
+            com.legend.lowering.PureOnlyTexts.class, planner.PlantedHostDoors.PureOnlyText.class,
+            com.legend.lowering.ResultEnvelopes.class, planner.PlantedHostDoors.ResultEnvelope.class);
+
+    /**
+     * THE RULES OVER THE HOSTS' DOORS (the GUARD stream's C.5, 2026-11-17; one table since the C.5 review's MUST-FIX
+     * the same day: five tests each held its rule over its own import, and reverting one import turned nothing red):
+     * each row holds over core, the hosts' authored doors and the edge ({@link #theHostDoorRulesHold}, one import) and
+     * bites its planted host-package class ({@link #theWidenedRulesBiteAPlantedHostDoor}, which pins the rows' names).
+     * A row out of the import is out of the bite.
+     */
+    static java.util.List<HostDoorRule> hostDoorRules() {
+        java.util.List<HostDoorRule> out = new java.util.ArrayList<>();
+        // G5 at the hosts' doors: the edge is the edge's to call (the boundary's D-1 exception went 2026-11-17, the
+        // GUARD stream's C.5: its pure/v1 halves moved to the edge's EdgeBoundary with the census's A1; the native query
+        // store and the query-store page went to the edge with A2 and A3)
+        out.add(new HostDoorRule("theHostsDoorsReachNoEdge", PRODUCT_REACHES_NO_EDGE::check,
+                planner.PlantedHostEdgeReach.class));
+        out.add(new HostDoorRule("dialectsAreTheProductsOrTheEdges", DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES::check,
+                planner.PlantedHostDoors.Dialect.class));
+        for (Class<?> kind : com.legend.testplan.PlanStyleFacets.KINDS) {
+            Class<?> planted = FACET_PLANTS.get(kind);
+            if (planted == null) {
+                throw new IllegalStateException("a facet kind with no planted host implementer: " + kind.getName());
+            }
+            out.add(new HostDoorRule("onlyTheEdgeImplementsAStylesFacet " + kind.getSimpleName(),
+                    facetImplementersAreTheEdges(kind)::check, planted));
+        }
+        out.add(new HostDoorRule("onlyTheEdgeCallsTheSpellingDoors", ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS::check,
+                planner.PlantedHostDoors.Spells.class));
+        out.add(new HostDoorRule("reflectionIsBannedInProduction", REFLECTION_BANNED::check,
+                planner.PlantedHostDoors.Reflects.class));
+        out.add(new HostDoorRule("onlyTheEdgeImplementsTheHooksUpstreamSide", classes -> org.junit.jupiter.api.Assertions
+                .assertEquals(java.util.List.of(), upstreamSidesOutsideTheEdge(classes), "a plan style or an engine-text"
+                        + " printer outside com.legend.edge: upstream's forms are the edge's"),
+                planner.PlantedHostDoors.Style.class));
+        return out;
+    }
+
+    /** Every rule of {@link #hostDoorRules} holds over core, the hosts' doors and the edge, read once. */
+    @Test
+    void theHostDoorRulesHold() {
+        JavaClasses classes = coreAndTheHostsDoors();
+        // the rules read the hosts' doors, not core alone (where every row would pass unseen)
+        for (String door : java.util.List.of("planner.Boundary", "planner.JvmMain", "planner.ZoneMain",
+                "com.legend.nativelib.Compiler")) {
+            org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the rules read " + door);
+        }
+        java.util.List<String> failed = new java.util.ArrayList<>();
+        for (HostDoorRule rule : hostDoorRules()) {
+            try {
+                rule.check().accept(classes);
+            } catch (AssertionError e) {
+                failed.add(rule.name() + ": " + e.getMessage());
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), failed);
+    }
+
+    /** Each rule of {@link #hostDoorRules} bites its planted class, which is in a host's package ({@code planner}): a
+     *  failure naming the class, never the empty selection's (ArchUnit fails a rule that checks no class, so a selector
+     *  that missed the host's package would pass a bare assertThrows -- found by C.5's own mutation run). The rows are
+     *  pinned by name: one dropped is a rule out of the import. */
+    @Test
+    void theWidenedRulesBiteAPlantedHostDoor() {
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        for (HostDoorRule rule : hostDoorRules()) {
+            names.add(rule.name());
+            org.junit.jupiter.api.Assertions.assertTrue(rule.planted().getName().startsWith("planner."),
+                    rule.name() + "'s planted class is in a host's package: " + rule.planted().getName());
+            AssertionError failed = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                    () -> rule.check().accept(new ClassFileImporter().importClasses(rule.planted())), rule.name());
+            org.junit.jupiter.api.Assertions.assertTrue(failed.getMessage().contains(rule.planted().getName()),
+                    rule.name() + " does not name its planted " + rule.planted().getName() + ": " + failed.getMessage());
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(java.util.Set.of(
+                "theHostsDoorsReachNoEdge", "dialectsAreTheProductsOrTheEdges",
+                "onlyTheEdgeImplementsAStylesFacet UpstreamPlans", "onlyTheEdgeImplementsAStylesFacet EngineTestText",
+                "onlyTheEdgeImplementsAStylesFacet RelationTexts", "onlyTheEdgeImplementsAStylesFacet PureOnlyTexts",
+                "onlyTheEdgeImplementsAStylesFacet ResultEnvelopes",
+                "onlyTheEdgeCallsTheSpellingDoors", "reflectionIsBannedInProduction",
+                "onlyTheEdgeImplementsTheHooksUpstreamSide")), names, "the rules over the hosts' doors");
+    }
+
+    @Test
+    void theHookRuleBitesAPlantedStyle() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(PlantedUpstreamStyle.class.getName()),
+                upstreamSidesOutsideTheEdge(new ClassFileImporter().importClasses(PlantedUpstreamStyle.class)));
     }
 }

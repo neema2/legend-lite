@@ -123,7 +123,9 @@ class JudgesOnPlansTest {
                             ((com.legend.protocol.spec.LambdaFunction) parsed).body();
                     TestExecution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(statements,
                             new com.legend.model.ImportScope(List.of()), ctx)), "s::RT",
-                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), new AssertListener() {
+                            // a session per judge (isolated BOTH; the orchestrator's ruling of 2026-11-17): the
+                            // connection's test data is a load each judge's plan makes on its own session
+                            new com.legend.exec.SessionSource.Fresh(backend::open), new AssertListener() {
                                 @Override
                                 public void verdict(String assertName, boolean pass,
                                         @com.legend.base.Nullable String detail) {
@@ -140,7 +142,8 @@ class JudgesOnPlansTest {
                                 public void unjudged(String assertName, String reason) {
                                     told.add("unjudged: " + reason);
                                 }
-                            }, null, ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
+                            }, com.legend.testexec.NoEdgeRun.NONE,
+                            ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
                     boolean passed = told.stream().anyMatch(l -> l.startsWith("pass "));
                     boolean onceOnly = told.stream().anyMatch(l -> l.startsWith("unjudged") || l.startsWith("declined"));
                     outcome = !passed ? "NO VERDICT " + told : onceOnly ? "host decided " + told : "both agree";
@@ -172,10 +175,11 @@ class JudgesOnPlansTest {
                     () -> TestExecution.runProgram(Compiler.queryResolved(ctx, Compiler.resolveQuery(
                             ((com.legend.protocol.spec.LambdaFunction) parsed).body(),
                             new com.legend.model.ImportScope(List.of()), ctx)), "s::RT",
-                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
+                            new com.legend.exec.SessionSource.Fresh(com.legend.testbackend.TestBackends.platform()::open),
+                            null, com.legend.testexec.NoEdgeRun.NONE,
                             ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH)));
-            assertTrue(failed.getMessage().contains("expected: 1"), failed.getMessage());
-            assertTrue(failed.getMessage().contains("actual:   2"), failed.getMessage());
+            // lite's own sentence, both judges' (the user's judge model, 2026-11-17)
+            assertEquals("expected 1, got 2", failed.getMessage());
             assertEquals(-1, failed.getMessage().indexOf("DISAGREE"), failed.getMessage());
         }
     }

@@ -51,7 +51,7 @@ class DialectOwnerExclusivityTest {
             // reads this text on DuckDB too; refusing them broke 14 passing corpus tests (c7cd917; the plan's Phase 1b
             // step 2, the engine-H2 row). Whether the engine text should spell them at all is the engine-text work's
             // question, not this guard's.
-            new Crossing("core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java", "DuckDB", 9,
+            new Crossing("core/src/main/java/com/legend/edge/EngineStyleH2.java", "DuckDB", 9,
                     "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"),
             // (2026-10-18, the dialect program's Phase 7: the warehouse's two crossings, its Postgres catalog tests
             // naming DuckDB, left this list: the warehouse is a host owner, its engine DuckDB (DatabaseOwners).)
@@ -64,7 +64,11 @@ class DialectOwnerExclusivityTest {
             // session tests whose subject is another database's text on that session: legend-engine's H2 SQL in an
             // executeInDb, translated for DuckDB (D2), and a connection helper whose overloads declare H2 and DuckDB
             new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", "H2", 6,
-                    "legend-engine's H2 text run on a DuckDB session, translated (D2)"));
+                    "legend-engine's H2 text run on a DuckDB session, translated (D2)"),
+            // 2026-11-17 (F's census line A5, D's ask): ExecuteInDbDuckDbTest's edge-road cases split into their own
+            // test, the edge's: the same H2 text on the same DuckDB session, translated on the edge's road
+            new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java", "H2", 6,
+                    "legend-engine's H2 text run on a DuckDB session, translated on the edge's road (B4 (ii))"));
             // (RawGridSchemaDuckDbTest's crossing gone with the test, 2026-10-30: the stamp it tested deleted, S3c)
 
     /** {@code DatabaseType.valueOf} and {@code .values()}: the vocabulary reading a name, deciding nothing. */
@@ -189,14 +193,15 @@ class DialectOwnerExclusivityTest {
                 sources.put(rel, String.join("\n", DialectLeakRatchetTest.lex(Files.readString(f)).code()));
             }
         }
-        // the dialect classes: SqlDialect's implementations in sql/dialect, by their extends chains
+        // the dialect classes: SqlDialect's implementations in sql/dialect, by their extends chains, and the edge's
+        // (2026-11-13, phase D's O3: legend-engine's text printers, EngineStyle*, moved to com.legend.edge)
         Set<String> dialects = new java.util.HashSet<>(Set.of("SqlDialect", "AnsiSqlRenderer"));
         Pattern declared = Pattern.compile("\\bclass\\s+(\\w+)\\s*(?:extends\\s+(\\w+))?([^{]*)\\{");
         Pattern implementsDialect = Pattern.compile("\\bimplements\\b.*\\bSqlDialect\\b", Pattern.DOTALL);
         for (boolean grew = true; grew; ) {
             grew = false;
             for (var e : sources.entrySet()) {
-                if (!e.getKey().contains("/sql/dialect/")) {
+                if (!e.getKey().contains("/sql/dialect/") && !e.getKey().contains("/com/legend/edge/")) {
                     continue;
                 }
                 var m = declared.matcher(e.getValue());
@@ -299,7 +304,8 @@ class DialectOwnerExclusivityTest {
         assertEquals(Set.of(), DatabaseOwners.of(dialect + "Stars.java",
                 "/** like class Stars extends Postgres */ final class Stars { static class In extends DuckDb {} }")
                 .databases());
-        assertEquals(Set.of("H2"), DatabaseOwners.of(dialect + "RawSqlBoundary.java", "").databases());
+        assertEquals(Set.of("H2"), DatabaseOwners.of("core/src/main/java/com/legend/edge/RawSqlBoundary.java", "")
+                .databases());
         assertEquals(DatabaseOwners.Kind.VOCABULARY,
                 DatabaseOwners.of("core/src/main/java/com/legend/parser/section/ConnectionSectionGrammar.java", "")
                         .kind());

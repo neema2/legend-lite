@@ -32,7 +32,6 @@ final class UnqualifyPivotArgs extends SqlRewriter {
 
     private static SqlExpr unqualify(SqlExpr e) {
         return switch (e) {
-            case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Column c -> new SqlExpr.Column(null, c.name(), c.type(), c.origin());
             case SqlExpr.StoredRead r -> new SqlExpr.StoredRead(
                     (SqlExpr.Column) unqualify(r.column()), r.stored());
@@ -42,11 +41,11 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
                     c.args().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.Cast c -> new SqlExpr.Cast(unqualify(c.value()),
-                    c.target(), c.conform());
+                    c.target(), c.reason());
             case SqlExpr.Case c -> new SqlExpr.Case(
                     c.whens().stream().map(w -> new SqlExpr.Case.When(
                             unqualify(w.condition()), unqualify(w.then()))).toList(),
-                    c.otherwise() == null ? null : unqualify(c.otherwise()));
+                    c.otherwise() == null ? null : unqualify(c.otherwise()), c.reason());
             case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
                     a.elements().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.StructGet g ->
@@ -91,9 +90,10 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.CompactList cl -> cl;
             case SqlExpr.Tagged tg -> tg.withChildren(
                     tg.children().stream().map(UnqualifyPivotArgs::unqualify).toList());
+            case SqlExpr.RaiseText r -> r.withChildren(
+                    r.children().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.TaggedList tl -> tl.withChildren(
                     tl.children().stream().map(UnqualifyPivotArgs::unqualify).toList());
-            case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.Lambda l -> l;
             case SqlExpr.Star st -> st;
             case SqlExpr.StarExcept se -> se;

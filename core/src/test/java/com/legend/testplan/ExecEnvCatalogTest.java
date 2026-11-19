@@ -66,4 +66,30 @@ class ExecEnvCatalogTest {
                     type + ": no session table");
         }
     }
+
+    /** A side moved onto its catalog keeps the plan's style (the D part 1 audit's S1, 2026-11-15): on a server lane,
+     *  where the catalog is not the runtime's own engine, the edge's style writes the catalog's statements in the
+     *  edge's dialect, the product's in the product's. */
+    @Test
+    void aSideOnTheCatalogKeepsThePlansStyle() {
+        int routed = 0;
+        for (DatabaseType type : Databases.relational()) {
+            var ctx = Compiler.compileModel(model(type));
+            SystemRoutes.Route route = SystemRoutes.route(ctx, "s::RT");
+            if (route.ownEngine()) {
+                continue;
+            }
+            routed++;
+            DatabaseType engine = ConnectionPlans.model(route.engine());
+            var edge = com.legend.planner.PlanEnv.of(ctx, "s::RT", com.legend.edge.PureText.UPSTREAM.dialect(type),
+                    com.legend.edge.PureText.UPSTREAM, java.util.Set.of(), g -> "");
+            assertEquals(com.legend.edge.PureText.dialect(engine).getClass(),
+                    SystemRoutes.onCatalog(edge, route).dialect().getClass(), type + ": the edge's catalog dialect");
+            var product = com.legend.planner.PlanEnv.of(ctx, "s::RT", Databases.dialect(type),
+                    com.legend.database.PlanStyle.PRODUCT, java.util.Set.of(), g -> "");
+            assertEquals(Databases.dialect(engine).getClass(),
+                    SystemRoutes.onCatalog(product, route).dialect().getClass(), type + ": the product's");
+        }
+        assertTrue(routed > 0, "a server lane routes to a catalog of another engine");
+    }
 }

@@ -416,3 +416,50 @@ register, not a divergence. The list is of functions whose K1 guard exists today
 **Q16.** Which of these does the user want, under which names (`OrEmpty`, `try...`, `safe...`), and should they be in
 the platform namespace (`meta::pure::functions::...`, which is legend-pure's) or lite's (`legend_lite::...`)? The
 timeseries session's needs come to the orchestrator separately.
+
+## 15. Refresh at phase D's start (2026-11-12, `claude/total-wall-d` from `3a20560f9`)
+
+The rows above were re-read at `3a20560f9`, each searched by its text, not its line. The orchestrator's rulings on
+the open points follow the table. From here, the **live register is `core/src/test/java/com/legend/CompatSpellingGuardTest.java`**
+(D2's guard). It holds every hit by file and spelling, with the D step that removes it, and it is shrink-only.
+
+| row | state at 3a20560f9 |
+|---|---|
+| K1 1.1-1.12, own | SAME, lines drifted (e.g. rem `Scalars.java:449`, sqrt `:1842`, `checkedOne` `AnsiSqlRenderer.java:767-784`) |
+| K1 1.13 | SAME text, but NOT a SQL raise: `CheckedEnvelope.java:84` rides a defect row (`defect()` :109). Ruled: it becomes the kind `CONSTRAINT_UNEVALUABLE`, spelled by the edge |
+| K3 | SAME; BigQuery's map raises are still outside the envelope (`BigQuery.java:2285, 2320, 2322`), a defect D1.1 fixes; the "cannot hold" family remains only in `MariaDb.java:2107`, `SQLite.java:1731` |
+| K4 | SAME, all nine. The NULLS order stays as product semantics (ruled 2026-11-12) |
+| K5 | SAME (`EngineText`, `EnginePlans`, `PlanAllocations`, `FramePlanner`, `ProductStatements`, `BodyPlanner.ddlText`, `Lowerer.withEngineText`, `RawSqlBoundary` and its `Recorder`, `EngineTextDialect`) |
+| K6 | SAME; `Output` is still sealed and permits `Engine`; the writers are made per execution (`Output.java:61-99`) |
+| K7 | `JdbcStatements.stamped` and `ExecutionTrace` GONE (C1, 5592d2c). The trace text is `ExecutionPlan.traceComment` :136 and `Sql.stamp` :690, bound per execution at `PlanRunner.java:795`, and read by `PureV1Writer:141` and `testplan/ActivityComments:23` (D1.4). MariaDB's read-back is the plan's `RaiseReadBack` (C2): `MariaDbConnector` holds no raise |
+| K8 | SAME, except "Missing external parameter(s)", which moved to `exec/PlanParameters.java:91`; TypeClassifier builds "Wrong <kind> arguments count" (:294) and "variables count" (:245) |
+| K9 P1-P14 | SAME in shape, lines drifted |
+
+**New since 04eed79e:**
+- raise sentences of the product's own:
+  - `DateCtorRule:165`;
+  - `ClickHouse:1959, 1963`;
+  - `SQLite:468, 1682`;
+  - `MariaDb:2058`;
+  - MongoDB's `raiseText` at :692, :863, :1093, :1096;
+  - `AnsiSqlRenderer`'s fraction and CSV-width raises.
+
+  All of them become kinds in D1.1.
+- `testdatagen/TestDataPlanner`'s `Printing {CLEAN, COMPAT}` (S306), chosen in `testplan/TestPlanner:45`: a product class
+  branching on a compatibility mode. Ruled: the product writes CLEAN only, and COMPAT's spelling is the edge's
+  decorator through the hook (D1.2). Its `representation` (:943) and `seedJson` (:880) are classified the same way.
+- `server/TestDataRoutes` (upstream's four test-data routes): to the edge with pure/v1's upstream routes (D1.8).
+- H2's `NON_KEYWORDS`, `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` as plan data (`H2.java:34-53`). Ruled: measure
+  first, after D1.0. That means a run of core's H2 lane and PCT H2 channel A with the product's targets declaring no
+  settings; the orchestrator rules per cause.
+- `setup/RowLoad` and `setup/CsvSeed`: reading input data (S302). They stay product.
+- pure/v1: the upstream routes (`PureV1Api.route` :156-176, the error JSON :1236) and the query store's messages go to
+  the edge (D1.8). Lite's own routes stay product: `/api/lite/v1` (:177-180), and `jsonPlan`, `arrowPlan`,
+  `jsonAnswer`, `arrowAnswer`.
+
+**The guards (step 1):**
+- `ArchitectureTest.noProductClassReachesTheEdge` (G5) already held. It gained a planted violator,
+  `theEdgeRuleBitesAPlantedProductClass` (`planner.PlantedEdgeReach`).
+- `CompatSpellingGuardTest` registers 178 rows (289 hits): D1.1 30, D1.2 44, D1.3 16, D1.4 37, D1.5 5, D1.6 19, D1.7 111,
+  D1.8 27, JUDGE 28, STAYS 1. Its planted violator is `theScanBitesAPlantedSource`.
+- D2 ends with no row naming a D step.

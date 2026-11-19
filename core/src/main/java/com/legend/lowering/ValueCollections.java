@@ -193,9 +193,10 @@ final class ValueCollections {
             groups.add((int) ((SqlExpr.IntLit) ((SqlExpr.StructLit) rank).fields().get(0).value()).value());
         }
         // one comparison group of numbers or dates: the group's own channel (MixedEncoding.taggedList's rule)
+        MixedEncoding.dropUndecidingPrecision(ranks);
         if (groups.size() == 1) {
             int g = groups.iterator().next();
-            if (g == 0 || g == 1) {
+            if (MixedEncoding.oneChannelOrders(ranks, g)) {
                 for (int k = 0; k < w; k++) {
                     ranks.set(k, ((SqlExpr.StructLit) ranks.get(k)).fields().get(g == 0 ? 1 : 2).value());
                 }
@@ -209,16 +210,18 @@ final class ValueCollections {
         OutputCol posOut = new OutputCol(SqlExpr.TaggedList.ROW_POSITION, SqlType.Scalar.BIGINT, false);
         OutputCol tagOut = new OutputCol(SqlExpr.TaggedList.ROW_TAG, SqlType.Scalar.INTEGER, false);
         cells.add(new SqlSelect.Projection(pos, posOut.name(), posOut));
-        cells.add(new SqlSelect.Projection(new SqlExpr.Case(tagArms, null), tagOut.name(), tagOut));
+        cells.add(new SqlSelect.Projection(new SqlExpr.Case(tagArms, null, SqlExpr.Reason.CARRIER), tagOut.name(), tagOut));
         cellOuts.add(posOut);
         cellOuts.add(tagOut);
-        List<String> rankFields = struct ? List.of("g", "n", "d", "s") : List.of(SqlExpr.TaggedList.ROW_COMPARABLE);
+        // the rank's fields as built: g, n, d and s, and p where the dates' precisions differ (O2's D1)
+        List<String> rankFields = struct ? ((SqlExpr.StructLit) ranks.get(0)).fields().stream()
+                .map(SqlExpr.StructLit.Field::name).toList() : List.of(SqlExpr.TaggedList.ROW_COMPARABLE);
         // the one-group comparable's type is the group's (numbers a DOUBLE, dates a TIMESTAMP), never read off a
         // column's rank, which a partial date leaves NULL (the L1 audit, 2026-10-29)
         List<SqlType> rankTypes = struct
-                ? List.of(SqlType.Scalar.INTEGER, SqlType.Scalar.DOUBLE, SqlType.Scalar.TIMESTAMP,
-                        SqlType.Scalar.VARCHAR)
-                : List.of(groups.iterator().next() == 0 ? SqlType.Scalar.DOUBLE : SqlType.Scalar.TIMESTAMP);
+                ? List.<SqlType>of(SqlType.Scalar.INTEGER, SqlType.Scalar.DOUBLE, SqlType.Scalar.TIMESTAMP,
+                        SqlType.Scalar.VARCHAR, SqlType.Scalar.BIGINT).subList(0, rankFields.size())
+                : List.<SqlType>of(groups.iterator().next() == 0 ? SqlType.Scalar.DOUBLE : SqlType.Scalar.TIMESTAMP);
         for (int f = 0; f < rankFields.size(); f++) {
             List<SqlExpr.Case.When> arms = new ArrayList<>(w);
             for (int k = 0; k < w; k++) {
@@ -228,7 +231,7 @@ final class ValueCollections {
             String name = struct ? SqlExpr.TaggedList.ROW_COMPARABLE + "_" + rankFields.get(f)
                     : SqlExpr.TaggedList.ROW_COMPARABLE;
             OutputCol out = new OutputCol(name, rankTypes.get(f), true);
-            cells.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(arms, null), rankTypes.get(f)),
+            cells.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(arms, null, SqlExpr.Reason.CARRIER), rankTypes.get(f), SqlExpr.Reason.CARRIER),
                     name, out));
             cellOuts.add(out);
         }
@@ -242,7 +245,7 @@ final class ValueCollections {
                 }
             }
             OutputCol chOut = new OutputCol(SqlExpr.TaggedList.ROW_CHANNEL(j), ch.type(), true);
-            cells.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(arms, null), ch.type()),
+            cells.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(arms, null, SqlExpr.Reason.CARRIER), ch.type(), SqlExpr.Reason.CARRIER),
                     chOut.name(), chOut));
             cellOuts.add(chOut);
         }
@@ -281,7 +284,7 @@ final class ValueCollections {
         }
         // the rank across kinds: its fields the cells' __cmp_<field> columns, in their order
         String rankPrefix = SqlExpr.TaggedList.ROW_COMPARABLE + "_";
-        List<SqlExpr.StructLit.Field> fields = new ArrayList<>(4);
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>(5);
         for (OutputCol o : cellsRel.outputs()) {
             if (o.name().startsWith(rankPrefix)) {
                 fields.add(new SqlExpr.StructLit.Field(o.name().substring(rankPrefix.length()), vCell.apply(o.name()),
@@ -387,31 +390,25 @@ final class ValueCollections {
     // distinction the declaration carries, minus the accidental-match
     // hole.
 
-    /** The rowCells makeString/joinStrings join as a STATIC CONCAT
-     * interleave: (start?) c1 (sep c2 …) (end?) — args beyond the
-     * collection arrive lowered in order ([sep] or [start, sep, end]). */
+    /** The rowCells makeString/joinStrings join: the cells' texts joined
+     * by the database ({@code STRING_AGG} over the cells as a list, which
+     * skips an empty cell: phase D's D1.3, 2026-11-15), then (start?) and
+     * (end?) -- args beyond the collection arrive lowered in order ([sep]
+     * or [start, sep, end]). */
     static com.legend.sql.SqlExpr rowCellsJoin(
             java.util.List<com.legend.sql.SqlExpr> cells,
             java.util.List<com.legend.sql.SqlExpr> rest) {
         com.legend.sql.SqlExpr sep = rest.size() == 1 ? rest.get(0)
-                : rest.size() == 3 ? rest.get(1) : null;
-        java.util.List<com.legend.sql.SqlExpr> parts = new ArrayList<>();
+                : rest.size() == 3 ? rest.get(1) : new com.legend.sql.SqlExpr.StringLit("");
+        com.legend.sql.SqlExpr joined = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,
+                new com.legend.sql.SqlExpr.ReduceCollection(com.legend.sql.SqlAgg.Fn.STRING_AGG,
+                        new com.legend.sql.SqlExpr.ArrayLit(cells), java.util.List.of(sep)),
+                new com.legend.sql.SqlExpr.StringLit(""));
         if (rest.size() == 3) {
-            parts.add(rest.get(0));
+            return com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, rest.get(0),
+                    com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, joined, rest.get(2)));
         }
-        for (int i = 0; i < cells.size(); i++) {
-            if (i > 0 && sep != null) {
-                parts.add(sep);
-            }
-            parts.add(cells.get(i));
-        }
-        if (rest.size() == 3) {
-            parts.add(rest.get(2));
-        }
-        return parts.size() == 1 ? parts.get(0)
-                : parts.isEmpty() ? new com.legend.sql.SqlExpr.StringLit("")
-                : new com.legend.sql.SqlExpr.Call(
-                        com.legend.sql.SqlFn.CONCAT, parts);
+        return joined;
     }
 
     static boolean isCollectionMapper(TypedLambda ml) {

@@ -18,7 +18,7 @@ import java.io.Writer;
  * handed its columns and rows, and decides nothing the run does. The set is closed: a new format is a new variant here.
  */
 public sealed interface Output
-        permits Output.JsonRows, Output.Csv, Output.Engine, Output.Arrow, Output.Rows {
+        permits Output.JsonRows, Output.Csv, Output.Rows {
 
     /** lite's JSON rows ({@link JsonRowsWriter}). */
     record JsonRows(Writer out) implements Output {
@@ -28,15 +28,9 @@ public sealed interface Output
     record Csv(Writer out) implements Output {
     }
 
-    /** legend-engine's {@code pure/v1} execute answer ({@link PureV1Writer}): a relation's envelope from the facts read
-     *  before the run, a graph fetch's objects, a value refused as the facts say. */
-    record Engine(Writer out, PureV1Writer.Facts facts) implements Output {
-    }
-
-    /** legend-engine's Arrow answer ({@link ArrowWriter}): a relation under the envelope's metadata; a graph fetch and
-     *  a value refused. */
-    record Arrow(OutputStream out, PureV1Writer.Facts facts) implements Output {
-    }
+    // legend-engine's pure/v1 and Arrow answers are the compatibility edge's receivers (edge.EngineAnswers, W8 of
+    // docs/records/d-plan-2026-11-16.md, 2026-11-16), written through Rows: told the plan's stated answer before any
+    // statement runs (ResultSink.planned)
 
     /** The caller's own receiver of the answer, output only ({@link ResultSink#answers}). */
     record Rows(ResultSink sink) implements Output {
@@ -49,45 +43,16 @@ public sealed interface Output
     default ResultSink writerFor(ExecutionPlan plan, java.util.@com.legend.base.Nullable UUID execution) {
         ExecutionPlan.TdsResult.Shape shape = plan.answerShape();
         return switch (this) {
-            case Engine e -> switch (shape) {
-                case OBJECTS -> PureV1Writer.objects(e.out());
-                case RELATION -> {
-                    String sql = plan.answerSql().statement();
-                    java.util.List<ExecutionPlan.Column> stated = plan.answerColumns();
-                    // the envelope from the plan's stated columns BEFORE any statement runs, so a column with no
-                    // builder entry refuses before a write program changes anything; made from the announced columns
-                    // only where the plan states none (a dynamic pivot's: the phase 3 audit, 2026-10-27)
-                    if (stated == null) {
-                        yield PureV1Writer.relation(e.out(), columns -> PureV1Writer.envelope(e.facts(), sql, columns),
-                                execution);
-                    }
-                    PureV1Writer.Envelope made = PureV1Writer.envelope(e.facts(), sql, stated);
-                    yield PureV1Writer.relation(e.out(), columns -> made, execution);
-                }
-                case VALUE -> throw new com.legend.error.NotImplementedException(e.facts().valueRefusal());
-            };
-            case Arrow a -> switch (shape) {
-                case OBJECTS -> throw new IllegalArgumentException("ARROW_IPC answers a relation query; a graph fetch "
-                        + "under it is refused (upstream's answer unprobed)");
-                case RELATION -> {
-                    String sql = plan.answerSql().statement();
-                    java.util.List<ExecutionPlan.Column> stated = plan.answerColumns();
-                    // the JSON route's rule (Engine above): the metadata from the plan's stated columns before any
-                    // statement runs; from the announced columns only where the plan states none
-                    // the metadata's activity names the execution the writer is made for (the door's id)
-                    java.util.UUID ran = PureV1Writer.ran(execution);
-                    if (stated == null) {
-                        yield new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, columns,
-                                ran));
-                    }
-                    PureV1Writer.envelope(a.facts(), sql, stated);
-                    yield new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, stated, ran));
-                }
-                case VALUE -> throw new com.legend.error.NotImplementedException(a.facts().valueRefusal());
-            };
             case JsonRows j -> new JsonRowsWriter(j.out(), shape);
             case Csv c -> new CsvWriter(c.out(), shape);
-            case Rows r -> told(r.sink(), shape);
+            case Rows r -> {
+                ResultSink sink = told(r.sink(), shape);
+                if (execution != null) {
+                    sink.execution(execution);
+                }
+                sink.planned(plan);
+                yield sink;
+            }
         };
     }
 
@@ -98,12 +63,6 @@ public sealed interface Output
             case JsonRows j -> new JsonRowsWriter(j.out(), shape);
             case Csv c -> new CsvWriter(c.out(), shape);
             case Rows r -> told(r.sink(), shape);
-            case Engine e -> throw new IllegalArgumentException(
-                    "the engine's answer needs a plan's statement and columns: a test body's answer is written in "
-                            + "lite's formats");
-            case Arrow a -> throw new IllegalArgumentException(
-                    "the engine's Arrow answer needs a plan's statement and columns: a test body's answer is written "
-                            + "in lite's formats");
         };
     }
 

@@ -25,6 +25,10 @@ public final class Runfile {
             throw new IllegalArgumentException("no runfiles path given: set it from the BUILD file with "
                     + "-D<name>=$(rlocationpath <label>)");
         }
+        // a build action passes a file's path itself (java_run's $(execpath), the edge golden net, 2026-11-16)
+        if (System.getenv("TEST_SRCDIR") == null && Files.exists(Path.of(rlocationpath))) {
+            return Path.of(rlocationpath);
+        }
         String found = Holder.RUNFILES.unmapped().rlocation(rlocationpath);
         if (found == null || !Files.exists(Path.of(found))) {
             throw new IllegalStateException("not in this test's runfiles: " + rlocationpath

@@ -763,11 +763,9 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
      */
     private void assertPivotValue(Lean.Result result, List<Object> row,
                                    String pivotValue, String aggAlias, int expected) {
-        // ENGINE presentation (pureToSQLQuery.pure:2985, re-pinned
-        // 2026-08-19): separator-bearing pivot names carry literal
-        // quotes as part of the NAME
-        String colName = com.legend.compiler.element.type.Type.RelationType
-                .presentPivotName(pivotValue + "__|__" + aggAlias);
+        // a generated pivot name, bare (the user's ruling of 2026-11-10,
+        // D1.4 2026-11-15: legend-engine's quotes are its writers', the edge's)
+        String colName = pivotValue + "__|__" + aggAlias;
         int idx = -1;
         for (int i = 0; i < result.columns().size(); i++) {
             if (result.columns().get(i).name().equals(colName)) {

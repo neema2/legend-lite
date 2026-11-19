@@ -40,6 +40,7 @@ class ChannelBEssentialTest {
     void essentialCensus() throws Exception {
         java.util.List<String> walls = new java.util.ArrayList<>();
         List<ChannelB.Outcome> out = runSuite(walls);
+        ChannelBDiff.edge(out);   // the edge golden net (2026-11-16)
         walls.forEach(w -> System.out.println("[chB-wall] " + w));
         System.out.println("[chB] walls=" + walls.size());
         // audit-of-audits #12: the wall count is ASSERTED shrink-only —
@@ -293,6 +294,7 @@ class ChannelBEssentialTest {
         // the EXACT gate (2026-11-03): every failure ledgered with its text, every ledgered test failing
         ChannelBLedger.judge("Essential", out, ChannelBLedger.of(org.finos.legend.lite.pct.extension.PctBackend.name(),
                 "Essential"));
+        ChannelBLane.judgeSqlHeld("Essential");
     }
 
     /** The engine's relational essential manifest exclusions (its relational

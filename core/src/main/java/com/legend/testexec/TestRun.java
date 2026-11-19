@@ -54,6 +54,10 @@ final class TestRun {
         /** The program's reader, from its first verdict step on (null once the program has ended): a verdict's
          *  message read on demand, where the verdict fails. */
         void reader(@Nullable SideReader reader);
+
+        /** The message {@code verdict}'s assertError matches the {@code error} its base raised by, under the rules its
+         *  step names ({@code AssertErrorRuns.caughtMessage}; K10b, 2026-11-17). */
+        String raisedMessage(TestPlan.Verdict verdict, RuntimeException error);
     }
 
     /** {@code plan} run: its steps in order on the program's session, its verdict steps judged by {@code judges}, its
@@ -85,6 +89,7 @@ final class TestRun {
                         databaseAlone ? StatementOrigin.BODY : textOrigin.apply(i));
                 case TestPlan.Branch b -> new ProgramRunner.Callback(i, TestPlan.statements(b),
                         databaseAlone ? StatementOrigin.BODY : null);
+                case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is run at the top, as two plans");
             });
         }
         return new ProgramRunner.Program(plan.parameters(), steps);
@@ -113,6 +118,7 @@ final class TestRun {
                 case TestPlan.Branch b -> branch(b, open);
                 case TestPlan.Run r -> throw new IllegalStateException("a callback at a product step");
                 case TestPlan.FrameRun f -> throw new IllegalStateException("a callback at a frame run");
+                case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is run at the top, as two plans");
             }
         }
 
@@ -132,6 +138,7 @@ final class TestRun {
                             + " branches");
                     case TestPlan.FrameRun f -> throw new IllegalStateException("a branch's side holds verdict groups"
                             + " and branches");
+                    case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is run at the top, as two plans");
                 }
             }
         }
@@ -145,7 +152,7 @@ final class TestRun {
                 return;
             }
             TestPlan.Judge judge = plan.judge();
-            boolean hostAll = judge == TestPlan.Judge.HOST || judge == TestPlan.Judge.AGREEMENT;
+            boolean hostAll = judge == TestPlan.Judge.HOST;
             // a HOST-JUDGED verdict in a database-judged program: its sides and no statement of the database's (no
             // wrapper, no fused statement) -- an assertError's step (ruling N3: Java compares the error in both judge
             // modes)
@@ -156,13 +163,22 @@ final class TestRun {
                 // survive (an assertError's) is read under the group's savepoint, so the transaction stays live for
                 // the steps after it
                 ProgramRunner.Savepoint guard = guard(group, open);
-                for (TestPlan.Verdict each : group.verdicts()) {
+                // the host plan's own batch (the orchestrator's (1), 2026-11-17): consecutive asserts' single-value
+                // sides read by ONE statement, each verdict's cells its row (by the row's index); the batch's failure
+                // is its first batched verdict's, as a fused statement's was -- nothing retried (G7)
+                @Nullable Batch batch = hostAll && group.fused() != null ? hostBatch(group, open)
+                        : null;
+                if (hostAll && group.fused() != null && batch == null) {
+                    return;
+                }
+                for (int at = 0; at < group.verdicts().size(); at++) {
+                    TestPlan.Verdict each = group.verdicts().get(at);
                     if (!hostAll && (each.wrapper() != null || each.base().isEmpty())) {
                         continue;
                     }
                     // the read's own failure is the verdict's (its sides could not be read); a savepoint statement's
                     // is the program's
-                    List<PlanRunner.Rows> sides = open.guarded(guard, () -> hostSides(each, open), e -> {
+                    List<PlanRunner.Rows> sides = open.guarded(guard, () -> hostSides(each, batch, open), e -> {
                         judges.sidesFailed(each, e instanceof IOException io ? new UncheckedIOException(io)
                                 : (RuntimeException) e);
                         return null;
@@ -172,9 +188,35 @@ final class TestRun {
                     }
                 }
             }
-            if (judge == TestPlan.Judge.DATABASE || judge == TestPlan.Judge.AGREEMENT) {
+            if (judge == TestPlan.Judge.DATABASE) {
                 databaseVerdicts(group, open);
             }
+        }
+
+        /** The host batch of {@code group} read once: its rows by their side's index, in the order the statement
+         *  returns them (by index and row order); null where the read failed -- told to the group's first batched
+         *  verdict, whose failure it is, as a fused statement's rejection was the program's. */
+        private @Nullable Batch hostBatch(TestPlan.Verdicts group, ProgramRunner.OpenProgram open) throws IOException {
+            ExecutionPlan.TdsResult fused = java.util.Objects.requireNonNull(group.fused());
+            Map<Integer, List<List<Object>>> rows = new HashMap<>();
+            try {
+                for (List<Object> row : open.read(fused, null, Map.of()).rows()) {
+                    if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
+                        throw new IllegalStateException("a host batch row's first cell is its side's index: "
+                                + (row.isEmpty() ? "no cell" : row.get(0)));
+                    }
+                    rows.computeIfAbsent(index.intValue(), i -> new ArrayList<>()).add(row);
+                }
+            } catch (DataError e) {
+                for (TestPlan.Verdict v : group.verdicts()) {
+                    if (v.base().stream().anyMatch(side -> side instanceof TestPlan.Side.FusedCell)) {
+                        judges.sidesFailed(v, e);
+                        return null;
+                    }
+                }
+                throw e;
+            }
+            return new Batch(rows);
         }
 
         /**
@@ -191,7 +233,7 @@ final class TestRun {
             }
             TestPlan.Verdict each = group.verdicts().get(0);
             RuntimeException[] caught = new RuntimeException[1];
-            List<PlanRunner.Rows> sides = open.guarded(guard(group, open), () -> hostSides(each, open), e -> {
+            List<PlanRunner.Rows> sides = open.guarded(guard(group, open), () -> hostSides(each, null, open), e -> {
                 if (e instanceof DataError || e instanceof com.legend.error.ModelException) {
                     // the errors assertError takes; any other is a wall, raised as it was -- never judged as "no error"
                     caught[0] = (RuntimeException) e;
@@ -204,19 +246,21 @@ final class TestRun {
             });
             RuntimeException raised = caught[0];
             TestPlan.Judge judge = plan.judge();
-            if (judge == TestPlan.Judge.HOST || judge == TestPlan.Judge.AGREEMENT) {
+            if (judge == TestPlan.Judge.HOST) {
                 if (raised != null) {
                     judges.sidesFailed(each, raised);
                 } else {
                     judges.sides(each, java.util.Objects.requireNonNull(sides));
                 }
             }
-            if (judge == TestPlan.Judge.DATABASE || judge == TestPlan.Judge.AGREEMENT) {
+            if (judge == TestPlan.Judge.DATABASE) {
                 Map<String, PlanParameters.Checked> bound = new HashMap<>();
                 PlanParameters.Checked none = new PlanParameters.None();
                 RuntimeException error = raised;
+                // the message the database judge matches: under the compatibility rules a planned site's raise is
+                // legend-pure's words of it, looked up in the plan's records (K10b, 2026-11-17)
                 bound.put(TestPlan.Verdict.RAISED_MESSAGE,
-                        error != null ? new PlanParameters.One(String.valueOf(error.getMessage())) : none);
+                        error != null ? new PlanParameters.One(judges.raisedMessage(each, error)) : none);
                 com.legend.exec.RaisedErrors.Positioned at = error instanceof DataError d
                         && d.getCause() instanceof com.legend.exec.RaisedErrors.Positioned p ? p : null;
                 bound.put(TestPlan.Verdict.RAISED_LINE, at != null ? new PlanParameters.One((long) at.line()) : none);
@@ -292,14 +336,32 @@ final class TestRun {
                 ? new ProgramRunner.Savepoint(sp.plannedSet(), sp.plannedRollbackTo(), sp.plannedRelease()) : null;
     }
 
-    /** {@code each}'s base sides read for the host judge, in the base's order. */
-    private static List<PlanRunner.Rows> hostSides(TestPlan.Verdict each, ProgramRunner.OpenProgram open)
-            throws IOException {
+    /** A group's host batch as read: its rows by their side's index. */
+    private record Batch(Map<Integer, List<List<Object>>> rows) {
+    }
+
+    /** {@code each}'s base sides read for the host judge, in the base's order: a batched side from its group's
+     *  {@code batch}, every other side its own statement. */
+    private static List<PlanRunner.Rows> hostSides(TestPlan.Verdict each, @Nullable Batch batch,
+            ProgramRunner.OpenProgram open) throws IOException {
         List<PlanRunner.Rows> sides = new ArrayList<>(each.base().size());
         for (TestPlan.Side side : each.base()) {
-            sides.add(sideRows(side, open));
+            if (side instanceof TestPlan.Side.FusedCell cell) {
+                sides.add(cellsOf(cell, java.util.Objects.requireNonNull(batch, "a batched side with no batch")));
+            } else {
+                sides.add(sideRows(side, open));
+            }
         }
         return sides;
+    }
+
+    /** A batched side's rows: the batch's rows of its index, in their order, its columns read from its place on. */
+    private static PlanRunner.Rows cellsOf(TestPlan.Side.FusedCell cell, Batch batch) {
+        List<List<Object>> out = new ArrayList<>();
+        for (List<Object> row : batch.rows().getOrDefault(cell.index(), List.of())) {
+            out.add(new ArrayList<>(row.subList(cell.at(), cell.at() + cell.columns().size())));
+        }
+        return new PlanRunner.Rows(cell.columns(), out);
     }
 
     /** A side's typed rows: a statement's or a keyed result's read through the open program, a constant's its TEXT
@@ -314,6 +376,8 @@ final class TestRun {
             case TestPlan.Side.Rows r -> r.result();
             case TestPlan.Side.KeyedRows k -> k.keyed();
             case TestPlan.Side.Constant c -> throw new IllegalStateException("a constant side sends no statement");
+            case TestPlan.Side.FusedCell f -> throw new IllegalStateException("a fused-cell side sends no statement:"
+                    + " it is read from its group's batch row");
         };
     }
 

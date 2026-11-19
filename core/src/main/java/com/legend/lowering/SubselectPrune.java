@@ -40,16 +40,17 @@ import java.util.Set;
  * inside a select always survive. At least one projection is kept —
  * an empty SELECT list is not SQL.
  */
-final class SubselectPrune {
+public final class SubselectPrune {
 
     private SubselectPrune() {
     }
 
     /** Per-alias column reads + star'd aliases + unqualified name reads. */
     private record Refs(Map<String, Set<String>> cols, Set<String> starred,
-                        Set<String> unqualified, boolean computed) {
-        Refs(boolean computed) {
-            this(new HashMap<>(), new HashSet<>(), new HashSet<>(), computed);
+                        Set<String> unqualified, boolean computed,
+                        @com.legend.base.Nullable String keptUnionFrame) {
+        Refs(boolean computed, @com.legend.base.Nullable String keptUnionFrame) {
+            this(new HashMap<>(), new HashSet<>(), new HashSet<>(), computed, keptUnionFrame);
         }
 
         void col(@com.legend.base.Nullable String table, String name) {
@@ -68,15 +69,24 @@ final class SubselectPrune {
     /** {@link #prune(SqlQuery)}, and with {@code computed} an unread COMPUTED projection dropped too where its value is
      *  its operands' alone and evaluating it raises nothing ({@link SqlExpr#raisesNothing}): a window aggregate a library function
      *  computes beside the one its caller reads (a correlation beside a covariance), a working column no one reads
-     *  (2026-11-04, the timeseries SQL's size). Not in legend-engine's text: its column lists are its own. */
-    static SqlQuery prune(SqlQuery q, boolean computed) {
+     *  (2026-11-04, the timeseries SQL's size). Not in legend-engine's text: its column lists are its own. A product
+     *  building block the edge's forms call too (the lens audit's item 1, 2026-11-18). */
+    public static SqlQuery prune(SqlQuery q, boolean computed) {
+        return prune(q, computed, null);
+    }
+
+    /** {@link #prune(SqlQuery, boolean)}, a union frame named {@code keptUnionFrame} keeping every column (L10, the lens
+     *  audit's L-A.unionAlias, 2026-11-18: legend-engine's SQL lists a user union's projected columns whether read or
+     *  not -- its testUnionWithGroupBy golden pins firstName in both arms; the edge's engine shape passes its frame,
+     *  the product none). */
+    public static SqlQuery prune(SqlQuery q, boolean computed, @com.legend.base.Nullable String keptUnionFrame) {
         // FIXPOINT: dropping a projection can strand references one
         // level deeper (an isolation frame's pruned column was the only
         // reader of a union output — ledger cluster 57), and the
         // reference census is taken once per pass. Terminates: each
         // round strictly removes projections or changes nothing.
         for (int round = 0; round < 16; round++) {
-            Refs refs = new Refs(computed);
+            Refs refs = new Refs(computed, keptUnionFrame);
             collectQuery(q, refs);
             SqlQuery next = rewriteQuery(q, refs);
             if (next.equals(q)) {
@@ -132,7 +142,6 @@ final class SubselectPrune {
             }
             case SqlSource.Table t -> r.starred().add(t.alias());
             case SqlSource.Cte c -> r.starred().add(c.alias());
-            case SqlSource.VarSetPlaceholder vp -> r.starred().add(vp.alias());
             case SqlSource.SourceUrl u -> r.starred().add(u.alias());
             case SqlSource.Subselect sub -> r.starred().add(sub.alias());
             case SqlSource.Values v -> r.starred().add(v.alias());
@@ -156,8 +165,6 @@ final class SubselectPrune {
             case SqlSource.Cte c -> {
             }
             case SqlSource.SourceUrl u -> {
-            }
-            case SqlSource.VarSetPlaceholder vp -> {
             }
             case SqlSource.RawSql raw -> {
             }
@@ -193,7 +200,6 @@ final class SubselectPrune {
             case SqlExpr.Column c -> r.col(c.table(), c.name());
             case SqlExpr.StoredRead sr -> collectExpr(sr.column(), r);
             case SqlExpr.RowOrder ro -> { }
-            case SqlExpr.TempTableInSplice ignored -> { }
             case SqlExpr.Membership m -> {
                 collectExpr(m.needle(), r);
                 collectExpr(m.collection(), r);
@@ -283,8 +289,8 @@ final class SubselectPrune {
             case SqlExpr.CheckedOne co -> collectExpr(co.list(), r);
             case SqlExpr.CompactList cl -> collectExpr(cl.list(), r);
             case SqlExpr.Tagged tg -> tg.children().forEach(x -> collectExpr(x, r));
+            case SqlExpr.RaiseText rt -> rt.operands().forEach(x -> collectExpr(x, r));
             case SqlExpr.TaggedList tl -> tl.children().forEach(x -> collectExpr(x, r));
-            case SqlExpr.DeferredTdsString d -> collectQuery(d.inner(), r);
             case SqlExpr.JsonObject jo -> jo.kv().forEach(x -> collectExpr(x, r));
             case SqlExpr.JsonArray ja0 -> ja0.elements().forEach(x -> collectExpr(x, r));
             case SqlExpr.JsonArrayAgg ja -> {
@@ -344,7 +350,6 @@ final class SubselectPrune {
             case SqlSource.Table t -> t;
             case SqlSource.Cte c -> c;
             case SqlSource.SourceUrl u -> u;
-            case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql raw -> raw;   // carried text: a leaf
             case SqlSource.GridReport g -> g;   // a leaf
             case SqlSource.Catalog c -> c;   // a leaf
@@ -394,11 +399,14 @@ final class SubselectPrune {
      * kept. */
     private static SqlSource.@com.legend.base.Nullable Subselect pruneUnion(
             SqlUnion u, SqlSource.Subselect sub, Refs r) {
-        // a USER-projected TDS union keeps its projected columns even
-        // when the outer never reads them (engine testUnionWithGroupBy
-        // golden pins firstName in both arms) — only SYNTHESIS unions
-        // (class-mapping union extents) prune
-        if ("unionAlias".equals(sub.frameName())) {
+        // a DEDUPLICATING union (UNION, not UNION ALL) keeps every column: its rows are distinct over all of them, so a
+        // column dropped could merge two of its rows (L10, 2026-11-18: until then only legend-engine's union frame name
+        // kept a TDS distinct's union whole -- the product's rule now, whatever the frame)
+        if (!u.all()) {
+            return null;
+        }
+        // the style's kept union frame (legend-engine's: its user unions list their projected columns, read or not)
+        if (r.keptUnionFrame() != null && r.keptUnionFrame().equals(sub.frameName())) {
             return null;
         }
         if (r.starred().contains("*") || r.starred().contains(sub.alias())

@@ -274,8 +274,8 @@ class GraphEdgesTest {
                 }
                 """);
         // the integrity pass refuses a stereotype of an undeclared profile before any edge is read (2026-10-21),
-        // in legend-engine's words; the bare name resolves to no profile, so it stays as written
-        assertTrue(message.contains("Can't find the profile 'graph'"), message);
+        // in the product's words (D1.6); the bare name resolves to no profile, so it stays as written
+        assertTrue(message.contains("profile 'graph' is not defined"), message);
     }
 
     @Test

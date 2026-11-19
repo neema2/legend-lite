@@ -88,7 +88,8 @@ final class LiteralUnroll {
             case TypedCFloat f -> Optional.of(new Scalar(Type.Primitive.FLOAT.qualifiedName(), f.value()));
             case TypedEnumValue ev -> Optional.of(new Scalar(ev.enumFqn(), ev.enumFqn() + "." + ev.value()));
             case com.legend.compiler.spec.typed.TypedCDate d when d.info().type() instanceof Type.Primitive p ->
-                    Optional.of(new Scalar(p.qualifiedName(), String.valueOf(d.value())));
+                    // the literal body, a key the folds compare (W8, 2026-11-16: no print form's zone)
+                    Optional.of(new Scalar(p.qualifiedName(), d.value().canonicalText()));
             case com.legend.compiler.spec.typed.TypedCDecimal d when d.info().type() instanceof Type.Primitive p ->
                     Optional.of(new Scalar(p.qualifiedName(), d.value()));
             case com.legend.compiler.spec.typed.TypedCTime d when d.info().type() instanceof Type.Primitive p ->

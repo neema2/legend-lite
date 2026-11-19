@@ -136,10 +136,16 @@ class Host(unittest.TestCase):
                       " const ask = (m) => new Promise((ok) => { w.onmessage = (e) => ok(e.data); w.postMessage(m); });"
                       " const held = await ask({ id: 1, kind: 'hold', model });"
                       " const handle = Number(held.answer.split('\\n')[1]);"
-                      " const plan = await ask({ id: 2, kind: 'plan', handle, query: '|#>{a::DB.t}#->filter(r|$r.x > 1)->select(~[s])', runtime: 'a::RT' });"
-                      " const refused = await ask({ id: 3, kind: 'plan', handle, query: '|#>{a::DB.t}#', runtime: 'a::NoSuch' });"
+                      # lite API v1's operations by their spec names (2b, the host train): query/parse, then query/plan
+                      # over the held model, its answer {"plan": <PlanJson>}, the statement at its root's sql
+                      " const parsed = async (id, text) => JSON.parse((await ask({ id, kind: 'queryParse',"
+                      " request: JSON.stringify({ text }) })).answer.slice(3)).query;"
+                      " const planOf = async (id, query, runtime) => ask({ id, kind: 'queryPlanHeld', handle,"
+                      " request: JSON.stringify({ query, runtime }) });"
+                      " const plan = await planOf(2, await parsed(4, '|#>{a::DB.t}#->filter(r|$r.x > 1)->select(~[s])'), 'a::RT');"
+                      " const refused = await planOf(3, await parsed(5, '|#>{a::DB.t}#'), 'a::NoSuch');"
                       " const db = legendLite.database.connection;"
-                      " const t = await db.query(JSON.parse(plan.answer.slice(3)).sql);"
+                      " const t = await db.query(JSON.parse(plan.answer.slice(3)).plan.root.sql.statement);"
                       " const rows = []; for (let i = 0; i < t.numRows; i++) rows.push(t.getChildAt(0).get(i));"
                       " return { rows, refused: [refused.ok, refused.answer.split('\\n')[0]] };"
                       f" }})({json.dumps(model)});")

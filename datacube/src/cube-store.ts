@@ -1,6 +1,8 @@
 // Where saved cubes live: upstream's query-store contract, exactly
 // (legend-engine `ApplicationQuery` / `DataCubeQueryStoreManager`, read at 4.145.0;
-// docs/DATACUBE_SAVE_SHARE_2026_09_28.md step 0), at its own routes (`/api/pure/v1/query/dataCube`).
+// docs/DATACUBE_SAVE_SHARE_2026_09_28.md step 0), at lite's own route (`/api/lite/v1/queries/dataCube`; lite API v1 §2,
+// H6 of the host train, 2026-11-17: until then legend-engine's `/api/pure/v1/query/dataCube`), a refusal in lite's one
+// error shape `{kind, message}` with the store's status.
 //
 // ONE IMPLEMENTATION (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B6): the store's rules are legend-lite's Java
 // (core/.../queries/SavedCubes.java) -- the server's, Python's native library's, and the page's, compiled to WebAssembly
@@ -116,7 +118,7 @@ export class CubeStoreClient implements CubeStore {
   readonly #user: string;
 
   constructor(api: string, fetcher: typeof fetch, user: string) {
-    this.#root = `${api.replace(/\/+$/, '')}/pure/v1/query/dataCube`;
+    this.#root = `${api.replace(/\/+$/, '')}${CUBES_PATH}`;
     this.#fetch = fetcher;
     this.#user = user;
   }
@@ -187,6 +189,41 @@ function wire(read: unknown): unknown {
   return out;
 }
 
+/** The saved pages' path under an API root: lite's own (`/api/lite/v1/queries/dataCube`). */
+const CUBES_PATH = '/lite/v1/queries/dataCube';
+
+/** Lite's one error shape (§3), the store's refusals' kinds: `notFound` for a record that does not exist, `request` for
+ *  one it refuses, `internal` for its failure. */
+const refusal = (kind: 'notFound' | 'request' | 'internal', message: string): string => JSON.stringify({ kind, message });
+
+/** The store's refusal kinds of a record that does not exist (SavedQueries.Refusal.Kind; lite API v1 §3's notFound, the
+ *  user's ruling of 2026-11-17 ~23:31): a missing id, a batch with missing ids, a missing version. */
+const MISSING = new Set(['query_not_found', 'queries_not_found', 'version_not_found']);
+
+/** The store's refusal kinds of a malformed request (lite API v1 §3's request, 400, whatever the store's status --
+ *  legend-engine's 500 or 404 are the edge's alone; PR #118 fix round, 2026-11-18): a path the store does not serve, a
+ *  body's field it cannot read, a body it cannot read, a search with no term (LegendHttpServer.MALFORMED_REQUEST). */
+const MALFORMED_REQUEST = new Set(['no_such_route', 'field_unread', 'unreadable', 'no_search_term']);
+
+/** The store's refusal in lite's shape, as the server's lite mount answers it (LegendHttpServer.storeRoutes): its words
+ *  its own message, its kind by the STORE's own refusal kind, never by the status alone -- a missing record
+ *  `notFound`, a malformed request `request` at 400, `internal` at 500 and above, else `request` -- its status the
+ *  store's but a malformed request's. */
+function lite(status: number, body: string): { readonly status: number; readonly body: string } {
+  let message = body;
+  let storeKind: unknown;
+  try {
+    const said = JSON.parse(body) as { message?: unknown; kind?: unknown };
+    if (typeof said.message === 'string') message = said.message;
+    storeKind = said.kind;
+  } catch {
+    // not JSON: the body is the message, as the server reads it
+  }
+  if (typeof storeKind === 'string' && MISSING.has(storeKind)) return { status, body: refusal('notFound', message) };
+  if (typeof storeKind === 'string' && MALFORMED_REQUEST.has(storeKind)) return { status: 400, body: refusal('request', message) };
+  return { status, body: refusal(status >= 500 ? 'internal' : 'request', message) };
+}
+
 /** The API root the page's own store answers at: never on the network. */
 export const LOCAL_CUBES_API = 'http://this-browser.invalid/api';
 
@@ -213,11 +250,11 @@ export function wasmCubeServer(o: { readonly load: () => Promise<QueriesModule>;
   }));
   const handle = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
-    const at = url.pathname.indexOf('/pure/v1/query/dataCube');
+    const at = url.pathname.indexOf(CUBES_PATH);
     if (at < 0) {
-      return answered(404, JSON.stringify({ code: -1, message: `no such API in this page's store: ${url.pathname}`, status: 'error' }));
+      return answered(404, refusal('request', `no such API in this page's store: ${url.pathname}`));
     }
-    const rest = url.pathname.slice(at + '/pure/v1/query/dataCube'.length);
+    const rest = url.pathname.slice(at + CUBES_PATH.length);
     const body = request.method === 'GET' || request.method === 'DELETE' ? '' : await request.text();
     const m = await module();
     return o.records.call((rows) => {
@@ -228,9 +265,10 @@ export function wasmCubeServer(o: { readonly load: () => Promise<QueriesModule>;
         // rows the rules cannot read are an exception out of the module (and a bug in them a trap): the engine's
         // 500, naming it, as the server answers its own -- and nothing written
         const error = e instanceof Error ? e : new Error(String(e));
-        return { changed: new Map(), answer: answered(500, JSON.stringify({ code: -1, message: `${error.name}: ${error.message}`, status: 'error' })) };
+        return { changed: new Map(), answer: answered(500, refusal('internal', `${error.name}: ${error.message}`)) };
       }
-      return { changed: new Map(Object.entries(said.changed)), answer: answered(said.status, said.body) };
+      const out = said.status < 400 ? { status: said.status, body: said.body } : lite(said.status, said.body);
+      return { changed: new Map(Object.entries(said.changed)), answer: answered(out.status, out.body) };
     });
   };
   return { fetch: ((input: RequestInfo | URL, init?: RequestInit) => handle(new Request(input, init))) as typeof fetch };

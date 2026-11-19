@@ -34,12 +34,24 @@ public final class Lowered {
         return lower(query, runtime, streaming, List.of(), Set.of());
     }
 
+    /** {@link #lower(TypedQuery, String, boolean)} planned under {@code style} (the audit's J3, 2026-11-17: a root's
+     *  form is the style's, {@code LoweringForms#executeValues}). */
+    public static Compiler.LoweredQuery lower(TypedQuery query, String runtime, boolean streaming,
+            com.legend.database.PlanStyle style) {
+        QueryDoor.refuseRawSql(query);
+        ProductStatements.Statement s = ProductStatements.prepare(query, query.body(), runtime, null, Set.of(), style);
+        Prepared.Planned p = ProductStatements.planned(s);
+        return new Compiler.LoweredQuery(ProductStatements.lower(query, p, s.temporal(), streaming, List.of(),
+                new ObjectSites()), p.body().get(p.body().size() - 1), query.context());
+    }
+
     /** {@link #lower(TypedQuery, String, boolean)} with the query's declared parameters as {@code slots}. */
     public static Compiler.LoweredQuery lower(TypedQuery query, String runtime, boolean streaming,
             List<SqlExpr.PlanParam> slots, Set<Feature> features) {
         // the product's raw-SQL refusal first, as its doors and the seed's entry refuse (the C4 audit's M5, 2026-11-13)
         QueryDoor.refuseRawSql(query);
-        ProductStatements.Statement s = ProductStatements.prepare(query, query.body(), runtime, null, features);
+        ProductStatements.Statement s = ProductStatements.prepare(query, query.body(), runtime, null, features,
+                com.legend.database.PlanStyle.PRODUCT);
         Prepared.Planned p = ProductStatements.planned(s);
         return new Compiler.LoweredQuery(ProductStatements.lower(query, p, s.temporal(), streaming, slots,
                 new ObjectSites()), p.body().get(p.body().size() - 1), query.context());
@@ -50,9 +62,12 @@ public final class Lowered {
      *  {@code slots} -- the raw-SQL refusal first, as {@link #lower} refuses it (the final audit of 9af16fbe58's J6,
      *  2026-11-14: until then this helper handed the tests a bare Lowerer, which lowered any body). */
     public static com.legend.sql.SqlQuery lowerInZone(TypedQuery query, @com.legend.base.Nullable String zone,
-            List<SqlExpr.PlanParam> slots) {
+            List<SqlExpr.PlanParam> slots, SqlExpr.FloatLit.Kind floatLiteralKind) {
         QueryDoor.refuseRawSql(query);
+        // a Float literal as the caller's target database computes it (register S20, Phase 5b)
         return ProductStatements.configured(query, false, false, slots, Set.of(), new ObjectSites())
-                .withDbTimeZone(zone).lower(query.body());
+                .withDbTimeZone(zone).withFloatLiteralKind(() -> floatLiteralKind)
+                // the product's style, chosen explicitly (the audit's K6, 2026-11-17: a Lowerer has no implicit one)
+                .withStyled(com.legend.lowering.Styled.PRODUCT).lower(query.body());
     }
 }

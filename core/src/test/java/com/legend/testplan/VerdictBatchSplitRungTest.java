@@ -74,17 +74,13 @@ class VerdictBatchSplitRungTest {
         public TestPlan.Verdicts.Savepoint savepoint() {
             return null;
         }
-
-        @Override
-        public TestPlan.JudgingRules rules() {
-            return TestPlan.JudgingRules.LITE;
-        }
     };
 
     @Test
     void membersTheDialectSpellsAloneAreEachPlannedTheirOwnStatement() {
-        VerdictBatch batch = new VerdictBatch((statements, frames) -> statements.get(0), (generic, ruled) -> generic,
-                (row, name, wantEqual) -> row, RUNNER, new VerdictIds());
+        VerdictBatch batch = new VerdictBatch((members, frames) -> members.get(0), (generic, ruled) -> generic,
+                (row, name, wantEqual) -> row, RUNNER, new VerdictIds(),
+                com.legend.lowering.LiteVerdictWords.INSTANCE);
         batch.open("a");
         batch.defer("a1", true, member(1), ON);
         batch.defer("a2", true, member(2), ON);

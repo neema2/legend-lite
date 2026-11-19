@@ -19,14 +19,15 @@ import java.util.Set;
  * keyed pair restricts to, the byte verdict's static gates. {@code com.legend.testexec.HostJudgments.judge} switches on the record and runs
  * that one Java function over the rows and the facts. Part of a test body's plan (the plan-as-data design's step 4,
  * 2026-11-08: docs/PLAN_AS_DATA_2026_11_07.md 2.2): data alone -- no compiler object, no typed tree, no model, no
- * closure; the engine-text asserts' APPEAL is named by its number ({@link EngineText}), the plan's own record by verdict
+ * closure; an edge-judged comparison's APPEAL is named by its number ({@link EdgeJudged}), the plan's own record by verdict
  * ({@code TestPlan.extensionsByVerdict}, step 8b).
  */
 public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Rows, HostJudgment.Unrolled, HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged {
+        HostJudgment.Raise, HostJudgment.EdgeJudged, HostJudgment.AssertError, HostJudgment.Messaged,
+        HostJudgment.Negated {
 
     /** The static facts of one side's typed argument the equality arms read: the keyed class it declares (null for a
      *  non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's name for the
@@ -190,8 +191,7 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     /** {@code j} with its wrapper taken off ({@link Messaged}: a caller's message, which does not change what the
      *  judgment IS): the judgment the planners ask about -- a planned raise, an engine-text arm, an unrolled
      *  quantifier. (2026-11-04: the wrappers hid those from the gate: 61 DuckDB corpus bodies. The run's mode is no
-     *  wrapper since the explicit rules, the same day: the verdict step names them, TestPlan.JudgingRules, and the
-     *  judge is handed them.) */
+     *  wrapper: a Float's tolerance and a Decimal's scale are the two-form kinds', the style's and the run hook's.) */
     static HostJudgment core(HostJudgment j) {
         HostJudgment c = j;
         while (c instanceof Messaged m) {
@@ -215,6 +215,14 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
         }
     }
 
+    /** A DEFAULT-MESSAGE assert (#28, the orchestrator's go of 2026-11-17: {@code assertNotEq}, {@code assertIsNot},
+     *  {@code assertNotContains}, {@code assertNotSize}): its positive family's judgment over the same sides,
+     *  negated -- it holds where {@code inner} fails, and fails where {@code inner} holds, worded as {@code kind}
+     *  ({@code NOT_EQ}, {@code IS_NOT}, {@code NOT_CONTAINS}, {@code NOT_SIZE}) by the run's rules: lite's sentence,
+     *  or legend-pure's words. */
+    record Negated(HostJudgment inner, String kind) implements HostJudgment {
+    }
+
     /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it --
      *  data (the plan-as-data design's 2.4), raised as its class with its message at the turn. */
     record Raise(Failure failure) implements HostJudgment {
@@ -235,12 +243,13 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
         }
     }
 
-    /** An ENGINE-TEXT assert (the plan's M10b): the comparison the arm planned -- its name, the golden and our text where
-     *  the plan holds them as constants (null: the text is a side the step reads), their equality, the decline decided
-     *  before them, the statement origin our text is read under (an exec origin's name, or null) -- and its APPEAL,
-     *  named by its number in the body ({@code appeal}): the plan's {@link Appeal} record by verdict, heard at the step
-     *  and decided after the run (step 8b, 2.7); whether the equality arm's census route is counted at the step. */
-    record EngineText(String name, @Nullable String golden, @Nullable String ours, boolean textEqual,
-            @Nullable String decline, @Nullable String oursOrigin, int appeal, boolean routed) implements HostJudgment {
+    /** A comparison the COMPATIBILITY EDGE judges (census C3, 2026-11-17, the orchestrator's ruling: its facts the
+     *  edge's own record, opaque here, {@code judgment}, written by the edge's codec under its own tag): its two sides
+     *  are the step's; its APPEAL named by its number in the body ({@code appeal}): the plan's record by verdict, heard
+     *  at the step and decided after the run (step 8b, 2.7); the statement origin a side the step runs is read under
+     *  ({@code sideOrigin}: an exec origin's name, or null); whether its answer is counted on the census's routed line
+     *  ({@code counted}). The product runs none: its run refuses it by name ({@code NoEdgeRun}). */
+    record EdgeJudged(Extension judgment, int appeal, @Nullable String sideOrigin, boolean counted)
+            implements HostJudgment {
     }
 }

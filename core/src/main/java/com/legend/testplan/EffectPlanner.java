@@ -218,8 +218,9 @@ public final class EffectPlanner {
         // the referee's copy (B2b): the same file, read by the replay referee's own H2 with its CSVREAD and record
         // checks (the referee's H2 2.1.214 runs H2's spelling as written, measured 2026-11-11), the edge's data, never
         // the product's path -- written when an edge asks, a format H2's reader cannot take refused by name there
-        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, new ExecutionPlan.LoadStep.Delivery.Reads(
-                reads.statements(), reads.after()), SIZE_LIMIT_MEGABYTES), () -> {
+        // each reading statement and its raise sites offered to the plan's style (K10b, 2026-11-17)
+        return new PlannedLoad(new ExecutionPlan.LoadStep.File(ref, com.legend.setup.LoadSteps.reads(
+                reads, env.style()::siteWords), SIZE_LIMIT_MEGABYTES), () -> {
                     SqlDialect.CsvLoad referee;
                     try {
                         referee = refereeDdl().csvLoad(load);
@@ -227,8 +228,8 @@ public final class EffectPlanner {
                         throw new com.legend.sql.DialectCapability("loadCsvToDbTable: the referee's copy of the CSV"
                                 + " file '" + ref.name() + "' for table '" + qualified + "': " + e.getMessage());
                     }
-                    return new ExecutionPlan.LoadStep.File(ref, new ExecutionPlan.LoadStep.Delivery.Reads(
-                            referee.statements(), referee.after()), SIZE_LIMIT_MEGABYTES);
+                    return new ExecutionPlan.LoadStep.File(ref, com.legend.setup.LoadSteps.reads(
+                            referee, env.style()::siteWords), SIZE_LIMIT_MEGABYTES);
                 });
     }
 

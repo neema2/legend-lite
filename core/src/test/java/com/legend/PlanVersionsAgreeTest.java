@@ -36,4 +36,24 @@ class PlanVersionsAgreeTest {
                 "the host's plan runner reads another plan version than the planner writes");
         assertTrue(!m.find(), "plan-runner.ts declares its plan version once");
     }
+
+    /** The Python host reads the planner's version too (2026-11-15, PR1's review: main moved its PLAN_VERSION from
+     *  projects.py to _runs.py, which this test did not read): every module of the package that declares a plan
+     *  version declares the planner's, and at least one does. */
+    @Test
+    void thePythonHostReadsThePlannersVersion() throws Exception {
+        List<Path> files = SourceFiles.under("python/legend_lite").stream()
+                .filter(f -> f.toString().endsWith(".py")).toList();
+        java.util.regex.Pattern declared = java.util.regex.Pattern.compile("(?m)^PLAN_VERSION = (\\d+)$");
+        int found = 0;
+        for (Path f : files) {
+            java.util.regex.Matcher m = declared.matcher(Files.readString(f, StandardCharsets.UTF_8));
+            while (m.find()) {
+                found++;
+                assertEquals(com.legend.executionplan.PlanJson.VERSION, Integer.parseInt(m.group(1)),
+                        f + " declares another plan version than the planner writes");
+            }
+        }
+        assertTrue(found > 0, "no module of python/legend_lite declares its PLAN_VERSION: " + files);
+    }
 }

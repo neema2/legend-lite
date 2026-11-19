@@ -77,22 +77,42 @@
 
 ### 3.3 Import: an engine plan to a lite plan
 
-1. **Read engine's plan JSON** at the edge. The first scope is relational and TDS:
-   - `relationalTdsInstantiation`;
-   - `sql` nodes;
-   - `constant` nodes.
-2. **Template placeholders become bound parameters at planning.**
-   - A `${param}` the plan's parameters name becomes a `?` with its declared type, in placeholder order (the
-     invariant 3 contract).
+> **Ruled by the user, 2026-11-13** (start-here §6.1 item 3): every SQL node of engine's plan format is imported
+> ("should work for everything that is sql"), Java is refused; templates per O6 below. Rewritten that day from the first
+> scope (`relationalTdsInstantiation`, `sql`, `constant`).
+
+1. **Read engine's plan JSON** at the edge (format 4.145.0, §5.1). **The scope is every SQL-bearing node**, as engine's
+   own protocol registers them (read in the pinned sources, `ExecutionNode`'s `@JsonSubTypes` and the relational
+   extension's `ProtocolSubTypeInfo`):
+   - **the SQL nodes:** `sql`, `relational`, `relationalTdsInstantiation`, `relationalClassInstantiation`,
+     `relationalRelationDataInstantiation`, `relationalDataTypeInstantiation`, `relationalSave`, `relationalBlock`,
+     `createAndPopulateTempTable`;
+   - **the structure around them:** `sequence`, `multiResultSequence`, `allocation`, `constant`, `limit`,
+     `aggregationAware` (its chosen plan), `error`, `functionParametersValidation` (each check a planning-time check of a
+     bound parameter's type and multiplicity).
+2. **Every template becomes SQL and bound parameters at planning (O6).**
+   - A `${param}` the plan's parameters name becomes a `?` of its declared type, in placeholder order (the invariant 3
+     contract).
+   - The template functions (`renderCollection`, `inFilterClause`, the optional-collection helpers and their siblings)
+     become SQL over bound values: the collection a bound parameter, its rendering the dialect's.
+   - An `<#if>` over a parameter becomes a SQL condition over the bound parameter.
    - The `executionTraceID` comment is dropped: lite binds its own execution id (S304).
-   - Any other FreeMarker construct is refused by name. Exec never evaluates a template.
-3. **Refused by name, never run in part:**
-   - **Java in the plan.** Engine plans for graph-fetch and model-to-model mapping carry generated Java
-     (`globalImplementationSupport`, the Java platform implementation). G4: a plan is SQL and data only, never Java.
-   - **A node type outside the scope.**
+   - **Anything else is refused by name AND counted** (the import's census, per construct).
+   - **Exec never evaluates a template.**
+3. **Engine's conditional node** (`freeMarkerConditionalExecutionNode`): its condition becomes SQL over bound parameters.
+   - First the import COUNTS how often engine's plans hold it: the corpus, PCT and the showcase.
+   - If it is common, the user is brought a planned branch for imported conditional nodes (the charter's A3(b), widened
+     narrowly); otherwise it is refused by name.
+4. **Refused by name, never run in part:**
+   - **Java in the plan.** Every node that carries generated Java: any node with a Java platform `implementation`, every
+     graph-fetch node (`relational*GraphFetch*`, `globalGraphFetchExecutionNode`, `platformGlobalGraphFetchExecutionNode`,
+     `platformPrimitiveQualifierLocalGraphFetchExecutionNode`, `inMemory*GraphFetch`, `graphFetchM2M`), `pureExp`
+     (`platform`), `platformUnion`, `platformMerge`, `externalFormat*`. G4: a plan is SQL and data only, never Java.
+   - **A node that is not SQL:** `MongoDBExecutionNode`, `DeephavenExecutionNode`, `elasticsearch7RequestExecutionNode`,
+     `restService`, `urlStream`, `storeStreamReading`.
    - **SQL written for a database other than the one it would run on.**
-4. **The result** is an ordinary lite plan. The engine's SQL is sent as written, in its dialect for that database.
-   Lite's exec, sessions and writers run it like any plan.
+5. **The result** is an ordinary lite plan. The engine's SQL is sent as written, in its dialect for that database, once
+   its templates are resolved at planning. Lite's exec, sessions and writers run it like any plan.
 
 ### 3.4 Printing: the serializer's job, in Java, at the edge (the user's float point)
 
@@ -133,9 +153,9 @@ These were recommended in the message the user accepted. A change is the user's 
 
 1. **Engine plan format: 4.145.0**, the version every upstream reading in this program is pinned to. A newer engine's
    format is a measured change, not a silent one.
-2. **Import scope first: relational and TDS** (`relationalTdsInstantiation`, `sql`, `constant`).
-   - Graph-fetch and model-to-model plans are refused by name: they carry Java.
-   - A later scope is the user's to open.
+2. **Import scope: every SQL node, Java refused** (ruled by the user, 2026-11-13: "should work for everything that is
+   sql"; §3.3). Templates become SQL and bound parameters at planning, anything else refused by name and counted (O6);
+   the conditional node is counted before it is ruled (§3.3, item 3).
 3. **Verification is the engine runner's**, by round trip in both directions (§4), never a reading of the engine's
    source alone.
 

@@ -1,0 +1,618 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.edge;
+
+
+import com.legend.Compiler;
+import com.legend.TestExecution;
+import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.PureModelContext;
+import com.legend.model.AuthenticationSpec;
+import com.legend.model.ConnectionDefinition;
+import com.legend.model.ConnectionSpecification;
+import com.legend.model.DataDefinition;
+import com.legend.model.ImportScope;
+import com.legend.model.RuntimeDefinition;
+import com.legend.model.ServiceDefinition;
+import com.legend.protocol.Protocol;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.test.PureTestRunner;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * THE SERVICE TEST-SUITE RUNNER — runs a {@code Service}'s {@code testSuites}
+ * through the platform and returns one {@link Result} per atomic test. The
+ * rules are the engine's testable framework's ({@code ServiceTestRunner} /
+ * {@code TestRuntimeBuilder} / {@code TestAssertionEvaluator}, 4.145.0),
+ * implemented here from the spec; docs/DEFERRED_TEST_EXECUTION.md is the
+ * charter. The product surface: a user with test suites on services is the
+ * caller; the stress corpus is one.
+ *
+ * <p>The engine's design, followed exactly: a suite runs against a TEST
+ * RUNTIME — the service's mappings with every store bound to a connection
+ * that CARRIES the suite's data — and the platform loads that data when it
+ * establishes the connection. Here the test runtime is the platform's
+ * execution overlay ({@link PureModelContext#withExecutionOverlay}): one
+ * {@code LocalH2}-shaped connection whose {@code testDataSetupCsv} is the
+ * suite's provisioned CSV, seeded by the platform's own establish step. This
+ * runner opens and closes sessions and hands them to the platform; it
+ * executes no SQL of its own (tenet #1), like {@link PureTestRunner}.
+ *
+ * <ul>
+ *   <li><b>provisioning</b>: {@code data: [ connections: [ id: ... ] ]}
+ *       addresses the runtime's connection by its id ({@code store: [ id:
+ *       conn ]}); the compact form's resolvers address the STORE. A
+ *       {@code Reference} resolves to the {@code ###Data} element's body;
+ *       {@code Relational} CSV becomes the test connection's data. Any other
+ *       data kind is SKIPPED, loudly;</li>
+ *   <li><b>sessions</b> ({@link Sessions}): {@code FRESH_PER_TEST} opens a
+ *       new session for every test — the engine's shape, a fresh database per
+ *       run, seeded on establishment; {@code SHARED} keeps one seeded session
+ *       per distinct provisioning for every test whose program has no
+ *       statement effects (an effectful body still gets a private session);</li>
+ *   <li><b>execution</b>: parameters bind as query VARIABLES ({@code let}
+ *       statements ahead of the body — never text substitution); the body
+ *       executes through the ONE production entry
+ *       ({@link Execution#runProgram}) against the test runtime;</li>
+ *   <li><b>serialization</b>: {@code PURE_TDSOBJECT} (and {@code RAW})
+ *       render a tabular result as one object per row keyed by column; a
+ *       graph result is the JSON envelope the platform produced
+ *       ({@code {"builder":{"_type":"json"},"values":[...]}}, the engine's
+ *       DEFAULT for a serialize root); a scalar or collection renders as
+ *       its value(s); DEFAULT on a tabular result is SKIPPED, loudly;</li>
+ *   <li><b>judgment</b>: {@code EqualToJson} through {@link EqualToJson}
+ *       (null ≡ missing, unordered arrays, exact decimals). Other assertion
+ *       kinds are SKIPPED, loudly — never a silent pass.</li>
+ * </ul>
+  *
+ * <p>At the compatibility edge (phase D's D1.4, 2026-11-15): a Legend service's test is legend-engine's, its expected
+ * data in legend-engine's serialization formats ({@code PURE_TDSOBJECT}, {@link TdsObjectsWriter}; a graph fetch's
+ * JSON envelope), so the runner and its writer moved here from {@code com.legend.test} and {@code com.legend.result}
+ * (the edge depends on the product, never the reverse: G5).
+ */
+public final class ServiceTestRunner implements AutoCloseable {
+
+    public enum Status { PASS, FAIL, SKIPPED }
+
+    /** How sessions are handed out. */
+    public enum Sessions {
+        /** A new session per test, seeded by the platform on establishment —
+         *  the engine's own shape (a fresh test database per run). */
+        FRESH_PER_TEST,
+        /** One seeded session per distinct provisioning, shared by every
+         *  read-only test; a body with statement effects gets its own. */
+        SHARED
+    }
+
+    /** One atomic test's outcome. {@code reason} names the first failed
+     *  assertion's difference, the skip's cause, or the phase that raised. */
+    public record Result(String serviceFqn, String suiteId, String testId, Status status,
+                         String reason, long millis) {
+        public boolean pass() {
+            return status == Status.PASS;
+        }
+    }
+
+    /** A test the runner cannot judge: the reason travels as the result. */
+    private static final class Skip extends RuntimeException {
+        Skip(String why) {
+            super(why);
+        }
+    }
+
+    private final PureModelContext ctx;
+    private final PureTestRunner.Sessions opener;
+    private final Sessions policy;
+    /** The database the opener's sessions are: the test connection declares
+     *  it, so the platform picks that dialect (an H2 session refuses a
+     *  runtime whose connections declare anything else). */
+    private final ConnectionDefinition.DatabaseType sessionType;
+    /** The data a session is seeded with → the shared session (SHARED policy). One database per distinct data set,
+     *  whichever runtimes read it (2026-11-07: keyed by runtime, the stress lane held 46 seeded databases, 26 of them
+     *  the same stress::TestData, ~340 MB each; the program's seed step is keyed by its content and skipped on a
+     *  session that holds it, so a second runtime over the same data seeds nothing). */
+    private final Map<List<ProvisionKey>, com.legend.exec.Sessions.Session> shared = new LinkedHashMap<>();
+    /** the runtime and its provisioning, BY VALUE → the test runtime (an
+     *  overlay context + its runtime name). Value records, never a hash of
+     *  the data: two suites whose CSVs differ but hash alike ("Aa"/"BB")
+     *  used to share one runtime and the second ran on the first's rows
+     *  (rebuild W0.6 push 8). */
+    private final Map<RuntimeKey, TestRuntime> runtimes = new LinkedHashMap<>();
+
+    /** One CSV table of a provisioning, by value (no source position: the
+     *  same data declared twice, inline or through a {@code ###Data}
+     *  reference, is the same provisioning). */
+    private record CsvTableKey(String schema, String table, String values) {
+    }
+
+    /** A provisioning unit by value: the store and its tables. */
+    private record ProvisionKey(String store, List<CsvTableKey> tables) {
+    }
+
+    /** A test runtime's identity: the service runtime and every provisioning. */
+    private record RuntimeKey(String runtimeFqn, List<ProvisionKey> provisions) {
+    }
+
+    /** A suite's test runtime: the overlay context that resolves it, by name, and the data it is seeded with (the
+     *  shared session's key). */
+    private record TestRuntime(PureModelContext ctx, String runtimeFqn, List<ProvisionKey> data) {
+    }
+
+    /** One test's computed answer, as its serialization format spells it,
+     *  before any assertion judges it (rebuild D23: the rows a second engine
+     *  is compared with). */
+    public record Rows(String serviceFqn, String suiteId, String testId,
+                       @com.legend.base.Nullable Object actual) {
+    }
+
+    /** Where every test's computed answer is offered before judging; null
+     *  when nobody asked. */
+    private final java.util.function.@com.legend.base.Nullable Consumer<Rows> rowsSink;
+
+    public ServiceTestRunner(ModelContext ctx, PureTestRunner.Sessions opener, Sessions policy,
+            ConnectionDefinition.DatabaseType sessionType) {
+        this(ctx, opener, policy, sessionType, null);
+    }
+
+    public ServiceTestRunner(ModelContext ctx, PureTestRunner.Sessions opener, Sessions policy,
+            ConnectionDefinition.DatabaseType sessionType,
+            java.util.function.@com.legend.base.Nullable Consumer<Rows> rowsSink) {
+        this.rowsSink = rowsSink;
+        if (!(ctx instanceof PureModelContext pmc)) {
+            throw new IllegalArgumentException("a service test runtime is an execution overlay"
+                    + " on the compiled model; got " + ctx.getClass().getSimpleName());
+        }
+        this.ctx = pmc;
+        this.opener = opener;
+        this.policy = policy;
+        this.sessionType = sessionType;
+    }
+
+    /** One provisioning unit: the store and the CSV data that seeds it. */
+    private record Provision(String store, Protocol.PRelationalCsvData data) {
+        ProvisionKey key() {
+            List<CsvTableKey> tables = new java.util.ArrayList<>(data.tables().size());
+            for (Protocol.PRelationalCsvTable t : data.tables()) {
+                // every provisioned table has values (addProvision)
+                tables.add(new CsvTableKey(t.schema(), t.table(), java.util.Objects.requireNonNull(t.values())));
+            }
+            return new ProvisionKey(store, List.copyOf(tables));
+        }
+    }
+
+    // ---- RUN -----------------------------------------------------------------
+
+    /** Every atomic test of every suite of {@code svc}, in declaration order.
+     *  A service without suites yields no result. */
+    public List<Result> run(ServiceDefinition svc) {
+        List<Result> out = new ArrayList<>();
+        if (svc.testSuites() == null) {
+            return out;
+        }
+        for (Protocol.PServiceTestSuite suite : svc.testSuites()) {
+            for (Protocol.PServiceTestSuite.PSuiteTest test : suite.tests()) {
+                long t0 = System.nanoTime();
+                Result r;
+                try {
+                    r = runOne(svc, suite, test);
+                } catch (Skip s) {
+                    r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.SKIPPED,
+                            String.valueOf(s.getMessage()), 0);
+                } catch (RuntimeException e) {
+                    r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.FAIL,
+                            "harness: " + e.getClass().getSimpleName() + ": "
+                                    + PureTestRunner.whole(PureMessages.compile(e)), 0);
+                }
+                out.add(new Result(r.serviceFqn(), r.suiteId(), r.testId(), r.status(),
+                        r.reason(), (System.nanoTime() - t0) / 1_000_000L));
+            }
+        }
+        return out;
+    }
+
+    /** The test runtime a suite's test runs on and the program it runs: the parameters as let-bound variables, then
+     *  the service's body. */
+    private record Program(TestRuntime rt, List<ValueSpecification> statements) {
+    }
+
+    private Program program(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+            Protocol.PServiceTestSuite.PSuiteTest test) {
+        String runtimeFqn = runtimeOf(svc);
+        RuntimeDefinition runtime = ctx.findRuntime(runtimeFqn).orElseThrow(
+                () -> new Skip("runtime '" + runtimeFqn + "' is not in the model"));
+        TestRuntime rt = testRuntime(runtime, provisions(suite, runtime));
+        List<ValueSpecification> statements = new ArrayList<>();
+        if (test.parameters() != null) {
+            for (Protocol.PServiceTestSuite.PSuiteParam p : test.parameters()) {
+                statements.add(new AppliedFunction("letFunction",
+                        List.of(new CString(p.name()), p.value())));
+            }
+        }
+        statements.addAll(body(svc.functionBody()));
+        return new Program(rt, statements);
+    }
+
+    /** The TEST PLAN {@code svc}'s test {@code testId} of suite {@code suiteId} runs, as JSON, planned and never run
+     *  (the data-in-the-plan design's M4 guard, 2026-11-09: a suite's data reaches the plan only as a load). */
+    public String planJson(ServiceDefinition svc, String suiteId, String testId) {
+        return planJson(svc, suiteId, testId, com.legend.ExecuteOptions.NONE);
+    }
+
+    /** {@link #planJson(ServiceDefinition, String, String)} planned under {@code options} (an edge's, for one). */
+    public String planJson(ServiceDefinition svc, String suiteId, String testId, com.legend.ExecuteOptions options) {
+        for (Protocol.PServiceTestSuite suite : java.util.Objects.requireNonNull(svc.testSuites())) {
+            for (Protocol.PServiceTestSuite.PSuiteTest test : suite.tests()) {
+                if (suite.id().equals(suiteId) && test.id().equals(testId)) {
+                    Program p = program(svc, suite, test);
+                    ValueSpecification resolved = Compiler.resolveQuery(p.statements(), new ImportScope(List.of()),
+                            p.rt().ctx());
+                    return com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                            Compiler.queryResolved(p.rt().ctx(), resolved), p.rt().runtimeFqn(), options));
+                }
+            }
+        }
+        throw new IllegalArgumentException("no test " + suiteId + "." + testId + " in " + svc.qualifiedName());
+    }
+
+    private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+            Protocol.PServiceTestSuite.PSuiteTest test) {
+        Program program = program(svc, suite, test);
+        TestRuntime rt = program.rt();
+        ValueSpecification resolved;
+        try {
+            resolved = Compiler.resolveQuery(program.statements(), new ImportScope(List.of()), rt.ctx());
+        } catch (RuntimeException e) {
+            return fail(svc, suite, test, "resolve: " + PureTestRunner.whole(PureMessages.compile(e)));
+        }
+        boolean privateSession = policy == Sessions.FRESH_PER_TEST
+                || Compiler.hasStatementEffects(resolved, rt.ctx());
+        com.legend.exec.Sessions.Session conn = privateSession ? opener.open() : shared(rt.data());
+        try {
+            java.io.StringWriter out = new java.io.StringWriter();
+            try {
+                // the one entry for a program (track C, 2026-10-29): the test's body typed once, run on the
+                // session; its last statement's answer streams through the boundary's writer for the test's format
+                // (the doors, 2026-10-29) -- what the service would serve, read back below as the tree the
+                // assertions compare
+                TestExecution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
+                        // the product's style, heard by the product's hook (census C1, 2026-11-17: one choice per run --
+                        // the edge's hook here judged a lite run by compiled legend-pure's equality, a defect)
+                        com.legend.exec.SessionSource.given(conn), null, com.legend.testexec.NoEdgeRun.NONE,
+                        com.legend.ExecuteOptions.NONE,
+                        new com.legend.result.Output.Rows(new ServiceAnswer(out, test.serializationFormat())));
+            } catch (Skip s) {
+                throw s;
+            } catch (RuntimeException e) {
+                if (System.getenv("LEGEND_LITE_STACKS") != null) {
+                    e.printStackTrace();   // the same diagnostic switch the resolver walls honor
+                }
+                return fail(svc, suite, test, "execute: " + PureTestRunner.whole(PureMessages.compile(e)));
+            }
+            if (out.getBuffer().length() == 0) {
+                return fail(svc, suite, test, "execute: the platform produced no result");
+            }
+            Object actual = com.legend.sql.Json.parse(out.toString());
+            if (rowsSink != null) {
+                rowsSink.accept(new Rows(svc.qualifiedName(), suite.id(), test.id(), actual));
+            }
+            for (Protocol.PTestAssertion a : test.assertions()) {
+                String diff = judge(a, actual);
+                if (diff != null) {
+                    return fail(svc, suite, test, a.id() + ": " + diff);
+                }
+            }
+            return new Result(svc.qualifiedName(), suite.id(), test.id(), Status.PASS,
+                    test.assertions().size() + " assertion(s)", 0);
+        } finally {
+            if (privateSession) {
+                conn.close();
+            }
+        }
+    }
+
+    private static Result fail(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+            Protocol.PServiceTestSuite.PSuiteTest test, String reason) {
+        return new Result(svc.qualifiedName(), suite.id(), test.id(), Status.FAIL, reason, 0);
+    }
+
+    private static String runtimeOf(ServiceDefinition svc) {
+        if (svc.runtimeRef() != null) {
+            return svc.runtimeRef();
+        }
+        if (svc.multiExecution() != null) {
+            throw new Skip("multi-execution service: the test's keys select an environment,"
+                    + " which this runner does not bind yet");
+        }
+        throw new Skip("service names no runtime");
+    }
+
+    private static List<ValueSpecification> body(ValueSpecification fb) {
+        return fb instanceof LambdaFunction lf && lf.parameters().isEmpty()
+                ? lf.body() : List.of(fb);
+    }
+
+    // ---- PROVISIONING → THE TEST RUNTIME -----------------------------------------
+
+    private List<Provision> provisions(Protocol.PServiceTestSuite suite, RuntimeDefinition runtime) {
+        List<Provision> out = new ArrayList<>();
+        Protocol.PServiceTestSuite.PSuiteData data = suite.testData();
+        if (data == null) {
+            return out;
+        }
+        for (Protocol.PServiceTestSuite.PSuiteConnData cd : data.connectionsTestData()) {
+            String store = runtime.connectionIds().get(cd.id());
+            if (store == null) {
+                if (runtime.connectionBindings().size() == 1) {
+                    store = runtime.connectionBindings().keySet().iterator().next();
+                } else {
+                    throw new Skip("connection id '" + cd.id() + "' is not bound by runtime '"
+                            + runtime.qualifiedName() + "'");
+                }
+            }
+            addProvision(out, store, cd.data());
+        }
+        if (data.serviceTestData() != null) {
+            for (Protocol.PServiceTestSuite.PResolverData rd : data.serviceTestData()) {
+                if (rd.data() != null) {
+                    addProvision(out, rd.elementPath(), rd.data());
+                } else {
+                    // referenceDataResolver: the element's own resolvers name the stores
+                    DataDefinition dd = ctx.findData(rd.elementPath()).orElseThrow(
+                            () -> new Skip("data element '" + rd.elementPath()
+                                    + "' is not in the model"));
+                    addResolvers(out, dd);
+                }
+            }
+        }
+        return out;
+    }
+
+    private void addResolvers(List<Provision> out, DataDefinition dd) {
+        if (dd.body().resolvers().isEmpty()) {
+            throw new Skip("data element '" + dd.qualifiedName()
+                    + "' names no store to provision (no resolvers)");
+        }
+        for (Protocol.PDataResolver r : dd.body().resolvers()) {
+            if (r.data() == null) {
+                DataDefinition inner = ctx.findData(r.elementPointer().path()).orElseThrow(
+                        () -> new Skip("data element '" + r.elementPointer().path()
+                                + "' is not in the model"));
+                addResolvers(out, inner);
+            } else {
+                addProvision(out, r.elementPointer().path(), r.data());
+            }
+        }
+    }
+
+    /** Resolves references down to a concrete value and records it. */
+    private void addProvision(List<Provision> out, String store, Protocol.PEmbeddedDataValue v) {
+        Protocol.PEmbeddedDataValue value = v;
+        while (value instanceof Protocol.PDataReference ref) {
+            String path = ref.dataElement().path();
+            DataDefinition dd = ctx.findData(path).orElseThrow(
+                    () -> new Skip("data element '" + path + "' is not in the model"));
+            if (dd.body().value() == null) {
+                // a resolver-form element: its own store keys apply
+                addResolvers(out, dd);
+                return;
+            }
+            value = dd.body().value();
+        }
+        // every kind a suite's data may be, classified (B2e, 2026-11-11, census M17: until then a kind but relational CSV
+        // was a skip): a store's relational rows are provisioned; the rest is a feature not implemented yet, by name
+        String feature = "a service test's data for the store " + store;
+        Protocol.PRelationalCsvData csv = switch (value) {
+            case Protocol.PRelationalCsvData r -> r;
+            case Protocol.PDataReference r -> throw new IllegalStateException("a reference resolved above: " + r);
+            case Protocol.PModelStoreData m -> throw new com.legend.error.NotImplementedException(
+                    notImplemented(m, feature));
+            case Protocol.PExternalFormatData e -> throw new com.legend.error.NotImplementedException(
+                    notImplemented(e, feature));
+            case Protocol.PServiceStoreData st -> throw new com.legend.error.NotImplementedException(
+                    notImplemented(st, feature));
+            case Protocol.PRelationData r -> throw new com.legend.error.NotImplementedException(
+                    notImplemented(r, feature));
+        };
+        for (Protocol.PRelationalCsvTable t : csv.tables()) {
+            if (t.values() == null) {
+                // JSON may leave a table's values out; with no header line there are no columns to seed
+                throw new Skip("CSV table " + t.schema() + "." + t.table() + " has no values to seed");
+            }
+        }
+        out.add(new Provision(store, csv));
+    }
+
+    /** The suite's TEST RUNTIME: the service runtime's mappings, its one
+     *  provisioned store bound to a connection carrying the CSV as declared
+     *  test data (the {@code LocalH2 { testDataSetupCSV }} shape the platform
+     *  seeds on establishment). One per distinct provisioning; overlays are
+     *  allocation-cheap views of the compiled model. */
+    private TestRuntime testRuntime(RuntimeDefinition runtime, List<Provision> provisions) {
+        RuntimeKey key = new RuntimeKey(runtime.qualifiedName(),
+                provisions.stream().map(Provision::key).toList());
+        TestRuntime cached = runtimes.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        if (provisions.isEmpty()) {
+            TestRuntime plain = new TestRuntime(ctx, runtime.qualifiedName(), List.of());
+            runtimes.put(key, plain);
+            return plain;
+        }
+        String store = provisions.get(0).store();
+        for (Provision p : provisions) {
+            if (!p.store().equals(store)) {
+                throw new Skip("provisioning spans several stores (" + store + ", " + p.store()
+                        + "); the test runtime binds one");
+            }
+        }
+        if (ctx.findDatabase(store).isEmpty()) {
+            throw new Skip("store '" + store + "' is not a database in the model");
+        }
+        StringBuilder csv = new StringBuilder();
+        for (Provision p : provisions) {
+            for (Protocol.PRelationalCsvTable t : p.data().tables()) {
+                if (csv.length() > 0) {
+                    csv.append("\n-\n");
+                }
+                csv.append(t.schema()).append('\n').append(t.table()).append('\n')
+                        .append(java.util.Objects.requireNonNull(t.values()));
+            }
+        }
+        // the '$' sigil: a name no user can write, so the overlay shadows
+        // nothing; the ordinal is unique within this runner (a hash of the
+        // key was not: colliding keys shared a name and, under SHARED, a
+        // session)
+        String rtName = runtime.qualifiedName() + "$test$" + runtimes.size();
+        String connName = rtName + "$conn";
+        ConnectionDefinition conn = new ConnectionDefinition(connName, store, sessionType,
+                ConnectionSpecification.carryingTestData(csv.toString()),
+                new AuthenticationSpec.TestAuth());
+        Map<String, String> ids = new LinkedHashMap<>();
+        runtime.connectionIds().forEach((id, s) -> ids.put(id, s));
+        RuntimeDefinition rt = new RuntimeDefinition(rtName, runtime.mappings(),
+                Map.of(store, List.of(connName)), List.of(), List.of(), ids);
+        TestRuntime built = new TestRuntime(ctx.withExecutionOverlay(rt, conn), rtName, key.provisions());
+        runtimes.put(key, built);
+        return built;
+    }
+
+    private com.legend.exec.Sessions.Session shared(List<ProvisionKey> data) {
+        com.legend.exec.Sessions.Session conn = shared.get(data);
+        if (conn == null) {
+            conn = opener.open();
+            shared.put(data, conn);
+        }
+        return conn;
+    }
+
+    // ---- SERIALIZE + JUDGE ----------------------------------------------------
+
+    /** The writer the test's serialization format names, for the answer's shape (the doors, 2026-10-29: the body's
+     *  last statement streams through the boundary's writers as the service's answer would; until then this runner
+     *  assembled the tree in Java from a materialized side -- its own cell rules until track Z, the boundary's
+     *  {@code CellText.engine} after). A graph fetch's objects as legend-engine's JSON envelope
+     *  ({@link PureV1Writer#objects}); a relation or a value as {@code PURE_TDSOBJECT}
+     *  ({@link com.legend.edge.TdsObjectsWriter}: objects keyed by column, legend-engine's cell tokens); another
+     *  format of a relation is not rendered by this runner. The text is read back as the plain tree the assertions
+     *  compare. */
+    /** The service's answer as the test reads it back: told the answer's shape before its columns, it writes in the
+     *  test's serialization format -- a graph fetch's objects as the engine's JSON, a relation as TDS objects where the
+     *  format is one this runner renders (else the test is skipped by name). A receiver, deciding nothing the run does
+     *  (2026-11-09: the run called a factory of the runner's until then). */
+    private static final class ServiceAnswer implements com.legend.result.ResultSink {
+        private final java.io.Writer out;
+        private final String format;
+        private com.legend.result.@com.legend.base.Nullable ResultSink writer;
+        private java.util.@com.legend.base.Nullable UUID execution;
+
+        ServiceAnswer(java.io.Writer out, @com.legend.base.Nullable String format) {
+            this.out = out;
+            this.format = format == null ? "DEFAULT" : format;
+        }
+
+        @Override
+        public void answers(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape) {
+            if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
+                writer = PureV1Writer.objects(out);
+                return;
+            }
+            if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION
+                    && !format.equals("PURE_TDSOBJECT") && !format.equals("RAW")) {
+                throw new Skip("serialization format " + format + " of a tabular result is not rendered by this runner");
+            }
+            writer = new com.legend.edge.TdsObjectsWriter(out, shape);
+        }
+
+        @Override
+        public void execution(java.util.UUID id) {
+            // told before its shape: handed on to the writer the shape makes
+            execution = id;
+        }
+
+        private com.legend.result.ResultSink writer() {
+            com.legend.result.ResultSink w = writer;
+            if (w == null) {
+                throw new IllegalStateException("the service's answer was not told its shape before its rows");
+            }
+            return w;
+        }
+
+        @Override
+        public void columns(java.util.List<com.legend.executionplan.ExecutionPlan.Column> columns)
+                throws java.io.IOException {
+            if (execution != null) {
+                writer().execution(execution);
+            }
+            writer().columns(columns);
+        }
+
+        @Override
+        public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+            writer().batch(batch);
+        }
+
+        @Override
+        public void end() throws java.io.IOException {
+            writer().end();
+        }
+    }
+
+    private static @com.legend.base.Nullable String judge(Protocol.PTestAssertion a,
+            @com.legend.base.Nullable Object actual) {
+        return switch (a.expected()) {
+            case Protocol.PExternalFormatData ef -> {
+                if (!"application/json".equalsIgnoreCase(ef.contentType())) {
+                    throw new Skip("assertion '" + a.id() + "': content type '"
+                            + ef.contentType() + "' is not judged by this runner");
+                }
+                Object expected;
+                try {
+                    expected = com.legend.sql.Json.parse(ef.data());
+                } catch (RuntimeException e) {
+                    yield "expected JSON does not parse: " + e.getMessage();
+                }
+                yield EqualToJson.diff(expected, actual);
+            }
+            case Protocol.PEqualToValue eq -> throw new Skip("assertion '" + a.id()
+                    + "': EqualTo (a spec value) is not judged by this runner");
+            case Protocol.PRelationElement rel -> throw new Skip("assertion '" + a.id()
+                    + "': a Relation assertion is not judged by this runner");
+        };
+    }
+
+    // ---- SESSIONS -------------------------------------------------------------
+
+    /** The shared sessions opened so far: one per distinct data set. */
+    public java.util.Collection<com.legend.exec.Sessions.Session> sessions() {
+        return Collections.unmodifiableCollection(shared.values());
+    }
+
+    @Override
+    public void close() {
+        for (com.legend.exec.Sessions.Session c : shared.values()) {
+            try {
+                c.close();
+            } catch (com.legend.error.DataError ignored) {
+                // a session that fails to close cannot poison the next
+            }
+        }
+        shared.clear();
+    }
+
+    /** What a service test says of data of a kind it does not load: {@code feature}, the kind, not implemented yet
+     *  (composed here from the product's {@code EmbeddedDataKinds.name}: the edge audit's J40 delete, 2026-11-18). */
+    private static String notImplemented(Protocol.PEmbeddedDataValue value, String feature) {
+        return feature + ": " + com.legend.protocol.EmbeddedDataKinds.name(value) + " data is not implemented yet"
+                + " (legend-lite loads a relational store's CSV rows alone; census M17)";
+    }
+}

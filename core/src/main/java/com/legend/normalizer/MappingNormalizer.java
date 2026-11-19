@@ -245,7 +245,7 @@ public final class MappingNormalizer {
             if (e.element() != null) {
                 throw e;
             }
-            throw new ModelException(e.phase(), e.getMessage(), elementFqn);
+            throw ModelException.attributed(e, elementFqn);
         } catch (com.legend.error.NotImplementedException
                 | com.legend.error.MappingResolutionException e) {
             // DELIBERATE walls get element attribution too — a module
@@ -1417,9 +1417,7 @@ public final class MappingNormalizer {
         refs.forEach(r -> names.add(canonicalTable(r.table())));
         if (names.size() > 1) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "Can't find the main table for class '" + rcm.className()
-                  + "': property mappings span tables " + names
-                  + ". Please specify a main table using the ~mainTable directive.");
+                    com.legend.error.CompileKind.MAIN_TABLE_UNNAMED, java.util.List.of(rcm.className(), names.toString()));
         }
         if (refs.isEmpty()) {
             return null;

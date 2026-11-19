@@ -19,7 +19,8 @@ legend_java_library(
 # the main sources, as files: core's database-name guards read them (the dialect program's Phase 7, 2026-10-18)
 filegroup(
     name = "main_java",
-    srcs = glob(["src/main/java/**/*.java"]),
+    # the edge's entries too (src/edge: the separation census's A2, 2026-11-17)
+    srcs = glob(["src/main/java/**/*.java", "src/edge/java/**/*.java"]),
     # and the planned-SQL guard: who reaches the authored door (the C final audit's H1, 2026-11-12)
     visibility = ["//core:__pkg__", "//tools/guards:__pkg__"],
 )
@@ -34,7 +35,7 @@ legend_java_library(
     resource_strip_prefix = "native/src/main/resources",
     deps = [
         ":graal_api",
-        # the saved queries' rules over a folder (SavedQueriesHome: the program's B5)
+        # the saved queries' rules over a folder (ModelHome's and the edge's SavedQueriesHome: the program's B5)
         "//core:saved_queries",
         "//depot-server:rules",
         "//sdlc-server:git_storage",
@@ -49,7 +50,24 @@ legend_java_library(
     visibility = ["//core:__pkg__"],
 )
 
-# libcompiler.dylib (macOS) / libcompiler.so (Linux) / libcompiler.dll (Windows). Everything links when the image is
+# THE EDGE'S ENTRY POINTS in the same library (the separation census's A2, 2026-11-17): the saved queries answer
+# upstream's /api/pure/v1/query (SavedQueriesHome), so legend-engine's words (//core:edge_store_words); the library is
+# rooted at the edge as the server is (the orchestrator's extension of ruling A4). Lite's own entry points stay :entry's.
+legend_java_library(
+    name = "edge_entry",
+    srcs = glob(["src/edge/java/**/*.java"]),
+    deps = [
+        ":entry",
+        ":graal_api",
+        "//core:edge_store_words",
+        "//core:saved_queries",
+        "//wasm:boundary",
+        # legend-engine's pure/v1 call and execute's halves (EngineEntries: the census's A1, 2026-11-17)
+        "//wasm:edge_boundary",
+    ],
+)
+
+# THE PRODUCT LIBRARY: libcompiler.dylib (macOS) / libcompiler.so (Linux) / libcompiler.dll (Windows). Everything links when the image is
 # built (--link-at-build-time), as the warehouse's image does: a missing class fails the build, never a call. The C
 # toolchain is the warehouse image's (//warehouse:server_native): the host's checked first, zlib from source, lld on
 # Linux, MSVC on Windows. The library's own name is set, never the path of the sandbox that built it: libcompiler.so
@@ -91,7 +109,59 @@ native_image(
         "//python:__pkg__",
         "//tools/guards:__pkg__",
     ],
+    # THE PRODUCT ROOT (K2, the user's ruling of 2026-11-18, "product root, edge opt-in"): lite's own entry points
+    # alone -- legend-engine's are the engine library's (:engine), loaded only by legend_lite.edge
     deps = [":entry"],
+)
+
+
+# THE ENGINE LIBRARY, OPT-IN (K2, the user's ruling of 2026-11-18, "product root, edge opt-in"; packaging the
+# orchestrator's: the legend-lite-engine wheel, the [engine] extra): legend-engine's entry points (:edge_entry: pure/v1,
+# execute's halves, the refusal, legend-engine's saved-query store) over the product they depend on, as one more shared
+# library -- libcompiler_engine.dylib / .so / .dll, its own isolate. Only legend_lite.edge loads it; the product never.
+# Built as the product library is (below the product's comment above): its own name set, libcompiler_engine.so (its
+# soname) on Linux, @rpath/libcompiler_engine.dylib (its install name) on macOS; a DLL found by its file name.
+native_image(
+    name = "engine",
+    executable_name = "libcompiler_engine",
+    extra_args = ["--link-at-build-time"] + select({
+        "@platforms//os:linux": [
+            "-H:NativeLinkerOption=-Wl,-soname,libcompiler_engine.so",
+            # the oldest CPUs of the architecture, not GraalVM's default (x86-64-v3, AVX2; armv8.1-a): a manylinux wheel
+            # (//python:wheel) runs on any Linux machine of its architecture (the audit of the wheel, 2026-10-08).
+            # macOS keeps the default: every Mac that runs macOS 14 has it
+            "-march=compatibility",
+        ],
+        # the oldest macOS the library runs on, PINNED (2026-10-08, the user: macOS 14, what CI's Mac runners are):
+        # left to the build machine's SDK, a newer machine would make a library a 14 cannot load, inside a wheel that
+        # says 14 (//python:wheel, held by //python:wheel_test)
+        "@platforms//os:macos": [
+            "-H:NativeLinkerOption=-Wl,-install_name,@rpath/libcompiler_engine.dylib",
+            "-H:NativeLinkerOption=-mmacosx-version-min=14.0",
+        ],
+        # as on Linux: the oldest x86-64 CPUs, so a win_amd64 wheel runs on any Windows machine on x86-64
+        "@platforms//os:windows": ["-march=compatibility"],
+        "//conditions:default": [],
+    }),
+    data = ["@host_cc//:present"],
+    shared_library = True,
+    static_zlib = "@zlib",
+    c_compiler_option = select({
+        "@platforms//os:linux": ["-fuse-ld=lld"],
+        "@platforms//os:macos": ["-mmacosx-version-min=14.0"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = compatible_with(COMPILER_LIBRARY_PLATFORMS),
+    visibility = [
+        # //datacube's Python lanes that ask legend-engine's routes hand it to the edge's engine they start
+        "//datacube:__pkg__",
+        "//python:__pkg__",
+        "//tools/guards:__pkg__",
+        # core's shipped-artifact queries name it: the declared opt-in (ShippedArtifactRootsTest, K2)
+        "//core:__pkg__",
+    ],
+    # rooted at the edge's entry points, which carry the product they depend on
+    deps = [":edge_entry"],
 )
 
 guards_package()

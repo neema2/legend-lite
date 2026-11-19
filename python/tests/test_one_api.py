@@ -406,7 +406,7 @@ class OneRule(Session):
         page, engine = self.served('saved twice')
         # the tab's Save: the record in this user's saved pages, then the page told it
         from legend_lite._home import THIS_USER, pages_folder, store_call
-        status, made = store_call('lite_saved_cubes', pages_folder(), 'POST', '', '', json.dumps(
+        status, made = store_call('lite_store_cubes', pages_folder(), 'POST', '', '', json.dumps(
             {'id': 'r-tab', 'name': 'saved twice', 'content': page.to_dict()}), THIS_USER)
         self.assertEqual(status, 200, made)
         said = self.written(engine, page, {'edits': [{'page': {'kind': 'savedAs', 'record': 'r-tab'}}]})

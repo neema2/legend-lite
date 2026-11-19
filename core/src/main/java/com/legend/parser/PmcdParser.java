@@ -44,10 +44,10 @@ public final class PmcdParser {
     /** THE level this whole class exists for — PmcdParser is the
      *  drop-in surface — named ONCE, used by {@link #at} and the
      *  sub-parser entries. */
-    private static final Dialect LEVEL = Dialect.LEGEND_ENGINE;
+    private static final GrammarLevel LEVEL = GrammarLevel.LEGEND_ENGINE;
 
     /** A parser at {@code site}, at {@link #LEVEL}. */
-    private static ElementParser at(TokenStream ts, int site, Dialect dialect) {
+    private static ElementParser at(TokenStream ts, int site, GrammarLevel dialect) {
         return ElementParser.at(ts, site, dialect);
     }
 
@@ -139,12 +139,20 @@ public final class PmcdParser {
     /**
      * Text to JSON for a model (the conversion legend-engine's {@code grammarToJson/model} makes, its
      * {@code returnSourceInformation} the second argument): {@link #parseDocument}, without any source
-     * information when it is off -- every span, the named ones ({@code classSourceInformation}, ...) included, as the
-     * engine's parser then records none (its span builder answers null; CorpusSweepTest's claim 1c).
+     * information when it is off -- every span, the named ones ({@code classSourceInformation}, ...) included
+     * ({@code SourceInformation.stripAll}); legend-engine's five kept spans are the edge's form
+     * ({@code edge.EngineSpans}, J35's residue, 2026-11-18; CorpusSweepTest's claim 1c).
      */
     public static String parseDocument(String source, boolean sourceInformation) {
-        String json = parseDocument(source);
-        return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
+        return parseDocument(source, sourceInformation, LEVEL);
+    }
+
+    /** {@link #parseDocument(String, boolean)} at {@code dialect}: the product's door parses at legend-lite's one
+     *  grammar (J21 of the edge audit, 2026-11-17, the user's "yes to the rule"); this class's level-less entries are
+     *  legend-engine's, which the edge's door alone reaches ({@code ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone}). */
+    public static String parseDocument(String source, boolean sourceInformation, GrammarLevel dialect) {
+        String json = ProtocolEmitter.emit(parse(source, dialect).model());
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);
     }
 
     /**
@@ -163,7 +171,7 @@ public final class PmcdParser {
      * its built-in sections, native declarations, and records an unclaimed section where the others refuse it. The
      * compiler builds from these records through its one door ({@code ModelFromProtocol}).
      */
-    public static Parsed parse(String source, Dialect dialect) {
+    public static Parsed parse(String source, GrammarLevel dialect) {
         List<UnclaimedSection> unclaimed = new ArrayList<>();
         List<DocSection> sections = parseSections(source, dialect, unclaimed);
         List<Protocol.Element> elements = new ArrayList<>();
@@ -197,7 +205,7 @@ public final class PmcdParser {
         return parseSections(source, LEVEL, new ArrayList<>());
     }
 
-    private static List<DocSection> parseSections(String source, Dialect dialect, List<UnclaimedSection> unclaimed) {
+    private static List<DocSection> parseSections(String source, GrammarLevel dialect, List<UnclaimedSection> unclaimed) {
         TokenStream ts = Lexer.tokenize(source);
 
         // section boundaries from the LEXER's records: every ###X header in
@@ -225,7 +233,7 @@ public final class PmcdParser {
             long[] range = {bd.contentStart(), contentEnd};
             List<DocElement> elements;
             List<String> imports;
-            if (dialect != LEVEL && !BUILT_IN_SECTIONS.contains(bd.name()) && !TAIL_SECTIONS.contains(bd.name())) {
+            if (!dialect.refusesLiteExtensions() && !BUILT_IN_SECTIONS.contains(bd.name()) && !TAIL_SECTIONS.contains(bd.name())) {
                 // a section only a registered grammar can read (lite's and the platform's dialects): the registry's
                 Registered reg = registered(ts, source, bd.name(), range, bd.nameOffset(), dialect, unclaimed);
                 if (reg == null) {
@@ -264,7 +272,7 @@ public final class PmcdParser {
      * records it unclaimed and goes on (null: not a section of the model).
      */
     private static @com.legend.base.Nullable Registered registered(TokenStream ts, String source, String name,
-            long[] r, int nameOffset, Dialect dialect, List<UnclaimedSection> unclaimed) {
+            long[] r, int nameOffset, GrammarLevel dialect, List<UnclaimedSection> unclaimed) {
         TokenStream.SkippedSection skipped = null;
         for (TokenStream.SkippedSection sk : ts.skippedSections()) {
             if (sk.nameOffset() == nameOffset) {
@@ -432,7 +440,7 @@ public final class PmcdParser {
     // ------------------------------------------------------------------
 
     private static List<DocElement> sectionElements(TokenStream ts,
-            String source, String parserName, long[] r, int headerStart, Dialect dialect) {
+            String source, String parserName, long[] r, int headerStart, GrammarLevel dialect) {
         boolean importsOk = IMPORT_AWARE.contains(parserName);
         if (!dialect.refusesPlatformDialect() && PLATFORM_OPEN_SECTIONS.contains(parserName)) {
             // the platform dialect (lite's own Pure, its test models) reads any declaration in its built-in sections,
@@ -643,7 +651,7 @@ public final class PmcdParser {
             com.legend.parser.section.@com.legend.base.Nullable ElementwiseSectionGrammar tailGrammar,
             @com.legend.base.Nullable List<TokenType> headsOut,
             com.legend.parser.section.@com.legend.base.Nullable FunctionActivatorSectionGrammar activatorGrammar,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         List<DocElement> out = new ArrayList<>();
         int cursor = skipTo(ts, r[0]);
         boolean sawElement = false;
@@ -745,7 +753,7 @@ public final class PmcdParser {
         return first;
     }
 
-    private static List<String> diagramImports(String source, long[] r, Dialect dialect) {
+    private static List<String> diagramImports(String source, long[] r, GrammarLevel dialect) {
         int startLine = 1;
         for (int k = 0; k < r[0]; k++) {
             if (source.charAt(k) == '\n') {
@@ -768,7 +776,7 @@ public final class PmcdParser {
                 ? imp.substring(0, cut) : imp;
     }
 
-    private static List<DocElement> diagramElements(String source, long[] r, Dialect dialect) {
+    private static List<DocElement> diagramElements(String source, long[] r, GrammarLevel dialect) {
         int startLine = 1;
         for (int k = 0; k < r[0]; k++) {
             if (source.charAt(k) == '\n') {
@@ -792,7 +800,7 @@ public final class PmcdParser {
             int mappingSectionLine,
             com.legend.parser.section.@com.legend.base.Nullable ElementwiseSectionGrammar tailGrammar,
             com.legend.parser.section.@com.legend.base.Nullable FunctionActivatorSectionGrammar activatorGrammar,
-            int[] endOut, Dialect dialect) {
+            int[] endOut, GrammarLevel dialect) {
         Protocol.Element el;
         String path;
         switch (kind) {

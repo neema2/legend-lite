@@ -45,7 +45,18 @@ class AssertErrorNativeTest {
     }
 
     private static Lean.Result run(String query) throws SQLException {
-        return Program.last(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
+        // legend-pure's own assertError.pure, ported: its messages are legend-pure's, the edge's run's -- its style and
+        // its hook together (census C1, the orchestrator's ruling of 2026-11-17: one choice per run)
+        return com.legend.testing.EdgeProgram.last(StorelessRuntime.with("", Databases.PLATFORM), query,
+                StorelessRuntime.RUNTIME, conn, com.legend.ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM));
+    }
+
+    /** {@code query} under the COMPATIBILITY RULES, heard by the edge's run (K10b of the edge audit, 2026-11-17):
+     *  assertError matches a raise of a planned site by legend-pure's words of it, the edge's records looked up by the
+     *  run's hearing ({@code EdgeHearing.raisedWords}) -- never the product plan's, whose sites say lite's message. */
+    private static Lean.Result compat(String query) {
+        return com.legend.testing.EdgeProgram.run(StorelessRuntime.with("", Databases.PLATFORM), query,
+                StorelessRuntime.RUNTIME, conn, com.legend.testing.EdgeProgram.compat()).side();
     }
 
     // assertError.pure:36 testSimpleAssertError, verbatim body
@@ -59,16 +70,25 @@ class AssertErrorNativeTest {
     }
 
     @Test
-    @DisplayName("message mismatch fails with assertError.pure:24's exact spelling")
+    @DisplayName("message mismatch fails with legend-pure's sentence, both errors quoted")
     void messageMismatch() {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3), 'wrong expectation')}"));
-        assertEquals("Execution error message mismatch.\n"
-                + "The actual message was \"The system is trying to get an"
-                + " element at offset 3 where the collection is of size 2\"\n"
-                + "where the expected message was:\"wrong expectation\"",
-                e.getMessage());
+        // legend-pure's assertError.pure:24 spelling: the edge's run writes legend-pure's words (census C1, 2026-11-17)
+        assertEquals("Execution error message mismatch.\nThe actual message was \"The system is trying to get an"
+                + " element at offset 3 where the collection is of size 2\"\nwhere the expected message was:"
+                + "\"wrong expectation\"", e.getMessage());
+    }
+
+    @Test
+    @DisplayName("an assert over a zip with no message fails in legend-pure's words on the edge: Assert failed")
+    void aVectorAssertsDefaultIsLegendPuresOnTheEdge() {
+        // the user's R1 (2026-11-18, PR #118): "Assert failed" is the edge's words alone; the product's default is
+        // lite's sentence (QuantifiedRowsTest)
+        com.legend.error.AssertFailed e = assertThrows(com.legend.error.AssertFailed.class,
+                () -> compat("{|[1, 2]->zip([2, 1])->forAll(p | assert($p.first < $p.second))}"));
+        assertEquals("Assert failed", e.getMessage());
     }
 
     @Test
@@ -136,11 +156,12 @@ class AssertErrorNativeTest {
     @Test
     @DisplayName("date ctor guards: month-aware day validation, spec spellings")
     void newDateErrors() throws Exception {
-        run("{|assertError(|date(2016, 13), 'Invalid month: 13')}");
-        run("{|assertError(|date(2016, 12, 32), 'Invalid day: 2016-12-32')}");
-        run("{|assertError(|date(2016, 2, 30), 'Invalid day: 2016-2-30')}");
-        run("{|assertError(|date(2015, 2, 29), 'Invalid day: 2015-2-29')}");
-        run("{|assertError(|date(2016, 12, 31, 24), 'Invalid hour: 24')}");
+        // legend-pure's words of each raise site, through the compatibility run's hearing (K10b, 2026-11-17)
+        compat("{|assertError(|date(2016, 13), 'Invalid month: 13')}");
+        compat("{|assertError(|date(2016, 12, 32), 'Invalid day: 2016-12-32')}");
+        compat("{|assertError(|date(2016, 2, 30), 'Invalid day: 2016-2-30')}");
+        compat("{|assertError(|date(2015, 2, 29), 'Invalid day: 2015-2-29')}");
+        compat("{|assertError(|date(2016, 12, 31, 24), 'Invalid hour: 24')}");
         // leap-year Feb 29 is LEGAL — no error is the assert failure
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(

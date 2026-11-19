@@ -55,7 +55,8 @@ class WireDecidedCellTest {
         conn.createStatement().execute("create table n(\"id\" integer)");
         conn.createStatement().execute("insert into n values (7)");
         // a String-declared column stamped INTEGER (the store's declaration): the cell is the database's kind
-        assertEquals(java.util.Set.of("'7'", "'a\\'b'", "TDSNull"), java.util.Set.copyOf(cells(conn, dialect, "t")),
+        // a present null cell spells lite's bare null (C5 step C, C-2, 2026-11-17: the TDSNull sentinel gone)
+        assertEquals(java.util.Set.of("'7'", "'a\\'b'", com.legend.lowering.CanonicalRenderSql.NULL_CELL), java.util.Set.copyOf(cells(conn, dialect, "t")),
                 "the text it holds, quoted");
         assertEquals(List.of("7"), cells(conn, dialect, "n"), "the integer, bare");
     }

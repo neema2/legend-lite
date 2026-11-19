@@ -36,7 +36,8 @@ public final class CsvWriter implements ResultSink {
         }
         StringBuilder header = new StringBuilder();
         for (int i = 0; i < columns.size(); i++) {
-            header.append(i == 0 ? "" : ",").append(escape(CellText.presentedName(columns.get(i).name())));
+            // a pivot's generated name bare (the user's ruling of 2026-11-10; legend-engine's quoting the edge's, D1.4)
+            header.append(i == 0 ? "" : ",").append(escape(columns.get(i).name()));
         }
         out.write(header.append("\r\n").toString());
     }

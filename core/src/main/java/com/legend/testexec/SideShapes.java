@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-final class SideShapes {
+public final class SideShapes {
 
     private SideShapes() {
     }
@@ -66,7 +66,7 @@ final class SideShapes {
                 com.legend.json.Json.Node parsed = com.legend.json.Json.parse(g.json());
                 if (parsed instanceof com.legend.json.Json.Obj sole) {
                     // an engine execute()'s values of exactly one object, serialized bare (the engine JsonBuilder's
-                    // cardinality rule, compatibility only: TypedSerializeGraph.engineExecuteCardinality): one object
+                    // cardinality rule, the edge's form over TypedSerializeGraph.readThroughExecuteValues): one object
                     rows.add(hostRow(com.legend.json.Json.toCompact(sole)));
                 } else if (parsed instanceof com.legend.json.Json.Arr items) {
                     for (com.legend.json.Json.Node item : items.items()) {
@@ -106,8 +106,8 @@ final class SideShapes {
     /** {@code sink} holding the walk's answer contract ({@link Cardinality}): for the body router, whose moved body's
      *  answer holds the walk's cardinality until the plan carries it (the test-is-the-product plan's §9, D30). */
     static com.legend.result.ResultSink holding(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast,
-            String multiplicity) {
-        return new Cardinality(sink, atMostOne, atLeast, multiplicity);
+            @com.legend.base.Nullable String noRows) {
+        return new Cardinality(sink, atMostOne, atLeast, noRows);
     }
 
     /** A sink that counts the rows on their way to {@code sink} and refuses, by the collected side's own words, a
@@ -117,14 +117,15 @@ final class SideShapes {
         private final com.legend.result.ResultSink sink;
         private final boolean atMostOne;
         private final long atLeast;
-        private final String multiplicity;
+        private final @com.legend.base.Nullable String noRows;
         private long rows;
 
-        Cardinality(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast, String multiplicity) {
+        Cardinality(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast,
+                @com.legend.base.Nullable String noRows) {
             this.sink = sink;
             this.atMostOne = atMostOne;
             this.atLeast = atLeast;
-            this.multiplicity = multiplicity;
+            this.noRows = noRows;
         }
 
         /** {@inheritDoc} Handed on: the holder decides nothing of the answer's shape. */
@@ -158,7 +159,8 @@ final class SideShapes {
         @Override
         public void end() throws java.io.IOException {
             if (rows == 0 && atLeast >= 1) {
-                throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity " + multiplicity);
+                // the words the plan carries, worded at planning (C5's step E, 2026-11-17: TestPlan.answerSizeWords)
+                throw new IllegalStateException(java.util.Objects.requireNonNull(noRows, "the plan's answer size words"));
             }
             sink.end();
         }
@@ -167,13 +169,13 @@ final class SideShapes {
     /** {@code rows}, read for a side the plan shapes as {@code s}: the legacy executor's shaping rules, read from the
      *  plan's facts alone (the plan-as-data design's step 4, 2026-11-08; the second copy over the planner's side,
      *  shape(PlannedSide), deleted by the slice 2 audit, 2026-11-08 -- a planned constant decodes as it did). */
-    static TypedSide shape(com.legend.testexecutionplan.SideShape s, PlanRunner.Rows rows) {
+    public static TypedSide shape(com.legend.testexecutionplan.SideShape s, PlanRunner.Rows rows) {
         return switch (s.kind()) {
             case CONSTANT -> {
                 List<Object> values = new ArrayList<>(rows.rows().size());
                 for (List<Object> row : rows.rows()) {
                     Object cell = row.get(0);
-                    values.add(switch (cell) {
+                    values.add(switch (decoded(cell)) {
                         case null -> null;
                         case String text -> constantValue(text, s.typeName());
                         default -> throw new IllegalStateException("a constant side's cell is its text, not a "
@@ -215,10 +217,15 @@ final class SideShapes {
     private static List<Row> rowsOf(PlanRunner.Rows rows) {
         List<Row> out = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
-            out.add(new Row(r));
+            out.add(new Row(r.stream().map(SideShapes::decoded).toList()));
         }
         return out;
     }
+
+    /** A cell as read: a present null cell's wire token ({@code SqlExpr.NULL_CELL_WIRE}, an expected ^TDSNull() lowered,
+     *  C5 step C) decoded HERE to the null it is, so no judge meets the token (C-2's corpus fix, 2026-11-17, the
+     *  orchestrator's ruling: decode at read). */
+    private static @com.legend.base.Nullable Object decoded(@com.legend.base.Nullable Object c) { return com.legend.sql.SqlExpr.NULL_CELL_WIRE.equals(c) ? null : c; }
 
     /** {@link Type.RelationType#pivotColumnType}'s one rule over the plan's columns: a fixed column by its name (the
      *  presented name's quotes stripped), a per-key one by the template its generated name ends with. */
@@ -251,14 +258,14 @@ final class SideShapes {
         long lower = s.lower();
         if (s.scalar()) {
             if (rows.rows().isEmpty() && lower >= 1) {
-                throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity "
-                        + s.multiplicity());
+                // the words the plan carries, worded at planning (C5's step E, 2026-11-17)
+                throw new IllegalStateException(s.sizeWords());
             }
             if (rows.rows().size() > 1) {
                 throw new IllegalStateException("scalar-shaped result returned more than one row — the to-one"
                         + " contract was not enforced upstream");
             }
-            Object v = rows.rows().isEmpty() ? null : rows.rows().get(0).get(0);
+            Object v = rows.rows().isEmpty() ? null : decoded(rows.rows().get(0).get(0));
             if (v instanceof List<?> l && !s.listCarrier()) {
                 return new TypedSide.Collection(new ArrayList<>(l), s.typeName());
             }
@@ -267,10 +274,9 @@ final class SideShapes {
         List<Object> values = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
             Object v = r.get(0);
-            if (v == null) {
-                if (s.tdsNullRoot()) {
-                    values.add(com.legend.sql.SqlExpr.TDS_NULL_CELL);
-                } else if (s.nullableRoot()) {
+            if (decoded(v) == null) {
+                // a present null cell decoded at read (an expected ^TDSNull()), a TDSNull root's or a nullable root's
+                if (v != null || s.tdsNullRoot() || s.nullableRoot()) {
                     values.add(null);
                 } else {
                     throw new IllegalStateException("NULL cell reached COLLECTION egress — the lowerer owns the"
@@ -282,7 +288,7 @@ final class SideShapes {
             }
         }
         if (rows.rows().isEmpty() && lower >= 1) {
-            throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity " + s.multiplicity());
+            throw new IllegalStateException(s.sizeWords());
         }
         if (values.size() < lower) {
             throw new IllegalStateException("collection-shaped result holds " + values.size()

@@ -32,7 +32,7 @@ final class NumberLiterals {
      * extension: the ENGINE surface refuses it (G6 run 1081 caught the
      * over-wide legendStrict gate).
      */
-    static CInteger integer(String text, SourceInfo span, Dialect dialect, TokenStream tokens, int tok) {
+    static CInteger integer(String text, SourceInfo span, GrammarLevel dialect, TokenStream tokens, int tok) {
         try {
             return new CInteger(Long.parseLong(text), span);
         } catch (NumberFormatException overflow) {
@@ -44,31 +44,22 @@ final class NumberLiterals {
     }
 
     /**
-     * FLOAT token &rarr; a DIALECT-SPLIT literal: the ENGINE/LITE surfaces
-     * build {@link CFloat} unconditionally, like {@code DomainParseTreeWalker}
-     * ({@code 1.0000000000000001} is float {@code 1.0} on the wire, probed);
-     * LEGEND_PLATFORM keeps legend-pure's EXECUTION semantics — the
-     * interpreted runtime's Float IS BigDecimal-backed (FloatCoreInstance
-     * parses the SOURCE TEXT), so a precision-losing literal keeps its
-     * digits AND its Float label (the PCT reference testBigFloatAbs asserts
-     * the decimal-exact value). An optional {@code f}/{@code F} suffix is
-     * Pure's, not Java's.
+     * FLOAT token &rarr; {@link CFloat}, the double, on every grammar ({@code dialect} no longer splits it: register S20,
+     * Phase 5b, 2026-11-17), like {@code DomainParseTreeWalker} ({@code 1.0000000000000001} is float {@code 1.0}). An
+     * optional {@code f}/{@code F} suffix is Pure's, not Java's.
      */
-    static ValueSpecification floating(String text, SourceInfo span, Dialect dialect) {
+    static ValueSpecification floating(String text, SourceInfo span, GrammarLevel dialect) {
         if (!text.isEmpty()) {
             char last = text.charAt(text.length() - 1);
             if (last == 'f' || last == 'F') {
                 text = text.substring(0, text.length() - 1);
             }
         }
-        double d = Double.parseDouble(text);
-        if (!dialect.refusesLiteExtensions()) {
-            BigDecimal exact = new BigDecimal(text);
-            if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
-                return new CFloat(d, exact, span);
-            }
-        }
-        return new CFloat(d, span);
+        // a Float literal is the double, on every grammar (register S20, built 2026-11-17, Phase 5b; S120): legend-pure's
+        // compiled runtime and legend-engine hold a Float as a Java double, as DomainParseTreeWalker builds it; a literal
+        // whose digits a double does not keep is a Decimal's (123456789123456789.99D). Until then the platform grammar
+        // kept the written digits (B8, legend-pure's interpreted BigDecimal), which overflowed DuckDB's DECIMAL(18).
+        return new CFloat(Double.parseDouble(text), span);
     }
 
     /**

@@ -143,6 +143,9 @@ legend_java_library(
     deps = [
         ":pe_corpus",
         "//core",
+        # legend-engine's JSON without source information (edge.EngineSpans: CorpusSweepTest's claim 1c), the edge's
+        # since J35's residue, 2026-11-18
+        "//core:edge",
         "//testing",
     ] + _ENGINE_COMPILE + _JUNIT5,
     runtime_deps = _ENGINE_EXTENSIONS,
@@ -541,7 +544,9 @@ legend_java_library(
     deps = [
         ":pe_corpus",
         "//testing",
-        "//wasm:tab",
+        # legend-engine's pure/v1 in the tab: the engine module's entry (com.legend.edge.wasm.EngineExports, the user's K2
+        # ruling of 2026-11-18; the planner module's entry, the edge's then, from the census's A1, 2026-11-17)
+        "//wasm:edge_tab",
         "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
     ],
 )

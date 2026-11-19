@@ -260,7 +260,7 @@ class ResolveNavigationTest {
         // pipeline: assoc hop + nested slot = two LEFT JOINs, and the leaf
         // reads the doubly-prefixed flat column.
         var resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        String sql = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
+        String sql = TestBackends.platform().dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(
                 resolved.get(resolved.size() - 1)));
         assertEquals(2, sql.split("LEFT OUTER JOIN", -1).length - 1,
                 "assoc hop + nested slot join: " + sql);

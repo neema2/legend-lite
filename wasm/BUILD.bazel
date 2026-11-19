@@ -21,7 +21,8 @@ js_library(
 # the conformance harness beside it tests the JDK's classes, not a database)
 filegroup(
     name = "planner_java",
-    srcs = glob(["src/main/java/planner/*.java"]),
+    # the edge's entries too (src/edge: the separation census's A1, 2026-11-17)
+    srcs = glob(["src/main/java/planner/*.java", "src/edge/java/**/*.java"]),
     # and the planned-SQL guard: who reaches the authored door (the C final audit's H1, 2026-11-12)
     visibility = ["//core:__pkg__", "//tools/guards:__pkg__"],
 )
@@ -45,12 +46,33 @@ legend_java_library(
     deps = [
         # the plan side only (C2a): the embedded planner carries no execution library, no database, no driver
         "//core:plan_side",
+        # (no //core:edge: legend-engine's routes and execute's halves are :edge_boundary's, the census's A1, 2026-11-17)
+        "//json",
+    ],
+)
+
+# THE EDGE'S ENTRIES FOR THE EMBEDDED HOSTS (the separation census's A1, 2026-11-17): legend-engine's pure/v1 route and
+# execute's plan and answer halves (com.legend.edge.wasm.EdgeBoundary), through //core:edge as the server answers
+# them. The tab's module and Python's library carry it, rooted at the edge as the server is (the orchestrator's
+# extension of ruling A4); lite's own operations stay :boundary's.
+legend_java_library(
+    name = "edge_boundary",
+    nullaway = False,
+    srcs = ["src/edge/java/com/legend/edge/wasm/EdgeBoundary.java"],
+    visibility = ["//core:__pkg__", "//native:__pkg__"],
+    deps = [
+        ":boundary",
+        "//core:edge",
+        "//core:plan_side",
         "//json",
     ],
 )
 
 # THE TAB'S ADAPTER: TeaVM's entry class (planner.TabExports, its @JSExport functions the module's exports, each a
-# delegation to the boundary) and the resources TeaVM's class library embeds (PreludeResources).
+# delegation to the boundary) and the resources TeaVM's class library embeds (PreludeResources). A PRODUCT ROOT again
+# (the user's K2 ruling, ~06:00 2026-11-18: "Product root, edge opt-in"): from F's census line A1 (2026-11-17) until K2
+# the entry class was the edge's (com.legend.edge.wasm.TabExports, :edge_tab), four of its exports legend-engine's
+# routes; those are the engine module's now (:engine_planner), and this target depends on no edge target.
 legend_java_library(
     name = "tab",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
@@ -63,23 +85,57 @@ legend_java_library(
     resource_strip_prefix = "wasm/src/main/resources",
     # the round trip in the tab: its JVM half asks these same exports (//parser-equivalence:tab_round_trip); //core:
     # the guard of who reaches the authored door, by class (the third re-audit's SHOULD-FIX 5, 2026-11-12)
-    visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
+    visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__", "//tools/deps:__pkg__"],
     deps = [
         ":boundary",
         "//core:plan_side",
+        # the module's main reads query/parse's answer (lite API v1, 2026-11-17)
+        "//json",
         # TeaVM's annotations, at compile time only
         "//tools/teavm:api",
     ],
 )
 
+# THE ENGINE MODULE'S ENTRY CLASS, AT THE EDGE (the user's K2 ruling, ~06:00 2026-11-18; the orchestrator's option A):
+# com.legend.edge.wasm.EngineExports, its @JSExport functions legend-engine's four routes in the tab (pureV1 and
+# execute's halves, :edge_boundary), moved from the product module's entry unchanged. It depends on the product (the
+# boundary, and :tab for the class library's resources), never the reverse.
+legend_java_library(
+    name = "edge_tab",
+    nullaway = False,
+    srcs = ["src/edge/java/com/legend/edge/wasm/EngineExports.java"],
+    visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__", "//tools/deps:__pkg__"],
+    deps = [
+        ":boundary",
+        ":edge_boundary",
+        ":tab",
+        "//tools/teavm:api",
+    ],
+)
+
 # The module: the tab's adapter and all it reaches, with the class library TeaVM
-# substitutes for the JDK's.
+# substitutes for the JDK's. lite's own entry: no edge entry (K2, 2026-11-18; //wasm:product_module_test).
 teavm_wasm(
     name = "planner",
     main_class = "planner.TabExports",
     visibility = ["//visibility:public"],
     deps = [
         ":tab",
+        "@maven_teavm//:org_teavm_teavm_classlib",
+        "@maven_teavm//:org_teavm_teavm_jso",
+    ],
+)
+
+# THE ENGINE MODULE (K2, 2026-11-18, option A): legend-engine's routes in the tab, a module of their own, loaded beside
+# the planner only where an app is configured `engine: 'legend-engine'` (engine-client's engine-module.ts refuses any
+# other word by name). Its answers are the ones //wasm:planner gave before the split, byte for byte
+# (//wasm:engine_routes_test).
+teavm_wasm(
+    name = "engine_planner",
+    main_class = "com.legend.edge.wasm.EngineExports",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":edge_tab",
         "@maven_teavm//:org_teavm_teavm_classlib",
         "@maven_teavm//:org_teavm_teavm_jso",
     ],
@@ -94,6 +150,14 @@ copy_to_directory(
     visibility = ["//visibility:public"],
 )
 
+# the engine module as ONE directory, as :planner_dir is (node_test's WASM_ENGINE_PLANNER, `engine = True`)
+copy_to_directory(
+    name = "engine_planner_dir",
+    srcs = [":engine_planner"],
+    root_paths = ["wasm/engine_planner"],
+    visibility = ["//visibility:public"],
+)
+
 # The JVM halves of the differentials: the corpus, and the timezone probe. Target-
 # configuration libraries run by java_run (//tools/java_run), so core is compiled
 # once for them and for the module.
@@ -103,8 +167,12 @@ legend_java_library(
     nullaway = False,
     srcs = ["src/main/java/planner/JvmMain.java"],
     visibility = ["//visibility:public"],
-    # the tab's own exports, so the differential compares the tab's answers across the two builds
-    deps = [":tab"],
+    # the tab's own exports' compositions over the boundary (lite API v1: queryParse, then queryPlan), so the differential
+    # compares the tab's answers across the two builds
+    deps = [
+        ":boundary",
+        "//json",
+    ],
 )
 
 legend_java_library(
@@ -112,6 +180,8 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["src/main/java/planner/ZoneMain.java"],
+    # read by core's guards as a host's door (//core:authored_door_jars, the GUARD stream's C.5, 2026-11-17)
+    visibility = ["//core:__pkg__"],
     deps = ["//core:lowering"],
 )
 
@@ -164,13 +234,34 @@ node_test(
 
 # THE ROUND TRIP IN THE TAB (docs/PROTOCOL_PROGRAM_2026_10_05.md §4, leg 5): the module asked what the tab asks
 # pure/v1 for over every input of the JVM's round-trip proof, its answers held to the JVM's byte for byte (by digest).
+# The engine module's since the user's K2 ruling (2026-11-18): pure/v1 in the tab is legend-engine's route.
 node_test(
     name = "round_trip_test",
-    wasm = True,
+    engine = True,
     size = "large",
     data = ["//parser-equivalence:tab_round_trip"],
     entry_point = "round_trip.mjs",
     env = {"TAB_ROUND_TRIP": "$(rlocationpath //parser-equivalence:tab_round_trip)"},
+)
+
+# PRODUCT ROOT, EDGE OPT-IN (the user's K2 ruling, ~06:00 2026-11-18; the orchestrator's option A): the planner module
+# runs alone and exports no legend-engine route (edge off); the engine module answers legend-engine's routes as the
+# planner module did before the split, byte for byte, by pins captured then (edge on).
+node_test(
+    name = "product_module_test",
+    wasm = True,
+    # loads the WebAssembly planner, as :differential_test does
+    size = "medium",
+    entry_point = "product_module.mjs",
+)
+
+node_test(
+    name = "engine_routes_test",
+    engine = True,
+    size = "medium",
+    data = ["engine-routes.json"],
+    entry_point = "engine_routes.mjs",
+    env = {"ENGINE_ROUTES_PINS": "$(rlocationpath engine-routes.json)"},
 )
 
 # THE TIMEZONE DIFFERENTIAL: a tz database is a resource, not code, so only the

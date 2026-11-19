@@ -1733,7 +1733,7 @@ final class Substitution {
             // owner) replaces the lastIndexOf(":{") substring heuristic
             AsorRef.Ref ref = AsorRef.decode(rs.value());
             Object pkObj = ref == null ? null
-                    : com.legend.sql.Json.parseOne(ref.pkJson());
+                    : com.legend.sql.Json.parse(ref.pkJson());
             if (!(pkObj instanceof Map<?, ?> pkMap) || pkMap.isEmpty()) {
                 throw new NotImplementedException("objectReferenceIn pk"
                         + " segment did not decode: " + rs.value());
@@ -2057,6 +2057,7 @@ final class Substitution {
                             m.mapper().parameters().get(0), m.source()));
             // Literals: nothing to substitute.
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;
@@ -2283,22 +2284,6 @@ final class Substitution {
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
     }
 
-    /** {@code fail(message)} standing in a VALUE position: pure raises
-     * here and so does the SQL. The node carries the position's type
-     * ({@code as}) — a raise has no value of its own, and the scalar
-     * rule casts the ERROR call to that carrier so the CASE keeps its
-     * type on every dialect. */
-    private TypedSpec raise(String message, ExprType as) {
-        TypedFunction fail = target.regs().failCallee();
-        if (fail == null) {
-            throw new NotImplementedException("run-time type dispatch in a"
-                    + " scope without a fail callee (nested registries)");
-        }
-        return new TypedNativeCall(fail, List.of(new TypedCString(
-                message, new ExprType(Type.Primitive.STRING,
-                        Multiplicity.Bounded.ONE))), as);
-    }
-
     private TypedSpec instanceOfHead(TypedNativeCall c) {
         String fqn = typeTargetFqn(c.args().get(1));
         if (fqn == null) {
@@ -2330,9 +2315,8 @@ final class Substitution {
         // leaf's list is the aggregation above this CASE): its stamp is
         // the scalar position, never the read's list multiplicity
         return new TypedIf(witnessTest(fqn), leaf,
-                Optional.of(raise("Cast exception: " + target.classFqn()
-                        + " cannot be cast to " + fqn,
-                        new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
+                Optional.of(ChainDispatch.typeRaise(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
+                        target.classFqn(), fqn, new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
                 pa.info());
     }
 
@@ -2372,10 +2356,10 @@ final class Substitution {
             bodies.add(body);
         }
         if (elseArm == null) {
-            elseArm = raise("Match failure: no arm of ["
-                    + mr.arms().stream().map(a -> a.typeFqn())
-                            .collect(java.util.stream.Collectors.joining(", "))
-                    + "] accepts the row's run-time type", mr.info());
+            // a kind, the arms its operand (W7, 2026-11-16): legend-pure's sentence is the edge's
+            elseArm = ChainDispatch.typeRaise(com.legend.sql.RaiseKind.MATCH_FAILURE, "row",
+                    mr.arms().stream().map(a -> a.typeFqn()).collect(java.util.stream.Collectors.joining(", ")),
+                    mr.info());
         }
         TypedSpec out = elseArm;
         for (int i = conds.size() - 1; i >= 0; i--) {
@@ -2734,6 +2718,7 @@ final class Substitution {
             case com.legend.compiler.spec.typed.TypedSortBy sb ->
                     sb.mapChildren(k -> inlineParam(k, param, source));
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;

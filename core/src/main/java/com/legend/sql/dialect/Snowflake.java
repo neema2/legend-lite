@@ -63,14 +63,9 @@ import java.util.Set;
  * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling is a
  * silent wrong answer.
  */
-public final class Snowflake extends AnsiSqlRenderer {
-
-    /** The engine's H2 text is refused here: Snowflake has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached Snowflake, which has no translation of it");
-    }
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class Snowflake extends AnsiSqlRenderer {
 
     /** {@inheritDoc} 9: its {@code TIMESTAMP_NTZ} keeps nanoseconds (S181, A7, 2026-11-10). */
     @Override
@@ -195,17 +190,10 @@ public final class Snowflake extends AnsiSqlRenderer {
                 + " MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, STRICT_JSON_OUTPUT = TRUE");
     }
 
-    /** {@inheritDoc} Spelled here ({@link #floatCanon}): the portable spelling reads this dialect's long double text some
-     *  fifty times. */
-    @Override
-    protected boolean spellsFloatCanon() {
-        return true;
-    }
-
-    /** {@inheritDoc} Spelled here ({@link #floatPrint}): the portable spelling reads this dialect's long double text
+    /** {@inheritDoc} Spelled here ({@link #floatShortestText}): the portable spelling reads this dialect's long double text
      *  some nine times (Pure's print form). */
     @Override
-    protected boolean spellsFloatPrint() {
+    protected boolean spellsFloatShortestText() {
         return true;
     }
 
@@ -344,7 +332,19 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     /** A Float literal's plain spelling; NaN and the infinities as FLOAT text (a bare {@code NaN} is no literal). */
     @Override
-    protected String floatLiteral(double v) {
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
+        // of its digits, written below
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+    }
+
+    @Override
+    protected String decimalFloatLiteral(double v) {
+        // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
+        // BigDecimal has no -0, so -0.0 was written 0.0)
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "CAST('-0.0' AS DOUBLE)";
+        }
         if (Double.isNaN(v)) {
             return "CAST('NaN' AS DOUBLE)";
         }
@@ -353,7 +353,9 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
         // the literal is the DECIMAL of its digits (SqlTyping.decimalLitType, DuckDB's reading): Snowflake drops a
         // trailing zero's scale (17.0 is a NUMBER(2,0), its text '17', measured), so such a literal spells its type
-        String plain = super.floatLiteral(v);
+        // S20's DOUBLE literal is not built here yet (Phase 5b, 2026-11-17: the Snowflake lane measures its form
+        // first); the literal stays the DECIMAL of its digits
+        String plain = plainFloat(v);
         java.math.BigDecimal digits = com.legend.sql.SqlTyping.floatDecimal(v);
         if (digits != null && digits.scale() > 0 && digits.stripTrailingZeros().scale() < digits.scale()) {
             return "CAST(" + plain + " AS NUMBER(" + Math.max(digits.precision(), digits.scale()) + "," + digits.scale()
@@ -1308,6 +1310,14 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: legend-pure's grammar, lite's TEXT_NOT_FLOAT by name, never the cast's own error (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x, w -> w.append("REGEXP_LIKE(").expr(x, 0).append(", ")
+                            .append(stringLit(FLOAT_GRAMMAR)).append(")"),
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").expr(x, 0).append(", ")
+                            .append(stringLit("[fF][[:space:]]*$")).append(", '')) AS DOUBLE)"));
+        }
         SqlType target = c.target();
         SqlExpr v = c.value();
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
@@ -1370,6 +1380,8 @@ public final class Snowflake extends AnsiSqlRenderer {
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -1402,10 +1414,13 @@ public final class Snowflake extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
-            case FLOAT_CANON -> floatCanon(writer, a.get(0));
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
-            case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> isDouble(a.get(0)) ? floatShortestText(writer, a.get(0))
+                    : floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1488,6 +1503,10 @@ public final class Snowflake extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat (|| and CONCAT are NULL if any argument is, measured)
             case CONCAT -> writer.piece(concat(flattenConcat(a)));
             case CONCAT_JOIN -> writer.piece(concat(a));
+            // the product's join of a row's cells: Snowflake's CONCAT_WS is NULL for any NULL part, so the parts are an
+            // array compacted of its NULLs and joined (Phase 3)
+            case CONCAT_WS -> writer.append("ARRAY_TO_STRING(ARRAY_CONSTRUCT_COMPACT(").list(a.subList(1, a.size()))
+                    .append("), ").expr(a.get(0), 0).append(")");
             // the engine's out-of-domain answer is NaN; Snowflake raises (measured: acos(2))
             case ACOS, ASIN -> acosArm(writer, c);
             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");
@@ -1498,9 +1517,11 @@ public final class Snowflake extends AnsiSqlRenderer {
             case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");
             // a 64-bit integer text: CAST rounds a decimal text ('1.5' is 2, measured), so the text is checked first
-            case PARSE_INT -> writer.append("CAST(CASE WHEN REGEXP_LIKE(").expr(a.get(0), 0).append(", ")
-                    .append(stringLit("\\s*[-+]?[0-9]+\\s*")).append(") THEN ").expr(a.get(0), 0).append(" ELSE ")
-                    .expr(a.get(0), 0).append(" || ' is not an integer' END AS BIGINT)");
+            // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
+            case PARSE_INT -> guardedParseInt(writer, a.get(0),
+                    w -> w.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ").append(stringLit("^[+-]?[0-9]+$"))
+                            .append(")"),
+                    w -> w.append("CAST(").expr(a.get(0), 0).append(" AS BIGINT)"));
             // an ISO text with an offset is its UTC instant (a TIMESTAMP_NTZ cast drops the offset, measured)
             case PARSE_DATE -> writer.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(").expr(a.get(0), 0)
                     .append(")) AS TIMESTAMP_NTZ)");
@@ -1793,6 +1814,15 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     // ---- error(): no raise function
 
+    /** A guarded parse's raise, typed as the slot (the bare raise is VARCHAR here, {@link #raise}): round 73 measured
+     *  CASE ... THEN CAST(x AS BIGINT) ELSE <VARCHAR raise> END unify to a scaled NUMBER, parseInteger('17') read
+     *  back as 17.00000 in the database judge's statement. */
+    @Override
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, SqlType slot) {
+        return raise instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
+                ? writer.piece(raise(raised(call).args(), slot)) : super.raiseAs(writer, raise, slot);
+    }
+
     /**
      * error(msg[, 'line:col']): the sentinel-wrapped message cast to a type it cannot parse -- the driver's error
      * carries it whole ({@code Numeric value '␟msg␟' is not recognized}, measured with 300 characters), and
@@ -1853,27 +1883,14 @@ public final class Snowflake extends AnsiSqlRenderer {
     }
 
     /**
-     * Pure's literal spelling of a Float ({@link SqlFn#FLOAT_CANON}), spelled here: {@link #floatText}'s digits, every
-     * zero {@code 0.0}, placed by their exponent at every magnitude; NaN and the infinities the database's text with
-     * {@code .0}, as the portable spelling ({@link FloatCanonText}) writes them. The portable spelling reads the
-     * double's text some fifty times, and this dialect's text is an expression of its own: channel B's standard suite
-     * took 57 minutes on the lane at a76cffee (2026-10-21).
-     */
-    private SqlWriter floatCanon(SqlWriter writer, SqlExpr v) {
-        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
-                + " AS VARCHAR) || '.0' WHEN " + d.value() + " = 0 THEN '0.0' ELSE " + d.sign() + " || " + d.unfolded()
-                + " END"));
-    }
-
-    /**
-     * Pure's print form of a Float ({@link SqlFn#FLOAT_PRINT}), spelled here from {@link #floatText}'s digits, the value
-     * read once: what the portable spelling (dialect/FloatPrintText) makes of {@link #floatText}'s text, which it read
+     * Pure's print form of a Float ({@link SqlFn#FLOAT_SHORTEST_TEXT}), spelled here from {@link #floatText}'s digits, the value
+     * read once: what the portable spelling (dialect/FloatShortestText) makes of {@link #floatText}'s text, which it read
      * nine times (Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB, 46 KB of it the text nine times, measured
      * 2026-10-22). The text where it is plain (an exponent from -4 to 15); past it, a whole value's exact digits under
      * 10^38 with {@code .0}; a value from 10^-17 below 10^-4 at eighteen places with its trailing zeros trimmed; else
      * the text with its exponent. NaN and the infinities are Pure's names, which are Java's.
      */
-    private SqlWriter floatPrint(SqlWriter writer, SqlExpr v) {
+    private SqlWriter floatShortestText(SqlWriter writer, SqlExpr v) {
         return writer.piece(shortestDigits(v, d -> {
             String x = d.value();
             String fractionFree = x + " = FLOOR(" + x + ") AND ABS(" + x + ") < 1e38";
@@ -1896,6 +1913,7 @@ public final class Snowflake extends AnsiSqlRenderer {
     /** A Float's shortest digits as {@link #shortestDigits} reads them: the value (for NaN and the infinities), its
      *  sign ({@code '-'} or empty), its significant digits (no sign, no point, no trailing zero; empty for a zero) and
      *  the exponent of the first. */
+
     private record Digits(String value, String sign, String digits, String exponent) {
         /** The digits placed by their exponent, unsigned: {@code 123.456}, {@code 1500.0}, {@code 0.00025} (each count
          *  kept from going negative, since a CASE's branches may all be evaluated). */
@@ -1991,7 +2009,7 @@ public final class Snowflake extends AnsiSqlRenderer {
     @Override
     protected SqlWriter projectionValue(SqlWriter writer, SqlSelect.Projection p) {
         if (p.out() != null && p.expr() instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR) {
-            return writer.piece(raise(call.args(), p.out().type()));
+            return writer.piece(raise(raised(call).args(), p.out().type()));
         }
         return super.projectionValue(writer, p);
     }
@@ -2012,7 +2030,7 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     private SqlWriter.Piece branch(SqlExpr value, @com.legend.base.Nullable SqlType slot) {
         return value instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
-                ? raise(call.args(), slot) : w -> w.expr(value, 0);
+                ? raise(raised(call).args(), slot) : w -> w.expr(value, 0);
     }
 
     // ---- format
@@ -2567,7 +2585,7 @@ public final class Snowflake extends AnsiSqlRenderer {
     private SqlAgg.Reducer doubleArgs(SqlAgg.Reducer r) {
         List<SqlExpr> args = new ArrayList<>();
         for (SqlExpr x : r.args()) {
-            args.add(isDouble(x) ? x : new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
+            args.add(isDouble(x) ? x : new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT));
         }
         return new SqlAgg.Reducer(r.fn(), args, r.distinct(), r.orderBy());
     }
@@ -3438,7 +3456,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                         return s;   // COUNT(*)-style using: the writer refuses the pivot by name
                     }
                     args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null));
+                            SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null, SqlExpr.Reason.DIALECT));
                     String name = valueText(v) + "__|__" + u.alias();
                     ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(agg.fn(), args, agg.distinct(), agg.orderBy()),
                             name, CarrierStrategies.generatedSlot(p, u, name)));
@@ -3509,5 +3527,25 @@ public final class Snowflake extends AnsiSqlRenderer {
         boolean integral = label == SqlType.Scalar.BIGINT || label == SqlType.Scalar.INTEGER;
         return integral && wire.startsWith("DECIMAL(") && wire.endsWith(",0)")
                 || (label instanceof SqlType.Struct || label instanceof SqlType.Map) && wire.equals("OBJECT");
+    }
+
+    /** {@inheritDoc} The value's NUMBER(38, 6) text, trimmed; NaN and the infinities by Pure's names, which are Java's
+     *  (Snowflake's NaN equals itself and exceeds every number; the brief's measurement, D_BRIEF §1). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("CASE WHEN ").expr(x, 0).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CASE WHEN ")
+                .expr(x, 0).append(" = 'NaN'::FLOAT THEN 'NaN' WHEN ").expr(x, 0)
+                .append(" > 0 THEN 'Infinity' ELSE '-Infinity' END ");
+        // NUMBER(38, 6) holds a magnitude below 1e32 (the orchestrator's round 56, 2026-11-15: 1e32, +-1e300 and
+        // Double's max failed the whole statement, "Number out of representable range"): from 1e32 the value's leading
+        // 21 digits, NUMBER(38, 0) of it scaled down, and the rest written as zeros -- its magnitude kept (S311's noise
+        // above 4.5e9), as MySQL's form from 1e60
+        writer.append("WHEN ABS(").expr(x, 0).append(") >= 1E32 THEN CAST(CAST(").expr(x, 0)
+                .append(" / POWER(10, FLOOR(LOG(10, ABS(").expr(x, 0)
+                .append("))) - 20) AS NUMBER(38, 0)) AS VARCHAR) || REPEAT('0', FLOOR(LOG(10, ABS(").expr(x, 0)
+                .append("))) - 20) ELSE ");
+        trimmedSix(writer, "RTRIM", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS NUMBER(38, 6)) AS VARCHAR)"));
+        return writer.append(" END");
     }
 }

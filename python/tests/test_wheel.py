@@ -20,6 +20,7 @@ from pathlib import Path
 
 # resolved through the runfiles by main.py, as every suite's files are
 WHEEL = Path(os.environ['LEGEND_LITE_WHEEL'])
+ENGINE_WHEEL = Path(os.environ['LEGEND_LITE_ENGINE_WHEEL'])
 DEPENDENCIES = [Path(p) for p in os.environ['LEGEND_LITE_DEPENDENCY_WHEELS'].split(os.pathsep)]
 
 # run with the wheel alone, before any package of its datacube extra is installed: the compiler works on Python's own
@@ -48,7 +49,7 @@ homed = list(legend_lite._home.home_call(pathlib.Path(tempfile.mkdtemp()), "sdlc
 print(json.dumps({"parsed": sorted(tree), "refused": refused, "homed": homed}))
 '''
 
-# run in the installed environment: a frame shown, its cube asked for, a query executed as DataCube sends it
+# run in the installed environment: a frame shown, its cube asked for, a grid planned and run as DataCube asks for it (plan-and-run)
 SCRIPT = r'''
 import json, urllib.parse, urllib.request, sys
 import pandas as pd
@@ -61,13 +62,11 @@ table = datacube._session.frames["trades"]
 headers = {"Authorization": web.authorization}
 page = urllib.request.urlopen(urllib.request.Request(web.url + "/engine.html"), timeout=30).status
 cube_json = json.loads(urllib.request.urlopen(urllib.request.Request(web.url + "/cube.json?table=trades", headers=headers), timeout=30).read())
-tree = ll.parse("|" + table.accessor + "->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())->from(" + table.runtime + ")")
-body = json.dumps({"clientVersion": "vX_X_X", "function": tree, "model": {"_type": "text", "code": table.model},
-                   "context": {"_type": "BaseExecutionContext"}}).encode()
-answer = urllib.request.urlopen(urllib.request.Request(web.url + "/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC",
+tree = ll.parse("|" + table.accessor + "->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())")
+body = json.dumps({"lambda": json.dumps(tree), "model": table.model, "runtime": table.runtime}).encode()
+answer = urllib.request.urlopen(urllib.request.Request(web.url + "/plan-and-run.json",
                                 body, dict(headers, **{"Content-Type": "application/json"})), timeout=30).read()
-with pa.input_stream(pa.py_buffer(answer), compression="zstd") as stream:
-    rows = pyarrow.ipc.open_stream(stream).read_all().to_pylist()
+rows = pyarrow.ipc.open_stream(pa.py_buffer(answer)).read_all().to_pylist()
 cube.close()
 # the notebook extra: a notebook's cube (no kernel here), its script the loader, and DataCube's module answered over
 # its channel as its page asks for it
@@ -132,16 +131,35 @@ for name, open_app in (("query", ll.query), ("studio", ll.studio)):
     jar = {"Cookie": cookie.split(";")[0], "Sec-Fetch-Site": "same-origin"}
     apps[name] = {"traded": traded, "page": get(link, link.path)[0],
                   "config": sorted(json.loads(get(link, f"/{name}/demo/config.json")[2])),
-                  "user": get(link, "/api/server/v1/currentUser", jar)[:3:2],
-                  "no_cookie": get(link, "/api/server/v1/currentUser")[0]}
+                  # a product route the page's calls carry the cookie to (legend-engine's currentUser is the edge's:
+                  # N4 of PR #118's fix round, 2026-11-18)
+                  "own": get(link, "/sdlc/api/projects", jar)[0],
+                  "no_cookie": get(link, "/sdlc/api/projects")[0],
+                  # legend-engine's current user, edge off: no route of the product's (the cookie admits the call)
+                  "current_user": get(link, "/api/server/v1/currentUser", jar)[0]}
+# the product imports no edge module: legend_lite.edge is the [engine] extra's door alone (K2)
+apps["edge_imported"] = sorted(m for m in sys.modules if m == "legend_lite.edge" or m.startswith("legend_lite.edge."))
 shipped = pathlib.Path(ll.__file__).with_name("_apps")
 apps["demo_projects"] = get(link, "/studio/demo/projects/manifest.json")[0]
 apps["duckdb_wasm"] = sorted(p.name for p in shipped.rglob("duckdb-*.wasm"))
 print(json.dumps({"module": ll.__file__, "library": __import__("legend_lite._library", fromlist=["x"]).library().path.as_posix(),
                   "page": page, "cube": sorted(cube_json), "rows": rows, "notebook": notebook, "headless": headless,
-                  "remote": remote, "iceberg": iceberg, "apps": {k: v if not isinstance(v, dict) else
-                                                                  {**v, "user": [v["user"][0], v["user"][1].decode()]}
-                                                                  for k, v in apps.items()}}))
+                  "remote": remote, "iceberg": iceberg, "apps": apps}))
+'''
+
+
+# the [engine] extra installed: the edge's door composes an engine that answers legend-engine's current user, as the
+# product's engine did before K2 (PR #118's fix round, 2026-11-18)
+EDGE = r'''
+import json, urllib.request
+import legend_lite as ll
+from legend_lite import edge
+from legend_lite.engine import WebServer
+web = WebServer(edge.engine(ll.Frames()))
+said = urllib.request.urlopen(urllib.request.Request(web.url + "/api/server/v1/currentUser",
+                                                     headers={"Authorization": web.authorization}), timeout=30)
+print(json.dumps({"user": [said.status, said.read().decode()]}))
+web.close()
 '''
 
 
@@ -412,6 +430,13 @@ class Installed(unittest.TestCase):
         # projects shipped, DuckDB-WASM's builds not (Python's DuckDB runs the queries)
         for app, keys in (('query', ['depot', 'execution', 'projects', 'vendor']),
                           ('studio', ['depot', 'engine', 'sdlc', 'vendor', 'worker'])):
-            self.assertEqual(out['apps'][app], {'traded': 303, 'page': 200, 'config': keys, 'user': [200, '"this user"'],
-                                                'no_cookie': 401}, out['apps'])
+            self.assertEqual(out['apps'][app], {'traded': 303, 'page': 200, 'config': keys, 'own': 200,
+                                                'no_cookie': 401, 'current_user': 404}, out['apps'])
+        self.assertEqual(out['apps']['edge_imported'], [], 'the product imports no edge module')
         self.assertEqual((out['apps']['demo_projects'], out['apps']['duckdb_wasm']), (200, []), out['apps'])
+        # the [engine] extra installed beside it: the edge's door answers legend-engine's current user as before K2
+        subprocess.run([*pip, str(ENGINE_WHEEL)], check=True, env=env, timeout=240)
+        edged = subprocess.run([python, '-I', '-c', EDGE], cwd=root, env=env, capture_output=True, text=True,
+                               timeout=120)
+        self.assertEqual(edged.returncode, 0, edged.stdout + edged.stderr)
+        self.assertEqual(json.loads(edged.stdout.strip().splitlines()[-1]), {'user': [200, '"this user"']})

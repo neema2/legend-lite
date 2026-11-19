@@ -68,12 +68,41 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(SqlQuery query) {
-        return write(query).text();
+        // a text a caller reads, never a statement a run sends: its raises numbered as a statement's are, the sites
+        // dropped (a run's statement is renderStatement's, which keeps them)
+        return collectingSites(() -> write(query).text(), (text, sites) -> text);
     }
 
     @Override
     public RenderedStatement renderStatement(SqlQuery query) {
-        return write(query).statement();
+        return collectingRaises(() -> write(query).statement());
+    }
+
+    /** The raise sites the render under way wrote ({@link #raiseMessage}), numbered as written, or null outside a
+     *  statement's render (phase D's Phase 2, raises as SITES, 2026-11-16; until then the kinds alone, the D-P1 audit's
+     *  MUST 1). One render at a time per dialect instance, as {@link #renderInline}'s mode is. */
+    private java.util.@com.legend.base.Nullable List<RaiseSite> raiseSites;
+
+    /** {@code render}'s statement with the sites of every raise written while it ran: the outermost render collects,
+     *  a nested one adds to it. */
+    protected final RenderedStatement collectingRaises(java.util.function.Supplier<RenderedStatement> render) {
+        return collectingSites(render, RenderedStatement::raising);
+    }
+
+    /** {@code render}'s answer given the raise sites written while it ran ({@code attach}): the outermost render
+     *  collects and numbers them 1..k, a nested one adds to the outer's. */
+    protected final <T> T collectingSites(java.util.function.Supplier<T> render,
+            java.util.function.BiFunction<T, List<RaiseSite>, T> attach) {
+        if (raiseSites != null) {
+            return render.get();
+        }
+        raiseSites = new java.util.ArrayList<>();
+        try {
+            T out = render.get();
+            return attach.apply(out, List.copyOf(raiseSites));
+        } finally {
+            raiseSites = null;
+        }
     }
 
     /** {@inheritDoc} This dialect's own {@link #render}, in the single-line mode {@link #inline} writes a subquery
@@ -198,8 +227,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return true;
     }
 
-    /** The query after this dialect's passes. */
-    private SqlQuery passed(SqlQuery query) {
+    /** The query after this dialect's passes (package-private for the cast-and-case census's test-side reader,
+     *  E-4, 2026-11-12: it counts the nodes this dialect's passes made too). */
+    SqlQuery passed(SqlQuery query) {
         SqlQuery q = query;
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             q = pass.rewriteRoot(q);
@@ -224,13 +254,24 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  dialect's pass list can leave the reads out. */
     protected final java.util.List<com.legend.sql.SqlRewriter> renderPasses() {
         java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
-        // a Float's print forms, expanded before every other pass unless this dialect spells them itself
-        if (!spellsFloatPrint()) {
-            ps.add(new FloatPrintText.Expansion(bindsFloatPrint()));
-        }
-        // a Float's literal spelling, expanded before every other pass unless this dialect spells it itself
-        if (!spellsFloatCanon()) {
-            ps.add(new FloatCanonText.Expansion(bindsFloatText()));
+        // the compatibility edge's spellings, expanded before every other pass (legend-pure's print form of a Float:
+        // phase D's D1.2, 2026-11-15); the product's dialects add none
+        ps.addAll(spellingPasses());
+        // a DateTime's texts (phase D's D1.2, 2026-11-15): the product's, a STRFTIME (the edge's spelling passes wrote
+        // legend-pure's node for it first, if any); legend-pure's, the judges' and the edge's, its composition
+        ps.add(new DateTimeText.Expansion());
+        // the judges' canon of a timestamp, lite's spelling (census C5's step C, 2026-11-17)
+        ps.add(new DateTimeCanonText.Expansion());
+        // (DateTimePrintText, legend-pure's DateTime print form: gone 2026-11-17, census B12 -- the edge composes it)
+        // a joined element's text (phase D's D1.3, 2026-11-15): the product's join skips an empty element
+        ps.add(new CellTexts.Expansion());
+        ps.add(new CellTexts.Rest());
+        // (TextForms.Product and PureOnlyText.Refusal: gone 2026-11-17 with B8 -- a list's text is the style's two-form
+        // kind, and every text only legend-pure writes is refused at lowering)
+        // lite's canonical text of a Float (a message's; the edge's text of a Float too), expanded before every other
+        // pass unless this dialect spells it itself
+        if (!spellsFloatShortestText()) {
+            ps.add(new FloatShortestText.Expansion(readsLongTextOnce()));
         }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
@@ -242,28 +283,33 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return v.toPlainString();
     }
 
-    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_CANON} itself; else it is expanded before every
-     *  other pass ({@link FloatCanonText.Expansion}) to the portable spelling over the double's text. */
-    protected boolean spellsFloatCanon() {
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_SHORTEST_TEXT} itself; else it is expanded before every
+     *  other pass ({@link FloatShortestText.Expansion}) to the portable spelling over the double's text. */
+    protected boolean spellsFloatShortestText() {
         return false;
     }
 
-    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} itself; else it is expanded before every
-     *  other pass ({@link FloatPrintText.Expansion}) to the portable spelling over the double's text. */
-    protected boolean spellsFloatPrint() {
+    /** Whether a composition that reads a value's text more than once reads the value and its text from a one-row
+     *  derived table, each written once (a dialect whose text of a value is a long expression and whose derived tables
+     *  read the row around them; renamed from bindsFloatPrint 2026-11-17, census B9: a generic size capability). */
+    protected boolean readsLongTextOnce() {
         return false;
     }
 
-    /** Whether the print forms' expansion reads the value and its text from a one-row derived table, each written once
-     *  (a dialect whose double text is a long expression and whose derived tables read the row around them). */
-    protected boolean bindsFloatPrint() {
-        return false;
+    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-pure's print form
+     *  of a Float, {@code FLOAT_SHORTEST_TEXT}, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
+     *  The product's dialects run none: they write each node lite's own way. */
+    /** {@inheritDoc} A raw statement AS WRITTEN (Phase 6's B4 (ii), 2026-11-17): a SPELLING arm -- the statement's
+     *  text, no decision -- so the compatibility edge's DuckDB and Postgres translate legend-engine's H2 text here. */
+    @SpellingArm
+    @Override
+    public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+        return statement;
     }
 
-    /** Whether that expansion reads the double's text from a one-row derived table, written once (a dialect whose
-     *  double text is a long expression and whose derived tables read the row around them). */
-    protected boolean bindsFloatText() {
-        return false;
+    @SpellingArm
+    protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+        return java.util.List.of();
     }
 
     /** Whether this dialect reads a column STORED as {@code t} other than as the database holds
@@ -635,12 +681,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             }
             case SqlSource.Cte c -> writer.append(cteName(c.name())).append(" AS ").append(aliasIdent(c.alias()));
             case SqlSource.Subselect sub -> subselectSource(writer, sub, depth);
-            // cross-store plan variable: freemarker splice at execution
-            // (engine VarSetPlaceHolder — plan text only; a DuckDB
-            // execution reaching this dies loudly at SQL parse)
-            case SqlSource.VarSetPlaceholder vp -> writer.append("(${")
-                    .append(vp.varName()).append("}) as ")
-                    .append(aliasIdent(vp.alias()));
+            // a cross-store plan variable is legend-engine's plan text (its VarSetPlaceHolder, a FreeMarker splice at its
+            // execution): written by the compatibility edge's engine-text dialect (EngineStyleH2), refused by name by
+            // the product's (J6 of the edge audit, 2026-11-17: the base renderer wrote the FreeMarker)
             case SqlSource.Values v -> valuesSource(writer, v);
             // authored raw SQL as a relation source (the typed executeInDb grid) — carried text, parenthesized, in
             // this session's language (raw: the engine's H2 text translated, any other as written)
@@ -771,24 +814,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     java.util.List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL,
                                     co.list()),
-                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                                    new SqlExpr.StringLit(
-                                            "Cannot cast a collection of"
-                                            + " size 0 to multiplicity "
-                                            + bound)))),
-                    co.list()), parentPrec);
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                                    com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, bound)))),
+                    co.list(), SqlExpr.Reason.RAISE), parentPrec);
         }
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
                 co.list());
-        SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
-                        new SqlExpr.StringLit(
-                                "Cannot cast a collection of size "),
-                        new SqlExpr.Cast(SqlExpr.Call.of(
-                                        com.legend.sql.SqlFn.COALESCE, len,
-                                        new SqlExpr.IntLit(0)),
-                                com.legend.sql.SqlType.Scalar.VARCHAR),
-                        new SqlExpr.StringLit(" to multiplicity " + bound)));
+        // placed by the bound, a fixed text known at planning (2026-11-15, the orchestrator under the user's ruling of
+        // 2026-11-10); the edge's operands, the bound and the size, as before
+        SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new SqlExpr.StringLit(bound),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null, bound));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
             return writer.expr(new SqlExpr.Case(
@@ -800,7 +836,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                                                     .SqlFn.EQUAL, len,
                                             new SqlExpr.IntLit(0))),
                             sizeErr)),
-                    co.list()), parentPrec);
+                    co.list(), SqlExpr.Reason.DIALECT), parentPrec);
         }
         // exactly one: size != 1 raises (audit slice 3 — the old guard
         // tested only >1 and let the empty flow), 1 extracts
@@ -813,7 +849,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                                         len, new SqlExpr.IntLit(1))),
                         sizeErr)),
                 SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
-                        co.list(), new SqlExpr.IntLit(1))), parentPrec);
+                        co.list(), new SqlExpr.IntLit(1)), SqlExpr.Reason.DIALECT), parentPrec);
     }
 
     /** PURE-COLLECTION carrier compaction (semantic node, audit §5
@@ -832,15 +868,89 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 parentPrec);
     }
 
+    /** Whether {@code c} carries a Float as text to be read back (a carrier's cast, never a print): its text must
+     *  read back as the same double ({@link #exactFloatText}). */
+    private static boolean carriesFloatAsText(SqlExpr.Cast c) {
+        return c.reason() == SqlExpr.Reason.CARRIER && c.target() == com.legend.sql.SqlType.Scalar.VARCHAR
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE;
+    }
+
+    /**
+     * THE FLOAT CARRIER (Phase 8, 2026-11-16, the edge program's §7): a Float carried as text that must read back as
+     * the same double -- a carrier's cast, never a print (a print is the edge's, in Java). A database whose own cast of
+     * a double to text reads back writes that cast (the default: DuckDB's and Postgres's, measured); a database whose
+     * cast does not (SQLite 3.47's fifteen digits, Snowflake's ten) overrides with an exact form, one per database,
+     * measured on its lane (FloatCarrierExactTest). NULL stays NULL.
+     */
+    protected SqlWriter exactFloatText(SqlWriter writer, SqlExpr.Cast c) {
+        return variantAwareCast(writer, c);
+    }
+
+    /** legend-pure's parseFloat as one rule on every database (Phase 8, 2026-11-16): an optional sign, digits with an
+     *  optional point, an optional exponent, one trailing f, surrounding whitespace, NaN and Infinity as spelled -- in
+     *  the POSIX pattern {@link #FLOAT_GRAMMAR} each dialect matches in its own spelling, {@code matches} -- else
+     *  TEXT_NOT_FLOAT by name. NULL stays NULL. */
+    protected SqlWriter guardedParseFloat(SqlWriter writer, SqlExpr s, SqlWriter.Piece matches, SqlWriter.Piece cast) {
+        return writer.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(matches)
+                .append(" THEN ").piece(cast).append(" ELSE ")
+                .piece(w -> raiseAs(w, SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, java.util.List.of(s))),
+                        com.legend.sql.SqlType.Scalar.DOUBLE))
+                .append(" END)");
+    }
+
+    /** A raise written as a CASE's branch whose other branches are {@code slot}: the raise itself here; a database
+     *  whose raise has a type of its own (Postgres: text) types it as the slot, so the branches unify. */
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, com.legend.sql.SqlType slot) {
+        return writer.expr(raise, 0);
+    }
+
+    /** The parseFloat grammar ({@link #guardedParseFloat}) as a POSIX pattern, anchored. */
+    protected static final String FLOAT_GRAMMAR = "^[[:space:]]*[+-]?(NaN|Infinity|([0-9]+[.]?[0-9]*|[.][0-9]+)"
+            + "([eE][+-]?[0-9]+)?[fF]?)[[:space:]]*$";
+
+    /** Whether {@code c} is a parseFloat: a user's cast of text to a Float. */
+    /** Whether {@code v} is already a whole number though of a double's type: a rounding to no places (ROUND or
+     *  ROUND_HALF_UP of one operand, or of a literal 0 places), a floor or a ceiling. A cast of it to an integer needs no
+     *  rounding of its own (S20's waste look, 2026-11-17: a Float rounded to an Integer was rounded twice once the
+     *  Float literal became a double). */
+    protected static boolean alreadyWhole(SqlExpr v) {
+        if (!(v instanceof SqlExpr.Call c)) {
+            return false;
+        }
+        return switch (c.fn()) {
+            case ROUND, ROUND_HALF_UP -> c.args().size() == 1
+                    || (c.args().size() == 2 && c.args().get(1) instanceof SqlExpr.IntLit i && i.value() == 0);
+            case FLOOR, CEILING, FLOOR_RAW -> c.args().size() == 1;
+            default -> false;
+        };
+    }
+
+    protected static boolean isParseFloat(SqlExpr.Cast c) {
+        return c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR;
+    }
+
+    /** legend-pure's parseInteger (Long.valueOf / Long.parseLong in its two modes): an optional sign and digits, no
+     *  whitespace -- in each dialect's own pattern spelling, {@code matches} -- else TEXT_NOT_INTEGER by name, where a
+     *  database's CAST read hex, an exponent, surrounding whitespace or anything else as a number or NULL (Phase 8,
+     *  2026-11-16, the probe's parse cases). NULL stays NULL. */
+    protected SqlWriter guardedParseInt(SqlWriter writer, SqlExpr s, SqlWriter.Piece matches, SqlWriter.Piece cast) {
+        return writer.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(matches)
+                .append(" THEN ").piece(cast).append(" ELSE ")
+                .piece(w -> raiseAs(w, SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, java.util.List.of(s))),
+                        com.legend.sql.SqlType.Scalar.BIGINT))
+                .append(" END)");
+    }
+
     /** An expression, written: a leaf is spelled as text; a sub-expression is written into the same writer, so a
      *  parameter anywhere below is bound where its placeholder is written. */
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
             case SqlExpr.Group g -> writer.append("(").expr(g.inner(), 0).append(")");
-            case SqlExpr.TempTableInSplice t -> throw new IllegalStateException(
-                    "temp-table IN splice '" + t.tempTableName() + "'"
-                    + " reached an executable dialect — plan-text"
-                    + " vocabulary only");
             // a plan parameter is BOUND where it is written: a statement (renderStatement) lists it; text
             // (render) refuses it
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
@@ -876,7 +986,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // declared kind converts ONCE at the root select (Rule 2).
             // (Retired: `CAST(x AS DOUBLE)`, 6975118a6 — double arithmetic
             // everywhere: 55.00000000000001 for 55.0.)
-            case SqlExpr.FloatLit f -> writer.append(floatLiteral(f.value()));
+            case SqlExpr.FloatLit f -> writer.append(f.isDouble() ? floatLiteral(f.value()) : decimalFloatLiteral(f.value()));
             // a scale-0 DECIMAL-fact literal (a pure d-suffixed integer:
             // 17774d) CASTS so the wire reads DECIMAL — bare digits read
             // INTEGER by magnitude (probed 1.5.0; the (10,3)<>(15,3)
@@ -903,7 +1013,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.ArrayLit a -> arrayLit(writer, a.elements());
             case SqlExpr.StructLit s -> structLit(writer, s);
             case SqlExpr.StructGet g -> structGet(writer, g);
-            case SqlExpr.Call c -> call(writer, c, parentPrec);
+            case SqlExpr.Call c -> call(writer, raised(c), parentPrec);
             case SqlExpr.Case c -> caseExpr(writer, c);
             case SqlExpr.Exists ex -> {
                 writer.append("EXISTS (");
@@ -942,16 +1052,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
+            // a raise's message where a raise is not (a checked graph's defect row: CONSTRAINT_UNEVALUABLE), written as a
+            // raise's is (raiseMessage)
+            case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
                     + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
                     + " other consumer of it is not lowered (channels of kinds "
                     + tl.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
-            case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
-                    "deferred relation-toString reached the renderer — the"
-                    + " execution boundary must resolve the dynamic column"
-                    + " list first (DeferredTdsString id " + d.id() + ")");
             // a window with a computed frame offset is written inside its check (FrameGuard), by this dialect's CASE
             case SqlExpr.WindowCall w -> FrameGuard.guarded(w) instanceof SqlExpr.Case check
                     ? caseExpr(writer, check) : windowCall(writer, w);
@@ -959,7 +1068,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a cast to the tagged carrier is the identity: the column holds the tag, an index, and the label says
             // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
             case SqlExpr.Cast c -> c.target() instanceof com.legend.sql.SqlType.Tagged
-                    ? writer.expr(c.value(), parentPrec) : variantAwareCast(writer, c);
+                    ? writer.expr(c.value(), parentPrec)
+                    : carriesFloatAsText(c) ? exactFloatText(writer, c) : variantAwareCast(writer, c);
             case SqlExpr.FoldCall f -> foldCall(writer, f);
             case SqlExpr.JsonObject j -> jsonObject(writer, j);
             case SqlExpr.JsonArray j -> jsonArray(writer, j);
@@ -1038,6 +1148,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      */
     protected abstract SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec);
 
+    /** {@link SqlFn#IS_NUMERIC}: the dialect's own full match of {@link SqlFn#NUMERIC_TEXT} (census J20, 2026-11-18), the
+     *  same rule on every database; a dialect whose full match cannot say it overrides this. */
+    protected SqlWriter isNumeric(SqlWriter writer, SqlExpr s, int parentPrec) {
+        return call(writer, SqlExpr.Call.of(SqlFn.REGEXP_FULL_MATCH, s, new SqlExpr.StringLit(SqlFn.NUMERIC_TEXT)),
+                parentPrec);
+    }
+
     // ---- the helpers a dialect's switch calls by name: a spelling several databases share, written once (helpers
     // implement, the switch decides; none is reached unless a dialect names it)
 
@@ -1076,6 +1193,74 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             writer.append(")");
         }
         return writer;
+    }
+
+    /**
+     * {@code c}, a raise's message ({@link SqlExpr.RaiseText}) made the text this dialect writes
+     * ({@link #raiseMessage}); any other call as it is. Every dialect's raise ({@code ERROR}) then writes that text
+     * through its own mechanism, unchanged (phase D's D1.1).
+     */
+    protected final SqlExpr.Call raised(SqlExpr.Call c) {
+        if (c.fn() != com.legend.sql.SqlFn.ERROR || !(c.args().get(0) instanceof SqlExpr.RaiseText r)) {
+            return c;
+        }
+        List<SqlExpr> args = new java.util.ArrayList<>(c.args());
+        args.set(0, raiseMessage(r));
+        return new SqlExpr.Call(c.fn(), args);
+    }
+
+    /** A raise's arguments as a dialect's own raise helper takes them: {@code r}'s text as this dialect writes it
+     *  ({@link #raiseMessage}). For a raise a dialect writes itself, outside a planned {@code ERROR} call. */
+    protected final List<SqlExpr> raiseArgs(SqlExpr.RaiseText r) {
+        return List.of(raiseMessage(r));
+    }
+
+    /**
+     * THE PRODUCT'S RAISE TEXT (phase D's D1.1; the user's ruling of 2026-11-10: "a product error is its kind plus where
+     * it happened ... never the value"; phase D's Phase 2, raises as SITES, 2026-11-16): the bare token of the raise's
+     * site ({@link #site}), its kind, its where and its operands the statement's site table's, never its text -- no
+     * value cast to text, no concatenation, no parameter bound for one -- except {@link com.legend.sql.RaiseKind#USER_FAIL}'s,
+     * the user's own message. exec reads the token back through the plan's table ({@code exec.RaisedErrors}). The
+     * compatibility edge's dialects override this alone: a site whose upstream sentence they can word at planning
+     * keeps its token, worded upstream's way in the table; any other writes legend-pure's sentence in SQL, the interim
+     * ({@code edge.PureMessages}).
+     */
+    @SpellingArm
+    protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
+        return site(r);
+    }
+
+    /**
+     * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
+     * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
+     * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
+     * with its kind, its where and its operands (no words: the plan's style is offered the statement's sites where the
+     * planner makes it, {@code database.PlanStyle#siteWords}; K10b, 2026-11-17). A raise written outside a statement's
+     * render has no table to declare it, refused by name.
+     */
+    protected final SqlExpr site(SqlExpr.RaiseText r) {
+        if (r.asData() != null) {
+            // the kind's text as data in an answer (a checked graph's defect): the product's words, worded at planning
+            return new SqlExpr.StringLit(r.asData());
+        }
+        if (r.kind() == com.legend.sql.RaiseKind.USER_FAIL) {
+            return r.operands().get(0);
+        }
+        if (raiseSites == null) {
+            throw new IllegalStateException("a raise of " + r.kind() + " written outside a statement's render: no"
+                    + " statement's site table declares it (" + getClass().getSimpleName() + ")");
+        }
+        RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.where(), r.operands());
+        for (RaiseSite held : raiseSites) {
+            // the same raise written again in the statement (a guard a dialect writes twice, a CASE copied): its one
+            // site, said once -- the copies' text stays identical, so the database and the lean measure see one repeat
+            if (held.kind() == written.kind() && java.util.Objects.equals(held.where(), written.where())
+                    && held.operands().equals(written.operands())) {
+                return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(held.n()));
+            }
+        }
+        raiseSites.add(written);
+        return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(written.n()));
     }
 
     /**
@@ -1181,8 +1366,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * dodged integer truncation.
      */
     protected final SqlWriter divideAsDoubles(SqlWriter writer, List<SqlExpr> a) {
-        return writer.append("(CAST(").expr(a.get(0), 0).append(" AS DOUBLE) / CAST(").expr(a.get(1), 0)
-                .append(" AS DOUBLE))");
+        return writer.append("(").piece(dividedAsDouble(a.get(0))).append(" / ").piece(dividedAsDouble(a.get(1))).append(")");
+    }
+
+    /** {@code x} as a double: a double's Float literal as it is (the dialect writes it as its double: S20's DOUBLE kind),
+     *  any other operand cast (S20's waste look, 2026-11-17: H2 wrote CAST(CAST(1.75 AS DOUBLE PRECISION) AS DOUBLE)). */
+    private static SqlWriter.Piece dividedAsDouble(SqlExpr x) {
+        return x instanceof SqlExpr.FloatLit f && f.isDouble() && Double.isFinite(f.value())
+                ? w -> w.expr(x, 0)
+                : w -> w.append("CAST(").expr(x, 0).append(" AS DOUBLE)");
     }
 
     /** Pure's mod: the remainder with the divisor's sign, {@code MOD(MOD(x, y) + y, y)}. */
@@ -1271,16 +1463,65 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 + ": the lowering's bug");
     }
 
-    /** A Float's literal spelling: the portable decomposition over the double's text (a dialect whose double text is
-     *  long spells it once, its own way). */
-    protected final SqlWriter floatCanonByText(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
-        return writer.expr(FloatCanonText.of(a.get(0)), parentPrec);
+    /** Lite's canonical text of a Float ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_SHORTEST_TEXT} call): the portable decomposition
+     *  over the double's text (a dialect whose double text is long spells it once, its own way). */
+    protected final SqlWriter floatShortestTextByCast(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        return writer.expr(FloatShortestText.of(c.args().get(0)), parentPrec);
     }
 
-    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} call): the portable decomposition
-     *  over the double's text (a dialect whose double text is long spells it once, its own way). */
-    protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        return writer.expr(FloatPrintText.of(c.args().get(0)), parentPrec);
+    /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
+     *  {@link com.legend.sql.SqlFn#CELL_TEXT},
+     *  {@link DateTimeText}, {@link CellTexts}): one reaching a dialect's arm is a renderer
+     *  bug, refused by name. */
+    protected static IllegalStateException expandedFirst(SqlExpr.Call c) {
+        return new IllegalStateException("renderer bug: " + c.fn() + " is expanded before any dialect reads it");
+    }
+
+    /**
+     * A Float's text ({@link com.legend.sql.SqlFn#FLOAT_TO_TEXT}; the user's ruling of 2026-11-10, D_BRIEF §1, phase
+     * D's D1.2, 2026-11-15): six decimals, the trailing zeros and then a trailing point trimmed ({@code 1.5},
+     * {@code 2}, {@code 0.333333}), NaN and the infinities by name ({@code NaN}, {@code Infinity},
+     * {@code -Infinity}). Each dialect writes it in one format call (measured on each database: register S311); the
+     * compatibility edge writes legend-pure's print form instead. A function-call form: no parenthesis is needed.
+     */
+    @SpellingArm
+    protected abstract SqlWriter floatToText(SqlWriter writer, SqlExpr x);
+
+    /** {@code x} as a double: itself where its fact is one (a column, a computed double), else cast -- a format call's
+     *  {@code %f} reads no integer and no decimal, and a six-decimal text is trimmed only where it has its six
+     *  digits (a literal is cast too: DuckDB reads {@code 1.5} as a DECIMAL). */
+    protected static SqlExpr asDouble(SqlExpr x) {
+        return !(x instanceof SqlExpr.FloatLit) && x.type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE ? x
+                : new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT);
+    }
+
+    /** {@code text} -- a value's fixed-point text with six fraction digits -- with its trailing zeros, then a trailing
+     *  point, dropped, by the trailing trim {@code trim} names ({@code rtrim}, {@code RTRIM}): {@code 2.000000} is
+     *  {@code 2}, {@code 0.300000} is {@code 0.3}. Six digits always follow the point, so no digit before it is cut. A
+     *  negative value that rounds to zero ({@code -0.000000}: -1e-7, -0.0) is {@code 0}, its sign dropped -- one form on
+     *  every database (the orchestrator's round 56, 2026-11-15: DuckDB, SQLite, ClickHouse, Trino, MySQL, MongoDB and
+     *  Databricks printed {@code -0}, MariaDB, Postgres and H2 {@code 0}); the whole six-digit text alone matches. */
+    protected static SqlWriter trimmedSix(SqlWriter writer, String trim, java.util.function.Consumer<SqlWriter> text) {
+        writer.append(trim).append("(").append(trim).append("(");
+        unsignedZero(writer, text);
+        return writer.append(", '0'), '.')");
+    }
+
+    /** {@code text}, a six-digit fixed-point text, with {@code -0.000000} written {@code 0.000000} ({@link #trimmedSix}):
+     *  no other text holds that run ({@code -10.000000} holds {@code 10.000000}, its sign before a 1). */
+    private static void unsignedZero(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
+        writer.append("REPLACE(");
+        text.accept(writer);
+        writer.append(", '-0.000000', '0.000000')");
+    }
+
+    /** {@link #trimmedSix} spelled by the SQL standard's trailing trim ({@code TRIM(TRAILING '0' FROM ...)}), for a
+     *  database whose {@code RTRIM} takes no character. */
+    protected static SqlWriter trimmedSixStandard(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
+        writer.append("TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM ");
+        unsignedZero(writer, text);
+        return writer.append("))");
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----
@@ -1514,13 +1755,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .join(r.orderBy(), ", ", this::aggregateOrderKey);
         }
         return writer.append(")");
-    }
-
-    /** {@inheritDoc} The engine's H2 text is the one translated language: its connection declares
-     *  {@link RawSqlBoundary#ENGINE_TEXT}. */
-    @Override
-    public final String raw(String statement, @com.legend.base.Nullable String writtenFor) {
-        return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) ? fromEngineText(statement) : statement;
     }
 
     /**
@@ -1856,7 +2090,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
         int past = 9 - kept;
         String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
-        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("the " + kind
+        // FRACTION_NOT_KEPT: lite's own sentence the operand, written by the edge alone (D1.1)
+        // its where the parameter's name and the digits this database keeps: planning text (the D part 1 audit's S4)
+        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, "the " + kind
                 + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
                 + " keeps (" + kept + "): refused, never cut (S181)"));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
@@ -1906,7 +2143,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** {@code x} as the VARCHAR cast a dialect wrote for a Decimal's or a Number's text until the Lowerer marked it
      *  ({@code SqlFn.DECIMAL_TO_TEXT}, A6, the tenets audit's M-6): every dialect's spelling of it but H2's. */
     protected static SqlExpr varcharCast(SqlExpr x) {
-        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT);
     }
 
     /** A placeholder's declared cast: the SQL type's name, and how the value is bound as text (null: as it is). */
@@ -1918,20 +2155,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /**
      * A plan parameter bound as ONE value — an optional one's absence a null, an enumeration's its name (compared with a
-     * mapped column through a value table, {@code EnumValueTables}). What one value cannot carry is refused by name,
-     * never bound as something it is not: a RAW splice and a parameter carrying the legacy printer's enumeration-mapping
-     * function (both plan-template vocabulary). A list is bound whole, as one array, by {@link #anyOf}
+     * mapped column through a value table, {@code EnumValueTables}). A list is bound whole, as one array, by {@link #anyOf}
      * (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2).
      */
     protected static RenderedStatement.Bind scalarBind(SqlExpr.PlanParam p) {
-        if (p.kind() == SqlExpr.PlanParam.Kind.RAW) {
-            throw new DialectCapability("plan parameter '" + p.name() + "' is RAW: it splices plan text, never a"
-                    + " bound value");
-        }
-        if (p.enumMapFn() != null) {
-            throw new DialectCapability("enum plan parameter '" + p.name() + "' carries the legacy printer's mapping"
-                    + " function (a value table, a plan template's): never a bound value");
-        }
         return new RenderedStatement.Bind(p.name(), new RenderedStatement.Binding.One(nullType(p), null));
     }
 
@@ -2207,6 +2434,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        // a text, its raises numbered as a statement's are and the sites dropped (render(SqlQuery)'s rule)
+        return collectingSites(() -> dmlText(dml), (text, sites) -> text);
+    }
+
+    private String dmlText(com.legend.sql.SqlDml dml) {
         com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
@@ -2256,8 +2488,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected String csvRecordCheck(int width) {
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                 SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
-                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("a record of the CSV"
-                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true));
+                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, "a record of the CSV"
+                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true), SqlExpr.Reason.RAISE);
         SqlWriter where = newWriter().expr(check, 0);
         if (where.bound() != 0) {
             throw new IllegalStateException("a CSV load's record check binds no value");
@@ -2283,6 +2516,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
+        return collectingRaises(() -> dmlStatement(dml));
+    }
+
+    private RenderedStatement dmlStatement(com.legend.sql.SqlDml dml) {
         com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this
@@ -2587,11 +2824,43 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * Float's own text (a point always present, never E-notation), so the
      * database types it DECIMAL, never INTEGER (1e18 spells
      * {@code 1000000000000000000.0}) and never DOUBLE. */
-    protected String floatLiteral(double v) {
+    /** The product's: the double (register S20, "IEEE everywhere"). A dialect whose DOUBLE literal its lane has not
+     *  measured yet says DECIMAL (ClickHouse, BigQuery, Snowflake: an F-row of the edge program, 2026-11-17). */
+    @Override
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE;
+    }
+
+    /** A Float literal of the DECIMAL kind: its plain digits, a DECIMAL of them, or an extreme magnitude in exponent
+     *  form, a DOUBLE ({@link #plainFloat}, the numeric charter's Rule 1: the text every Float literal had before S20).
+     *  The edge writes legend-engine's literal so; legend-engine writes an extreme one positionally too, which DuckDB
+     *  reads as a DECIMAL up to 38 digits (a pre-existing difference at |x| < 1e-6 and >= 1e15; under a toString the
+     *  edge writes legend-pure's print, edge.PurePrintForms). */
+    protected String decimalFloatLiteral(double v) {
         return plainFloat(v);
     }
 
+    /** A Float literal is the double (register S20, the user's ruling of 2026-11-05: "every Float literal a DOUBLE,
+     *  IEEE everywhere (S119), exact arithmetic is Decimal's"; built 2026-11-17, Phase 5b): its shortest digits in
+     *  exponent form, which DuckDB, Trino and Databricks read as a DOUBLE ({@code 1.5E0}, {@code -0.0E0}); a dialect
+     *  whose exponent literal is no DOUBLE spells its own. Not finite: the plain form, as before. */
+    protected String floatLiteral(double v) {
+        return Double.isFinite(v) ? doubleLiteral(v) : plainFloat(v);
+    }
+
+    /** The double's shortest digits ({@code Double.toString}, which read back as the same double) in exponent form. */
+    protected static String doubleLiteral(double v) {
+        String s = Double.toString(v);
+        return s.contains("E") ? s : s + "E0";
+    }
+
     static String plainFloat(double v) {
+        // a negative zero keeps its sign, as a double literal: BigDecimal has no -0, and a plain -0.0 is a decimal,
+        // which has none either (the orchestrator's round 56, 2026-11-15: -0.0 was written 0.0, the value rewritten
+        // before the database saw it)
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "-0.0E0";
+        }
         // the numeric charter's Rule 1, one owner (SqlTyping.floatDecimal; the runner binds a Float by it): plain
         // digits, or an extreme magnitude in exponent form
         java.math.BigDecimal plain = com.legend.sql.SqlTyping.floatDecimal(v);

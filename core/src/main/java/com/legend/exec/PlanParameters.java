@@ -62,8 +62,8 @@ public final class PlanParameters {
      * {@code values} checked against {@code declared} and converted, by name: every declared parameter, its checked
      * value. A value for no declared parameter is ignored.
      *
-     * @throws IllegalArgumentException naming every problem at once: {@code Missing external parameter(s): ...} for each
-     *                                  required parameter given no value, {@code Invalid provided parameter(s): [...]}
+     * @throws IllegalArgumentException naming every problem at once: {@link com.legend.error.MissingParameters} for each
+     *                                  required parameter given no value, {@link com.legend.error.InvalidParameters}
      *                                  for each value that is not one its parameter takes
      */
     public static Map<String, Checked> check(List<ExecutionPlan.Parameter> declared, Map<String, ?> values) {
@@ -86,15 +86,16 @@ public final class PlanParameters {
                         + problem);
             }
         }
-        List<String> problems = new ArrayList<>();
+        String wrong = invalid.isEmpty() ? null : com.legend.error.InvalidParameters.sentence(invalid);
         if (!missing.isEmpty()) {
-            problems.add("Missing external parameter(s): " + String.join(", ", missing));
+            // the missing ones a kind, worded by the product and, for upstream's clients, by the edge (D1.6, W7)
+            throw new com.legend.error.MissingParameters(missing, wrong);
         }
-        if (!invalid.isEmpty()) {
-            problems.add("Invalid provided parameter(s): [" + String.join("; ", invalid) + "]");
-        }
-        if (!problems.isEmpty()) {
-            throw new IllegalArgumentException(String.join("; ", problems));
+        if (wrong != null) {
+            // a typed failure, so every binding reads it as the caller's values (kind parameters; J18), its problems a
+            // kind's, worded likewise (J8 of the edge audit, 2026-11-17: legend-engine's "Invalid provided
+            // parameter(s)" is the edge's)
+            throw new com.legend.error.InvalidParameters(invalid);
         }
         return out;
     }
@@ -174,14 +175,13 @@ public final class PlanParameters {
         return v instanceof String s ? "\"" + s + "\"" : String.valueOf(v);
     }
 
-    /** A Float as its literal is typed (the numeric charter's Rule 1, {@code SqlTyping.floatDecimal}): its plain digits
-     *  as a decimal, an extreme magnitude as a double; a value that is not finite has no literal, and is refused. */
+    /** A Float as its literal is typed: the double (register S20, built 2026-11-17, Phase 5b; until then the numeric
+     *  charter's Rule 1, its plain digits as a decimal); a value that is not finite has no literal, and is refused. */
     private static Conversion floatValue(double d) {
         if (!Double.isFinite(d)) {
             return new Refused(d + " is not finite: no SQL literal stands for it");
         }
-        BigDecimal plain = com.legend.sql.SqlTyping.floatDecimal(d);
-        return new Converted(plain != null ? plain : (Object) d);
+        return new Converted(d);
     }
 
     /** A date, which a slot passes as its text: a year outside 1 to 9999 has none a database's cast reads (the correctness

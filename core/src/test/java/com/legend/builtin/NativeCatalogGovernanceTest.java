@@ -163,7 +163,18 @@ class NativeCatalogGovernanceTest {
         // Emitted by the Cypher translator only, by FQN (GraphQL's mutations will be their second emitter). 29 -> 34.
         // 34 -> 35 (2026-10-22, merging main into the Cypher writes branch): main's quotient (+1, above) beside this
         // branch's stage and the five class writes (+6).
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 35,
+        // 35 -> 36 (2026-11-15, phase D's D1.3: the user's ruling of 2026-11-10, a TDS cell's toString answers the
+        // empty value where the cell is, relayed by the orchestrator 2026-11-15): cellText, the text of a TDS cell that
+        // TdsDesugars emits for $r.get('c')->toString() -- the product's empty, the compatibility edge's TDSNull, one
+        // node (SqlFn.CELL_TEXT) the two styles spell; it replaced the desugar's literal 'TDSNull' branch.
+        // 36 -> 37 (2026-11-16, W5 of docs/records/d-plan-2026-11-16.md, D1.1's last rows): typeRaise, a run-time type
+        // check's failure as the product's raise of its kind (CAST_IMPOSSIBLE, INSTANCE_NOT_OF) -- emitted by the
+        // resolver's chain dispatch and subtype reads, which raised legend-pure's sentence through fail until then;
+        // the sentence is the compatibility edge's (edge.PureMessages)
+        // 37 -> 38 (PR #118 fix round, 2026-11-18: N2, the in-body assert's default message chosen by the plan's style
+        // at lowering; the user's word "raise it"): assertFailedText, which LambdaBodies writes for fail's message where
+        // the assert gives none -- the product's lite sentence, the compatibility edge's legend-pure "Assert failed"
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 38,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

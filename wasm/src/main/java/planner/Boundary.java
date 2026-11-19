@@ -1,7 +1,7 @@
 package planner;
 
 /**
- * legend-lite's BOUNDARY for the hosts that embed it -- the tab (TeaVM, {@link TabExports}) and Python (the C library,
+ * legend-lite's BOUNDARY for the hosts that embed it -- the tab (TeaVM, {@code TabExports}) and Python (the C library,
  * native/'s {@code nativelib.Compiler}): one class, each operation once, plain Java -- strings in, a string or an
  * answer out, or an exception -- with no host's annotations and no text encoding (each host's adapter is one-line
  * delegations through {@link Folded}; docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5). legend-engine's operations
@@ -36,161 +36,20 @@ public final class Boundary {
     private Boundary() {
     }
 
-    // ---- legend-engine's pure/v1 API, as legend-lite's server answers it (PureV1Api, the plan side): how the tab's
-    // ---- apps ask what they would ask a server, and how Python's engine answers DataCube
-    // ---- (docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md)
-
-    /**
-     * One {@code pure/v1} call by its path and raw query string ({@code ""} for none), routed and answered as
-     * legend-lite's server answers it -- lite's own {@code /api/lite/v1/compilation/compile} included. An execute's
-     * run is the host's (its rows come from {@link #executePlan}), so one asked for here is refused, naming the
-     * format that is served.
-     */
-    public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
-        return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
-                (query, runtime, output) -> {
-                    throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
-                            + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
-                }, HELD);
-    }
-
-    /** A request's model given as text: the one this host holds for that text, compiled no more, else compiled for the
-     *  request (HeldModels.withText). */
-    private static final com.legend.server.PureV1Api.Models HELD = new com.legend.server.PureV1Api.Models() {
-        @Override
-        public <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
-            return MODELS.withText(text, use);
-        }
-    };
-
-    /**
-     * Execute's plan half in upstream's Arrow format (PureV1Api.arrowPlan): the SQL to run and the Arrow schema
-     * metadata, or the refusal to send. {@code modelsJson}: the only models the host runs, a JSON array of their
-     * texts.
-     */
-    public static com.legend.server.PureV1Api.Answer executePlan(String body, String modelsJson) {
-        return com.legend.server.PureV1Api.arrowPlan(body, models(modelsJson));
-    }
-
-    /**
-     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): the statement to run, the answer's shape and its
-     * result columns with their type facts, and everything the answer holds but its rows -- the TDS builder, the
-     * activities, the columns' names, or a graph fetch's JSON builder -- for a host whose database runs the statement
-     * (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
-     * {@code modelsJson}: the only models the host runs, a JSON array of their texts.
-     */
-    public static com.legend.server.PureV1Api.Answer executeJsonPlan(String body, String modelsJson) {
-        return com.legend.server.PureV1Api.jsonPlan(body, models(modelsJson));
-    }
-
-    /**
-     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} statement (PureV1Api.jsonAnswer):
-     * that plan's answer and the host's rows (a JSON array of objects, each a column's name and its cell as the
-     * host's driver read it), decoded by the plan's columns and written by the writer legend-lite's server answers
-     * with.
-     */
-    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String rows) {
-        return com.legend.server.PureV1Api.jsonAnswer(plan, rows);
-    }
-
-    /**
-     * Execute's answer in upstream's Arrow format for a host that ran {@link #executeJsonPlan}'s {@code run}
-     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29): that plan's answer and the host's rows, decoded by the
-     * plan's columns and written by lite's Arrow writer as the one zstd frame upstream sends -- folded as base64
-     * (Folded.http).
-     */
-    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String rows) {
-        return com.legend.server.PureV1Api.arrowAnswer(plan, rows);
-    }
-
-    /** The models a host runs, from their JSON array of texts. */
-    private static java.util.List<String> models(String modelsJson) {
-        java.util.List<String> models = new java.util.ArrayList<>();
-        if (!(com.legend.json.Json.parse(modelsJson) instanceof com.legend.json.Json.Arr arr)) {
-            throw new IllegalArgumentException("the models: not a JSON array");
-        }
-        for (com.legend.json.Json.Node n : arr.items()) {
-            if (!(n instanceof com.legend.json.Json.Str text)) {
-                throw new IllegalArgumentException("the models: an entry that is not a model's text");
-            }
-            models.add(text.value());
-        }
-        return models;
-    }
-
-    /** A host's refusal of a call it could not finish (its database refusing the SQL), in the engine's shape. */
-    public static com.legend.server.PureV1Api.Answer refusal(String message) {
-        return com.legend.server.PureV1Api.refused(message);
-    }
-
-    // ---- planning and typing
-
-    /**
-     * The planner, end to end -- the SAME {@code Compiler.plan} the server's {@code pure/v1/execution/generatePlan}
-     * calls, so the browser plane and the server plane cannot drift: the SQL alone.
-     */
-    public static String planSql(String model, String query, String runtime) {
-        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).plan(runtime).sql();
-    }
-
-    /**
-     * A query written as Pure TEXT planned: {@code {"sql": ..., "type": RelationType}}, the type in legend-engine's
-     * {@code lambdaRelationType} shape through the one renderer the server's {@code pure/v1} answers use
-     * ({@code UpstreamRelationType}) -- so a host reads a column's type from the compiler, never from the engine's
-     * wire (docs/DATACUBE_TYPED_VALUES_DESIGN_2026_09_27.md, step 1).
-     */
-    public static String plan(String model, String query, String runtime) {
-        return planned(com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).plan(runtime));
-    }
-
-    /**
-     * A query written as Pure TEXT, typed compile-only: upstream {@code lambdaRelationType}'s answer
-     * ({@code UpstreamRelationType}), no runtime, no lowering. How the tab types a cube's source and calculated
-     * columns before any level query runs.
-     */
-    public static String relationType(String model, String query) {
-        return com.legend.json.Json.toCompact(com.legend.plan.UpstreamRelationType.of(
-                com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).resultType()));
-    }
-
-    /**
-     * A lambda's protocol JSON planned -- {@code {"sql","type"}}, as {@link #plan} (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md, T4a).
-     * Not {@code execution/generatePlan}'s twin (that answers legend-engine's execution plan), so it stays the
-     * boundary's own; a lambda typed alone is {@code compilation/lambdaRelationType}, asked through {@link #pureV1},
-     * and a whole model compiled is {@code compilation/compile} on either route (docs/PROTOCOL_PROGRAM_2026_10_05.md,
-     * leg 6).
-     */
-    public static String planJson(String model, String lambdaJson, String runtime) {
-        return planned(com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
-                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime));
-    }
-
-    /**
-     * A text plan as the tab and Python read it: {@code {"sql", "type"}}, and {@code "plan"} -- the execution plan the
-     * text renders from (B3, 2026-11-11), its target's loads and its slots, a {@code data:} payload's text its
-     * statement's content (which the host binds: plan-params.ts, compiler.plan_params; the tenets audit's M3) -- where
-     * the text does not run alone. One a host cannot run ({@code QueryPlan.beyondItsText}) is refused by name here,
-     * before any host sends it.
-     */
-    private static String planned(com.legend.plan.QueryPlan p) {
-        String refused = p.beyondItsText();
-        if (refused != null) {
-            throw new com.legend.error.NotImplementedException("this host runs a plan's statement itself, and this"
-                    + " query's plan does not run as its text: " + refused);
-        }
-        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("sql", p.sql());
-        out.put("type", com.legend.plan.UpstreamRelationType.of(p.rootType()));
-        if (!p.textAlone()) {
-            out.put("plan", com.legend.json.Json.parse(com.legend.executionplan.PlanJson.write(p.plan())));
-        }
-        return com.legend.json.Json.toCompact(out);
-    }
+    // ---- legend-engine's pure/v1 API and execute's halves are the edge's (com.legend.edge.wasm.EdgeBoundary, //wasm:
+    // ---- edge_boundary: F's separation census line A1, 2026-11-17): they answer through //core:edge
 
     // ---- models held: compiled once, planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9)
 
     /** This host's held models: the module's (one per module instance, a worker's own) or Python's library's. */
     private static final com.legend.HeldModels MODELS = new com.legend.HeldModels();
+
+    /** A request's model given as text, the one this host holds for that text, compiled no more, else compiled for the
+     *  request ({@link com.legend.HeldModels#withText}): how the edge's routes (EdgeBoundary) share this host's models. */
+    public static <T> T withModelText(String text,
+            java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+        return MODELS.withText(text, use);
+    }
 
     /** {@link com.legend.HeldModels#hold}: the handle that names {@code model}, compiled the first time it is held. */
     public static int holdModel(String model) {
@@ -208,42 +67,114 @@ public final class Boundary {
         MODELS.release(handle);
     }
 
-    /** {@link #plan} over a model held: the query planned, the model compiled no more. */
-    public static String planHeld(int handle, String query, String runtime) {
-        return MODELS.with(handle, ctx -> planned(com.legend.Compiler.query(ctx, query).plan(runtime)));
+    /** {@code query/plan} over a model held ({@code {query, runtime}}; §7a: a held model is the binding's cache): what
+     *  {@link #queryPlan} answers, the model compiled no more. */
+    public static String queryPlanHeld(int handle, String request) {
+        com.legend.json.Json.Obj in = com.legend.server.LiteV1Api.read(request, "a query/plan request",
+                java.util.Set.of(), "query", "runtime");
+        com.legend.protocol.spec.LambdaFunction query = com.legend.protocol.ProtocolReader.lambda(
+                com.legend.server.LiteV1Api.object(in, "query"));
+        String runtime = com.legend.server.LiteV1Api.text(in, "runtime");
+        return MODELS.with(handle, ctx -> com.legend.server.LiteV1Planning.queryPlan(ctx, query, runtime,
+                com.legend.TypedQuery::executionPlan));
     }
 
-    /** {@link #planJson} over a model held. */
-    public static String planJsonHeld(int handle, String lambdaJson, String runtime) {
-        return MODELS.with(handle, ctx -> planned(com.legend.Compiler.query(ctx,
-                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime)));
+    /** {@code query/type} over a model held ({@code {query}}): what {@link #queryType} answers, the model compiled no
+     *  more. */
+    public static String queryTypeHeld(int handle, String request) {
+        com.legend.json.Json.Obj in = com.legend.server.LiteV1Api.read(request, "a query/type request",
+                java.util.Set.of(), "query");
+        com.legend.protocol.spec.LambdaFunction query = com.legend.protocol.ProtocolReader.lambda(
+                com.legend.server.LiteV1Api.object(in, "query"));
+        return MODELS.with(handle, ctx -> com.legend.server.LiteV1Planning.queryType(ctx, query));
     }
 
-    /**
-     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text, version 19): a program
-     * that writes -- a store write's {@code Update}, its count bound into the query that answers it, in one
-     * {@code Sequence} -- or a query's one {@code TdsResult}, its answer TYPED rows the host reads by the plan's
-     * columns (the result boundary program, 2026-10-27: a plan names no output format; a writer at the edge spells
-     * the rows), the plan its host's runner runs step by step (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
-     * into a table; docs/WRITES_DESIGN_2026_10_18.md leg 7).
-     */
-    public static String executionPlanJsonHeld(int handle, String lambdaJson, String runtime) {
-        return MODELS.with(handle, ctx -> com.legend.executionplan.PlanJson.write(com.legend.Compiler.query(ctx,
-                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).executionPlan(runtime)));
+    // ---- LITE API V1: the browser binding's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of
+    // ---- 2026-11-17): each takes its operation's request JSON and answers its JSON through the one road every binding
+    // ---- takes (LiteV1Api.operate: the server's routes call it too), its models this host's held ones (a model given as
+    // ---- text compiled once), its plans the tab's own (TypedQuery::executionPlan). A refusal is thrown; the binding's
+    // ---- fold writes it as §3's {kind, message, where?, raise?} (Folded).
+
+    /** This host's models, as the one road reads a request's model text: the one held for that text, else compiled. */
+    private static final com.legend.server.LiteV1Api.Models HELD = new com.legend.server.LiteV1Api.Models() {
+        @Override
+        public <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+            return MODELS.withText(text, use);
+        }
+    };
+
+    /** {@code operation}'s request answered by the one road, on this host's models and the tab's plans. */
+    private static String operate(String operation, String request) {
+        return com.legend.server.LiteV1Api.operate(com.legend.server.LiteV1Planning.API + operation, request, HELD,
+                com.legend.TypedQuery::executionPlan);
     }
 
-    /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */
-    public static String relationTypeJsonHeld(int handle, String lambdaJson) {
-        return MODELS.with(handle, ctx -> com.legend.json.Json.toCompact(
-                com.legend.plan.UpstreamRelationType.of(com.legend.Compiler.query(ctx,
-                        com.legend.protocol.ProtocolReader.lambda(lambdaJson)).resultType())));
+    /** {@code model/check {model}}: {@code {errors: [{kind, message, where}]}}, every error, empty when it compiles. */
+    public static String modelCheck(String request) {
+        return operate("model/check", request);
     }
 
-    /** {@link #relationType} over a model held. */
-    public static String relationTypeHeld(int handle, String query) {
-        return MODELS.with(handle, ctx -> com.legend.json.Json.toCompact(
-                com.legend.plan.UpstreamRelationType.of(com.legend.Compiler.query(ctx, query).resultType())));
+    /** {@code model/elements {model}}: {@code {elements}}, the model's protocol elements. */
+    public static String modelElements(String request) {
+        return operate("model/elements", request);
     }
+
+    /** {@code query/parse {text}}: {@code {query}}, the lambda's tree. */
+    public static String queryParse(String request) {
+        return operate("query/parse", request);
+    }
+
+    /** {@code query/print {query, style?}}: {@code {text}}; {@code style} {@code pretty} (the default) or
+     *  {@code standard}. */
+    public static String queryPrint(String request) {
+        return operate("query/print", request);
+    }
+
+    /** {@code query/type {model, query}}: {@code {columns: [{name, type, enumeration?}]}}. */
+    public static String queryType(String request) {
+        return operate("query/type", request);
+    }
+
+    /** {@code query/plan {model, query, runtime}}: {@code {plan}}, lite's execution plan (PlanJson), which is data. */
+    public static String queryPlan(String request) {
+        return operate("query/plan", request);
+    }
+
+    /** {@code model/createClass}: the action's request, its answer the model's writer's ({@code {changes}}). */
+    public static String modelCreateClass(String request) {
+        return operate("model/createClass", request);
+    }
+
+    /** {@code model/createAssociation}. */
+    public static String modelCreateAssociation(String request) {
+        return operate("model/createAssociation", request);
+    }
+
+    /** {@code model/createDataSpace}. */
+    public static String modelCreateDataSpace(String request) {
+        return operate("model/createDataSpace", request);
+    }
+
+    /** {@code ts/item {text}}: the #TS item's text and tree, or why it is no item. */
+    public static String tsItem(String request) {
+        return operate("ts/item", request);
+    }
+
+    /** {@code ts/statement {model, query}}: the #TS query as its one statement, or why it has none. */
+    public static String tsStatement(String request) {
+        return operate("ts/statement", request);
+    }
+
+    /** Lite's refusal kinds as every binding writes them ({@code {NAME: wire}}, {@link
+     *  com.legend.server.LiteV1Api.Kind}): what a host's decoder reads a refusal's {@code kind} against. */
+    public static String refusalKinds() {
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        for (com.legend.server.LiteV1Api.Kind k : com.legend.server.LiteV1Api.Kind.values()) {
+            out.put(k.name(), k.wire());
+        }
+        return com.legend.json.Json.toCompact(out);
+    }
+
 
     // ---- a model's data and its tables
 
@@ -672,11 +603,12 @@ public final class Boundary {
      * runtime the planner compiles.
      * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog rows]}}
      * in; {@code {"model", "runtime", "source" (protocol), "accessor" (its Pure text), "conversions":
-     * [{"column","sql"}], "excluded": [name], "bitColumns": [name]}} out. A source rewritten in place
+     * [{"column","sql"}], "excluded": [name]}} out. A source rewritten in place
      * ({@code convertible}) is a host operation's copy that names these catalog columns ({@code "convert"}), its select
      * list written by the platform (the final audit's 1(d), 2026-11-12: until then this answered the select list,
      * {@code copySelectList}, which the host handed back as text).
-     * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
+     * (Until 2026-11-17 also {@code bitColumns}, the columns declared BIT, for legend-engine's TinyInt typing: the edge
+     * audit's H10 moved that reading to the legend-engine client, which reads the model's Database itself.)
      *
      * <p>SEVERAL TABLES of one database (a join's two sides, read in one place:
      * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): {@code {"databaseType", "connection"? (default "host"),
@@ -700,12 +632,6 @@ public final class Boundary {
                 pkg + "::DB", in.getStringOr("schema", null), in.getString("table"), columns, dialect,
                 in.getBool("convertible"));
         String model = db.text() + "\n" + connectionAndRuntime(pkg, "Conn", "RT", databaseType);
-        java.util.List<String> bitColumns = new java.util.ArrayList<>();
-        for (com.legend.sql.dialect.CatalogModel.Column c : columns) {
-            if (!db.excluded().contains(c.name()) && "BIT".equals(dialect.catalogType(c).declared())) {
-                bitColumns.add(c.name());
-            }
-        }
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("model", model);
         out.put("runtime", pkg + "::RT");
@@ -713,7 +639,6 @@ public final class Boundary {
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
         out.put("excluded", db.excluded());
-        out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);
     }
 

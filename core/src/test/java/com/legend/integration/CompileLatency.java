@@ -32,7 +32,7 @@ import java.util.TreeMap;
  *   bazel run //core:compile_latency -- --corpus stress [--passes 2] [--out DIR]
  *   bazel run //core:compile_latency -- --model FILE.pure --queries NAME-TAB-QUERY.tsv --runtime FQN [--out DIR]
  * </pre>
- * The stress corpus: every {@code stress::} service's test, built exactly as {@link com.legend.test.ServiceTestRunner}
+ * The stress corpus: every {@code stress::} service's test, built exactly as {@link com.legend.edge.ServiceTestRunner}
  * builds it (its parameters as let-bound variables, then the body) and planned for the service's DECLARED runtime —
  * the runner overlays a test runtime whose connection carries the session's database type; a declared connection of
  * another type (a few declare H2 or a cloud warehouse) makes this tool's refusal differ from the runner's, so the

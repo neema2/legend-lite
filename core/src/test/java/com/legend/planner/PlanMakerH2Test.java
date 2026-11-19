@@ -38,8 +38,9 @@ class PlanMakerH2Test {
         // its session statement, the engine's non-keywords; its database's settings, plan data (the C checkpoint's
         // SHOULD-FIX 3, 2026-11-12: until then the connector's URL, outside the plan)
         assertEquals(List.of("SET NON_KEYWORDS " + com.legend.sql.dialect.H2.NON_KEYWORDS), h2.session());
-        assertEquals(List.of(new ExecutionPlan.Setting("MODE", "LEGACY"),
-                new ExecutionPlan.Setting("DEFAULT_NULL_ORDERING", "HIGH")), h2.settings().required());
+        // the product's H2: H2's own settings, declared (the audit's J22, RULED by the user 2026-11-17)
+        assertEquals(List.of(new ExecutionPlan.Setting("MODE", "REGULAR"),
+                new ExecutionPlan.Setting("DEFAULT_NULL_ORDERING", "LOW")), h2.settings().required());
         // H2's rows are a content blob of inserts, as every database's (A2, 2026-11-10)
         assertInstanceOf(ExecutionPlan.LoadStep.Statements.class, h2.loads().get(0).steps().get(h2.loads().get(0).steps().size() - 1));
     }

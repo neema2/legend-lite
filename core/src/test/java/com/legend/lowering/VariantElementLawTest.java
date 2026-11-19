@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class VariantElementLawTest {
 
     private static final SqlExpr JSON_NULL =
-            new SqlExpr.Cast(new SqlExpr.StringLit("null"), SqlType.Scalar.JSON);
+            new SqlExpr.Cast(new SqlExpr.StringLit("null"), SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
 
     private static TypedSpec stamped(int lower, Integer upper) {
         return new TypedVariable("c", new ExprType(Type.Primitive.STRING,

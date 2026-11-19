@@ -32,7 +32,8 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = backend().open();
+        // every text here is planned in the edge's style, so the session is the edge's database (the audit's J22)
+        connection = backend().open(com.legend.edge.PureText.UPSTREAM);
         try (Statement st = connection.createStatement()) {
             st.execute("CREATE TABLE T_PERSON (ID INTEGER, NAME VARCHAR,"
                     + " NICK VARCHAR, DOB DATE)");
@@ -67,9 +68,38 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                 connections: [ test::DB: [ environment: store::Conn ] ]; }
             """;
 
+    /** A relation's text is legend-pure's and legend-engine's, the compatibility edge's alone: the product refuses it
+     *  by name, pointing to its result writers (phase D's D1.3, 2026-11-15; the user's ruling of 2026-11-10, "objects
+     *  and relations are refused"), so each text here is planned in the edge's style. */
     private String csv(String query) throws SQLException {
-        Lean.Result r = Lean.run(MODEL, query, "test::RT", connection);
+        Lean.Result r = Lean.runInStyle(MODEL, query, "test::RT", connection, com.legend.edge.PureText.UPSTREAM);
         return r.one().toString();
+    }
+
+    @Test
+    void theProductRefusesARelationsTextByName() {
+        // each call's own sentence, at lowering (B17 of the separation census, 2026-11-17: the text is the edge's
+        // edge.RelationTextLowering, asked through the plan style's RelationTexts facet; the product's style refuses)
+        java.util.Map<String, String> refusals = new java.util.LinkedHashMap<>();
+        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::relational::tests::csv::toCSV()",
+                "toCSV");
+        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::pure::functions::relation::toString()",
+                "toString");
+        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])"
+                + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv", "a TDS's csv");
+        refusals.forEach((query, what) -> {
+            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
+                    () -> Lean.run(MODEL, query, "test::RT", connection));
+            Throwable cause = refused;
+            while (!(cause instanceof com.legend.error.LegendCompileException) && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            com.legend.error.LegendCompileException compile = assertInstanceOf(
+                    com.legend.error.LegendCompileException.class, cause, refused.toString());
+            assertEquals(com.legend.error.LegendCompileException.Phase.LOWER, compile.phase(), query);
+            assertEquals(what + " of a relation is legend-pure's text, the compatibility edge's: the product writes a"
+                    + " relation's rows by its result writers (JSON, CSV, Arrow)", compile.getMessage(), query);
+        });
     }
 
     @Test
@@ -85,6 +115,19 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                         + " p | $p.nick, p | $p.dob],"
                         + " ['id', 'name', 'nick', 'dob'])"
                         + "->sort(asc('id'))"
+                        + "->meta::relational::tests::csv::toCSV()"));
+    }
+
+    /** A Float cell of the CSV text as legend-pure prints it, its shortest round-trip digits plain (PR #118 fix round,
+     *  2026-11-18: DuckDB's in-query cast wrote 1e-05, H2's 1.0E-5) -- a DOUBLE the database computes. */
+    @Test
+    void csvTextPrintsAFloatCellAsLegendPure() throws SQLException {
+        assertEquals("""
+                x
+                0.00001
+                0.00002
+                """,
+                csv("|test::Person.all()->project([p | $p.id->toFloat() / 100000.0], ['x'])->sort(asc('x'))"
                         + "->meta::relational::tests::csv::toCSV()"));
     }
 

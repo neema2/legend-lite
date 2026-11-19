@@ -57,6 +57,15 @@ final class GraphEmission {
      * through a checked emitter, and its children through the same. */
     private final boolean checked;
 
+    /** The key arguments' text, the plan's style's (D1.2); none where the resolver was given none. */
+    private com.legend.resolver.@com.legend.base.Nullable GraphKeyText keyText;
+
+    /** This emission with its keys' argument text ({@link GraphKeyText}, D1.2). */
+    GraphEmission withKeyText(com.legend.resolver.@com.legend.base.Nullable GraphKeyText text) {
+        this.keyText = text;
+        return this;
+    }
+
     GraphEmission(ModelContext ctx, ClassSources sources,
             AssociationJoins assocMaterial, TemporalFrame temporal,
             BiFunction<StoreResolver.Context, String,
@@ -227,7 +236,8 @@ final class GraphEmission {
             List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
             ExprType info, boolean checked) {
         GraphEmission em = checked == this.checked ? this
-                : new GraphEmission(ctx, sources, assocMaterial, temporal, dispatch, freshVar, checked);
+                : new GraphEmission(ctx, sources, assocMaterial, temporal, dispatch, freshVar, checked)
+                        .withKeyText(keyText);
         return em.buildGraphNode0(cs, pipeline, slotPrefixes, stripped, rowVar, tree,
                 context, arrayWrap, info, checked);
     }
@@ -568,7 +578,7 @@ final class GraphEmission {
                 checkedConstraints(cs, slotPrefixes, stripped, rowVar,
                         rowType, context, toRow),
                 node.removeNullKeys(), node.removeEmptySets(),
-                node.objectRefPrefix(), node.engineExecuteCardinality());
+                node.objectRefPrefix(), node.readThroughExecuteValues());
     }
 
     /** The CHECKED envelope's constraint set — the class hierarchy's
@@ -993,7 +1003,7 @@ final class GraphEmission {
                                                 temporal.normalizeContextDates(
                                                         ma0.dates()),
                                                 ma0.sweep()))),
-                        dispatch, freshVar);
+                        dispatch, freshVar).withKeyText(keyText);
                 if (ctx.findAssociationOf(mSrc.fqn(), ma0.property())
                         .isPresent()) {
                     return em0.m2mAssocChild(cs, node, mSrc.fqn(),
@@ -1409,7 +1419,7 @@ final class GraphEmission {
                 node.property());
         GraphEmission em = childFrame == null ? this
                 : new GraphEmission(ctx, sources, assocMaterial, childFrame,
-                        dispatch, freshVar, checked);
+                        dispatch, freshVar, checked).withKeyText(keyText);
         Set<String> childStripped = new LinkedHashSet<>(
                 Pipelines.slotAliases(target.pipeline()));
         childStripped.removeAll(slotPrefixes.keySet());
@@ -1832,10 +1842,8 @@ final class GraphEmission {
                     : temporal.rootContextDate(
                             strat != MilestoningStrategy.PROCESSING);
             if (d instanceof com.legend.compiler.spec.typed.TypedCDate cd) {
-                String iso = cd.value().toEngineString();
-                // the zone with any time of day (register S121, pending: legend-pure writes +0000 from the minute)
-                return node.property() + "(" + iso
-                        + (iso.indexOf('T') >= 0 ? "+0000" : "") + ")";
+                // the context date in the plan's style (D1.2, register S312)
+                return node.property() + "(" + keyText().date().apply(cd.value().canonicalText()) + ")";
             }
         }
         return keyOf(node);
@@ -2904,7 +2912,16 @@ final class GraphEmission {
      * call spelling — {@code fullName(false)}, {@code name()}. Literal
      * args render in pure form; non-literal args require an alias
      * (loud). */
-    private static String callKey(TypedGraphTree node) {
+    /** The key arguments' text this emission was given; refused by name where it was given none (D1.2). */
+    private GraphKeyText keyText() {
+        if (keyText == null) {
+            throw new IllegalStateException("resolver bug: a graph fetch's key with a literal argument, planned by a"
+                    + " resolver its planner gave no key text (BodyPlanner.resolver hands the plan style's)");
+        }
+        return keyText;
+    }
+
+    private String callKey(TypedGraphTree node) {
         StringBuilder k = new StringBuilder(node.property()).append('(');
         for (int i = 0; i < node.args().size(); i++) {
             if (i > 0) {
@@ -2918,13 +2935,11 @@ final class GraphEmission {
                 k.append(ci.value());
             } else if (a instanceof
                     com.legend.compiler.spec.typed.TypedCString cstr) {
-                k.append('\'').append(cstr.value()).append('\'');
+                k.append(keyText().string().apply(cstr.value()));
             } else if (a instanceof
                     com.legend.compiler.spec.typed.TypedCDate cd) {
-                // engine prints the date VALUE with an explicit +0000
-                // zone when it carries a time component
-                String d = cd.value().toEngineString();
-                k.append(d).append(d.indexOf('T') >= 0 ? "+0000" : "");
+                // the date in the plan's style (D1.2, register S312): the product's text, legend-engine's at the edge
+                k.append(keyText().date().apply(cd.value().canonicalText()));
             } else if (a instanceof
                     com.legend.compiler.spec.typed.TypedVariable v) {
                 // a VARIABLE arg keeps its source spelling — the engine
@@ -3182,7 +3197,7 @@ final class GraphEmission {
                         .toList(),
                 g.orderKeys(), c.typeKey(), c.fq(),
                 g.checkedConstraints(), c.removeNull(), c.removeEmpty(),
-                objectRefPrefix, g.engineExecuteCardinality());
+                objectRefPrefix, g.readThroughExecuteValues());
     }
 
     /** The ASOR objectReference STATIC prefix (engine store-object-
@@ -3195,7 +3210,7 @@ final class GraphEmission {
         // model-derived inputs (defining mapping, set id)
         String defining = definingMapping(mc, cs.mappingFqn(), cs.classFqn());
         String setId = com.legend.model.SetId.defaultFor(cs.classFqn());
-        return AsorRef.prefix(defining, setId, setId);
+        return AsorRef.head(defining, setId, setId);
     }
 
     /** The include-closure mapping that DEFINES the class binding (the
@@ -3326,7 +3341,7 @@ final class GraphEmission {
 
     /** The serialized key: the tree alias when given, else the
      * property name. */
-    private static String keyOf(TypedGraphTree node) {
+    private String keyOf(TypedGraphTree node) {
         if (node.alias() != null) {
             return node.alias();
         }

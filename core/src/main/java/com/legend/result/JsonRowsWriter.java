@@ -39,7 +39,9 @@ public final class JsonRowsWriter implements ResultSink {
     public void columns(List<ExecutionPlan.Column> columns) throws IOException {
         List<Named> named = new java.util.ArrayList<>(columns.size());
         for (ExecutionPlan.Column c : columns) {
-            named.add(new Named(c, '"' + Json.escape(CellText.presentedName(c.name())) + "\":"));
+            // a column's name as the plan states it: a pivot's generated name bare (the user's ruling of 2026-11-10,
+            // start-here §5.4: "Pivot names are bare"; legend-engine's quoting is the edge's, D1.4 2026-11-15)
+            named.add(new Named(c, '"' + Json.escape(c.name()) + "\":"));
         }
         this.columns = List.copyOf(named);
         out.write('[');

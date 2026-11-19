@@ -19,6 +19,7 @@ load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/platforms:defs.bzl", "compatible_with")
 load(":layers.bzl", "core_layer_queries")
 load(":stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED", "stress_index", "stress_layout")
+load(":edge_tests.bzl", "EDGE_TEST_SRCS", "edge_test_classes", "product_tests_closure")
 
 # PRIVATE BY DEFAULT (Bazel workplan P1-20): a target is visible outside core only where it says to whom.
 package(default_visibility = ["//visibility:private"])
@@ -77,7 +78,8 @@ legend_java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache
 legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"])
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
-legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":cache", ":sql"])
+# :error since 2026-11-15 (phase D's option (D)): a plan words its raises from ErrorKind, the one source (PlanJson.raises)
+legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":cache", ":error", ":sql"])
 # THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's steps 2 and 3, 2026-11-08): a test
 # body's plan as data, around the product's (:execution_plan) -- its steps, its verdict groups and branches, an error known
 # at planning (Failure) -- and its JSON. Data alone: it depends on no planning or runtime library.
@@ -85,14 +87,17 @@ legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/t
 # a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
-# pure_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
+# lite_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
 legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
+# THE COMPATIBILITY FORMS A RUN IS HANDED (phase D's W9/W10, 2026-11-16): the hook the edge implements and the planner
+# and the test planner read -- interfaces only
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
 # parser-equivalence's corpus machinery reads one switch of it (Corpus.load)
 legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"], visibility = ["//parser-equivalence:__pkg__"])
 legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
-legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
+# //engine-client: the raise kind's mark, for the hosts' words of a product raise (#104's M2(b), 2026-11-15)
+legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), visibility = ["//engine-client:__pkg__"], deps = ["//base"])
 # legend-engine's query store's rules (/api/pure/v1/query) over a records interface
 # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): the one implementation legend-lite's server, Python's native library
 # and the page's module answer with, the storage each host's own (a directory, or the page's records handed in).
@@ -104,6 +109,14 @@ legend_java_library(
     visibility = ["//native:__pkg__", "//query-store:__pkg__"],
 )
 # visible to //datacube: its catalog corpus and offer facts generators read the protocol directly
+# legend-engine's sentence of a query store's refusal (the P2 checkpoint audit's M2, 2026-11-16): the edge's, its own
+# target so the query-store page (TeaVM) words upstream's path with it and carries no server or planner
+legend_java_library(
+    name = "edge_store_words",
+    srcs = ["src/main/java/com/legend/edge/StoreWords.java"],
+    deps = ["//json", ":saved_queries"],
+    visibility = ["//native:__pkg__", "//query-store:__pkg__"],
+)
 legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], visibility = ["//datacube:__pkg__"])
 legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
 legend_java_library(
@@ -154,7 +167,7 @@ legend_java_library(
     name = "database",
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":error", ":model", ":sql_dialect"],
+    deps = ["//base", ":error", ":model", ":sql", ":sql_dialect"],
 )
 
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
@@ -210,6 +223,8 @@ legend_java_library(
     name = "exec",
     # the program runner is its own target, the package's (below)
     srcs = glob(["src/main/java/com/legend/exec/*.java"], exclude = ["src/main/java/com/legend/exec/ProgramRunner.java"]),
+    # //engine-client: a product raise's envelope marks, for the hosts' words of one (#104's M2(b), 2026-11-15)
+    visibility = ["//engine-client:__pkg__"],
     # THE WALL (D72, 2026-10-30, the seam-and-wall program's B2; D71 the day before took the judges and the probes out):
     # the runtime depends on no planning library -- not the compiler, not lowering, not a dialect, not the plan side's
     # setup or database facts. A plan and a session in, typed rows out: the plan records (:execution_plan) carry every
@@ -289,7 +304,7 @@ legend_java_library(
         "src/main/java/com/legend/Execution.java",
         "src/main/java/com/legend/package-info.java",
     ],
-    deps = ["//base", ":compiler", ":exec", ":execution_plan", ":planner", ":platform", ":result"],
+    deps = ["//base", ":compiler", ":database", ":exec", ":execution_plan", ":planner", ":platform", ":result"],
 )
 # THE TEST BODY'S DOOR and its options: a body planned by testplan's entry (TestPlanner), run by testexec's
 # (TestRunner) -- the one library that sees both halves of a test.
@@ -300,8 +315,8 @@ legend_java_library(
         "src/main/java/com/legend/TestExecution.java",
     ],
     deps = [
-        "//base", ":exec", ":execution_plan", ":planner", ":platform", ":result", ":test_plan", ":testexec",
-        ":testplan",
+        "//base", ":database", ":exec", ":execution_plan", ":planner", ":platform", ":result", ":test_plan",
+        ":testexec", ":testplan",
     ],
 )
 # THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1
@@ -324,6 +339,17 @@ legend_java_library(
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
+# legend-engine's service tests at the compatibility edge (phase D's D1.4, 2026-11-15): the service test runner and its
+# writer of legend-engine's PURE_TDSOBJECT, moved from //core:test and //core:result -- a run of a Legend service's
+# test, so its own library beside the edge's planning half (as edge_server is), reaching exec as //core:test does.
+legend_java_library(
+    name = "edge_service_tests",
+    srcs = [
+        "src/main/java/com/legend/edge/ServiceTestRunner.java",
+        "src/main/java/com/legend/edge/TdsObjectsWriter.java",
+    ],
+    deps = ["//base", "//json", ":compiler", ":edge", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test", ":test_plan", ":values"],
+)
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
@@ -333,20 +359,21 @@ legend_java_library(
     # appeals name from the plan's data (PlannedAppeals.stores) and seeds them between the body's plan and its run
     deps = ["//base", "//json", ":compiler", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test_plan", ":values"],
 )
-# legend-engine's pure/v1 API as legend-lite answers it (server/PureV1Api.java): THE PLAN SIDE -- no database and
+# legend-lite's own API (server/LiteV1Api.java; B7, 2026-11-17: its legend-engine content moved to the edge): THE PLAN SIDE -- no database and
 # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
 # with the same code as the server. execute's run is its host's: the server hands in its product door under its file
 # fence (ConnectionResolver.runner(sources); ConnectionResolver.RUNNER is the library's, any file).
 legend_java_library(
-    name = "pure_v1",
+    name = "lite_v1",
     srcs = [
         "src/main/java/com/legend/server/CreateAssociation.java",
         "src/main/java/com/legend/server/CreateClass.java",
         "src/main/java/com/legend/server/CreateDataSpace.java",
         "src/main/java/com/legend/server/ModelChanges.java",
-        "src/main/java/com/legend/server/ModelInput.java",
-        "src/main/java/com/legend/server/PureV1Api.java",
-        "src/main/java/com/legend/server/TestDataRoutes.java",
+        # (ModelInput.java: legend-engine's request model context, moved to the edge 2026-11-18 -- J40.ModelInput)
+        "src/main/java/com/legend/server/LiteV1Api.java",
+        # lite's own grammar and typing routes (the HOST stream, 2026-11-17)
+        "src/main/java/com/legend/server/LiteV1Planning.java",
         "src/main/java/com/legend/server/TsTree.java",
     ],
     # door (C5-J item 1, 2026-11-15): its parses through the parse doors, which ask the run's wall
@@ -361,22 +388,21 @@ legend_java_library(
             "src/main/java/com/legend/server/CreateClass.java",
             "src/main/java/com/legend/server/CreateDataSpace.java",
             "src/main/java/com/legend/server/ModelChanges.java",
-            "src/main/java/com/legend/server/ModelInput.java",
-            "src/main/java/com/legend/server/PureV1Api.java",
-            "src/main/java/com/legend/server/TestDataRoutes.java",
+            "src/main/java/com/legend/server/LiteV1Api.java",
+            "src/main/java/com/legend/server/LiteV1Planning.java",
             "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
     # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
     # class; :cache, :lowering and :setup were unused
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":sql_dialect"],
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":lite_v1", ":result", ":saved_queries", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":testexec", ":probe", ":testdatagen",
-    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":execution",
+    ":execution_plan", ":result", ":planner", ":lite_v1", ":saved_queries", ":testplan", ":execution",
     ":test_execution", ":ide", ":test",
     ":server_lib", ":test_plan", ":exec_program",
 ]
@@ -387,7 +413,7 @@ _CORE_TARGETS = [
 _PLAN_SIDE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":pure_v1",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":lite_v1",
 ]
 
 legend_java_library(
@@ -451,12 +477,44 @@ legend_java_library(
 # edge (G5): only the harnesses that run under the compatibility rules do.
 legend_java_library(
     name = "edge",
-    srcs = glob(["src/main/java/com/legend/edge/*.java"]),
-    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+    srcs = glob(["src/main/java/com/legend/edge/*.java"], exclude = [
+        "src/main/java/com/legend/edge/EdgeServer.java",
+        "src/main/java/com/legend/edge/EngineMount.java",
+        "src/main/java/com/legend/edge/ServiceTestRunner.java",
+        "src/main/java/com/legend/edge/TdsObjectsWriter.java",
+        "src/main/java/com/legend/edge/StoreWords.java",
+    ]),
+    # //wasm (D1.0b, 2026-11-12): the compiler's boundary answers legend-engine's routes in the tab and Python
+    visibility = ["//parser-equivalence:__pkg__", "//spec:__pkg__", "//pct:__pkg__", "//tools/census:__pkg__", "//wasm:__pkg__"],
     resources = glob(["src/main/edge/META-INF/**"]),
     resource_strip_prefix = "core/src/main/edge",
-    # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec
-    deps = ["//base", "//json", ":execution_plan", ":sql_dialect", ":test_plan"],
+    # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec;
+    # the dialect source and the declared database type (D1.0, 2026-11-12): the edge's dialects, PureText
+    # pure/v1's upstream routes (D1.0b, 2026-11-12): legend-engine's API, planned through the edge's dialects over the
+    # product's API kit (lite_v1) and its compiler, protocol and test-data generator
+    # the parse door (main's C5-J item 1, merged 2026-11-15): pure/v1's grammar routes, moved here by D1.0b, parse
+    # through it as the run's wall asks
+    # values (W8, 2026-11-16): legend-engine's and legend-pure's cell text (Presenter) reads a date's own value
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
+            ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":lite_v1", ":result", ":sql",
+            ":sql_dialect", ":test_plan", ":testdatagen", ":testplan", ":values", ":setup", ":resolver", ":platform", ":lowering", ":lineage", ":builtin",
+            # the compatibility appeals' run and their referee (census C2, 2026-11-17): the run's hook EdgeRun and
+            # the rows they read after the body's run
+            ":testexec", ":exec", ":diagnostics"],
+)
+
+# THE SHIPPED SERVER'S ROOT (phase D's D1.0b, 2026-11-12): lite's own server with legend-engine's API mounted beside
+# it (edge/EdgeServer.java), its run the product's door in the edge's dialects. Its own target: the edge's routes are
+# the plan side's (the compiler's boundary answers them in the tab and Python), the root runs a server.
+legend_java_library(
+    name = "edge_server",
+    srcs = ["src/main/java/com/legend/edge/EdgeServer.java", "src/main/java/com/legend/edge/EngineMount.java"],
+    # legend-engine's module, registered for the product's server to find only when configured (K2's server half,
+    # the user's ruling of 2026-11-18: "Product root, edge opt-in"; com.legend.server.MountProvider)
+    resources = glob(["src/main/edge_server/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/edge_server",
+    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+    deps = ["//base", ":edge", ":edge_store_words", ":execution", ":lite_v1", ":saved_queries", ":server_lib"],
 )
 
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
@@ -500,13 +558,19 @@ legend_java_library(
 
 # THE PRODUCT, runnable: the HTTP server (LSP, query execution, SQL, diagrams) with
 # the JDBC drivers. `bazel run //core:server` (port 8080, or $PORT);
-# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship.
+# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship. Its root is the PRODUCT's (K2's server
+# half, the user's ruling of 2026-11-18: "Product root, edge opt-in"): lite's own server, legend-engine's API
+# (edge/EdgeServer.java, edge/EngineMount.java) carried in the same jar and mounted only with --engine legend-engine.
 legend_java_binary(
     name = "server",
+    # the product's own entry (K2's server half, the user's ruling of 2026-11-18: "Product root, edge opt-in"):
+    # legend-engine's module (:edge_server) ships in the same artifact, mounted only when the configuration names it
+    # (--engine legend-engine; com.legend.server.MountProvider, found by ServiceLoader)
     main_class = "com.legend.server.LegendHttpServer",
     runtime_deps = [
         ":core",
         ":drivers",
+        ":edge_server",
     ],
     visibility = [
         "//:__pkg__",
@@ -554,7 +618,12 @@ legend_java_library(
     srcs = glob(
         ["src/test/java/**/*.java"],
         exclude = [
+            # LiteApiConformanceTest is :lite_api_conformance_test's alone: the suite's fixture in its runfiles (lite API v1,
+            # docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17)
+            "src/test/java/com/legend/planner/LiteApiConformanceTest.java",
             "src/test/java/com/legend/server/PostgresArmTest.java",
+            # isNumeric's one rule run on four databases, Postgres among them: :is_numeric_probe_test's alone (J20)
+            "src/test/java/com/legend/planner/IsNumericProbeTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             # MongoDbPlanTest and MongoDbDifferentialTest are :mongodb_plan_test's alone: the embedded MongoDB and
@@ -563,9 +632,15 @@ legend_java_library(
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             # a data: source on every server database is :data_source_servers_test's alone (2026-11-11)
             "src/test/java/com/legend/exec/DataSourceServersTest.java",
+            # the product-SQL size baseline is :lean_sql_baseline_test's alone (E3, 2026-11-12): 110 s of planning
+            "src/test/java/com/legend/leansql/*.java",
+            # the census's reader of a dialect's tree is :lean_sql_baseline_lib's (E-4, 2026-11-12)
+            "src/test/java/com/legend/sql/dialect/PassedTrees.java",
             # the keyed expansion's one fixture is :keyed_expansion_conformance_test's alone: it reads the fixture
             # (the C final audit's H8, 2026-11-12)
             "src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java",
+            # a product raise's envelope fixture is :raise_envelope_conformance_test's alone (#104's M2(b), 2026-11-15)
+            "src/test/java/com/legend/exec/RaiseEnvelopeConformanceTest.java",
             "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
             # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
             "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
@@ -631,7 +706,9 @@ legend_java_library(
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
             "src/test/java/com/legend/parser/SectionGrammarRegistryTest.java",
             "src/test/java/com/legend/parser/ToySectionGrammar.java",
-        ],
+            # the edge's tests are core_edge_tests_lib's (Phase 7's build half, 2026-11-17)
+            "src/test/java/com/legend/testing/EdgeProgram.java",
+        ] + EDGE_TEST_SRCS,
     ),
     # the stress corpus is read ONE way, as classpath resources (Bazel workplan P3-05, A11): its files (under
     # src/test/resources), their table of contents, and the linked projects' files (resource paths projects/<p>/...)
@@ -646,6 +723,8 @@ legend_java_library(
             # the #IQ{...}# island's cases, schema, snapped answers and ledger: :iq_parity_test's and
             # :iq_parity_postgres_test's data, read as files
             "src/test/resources/iq-parity/**",
+            # the product-SQL size baseline's fixed sets and pins: :lean_sql_baseline_test's data, read as files
+            "src/test/resources/lean-sql/**",
             # the adversarial markets fixture's ledger: :ts_adversarial_test's, read as a file
             "src/test/resources/ts-adversarial/**",
             # the #Cypher{...}# island's cases, the TCK, the snapped answers and the ledger: :cypher_parity_test's and
@@ -659,22 +738,56 @@ legend_java_library(
     # :duckdb_cells: DuckDB's cell types, declared, not borrowed from :drivers (P3-02)
     runtime_deps = [
         ":duckdb_cells",
+        # the lean-SQL sets' capture, a test harness's (E-1, 2026-11-12): off unless -Dlegend.capture.queries
+        ":query_capture",
         ":shadow_binding",
     ],
     deps = [
-        ":edge",
+        # (no edge: a product test reaches no edge class -- the edge's tests are core_edge_tests_lib's, Phase 7's build
+        # half, 2026-11-17)
         ":core",
         ":test_backends",
         ":test_cases",
         # the Arrow writer's gate frames the stream it checks (ZstdFrame; track A, 2026-10-29)
         "//arrow_ipc",
         "//testing",
-        # the hosts' boundary, its plans and refusals held by the tests that call it as a host does (the final audit,
-        # 2026-11-12: a host operation takes no SQL; a snapshot's copy and a table output as one plan each)
-        "//wasm:boundary",
+        # (no //wasm:boundary: the boundary answers legend-engine's routes, so it reaches the edge; the tests that call it
+        # as a host does are core_edge_tests_lib's, Phase 7's build half, 2026-11-17)
         "@maven_test//:com_tngtech_archunit_archunit",
         # the H2 test backend's own classes (testbackend/H2Backend); H2VersionPinTest, which read the jar's version,
         # moved to spec as EngineH2VersionPinTest (2026-11-05: the pin is legend-engine's H2, not lite's jar)
+        "@h2//jar",
+        "@maven_test//:com_tngtech_archunit_archunit_junit5",
+        "@maven_test//:org_junit_jupiter_junit_jupiter",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+    ],
+)
+
+# THE EDGE'S TESTS (Phase 7's build half, 2026-11-17; the separation census's A5): the core test files that reach an edge
+# class, by the explicit list EDGE_TEST_SRCS (core/edge_tests.bzl), and the edge's test harness (testing/EdgeProgram),
+# compiled against the edge. core_tests_lib, the product's tests, compiles without it: a product test cannot reach the
+# edge (Bazel's strict deps, and ArchitectureTest.productTestsReachNoEdge). They run in the package targets beside the
+# product's (core_tests_<package> and the lanes), so no test stops running.
+legend_java_library(
+    name = "core_edge_tests_lib",
+    nullaway = False,
+    testonly = True,
+    srcs = EDGE_TEST_SRCS + ["src/test/java/com/legend/testing/EdgeProgram.java"],
+    deps = [
+        ":core_tests_lib",
+        ":edge",
+        # the shipped server's root (D1.0b, 2026-11-12): the HTTP tests start the server legend-engine's clients call
+        ":edge_server",
+        # legend-engine's service tests (D1.4, 2026-11-15: ServiceTestRunner moved to the edge)
+        ":edge_service_tests",
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//arrow_ipc",
+        "//testing",
+        "//wasm:boundary",
+        "@maven_test//:com_tngtech_archunit_archunit",
         "@h2//jar",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
@@ -783,6 +896,8 @@ _CORE_TEST_EXCLUDED_TAGS = [
 # "probe" tag, which any future test could take and leave every suite silently): a live cloud's measurement asked by
 # hand, each its own manual target (:identifier_escaping_cloud_probe). A class not listed here runs in its package.
 _CORE_MANUAL_PROBES = {
+    # the product's raise text on each external database (:product_raise_probe, PR #104's fix round, 2026-11-15)
+    "exec": [".*ProductRaiseProbeTest"],
     "sql": [".*IdentifierEscapingCloudProbeTest"],
 }
 
@@ -849,7 +964,7 @@ junit_test(
 
 test_suite(
     name = "core_tests",
-    tests = [":core_tests_" + p for p in _CORE_TEST_PACKAGES + ["root"]],
+    tests = [":core_tests_" + p for p in _CORE_TEST_PACKAGES + ["root"]] + [":core_edge_tests"],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -885,7 +1000,8 @@ _CORE_LANES = {
 
 test_suite(
     name = "core_tests_lanes",
-    tests = [":core_tests_integration_" + lane for lane in ["sqlite", "h2"]],
+    tests = [":core_tests_integration_" + lane for lane in ["sqlite", "h2"]] +
+            [":core_edge_tests_integration_" + lane for lane in ["sqlite", "h2"]],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -928,10 +1044,60 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
     ],
 ) for judge in ["DATABASE", "BOTH"]]
 
+# THE EDGE'S TESTS (F's census line A5, 2026-11-17): the test classes that reach the edge (core/edge_tests.bzl),
+# compiled in core_edge_tests_lib, run here, one target per shard family above -- the host's run, the twin's lanes and
+# the judge matrix -- each selecting the edge's classes by name, so a product test runs only in its own target. The
+# product's test targets carry core_tests_lib alone; //core:product_test_targets_closure proves it. Tagged edge_test.
+junit_test(
+    name = "core_edge_tests",
+    memory_mb = 1024,
+    size = "large",
+    select = edge_test_classes() + ["--exclude-classname=.*CorpusDifferentialTest"] +
+             ["--exclude-classname=" + c for p in _CORE_MANUAL_PROBES for c in _CORE_MANUAL_PROBES[p]],
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    tags = ["edge_test"],
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
+    ],
+)
+
+[junit_test(
+    name = "core_edge_tests_integration_" + lane,
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    size = "large",
+    select = edge_test_classes(["integration"]) + ["--exclude-classname=.*CorpusDifferentialTest"],
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    data = data,
+    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags,
+    tags = tags + ["edge_test"],
+    target_compatible_with = compatible,
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
+    ],
+    visibility = ["//gates:__pkg__"],
+) for lane, (data, flags, tags, compatible) in _CORE_LANES.items()]
+
+[junit_test(
+    name = "core_edge_tests_judge_" + judge.lower(),
+    memory_mb = 1024,
+    jvm_flags = ["-Dlegend.test.judge=" + judge],
+    size = "large",
+    select = edge_test_classes(_JUDGED_PACKAGES, root_besides = _CORE_TEST_PACKAGES) + ["--exclude-classname=.*CorpusDifferentialTest"] +
+             ["--exclude-classname=" + c for p in _CORE_MANUAL_PROBES for c in _CORE_MANUAL_PROBES[p]],
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    tags = ["ci-linux-only", "edge_test"],
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
+    ],
+) for judge in ["DATABASE", "BOTH"]]
+
 test_suite(
     name = "core_tests_judges",
     tests = [":core_tests_" + p + "_judge_" + judge.lower() for p in _JUDGED_PACKAGES + ["root"]
-             for judge in ["DATABASE", "BOTH"]],
+             for judge in ["DATABASE", "BOTH"]] + [":core_edge_tests_judge_" + j for j in ["database", "both"]],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -995,6 +1161,29 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# ISNUMERIC'S ONE RULE (census J20, the user's ruling of 2026-11-17 23:05): the product's isNumeric planned and run on
+# DuckDB, H2, SQLite and the embedded Postgres, the same answers on each (legend-engine's lower = upper the edge's).
+junit_test(
+    name = "is_numeric_probe_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/planner/IsNumericProbeTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.planner.IsNumericProbeTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":core",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 # THE SEAM MEASUREMENT (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18): one generated relation drained
 # through a counting sink by each way a result can cross the session seam (typed columns, the JSON rows wire, a CSV
 # line per row, the whole CSV text), on DuckDB and H2; wall time, the heap's peak, the characters that crossed. Manual:
@@ -1026,25 +1215,77 @@ junit_test(
     ],
 )
 
+# THE PRODUCT'S RAISE TEXT, MEASURED ON EACH EXTERNAL DATABASE (PR #104's fix round, the orchestrator's request,
+# 2026-11-15): the PCT lanes run the edge's style, so the product's raise literal (U+001C, the kind, its where: register
+# S308) reaches no external database there. Three product-style queries -- a guarded statement that does not raise, a
+# division by zero, a toOne() over two rows -- on the database LEGENDLITE_PROBE_DATABASE names, each statement's SQL
+# printed: an embedded server (mariadb, mysql, clickhouse, trino, mongodb; Linux x86_64) or a cloud (snowflake,
+# databricks, bigquery, with LEGENDLITE_PCT_CLOUD_PROPERTIES). Manual, external and local, in //gates:heavy.
+junit_test(
+    name = "product_raise_probe",
+    memory_mb = 1536,
+    size = "large",
+    data = [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+        "@embedded_mariadb//:mariadb",
+        "@embedded_mariadb//:mariadb/MARIADB_ROOT",
+        "@embedded_mongodb//:mongodb",
+        "@embedded_mongodb//:mongodb/MONGODB_ROOT",
+        "@embedded_mysql//:mysql",
+        "@embedded_mysql//:mysql/MYSQL_ROOT",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+        "@embedded_trino//:trino",
+        "@embedded_trino//:trino/TRINO_ROOT",
+    ],
+    env_inherit = [
+        "LEGENDLITE_PCT_CLOUD_PROPERTIES",
+        "LEGENDLITE_PROBE_DATABASE",
+    ],
+    jvm_flags = [
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        "-Dembedded.mariadb.root=$(rlocationpath @embedded_mariadb//:mariadb/MARIADB_ROOT)",
+        "-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)",
+        "-Dembedded.mysql.root=$(rlocationpath @embedded_mysql//:mysql/MYSQL_ROOT)",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        "-Dembedded.trino.root=$(rlocationpath @embedded_trino//:trino/TRINO_ROOT)",
+    ],
+    select = ["--select-class=com.legend.exec.ProductRaiseProbeTest"],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+        "@bigquery_jdbc//jar",
+        "@clickhouse_jdbc//jar",
+        "@databricks_jdbc//jar",
+        "@mariadb_jdbc//jar",
+        "@snowflake_jdbc//jar",
+        "@trino_jdbc//jar",
+    ],
+)
+
 junit_test(
     name = "seam_benchmark",
     memory_mb = 2048,
     size = "enormous",
-    srcs = [
-        "src/test/java/com/legend/exec/SeamBenchmark.java",
-        "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
-        "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
-    ],
     jvm_flags = ["-Duser.timezone=GMT"],
     select = [
         "--select-class=com.legend.exec.SeamBenchmarkDuckDbTest",
         "--select-class=com.legend.exec.SeamBenchmarkH2Test",
     ],
-    tags = ["manual"],
-    runtime_deps = [":drivers"],
-    deps = [
-        ":core",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    tags = ["manual", "edge_test"],
+    # the benchmark's classes are the edge's tests (it drains legend-engine's writer, edge.PureV1Writer):
+    # core_edge_tests_lib's, so this target names no edge library itself (F's census line A6, 2026-11-17)
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
     ],
 )
 
@@ -1052,11 +1293,6 @@ junit_test(
     name = "seam_benchmark_small_heap",
     memory_mb = 256,
     size = "enormous",
-    srcs = [
-        "src/test/java/com/legend/exec/SeamBenchmark.java",
-        "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
-        "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
-    ],
     jvm_flags = [
         "-Duser.timezone=GMT",
         "-Dseam.heap=small",
@@ -1065,11 +1301,13 @@ junit_test(
         "--select-class=com.legend.exec.SeamBenchmarkDuckDbTest",
         "--select-class=com.legend.exec.SeamBenchmarkH2Test",
     ],
-    tags = ["manual"],
-    runtime_deps = [":drivers"],
-    deps = [
-        ":core",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    tags = ["manual", "edge_test"],
+    # the benchmark's classes are the edge's tests (it drains legend-engine's writer, edge.PureV1Writer):
+    # core_edge_tests_lib's, so this target names no edge library itself (F's census line A6, 2026-11-17; it
+    # had built against :core alone since the test backends split)
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
     ],
 )
 
@@ -1129,6 +1367,49 @@ junit_test(
         ":core",
         "//json",
         "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# A PRODUCT RAISE'S ENVELOPE, ONE FIXTURE (#104's M2(b), the narrow check's item 7, 2026-11-15): Java's runner reads each case
+# of engine-client/test/fixtures/raise-envelopes.json as the tab's raised.ts and Python's _raised.py do
+junit_test(
+    name = "raise_envelope_conformance_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/exec/RaiseEnvelopeConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/raise-envelopes.json"],
+    jvm_flags = ["-Draise.fixture=$(rlocationpath //engine-client:test/fixtures/raise-envelopes.json)"],
+    select = ["--select-class=com.legend.exec.RaiseEnvelopeConformanceTest"],
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":core",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# LITE API V1'S CONFORMANCE SUITE, THE BROWSER BINDING (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of
+# 2026-11-17): engine-client/test/fixtures/lite-api-cases.json asked of the planner Boundary's operations, as the server's
+# routes and Python's native entries are by their own readers of the same file
+junit_test(
+    name = "lite_api_conformance_test",
+    memory_mb = 512,
+    size = "small",
+    srcs = ["src/test/java/com/legend/planner/LiteApiConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/lite-api-cases.json"],
+    jvm_flags = ["-Dlite.api.cases=$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)"],
+    select = ["--select-class=com.legend.planner.LiteApiConformanceTest"],
+    # it asks the browser binding, //wasm:boundary, which the separation census counts among the edge's targets (it
+    # answers the edge's routes too): an edge test, so no product test reaches the edge (A5; the TS host's catch,
+    # 2026-11-17)
+    tags = ["edge_test"],
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        "//json",
+        "//testing",
+        "//wasm:boundary",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
@@ -1212,12 +1493,11 @@ junit_test(
 # unprivileged user: every door, data kind and failure case, with Postgres's own red list
 junit_test(
     name = "data_delivery_matrix_postgres_test",
+    tags = ["edge_test"],
     memory_mb = 1536,
     size = "medium",
     srcs = [
-        "src/test/java/com/legend/integration/CsvJsonColumnTest.java",
         "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
-        "src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
         # each payload form read back on Postgres (the JSON pass, 2026-11-11)
         "src/test/java/com/legend/integration/JsonPayloadFormsTest.java",
     ],
@@ -1233,6 +1513,10 @@ junit_test(
         "//json",
         ":core",
         ":core_tests_lib",
+        # the matrix (DataDeliveryMatrixTest, CsvJsonColumnTest) is the edge's test -- it runs the service tests'
+        # runner, at the edge since D1.4 -- so it is core_edge_tests_lib's; this target names no edge library itself
+        # (F's census line A6, 2026-11-17)
+        ":core_edge_tests_lib",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
@@ -2143,11 +2427,11 @@ junit_test(
 # run on DuckDB, H2 and SQLite in the integration lanes (RelationToOneGuardTest)
 junit_test(
     name = "relation_to_one_postgres_test",
+    tags = ["edge_test"],
     memory_mb = 768,
     size = "medium",
     srcs = [
         "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
-        "src/test/java/com/legend/integration/RelationToOneGuardTest.java",
     ],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",
@@ -2159,6 +2443,9 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        # RelationToOneGuardTest, the lanes' checks this extends: the edge's test (it runs under EdgeProgram.upstream()),
+        # core_edge_tests_lib's (Phase 7's build half, 2026-11-17)
+        ":core_edge_tests_lib",
         ":test_cases",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -2208,6 +2495,7 @@ legend_java_library(
     ],
     deps = [
         ":core",
+        # (the edge's plan style went to testing/EdgeProgram, the edge's test harness: Phase 7's build half, 2026-11-17)
         # the cases' tables are created on a test backend's database, by its dialect
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -2243,14 +2531,64 @@ junit_test(
     name = "guardrails",
     memory_mb = 1280,
     size = "medium",
+    # the product's guards (F's census line A5, 2026-11-17): every guardrail but the boundary's own, which read the
+    # edge's jars and run in :guardrails_edge -- so this target carries no edge library and reads no edge jar. What the
+    # guards read (P3-05, A11): the declared source list (its files ride in its runfiles), the two single files and
+    # the product's jars
+    data = [
+        "BUILD.bazel",
+        "edge_tests.bzl",
+        "//gates:BUILD.bazel",
+        "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
+        "src/main/java/com/legend/edge/PureText.java",
+        ":guardrails_sources",
+        ":product_jars",
+    ],
+    # the build files TaggedClassesHaveATargetTest reads: every census and guardrail class has a target (2026-11-17)
+    jvm_flags = [
+        "-Dcore.build_file=$(rlocationpath BUILD.bazel)",
+        "-Dcore.edge_tests_bzl=$(rlocationpath edge_tests.bzl)",
+        "-Dcore.gates_build_file=$(rlocationpath //gates:BUILD.bazel)",
+        "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
+        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/edge/PureText.java)",
+        "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
+        "-Dlegend.product.jars=$(rlocationpath :product_jars)",
+    ],
+    select = [
+        "--select-package=com.legend",
+        "--include-tag=guardrail",
+    ],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":duckdb_cells",
+        ":mongodb_connector",
+        ":postgres_cells",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "guardrails_edge",
+    memory_mb = 1280,
+    # large (900 s): about 200 s alone, it reached medium's 300 s in CI's checks lane beside the lane's other targets
+    # (PR #118 fix round, 2026-11-18)
+    size = "large",
     # exactly what the guards read (P3-05, A11): the declared source list (its files ride in its runfiles), the two
     # single files, and the jar lists
     data = [
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
-        "src/main/java/com/legend/sql/dialect/DuckDb.java",
+        "src/main/java/com/legend/edge/PureText.java",
         ":authored_door_jars",
         ":build_time_jars",
         ":core_test_jar",
+        ":edge_direct_dependents",
+        ":edge_direct_dependents_planted",
+        ":edge_jars",
+        # K2's shipped-artifact roots, and their planted bite (2026-11-18)
+        ":shipped_edge_reach",
+        ":shipped_edge_reach_planted",
+        ":shipped_edge_roots",
+        ":shipped_edge_roots_planted",
         ":guardrails_sources",
         ":product_jars",
     ],
@@ -2258,21 +2596,60 @@ junit_test(
     # read, as one declared list (SourceFiles, P3-27): no guard walks a directory
     jvm_flags = [
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
-        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/sql/dialect/DuckDb.java)",
+        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/edge/PureText.java)",
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",
         "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
+        "-Dlegend.edge.jars=$(rlocationpath :edge_jars)",
+        "-Dlegend.edge_dependents=$(rlocationpath :edge_direct_dependents)",
+        "-Dlegend.edge_dependents_planted=$(rlocationpath :edge_direct_dependents_planted)",
+        "-Dlegend.shipped_edge_reach=$(rlocationpath :shipped_edge_reach)",
+        "-Dlegend.shipped_edge_reach_planted=$(rlocationpath :shipped_edge_reach_planted)",
+        "-Dlegend.shipped_edge_roots=$(rlocationpath :shipped_edge_roots)",
+        "-Dlegend.shipped_edge_roots_planted=$(rlocationpath :shipped_edge_roots_planted)",
         "-Dlegend.build_time.jars=$(rlocationpath :build_time_jars)",
     ],
+    # the guards that judge the boundary itself: they read the edge's jars and its dependents (F's census line A5,
+    # 2026-11-17: the edge half of the guardrails; the product's guards are :guardrails)
     select = [
-        "--select-package=com.legend",
-        "--include-tag=guardrail",
+        "--select-class=com.legend.ArchitectureTest",
+        "--select-class=com.legend.EdgeSeparationTest",
+        # the ruled hooks' implementers, read from the edge's jars (Phase 6's HookRulingTest)
+        "--select-class=com.legend.HookRulingTest",
+        "--select-class=com.legend.HookRulingsAgreeTest",
+        # no guard names what is not there (the edge audit's K16, 2026-11-17)
+        "--select-class=com.legend.GuardNamesExistTest",
+        # (JudgingRulesReachTest: deleted 2026-11-18, train 17, with the judging rules themselves)
+        "--select-class=com.legend.OpenClassMembersTest",
+        "--select-class=com.legend.OpenLineMarkedTest",
+        "--select-class=com.legend.PlanStyleSurfaceTest",
+        "--select-class=com.legend.ServiceLoaderSitesTest",
+        "--select-class=com.legend.SqlFnSortedTest",
+        "--select-class=com.legend.HookLambdasTest",
+        # L-A (2026-11-18): a product form handed a function it never calls, upstream's form built for the edge alone
+        "--select-class=com.legend.ProductFormsUseTheirArgumentsTest",
+        "--select-class=com.legend.EdgePackageBoundaryTest",
+        # a public product member the edge alone uses, counted (J40 of the edge audit, 2026-11-18)
+        "--select-class=com.legend.EdgeOnlyMembersTest",
+        # L-B (2026-11-18): the plans' and the MIR's data, each piece with a real product use
+        "--select-class=com.legend.EdgeOnlyDataTest",
+        # K2 (the user's ruling of 2026-11-18, product root, edge opt-in): every shipped artifact starts at the product
+        "--select-class=com.legend.ShippedArtifactRootsTest",
+        # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
+        # walks them as data reads them here
+        "--select-class=com.legend.PlanTypesAreDataTest",
+        # the dialect vocabulary: it loads the edge's dialects by name, so it is the edge's test (core/edge_tests.bzl)
+        "--select-class=com.legend.sql.dialect.DialectVocabularyTest",
     ],
     # :duckdb_cells too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
     # :postgres_cells since 2026-10-30 (D69: a registered JDBC class the guards had never judged)
+    # the edge's side (F's census line A5, 2026-11-17): it reads the edge's jars to judge the boundary, and runs the
+    # edge's ArchitectureTest, so it is tagged edge_test and carries the edge's tests
+    tags = ["edge_test"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":duckdb_cells",
         ":mongodb_connector",
         # the MongoDB choke rule's planted violator, compiled against the driver (the C final audit's J3, 2026-11-12)
@@ -2308,23 +2685,234 @@ java_jars(
     deps = _CORE_TARGETS + ["//arrow_ipc", ":duckdb_cells", ":mongodb_connector", ":postgres_cells"],
 )
 
+# the compatibility edge (com.legend.edge, phase D's D1.0b): a caller outside the planners, whose reach of them
+# ArchitectureTest's planner-entries rule holds as it holds the hosts' doors (merged with C4's rule, 2026-11-15: the
+# test-data routes moved here from the server)
+java_jars(
+    name = "edge_jars",
+    testonly = True,
+    rlocation_paths = True,
+    transitive = False,
+    # core's own edge targets, every one (2026-11-18, the review of 11de9ae229, MUST-FIX 2: the edge rules read
+    # libedge.jar alone, so a rule naming TdsObjectsWriter -- :edge_service_tests' -- read nothing for it); the
+    # hosts' edge entries (//native:edge_entry, //query-store's page) come with C.11's one list, after the host train
+    deps = [
+        ":edge",
+        ":edge_server",
+        ":edge_service_tests",
+        ":edge_store_words",
+    ],
+)
+
 # the hosts' doors to the authored statement, by class: the boundary, the tab's adapter and the native entry, whose
 # reach of the planner's Authored.plan ArchitectureTest.theAuthoredDoorIsReachedFromTheBoundaryAlone pins (the third
 # re-audit's SHOULD-FIX 5, 2026-11-12: until then a source regex alone, PlannedSqlTest.AUTHORED_JAVA_REFERENCE, which a
 # method reference or a static import passed), and whose reach of ProductStatements.prepare
 # ArchitectureTest.theHostsDoorsPrepareNoProductStatement pins (the follow-up audit's G1, 2026-11-14)
+# THE BUILD'S EDGE SEPARATION (the user, 2026-11-17: "total and provable edge separation"; the separation census,
+# docs/records/f-separation-census-2026-11-17.md, lines A): the targets that depend DIRECTLY on an edge target, within
+# the product's roots' closure -- a root reaching the edge transitively reaches it through one of them.
+# EdgeSeparationTest holds the set to the census's open A lines. The roots: the product's JVM libraries and the hosts'
+# doors (the JS apps reach the JVM through //wasm and //native alone), and core's test libraries (A5, A6). The shipped
+# //core:server is no root here: rooted at the product since K2's server half (2026-11-18), it carries the edge's
+# module at runtime only (:edge_server, mounted when configured: --engine legend-engine), one artifact by ruling 6.
+# the native library's upstream entry is the edge's too (A2, 2026-11-17); the query-store page's was (A3) until it
+# answered lite's own /api/lite/v1/queries in lite's words (lite's API v1, H6, 2026-11-17): a product root below
+# the embedded hosts' engine routes and the tab's module entry are the edge's too (A1, 2026-11-17)
+_EDGE_TARGETS = ("//core:edge + //core:edge_server + //core:edge_service_tests + //core:edge_store_words + " +
+                 "//native:edge_entry + //wasm:edge_boundary + //wasm:edge_tab")
+
+_EDGE_SEPARATION_ROOTS = [
+    "//core:core",
+    "//core:plan_side",
+    "//core:core_tests_lib",
+    "//core:test_cases",
+    # (seam_benchmark and data_delivery_matrix_postgres_test left 2026-11-17, A6: the edge's tests, tagged edge_test)
+    "//native:entry",
+    # the query-store page's entry (lite's API v1, H6, 2026-11-17: the product's, lite's words at lite's route)
+    "//query-store:page_entry",
+    "//sdlc-server/grammar",
+    "//wasm:boundary",
+    "//wasm:jvm_main",
+    "//wasm:tab",
+]
+
+genquery(
+    name = "edge_direct_dependents",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_EDGE_SEPARATION_ROOTS) + ")), " + _EDGE_TARGETS + ", 1) except (" +
+                 _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
+    # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
+    # roots left: they had brought //core:edge_server into the scope)
+    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//core:edge",
+                                      "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
+                                      "//wasm:edge_boundary", "//wasm:edge_tab"],
+)
+
+# THE BUILD GUARD'S BITE (A1, 2026-11-17: the last product target reaching the edge left, so the guard is proven on a
+# planted one): a product-shaped library that depends on the edge, a root of this second query alone;
+# EdgeSeparationTest.eachGuardBites finds it here, and the real query (above) must not.
+filegroup(
+    name = "planted_edge_reach",
+    testonly = True,
+    srcs = [":edge"],
+)
+
+genquery(
+    name = "edge_direct_dependents_planted",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_EDGE_SEPARATION_ROOTS + ["//core:planted_edge_reach"]) + ")), " + _EDGE_TARGETS + ", 1) except (" +
+                 _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
+    # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
+    # roots left: they had brought //core:edge_server into the scope)
+    scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//core:edge",
+                                      "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
+                                      "//wasm:edge_boundary", "//wasm:edge_tab"],
+)
+
+# K2, THE SHIPPED ARTIFACTS' ROOTS (the user's ruling of 2026-11-18, ~06:00, cited by the orchestrator: "Product root,
+# edge opt-in" -- each shipped artifact starts at lite's own entry, legend-engine's module loads only when configured,
+# one artifact per surface). What ships: the product build CI runs (gates-run.yml: //:java //:web //:wasm //:native
+# //:sites, and //native:compiler), the apps (//datacube:app) and the Python package (//python:wheel). A shipped
+# artifact reaches an edge target only through a declared opt-in module, and none is rooted at a com.legend.edge main
+# class. ShippedArtifactRootsTest reads both answers; each artifact still the edge's is pinned there as K2's, by its
+# owner, and goes as it re-roots (the GUARD stream, 2026-11-18).
+_SHIPPED_ARTIFACTS = [
+    "//:java",
+    "//:native",
+    "//:sites",
+    "//:wasm",
+    "//:web",
+    "//datacube:app",
+    "//native:compiler",
+    "//python:wheel",
+]
+
+# The declared opt-in modules: legend-engine's, loaded only when configured. The server's (E-P5's K2 half: //core:server
+# keeps :edge_server in its one artifact, looked up by ServiceLoader when the engine is asked for); the tab's engine
+# module's entry (2026-11-18, the orchestrator's ruling on K2's wasm half: //wasm:engine_planner ships in //:wasm as the
+# declared opt-in, its entry library :edge_tab, loaded beside the planner only for engine: 'legend-engine' -- engine-
+# client's engine-module.ts); the Python host's engine library (2026-11-18, K2's native half for train 20: //native:engine,
+# libcompiler_engine, rooted at :edge_entry, loaded by legend_lite.edge alone and shipped by the legend-lite-engine wheel,
+# the [engine] extra; //native:compiler the product library, rooted at :entry).
+_EDGE_OPT_IN = ["//core:edge_server", "//native:engine", "//wasm:edge_tab"]
+
+# (//query-store:edge_page_entry: gone with H6, 2026-11-17 -- the queries page answers lite's own route from
+# :page_entry; dropped here 2026-11-18 at the host train's merge of train 18, as _EDGE_TARGETS above)
+_EDGE_TARGET_LIST = ["//core:edge", "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
+                     "//native:edge_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
+
+# the declared opt-in modules the edge's list does not name, in every query's scope: //native:engine, a shipped opt-in
+# artifact of its own (K2's native half, 2026-11-18)
+_OPT_IN_SCOPE = [t for t in _EDGE_OPT_IN if t not in _EDGE_TARGET_LIST]
+
+# a shipped artifact's direct reach of an edge target that is no opt-in module
+genquery(
+    name = "shipped_edge_reach",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS) + ")), (" + _EDGE_TARGETS + ") except set(" +
+                 " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE,
+)
+
+# a target in a shipped artifact's closure whose main class is the edge's -- but a declared opt-in module (2026-11-18,
+# the orchestrator's ruling on K2's wasm half: "ROOTS exempts declared opt-in modules"): a module DECLARED here whose
+# own direct dependency is a declared opt-in library (_EDGE_OPT_IN), as the tab's engine module's is (:edge_tab).
+# Narrowed by the GUARD stream the same day (train 19/20's batch): the TS host's first form exempted every artifact
+# directly carrying an opt-in library -- //core:server among them (it carries :edge_server), so its main class could
+# have turned the edge's unseen; now a product artifact carrying an opt-in library is still checked
+# (:planted_opt_in_carrier bites), and a listed module that carries none is not exempt either.
+_EDGE_ROOTED = "attr(main_class, '^com\\.legend\\.edge\\.', deps(set(%s)))"
+
+# the declared opt-in modules, each an artifact whose main class is the edge's by design (2026-11-18): the tab's engine
+# module (the orchestrator's ruling on K2's wasm half). The Python host's //native:engine is a declared opt-in LIBRARY
+# (_EDGE_OPT_IN) but no module here: a native_image shared library with no main class, never named by the roots query
+_EDGE_OPT_IN_MODULES = ["//wasm:engine_planner"]
+
+_OPT_IN_MODULES = ("(set(" + " ".join(_EDGE_OPT_IN_MODULES) + ") intersect rdeps(deps(set(%s)), set(" +
+                   " ".join(_EDGE_OPT_IN) + "), 1))")
+
+genquery(
+    name = "shipped_edge_roots",
+    testonly = True,
+    expression = (_EDGE_ROOTED + " except " + _OPT_IN_MODULES) % (" ".join(_SHIPPED_ARTIFACTS), " ".join(_SHIPPED_ARTIFACTS)),
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE,
+)
+
+# THE ROOT CHECK'S BITE: a planted shipped artifact rooted at the edge, its main class EdgeServer and its runtime the
+# edge's library -- found by the planted queries alone (ShippedArtifactRootsTest.theRootCheckBites)
+legend_java_binary(
+    name = "planted_edge_rooted_artifact",
+    testonly = True,
+    main_class = "com.legend.edge.EdgeServer",
+    runtime_deps = [":edge"],
+    # the edge's plant, never a product test target (product_tests_closure leaves edge_test out)
+    tags = ["edge_test"],
+)
+
+# THE EXEMPTION'S BITE (2026-11-18, the GUARD stream): a planted product artifact carrying a declared opt-in library
+# (:edge_server, as //core:server does) whose main class is the edge's -- not a declared opt-in module, so found
+legend_java_binary(
+    name = "planted_opt_in_carrier",
+    testonly = True,
+    main_class = "com.legend.edge.EdgeServer",
+    runtime_deps = [":edge_server"],
+    tags = ["edge_test"],
+)
+
+_PLANTED_ARTIFACTS = ["//core:planted_edge_rooted_artifact", "//core:planted_opt_in_carrier"]
+
+genquery(
+    name = "shipped_edge_reach_planted",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS + _PLANTED_ARTIFACTS) + ")), (" +
+                 _EDGE_TARGETS + ") except set(" + " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE + _PLANTED_ARTIFACTS,
+)
+
+genquery(
+    name = "shipped_edge_roots_planted",
+    testonly = True,
+    # the same expression as :shipped_edge_roots, the opt-in exemption included (2026-11-18): the planted artifact
+    # reaches the edge through :edge, no declared opt-in, so it is found; the planted carrier reaches it through a
+    # declared opt-in library but is no declared opt-in module, so it is found too
+    expression = (_EDGE_ROOTED + " except " + _OPT_IN_MODULES) % (
+        " ".join(_SHIPPED_ARTIFACTS + _PLANTED_ARTIFACTS),
+        " ".join(_SHIPPED_ARTIFACTS + _PLANTED_ARTIFACTS),
+    ),
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE + _PLANTED_ARTIFACTS,
+)
+
 java_jars(
     name = "authored_door_jars",
     testonly = True,
     rlocation_paths = True,
     transitive = False,
+    # :edge (2026-11-15, main cf865632c (#101) merged into claude/total-wall-e): the test-data routes moved to the
+    # edge with phase D's D1.0b, so the planner-entry rule reads the edge's classes too, or their entries go unmeasured
     deps = [
+        ":edge",
         "//native:entry",
         # the SDLC's door to the compiler (2026-11-15, the C5-J audit's nit): it parses a model's text, so the parse
         # rule reads it as it reads the hosts' doors
         "//sdlc-server/grammar",
         "//wasm:boundary",
+        # the embedded hosts' engine routes and the module's entry class, the edge's since the census's A1 (2026-11-17)
+        "//wasm:edge_boundary",
+        "//wasm:edge_tab",
+        # the JVM's main (a separation root) and the zone probe's (the timezone differential's JVM half): hosts' doors
+        # the rules read (the GUARD stream's C.5, 2026-11-17)
+        "//wasm:jvm_main",
         "//wasm:tab",
+        "//wasm:zone_main",
     ],
 )
 
@@ -2352,14 +2940,17 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = [":core_tests_lib"],
+    deps = [":core_tests_lib", ":core_edge_tests_lib"],
 )
 
 # what the source guards and censuses read, declared (SourceFiles; Bazel workplan P3-27)
 file_list(
     name = "guardrails_sources",
     testonly = True,
-    srcs = _CORE_READS,
+    # + the Python host's sources (2026-11-18, the GUARD stream's re-cut on train 15 1931d419b1): the edge audit's host
+    # item H5 (EdgeAuditOpenTest, a guardrail) stands at python/legend_lite/engine.py, and an item's file must be a
+    # declared source; the guards that scan python/ are census-tagged and read :census_sources, which already holds it
+    srcs = _CORE_READS + ["//python:census_src"],
 )
 
 file_list(
@@ -2380,6 +2971,34 @@ junit_test(
         "--include-tag=census",
     ],
     runtime_deps = [":core_tests_lib"],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE EDGE'S CENSUS (the orchestrator's priority, 2026-11-17 20:55): the census-tagged classes of the edge's test
+# library (core/edge_tests.bzl) -- PlannerSurfaceTest -- which :census, carrying the product's test library alone,
+# cannot run and :core_edge_tests leaves out by tag. Every edge class selected by name and the census tag filtering
+# them, so a census class added to the edge's library runs here; TaggedClassesHaveATargetTest holds that every census
+# and guardrail class has its target. Tagged edge_test (the product's closure proof reads the tag).
+junit_test(
+    name = "census_edge",
+    memory_mb = 1024,
+    size = "medium",
+    # the authored doors' jars (2026-11-17, the review of 5911e970e1): PlannerSurfaceTest holds its reading of the edge
+    # boundary's source to the boundary's bytecode, javac's own reading
+    data = [
+        ":authored_door_jars",
+        ":census_sources",
+    ],
+    jvm_flags = [
+        "-Dlegend.sources=$(rlocationpath :census_sources)",
+        "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
+    ],
+    select = edge_test_classes() + ["--include-tag=census"],
+    tags = ["edge_test"],
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
+    ],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -2420,11 +3039,13 @@ legend_java_binary(
 # //core:stress_tool's). Its own lane: the stress group is what gate 1 leaves out.
 junit_test(
     name = "stress_suites",
+    tags = ["edge_test"],
     memory_mb = 768,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -2433,12 +3054,14 @@ junit_test(
 # shape), held by StressServiceSuitesH2Test.MIN_PASS. Until 2026-10-05 the H2 floor was enforced by no lane.
 junit_test(
     name = "stress_suites_h2",
+    tags = ["edge_test"],
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
     size = "enormous",
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -2452,9 +3075,10 @@ legend_java_binary(
     # the corpus is core_tests_lib's classpath resources (P3-05)
     jvm_flags = ["-Duser.timezone=GMT"],
     main_class = "com.legend.integration.StressTool",
-    tags = ["manual"],
+    tags = ["manual", "edge_test"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -2473,6 +3097,188 @@ legend_java_binary(
     visibility = ["//tools/metrics:__pkg__"],
     # it only plans: no database driver (the comment at :drivers)
     runtime_deps = [":core_tests_lib"],
+)
+
+# PRODUCT SQL, MEASURED (E3 of the total-wall program, 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md): the
+# product's statements of a captured set of queries planned on every database (planning only), and a rewrite's
+# before/after timed on the in-process databases. A measuring tool, never a test.
+legend_java_binary(
+    name = "product_sql_measure",
+    testonly = True,
+    jvm_flags = [
+        "-Xmx3g",
+        "-Duser.timezone=GMT",
+    ],
+    main_class = "com.legend.integration.ProductSqlMeasure",
+    tags = ["manual"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+# THE PRODUCT-SQL SIZE BASELINE (G3's guard; E3 of the total-wall program, ruled 2026-11-12,
+# docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md §6): fixed query sets planned on every database (planning only), held to
+# shrink-only pins per set, database and family over the statements, their characters and the plans' JSON. In
+# //gates:local; re-pin with bazel run //core:update_lean_sql_baseline, dated in the commit.
+legend_java_library(
+    name = "lean_sql_baseline_lib",
+    # test code, as core_tests_lib, not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    # the corpus's set measures with its rule (//spec:lean_sql_corpus_*)
+    visibility = ["//spec:__pkg__"],
+    srcs = [
+        "src/test/java/com/legend/leansql/CastCaseCensus.java",
+        "src/test/java/com/legend/leansql/LeanSqlBaseline.java",
+        # the census's reader of a dialect's tree after its passes (E-4, 2026-11-12)
+        "src/test/java/com/legend/sql/dialect/PassedTrees.java",
+        # the test-side lowering, TypedQuery.lower's replacement (main's 795a7b8af5; merged with cf865632c, 2026-11-15)
+        "src/test/java/com/legend/planner/Lowered.java",
+    ],
+    deps = [
+        ":core",
+        ":test_backends",
+        "//json",
+        "//testing",
+    ],
+)
+
+junit_test(
+    name = "lean_sql_baseline_test",
+    memory_mb = 3072,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/leansql/LeanSqlBaselineTest.java"],
+    data = [
+        "src/test/resources/lean-sql/baseline.tsv",
+        "src/test/resources/lean-sql/channel_a.jsonl",
+        "src/test/resources/lean-sql/core.jsonl",
+    ],
+    jvm_flags = [
+        "-Dlegend.lean_sql.baseline=$(rlocationpath src/test/resources/lean-sql/baseline.tsv)",
+        "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+        "-Dlegend.lean_sql.core=$(rlocationpath src/test/resources/lean-sql/core.jsonl)",
+    ],
+    select = ["--select-class=com.legend.leansql.LeanSqlBaselineTest"],
+    deps = [
+        ":lean_sql_baseline_lib",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the product's answers to channel A's cases, snapped per in-process database (a measurement, manual; O2's step 3,
+# the orchestrator's condition (b), 2026-11-13): two snaps diff answer by answer across a lowering change
+junit_test(
+    name = "answer_snapshot",
+    memory_mb = 3072,
+    size = "large",
+    srcs = ["src/test/java/com/legend/leansql/AnswerSnapshotTest.java"],
+    data = ["src/test/resources/lean-sql/channel_a.jsonl"],
+    jvm_flags = ["-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)"],
+    select = ["--select-class=com.legend.leansql.AnswerSnapshotTest"],
+    tags = ["manual"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":lean_sql_baseline_lib",
+        ":test_backends",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# the lean-SQL sets' capture, a test harness's (E-1, the user's ruling of 2026-11-12: OUT of the product): the
+# launcher loads QueryCaptureListener on every test JVM that holds it, and -Dlegend.capture.queries=FILE turns it on
+legend_java_library(
+    name = "query_capture",
+    # test code, as core_tests_lib, not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    visibility = ["//pct:__pkg__", "//spec:__pkg__"],
+    srcs = ["src/test/java/com/legend/leansql/QueryCaptureListener.java"],
+    resource_strip_prefix = "core/src/test/query-capture",
+    resources = ["src/test/query-capture/META-INF/services/org.junit.platform.launcher.TestExecutionListener"],
+    deps = [
+        ":core",
+        "@maven_test//:org_junit_platform_junit_platform_launcher",
+    ],
+)
+
+# the capture run ON: it records text and names only, and changes no plan (the pins a run with it off made)
+junit_test(
+    name = "query_capture_test",
+    memory_mb = 1024,
+    size = "small",
+    srcs = ["src/test/java/com/legend/leansql/QueryCaptureTest.java"],
+    data = [
+        "src/test/resources/lean-sql/baseline.tsv",
+        "src/test/resources/lean-sql/channel_a.jsonl",
+    ],
+    jvm_flags = [
+        "-Dlegend.capture.queries=query-capture-test.jsonl",
+        "-Dlegend.lean_sql.baseline=$(rlocationpath src/test/resources/lean-sql/baseline.tsv)",
+        "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+    ],
+    select = ["--select-class=com.legend.leansql.QueryCaptureTest"],
+    deps = [
+        ":core",
+        ":lean_sql_baseline_lib",
+        ":query_capture",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the cast-and-case census (E-4, the user's rule ruled 2026-11-12): every CAST and CASE in channel A's SQL counted by
+# the reason its node names, per database, pinned shrink-only
+junit_test(
+    name = "cast_case_census_test",
+    memory_mb = 3072,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/leansql/CastCaseCensusTest.java"],
+    data = [
+        "src/test/resources/lean-sql/cast-case-census.tsv",
+        "src/test/resources/lean-sql/channel_a.jsonl",
+    ],
+    jvm_flags = [
+        "-Dlegend.lean_sql.cast_case_census=$(rlocationpath src/test/resources/lean-sql/cast-case-census.tsv)",
+        "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+    ],
+    select = ["--select-class=com.legend.leansql.CastCaseCensusTest"],
+    deps = [
+        ":core",
+        ":lean_sql_baseline_lib",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+legend_java_binary(
+    name = "update_cast_case_census",
+    testonly = True,
+    data = ["src/test/resources/lean-sql/channel_a.jsonl"],
+    jvm_flags = [
+        "-Xmx3g",
+        "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
+    ],
+    main_class = "com.legend.leansql.CastCaseCensus",
+    tags = ["manual"],
+    runtime_deps = [":lean_sql_baseline_lib"],
+)
+
+legend_java_binary(
+    name = "update_lean_sql_baseline",
+    testonly = True,
+    jvm_flags = ["-Xmx3g"],
+    main_class = "com.legend.leansql.LeanSqlBaseline",
+    tags = ["manual"],
+    runtime_deps = [":lean_sql_baseline_lib"],
 )
 
 # ── GENERATED FILES ─────────────────────────────────────────────────────────────
@@ -2630,10 +3436,13 @@ write_source_files(
 # diff-tests the data (no test reads Markdown: G17).
 _DIALECT_SOURCES = glob(["src/main/java/com/legend/sql/dialect/*.java"])
 
+# the edge's own dialects, legend-engine's text printers (2026-11-13, phase D's O3: moved from sql/dialect)
+_EDGE_DIALECT_SOURCES = glob(["src/main/java/com/legend/edge/EngineStyle*.java"])
+
 java_run(
     name = "capability_matrix",
     testonly = True,
-    srcs = _DIALECT_SOURCES + ["//docs:dialect-capability/reach.tsv"],
+    srcs = _DIALECT_SOURCES + _EDGE_DIALECT_SOURCES + ["//docs:dialect-capability/reach.tsv"],
     outs = ["dialect-capability/matrix.tsv"] + ["dialect-capability/%s.md" % f for f in [
         "README",
         "functions",
@@ -2643,12 +3452,17 @@ java_run(
         "{OUT_DIR}",
         "$(location //docs:dialect-capability/reach.tsv)",
         "{DIALECTS}",
+        "{EDGE_DIALECTS}",
     ],
     main_class = "com.legend.sql.dialect.CapabilityMatrix",
     mnemonic = "Generate",
-    roots = {"src/main/java/com/legend/sql/dialect/SqlDialect.java": "{DIALECTS}"},
+    roots = {
+        "src/main/java/com/legend/sql/dialect/SqlDialect.java": "{DIALECTS}",
+        "src/main/java/com/legend/edge/EngineStyleH2.java": "{EDGE_DIALECTS}",
+    },
     visibility = ["//docs:__pkg__"],
-    deps = [":core_tests_lib"],
+    # the edge's test library (p7's split, 2026-11-17): the matrix reads the edge's EngineStyle dialects too
+    deps = [":core_edge_tests_lib"],
 )
 
 # The matrix's reach, measured over the PCT lanes' recorded cases (a measurement, not a build step; the recipe is in
@@ -2721,11 +3535,14 @@ core_layer_queries(not_layers = {
     "core_next": "core as the generators rewrite it, for the claims generator (spec)",
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
+    "core_edge_tests_lib": "the edge's tests' library (core/edge_tests.bzl; F's census lines A5/A6, 2026-11-17), not product code",
     "mongodb_planted": "a test class planted for ArchitectureTest's MongoDB choke rule, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
+    "lean_sql_baseline_lib": "the product-SQL size baseline's and the cast census's measuring library (E3, E-4), a test's, not product code",
     "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
+    "query_capture": "the lean-SQL sets' capture listener (E-1), a test harness's, not product code",
     "postgres_cells": "Postgres's JSON cells behind the DriverCells seam, beside the drivers (the plan path program's step 9, 2026-10-19)",
     "scale_lib": "the scale benchmark's launcher (//core:scale), not product code",
     "shadow_binding": "a test-lane ServiceLoader resource",
@@ -2785,4 +3602,52 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+)
+
+# THE EDGE GOLDEN NET's pure/v1 answers (the edge program's Phase 0 item (d), 2026-11-16; //pct:edge_contract_test):
+# PureV1EdgeGoldenTest's fixed requests, run as a build action, each answer's status and JSON (its SQL left out, ids
+# masked), diffed against the golden recorded at PR1's frozen head 26717de291 (bazel run //core:update_edge_pure_v1,
+# a ruled move citing its ruling).
+java_run(
+    name = "edge_pure_v1",
+    tags = ["edge_test"],
+    testonly = True,
+    outs = [
+        "edge/pure_v1/verdict.txt",
+        "edge/pure_v1/run.log",
+        "edge/pure_v1/answers.tsv",
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/answers.tsv",
+        "--",
+        "--select-class=com.legend.server.PureV1EdgeGoldenTest",
+    ],
+    jvm_flags = ["-Dlegend.edge.purev1={OUT_DIR}/answers.tsv"],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 2048,
+    mnemonic = "EdgeContractPureV1",
+    deps = [
+        ":core_tests_lib",
+        ":core_edge_tests_lib",
+        ":drivers",
+        "//tools/junit",
+    ],
+)
+
+write_source_files(
+    name = "update_edge_pure_v1",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA pure/v1 answer moved (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); a regression unless it is a ruled move -- then bazel run //core:update_edge_pure_v1, citing the ruling",
+    files = {"src/test/resources/edge/pure_v1_answers.tsv": ":edge/pure_v1/answers.tsv"},
+    visibility = ["//pct:__pkg__"],
+)
+
+# THE PRODUCT'S TEST TARGETS reach no edge (F's census line A5, 2026-11-17): every test target here not tagged
+# edge_test, with the product test library and its cases, as one closure; //tools/deps:edge_separation_closure_test
+# meets it with the edge's targets. Last in the file, so every target above is seen.
+product_tests_closure(
+    name = "product_test_targets_closure",
+    extra = ["//core:core_tests_lib", "//core:test_cases"],
 )

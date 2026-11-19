@@ -36,7 +36,7 @@ import java.util.List;
  * served by the quantified arm; family members without a verdict arm
  * decline loudly with their shape — never a silent skip.
  */
-final class AssertVerdicts {
+public final class AssertVerdicts {
     private AssertVerdicts() {
     }
 
@@ -47,7 +47,7 @@ final class AssertVerdicts {
      * an execute() frame compiles the SPLICED chain — identical to the
      * ordinary-statement path (audit 19d B2; splice pin:
      * AssertVerdictSpliceTest). Null = no frames in scope. */
-    interface SpliceHook extends java.util.function.BiFunction<TypedSpec,
+    public interface SpliceHook extends java.util.function.BiFunction<TypedSpec,
             java.util.Set<String>, TypedSpec> {
     }
 
@@ -67,7 +67,7 @@ final class AssertVerdicts {
     static DatabasePlan planDatabase(com.legend.testplan.VerdictBatch batch, TypedSpec bare, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
-        if (isHelperCall(bare)) {
+        if (isHelperCall(bare, env)) {
             // a helper call at the root reduced once to the assert it is (M10c item 4): gated and adjudicated as that
             // assert, under its own name -- as the walk's prepareValue opens the batch's root for the reduced assert
             TypedSpec helper = BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook);
@@ -77,12 +77,12 @@ final class AssertVerdicts {
             bare = helper;
         }
         DatabaseGate gate = databaseGate(bare, letPrefix, specs, env, rawHook);
-        if (gate == DatabaseGate.UNPLANNED) {
+        if (gate.kind() == DatabaseGate.Kind.UNPLANNED) {
             return DatabasePlan.UNPLANNED;
         }
-        // our text a side the plan reads: the arm runs under the database judge's text collector, which plans it as a
-        // side of the verdict row (SqlTextVerdicts.BatchTexts) -- nothing read at planning
-        SqlTextVerdicts.BatchTexts texts = gate == DatabaseGate.ENGINE_TEXT_READ ? new SqlTextVerdicts.BatchTexts() : null;
+        // a side the verdict row computes: the arm runs under the style's text collector, which plans it as a side of
+        // the verdict row -- nothing read at planning
+        BatchTexts texts = gate.collects() ? EngineTextGates.batchTexts(env) : null;
         BodyDriver.ExecEnv at = texts != null ? texts.under(env) : env;
         batch.open(listenerName(bare));
         TypedSide v;
@@ -101,7 +101,7 @@ final class AssertVerdicts {
         } finally {
             if (texts != null) {
                 // planned: the appeal the arm built runs at the flush in the same environment and reads its sides then
-                texts.planning = false;
+                texts.endPlanning();
             }
         }
         if (v == null) {
@@ -114,40 +114,9 @@ final class AssertVerdicts {
         return DatabasePlan.PLANNED;
     }
 
-    /** The static gate's answers: the arm PLANS its verdict statement without reading; an ENGINE_TEXT assert plans its
-     *  text row with the appeal deferred (M10b); the arm RAISES at planning (its classification raised inside the arm:
-     *  {@link HostAssert#raising}) -- the planning pass walls the root at its place, which the program carries only
-     *  where a row before it in the segment holds the wall ({@code DatabaseAsserts.close}); or the shape is UNPLANNED
-     *  (the walk's). */
-    enum DatabaseGate { PLANS, ENGINE_TEXT, ENGINE_TEXT_READ, RAISES, UNPLANNED }
-
-    /** Whether {@code bare} is an engine-text assert whose two texts are CONSTANTS of the plan and EQUAL: its verdict
-     *  decided at planning, never appealed (an appeal is heard on a failed text alone) -- so it reads no store, and a
-     *  system-routed body's program places it on its own target (the walk deletion, 2026-11-06: the corpus's
-     *  relational-mapper texts, byte-equal to their goldens, had kept ten system-routed bodies on the walk). A helper
-     *  root reduces first, as {@link #databaseGate} reduces it; a quantified form answers false. */
-    static boolean engineTextDecidedEqual(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env,
-            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
-        if (isHelperCall(bare)) {
-            TypedSpec helper = BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook);
-            if (helper == null) {
-                return false;
-            }
-            bare = helper;
-        }
-        if (quantifiedForm(bare) != null) {
-            return false;
-        }
-        HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
-        return shape != null && HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EngineText e
-                && e.golden() != null && e.ours() != null && e.textEqual();
-    }
-
-    /** Whether {@code g} is an engine-text assert's: its texts constants of the plan, or OUR text a side the verdict
-     *  row computes ({@link DatabaseGate#ENGINE_TEXT_READ}, 2026-11-04, the core program). */
-    static boolean engineText(DatabaseGate g) {
-        return g == DatabaseGate.ENGINE_TEXT || g == DatabaseGate.ENGINE_TEXT_READ;
+    /** Whether the host checks planned {@code a} as an edge-judged comparison. */
+    private static boolean edgeJudged(HostAssert a) {
+        return HostJudgment.core(a.check().judgment()) instanceof HostJudgment.EdgeJudged;
     }
 
     /** {@link #databasePlansWithoutReading}'s answer in three (M10b: a raise at planning told apart, so the static pass
@@ -156,7 +125,7 @@ final class AssertVerdicts {
     static DatabaseGate databaseGate(TypedSpec bare, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
-        if (isHelperCall(bare)) {
+        if (isHelperCall(bare, env)) {
             // a helper call at the root reduced once to the assert it is (M10c item 4): the gate and the planning pass
             // read the reduced root, as planHost plans it on the host road
             TypedSpec helper = BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook);
@@ -177,22 +146,29 @@ final class AssertVerdicts {
             if (qp instanceof VectorPlan) {
                 return DatabaseGate.PLANS;
             }
-            DatabaseGate worst = DatabaseGate.PLANS;
+            DatabaseGate all = DatabaseGate.PLANS;
             boolean first = true;
             for (Unrolled u : ((UnrollPlan) qp).elements()) {
-                DatabaseGate g = gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
-                if (g == DatabaseGate.UNPLANNED) {
+                // a NESTED quantification (the engine's guard idiom, DE5: testDataGeneration's createTableRowIdentifiers):
+                // an element whose root is itself a quantified assert is gated by this same rule, as planQuantified
+                // plans it -- recursively, element by element
+                DatabaseGate g = quantifiedForm(u.root()) != null
+                        ? databaseGate(u.root(), u.before(), specs, env, rawHook)
+                        : gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
+                // an unplanned element keeps the body off the database; a raise decides only as the first element's
+                if (g.kind() == DatabaseGate.Kind.UNPLANNED || g.kind() == DatabaseGate.Kind.RAISES && first) {
                     return g;
                 }
-                if (g == DatabaseGate.RAISES && first) {
-                    return g;
-                }
-                if (engineText(g) && worst != DatabaseGate.ENGINE_TEXT_READ) {
-                    worst = g;
+                if (g.kind() == DatabaseGate.Kind.PLANS) {
+                    // an element the edge's arm judges is appealed as the quantified whole's: never decided equal by
+                    // its own texts (as the walk deletion's rule kept it, 2026-11-06); a nested quantification's
+                    // elements are marked by its own gate
+                    all = all.and(quantifiedForm(u.root()) == null && edgeJudged(u.assertion())
+                            ? DatabaseGate.appealed(g.collects()) : g);
                 }
                 first = false;
             }
-            return worst;
+            return all;
         }
         HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
         if (shape == null) {
@@ -209,23 +185,21 @@ final class AssertVerdicts {
         if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.Raise) {
             return DatabaseGate.RAISES;
         }
-        if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EngineText e) {
-            if (e.golden() == null) {
-                // a golden the plan reads: the arm processes its golden at planning, and the verdict row composes the
-                // database judge's text equality with the golden a constant -- the walk's, by name
-                com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: " + shapeOf(bare));
-                return DatabaseGate.UNPLANNED;
-            }
-            if (e.ours() == null) {
-                // our text a side the plan reads (M10c item 8; the database judge since 2026-11-04, the core
-                // program): the verdict row computes it and the equality, its ACTUAL column the appeal's text
-                return DatabaseGate.ENGINE_TEXT_READ;
-            }
-            // an engine-text assert (M10b): its texts constants of the plan, its appeal the batch row's -- the walk's
-            // own deferral, planDatabase's adjudicate under the collecting batch; nothing read at planning
-            return DatabaseGate.ENGINE_TEXT;
+        if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EdgeJudged e) {
+            // the edge's arm answers its own gate (J41, 2026-11-18)
+            return EngineTextGates.gate(env, e, () -> shapeOf(bare));
         }
         NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+        if (fn == null && bare instanceof TypedUserCall dual && dual.args().size() == 3
+                && com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(calleeFqn(bare))) {
+            // the dual-golden root whose text arm declined is planned as its own meaning on our H2,
+            // assertEquals(upgraded, actual) (planHost's rewrite): gated as that equality (DE5's second group, 2026-11-16:
+            // the gate had looked for a verdict native on the helper's own name and refused four corpus bodies)
+            TypedSpec asEquals = com.legend.compiler.spec.VerdictQueries.assertEqualsOf(dual.args().get(1),
+                    dual.args().get(2), specs);
+            return asEquals == null ? DatabaseGate.UNPLANNED
+                    : gateOf(shape, asEquals, letPrefix, specs, env, rawHook);
+        }
         if (fn == null) {
             return DatabaseGate.UNPLANNED;
         }
@@ -335,9 +309,9 @@ final class AssertVerdicts {
 
     /** A statement-root HELPER call: a user function that is neither a root engine-text arm nor a verdict native
      *  (the test-is-the-product plan's M10c item 4; {@code BodyDriver.helperAssertRoot} says what it reduces to). */
-    static boolean isHelperCall(TypedSpec bare) {
+    static boolean isHelperCall(TypedSpec bare, BodyDriver.ExecEnv env) {
         String fqn = calleeFqn(bare);
-        return fqn != null && bare instanceof TypedUserCall && !SqlTextVerdicts.isRoot(fqn)
+        return fqn != null && bare instanceof TypedUserCall && !EngineTextGates.isRoot(env, fqn)
                 && NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).isEmpty();
     }
 
@@ -424,8 +398,8 @@ final class AssertVerdicts {
         // is the emission census). Null = not the simple shape — the
         // generic path (inline + fold) keeps it exactly as today.
         if (com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
-                && bare instanceof TypedUserCall sroot) {
-            TypedSide sv = SqlTextVerdicts.tryArmSameSql(sroot,
+                && bare instanceof TypedUserCall sroot && EngineTextGates.facet(env) instanceof EngineTestText ett) {
+            TypedSide sv = ett.tryArmSameSql(sroot,
                     letPrefix, specs, env, hook);
             if (sv != null) {
                 return sv;
@@ -434,8 +408,8 @@ final class AssertVerdicts {
         // §8.3d — the dual-golden sibling (same root-arm discipline)
         if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
                 && bare instanceof TypedUserCall hroot) {
-            TypedSide hv = SqlTextVerdicts.tryArmDualGolden(hroot,
-                    letPrefix, specs, env, hook);
+            TypedSide hv = EngineTextGates.facet(env) instanceof EngineTestText ett ? ett.tryArmDualGolden(hroot,
+                    letPrefix, specs, env, hook) : null;
             if (hv != null) {
                 return hv;
             }
@@ -484,7 +458,7 @@ final class AssertVerdicts {
             if (read != null && batch != null && batch.active()) {
                 // a message that READS: the batch sends its row at the assert's place only where the assert fails
                 // (upstream evaluates it only there), the verdict row failing with the family's own text until then
-                batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName()), message.on());
+                batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName(), DatabaseJudge.words(env)), message.on());
             } else {
                 env = env.withFailureMessage(message.message());
             }
@@ -518,8 +492,9 @@ final class AssertVerdicts {
                 // toSQLString producer in an argument tree judges on
                 // ROWS (SqlTextVerdicts; text is a census number).
                 // Shapes outside the exact cohort yield null here.
-                TypedSide sv = SqlTextVerdicts.tryArm(name,
-                        wantEqual, args, letPrefix, specs, env, hook);
+                // the arm is upstream's: asked of the plan style's facet where the sides reach upstream's text
+                TypedSide sv = !EngineTextGates.reachesUpstreamText(env, name, wantEqual, args, letPrefix, specs) ? null
+                        : java.util.Objects.requireNonNull(EngineTextGates.facet(env)).tryArm(name, wantEqual, args, letPrefix, specs, env, hook);
                 if (sv != null) {
                     com.legend.diagnostics.VerdictCensus.sqlRoute(name, "sql-text");
                     yield sv;
@@ -527,7 +502,7 @@ final class AssertVerdicts {
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
                 // DB-rendered grid text (toCSV/toString/replace/join
                 // spellings), the peer a string value. The DATABASE
-                // computed the render; TdsCompare.renderedText (the
+                // computed the render; edge.UpstreamRenderedTexts (the
                 // one policy owner, R1b-probed) judges the texts.
                 TypedSide ra = renderedArm(name, wantEqual, args,
                         letPrefix, specs, env, hook, true);
@@ -654,9 +629,9 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                TypedSide isv = isVerdict(args.get(0), args.get(1));
+                TypedSide isv = isVerdict(args.get(0), args.get(1), DatabaseJudge.words(env));
                 if (isv != null) {
-                    arm.staticallyDecided(name);
+                    arm.staticallyDecided(env);
                     yield isv;
                 }
                 if (primitivePair(args.get(0), args.get(1))) {
@@ -673,10 +648,31 @@ final class AssertVerdicts {
                 yield arm.empty(name, args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY,
                         letPrefix, specs, env, hook);
             }
+            // the default-message asserts (#28): the positive family's row with the polarity flipped, its sentence
+            // negated; a pair of instances is no shape planned yet (the host's planner refuses it too)
+            case ASSERT_NOT_EQ, ASSERT_IS_NOT -> {
+                if (args.size() != 2 || !primitivePair(args.get(0), args.get(1))) {
+                    yield null;
+                }
+                VerdictBatch batch = env.verdictBatch();
+                Runnable restore = fn == NativeFn.Verdict.ASSERT_IS_NOT && batch != null ? batch.asIsNot() : () -> { };
+                TypedSide negated;
+                try {
+                    negated = DatabaseJudge.databaseVerdict(name, false, args.get(0), args.get(1), letPrefix, specs,
+                            env, hook, false, false);
+                } finally {
+                    restore.run();
+                }
+                yield negated;
+            }
+            case ASSERT_NOT_CONTAINS -> args.size() < 2 ? null
+                    : DatabaseJudge.databaseContains(name, args.get(0), args.get(1), letPrefix, specs, env, hook, true);
+            case ASSERT_NOT_SIZE -> args.size() < 2 ? null
+                    : DatabaseJudge.databaseSize(name, args, letPrefix, specs, env, hook, true);
         };
-        if (adjudicated == null) {
-            com.legend.diagnostics.VerdictCensus.sqlFellThrough();
-        }
+        // (an arm that yields null is no longer counted fell-through here, J39, 2026-11-18: the root is discarded and the
+        // database judge plans no body that holds it -- there is no turn to count it at; the run's own fell-through is
+        // the host judgment's, AssertRuns)
         return adjudicated;
     }
 
@@ -818,7 +814,7 @@ final class AssertVerdicts {
         // the three engine-text ROOT arms (the test-is-the-product plan's M10b) are planned by the arm the walk runs
         // for them, under no family (the walk counts none before a root arm); every other callee is a verdict
         // function, planned under its family
-        boolean root = SqlTextVerdicts.isRoot(fqn);
+        boolean root = EngineTextGates.isRoot(env, fqn);
         NativeFn.Verdict fn = root ? null
                 : NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
         if (!root && fn == null) {
@@ -829,7 +825,7 @@ final class AssertVerdicts {
             // HOST judge takes it first -- before this item the walk's prepareValue reported the helper under its
             // reduced root's name (a deliberate change of the report's label, as the lineage-lines and dual-golden
             // rewraps; the DATABASE judge names the reduced root on both roads, planDatabase)
-            TypedSpec helper = isHelperCall(bare) ? BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook)
+            TypedSpec helper = isHelperCall(bare, env) ? BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook)
                     : null;
             if (helper == null) {
                 unplanned(bare, specs, "helper root not reduced: " + shapeOf(bare));
@@ -846,17 +842,17 @@ final class AssertVerdicts {
         TypedSpec armRoot = split == null ? bare : split.base();
         HostSides.Check check;
         try {
-            check = fn == null ? SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook)
+            check = fn == null ? EngineTextGates.armFor(bare, letPrefix, specs, env, hook)
                     : planArm(fn, fn.bareName(), armRoot, letPrefix, specs, env, hook);
         } catch (RuntimeException e) {
             // the arm's classification raised under its family (none for a root arm): raised at the assert's turn,
             // the family counted first, as adjudicate counts it before the arm (N2)
             return HostAssert.raising(listenerName(bare), name, com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planHost: the arm's classification"));
         }
-        if (SqlTextVerdicts.notAConstant(check)) {
+        if (EngineTextGates.notAConstant(env, check)) {
             // a text side the arm would evaluate by a statement at the assert's turn: the walk's (the census names
             // the side's kind and planned root, then the assert's shape)
-            unplanned(bare, specs, "text not a constant: " + SqlTextVerdicts.why(check) + ": "
+            unplanned(bare, specs, "text not a constant: " + EngineTextGates.why(env, check) + ": "
                     + shapeOf(bare));
             return null;
         }
@@ -915,16 +911,16 @@ final class AssertVerdicts {
                 // the engine-text arm declining is no decline of the assert: the generic path below plans most such
                 // shapes (a plan handle's Boolean, M10c item 8's gate); the census names it on a final decline alone
                 boolean armDeclined = false;
-                if (SqlTextVerdicts.mayArm(name, wantEqual, args, letPrefix, specs)) {
+                if (EngineTextGates.reachesUpstreamText(env, name, wantEqual, args, letPrefix, specs)) {
                     // the engine-text arm (M10b): a producer shape planned under a collector, its two texts the step's
                     // sides (the golden a constant; ours a constant or a side the step reads, M10c item 8); null where
                     // the arm declines the shape, and the generic path below is the walk's
-                    HostSides.Check engineText = SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook);
-                    if (SqlTextVerdicts.notAConstant(engineText)) {
+                    HostSides.Check engineText = EngineTextGates.armFor(bare, letPrefix, specs, env, hook);
+                    if (EngineTextGates.notAConstant(env, engineText)) {
                         // a text side the arm would evaluate by a statement at the assert's turn: the walk's, not
                         // the generic equality's (which would compare the texts the arm appeals)
                         unplanned(bare, specs, "equals: text not a constant: "
-                                + SqlTextVerdicts.why(engineText) + ": " + shapeOf(bare));
+                                + EngineTextGates.why(env, engineText) + ": " + shapeOf(bare));
                         yield null;
                     }
                     if (engineText != null) {
@@ -982,13 +978,22 @@ final class AssertVerdicts {
                 // statically identified operands: decided with no side (the verdict, or its failure, at the
                 // assert's turn)
                 yield staticallyIdentified(left, right) ? new HostSides.Check(List.of(),
-                        java.util.Objects.requireNonNull(isDecided(left, right), "statically identified operands"))
+                        java.util.Objects.requireNonNull(isDecided(left, right, DatabaseJudge.words(env)), "statically identified"))
                         // two primitive values: is() is compiled pure's `left == right`, their values (as assertEq)
                         : primitivePair(left, right) ? HostJudge.planEq(args, letPrefix, env, hook)
                         : HostJudge.planIs(name, args, specs, hook);
             }
             case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> args.isEmpty() ? null
                     : HostJudge.planEmpty(args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY, hook);
+            // the default-message asserts (#28): the positive family negated; a pair of instances (identity, or a
+            // keyed class's key equality, which eq is not) is no shape planned yet, refused by name
+            case ASSERT_NOT_EQ, ASSERT_IS_NOT -> args.size() != 2 || !primitivePair(args.get(0), args.get(1)) ? null
+                    : HostJudge.negated(HostJudge.planEq(args, letPrefix, env, hook),
+                            fn == NativeFn.Verdict.ASSERT_NOT_EQ ? "NOT_EQ" : "IS_NOT");
+            case ASSERT_NOT_CONTAINS -> args.size() < 2 || !exactlyOneValue(args.get(1)) ? null
+                    : HostJudge.negated(HostJudge.planContains(args, hook), "NOT_CONTAINS");
+            case ASSERT_NOT_SIZE -> args.size() < 2 ? null
+                    : HostJudge.negated(HostJudge.planSize(args, letPrefix, hook), "NOT_SIZE");
         };
     }
 
@@ -1059,19 +1064,19 @@ final class AssertVerdicts {
      * {@code is}'s missing SQL rule — a wire carries values, never
      * reference identity (the eq/equalNonPrimitive irreducible ruling). */
     static @com.legend.base.Nullable TypedSide isVerdict(
-            TypedSpec left, TypedSpec right) {
-        HostJudgment.Decided d = isDecided(left, right);
+            TypedSpec left, TypedSpec right, com.legend.lowering.VerdictWords words) {
+        HostJudgment.Decided d = isDecided(left, right, words);
         return d == null ? null : com.legend.testexecutionplan.Verdicts.decided(d);
     }
 
     /** {@link #isVerdict} as data (M8a): the verdict decided at planning with no side -- held, or its failure's
      *  message -- or null where the operands are not statically identified. */
-    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right) {
+    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right, com.legend.lowering.VerdictWords words) {
         String lt = typeIdentityOf(left);
         String rt = typeIdentityOf(right);
         if (lt != null && rt != null) {
             return lt.equals(rt) ? new HostJudgment.Decided(true, null)
-                    : new HostJudgment.Decided(false, "\nexpected: " + lt + "\nactual:   " + rt);
+                    : new HostJudgment.Decided(false, words.valuesDiffer(lt, rt));
         }
         TypedSpec l = instanceOrigin(left);
         TypedSpec r = instanceOrigin(right);
@@ -1359,13 +1364,22 @@ final class AssertVerdicts {
                     specs, env, rawHook == null ? null : rawHook::apply);
         }
         TypedSide last = null;
-        for (TypedSpec element : elements) {
+        VerdictBatch batch = DatabaseJudge.lite(env) ? env.verdictBatch() : null;
+        for (int index = 0; index < elements.size(); index++) {
+            TypedSpec element = elements.get(index);
             List<TypedSpec> reduced = com.legend.compiler.spec.VerdictQueries
                     .unrolledElement(specs, letPrefix, sh.lam(), element, rawHook);
             List<TypedSpec> lets = new java.util.ArrayList<>(
                     reduced.subList(0, reduced.size() - 1));
             TypedSpec bareStmt = reduced.get(reduced.size() - 1);
-            TypedSide v = adjudicate(bareStmt, lets, specs, env, rawHook);
+            TypedSide v;
+            // lite's sentence names the element by its zero-based index, as the host judge's does
+            Runnable restore = batch == null ? () -> { } : batch.atElement(index);
+            try {
+                v = adjudicate(bareStmt, lets, specs, env, rawHook);
+            } finally {
+                restore.run();
+            }
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(
                         "unrolled quantified assert: element verdict not"
@@ -1400,13 +1414,13 @@ final class AssertVerdicts {
     record UnrollPlan(List<Unrolled> elements) implements QuantifiedPlan {
     }
 
-    /** Whether {@code j} is, or holds (an unrolled quantified assert's part), an engine-text judgment: the one whose
+    /** Whether {@code j} is, or holds (an unrolled quantified assert's part), an edge-judged comparison: the one whose
      *  appeal reads the user store, which a system-routed body's program cannot carry (M10b's refusal). */
-    static boolean holdsEngineText(HostJudgment judgment) {
+    static boolean holdsEdgeJudged(HostJudgment judgment) {
         HostJudgment j = HostJudgment.core(judgment);
-        return j instanceof HostJudgment.EngineText
+        return j instanceof HostJudgment.EdgeJudged
                 || j instanceof HostJudgment.Unrolled u
-                        && u.parts().stream().anyMatch(p -> holdsEngineText(p.judgment()));
+                        && u.parts().stream().anyMatch(p -> holdsEdgeJudged(p.judgment()));
     }
 
     /** Whether one statement origin serves every part of {@code j}: the program road sends a verdict step's sides
@@ -1426,6 +1440,12 @@ final class AssertVerdicts {
             marks.add(java.util.Optional.ofNullable(com.legend.testexecutionplan.Verdicts.deferredTextOrigin(p.judgment())));
         }
         return marks.size() <= 1;
+    }
+
+    /** A condition's failure text with no message of the caller's: lite's sentence ("expected true, got false") under
+     *  lite's own rules, legend-pure's "Assert failed" under the compatibility rules -- both judges read it. */
+    static String defaultConditionMessage(boolean wantTrue, BodyDriver.ExecEnv env) {
+        return DatabaseJudge.words(env).conditionFailed(wantTrue);
     }
 
     /** The unroll's elements as ONE host assert under the statement's name and no family: every element's asks in
@@ -1466,7 +1486,8 @@ final class AssertVerdicts {
                 // family's truth and inverted assertFalse until this item's audit
                 return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true,
                         HostJudge.planAllRows(vectorFamily(sh), sh.vectorPredMap(), true,
-                                com.legend.compiler.spec.VerdictQueries.assertMessage(sh.root()), hook)));
+                                com.legend.compiler.spec.VerdictQueries.assertMessage(sh.root(),
+                                        defaultConditionMessage(family == NativeFn.Verdict.ASSERT, env)), hook)));
             }
             if (family == NativeFn.Verdict.ASSERT_EQUALS || family == NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE) {
                 // row by row on the host, planned (2026-11-04, the core program): the zip's arms or the relation
@@ -1482,7 +1503,7 @@ final class AssertVerdicts {
         if (sh.simplePredicate()) {
             List<TypedSpec> aargs = com.legend.compiler.spec.typed.Calls.argsOf(sh.root());
             String msg = aargs.size() >= 2 && aargs.get(1) instanceof com.legend.compiler.spec.typed.TypedCString cs
-                    ? cs.value() : "Assert failed";
+                    ? cs.value() : defaultConditionMessage(family == NativeFn.Verdict.ASSERT, env);
             TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVector(qm, sh.lam(), aargs.get(0));
             boolean truth = family == NativeFn.Verdict.ASSERT;
             // the family the walk's arm fetched under was the root's FQN, and it counted no family at all (its census
@@ -1544,7 +1565,7 @@ final class AssertVerdicts {
         String msg = aargs.size() >= 2
                 && aargs.get(1) instanceof
                         com.legend.compiler.spec.typed.TypedCString cs
-                ? cs.value() : "Assert failed";
+                ? cs.value() : defaultConditionMessage(qfn == NativeFn.Verdict.ASSERT, env);
         if (aargs.size() >= 2 && !(aargs.get(1) instanceof
                 com.legend.compiler.spec.typed.TypedCString)) {
             throw new com.legend.error.NotImplementedException(
@@ -1557,14 +1578,6 @@ final class AssertVerdicts {
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
         return arm(env).quantified(fqn, predMap, qfn == NativeFn.Verdict.ASSERT, msg, letPrefix, specs, env, hook);
-    }
-
-    /** The run's judge mode rides its options (PlanningOptions.JudgeMode):
-     * one mode per run, read from the execution environment — never a JVM
-     * global. HOST is the verdict of record; DATABASE plans both sides and
-     * lets the database return the verdict row. */
-    static boolean databaseMode(BodyDriver.ExecEnv env) {
-        return env.options().judgeMode() == PlanningOptions.JudgeMode.DATABASE;
     }
 
     /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the
@@ -1630,25 +1643,8 @@ final class AssertVerdicts {
     // rendered-text forms, and the grid-pair route. The comparison
     // POLICIES stay with their one production owner (TdsCompare).
 
-    /** The referee's gates for a verified chain, derived ONCE from the
-     * typed chain by the arm that owns the verdict (Phase 0.5): the
-     * extent-subset fact, the ORDER VIEW (ends in a sort = order is
-     * contract), and the tail-most sort's keys. Typed-tree navigation
-     * only — nothing evaluated. */
-    /** The referee's gates for a verified chain, as planning derives them (the plan carries each as the appeal's
-     *  {@code Appeal.Rows} fields): the extent-subset fact, the order view, the tail-most sort's keys. */
-    record ReplayGates(boolean extentSubset, boolean ordered, @com.legend.base.Nullable List<String> sortKeys) {
-        static final ReplayGates NONE = new ReplayGates(false, false, null);
-    }
-
-    static AssertVerdicts.ReplayGates replayFacts(
-            TypedSpec chain, List<TypedSpec> letPrefix) {
-        boolean ordered = com.legend.compiler.spec.OrderView.of(chain, letPrefix) == com.legend.compiler.spec.OrderView.SORTED;
-        return new AssertVerdicts.ReplayGates(
-                com.legend.compiler.spec.VerdictQueries.extentSubset(chain),
-                ordered,
-                ordered ? sortKeys(chain, letPrefix, new java.util.HashSet<>()) : null);
-    }
+    // (ReplayGates and replayFacts, the referee's gates, with their sort-key walk: moved to the edge's ReplayGates,
+    // 2026-11-18, the edge audit's J40 -- the referee is the edge's, G6)
 
     /** The rows read WITHOUT its tail page (batch 0.5b): the same read with
      * the first page node reached through order-preserving tails
@@ -1693,66 +1689,6 @@ final class AssertVerdicts {
         List<TypedSpec> kids = new java.util.ArrayList<>(read.children());
         kids.set(0, inner);
         return read.withChildren(kids);
-    }
-
-    /** The key names of the sort NEAREST THE TAIL (the engine's own
-     * last-sort-wins semantics), through the same order-preserving tails
-     * {@link #orderView} descends; null = underivable (a computed key,
-     * a native sort spelling, a value the compared output cannot carry). */
-    private static @com.legend.base.Nullable List<String> sortKeys(TypedSpec s,
-            List<TypedSpec> lets, java.util.Set<String> seen) {
-        if (s instanceof com.legend.compiler.spec.typed.TypedSort so) {
-            List<String> keys = new java.util.ArrayList<>();
-            for (var k : so.keys()) {
-                keys.add(k.column());
-            }
-            return keys.isEmpty() ? null : keys;
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedSortBy sb) {
-            if (sb.keyAlias() != null) {
-                return List.of(sb.keyAlias());
-            }
-            List<TypedSpec> body = sb.key().body();
-            return body.size() == 1 && body.get(0)
-                    instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                    ? List.of(pa.property()) : null;
-        }
-        if (s instanceof TypedNativeCall c) {
-            String fqn = c.callee().qualifiedName();
-            if (com.legend.compiler.spec.OrderView.EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()
-                    && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
-                    && !lam.body().isEmpty()) {
-                return sortKeys(lam.body().get(lam.body().size() - 1), lets, seen);
-            }
-            return com.legend.compiler.spec.OrderView.ORDER_PRESERVING.contains(fqn)
-                    && !c.args().isEmpty() ? sortKeys(c.args().get(0), lets, seen) : null;
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
-            if (!seen.add(v.name())) {
-                return null;
-            }
-            com.legend.compiler.spec.typed.TypedLet l =
-                    com.legend.compiler.spec.typed.Lets.binding(lets, v.name());
-            return l == null ? null : sortKeys(l.value(), lets, seen);
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedFilter
-                || s instanceof com.legend.compiler.spec.typed.TypedProject
-                || s instanceof com.legend.compiler.spec.typed.TypedSelect
-                || s instanceof com.legend.compiler.spec.typed.TypedRename
-                || s instanceof com.legend.compiler.spec.typed.TypedDistinct
-                || s instanceof com.legend.compiler.spec.typed.TypedLimit
-                || s instanceof com.legend.compiler.spec.typed.TypedDrop
-                || s instanceof com.legend.compiler.spec.typed.TypedSlice
-                || s instanceof com.legend.compiler.spec.typed.TypedMap
-                || s instanceof com.legend.compiler.spec.typed.TypedPropertyAccess
-                || s instanceof com.legend.compiler.spec.typed.TypedCast
-                || s instanceof com.legend.compiler.spec.typed.TypedFrom
-                || s instanceof com.legend.compiler.spec.typed.TypedNavigate
-                || s instanceof com.legend.compiler.spec.typed.TypedMilestonedAccess) {
-            List<TypedSpec> ch = s.children();
-            return ch.isEmpty() ? null : sortKeys(ch.get(0), lets, seen);
-        }
-        return null;
     }
 
     private static final String FQ_TO_STRING =
@@ -1907,10 +1843,11 @@ final class AssertVerdicts {
                 schema = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(schema, data);
             }
         }
-        var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(),
-                schema, r.grid() ? null : r.value().info().type());
+        var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(), schema, r.grid() ? null
+                : r.value().info().type(), env.options().style().twoForm(com.legend.compiler.spec.GoldenNullWord.class,
+                        com.legend.compiler.spec.LiteGoldenNullWord.NONE));
         if (parsed.headerMismatch()) {
-            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+            DatabaseJudge.staticallyDecided(env);
             return fail(name + ": " + parsed.reason());   // a static verdict
         }
         if (parsed.literal() == null) {
@@ -1927,21 +1864,17 @@ final class AssertVerdicts {
     }
 
     /** GENERIC FIRST (2026-11-04, the core program: every assert on its own merit generically): a rendered text's
-     *  equality is its two strings' ({@code textRow}, the database computing the render), and in compatibility mode
-     *  {@code rows} -- the ruled line and row comparison (S131, S132) -- decides where they differ, planned with the
-     *  text as ONE verdict row ({@code VerdictBatch.orElse}, made one row by {@code VerdictBatch.plan}; 2026-11-06, the
-     *  user: "Remove fallback"). Outside a verdict batch the two cannot be one statement: refused by name, never a text
-     *  sent and then its rows. {@code textRow} null (a side the database judge cannot read as a String) or the negated
-     *  family: {@code rows} alone. */
+     *  equality is its two strings' ({@code textRow}, the database computing the render); the edge's style plans
+     *  {@code rows} -- the ruled line and row comparison (S131, S132) -- where they differ ({@link RenderedTextRule}). */
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
             BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
-        if (env.options().judgingRules() != com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
+        // the style decides (census C1, the orchestrator's ruling of 2026-11-17), never the rules
+        if (!env.options().style().twoForm(RenderedTextRule.class, LiteRenderedTextRule.STRINGS).ruledWhereTheyDiffer()) {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings are the
-            // verdict; the ruled row comparison is compatibility mode's alone
-            if (textRow == null) {
-                return DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String");
-            }
-            return DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
+            // verdict; the ruled row comparison is the edge's alone
+            return textRow == null
+                    ? DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String")
+                    : DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
         }
         if (!wantEqual || textRow == null) {
             return rows.get();
@@ -2073,19 +2006,6 @@ final class AssertVerdicts {
         return s.info().type() instanceof
                 com.legend.compiler.element.type.Type.ClassType ct
                 && com.legend.compiler.element.type.PlatformTypes.isAny(ct);
-    }
-
-    static boolean containsTreeMarker(
-            @com.legend.base.Nullable String text) {
-        return text != null && text.contains(
-                com.legend.lowering.CanonicalRenderSql.TREE_MARKER);
-    }
-
-    static List<Object> concat(List<Object> a, List<Object> b) {
-        List<Object> out = new ArrayList<>(a.size() + b.size());
-        out.addAll(a);
-        out.addAll(b);
-        return out;
     }
 
     static String typeName(TypedSpec spec) {

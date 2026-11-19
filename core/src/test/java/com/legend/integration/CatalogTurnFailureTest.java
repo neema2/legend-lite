@@ -27,14 +27,14 @@ class CatalogTurnFailureTest {
      *  read of the model's own class -- a row the run's registration holds. */
     static final String BODY = "{| assertError(|meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'P')"
             + "->size() / (meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'Nope')->size()),"
-            + " 'Division by zero');"
+            + " 'division by zero');"
             + " assertEquals(1, meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'P')->size());}";
 
     /** {@link #BODY}'s asserts beside a read of the user's table: each catalog assert routed to the catalog beside the
      *  body's own database (per-statement routing). */
     static final String MIXED = "{| assertError(|meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'P')"
             + "->size() / (meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'Nope')->size()),"
-            + " 'Division by zero');"
+            + " 'division by zero');"
             + " assertSize(x::P.all(), 2);"
             + " assertEquals(1, meta::pure::metamodel::type::Class.all()->filter(c|$c.name == 'P')->size());}";
 

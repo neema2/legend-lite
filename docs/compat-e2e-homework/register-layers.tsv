@@ -1,0 +1,180 @@
+id	kind	layer	adopt	note
+S1	outcome	L0	-	Whole-model rejection vs demand-driven compile of only the bodies a query touches
+S2	representation (SQL text)	L2	-	Engine pre-folds constants into SQL text; lite lets the database compute. mixed:L1
+S3	outcome (engine input)	L0	-	Engine-input handler dispatch order vs legend-pure's overload rule (compile time). mixed:L3
+S4	representation (SQL text)	L2	-	Engine SQL text formatting (root alias, table_n aliases, lowercase keywords) printed by EngineStyle dialects
+S5	representation	L0	-	Typed-tree shape of dot access on non-[1] receiver (automap vs Member)
+S6	representation	L0	-	Typed-tree shape of enum value access (string extractEnumValue vs Ref)
+S7	outcome (determinism)	L0	-	Overload tie-break: hash order upstream vs declaration order in lite
+S8	outcome (pending a probe)	L0	-	TypeInferenceContext merge-mode bug not copied (inference)
+S9	outcome (arithmetic)	L1	no: engine leaves Float typing to each database	Float computed as DECIMAL for engine parity (superseded by S20/S119 IEEE ruling)
+S10	scope	L0	-	Platform natives own meta::pure::functions; parsed twins suppressed
+S11	scope	L0	-	Mapping testSuites/service tests not offered (scope)
+S12	scope	L0	-	Cross-store queries walled with an error (scope)
+S13	pending	L0	-	External formats (binding, schema sets) unverified/out of scope. mixed:L3
+S14	outcome (test harness)	L0	-	Scan-order ORDER BY only in the test harness
+S15	outcome (test judge)	L0	-	Host test judge compares Floats within 2 ULP
+S16	outcome (spec conflict)	L1	yes: lite already follows PCT and engine order	Filter before a window applied before it, as PCT/engine (interpreter differs)
+S17	pending	L1	no: upstream's splitPart differs by database and doc	splitPart separator: literal vs character set, differs per database
+S18	outcome (nondeterminism)	L1	no: upstream itself is unordered/nondeterministic	first() in group and unordered joinStrings: ANY_VALUE, unordered STRING_AGG
+S19	outcome (engine parity)	L1	yes: lite already answers engine's NULL	average([]) NULL as the engine (Pure fails)
+S20	outcome (the user's ruling, 2026-11-05, held for a re-ruling the same day because it was made on a wrong claim about the engine, then RE-RULED 2026-11-05: "yes on IEEE"; build in progress)	L1	no: upstream's Float typing varies by database	Float literals typed DOUBLE, IEEE everywhere; engine's result varies by database
+S21	outcome (model build)	L0	-	Class mapping without ~src refused at model build (engine fails at execution)
+S22	outcome (engine defect, not copied)	L1	no: engine defect counts outer-join null row	count() over empty association navigation: engine 1, lite 0
+S23	outcome (engine contradicts itself; not copied)	L0	-	Database BIT column typed Boolean vs engine's TinyInt; DataCube compensates. mixed:L1
+S24	outcome (engine gap; lite unchanged)	L0	-	over([], sort, frame) compiles in lite; engine never registers it
+S25	pending (lite lenient; engine stricter)	L0	-	Mixed Integer/Float arithmetic statically Float in lite, Number upstream
+S26	outcome (SQL reads a stored value by its declared type)	L1	no: upstream fails grouping json, strpos over inet	OTHER/json columns read by declared type (text/jsonb) at every reference
+S27	representation (where a query with no database executes)	L1	no: upstream computes model data in Java memory	M2M/model-data query executes on platform DuckDB vs engine's in-memory Java; unmatched store refused
+S28	outcome (engine defect; not copied)	L3	-	Arrow IPC execute answer: database's columns unrounded vs engine's JDBC-metadata typing. mixed:L2
+S29	outcome (protocol JSON in; strict where the engine drops)	L3	-	Protocol JSON read strictly: unknown/dropped fields refused by name
+S30	representation (older JSON brought up)	L3	-	Older protocol JSON shapes brought up to today's records
+S31	representation (printer)	L3	-	Grammar printer prints olap shapes as the call they mean, standard spacing
+S32	outcome (engine defect; not copied)	L3	-	Enum source value written back as integer, not string
+S33	scope (older JSON no record carries)	L3	-	Older JSON shapes no record carries refused by name
+S34	pending (compile of older JSON)	L3	-	Older-JSON variable type/multiplicity kept; compiler use unverified. mixed:L0
+S35	representation (older JSON brought up, found by step 3's audit)	L3	-	featuredDiagrams and missing generation id read into today's form
+S36	scope (older JSON the engine reads and cannot use)	L3	-	Older JSON the engine reads but cannot use refused when read
+S37	outcome (engine defect; not copied)	L3	-	Persistence test null field written back as null
+S38	representation (engine defect; not copied)	L3	-	Printer braces lambdas so print re-reads identically
+S39	representation (engine defect; not copied)	L3	-	Printer writes column-spec multiplicity for exact round trip
+S40	representation (type only)	L0	-	Optional-path/TDS columns typed [1] not [0..1]; same values
+S41	representation (type only)	L0	-	Mixed number lists typed precisely, not Number; same values
+S42	outcome (edge)	L0	-	Qualified-property dot call: most specific owner vs full matcher
+S43	outcome	L0	-	#SQL island identifier case matching (Postgres folding). mixed:L3
+S44	outcome	L1	no: upstream uses legacy null-unsafe equals flag	#SQL island spells Postgres three-valued logic in the Pure it becomes
+S45	representation	L0	-	#SQL island builds Relation API only, no TDS branch or print-reparse
+S46	scope	L0	-	#SQL island reads ISO dates only; other Postgres spellings refused (scope)
+S47	scope	L0	-	#SQL island refuses integer / integer until a truncating native exists (scope)
+S48	scope (extension)	L0	-	Lite adds SQLite/MariaDB/MySQL database types (scope extension)
+S49	outcome	L1	no: jsonb order/text differs per database; refusals instead	#SQL island Variant as jsonb: equality, paths, text per database. mixed:L2
+S50	scope (extension)	L0	-	#IQ island added (scope extension)
+S51	outcome	L1	no: no upstream; SAP IQ is the island's spec	#IQ island follows SAP IQ semantics (case, NULL order, integer typing, division)
+S52	outcome (provisional)	L1	no: no upstream; IQ-engine provisional decisions	#IQ island provisional IQ-engine rules (CHAR padding, ansinull, domain errors)
+S53	scope	L0	-	#IQ island refusals of what lite cannot hold (scope)
+S54	outcome (provisional)	L1	no: no upstream; IQ's raise is plan-dependent	#IQ island: raising operand in AND/OR may answer where IQ raises
+S55	outcome (provisional)	L1	no: no upstream; overflow order is plan-dependent	#IQ island SUM/AVG overflow raised wherever some order could overflow
+S56	outcome (provisional)	L0	-	#IQ island binds owners/tables/variables to the model (name resolution). mixed:L1
+S57	scope	L0	-	#Cypher island first slice; everything else refused by name (scope)
+S58	outcome	L1	no: schema-optional reading conflicts with closed typed model	Cypher open graph reads absent labels as no rows; closed graph keeps compile error. mixed:L0
+S59	outcome (provisional)	L1	yes: Neo4j's typed comparison/concat rules are deterministic	Cypher cross-type =, string+int, IN with null, SKIP/LIMIT expressions refused for now
+S60	outcome (provisional)	L1	yes: IEEE NaN comparisons, deterministic on every database	Cypher NaN comparisons left to the database (NaN equals itself there)
+S61	outcome (provisional)	L1	yes: raising on 64-bit overflow is typed, database-independent	Cypher integer overflow: DuckDB promotes, Postgres raises its own, Neo4j raises
+S63	outcome	L1	no: upstream refuses StrictTime; lite's support is an extension	StrictTime lowered to database TIME; engine refuses it. mixed:L0
+S64	outcome	L0	-	Relational grammar adds TIME and TIMESTAMP_NS column types. mixed:L1
+S66	outcome	L1	no: Pure DateTime is an instant; zone not carried	Cypher zoned datetime = and <= compare instants only
+S65	outcome	L1	no: upstream's own model makes DateTime an instant	Cypher datetime carries instant, zone only beside it at translation. mixed:L2
+S67	outcome	L1	no: platform has no Duration type; model class used	Cypher Duration as model-class struct; ordering refused. mixed:L2
+S68	outcome	L1	no: zoned time carried as epoch-day instant	Cypher zoned time as instant on epoch day; named zone refused
+S69	representation	L2	-	Offset seconds kept; oracle driver prints offset to the minute
+S70	outcome	L1	yes: keeping nanoseconds is deterministic; W13 carries them	Cypher nanosecond precision carried via TIMESTAMP_NS epoch (later as parts, S87)
+S71	scope	L0	-	Nanosecond values refused on non-DuckDB dialects; largely overturned by W13. mixed:L1
+S72	scope (extension)	L0	-	#IQ island reads IQ SET option statements (scope extension)
+S73	scope	L0	-	Duplicate output column names refused by name in #IQ/#SQL islands
+S74	representation	L1	no: association holds one link per pair; edge class covers	Cypher parallel relationships: one link per pair over plain associations
+S75	outcome	L1	yes: relationship uniqueness is deterministic, now spelled per MATCH	Cypher variable-length chains lack full relationship uniqueness
+S76	representation	L1	no: identities agree; text forms are store-specific	Cypher elementId as class path and key; identity semantics. mixed:L2
+S77	outcome	L1	no: per-call wall clock not promised by any dialect	Cypher realtime clock is statement's now(), one value per statement
+S79	outcome	L1	yes: value equality of list keys is typed, deterministic	Cypher grouping by list/map as JSON text: 1 and 1.0 two keys
+S80	representation	L1	yes: exact by-type comparison is sane and deterministic	Cypher Variant of unknown shape compared with number as float
+S81	representation	L1	yes: type-rank-then-value order, deterministic like the mixed sort	Cypher ordering/min/max of Variants by a text key, millionth precision
+S82	representation	L0	-	Cypher CALL maps to a model Pure function returning a relation
+S78	outcome	L1	no: Neo4j's order is store iteration order	Cypher collect(DISTINCT) order is the database's, not first occurrence
+S83	representation	L1	no: Neo4j's order is label creation order in its store	Cypher labels(n) order from class hierarchy, not creation order. mixed:L0
+S84	representation	L0	-	Cypher backticked full path names the class alone (name resolution)
+S85	representation	L2	-	Cypher node/relationship JSON values carry identity under @id. mixed:L1
+S86	outcome	L1	no: comprehension order is store expansion order	Cypher pattern comprehension list order is the database's
+S87	representation	L2	-	Cypher nanosecond temporal carried as parts, returned via ISO text the executor reads. mixed:L1
+S88	outcome	L1	yes: proleptic ISO year count is deterministic; text can move to Java	Cypher temporal text before year 1 raises; Neo4j spells proleptic ISO
+S89	representation (the engine's dialect and JSON)	L3	-	Engine-dialect grammar/JSON read as engine drops; lite dialect keeps text
+S90	outcome	L0	-	Property default values type-checked, optional defaults refused (as legend-pure)
+S91	outcome	L0	-	Non-class supertype refused (engine skips the check)
+S92	scope	L0	-	No Path class declared; path literal typed as its lambda (scope)
+S93	outcome	L0	-	Empty Operation union mapping refused at the element
+S94	outcome	L1	no: engine's query path never evaluates them either	Function pre/post-conditions compiled but never evaluated at run time
+S95	outcome	L0	-	Bare Result generic accepted (engine's arity check differs)
+S96	outcome	L0	-	Long-min literal in ModelStore data parsed differently. mixed:L3
+S97	outcome	L1	no: by-position alignment is fragile; lite types by name	write(): relation aligned to table by column name not position. mixed:L0
+S98	outcome	L1	no: row-by-row reads need a Java row loop	Cypher SET staged rows, set-based writes in Neo4j's groups
+S99	outcome	L1	yes: Cypher cross-kind equality is typed and deterministic	Cypher MERGE property match by kind column; 1 does not match 1.0
+S100	representation	L1	no: id reuse is Neo4j store-internal	Cypher created ids minted above store max; identity format
+S101	representation	L2	-	Cypher update statement returns one hidden column, no rows. mixed:L3
+S102	scope	L0	-	Cypher writes over a domain model: model is the schema (scope)
+S103	scope	L0	-	#SQL island writes: subset of Postgres INSERT/UPDATE/DELETE (scope). mixed:L1
+S104	representation (wire text)	L2	-	pure/v1 Decimal wire text keeps scale (2.50) vs engine's H2 forms
+S105	outcome (value)	L1	yes: IEEE double result is deterministic; S20 already rules IEEE	pure/v1 Float expression value: engine Java double vs lite 3.3. mixed:L2
+S106	outcome	L0	-	Pivot columns typed statically; uncast pivot answers (engine needs cast). mixed:L1
+S107	representation (name)	L2	-	Pivot generated column names presented with quotes; physical names bare
+S108	outcome	L1	no: upstream refuses pivot on H2 entirely	Static and dynamic pivot answered on H2 where engine refuses. mixed:L0
+S109	outcome	L1	no: upstream's error exists on DuckDB only; others refuse	Cast naming absent dynamic-pivot key: null column vs DuckDB error
+S110	outcome	L1	yes: null cell for list aggregate is sane and deterministic	Dynamic pivot as two-statement probe plan; list aggregates differ
+S111	outcome	L1	yes: Pure's construction identity is deterministic; lite implements it	Object identity minted per construction site; untracked identity raises by name
+S112	outcome	L0	-	User functions generic over relations admitted, expanded per call
+S113	scope (extension)	L0	-	Lite adds without() column-dropping function (scope extension)
+S114	scope (extension)	L0	-	Lite adds read(row, ~col) primitive (scope extension)
+S115	representation (wire text)	L2	-	pure/v1 Variant cell keeps database's JSON digits, compacted
+S116	outcome (fixed 2026-10-29, track F: lite lowers `toVariant(x)` to `COALESCE(to_json(x), CAST('null' AS JSON))`, the engine's `ifnull(to_json(x), 'null'::json)` by value; the PCT pins `toVariant([])->toString()` = `'null'`; measured on the local lanes at track F's commit) -- as found:	L1	yes: engine's JSON null for empty toVariant, adopted	toVariant of empty value: JSON null as engine (fixed in lite)
+S117	representation (output text)	L2	-	Lite writers print Float negative zero as -0.0; Pure prints 0.0
+S118	representation (output text)	L2	-	DateTime print precision: trimmed for value roots, nine digits for cells
+S119	outcome (the user's ruling, 2026-11-03)	L1	no: interpreter has no NaN; lite matches compiled/engine IEEE	Float IEEE: NaN/Infinity are values; JSON spelling differs per writer. mixed:L2
+S120	outcome	L1	no: interpreter's BigDecimal Float would make every Float decimal	Big Float literal is a binary64 double, not the interpreter's BigDecimal
+S121	pending	L2	-	Pending print divergences: date zone rule, instance text, element toString, nested dates
+S122	withdrawn	L1	yes: withdrawn; lite already exact (enum name order)	Mixed-list sort of enumeration values: exact, no divergence
+S123	outcome (mixed sort)	L1	no: upstream's comparator is not a total order	Mixed sort ranks Decimal with numbers; compiled Pure sorts it after strings
+S124	outcome (a relation's cells in value position)	L1	no: arrival order is promised by no database	Relation cells in value position numbered by sort keys or all-columns order
+S125	pending the user's ruling	L3	-	Arrow IPC execute typed from plan slots with legend metadata. mixed:L2
+S126	outcome (resolved by the driver, 2026-10-29: core's DuckDB bumped 1.4.4.0 to 1.5.6.0 on the user's ask, D60; 1.5.6 keeps the left rows against a proven-empty derived table, as the spec and the emulation do; `testAsOfJoinEmptyRight` asserts the two rows, the two lane floors lost their line) -- as found on 1.4.4:	L1	yes: LEFT asOfJoin keeps rows; resolved by DuckDB bump	asOfJoin against provably empty right side dropped rows on DuckDB 1.4.4
+S127	outcome (the user's ruling, 2026-11-04: "the principled fix for the product, then compiled for backwards compatible")	L1	no: the three upstream runtimes disagree with each other	Cross-kind number equality: never equal in lite; compat mode uses compiled rule
+S128	outcome (scope)	L0	-	print planned as no statement; engine has no print (scope). mixed:L1
+S129	outcome (the user's ruling, 2026-11-02)	L1	yes: evaluate-once-per-let is deterministic; cost is staging	Read let evaluated per reader; raise timing and nondeterminism visible
+S130	input (the user's ruling, 2026-09-12; kept 2026-11-03)	L0	-	PCT runs with CORRECT_SQL_SUBSTRING_INDEXING; corpus without (harness input). mixed:L1
+S131	outcome (test judge; the user's ruling, 2026-11-03)	L0	-	Test judge compares unsorted results as multisets
+S132	outcome (test judge; the user's ruling, 2026-11-03, widening S15)	L0	-	Test judges compare Floats within 2 ULP, incl. rendered text
+S133	capability (test door; the user's ruling, 2026-11-04)	L0	-	Test door refuses SQL text built at run time for executeInDb
+S134	outcome (the user's ruling, 2026-11-05)	L1	yes: Pure's 0-based indexOf is the spec, deterministic	String indexOf lowered 1-based as engine; Pure is 0-based
+S135	outcome (the user's ruling, 2026-11-05; built 2026-11-05: GATES "assertError: the host catches, the database judges (S135)")	L0	-	assertError as a planned outcome judged; savepoint rolls back writes. mixed:L1
+S136	outcome (the user's ruling, 2026-11-05; WITHDRAWN 2026-11-05, the user: "drop s136")	L1	yes: withdrawn; lite raises at run time as upstream	Literal-decided error raised at run time (withdrawn, no difference)
+S137	outcome (the user's ruling, 2026-11-05; built 2026-11-05)	L0	-	assertSize/assertEmpty over a relation refused in lite runs; compat counts one
+S138	outcome (the user's ruling, 2026-11-05; built 2026-11-05: the acos/asin guard on SQLite, MariaDB and MySQL now raises `acos of a value outside [-1, 1] is NaN, which this database cannot hold`, its PCT ledger rows re-texted; the spike measured the Pure-error guards it found already carrying upstream's text)	L2	-	Guard error text names the database's reason vs upstream's words. mixed:L1
+S139	outcome (the user's ruling, 2026-11-05: "yes option A on decimal"; built 2026-11-05: GATES "The user's rulings built")	L1	no: scale-sensitive equality differs from every database's =	Decimal equality by value, not value and scale; compat keeps scale
+S140	outcome (the user's ruling, 2026-11-05: "leave the guards off for precision for now")	L1	yes: checking declared precision constraints is typed, deterministic	Precise primitive constraints (Numeric(p,s), Varchar(n)) parsed but not checked
+S141	platform (the user's ruling, 2026-11-05: "I want latest version of H2")	L0	-	Lite runs plain H2 2.5.252, not engine's patched 2.1.214 (platform). mixed:L1
+S142	outcome (test judge; the user's ruling, 2026-11-06: "Yes")	L0	-	Test judges read UNION ALL sides in branch order. mixed:L1
+S143	scope (the user's ruling, 2026-11-06: "Agree skip the tests, delete walk then we revisit to build product and maybe that's just a java built in if makes sense to think that way"); NARROWED 2026-11-11 by B2d.2 (the generator design the user approved 2026-11-10, the read-only reload ruled 2026-11-11)	L0	-	Test data generator offered on test road only, narrowed slices (scope)
+S144	outcome (the user's ruling, 2026-11-07: option 2, "I like option 2" -- strict in lite's own runs, upstream's grammar only in compatibility mode, at the edge)	L0	-	assertJsonStringsEqual: strict JSON in lite runs, json-simple in compat. mixed:L2
+S171	outcome (the user's ruling, 2026-11-09: "Agree with the first 2" -- a project's `###Data` loaded at first use, once, and kept)	L0	-	Project ###Data loaded once at first use and kept (model loading). mixed:L1
+S172	closed 2026-11-09 by L2 (the user's ruling of that day, decision 6: one declared format, its default DuckDB's rule, which is upstream's); superseded 2026-11-10 by A3 (the A checkpoint's tenets audit, 6: no database takes the runner's cells since)	L1	yes: Commons CSV EXCEL rule is deterministic	loadCsvToDbTable cell reading rules; now the database's reader (closed/superseded)
+S173	outcome (the user's ruling, 2026-11-09, D-a: "Go with your recommendations" -- the database's cast decides, no Java check on a cell's text)	L1	yes: strict integer cell check is typed and deterministic	CSV Integer cell: database cast decides vs upstream Long.valueOf refusal
+S174	message (the user's ruling, 2026-11-09, D-c: one row, the outcome the same refusal, lite's message naming the case)	L2	-	Malformed CSV refused with lite's message; same outcome as upstream
+S175	outcome (the user's ruling, 2026-11-09: "H2 I think just use decfloat thats fine (I'm sure h2 has a string printer that you can tell toString to use ...)")	L1	no: engine types parameter by digits; placeholder cannot	H2 Decimal/Number parameters as DECFLOAT: scale lost, integer division differs. mixed:L2
+S176	outcome (the user's ruling, 2026-11-09: "All sounds good", bookkeeping: D1's "a database upstream has no extension for"; the StrictDate sentence, from the correctness re-audit's 8, ruled 2026-11-10: "SQLite that's fine")	L1	no: upstream has no SQLite extension	SQLite Date/DateTime parameters cast to TEXT; StrictDate answers date text
+S177	outcome (the user's ruling, 2026-11-09: "All sounds good", bookkeeping: as S176)	L1	no: upstream has no MariaDB/MySQL extension	MariaDB/MySQL date parameters as DATETIME(6), finer digits cut
+S179	outcome (the user's rulings: the literal 2026-11-09, "All sounds good"; the parameter 2026-11-10, "Okay on click")	L1	no: upstream reads in server zone and clamps silently	ClickHouse date literal/parameter as UTC DateTime64(6), out-of-range refused/raised
+S178	scope (the user's ruling, 2026-11-08: the system catalog design, `docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md` §3-§5, "makes no sense to me that Class.all would not give you all the classes"; to be BUILT, the catalog's product half)	L0	-	Class.all() extent: platform plus loaded projects (catalog to be built). mixed:L1
+S180	outcome (RULED by the user, 2026-11-10: "Keep refusal")	L1	no: conversion by runtime value shape needs Java at exec	Date parameter on zoned connection refused; DateTime converted as literal
+S181	outcome (RULED by the user, 2026-11-10: "Yes" -- refused, never cut; A7)	L1	no: database rounding of extra digits differs per database	Date-time with more fraction digits than target keeps refused, not rounded
+S182	WITHDRAWN 2026-11-10 (A6; the orchestrator: "exactly upstream, no ruling needed")	L1	yes: withdrawn; lite uses upstream's PARSE_DATE	BigQuery Date parameter as upstream's PARSE_DATE (withdrawn, no difference)
+S183	outcome (a KNOWN GAP, scheduled later: the user, 2026-11-09, "Timezone agree we can do later")	L1	yes: connection time-zone conversion is deterministic; scheduled later	Connection timezone applied only inside execute frame (known gap)
+S184	outcome (RULED for the empty line, the quote after a space and the refused mixed line breaks: the user, 2026-11-09, "those become register rows with tests" then "All sounds good"; the wide record of one empty extra cell RULED LOADED by the user, 2026-11-10: "Csv findings are fine")	L1	yes: Commons CSV rule is deterministic; needs own reader	DuckDB read_csv: empty line skipped, quote after space, CRLF mix refused
+S185	WITHDRAWN 2026-11-10 (the user's ruling, "Okay I guess that can be used for databases that have no csv read then"); its premise gone with A3 the same day (the A checkpoint's tenets audit, 6)	L1	yes: withdrawn; H2 streamed upstream's rule	H2 CSV via streamed cells (withdrawn; superseded by S186)
+S186	outcome (the user's go on docs/DATA_DELIVERY_DESIGN_2026_11_10.md, 2026-11-10: "H2 reads CSV in process with `CSVREAD`, its SQL checks refusing malformed records. Its three undetectable cases are register rows"; the short case measured wider than the design's "by one", raised with the orchestrator)	L1	yes: Commons CSV rule is deterministic; needs own reader	H2 CSVREAD loads short, wide-by-one-empty, unclosed-quote records upstream refuses
+S187	outcome (RULED by the user, 2026-11-10: "Agree with all 3" -- refused by name on every door; a query across runtimes is on the data delivery design's §9 later list)	L1	no: plan across several sessions/runtimes is not designed	Query naming several runtimes in from() refused unless one is given
+S188	closed 2026-11-11 by B3 (the text plan renders from the execution plan, its loads and bound paths carried: `QueryPlan` holds the plan; the refusal deleted) -- as it was: scope (TEMPORARY, until B3; the orchestrator's acceptance of the sequencing, 2026-11-10, to put to the user)	L3	-	Text plan (generatePlan) refused for live sources until B3 (closed)
+S189	message (RULED by the user, 2026-11-10: "Agree with all 3")	L2	-	Test-data Float cell NaN refused by name at planning; message lite's
+S190	WITHDRAWN 2026-11-11 (no database refuses a `data:` payload: the user's ruling, "we need to make json work everywhere", and the Snowflake, Databricks and BigQuery lanes' probes at 5fe98b92, relayed by the orchestrator). **Its per-database deliveries SUPERSEDED 2026-11-11 by the JSON pass** (the user's rulings, "move everything off temp table" and H2 inline): no database holds a session table of a payload's; every one binds the payload as one parameter it splits, or writes its rows into the statement (H2, MongoDB, Databricks above its 1 MiB parameter limit) -- `docs/TOTAL_WALL_START_HERE_2026_11_11.md` §4.3; the record below is history	L1	no: upstream executes model data in Java memory	data: payload delivery per database (withdrawn; same rows, no outcome difference)
+S191	outcome (RULED by the user, 2026-11-10: ruling 3 of docs/data-delivery-homework/B_BRIEF_2026_11_10.md §9, "Yes": "faithful to the real data, line breaks included")	L0	-	Test data generator writes text cells faithfully (RFC 4180), not scrubbed. mixed:L1
+S192	outcome (RULED by the user, 2026-11-11: "Read only reload is fine"; docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2)	L0	-	Generated test-data reload is read-only table swap, no writes. mixed:L1
+S193	representation (RULED by the user, 2026-11-10: the generator design's §7 item 1, "No temporary tables", its fetch texts' comparisons a register row; docs/data-delivery-homework/TEST_DATA_GENERATOR_DESIGN_2026_11_10.md §4)	L2	-	Test data generator fetch SQL texts are lite's own WITH chains. mixed:L0
+S194	representation (RULED by the user, 2026-11-11, verbatim: "Is that the input JSON to the database? Then that makes sense bc it's the dialects plan for the dialects json" -- after the orchestrator's answer that the plan hands the database the payload exactly as written, and the element's JSON text read back is the database printing its own parsed value)	L2	-	Variant element JSON text is the database's own printing of the payload
+S195	message (the outcome RULED by the user, 2026-11-11: "Agreed" -- `assertTestData` passes or fails EXACTLY as upstream decides, the failure MESSAGE lite's own)	L2	-	assertTestData decided as upstream; failure message lite's own
+S196	outcome (RULED by the user, 2026-11-11: "Yes accept that with a register row" -- "read where read")	L0	-	generateTestData planned where read, not at the let (test road). mixed:L1
+S197	outcome (RULED by the user, 2026-11-11: "keep ours" -- the B2d.2 audit round's finding, posted with the recommendation to keep lite's rule)	L0	-	CSV test-data reader block end rule: lite's, not engine's dash/empty rule
+S198	representation (RULED by the user, 2026-11-11: R2 of docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md §5, the user's own words: "can we get best of both? Order by but pick some row numbers from beginning middle end?"; R4 of the same, "yes fine")	L0	-	Test data seed picks 10 evenly spread sorted keys, code-point order. mixed:L1
+S199	representation (RULED by the user, 2026-11-11, M5: "Shouldn't that route to database unless boolean or string constant fold?")	L3	-	generatePlan writes folded constants as ConstantExecutionNode; computed ones as SQL plan. mixed:L1
+S300	message (RULED by the user, 2026-11-11: R3 of docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md §5, "yes fine")	L2	-	Missing row identifiers message: example list empty (planning reads no row)
+S301	scope (RULED by the user, 2026-11-12, on the orchestrator's two open questions: "Can put views for test data as follow up"; and on runtimes written out in a request, "It can also go to follow up if doesn't block Plan vs exec total split work")	L3	-	Views on test-data routes and written-out runtimes on pure/v1 routes refused (scope). mixed:L0
+S302	outcome (RULED by the user, 2026-11-12: the B checkpoint's G7, option C, "Def want windows files accepted")	L0	-	Test-data CSV reader treats CRLF as a line break; Windows files load
+S303	scope (RULED by the user, 2026-11-12: "Let's do the most simple thing that will work on duckdb for now - can extend later", then "Go ahead" on the orchestrator's plan; before it, "Can we do this now instead of parquet")	L0	-	Lite adds a test-data synthesizer mode (scope extension)
+S304	representation (RULED by the user, 2026-11-10: `docs/data-delivery-homework/C_E_BRIEF_2026_11_10.md` §C1, "Agree with all": the database receives exactly the plan's text, no per-run trace comment, a register row records that upstream puts it in the text)	L2	-	No per-execution trace comment in SQL text; id still minted
+S305	scope (RULED by the user, 2026-11-12: "Agree, refuse with register row" -- the B2d.3 audit's M6, posted with the recommendation to refuse the bodies by name and point the rosters at a row)	L0	-	Seven _Alloy test-data tests refused by name (scope)
+S306	outcome (RULED by the user, 2026-11-12, the L9 printing question: "Our clean sheet lite plan should always do the clean/nice/right thing. In backwards compat we can chop the timestamp and we can make float a known divergence")	L2	-	Test data generator timestamp printing: full in clean, cut in compat

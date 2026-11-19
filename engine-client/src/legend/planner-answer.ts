@@ -6,25 +6,31 @@
 import type { RequestBody } from './planner-protocol.ts';
 import { planning } from '../plan-guard.ts';
 
-/** The module's exports the protocol's kinds name (planner.TabExports). */
+/** The module's exports the protocol's kinds name (planner.TabExports, lite's own entry: the user's K2 ruling, 2026-11-18;
+ *  com.legend.edge.wasm.TabExports from 2026-11-17 until then, when legend-engine's routes were among them -- the engine
+ *  module's now, legend/engine-module.ts). */
 export interface PlannerModule {
   readonly exports: {
     holdModelOrError(model: string): string;
     holdModelOverOrError(model: string, library: string): string;
     releaseModelOrError(handle: number): string;
-    planHeldOrError(handle: number, query: string, runtime: string): string;
-    relationTypeHeldOrError(handle: number, query: string): string;
+    // lite API v1's query/plan and query/type over a model held: its handle, the request without its model
+    queryPlanHeldOrError(handle: number, request: string): string;
+    queryTypeHeldOrError(handle: number, request: string): string;
     tableModelOrError(table: string): string;
     catalogColumnsSqlOrError(schema: string, table: string): string;
-    planJsonHeldOrError(handle: number, lambdaJson: string, runtime: string): string;
-    executionPlanJsonHeldOrError(handle: number, lambdaJson: string, runtime: string): string;
-    planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
-    // legend-engine's pure/v1 -- and lite's own /api/lite/v1/compilation/compile -- routed as legend-lite's server
-    // routes them (PureV1Api), and execute's two halves for a host that runs the SQL (PureV1Api.jsonPlan, jsonAnswer):
-    // `OK\n<status>\n<type>\n<body>`
-    pureV1OrError(path: string, rawQuery: string, body: string): string;
-    executeJsonPlanOrError(body: string, modelsJson: string): string;
-    executeJsonAnswerOrError(plan: string, rows: string): string;
+    // lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2): the request's JSON in, the answer's out
+    modelCheckOrError(request: string): string;
+    modelElementsOrError(request: string): string;
+    queryParseOrError(request: string): string;
+    queryPrintOrError(request: string): string;
+    queryTypeOrError(request: string): string;
+    queryPlanOrError(request: string): string;
+    modelCreateClassOrError(request: string): string;
+    modelCreateAssociationOrError(request: string): string;
+    modelCreateDataSpaceOrError(request: string): string;
+    tsItemOrError(request: string): string;
+    tsStatementOrError(request: string): string;
     fileLoadOrError(request: string): string;
     remoteMountOrError(request: string): string;
     snapStreamOrError(request: string): string;
@@ -47,16 +53,21 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'hold': return r.library === undefined ? m.exports.holdModelOrError(r.model)
       : m.exports.holdModelOverOrError(r.model, r.library);
     case 'release': return m.exports.releaseModelOrError(r.handle);
-    case 'plan': return m.exports.planHeldOrError(r.handle, r.query, r.runtime);
-    case 'relationType': return m.exports.relationTypeHeldOrError(r.handle, r.query);
+    case 'queryPlanHeld': return m.exports.queryPlanHeldOrError(r.handle, r.request);
+    case 'queryTypeHeld': return m.exports.queryTypeHeldOrError(r.handle, r.request);
     case 'tableModel': return m.exports.tableModelOrError(r.table);
     case 'catalogColumnsSql': return m.exports.catalogColumnsSqlOrError(r.schema, r.table);
-    case 'planJson': return m.exports.planJsonHeldOrError(r.handle, r.lambda, r.runtime);
-    case 'executionPlan': return m.exports.executionPlanJsonHeldOrError(r.handle, r.lambda, r.runtime);
-    case 'planModel': return m.exports.planJsonOrError(r.model, r.lambda, r.runtime);
-    case 'pureV1': return m.exports.pureV1OrError(r.path, r.query, r.body);
-    case 'executePlan': return m.exports.executeJsonPlanOrError(r.body, r.models);
-    case 'executeAnswer': return m.exports.executeJsonAnswerOrError(r.plan, r.rows);
+    case 'modelCheck': return m.exports.modelCheckOrError(r.request);
+    case 'modelElements': return m.exports.modelElementsOrError(r.request);
+    case 'queryParse': return m.exports.queryParseOrError(r.request);
+    case 'queryPrint': return m.exports.queryPrintOrError(r.request);
+    case 'queryType': return m.exports.queryTypeOrError(r.request);
+    case 'queryPlan': return m.exports.queryPlanOrError(r.request);
+    case 'modelCreateClass': return m.exports.modelCreateClassOrError(r.request);
+    case 'modelCreateAssociation': return m.exports.modelCreateAssociationOrError(r.request);
+    case 'modelCreateDataSpace': return m.exports.modelCreateDataSpaceOrError(r.request);
+    case 'tsItem': return m.exports.tsItemOrError(r.request);
+    case 'tsStatement': return m.exports.tsStatementOrError(r.request);
     case 'fileLoad': return m.exports.fileLoadOrError(r.request);
     case 'remoteMount': return m.exports.remoteMountOrError(r.request);
     case 'snapStream': return m.exports.snapStreamOrError(r.request);

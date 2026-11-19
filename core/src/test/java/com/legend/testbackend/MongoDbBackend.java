@@ -42,6 +42,11 @@ final class MongoDbBackend implements TestBackend {
         return name();
     }
 
+    @Override
+    public boolean opensJdbc() {
+        return false;
+    }
+
     /** None: a MongoDB speaks no JDBC (D12). */
     @Override
     public Connection open() {

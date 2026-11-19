@@ -49,18 +49,18 @@ public final class BodyDriver {
     }
 
     // (ENGINE_TEXT, the engine golden DDL text's dialect held statically here until 2026-11-09:
-    // com.legend.planner.EngineText.engineText(), one per use)
+    // the plan style's engineText, one per use)
 
     /** The K-phase execution environment: the body's PLANNING half ({@link com.legend.planner.PlanEnv}: the model,
      * the runtime, the ONE dialect -- audit 17: recomputing it per arm invited a future mixed-dialect bug -- the
      * query's lets, the renames, the frame, the features, the site ids) and WHERE its statements run: the TARGET,
      * never a session (I3, 2026-11-07: planning names a target, the run opens its session -- the runner's
      * PlanSessions.Source maps one to the other), the trace, the verdict batch and the caller's execute options. Split in two by the seam program's S2g (2026-10-31) so planning helpers can leave the driver. */
-    record ExecEnv(com.legend.planner.PlanEnv plan,
+    public record ExecEnv(com.legend.planner.PlanEnv plan,
             com.legend.executionplan.ExecutionPlan.Target target,
             PlanningOptions options,
             com.legend.testplan.@com.legend.base.Nullable VerdictBatch verdictBatch,
-            SqlTextVerdicts.@com.legend.base.Nullable Collector engineText,
+            @com.legend.base.Nullable TextCollector engineText,
             com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage failureMessage,
             BodyDriver.@com.legend.base.Nullable ExecEnv appealOn,
             // the body's verdict ids, one counter shared by every copy of the environment and every planner of the body
@@ -68,21 +68,22 @@ public final class BodyDriver {
             com.legend.testplan.VerdictIds verdictIds,
             // the body's engine-text appeals by number, shared likewise (the plan-as-data design's step 4, 2026-11-08):
             // planning's registry, the plan carrying those its verdicts name (step 8b)
-            EngineTextAppeals appeals) {
+            NumberedExtensions appeals) {
 
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
          *  options' features), a fresh trace, no batch. */
         static ExecEnv of(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect, PlanningOptions options) {
-            return new ExecEnv(com.legend.planner.PlanEnv.of(ctx, runtimeFqn, dialect, options.features(),
+            return new ExecEnv(com.legend.planner.PlanEnv.of(ctx, runtimeFqn, dialect, options.style(),
+                    options.features(),
                     // the generator's plan names the engine's test connection, as every engine test of it does (its
                     // runtime argument is not read)
-                    tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, com.legend.planner.EngineText.engineText(),
-                            "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
-                                    + "\")")).withOptions(options.options()),
+                    tg -> options.style().facet(com.legend.planner.UpstreamPlans.class)
+                            .generatedTestDataPlan(tg, ctx))
+                            .withOptions(options.options()),
                     JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, null, null, null, null,
-                    new com.legend.testplan.VerdictIds(), new EngineTextAppeals());
+                    new com.legend.testplan.VerdictIds(), new NumberedExtensions());
         }
 
         ModelContext ctx() {
@@ -150,7 +151,7 @@ public final class BodyDriver {
         }
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
-        ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
+        ExecEnv withCollector(@com.legend.base.Nullable TextCollector c) {
             return new ExecEnv(plan, target, options, verdictBatch, c,
                     failureMessage, appealOn, verdictIds, appeals);
         }
@@ -180,7 +181,7 @@ public final class BodyDriver {
             }
             com.legend.executionplan.@com.legend.base.Nullable DatabaseType from = besideCatalog(target);
             com.legend.executionplan.@com.legend.base.Nullable DatabaseType to = besideCatalog(other);
-            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(com.legend.database.Databases.dialect(
+            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(options.style().dialect(
                     to != null ? com.legend.planner.ConnectionPlans.model(to)
                             : com.legend.Compiler.executesOn(ctx(), runtimeFqn()).type()));
             return new ExecEnv(p, other, options, verdictBatch, engineText, failureMessage, appealOn,
@@ -220,8 +221,10 @@ public final class BodyDriver {
      * statement as a plan (JudgePlans, step 6). */
     static com.legend.testplan.VerdictBatch newVerdictBatch(ExecEnv env) {
         return new com.legend.testplan.VerdictBatch(com.legend.lowering.VerdictSql::batch,
-                com.legend.lowering.VerdictSql::either, com.legend.lowering.VerdictSql::selfContained, JudgePlans.runner(env),
-                env.verdictIds());
+                com.legend.lowering.VerdictSql::either,
+                (row, name, wantEqual) -> com.legend.lowering.VerdictSql.selfContained(row, name, wantEqual,
+                        DatabaseJudge.words(env)), JudgePlans.runner(env),
+                env.verdictIds(), DatabaseJudge.words(env));
     }
 
     /** Whether {@code nc} is a native of the asserts package, asked by its declaration: the verdict family's members
@@ -304,7 +307,7 @@ public final class BodyDriver {
         env.queryLets().putAll(inliner.queryLets());
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
-                .stage(b, stageEnv, com.legend.planner.EnginePlans.nativeRoutines(specs, env.plan())));
+                .stage(b, stageEnv, com.legend.planner.PlanTextRoutines.of(specs, env.plan())));
         TypedSpec preRoot = com.legend.compiler.spec.typed.Lets.bare(body.get(body.size() - 1));
         while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
             preRoot = pf.source();
@@ -681,7 +684,7 @@ public final class BodyDriver {
 
     /** A side's plan after the canon wrap (leg 3.1): what database mode
      * composes into its verdict statement without executing it. */
-    record WrappedSide(com.legend.sql.SqlQuery plan,
+    public record WrappedSide(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.ExprType shapeInfo,
             com.legend.plan.ResultShape shape,
             com.legend.executionplan.ExecutionPlan.Target target,
@@ -746,11 +749,11 @@ public final class BodyDriver {
         }
         BarePlan b;
         // a side the judge evaluates outside the body's statement: SIDE, where no arm has marked the texts it reads
-        String priorOrigin = SqlTextVerdicts.marking(env, "SIDE", true);
+        String priorOrigin = EngineTextGates.marking(env, "SIDE", true);
         try {
             b = planStaged(com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan()), value, env, null, identity, true);
         } finally {
-            SqlTextVerdicts.restoreMarking(env, priorOrigin);
+            EngineTextGates.restoreMarking(env, priorOrigin);
         }
         if (fold && b.answered() == null) {
             // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
@@ -840,4 +843,31 @@ public final class BodyDriver {
                 + " computed text) would run a statement while the body is planned");
     }
 
+    /** A plan handle ({@code executionPlan}'s value: legend-engine's plan, its nodes and its text) is the compatibility
+     *  edge's alone (D's hook fold, a4ac096b5, 2026-11-16): on any other style the body is refused BY NAME before
+     *  either judge plans it -- the style's own refusal (its {@code UpstreamPlans} facet, Phase 6's A, 2026-11-17), one place, so every judge reports the
+     *  same failure -- where it had walled late, in the store resolver, under a generic message. On the edge the call
+     *  answers its printer, which is not kept. */
+    static void refusePlanHandlesOffTheEdge(com.legend.TypedQuery typed, PlanningOptions options) {
+        for (com.legend.compiler.spec.typed.TypedSpec statement : typed.body()) {
+            if (bindsAPlanHandle(statement)) {
+                // the engine's own test database, whose plan text the edge prints (an engine test's plans name it)
+                options.style().facet(com.legend.planner.UpstreamPlans.class);
+                return;
+            }
+        }
+    }
+
+    private static boolean bindsAPlanHandle(com.legend.compiler.spec.typed.TypedSpec s) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall n
+                && com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN.equals(n.callee().qualifiedName())) {
+            return true;
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : s.children()) {
+            if (bindsAPlanHandle(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

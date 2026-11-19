@@ -1,0 +1,33 @@
+import sys, json, collections
+def load(p):
+    out = collections.OrderedDict()
+    for line in open(p, encoding='utf-8'):
+        f = line.rstrip('\n').split('\t')
+        key = f[2]
+        n = 2
+        while key in out:
+            key = f[2] + '#%d' % n; n += 1
+        out[key] = (f[1], f[3])
+    return out
+def rows(a):
+    if a.startswith('REFUSED'):
+        return None
+    try:
+        v = json.loads(a.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r').replace('\\\\', '\\'))
+    except Exception:
+        return None
+    if isinstance(v, list):
+        return collections.Counter(json.dumps(x, sort_keys=True) for x in v)
+    return None
+a, b = load(sys.argv[1]), load(sys.argv[2])
+same = order = moved = 0
+for k in a:
+    fa, x = a[k]; fb, y = b.get(k, (None, None))
+    if x == y:
+        same += 1
+    elif rows(x) is not None and rows(x) == rows(y):
+        order += 1
+    else:
+        moved += 1
+        print('MOVED\t%s\t%s\n  before: %s\n  after:  %s' % (fa, k[:160], (x or '')[:300], (y or '')[:300]))
+print('same=%d order_only=%d moved=%d' % (same, order, moved), file=sys.stderr)

@@ -300,6 +300,28 @@ Julian shift, which no user wants.
 drops the era and shifts to the Julian calendar), and that the Java repair is replaced by the database's text on
 Snowflake and Databricks and for array elements?"
 
+> **RULED 2026-11-13 (the orchestrator, on the lanes' measurement; the user is told): the top-level era read is NOT a
+> repair. It reads the driver's typed value whole, and it stays. No carrier is built.** Measured by
+> `BcDateProbeTest` (`//pct:pct_bc_date_probe_<lane>`, at 05e6d449a7 and 4db48b24d9):
+> - **Snowflake, driver 4.4.0:** the default `getObject` gives a `java.sql.Date`/`Timestamp` of `0044-03-15 era BC`
+>   for `date(-43,3,15)`, and `day`/`wallClock` read year 1-44 = -43, the input exactly. Every `java.time` getter is
+>   refused, AD dates included. `getString` drops the era (`0044-03-15`).
+> - **Databricks, databricks-jdbc 3.4.3:** the default getter keeps the era, as on Snowflake. `getObject(LocalDate)`
+>   gives `0044-03-15` with no sign, read as AD 44: WRONG. `LocalDateTime`/`OffsetDateTime` and `getString` give text
+>   with the era dropped: WRONG.
+> - So on these two lanes the `java.time` and text readers are wrong and stay unused: `Decoding.javaTime` is false
+>   there. Exit (a) above, the database's text under `TEMPORAL_TEXT`, is WITHDRAWN: Databricks' text drops the sign.
+> - **BigQuery, google-cloud-bigquery-jdbc 1.6.0:** the database refuses a BC date (its range is 0001-9999). Lite
+>   will refuse a BC date LITERAL by name at planning; that change waits for a register row the user rules. A BC date
+>   computed in SQL stays the database's own raise.
+> - **Array leaves:** Snowflake's driver refuses `getArray` (it answers an ARRAY as JSON text, in which the BC year
+>   is signed). Databricks' needs `EnableComplexDatatypeSupport=1`, which the lane does not set. The array-leaf arm
+>   stays as it is: it is reached by DuckDB and Postgres, measured right, and H2 carries lists as JSON text.
+> - **Found on the way, open (not fixed):** lite's BC date/time LITERAL spelling. Databricks refuses `DATE '-43-03-15'`
+>   and `TIMESTAMP '-43-03-15T10:30:00'` (`INVALID_TYPED_LITERAL`; `make_date`/`make_timestamp` work). Snowflake
+>   refuses `TIMESTAMP '-43-03-15T10:30:00'`. SQLite spells `date(-43,3,15)` `-043-03-15`. Listed in
+>   docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md §7.
+
 ## 7. Sites 5, 6 and 7
 
 ### 7.1 Site 5: kinds chosen from a cell's text

@@ -8,7 +8,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The JVM half of a differential: runs the tab's own export, {@link TabExports#planOrError}, over a query
+ * The JVM half of a differential: runs the tab's own exports' composition (lite API v1: a text query's
+ * {@code queryParseOrError}, then {@code queryPlanOrError}, each {@code Folded.of} of the {@link Boundary} member), over a query
  * list and writes the answers for the WASM half to compare against. Same source,
  * same inputs — only the backend differs. A BUILD ACTION (wasm/BUILD.bazel,
  * jvm_answers): the answers are a function of the planner's source and the
@@ -16,7 +17,7 @@ import java.util.Map;
  *
  * <p>Usage: {@code JvmMain <model-file> <queries-tsv> <runtime> <out-file> [json]}. Each
  * TSV line is {@code name<TAB>query}: Pure text, or with {@code json} the lambda's
- * protocol JSON ({@link TabExports#planJsonOrError}); the output is one block per query,
+ * protocol JSON ({@code queryPlanOrError} alone, over {@link Boundary#queryPlan}); the output is one block per query,
  * {@code <<<name>>>\n<answer>\n<<<END>>>\n}, in the TSV's order.
  *
  * <p>It does not time anything. A build action shares its machine with every
@@ -47,10 +48,27 @@ public final class JvmMain {
         StringBuilder out = new StringBuilder();
         for (Map.Entry<String, String> e : queries.entrySet()) {
             out.append("<<<").append(e.getKey()).append(">>>\n")
-                    .append(json ? TabExports.planJsonOrError(model, e.getValue(), runtime)
-                            : TabExports.planOrError(model, e.getValue(), runtime)).append('\n')
+                    .append(json ? planned(model, e.getValue(), runtime) : parsedThenPlanned(model, e.getValue(), runtime))
+                    .append('\n')
                     .append("<<<END>>>\n");
         }
         Files.writeString(Path.of(args[3]), out.toString(), StandardCharsets.UTF_8);
+    }
+
+    /** {@code queryPlanOrError} of a query's tree. */
+    static String planned(String model, String queryJson, String runtime) {
+        return Folded.of(() -> Boundary.queryPlan("{\"model\":" + com.legend.json.Json.toCompact(model) + ",\"query\":"
+                + queryJson + ",\"runtime\":" + com.legend.json.Json.toCompact(runtime) + "}"));
+    }
+
+    /** A text query as the tab composes it: {@code queryParseOrError}, then -- parsed -- {@code queryPlanOrError} of its
+     *  tree; a refusal of either its answer. */
+    static String parsedThenPlanned(String model, String text, String runtime) {
+        String parsed = Folded.of(() -> Boundary.queryParse("{\"text\":" + com.legend.json.Json.toCompact(text) + "}"));
+        if (!parsed.startsWith("OK\n")) {
+            return parsed;
+        }
+        return planned(model, com.legend.json.Json.toCompact(com.legend.json.Json.parseObject(
+                parsed.substring("OK\n".length())).get("query")), runtime);
     }
 }

@@ -78,8 +78,9 @@ class WritePlansH2Test {
                     () -> com.legend.Execution.run(delete, "w::RT",
                             new com.legend.exec.SessionSource.None("a program that writes opens no query session"),
                             PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
-                            com.legend.exec.ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Engine(
-                                    new StringWriter(), com.legend.server.PureV1Api.facts(delete))));
+                            com.legend.exec.ProductRun.Establish.DECLARED_SETUP, new com.legend.result.Output.Rows(
+                                    com.legend.edge.EngineAnswers.engine(new StringWriter(),
+                                            com.legend.edge.HostAnswers.facts(delete)))));
             assertTrue(refused.getMessage().contains("SCALAR result's serialization is unprobed"),
                     refused.getMessage());
             try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM T")) {

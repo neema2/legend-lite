@@ -247,7 +247,6 @@ public final class SqlPostProcessors {
             case SqlSource.Join j -> new SqlSource.Join(source(j.left(), m),
                     source(j.right(), m), j.kind(),
                     j.on() == null ? null : expr(j.on(), m));
-            case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql raw -> raw;   // carried text: opaque to rewrites
             case SqlSource.GridReport g -> g;   // a leaf
             case SqlSource.Catalog c -> c;   // a leaf
@@ -283,9 +282,9 @@ public final class SqlPostProcessors {
                             expr(w.condition(), m), expr(w.then(), m)))
                             .toList(),
                     cs.otherwise() == null ? null
-                            : expr(cs.otherwise(), m));
+                            : expr(cs.otherwise(), m), cs.reason());
             case SqlExpr.Cast ct -> new SqlExpr.Cast(expr(ct.value(), m),
-                    ct.target());
+                    ct.target(), ct.reason());
             case SqlExpr.Group g -> new SqlExpr.Group(expr(g.inner(), m));
             case SqlExpr.Exists ex -> new SqlExpr.Exists(
                     apply(ex.subquery(), m));

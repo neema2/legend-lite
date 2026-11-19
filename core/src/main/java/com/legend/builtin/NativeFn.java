@@ -243,6 +243,16 @@ public final class NativeFn {
                 Pure.ASSERT_INSTANCE_OF__ANY_1__TYPE_1, Pure.ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1, Pure.ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1__ANY_MANY, Pure.ASSERT_INSTANCE_OF__ANY_1__TYPE_1__FN_1),
         ASSERT_IS("meta::pure::functions::asserts::assertIs",
                 Pure.ASSERT_IS__ANY_1__ANY_1, Pure.ASSERT_IS__ANY_1__ANY_1__STRING_1, Pure.ASSERT_IS__ANY_1__ANY_1__STRING_1__ANY_MANY, Pure.ASSERT_IS__ANY_1__ANY_1__FN_1),
+        // the four default-message asserts, platform-claimed (#28, the orchestrator's go of 2026-11-17): each judged as
+        // its positive family negated, its words the run's rules' (lite's sentence, or legend-pure's)
+        ASSERT_NOT_EQ("meta::pure::functions::asserts::assertNotEq",
+                Pure.ASSERT_NOT_EQ__ANY_1__ANY_1, Pure.ASSERT_NOT_EQ__ANY_1__ANY_1__STRING_1, Pure.ASSERT_NOT_EQ__ANY_1__ANY_1__STRING_1__ANY_MANY, Pure.ASSERT_NOT_EQ__ANY_1__ANY_1__FN_1),
+        ASSERT_IS_NOT("meta::pure::functions::asserts::assertIsNot",
+                Pure.ASSERT_IS_NOT__ANY_1__ANY_1, Pure.ASSERT_IS_NOT__ANY_1__ANY_1__STRING_1, Pure.ASSERT_IS_NOT__ANY_1__ANY_1__STRING_1__ANY_MANY, Pure.ASSERT_IS_NOT__ANY_1__ANY_1__FN_1),
+        ASSERT_NOT_CONTAINS("meta::pure::functions::asserts::assertNotContains",
+                Pure.ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1, Pure.ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__STRING_1, Pure.ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__STRING_1__ANY_MANY, Pure.ASSERT_NOT_CONTAINS__ANY_MANY__ANY_1__FN_1),
+        ASSERT_NOT_SIZE("meta::pure::functions::asserts::assertNotSize",
+                Pure.ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1, Pure.ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__STRING_1, Pure.ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__STRING_1__ANY_MANY, Pure.ASSERT_NOT_SIZE__ANY_MANY__INTEGER_1__FN_1),
         ASSERT_EMPTY("meta::pure::functions::asserts::assertEmpty",
                 Pure.ASSERT_EMPTY__ANY_MANY, Pure.ASSERT_EMPTY__ANY_MANY__STRING_1, Pure.ASSERT_EMPTY__ANY_MANY__STRING_1__ANY_MANY, Pure.ASSERT_EMPTY__ANY_MANY__FN_1),
         ASSERT_NOT_EMPTY("meta::pure::functions::asserts::assertNotEmpty",

@@ -41,14 +41,15 @@ public final class MirJson {
 
     enum QueryTag { select, union, with }
 
-    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet, gridReport }
+    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, gridReport }
 
     enum ExprTag {
         rowOrder, storedRead, reduceCollection, membership, column, starExcept, star, stringLit, intLit, floatLit,
         decimalLit, boolLit, nullLit, dateLit, group, planParam, formatLit, datePartLit, jsonKindLit, typeNameLit,
         timestampLit, timeLit, orderedListAgg, arrayLit, structLit, structGet, call, caseExpr, exists, inSubquery,
-        checkedDefects, checkedChildValue, quantified, scalarSubquery, checkedOne, compactList, deferredTdsString,
-        tempTableInSplice, jsonObject, jsonArray, jsonArrayAgg, windowCall, lambda, cast, foldCall, reducer, keyCell
+        checkedDefects, checkedChildValue, quantified, scalarSubquery, checkedOne, compactList,
+        jsonObject, jsonArray, jsonArrayAgg, windowCall, lambda, cast, foldCall, reducer, keyCell,
+        raiseText
     }
 
     enum AggTag { reducer, rankingFn, valueFn }
@@ -80,11 +81,19 @@ public final class MirJson {
                 o.put("from", source(s.from()));
                 o.put("where", s.where() == null ? null : expr(s.where()));
                 o.put("groupBy", exprs(s.groupBy()));
-                o.put("having", s.having() == null ? null : expr(s.having()));
-                o.put("qualify", s.qualify() == null ? null : expr(s.qualify()));
+                // a HAVING, QUALIFY or OFFSET a select does not have is not written (the waste review of 2026-11-16: the
+                // clauses almost no select has were a null each in every select of a plan's tree); read back as none
+                if (s.having() != null) {
+                    o.put("having", expr(s.having()));
+                }
+                if (s.qualify() != null) {
+                    o.put("qualify", expr(s.qualify()));
+                }
                 o.put("orderBy", sortKeys(s.orderBy()));
                 o.put("limit", s.limit());
-                o.put("offset", s.offset());
+                if (s.offset() != null) {
+                    o.put("offset", s.offset());
+                }
                 o.put("outputs", outputCols(s.outputs()));
             }
             case SqlUnion u -> {
@@ -253,12 +262,6 @@ public final class MirJson {
                 o.put("alias", c.alias());
                 o.put("outputs", outputCols(c.outputs()));
             }
-            case SqlSource.VarSetPlaceholder v -> {
-                o.put("_type", SourceTag.varSet.name());
-                o.put("varName", v.varName());
-                o.put("alias", v.alias());
-                o.put("outputs", outputCols(v.outputs()));
-            }
         }
         return o;
     }
@@ -376,6 +379,17 @@ public final class MirJson {
                 o.put("value", expr(a.value()));
                 o.put("orderBy", expr(a.orderBy()));
             }
+            case SqlExpr.RaiseText r -> {
+                tag(o, ExprTag.raiseText, r.type());
+                o.put("kind", r.kind().name());
+                o.put("operands", exprs(r.operands()));
+                if (r.asData() != null) {
+                    o.put("asData", r.asData());
+                }
+                if (r.where() != null) {
+                    o.put("where", r.where());
+                }
+            }
             case SqlExpr.ArrayLit a -> {
                 tag(o, ExprTag.arrayLit, a.type());
                 o.put("elements", exprs(a.elements()));
@@ -433,18 +447,6 @@ public final class MirJson {
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list (SqlExpr.TaggedList) is"
                     + " resolved at its query's root before a plan is written: its rows' tag and slots are the plan's"
                     + " columns");
-            case SqlExpr.DeferredTdsString d -> {
-                tag(o, ExprTag.deferredTdsString, d.type());
-                o.put("inner", query(d.inner()));
-                o.put("alias", d.alias());
-                o.put("id", d.id());
-                o.put("form", d.form().name());
-                o.put("renderTdsNull", d.renderTdsNull());
-            }
-            case SqlExpr.TempTableInSplice t -> {
-                tag(o, ExprTag.tempTableInSplice, t.type());
-                o.put("tempTableName", t.tempTableName());
-            }
             case SqlExpr.JsonObject j -> {
                 tag(o, ExprTag.jsonObject, j.type());
                 o.put("kv", exprs(j.kv()));
@@ -464,7 +466,7 @@ public final class MirJson {
                 tag(o, ExprTag.cast, c.type());
                 o.put("value", expr(c.value()));
                 o.put("target", type(c.target()));
-                o.put("conform", c.conform());
+                o.put("reason", c.reason().code());
             }
             case SqlExpr.FoldCall f -> {
                 tag(o, ExprTag.foldCall, f.type());
@@ -485,9 +487,9 @@ public final class MirJson {
     private static void planParam(Map<String, Object> o, SqlExpr.PlanParam p) {
         tag(o, ExprTag.planParam, p.type());
         o.put("name", p.name());
-        o.put("kind", p.kind().name());
+        // the key "kind" carries the parameter's value type (L-B.PlanParam, 2026-11-18: the wire word kept, no version bump)
+        o.put("kind", p.valueType().name());
         o.put("optional", p.optional());
-        o.put("enumMapFn", p.enumMapFn());
         o.put("declared", p.declared() == null ? null : p.declared().name());
     }
 
@@ -524,6 +526,7 @@ public final class MirJson {
         }
         o.put("whens", whens);
         o.put("otherwise", c.otherwise() == null ? null : expr(c.otherwise()));
+        o.put("reason", c.reason().code());
     }
 
     private static void checkedDefects(Map<String, Object> o, SqlExpr.CheckedDefects d) {
@@ -919,8 +922,6 @@ public final class MirJson {
             case catalog -> new SqlSource.Catalog(named(SqlSource.Catalog.Grid.class, o.getString("grid"), "grid"),
                     o.getStringOr("schemaPattern", null), o.getStringOr("tablePattern", null),
                     o.getStringOr("columnPattern", null), o.getString("alias"), readOutputCols(o.getArr("outputs")));
-            case varSet -> new SqlSource.VarSetPlaceholder(o.getString("varName"), o.getString("alias"),
-                    readOutputCols(o.getArr("outputs")));
         };
     }
 
@@ -964,8 +965,8 @@ public final class MirJson {
             case planParam -> {
                 String declared = o.getStringOr("declared", null);
                 yield new SqlExpr.PlanParam(o.getString("name"),
-                        named(SqlExpr.PlanParam.Kind.class, o.getString("kind"), "parameter kind"),
-                        o.getBool("optional"), o.getStringOr("enumMapFn", null), type,
+                        named(SqlExpr.PlanParam.ValueType.class, o.getString("kind"), "parameter kind"),
+                        o.getBool("optional"), type,
                         declared == null ? null : named(com.legend.sql.DeclaredKind.class, declared, "declared kind"));
             }
             case formatLit -> {
@@ -984,6 +985,9 @@ public final class MirJson {
             case orderedListAgg -> new SqlExpr.OrderedListAgg(readExpr(o.getObj("value")),
                     readExpr(o.getObj("orderBy")), type);
             case arrayLit -> new SqlExpr.ArrayLit(readExprs(o.getArr("elements")), type);
+            case raiseText -> new SqlExpr.RaiseText(named(com.legend.sql.RaiseKind.class, o.getString("kind"),
+                    "raise kind"), readExprs(o.getArr("operands")), o.getStringOr("asData", null),
+                    o.getStringOr("where", null));
             case structLit -> {
                 List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
                 for (Json.Node n : o.getArr("fields").items()) {
@@ -1004,7 +1008,8 @@ public final class MirJson {
                     whens.add(new SqlExpr.Case.When(readExpr(w.getObj("condition")), readExpr(w.getObj("then"))));
                 }
                 Json.Obj otherwise = objOrNull(o, "otherwise");
-                yield new SqlExpr.Case(whens, otherwise == null ? null : readExpr(otherwise), type);
+                yield new SqlExpr.Case(whens, otherwise == null ? null : readExpr(otherwise),
+                        SqlExpr.Reason.of(o.getString("reason")), type);
             }
             case exists -> new SqlExpr.Exists(readQuery(o.getObj("subquery")), type);
             case inSubquery -> new SqlExpr.InSubquery(readExpr(o.getObj("value")), readQuery(o.getObj("subquery")),
@@ -1028,11 +1033,6 @@ public final class MirJson {
             case checkedOne -> new SqlExpr.CheckedOne(readExpr(o.getObj("list")), o.getBool("scalarCarrier"),
                     o.getBool("atLeastOnly"), type);
             case compactList -> new SqlExpr.CompactList(readExpr(o.getObj("list")), type);
-            case deferredTdsString -> new SqlExpr.DeferredTdsString((SqlSelect) readQuery(o.getObj("inner")),
-                    o.getString("alias"), o.getInt("id"),
-                    named(SqlExpr.DeferredTdsString.Form.class, o.getString("form"), "TDS form"),
-                    o.getBool("renderTdsNull"), type);
-            case tempTableInSplice -> new SqlExpr.TempTableInSplice(o.getString("tempTableName"), type);
             case jsonObject -> new SqlExpr.JsonObject(readExprs(o.getArr("kv")), type);
             case jsonArray -> new SqlExpr.JsonArray(readExprs(o.getArr("elements")), type);
             case jsonArrayAgg -> {
@@ -1053,7 +1053,7 @@ public final class MirJson {
             }
             case lambda -> new SqlExpr.Lambda(strings(o.getArr("params")), readExpr(o.getObj("body")), type);
             case cast -> new SqlExpr.Cast(readExpr(o.getObj("value")), readType(o.getObj("target")),
-                    o.getBool("conform"), type);
+                    SqlExpr.Reason.of(o.getString("reason")), type);
             case foldCall -> new SqlExpr.FoldCall(readExpr(o.getObj("source")),
                     (SqlExpr.Lambda) readExpr(o.getObj("lambda")), readExpr(o.getObj("init")),
                     o.getBool("accIsList"), o.getBool("homogeneous"), type);

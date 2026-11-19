@@ -19,7 +19,7 @@ import java.io.IOException;
  * PCT's feature flag
  * (CORRECT_SQL_SUBSTRING_INDEXING: the user's ruling of 2026-09-12, a written deviation from upstream's PCT adapter,
  * which sets none -- the engine's testable runner sets it for relation tests). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
- * answer the server writes from them ({@code Output.Engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
+ * answer the server writes from them ({@code edge.EngineAnswers.engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
  * PCT adapter reads it ({@link ValueBridge#engineTDS}); a value's elements cross as the reference's own instances
  * ({@link ValueBridge}).
  */
@@ -46,12 +46,16 @@ final class PctPlanRoute {
                 java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
-        ExecutionPlan plan = com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
+        // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
+        ExecutionPlan plan = com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, style ->
+                com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)
                 PctBackend.executionSource(),
                 PctBackend.planSessions(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features,
-                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY);
+                // the PCT compares against legend-pure's texts: the plan is spelled by the edge (phase D's D1.0)
+                style,
+                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY));
         com.legend.result.Collector.Collected c = collector.collected();
         boolean relation = plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION;
         if (relation) {
@@ -59,8 +63,8 @@ final class PctPlanRoute {
             // 3): the server's own writer of the engine's answer, written from the rows the run collected, after it
             // (2026-11-09: a tee the run called back until then)
             // made after the run for the execution that ran the SQL, its door's id as the run named it to the collector
-            com.legend.result.ResultSink engine = new com.legend.result.Output.Engine(json,
-                    com.legend.server.PureV1Api.facts(query)).writerFor(plan, collector.execution());
+            com.legend.result.ResultSink engine = new com.legend.result.Output.Rows(com.legend.edge.EngineAnswers.engine(
+                    json, com.legend.edge.HostAnswers.facts(query))).writerFor(plan, collector.execution());
             com.legend.result.Batcher batcher = new com.legend.result.Batcher(c.columns(), engine,
                     com.legend.result.Batcher.DEFAULT_CAPACITY);
             batcher.start();

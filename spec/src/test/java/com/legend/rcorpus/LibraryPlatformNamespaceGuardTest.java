@@ -46,7 +46,7 @@ class LibraryPlatformNamespaceGuardTest {
     private static List<? extends com.legend.model.PackageableElement> parse(String source) {
         return com.legend.Compiler.parseSources(
                 List.of(new com.legend.Compiler.ModelSource("t.pure", source)),
-                (name, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM)
+                (name, err) -> { }, com.legend.parser.GrammarLevel.LEGEND_PLATFORM)
                 .model().elements();
     }
 }

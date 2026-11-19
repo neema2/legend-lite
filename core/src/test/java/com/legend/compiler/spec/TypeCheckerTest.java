@@ -716,9 +716,10 @@ class TypeCheckerTest {
         // (census batch 150); the lowering emits fail()
         TypedSpec n = typeQuery("5->match([s:String[1]|$s])");
         assertEquals(Type.Primitive.STRING, n.info().type());
+        // the raise is a kind since W7 (2026-11-16): MATCH_FAILURE through typeRaise, its sentence the edge's
         assertTrue(n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && nc.callee().qualifiedName().equals("meta::pure::functions::asserts::fail"),
-                "a no-branch match is the fail() raise, got " + n.getClass().getSimpleName());
+                && nc.callee().qualifiedName().equals(com.legend.builtin.Pure.Lite.TYPE_RAISE),
+                "a no-branch match is the typeRaise raise, got " + n.getClass().getSimpleName());
     }
 
     @Test

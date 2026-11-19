@@ -85,16 +85,31 @@ public final class TestDataPlanner {
      * known divergence"), each spelled by the database ({@link #timestampText}). A date is {@code yyyy-MM-dd} and a float
      * the database's own text in both (register S306).
      */
-    public enum Printing {
-        /** Lite's own: a timestamp in full, as lite's writers spell a relation's time-bearing cell
-         *  ({@code result.CellText}, {@code Precision.INSTANT}): {@code yyyy-MM-ddTHH:mm:ss.nnnnnnnnn+0000} on every
-         *  database. */
-        CLEAN,
-        /** Backwards compatibility's (a test body judged by the compatibility rules; the server's legend-engine routes): a
-         *  timestamp as upstream's text writes it -- {@code toCSVString}'s {@code SimpleDateTimeFormat},
-         *  {@code yyyy-MM-dd HH:mm:ss}, its fraction cut (legend-engine {@code helperFunctions.pure:214-243}, the
-         *  generator's {@code getResultCSV}). */
-        COMPAT
+    public interface Printing {
+        /** The text of a timestamp cell {@code x}. */
+        SqlExpr timestampText(SqlExpr x);
+
+        /** The refusal of a starting table no identifier names and no seed starts (J7/K12 of the edge audit,
+         *  2026-11-17): its facts in, the exception the plan raises out -- the product's, the facts themselves
+         *  ({@link NoRowIdentifiers}); the server's legend-engine routes', upstream's error node (the edge's). */
+        RuntimeException unidentified(NoRowIdentifiers facts);
+
+        /** The order of the text's table blocks over {@code tables}, each fetched table in the walk's order (J7/K12 of
+         *  the edge audit, 2026-11-17): the product's, the walk's; the server's routes', by schema and table. */
+        List<Table> tableOrder(List<Table> tables);
+
+        /** The order of the header's (and each line's) columns over {@code cols} of {@code def} (J7/K12 of the edge
+         *  audit, 2026-11-17): the product's, by the display name ({@link #headerCase}). */
+        List<String> headerOrder(DatabaseDefinition.TableDefinition def, List<String> cols);
+
+        /** The header's name of column {@code col} of {@code def} (J7/K12 of the edge audit, 2026-11-17): the
+         *  product's, its display name ({@link #headerCase}). */
+        String headerName(DatabaseDefinition.TableDefinition def, String col);
+
+        /** The check of the query's relation tree {@code roots} before anything is fetched (J7/K12 of the edge audit,
+         *  2026-11-17): the product's admits every tree (a view's own fetch is planned); the server's routes refuse a
+         *  view by name. */
+        void checkTree(ModelContext ctx, List<ScanRelations.Rel> roots);
     }
 
     /** One table the generator fetched: its schema and name, its definition, its fetched columns in the test-data
@@ -124,47 +139,29 @@ public final class TestDataPlanner {
     public static Planned plan(ModelContext ctx, LambdaFunction query, String mappingFqn,
             List<TestDataGenerator.TableRowIds> rowIds, TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates,
             boolean hashStrings, Views views, Printing printing) {
-        return planned(ctx, query, mappingFqn, rowIds, dates, hashStrings, views, null, false, printing);
+        return plan(ctx, query, mappingFqn, rowIds, dates, hashStrings, views, null, printing);
     }
 
     /**
-     * The test data of the server's routes (B2d.3e; upstream's {@code TestDataGenerationAPI}:
-     * {@code generateTestData_WithSeed} and {@code generateTestData_WithDefaultSeed}, which run the generator's PLAN
-     * form, {@code planTestDataGenerationWithParameterValuePairs}, and write its rows with
-     * {@code TestDataGeneration.manageTestDataResult}): {@code query} over {@code mappingFqn} from {@code rowIds}, or,
-     * for a root none of them names, from {@code seed} -- the default seed, its chosen keys the statement's first
-     * clause and the root's rows read through it (every row, by key, where it holds none: upstream's
-     * {@code orFilters([])}); the text's tables in the routes' order, by schema then table ({@code manageTestDataResult},
-     * :282), each cell written as the function writes it (the user's ruling R5, register S191). A view in the query's
-     * relation tree is refused by name: upstream's plan form fetches a view's own rows {@code top 20} and a child view's
-     * main table through its parent (TDG:1023-1201), which lite does not plan. A root no identifier names and no seed
-     * starts is upstream's error node ({@link Unseeded}). A timestamp prints as backwards compatibility's
-     * ({@link Printing#COMPAT}): the routes are legend-engine's API, whose every {@code pure/v1} route writes
-     * legend-engine's spellings (L9, 2026-11-12).
+     * {@link #plan}, a root no identifier names started from {@code seed} where one is given (B2d.3e; the default seed
+     * of the server's routes, upstream's {@code generateTestData_WithDefaultSeed}: its chosen keys the statement's first
+     * clause and the root's rows read through it -- every row, by key, where it holds none: upstream's
+     * {@code orFilters([])}); the text written as {@code printing}'s form says (J7/K12 of the edge audit, 2026-11-17:
+     * the server's routes hand their own form, the edge's {@code TestDataRoutes}, where a boolean chose the route's
+     * rules here until then).
      */
-    public static Planned route(ModelContext ctx, LambdaFunction query, String mappingFqn,
-            List<TestDataGenerator.TableRowIds> rowIds, @com.legend.base.Nullable Seed seed, boolean hashStrings) {
-        return planned(ctx, query, mappingFqn, rowIds, null, hashStrings, (db, view, reads, tables) -> {
-            throw new IllegalStateException("a view on the server's route is refused before it is fetched");
-        }, seed, true, Printing.COMPAT);
-    }
-
-    private static Planned planned(ModelContext ctx, LambdaFunction query, String mappingFqn,
+    public static Planned plan(ModelContext ctx, LambdaFunction query, String mappingFqn,
             List<TestDataGenerator.TableRowIds> rowIds, TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates,
-            boolean hashStrings, Views views, @com.legend.base.Nullable Seed seed, boolean route, Printing printing) {
+            boolean hashStrings, Views views, @com.legend.base.Nullable Seed seed, Printing printing) {
         List<ScanRelations.Rel> roots = ScanRelations.relTree(ctx, query, mappingFqn);
-        if (route) {
-            for (ScanRelations.Rel r : roots) {
-                noView(ctx, r);
-            }
-        }
+        printing.checkTree(ctx, roots);
         // the engine's generateRelationColumnMap: a table's demanded columns merged across every node that fetches it
         // (a view's: its own tables', and its children's, TDG:567-583)
         Map<String, List<String>> colMap = new LinkedHashMap<>();
         for (ScanRelations.Rel r : roots) {
             columns(ctx, r, colMap);
         }
-        Walk walk = new Walk(ctx, colMap, rowIds, dates, views, seed, route);
+        Walk walk = new Walk(ctx, colMap, rowIds, dates, views, seed, printing);
         for (ScanRelations.Rel r : roots) {
             walk.root(r);
         }
@@ -178,19 +175,7 @@ public final class TestDataPlanner {
         for (Fetched f : walk.fetched.values()) {
             tables.add(new Table(f.schema(), f.table(), f.def(), headerOrder(f.cols()), f.ctes()));
         }
-        return new Planned(fetches, csv(walk, hashStrings, route, printing), walk.ctes, tables, hashStrings, printing);
-    }
-
-    /** A view in {@code rel}'s tree, refused by name on the server's route ({@link #route}). */
-    private static void noView(ModelContext ctx, ScanRelations.Rel rel) {
-        if (ScanRelations.isView(ctx, rel.db(), rel.table())) {
-            throw new NotImplementedException("testDataGen: the view '" + rel.table() + "' in the query's relation"
-                    + " tree on the server's route: not planned (B2d.3e; upstream's plan form fetches a view's own rows"
-                    + " top 20 and a child view's main table through its parent, TDG:1023-1201)");
-        }
-        for (ScanRelations.Rel c : rel.children()) {
-            noView(ctx, c);
-        }
+        return new Planned(fetches, csv(walk, hashStrings, printing), walk.ctes, tables, hashStrings, printing);
     }
 
     /** The demanded columns of every table {@code rel}'s tree fetches: a table's as {@link TestDataGenerator#mergeCols}
@@ -210,29 +195,10 @@ public final class TestDataPlanner {
 
     /** {@code cols} in the test-data text's order: sorted on the display (upper-cased) name, as upstream's goldens
      *  pin. */
-    private static List<String> headerOrder(List<String> cols) {
+    static List<String> headerOrder(List<String> cols) {
         List<String> cs = new ArrayList<>(cols);
         cs.sort(java.util.Comparator.comparing(TestDataPlanner::headerCase));
         return cs;
-    }
-
-    /** {@code cols} of {@code def} in the server routes' order (the B2d.3 audit's M1): upstream's plan form sorts a
-     *  table's columns by their model names ({@code sortBy(x | $x.name)}, TDG:885, :1043) -- Pure's string order,
-     *  case-sensitive, a quoted name with its quotes -- before it aliases each, and the route writes them in that
-     *  order. A planning constant: the model's names. */
-    private static List<String> routeOrder(DatabaseDefinition.TableDefinition def, List<String> cols) {
-        List<String> cs = new ArrayList<>(cols);
-        cs.sort(java.util.Comparator.comparing(c -> pureName(def, c)));
-        return cs;
-    }
-
-    /** A column's name in the server routes' header (the B2d.3 audit's M1): upstream aliases it
-     *  {@code $y.name->addQuotesIfNoQuotes()} (TDG:885) and its writer prints the label without its quotes, in double
-     *  quotes where it holds a space ({@code SQLResultColumn.getQuotedLabelIfContainSpace},
-     *  TestDataGeneration.java:306): the declared name, its case kept. */
-    private static String routeHeader(DatabaseDefinition.TableDefinition def, String c) {
-        String name = column(def, c).name();
-        return name.contains(" ") ? "\"" + name + "\"" : name;
     }
 
     /** One table's fetches: its schema, name, definition, demanded columns and the clauses that fetch it. */
@@ -247,10 +213,10 @@ public final class TestDataPlanner {
         private final List<TestDataGenerator.TableRowIds> rowIds;
         private final TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates;
         private final Views views;
-        /** The default seed the server's route starts its root from, or null. */
+        /** The default seed a root no identifier names starts from, or null. */
         private final @com.legend.base.Nullable Seed seed;
-        /** Whether this is the server's route (its root's error is the route's, {@link Unseeded}). */
-        private final boolean route;
+        /** The text's form: its refusal of a starting table no identifier names ({@link Printing#unidentified}). */
+        private final Printing printing;
         private final List<SqlWith.Cte> ctes = new ArrayList<>();
         private final Map<String, Fetched> fetched = new LinkedHashMap<>();
         /** Each table clause's table, by physical name: what a view's own fetch reads it from. */
@@ -260,14 +226,14 @@ public final class TestDataPlanner {
 
         Walk(ModelContext ctx, Map<String, List<String>> colMap, List<TestDataGenerator.TableRowIds> rowIds,
                 TestDataGenerator.@com.legend.base.Nullable MilestoningDates dates, Views views,
-                @com.legend.base.Nullable Seed seed, boolean route) {
+                @com.legend.base.Nullable Seed seed, Printing printing) {
             this.ctx = ctx;
             this.colMap = colMap;
             this.rowIds = rowIds;
             this.dates = dates;
             this.views = views;
             this.seed = seed;
-            this.route = route;
+            this.printing = printing;
         }
 
         void root(ScanRelations.Rel rel) {
@@ -390,17 +356,16 @@ public final class TestDataPlanner {
         }
 
         /** The starting rows of {@code table}: its given identifiers' rows (by key, at most 20), as the next clause; no
-         *  identifiers is upstream's error ({@link #noIdentifiers}). */
+         *  identifiers refused as the text's form says ({@link Printing#unidentified} of {@link #noIdentifiers}). */
         private String startingRows(String db, TestDataGenerator.Located loc, String table,
                 @com.legend.base.Nullable String view) {
             TestDataGenerator.TableRowIds ids = null;
             for (TestDataGenerator.TableRowIds t : rowIds) {
                 if (t.table().equals(table) && t.schema().equals(loc.schema())) {
                     if (ids != null) {
-                        // two entries for one table: upstream's assert, before anything else (the B2d.3 audit's L2;
-                        // getRowIdentifiersForTable, TDG:487, and the plan form's, TDG:1208; getQualifiedTableName)
-                        throw new AssertFailed("Multiple table row identifiers passed for the table: "
-                                + physical(loc.schema(), table));
+                        // two entries for one table: refused before anything else (the B2d.3 audit's L2; upstream's
+                        // assert, getRowIdentifiersForTable, TDG:487, the edge's words: J7 of the edge audit, 2026-11-18)
+                        throw new RowIdentifiersRepeated(loc.schema(), table);
                     }
                     ids = t;
                 }
@@ -410,7 +375,7 @@ public final class TestDataPlanner {
                 if (s != null && view == null && s.table().equals(table) && s.loc().schema().equals(loc.schema())) {
                     return seeded(loc, table, s);
                 }
-                throw route ? unseeded(ctx, db, loc, table, view) : noIdentifiers(ctx, db, loc, table, view);
+                throw printing.unidentified(noIdentifiers(ctx, db, loc, table, view));
             }
             List<String> cols = cols(loc, table);
             return add(loc, table, cols, idFetch(ids, loc, table, cols));
@@ -485,53 +450,37 @@ public final class TestDataPlanner {
     }
 
     /**
-     * No identifiers for a starting table -- the query's root, or a view's main table: upstream's error, raised where
-     * {@code generateTestData} is planned (the user's ruling R3, 2026-11-11, "yes fine"; register S300). Upstream's
-     * interpreted generator reads the table's first 5 keys and fails its own assert ({@code getRowIdentifiersForTable},
-     * TDG:482-518; a view's, TDG:510, :558) with {@code Row Identifers should be provided for the root table[ of the
-     * view (V)]: <db>.<[schema.]table> [<key>:<type>,...]\nExample:\n} and those keys written as
-     * {@code createTableRowIdentifiers(...)} code. Planning reads no row, so the example is written with no keys: the
-     * message is upstream's, its example's list empty.
+     * No identifiers for a starting table -- the query's root, or a view's main table -- and no seed: the generator's
+     * refusal, raised where {@code generateTestData} is planned (the user's ruling R3, 2026-11-11, "yes fine"; register
+     * S300). A kind with its FACTS (J7/K12 of the edge audit, 2026-11-17): the database that declares the table, its
+     * schema, its name, the view whose main table it is (or null), its key columns with their types; its message lite's
+     * own sentence, its kind and where, no value. Upstream's words (legend-pure's {@code getRowIdentifiersForTable},
+     * TDG:482-518: "Row Identifers should be provided for the root table ...") are the compatibility edge's, worded from
+     * these facts ({@code edge.PureMessages}, through {@code PlanStyle.errorWords}); the server's legend-engine routes
+     * answer upstream's error node from them (their form, {@link Printing#unidentified}). A failed assert where a test
+     * plan records it, as upstream's is.
      */
-    static AssertFailed noIdentifiers(ModelContext ctx, String db, TestDataGenerator.Located loc, String table,
-            @com.legend.base.Nullable String view) {
-        String owner = owningDatabase(ctx, db, loc.def());
-        return new AssertFailed(unidentified(owner, loc, table, view) + "Example:\n"
-                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(" + owner + ", '" + loc.schema()
-                + "', '" + table + "', [\n\n  ])\n");
-    }
-
-    /** Upstream's no-identifiers text up to its example, both forms': {@code Row Identifers should be provided for the
-     *  root table[ of the view (V)]: <db>.<[schema.]table> [<key>:<type>,...]\n}. */
-    private static String unidentified(String owner, TestDataGenerator.Located loc, String table,
-            @com.legend.base.Nullable String view) {
-        String keys = loc.def().columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
-                .map(c -> c.name() + ":" + com.legend.plan.PlanText.spell(c.dataType()))
-                .collect(java.util.stream.Collectors.joining(","));
-        return "Row Identifers should be provided for the root table" + (view == null ? "" : " of the view (" + view
-                + ")") + ": " + owner + "." + physical(loc.schema(), table) + " [" + keys + "]\n";
-    }
-
-    /**
-     * No identifiers and no seed for a root on the server's route (B2d.3e): upstream's plan form's error node
-     * (TDG:1244-1252), which the route answers as its 500's text -- the node's message, {@code Example:\n} and the
-     * table's identifiers as JSON ({@code TestDataGeneration.manageTestDataResult}, :230-262). Upstream's example holds
-     * the table's first 5 keys, read for it; planning reads no row, so the route's example holds none (register S300,
-     * as the function's). The message, and the table the example names, are data: the route writes the JSON.
-     */
-    public static final class Unseeded extends RuntimeException {
+    public static final class NoRowIdentifiers extends RuntimeException
+            implements com.legend.testexecutionplan.Failure.Kinded {
         private static final long serialVersionUID = 1L;
         private final String database;
         private final String schema;
         private final String table;
+        private final @com.legend.base.Nullable String view;
+        private final transient List<DatabaseDefinition.ColumnDefinition> keys;
 
-        Unseeded(String message, String database, String schema, String table) {
-            super(message);
+        NoRowIdentifiers(String database, String schema, String table, @com.legend.base.Nullable String view,
+                List<DatabaseDefinition.ColumnDefinition> keys) {
+            super("test data generation: no row identifiers for the root table " + database + "."
+                    + physical(schema, table) + (view == null ? "" : " of the view " + view));
             this.database = database;
             this.schema = schema;
             this.table = table;
+            this.view = view;
+            this.keys = List.copyOf(keys);
         }
 
+        /** The database that declares the table (upstream's {@code $table.schema.database}). */
         public String database() {
             return database;
         }
@@ -543,12 +492,66 @@ public final class TestDataPlanner {
         public String table() {
             return table;
         }
+
+        /** The view whose main table this is, or null for the query's root. */
+        public @com.legend.base.Nullable String view() {
+            return view;
+        }
+
+        /** The table's primary key columns, in declaration order, each with its type. */
+        public List<DatabaseDefinition.ColumnDefinition> keys() {
+            return keys;
+        }
+
+        /** Recorded in a test plan as a failed assert, as upstream's refusal is one. */
+        @Override
+        public com.legend.testexecutionplan.Failure.Kind failureKind() {
+            return com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED;
+        }
     }
 
-    private static Unseeded unseeded(ModelContext ctx, String db, TestDataGenerator.Located loc, String table,
+    /**
+     * A STARTING TABLE GIVEN ROW IDENTIFIERS MORE THAN ONCE (the B2d.3 audit's L2, 2026-11-12: until then the last entry
+     * was kept, silently). A kind with its FACTS (J7 of the edge audit, 2026-11-18, as {@link NoRowIdentifiers}): the
+     * table's schema and name; its message lite's own sentence. Upstream's words (legend-pure's
+     * {@code getRowIdentifiersForTable} assert, TDG:487, and the plan form's, TDG:1208: "Multiple table row identifiers
+     * passed for the table: " and the table's qualified name) are the compatibility edge's, worded from these facts
+     * ({@code edge.PureMessages}, through {@code PlanStyle.errorWords}). A failed assert where a test plan records it, as
+     * upstream's is.
+     */
+    public static final class RowIdentifiersRepeated extends RuntimeException
+            implements com.legend.testexecutionplan.Failure.Kinded {
+        private static final long serialVersionUID = 1L;
+        private final String schema;
+        private final String table;
+
+        RowIdentifiersRepeated(String schema, String table) {
+            super("test data generation: the table " + physical(schema, table)
+                    + " is given row identifiers more than once");
+            this.schema = schema;
+            this.table = table;
+        }
+
+        public String schema() {
+            return schema;
+        }
+
+        public String table() {
+            return table;
+        }
+
+        /** Recorded in a test plan as a failed assert, as upstream's refusal is one. */
+        @Override
+        public com.legend.testexecutionplan.Failure.Kind failureKind() {
+            return com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED;
+        }
+    }
+
+    /** The facts of {@code table} (of {@code loc}, read from {@code db}) with no identifiers ({@link NoRowIdentifiers}). */
+    static NoRowIdentifiers noIdentifiers(ModelContext ctx, String db, TestDataGenerator.Located loc, String table,
             @com.legend.base.Nullable String view) {
-        String owner = owningDatabase(ctx, db, loc.def());
-        return new Unseeded(unidentified(owner, loc, table, view), owner, loc.schema(), table);
+        return new NoRowIdentifiers(owningDatabase(ctx, db, loc.def()), loc.schema(), table, view,
+                loc.def().columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey).toList());
     }
 
     /** The database that declares {@code def}, searched from {@code db} through its includes (upstream's
@@ -608,27 +611,34 @@ public final class TestDataPlanner {
      *  inside a common table expression -- as the database judge's verdict statement places a side (measured
      *  2026-11-11: "Table not found"; from a derived table in the body's FROM it resolves them, as DuckDB and SQLite
      *  do either way). */
-    private static SqlQuery csv(Walk walk, boolean hashStrings, boolean route, Printing printing) {
+    private static SqlQuery csv(Walk walk, boolean hashStrings, Printing printing) {
         if (walk.fetched.isEmpty()) {
             throw new IllegalStateException("testDataGen: a relation tree with no table");
         }
-        List<Fetched> order = new ArrayList<>(walk.fetched.values());
-        if (route) {
-            // the server's routes' order: by schema and table, as upstream's writer sorts its blocks
-            // (manageTestDataResult, :282: schemaName + '.' + relationName) -- the model's names, a planning constant
-            order.sort(java.util.Comparator.comparing(f -> f.schema() + "." + f.table()));
+        // the blocks in the form's order (J7/K12 of the edge audit, 2026-11-17): each fetched table as a Table, its
+        // fetch found again by its schema and name
+        List<Table> fetchedTables = new ArrayList<>(walk.fetched.size());
+        for (Fetched f : walk.fetched.values()) {
+            fetchedTables.add(new Table(f.schema(), f.table(), f.def(), f.cols(), f.ctes()));
+        }
+        List<Fetched> order = new ArrayList<>(fetchedTables.size());
+        for (Table t : printing.tableOrder(fetchedTables)) {
+            order.add(java.util.Objects.requireNonNull(walk.fetched.get(t.schema() + "\n" + t.table()),
+                    () -> "testDataGen: the form ordered a table not fetched: " + t.table()));
+        }
+        if (order.size() != walk.fetched.size()) {
+            throw new IllegalStateException("testDataGen: the form ordered " + order.size() + " of the "
+                    + walk.fetched.size() + " tables fetched");
         }
         List<SqlExpr> blocks = new ArrayList<>();
         SqlSource from = null;
         int n = 0;
         for (Fetched f : order) {
-            // the route's header is its writer's (the B2d.3 audit's M1, 2026-11-12): each column's declared name, in
-            // double quotes where it holds a space (getQuotedLabelIfContainSpace, TestDataGeneration.java:306), the
-            // columns sorted by their names case-sensitively (the plan form's sortBy(x | $x.name), TDG:1043, :885);
-            // the function's, its H2-folded header (upper case, sorted so)
-            List<String> cs = route ? routeOrder(f.def(), f.cols()) : headerOrder(f.cols());
+            // the header as the form writes it (J7/K12 of the edge audit, 2026-11-17): the function's, its H2-folded
+            // header (upper case, sorted so); the server's routes', their writer's (the edge's TestDataRoutes)
+            List<String> cs = printing.headerOrder(f.def(), f.cols());
             String header = f.schema() + "\n" + f.table() + "\n"
-                    + String.join(",", cs.stream().map(c -> route ? routeHeader(f.def(), c) : headerCase(c)).toList())
+                    + String.join(",", cs.stream().map(c -> printing.headerName(f.def(), c)).toList())
                     + "\n";
             String alias = "_t" + n++;
             SqlSource lines = new SqlSource.Subselect(lines(walk, f, cs, hashStrings, printing), alias, null);
@@ -677,7 +687,7 @@ public final class TestDataPlanner {
                 parts.add(new SqlExpr.StringLit(","));
             }
             parts.add(SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Cast(SqlExpr.Column.derived(CSV_ROW,
-                    tempColumn(f.def(), c)), SqlType.Scalar.VARCHAR), new SqlExpr.StringLit("---null---")));
+                    tempColumn(f.def(), c)), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED), new SqlExpr.StringLit("---null---")));
         }
         parts.add(new SqlExpr.StringLit("\n"));
         SqlExpr line = new SqlExpr.Call(SqlFn.CONCAT, parts, SqlTyping.UNKNOWN);
@@ -870,38 +880,31 @@ public final class TestDataPlanner {
     }
 
     /**
-     * {@code seed} as upstream's seed route answers it (B2d.3e; {@code generateSeedData},
-     * {@code SeedDataGeneration.streamSeedDataResult}): the JSON object {@code {"table":{"_type":"table","table":T,
-     * "schema":S,"database":D},"rowIdentifiers":[{"columnValuePairs":[{"name":k,"value":v},...]},...]}}, built by the
-     * database -- each value its JSON for the key's cell, the identifiers in the keys' order (R2, register S198) --
-     * one statement, its one cell the text. A key's name is its column's, in double quotes where it holds a space
-     * (upstream's {@code getQuotedLabelIfContainSpace}).
+     * The FACTS a seed's answer is written from (J40 of the edge audit, 2026-11-18: legend-engine's seed JSON, the seed
+     * route's {@code generateSeedData} answer, is the edge's, {@code edge.TestDataRoutes}): the table, its schema and
+     * the database that declares it; the seed's rows; and each key -- its declared name, its cell over the rows (alias
+     * {@code _k}), whether it is a timestamp, and its order (by code point, R2, register S198).
      */
-    public static SqlQuery seedJson(ModelContext ctx, Seed seed) {
-        DatabaseDefinition.TableDefinition def = seed.loc().def();
-        List<SqlExpr> pairs = new ArrayList<>(seed.keys().size());
-        List<SqlExpr.JsonArrayAgg.Key> order = new ArrayList<>(seed.keys().size());
-        for (String k : seed.keys()) {
-            String name = bareName(k);
-            SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
-            // a timestamp key as upstream's ValueTransformer writes it (SeedDataGeneration.java:192), which is lite's
-            // canonical text too: the same in both printings (L9, 2026-11-12)
-            SqlExpr value = timestamp(column(def, k).dataType()) ? timestampText(cell, Printing.CLEAN) : cell;
-            pairs.add(new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("name"), new SqlExpr.StringLit(
-                    name.contains(" ") ? "\"" + name + "\"" : name), new SqlExpr.StringLit("value"), value)));
-            order.add(new SqlExpr.JsonArrayAgg.Key(byCodePoint(cell, column(def, k)), false));
+    public record SeedFacts(String table, String schema, String database, SqlSelect rows, List<SeedKey> keys) {
+        public SeedFacts {
+            keys = List.copyOf(keys);
         }
-        SqlExpr identifier = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("columnValuePairs"),
-                new SqlExpr.JsonArray(pairs)));
-        SqlExpr table = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("table"),
-                new SqlExpr.StringLit("table"), new SqlExpr.StringLit(seed.table()), new SqlExpr.StringLit("schema"),
-                new SqlExpr.StringLit(seed.loc().schema()), new SqlExpr.StringLit("database"),
-                new SqlExpr.StringLit(owningDatabase(ctx, seed.db(), def))));
-        SqlExpr answer = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("table"), table,
-                new SqlExpr.StringLit("rowIdentifiers"), new SqlExpr.JsonArrayAgg(identifier, order)));
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(answer, SqlType.Scalar.VARCHAR),
-                "seedData", null)), false, new SqlSource.Subselect(seed.rows(), "_k", null), null, List.of(), null,
-                null, List.of(), null, null, List.of());
+    }
+
+    /** A seed key: its declared {@code name}, its {@code cell} over the seed's rows, whether it is a {@code timestamp},
+     *  and the expression the identifiers are ordered by. */
+    public record SeedKey(String name, SqlExpr cell, boolean timestamp, SqlExpr order) {
+    }
+
+    /** {@code seed}'s facts ({@link SeedFacts}). */
+    public static SeedFacts seedFacts(ModelContext ctx, Seed seed) {
+        DatabaseDefinition.TableDefinition def = seed.loc().def();
+        List<SeedKey> keys = new ArrayList<>(seed.keys().size());
+        for (String k : seed.keys()) {
+            SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
+            keys.add(new SeedKey(bareName(k), cell, timestamp(column(def, k).dataType()), byCodePoint(cell, column(def, k))));
+        }
+        return new SeedFacts(seed.table(), seed.loc().schema(), owningDatabase(ctx, seed.db(), def), seed.rows(), keys);
     }
 
     /**
@@ -949,18 +952,19 @@ public final class TestDataPlanner {
                     new SqlExpr.StringLit("'")), SqlTyping.UNKNOWN);
         }
         return switch (c.dataType()) {
-            case RelationalDataType.BigInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
-            case RelationalDataType.Integer_ x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
-            case RelationalDataType.SmallInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
-            case RelationalDataType.TinyInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            case RelationalDataType.BigInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
+            case RelationalDataType.Integer_ x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
+            case RelationalDataType.SmallInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
+            case RelationalDataType.TinyInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
             default -> throw new NotImplementedException("testDataGen: the seed string's key " + table + "."
-                    + c.name() + " of type " + com.legend.plan.PlanText.spell(c.dataType()) + ": its Pure"
+                    + c.name() + " of type " + typeText(c.dataType()) + ": its Pure"
                     + " representation is not planned (B2d.3 writes a text key and a whole-number key)");
         };
     }
 
-    /** A column's name as upstream's model writes it: a quoted name with its quotes. */
-    private static String pureName(DatabaseDefinition.TableDefinition def, String c) {
+    /** A column's name as upstream's model writes it: a quoted name with its quotes (the seed string's, which stays
+     *  the product's; the server routes' column order writes its own, the edge's: J40 of the edge audit, 2026-11-18). */
+    static String pureName(DatabaseDefinition.TableDefinition def, String c) {
         DatabaseDefinition.ColumnDefinition cd = column(def, c);
         return cd.quoted() ? "\"" + cd.name() + "\"" : cd.name();
     }
@@ -1211,7 +1215,7 @@ public final class TestDataPlanner {
             all = and(all, SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.derived("_d" + k, "n"), new SqlExpr.IntLit(0)));
             List<SqlExpr> parts = new ArrayList<>();
             parts.add(new SqlExpr.StringLit(labels.get(k) + " x"));
-            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived("_u", COUNT), SqlType.Scalar.VARCHAR));
+            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived("_u", COUNT), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED));
             parts.add(new SqlExpr.StringLit(": "));
             for (int i = 0; i < width; i++) {
                 if (i > 0) {
@@ -1232,7 +1236,7 @@ public final class TestDataPlanner {
                     new SqlExpr.StringLit("")));
         }
         SqlExpr verdict = new SqlExpr.Case(List.of(new SqlExpr.Case.When(java.util.Objects.requireNonNull(all,
-                "a comparison of no table"), new SqlExpr.BoolLit(true))), new SqlExpr.BoolLit(false));
+                "a comparison of no table"), new SqlExpr.BoolLit(true))), new SqlExpr.BoolLit(false), SqlExpr.Reason.DECLARED);
         SqlSelect holds = new SqlSelect(List.of(new SqlSelect.Projection(verdict, "same", null)), false,
                 java.util.Objects.requireNonNull(counts), null, List.of(), null, null, List.of(), null, null,
                 List.of(new com.legend.sql.OutputCol("same", SqlType.Scalar.BOOLEAN, false)));
@@ -1293,7 +1297,7 @@ public final class TestDataPlanner {
             SqlExpr cell = sliceCell(g.def(), c, "_u", hashStrings);
             // a timestamp as the text prints it ({@link Printing}), so the comparison reads what the text wrote
             ps.add(new SqlSelect.Projection(upstreamCell(timestamp(type) ? timestampText(cell, printing)
-                    : new SqlExpr.Cast(cell, SqlType.Scalar.VARCHAR), type), "v" + i, null));
+                    : new SqlExpr.Cast(cell, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED), type), "v" + i, null));
         }
         return new SqlSelect(ps, false, new SqlSource.Subselect(fetchedRows(g.clauses()), "_u", null), null,
                 List.of(), null, null, List.of(), null, null, List.of());
@@ -1339,13 +1343,13 @@ public final class TestDataPlanner {
                 SqlExpr.Call.of(SqlFn.EQUAL, x, new SqlExpr.StringLit("---null---")));
         List<SqlExpr.Case.When> whens = new ArrayList<>();
         whens.add(new SqlExpr.Case.When(new SqlExpr.Group(absent), new SqlExpr.Cast(new SqlExpr.NullLit(),
-                SqlType.Scalar.VARCHAR)));
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED)));
         if (t instanceof RelationalDataType.Bit) {
             SqlExpr bit = SqlExpr.Call.of(SqlFn.LOWER, SqlExpr.Call.of(SqlFn.TRIM, x));
             whens.add(new SqlExpr.Case.When(oneOf(bit, "y", "1", "true"), new SqlExpr.StringLit("true")));
             whens.add(new SqlExpr.Case.When(oneOf(bit, "n", "0", "false"), new SqlExpr.StringLit("false")));
         }
-        return new SqlExpr.Case(whens, x);
+        return new SqlExpr.Case(whens, x, SqlExpr.Reason.DECLARED);
     }
 
     /** Whether {@code t} is a timestamp column's type, printed by {@link Printing}. */
@@ -1354,24 +1358,12 @@ public final class TestDataPlanner {
     }
 
     /** A timestamp's spelling in {@code printing}, written by the database (each dialect's strftime of the typed
-     *  format): {@link Printing#CLEAN}'s {@code yyyy-MM-ddTHH:mm:ss.nnnnnnnnn+0000}, or {@link Printing#COMPAT}'s
+     *  format): {@link LitePrinting}'s, the product's ({@code yyyy-MM-ddTHH:mm:ss.ffffffZ}, register S312), or upstream's (the edge's)
      *  {@code yyyy-MM-dd HH:mm:ss}; a NULL stays NULL. */
     private static SqlExpr timestampText(SqlExpr x, Printing printing) {
-        return switch (printing) {
-            case CLEAN -> new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
-                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR))), SqlExpr.Call.of(SqlFn.CONCAT,
-                    SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
-                    new SqlExpr.StringLit("+0000")));
-            case COMPAT -> SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(SECONDS));
-        };
+        return printing.timestampText(x);
     }
 
-    /** Upstream's {@code SimpleDateTimeFormat}: {@code yyyy-MM-dd HH:mm:ss}. */
-    private static final List<com.legend.sql.DateFmt> SECONDS = List.of(com.legend.sql.DateFmt.Part.YEAR4,
-            new com.legend.sql.DateFmt.Text("-"), com.legend.sql.DateFmt.Part.MONTH2, new com.legend.sql.DateFmt.Text("-"),
-            com.legend.sql.DateFmt.Part.DAY2, new com.legend.sql.DateFmt.Text(" "), com.legend.sql.DateFmt.Part.HOUR2,
-            new com.legend.sql.DateFmt.Text(":"), com.legend.sql.DateFmt.Part.MIN2, new com.legend.sql.DateFmt.Text(":"),
-            com.legend.sql.DateFmt.Part.SEC2);
 
     /** Whether {@code x} is one of {@code texts}. */
     private static SqlExpr oneOf(SqlExpr x, String... texts) {
@@ -1458,7 +1450,7 @@ public final class TestDataPlanner {
             for (DatabaseDefinition.ColumnDefinition c : def.columns()) {
                 SqlExpr cell = g != null && g.columns().contains(c.name())
                         ? reloaded(sliceCell(def, c.name(), "_u", planned.hashStrings()), c, sqlType(c, def))
-                        : new SqlExpr.Cast(new SqlExpr.NullLit(), sqlType(c, def));
+                        : new SqlExpr.Cast(new SqlExpr.NullLit(), sqlType(c, def), SqlExpr.Reason.DECLARED);
                 // labelled by the column's declared name: the swap reads each column by it (lowering/TableSwaps)
                 ps.add(new SqlSelect.Projection(cell, c.name(), null));
             }
@@ -1482,7 +1474,7 @@ public final class TestDataPlanner {
         SqlExpr absent = SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("")),
                 SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("---null---")));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.Group(absent), new SqlExpr.Cast(
-                new SqlExpr.NullLit(), type))), cell);
+                new SqlExpr.NullLit(), type, SqlExpr.Reason.DECLARED))), cell, SqlExpr.Reason.DECLARED);
     }
 
     /**
@@ -1533,8 +1525,9 @@ public final class TestDataPlanner {
         }
     }
 
-    /** A table's physical name: {@code TABLE} in the default schema, else {@code SCHEMA.TABLE}. */
-    private static String physical(String schema, String table) {
+    /** A table's physical name: {@code TABLE} in the default schema, else {@code SCHEMA.TABLE} (public for upstream's
+     *  words of {@link NoRowIdentifiers}, the edge's: J7/K12 of the edge audit, 2026-11-17). */
+    public static String physical(String schema, String table) {
         return "default".equals(schema) ? table : schema + "." + table;
     }
 
@@ -1762,7 +1755,7 @@ public final class TestDataPlanner {
                 SqlExpr.Call.of(SqlFn.REPEAT_STR, h, SqlExpr.Call.of(SqlFn.INT_DIVIDE, length, new SqlExpr.IntLit(5))),
                 SqlExpr.Call.of(SqlFn.RIGHT, h, SqlExpr.Call.of(SqlFn.MOD, length, new SqlExpr.IntLit(5))));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, s),
-                new SqlExpr.NullLit())), tiled);
+                new SqlExpr.NullLit())), tiled, SqlExpr.Reason.DECLARED);
     }
 
     /**
@@ -1780,7 +1773,7 @@ public final class TestDataPlanner {
         }
         SqlExpr doubled = new SqlExpr.Call(SqlFn.CONCAT, List.of(new SqlExpr.StringLit("\""),
                 replace(cell, new SqlExpr.StringLit("\""), "\"\""), new SqlExpr.StringLit("\"")), SqlTyping.UNKNOWN);
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(quoted, doubled)), cell);
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(quoted, doubled)), cell, SqlExpr.Reason.DECLARED);
     }
 
     /** Whether {@code cell} holds {@code text}. */
@@ -1856,5 +1849,15 @@ public final class TestDataPlanner {
             return new SqlExpr.DecimalLit(new java.math.BigDecimal(n.toString()));
         }
         throw new NotImplementedException("testDataGen: row identifier value " + v.getClass());
+    }
+
+    /** A key column's type as the Relational grammar writes it ({@link RelationalDataType#sqlText}); one with no
+     *  spelling yet is refused by name. */
+    private static String typeText(RelationalDataType t) {
+        try {
+            return RelationalDataType.sqlText(t);
+        } catch (IllegalArgumentException pending) {
+            throw new NotImplementedException("testDataGen: the type spelling for " + t + " is pending");
+        }
     }
 }

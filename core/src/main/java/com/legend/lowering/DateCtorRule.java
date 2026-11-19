@@ -44,15 +44,13 @@ final class DateCtorRule {
                         && args.get(1) instanceof SqlExpr.IntLit ml
                         && ml.value() >= 1 && ml.value() <= 12
                         && lit.value() > daysInMonth(yl.value(), ml.value())) {
-                    return PureSql.raise(
-                            new SqlExpr.StringLit("Invalid day: "
-                            + yl.value() + "-" + ml.value() + "-"
-                            + lit.value()), n.pos());
+                    // the attempted year, month and day, the edge's sentence's operands (D1.1)
+                    return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_COMPONENT_INVALID,
+                            List.of(new SqlExpr.StringLit("day"), yl, ml, lit)), n.pos());
                 }
                 if (lit.value() < ranges[i][0] || lit.value() > ranges[i][1]) {
-                    return PureSql.raise(
-                            new SqlExpr.StringLit(
-                            "Invalid " + comps[i] + ": " + lit.value()), n.pos());
+                    return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_COMPONENT_INVALID,
+                            List.of(new SqlExpr.StringLit(comps[i]), lit)), n.pos());
                 }
             } else if (args.get(i) instanceof SqlExpr.FloatLit
                     || args.get(i) instanceof SqlExpr.DecimalLit) {
@@ -63,9 +61,8 @@ final class DateCtorRule {
                         : ((SqlExpr.DecimalLit) args.get(i)).value();
                 if (v.signum() < 0
                         || v.compareTo(java.math.BigDecimal.valueOf(60)) >= 0) {
-                    return PureSql.raise(
-                            new SqlExpr.StringLit(
-                            "Invalid " + comps[i] + ": " + v.toPlainString()), n.pos());
+                    return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_COMPONENT_INVALID,
+                            List.of(new SqlExpr.StringLit(comps[i]), args.get(i))), n.pos());
                 }
             } else {
                 // FRACTIONAL seconds are legal up to (not including)
@@ -83,8 +80,8 @@ final class DateCtorRule {
                                 SqlExpr.Call.of(SqlFn.LESS, args.get(i),
                                         new SqlExpr.IntLit(ranges[i][0])),
                                 tooHigh),
-                        Scalars.cat(new SqlExpr.StringLit("Invalid " + comps[i] + ": "),
-                                Scalars.str(args.get(i))),
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_COMPONENT_INVALID,
+                                List.of(new SqlExpr.StringLit(comps[i]), args.get(i))),
                         args.get(i)));
             }
         }
@@ -116,7 +113,7 @@ final class DateCtorRule {
                                         new SqlExpr.StringLit(".")),
                                 SqlExpr.Call.of(SqlFn.CONCAT, trimmed,
                                         new SqlExpr.StringLit("0")))),
-                        trimmed), SqlType.Scalar.TEMPORAL_TEXT);
+                        trimmed, SqlExpr.Reason.OPERATOR), SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.OPERATOR);
             }
             return new SqlExpr.Call(SqlFn.MAKE_TIMESTAMP, args);
         }
@@ -126,7 +123,7 @@ final class DateCtorRule {
         for (int i = 0; i < args.size(); i++) {
             SqlExpr part = SqlExpr.Call.of(SqlFn.LPAD,
                     new SqlExpr.Cast(args.get(i),
-                            SqlType.Scalar.VARCHAR),
+                            SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR),
                     new SqlExpr.IntLit(widths[i]), new SqlExpr.StringLit("0"));
             out = out == null ? part
                     : SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT,
@@ -136,7 +133,7 @@ final class DateCtorRule {
         // partial print is TEMPORAL_TEXT-stamped (§4bZ-V B3 — the
         // marker cast never renders)
         return new SqlExpr.Cast(java.util.Objects.requireNonNull(out,
-                "date() with no components"), SqlType.Scalar.TEMPORAL_TEXT);
+                "date() with no components"), SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.OPERATOR);
     }
 
     /** The digits of a second the fractional {@code date()}'s text carrier writes ({@code DateFmt.ISO_MICRO}). */
@@ -161,13 +158,15 @@ final class DateCtorRule {
             }
             return second;
         }
-        SqlExpr exact = new SqlExpr.Cast(second, new SqlType.Decimal(38, 9));
+        SqlExpr exact = new SqlExpr.Cast(second, new SqlType.Decimal(38, 9), SqlExpr.Reason.OPERATOR);
         return Scalars.guarded(SqlExpr.Call.of(SqlFn.NOT_EQUAL, exact,
                         SqlExpr.Call.of(SqlFn.ROUND, exact, new SqlExpr.IntLit(CARRIED_DIGITS))),
-                Scalars.cat(new SqlExpr.StringLit("the second "), Scalars.str(second),
-                        new SqlExpr.StringLit(" has more than " + CARRIED_DIGITS
-                                + " fraction digits, which a date()'s fractional second keeps: refused, never cut"
-                                + " (S181)")),
+                // FRACTION_NOT_KEPT: lite's own sentence, its parts the operands, written by the edge alone (D1.1)
+                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, List.of(
+                        new SqlExpr.StringLit("the second "), second, new SqlExpr.StringLit(" has more than "
+                                + CARRIED_DIGITS + " fraction digits, which a date()'s fractional second keeps: refused,"
+                                + " never cut (S181)")), null, "a date()'s second keeps " + CARRIED_DIGITS
+                        + " fraction digits"),
                 second, n.pos());
     }
 

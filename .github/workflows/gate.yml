@@ -115,6 +115,46 @@ jobs:
       platform: linux-arm
       gates: warehouse
 
+  # SHRINK-ONLY, BY THE MERGE-BASE (the edge audit's C.11, second half; the GUARD stream's C.13-CI, the orchestrator's GO
+  # of 2026-11-17): a guard file's pin -- an allowlist entry, a ceiling, a ledger row -- grows only with a dated note, read
+  # against the merge-base with main (tools/guards/shrink_only.py; //gates:local runs the same check by name,
+  # //tools/guards:shrink_only_check). A plain script on a full clone: it reads history, which a lane's checkout does not
+  # hold. What it reads (the review of C.13-CI, M1 and M2, 2026-11-18): a pull request's own head commit against its
+  # base branch (the merge ref's HEAD is a merge whose merge-base with main is main's tip, so it read nothing of the
+  # change's dates); a push to main, the pushed commit against the tip before it (a fast-forward's commits, so a direct
+  # push is checked; a force push whose old tip is gone exits 2, a failure); the schedule, main against itself (nothing).
+  shrink-only:
+    name: guard pins shrink only
+    if: ${{ github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.base_ref }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+        # the merge-base's own copy of the check runs, never the change's (the review of 351e80daa2, 2026-11-18, M1: a
+        # change that loosened the script was judged by its loosened script); a base without the script runs the
+        # head's -- the check's own first landing
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            pull_request) BASE_REF="origin/$PR_BASE"; HEAD_REF="$PR_HEAD" ;;
+            push) BASE_REF="$BEFORE"; HEAD_REF="$GITHUB_SHA" ;;
+            *) BASE_REF="origin/main"; HEAD_REF="HEAD" ;;
+          esac
+          MERGE_BASE="$(git merge-base "$HEAD_REF" "$BASE_REF")"
+          if git cat-file -e "$MERGE_BASE:tools/guards/shrink_only.py" 2>/dev/null; then
+            git show "$MERGE_BASE:tools/guards/shrink_only.py" > "$RUNNER_TEMP/shrink_only.py"
+          else
+            cp tools/guards/shrink_only.py "$RUNNER_TEMP/shrink_only.py"
+          fi
+          python3 "$RUNNER_TEMP/shrink_only.py" --repo "$GITHUB_WORKSPACE" --base "$BASE_REF" --head "$HEAD_REF"
+
   # THE ONE REQUIRED CHECK (Bazel workplan P0-14, D17): main's ruleset requires this job, not the ~50 lane
   # jobs, whose names move with every lane change. It fails unless every job above succeeded. It does not
   # run on workflow_dispatch: a dispatch can choose a subset of lanes or platforms, and its green would
@@ -122,7 +162,7 @@ jobs:
   green:
     name: gates green
     if: ${{ always() && github.event_name != 'workflow_dispatch' }}
-    needs: [linux, macos, windows, linux-arm]
+    needs: [linux, macos, windows, linux-arm, shrink-only]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

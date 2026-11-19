@@ -157,7 +157,7 @@ public class ManifestWorldCensusTest {
         long tParse = Long.MAX_VALUE;
         for (int i = 0; i < 3; i++) {
             long p0 = System.nanoTime();
-            Compiler.parseSources(sources, (n, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM);
+            Compiler.parseSources(sources, (n, err) -> { }, com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             tParse = Math.min(tParse, System.nanoTime() - p0);
         }
         long tLoop0 = System.nanoTime();
@@ -171,7 +171,7 @@ public class ManifestWorldCensusTest {
             List<String> parseWalls = new ArrayList<>();
             Compiler.ParsedModule module = Compiler.parseSources(sources,
                     (name, err) -> parseWalls.add(name + ": PARSE " + SpecBodyCensusTest.first(err)),
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             List<PackageableElement> kept = module.model().elements().stream()
                     .filter(e -> !(e instanceof com.legend.model.NativeFunctionDefinition))
                     .toList();
@@ -215,7 +215,7 @@ public class ManifestWorldCensusTest {
         for (int i = 0; i < 3; i++) {
             long m0 = System.nanoTime();
             Compiler.ParsedModule again = Compiler.parseSources(sources, (n, err) -> { },
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             List<PackageableElement> keptAgain = again.model().elements().stream()
                     .filter(e -> !(e instanceof com.legend.model.NativeFunctionDefinition)).toList();
             Compiler.buildModel(new ParsedModel(keptAgain, again.model().imports(),

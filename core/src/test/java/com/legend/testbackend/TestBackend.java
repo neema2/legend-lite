@@ -33,9 +33,23 @@ public interface TestBackend {
     /** Its name as a lane spells it ({@code LEGENDLITE_PCT_BACKEND}): lower case. */
     String name();
 
-    /** A session on it, for one test: in-process, a private in-memory instance; a server, a new session on the test
-     *  server's database; a cloud, the suite's one session (closing it is a no-op). */
+    /** A session on it, for one test, THE PRODUCT'S ({@code PlanStyle.PRODUCT}'s database: the audit's J22, 2026-11-17,
+     *  the orchestrator's ruling -- an edge run opens {@link #open(com.legend.database.PlanStyle)}, and exec's read-back
+     *  refuses by name an edge plan run on a product session): in-process, a private in-memory instance; a server, a new
+     *  session on the test server's database; a cloud, the suite's one session (closing it is a no-op). */
     Connection open() throws SQLException;
+
+    /** A session on the database {@code style}'s plans run on (H2's settings are the style's two-form
+     *  {@code DatabaseSettingsForm}: the audit's J22). A backend whose database is the same under every style opens its one. */
+    default Connection open(com.legend.database.PlanStyle style) throws SQLException {
+        return open();
+    }
+
+    /** Whether {@link #open()} gives a JDBC session: true but on a database that speaks no JDBC, whose plan runs on
+     *  the session its connector opens (MongoDB, D12; asked by //core:product_raise_probe, 2026-11-15). */
+    default boolean opensJdbc() {
+        return true;
+    }
 
     /** {@link #open()} as a session the runner owns: closing it closes the connection (D68, 2026-10-30: the test
      *  runners hold sessions, not connections); a connection the driver refuses is a {@code DataError} (a backend
@@ -106,6 +120,12 @@ public interface TestBackend {
      *  other workspaces, and gone when it closes. Refused by name where none is built. */
     default Connection openWorkspace() throws SQLException {
         throw new com.legend.error.NotImplementedException("no corpus workspace on the test backend '" + name() + "'");
+    }
+
+    /** {@link #openWorkspace()} on the database {@code style}'s plans run on (H2's settings are the style's: the audit's
+     *  J22, 2026-11-17). A backend whose database is the same under every style opens its one. */
+    default Connection openWorkspace(com.legend.database.PlanStyle style) throws SQLException {
+        return openWorkspace();
     }
 
     /** A second reader of {@code session}'s data, a connection of its own (the referee reads our side's rows while

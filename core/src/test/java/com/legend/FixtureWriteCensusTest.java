@@ -78,7 +78,10 @@ class FixtureWriteCensusTest {
      *  and filled as a page's file or a person's table is (DuckDbOutputPlanTest, 2: the Output reads a table its host
      *  holds, never one a model declares), a table of every DuckDB type a source column can hold, which no model can
      *  declare (1), and today's CREATE of the rows' statement LIMIT 0, the form the plan replaces, measured beside it
-     *  (1). 922 -> 925 (2026-11-13, the ClickHouse identifier breakout, the user's ruling: every dialect's identifier
+     *  (1). 922 -> 923 (2026-11-12, E1 item 3, the orchestrator's ask; merged onto 922 on 2026-11-13): a read-only
+     *  catalog source's zoned column is read through the product door from a user's own table holding a zoned value
+     *  (CatalogModelTest, 1: one CREATE TABLE AS, as a catalog source finds a table; no plan's load makes a user's
+     *  table). 922 -> 925 (2026-11-13, the ClickHouse identifier breakout, the user's ruling: every dialect's identifier
      *  escaped for its own lexer): DataSourceServersTest's own table on the pinned ClickHouse, its backslash-named
      *  columns in the server's own spelling -- made by the server's DDL, never by the dialect whose identifier writer it
      *  checks (3). 922 -> 947 (2026-11-13, main's #95 merged into the timeseries branch, measured by the census's run): the
@@ -86,9 +89,13 @@ class FixtureWriteCensusTest {
      *  set up as its user's -- the price, cash and adversarial tables the #TS tests read (TsIslandTest 4,
      *  TsScaleMeasureTest 5 at 10M rows, TimeseriesLibraryTest 2; the documents', the oracle's, the replay's and the
      *  spike's 1 each), the dialect tests' own tables (SelectLayersTest 2, SharedRelationsInPlaceTest 2) and the
-     *  ClickHouse and Snowflake backends' schemas (2, 3); 25. 925, 947 -> 950 (2026-11-14, merged main 3a217086a
-     *  (#81) into the separation stream, measured by the census's run on the merged tree): both sides' moves together. */
-    private static final int CEILING = 950;
+     *  ClickHouse and Snowflake backends' schemas (2, 3); 25.
+     *  923/947 -> 948 (2026-11-14, merged main 3a217086a (#81) into claude/total-wall-e, measured on the merged tree):
+     *  E's side's one (CatalogModelTest) and main's twenty-five, joined. 925, 947 -> 950 (2026-11-14, merged main
+     *  3a217086a (#81) into the separation stream, measured by the census's run on the merged tree): both sides' moves
+     *  together. 948/950 -> 951 (2026-11-15, merged main cf865632c (#101) into claude/total-wall-e, measured by the
+     *  census's run on the merged tree): E's 948 and C4's three (950 - 947), joined. */
+    private static final int CEILING = 951;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -208,7 +215,10 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/sql/DuckDbValidityTest.java", 6),
             Map.entry("core/src/test/java/com/legend/sql/dialect/CarrierDifferentialTest.java", 14),
             Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogGridTest.java", 3),
-            Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogModelTest.java", 2),
+            // 2 -> 3 (2026-11-12, E1 item 3, the orchestrator's ask: a read-only catalog source's zoned column read
+            // through the product door needs a user's own table holding a zoned value, as a catalog source finds it:
+            // one CREATE TABLE AS; aReadOnlySourcesZonedColumnAnswersItsUtcInstant; the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogModelTest.java", 3),
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2FirstInGroupTest.java", 2),
             // 2026-11-12, the third re-audit's MUST-FIX 2(c): H2's keywords as columns on a bare session (the ceiling's
             // note)

@@ -6,7 +6,7 @@ package com.legend.edge;
 import com.legend.executionplan.DataRef;
 import com.legend.executionplan.DataStores;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import com.legend.testexecutionplan.Edge;
 import com.legend.testexecutionplan.Extension;
 
@@ -16,25 +16,25 @@ import java.util.Map;
 
 /**
  * THE COMPATIBILITY EDGE (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the design's step 8): what a run under the compatibility
- * rules hands the test road, holding the referee's ledger ({@link RawSqlBoundary.Recorder}). At planning it plans each
+ * rules hands the test road, holding the referee's ledger ({@link RawLedger.Recorder}). At planning it plans each
  * effect's ledger texts and each seed's referee's copy into the test plan ({@link EffectTexts}, {@link RefereeLoad});
  * at run it records them as each step's events say ({@link #seeded}, {@link #effectRan}). Lite's own runs hand no edge,
  * and plan nothing for it.
  */
 public final class CompatEdge implements Edge {
 
-    private final RawSqlBoundary.Recorder recorder;
+    private final RawLedger.Recorder recorder;
     private final DataStores stores;
 
     /** {@code stores}: the run's own, which resolve a file the plan's loads read by its reference (the referee reads
      *  the same verified bytes, B2b). */
-    public CompatEdge(RawSqlBoundary.Recorder recorder, DataStores stores) {
+    public CompatEdge(RawLedger.Recorder recorder, DataStores stores) {
         this.recorder = recorder;
         this.stores = stores;
     }
 
     /** The ledger this edge records into: the referee replays the goldens over it. */
-    public RawSqlBoundary.Recorder recorder() {
+    public RawLedger.Recorder recorder() {
         return recorder;
     }
 
@@ -53,6 +53,16 @@ public final class CompatEdge implements Edge {
     @Override
     public List<Extension> seed(List<ExecutionPlan.LoadStep> steps, Map<String, String> content) {
         return List.of(new RefereeLoad(steps, content));
+    }
+
+    /** legend-pure's words of a statement's raise sites, planned as recorded (K10, 2026-11-17): the edge's own records
+     *  ({@link SiteWords}), one per site, keyed by the statement's step-local index {@code at} (the K10 trim,
+     *  2026-11-18). */
+    @Override
+    public List<Extension> siteWords(int at, Map<Integer, String> words) {
+        List<Extension> out = new ArrayList<>(words.size());
+        words.forEach((n, w) -> out.add(new SiteWords(at, n, w)));
+        return List.copyOf(out);
     }
 
     @Override
@@ -76,7 +86,7 @@ public final class CompatEdge implements Edge {
                 case ExecutionPlan.LoadStep.File f -> {
                     switch (f.delivery()) {
                         case ExecutionPlan.LoadStep.Delivery.Reads reads -> recorder.recordRead(
-                                new RawSqlBoundary.FileRead(bytes(f, copy), reads.statements(), reads.after()));
+                                new RawLedger.FileRead(bytes(f, copy), reads.statements(), reads.after()));
                     }
                 }
                 // a host's statement, bound from its own store (B3's Q3): a HOST_SESSION load's alone, never a seed's
@@ -147,5 +157,11 @@ public final class CompatEdge implements Edge {
             throw new IllegalStateException("an effect step ran with no ledger texts planned at it");
         }
         return found;
+    }
+
+    @Override
+    public boolean records() {
+        // the edge's recorder: the referee's ledger, planned at each effect and seed step
+        return true;
     }
 }

@@ -22,11 +22,11 @@ final class ListRules {
         }
         // range(start, stop, step): a ZERO step raises real pure's message
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_RANGE) {
-            rules.put(f, (n, args) -> args.size() < 3
+            rules.put(f, (Scalars.StyledRule) (n, args, styled) -> args.size() < 3
                     ? new SqlExpr.Call(SqlFn.RANGE_FN, args)
                     : Scalars.guarded(SqlExpr.Call.of(SqlFn.EQUAL, args.get(2), new SqlExpr.IntLit(0)),
-                            new SqlExpr.StringLit("range step must not be 0"),
-                            new SqlExpr.Call(SqlFn.RANGE_FN, args)));
+                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.RANGE_STEP_ZERO, java.util.List.of()),
+                            new SqlExpr.Call(SqlFn.RANGE_FN, args), styled));
         }
     }
 }

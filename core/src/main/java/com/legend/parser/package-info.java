@@ -13,8 +13,8 @@
  *
  * <h2>Public surface</h2>
  * <pre>
- *   Protocol.PureModelContextData records = PmcdParser.parse(pureSource, Dialect.LEGEND_LITE).model();
- *   // three dialect levels — see {@link com.legend.parser.Dialect}
+ *   Protocol.PureModelContextData records = PmcdParser.parse(pureSource, GrammarLevel.LEGEND_LITE).model();
+ *   // three dialect levels — see {@link com.legend.parser.GrammarLevel}
  * </pre>
  * The compiler's model is not the parser's: a text becomes one through the
  * text's door, {@code com.legend.door.ModelFromText}, which hands the records to

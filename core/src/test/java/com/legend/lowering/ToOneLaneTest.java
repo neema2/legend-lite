@@ -52,10 +52,18 @@ class ToOneLaneTest {
 
     private static void assertSizeError(String query, int size) {
         var ex = assertThrows(Exception.class, () -> run(query));
+        // the product's kind, in lite's words (D1.1), and its where, the bound (2026-11-15: a collection's count
+        // carried none until //core:product_raise_probe found it)
         assertTrue(ex.getMessage().contains(
-                        "size " + size + " to multiplicity [1]"),
+                        com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": [1]"),
                 "expected pure's size-" + size + " cast error for "
                         + query + ", got: " + ex.getMessage());
+        // the size itself, a value, is legend-pure's sentence's: the same query in the edge's style raises it, so the
+        // pin holds the size the database counted (the D part 1 audit's S5, 2026-11-15)
+        var edge = assertThrows(Exception.class, () -> com.legend.testing.EdgeProgram.last(StorelessRuntime.with("",
+                Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn, com.legend.testing.EdgeProgram.upstream()));
+        assertTrue(edge.getMessage().contains("Cannot cast a collection of size " + size + " to multiplicity"),
+                "expected pure's size-" + size + " cast error at the edge for " + query + ", got: " + edge.getMessage());
     }
 
     @Test

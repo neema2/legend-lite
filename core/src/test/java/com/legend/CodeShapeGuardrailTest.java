@@ -97,6 +97,9 @@ class CodeShapeGuardrailTest {
             // writer's first object, the walk's segment state (deleted at M10), a statement's own stamp in its
             // frames' recorder (frozen into its reads), the body router's opened answer sink (opened only to answer,
             // as the walk opens it)
+            // 2026-11-17 (isolated BOTH and #28, the orchestrator's ruling): the batch's sentence frame (an unrolled
+            // element's index, assertIsNot's rows), set and restored by scope while one body is planned
+            "VerdictBatch.scope",
             "VerdictBatch.current", "CanonRider.wrap", "CanonRider.declined", "Lowerer.dbTimeZone",
             // 2026-11-01, the test-is-the-product plan's M7: the planned batch's one-shot latch -- the flush counted
             // once, when its groups start to run (the walk's flush, or the program road's first row), never for a
@@ -119,11 +122,11 @@ class CodeShapeGuardrailTest {
             "ProgramRunner.closed", "TestRun.reading",
             // 2026-11-08, the plan-as-data design's step 4: the body's engine-text appeals' last number given (planning
             // state, one per body; since step 8b planning's registry alone, never published for the run)
-            "EngineTextAppeals.last",
+            "NumberedExtensions.last",   // (EngineTextAppeals.last renamed: census C2, 2026-11-17, the records by number, opaque)
             // 2026-11-08, the plan-as-data design's step 6: one agreement-judged assert's run state -- the host half's
             // verdict held until the database half's rows are in, and an assertError's raising row -- once per run,
             // read from the plan's pairing (the planner's One held them until then, unscanned: no visibility)
-            "AgreementRuns.held", "AgreementRuns.heldHost", "AgreementRuns.raisingRow",
+            // (AgreementRuns.held, heldHost and raisingRow went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",
@@ -171,6 +174,9 @@ class CodeShapeGuardrailTest {
             // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
             // correlated read spends no pass's fold budget; raised and lowered around the read
             "Lowerer.correlatedReads",
+            // the style's WHERE merges for this lowering (L10, 2026-11-18): made at the first merge from the style the
+            // Lowerer is handed (withStyled, itself a mutable field), one per lowering; the edge's keeps its zone split
+            "Lowerer.whereZones",
             // a raw grid report's input in flight (2026-10-31, the planner-driver seam program's S3c): the depth
             // rawGrid consults so a report reads its grid as the grid itself, never as its rows' cells; raised and
             // lowered around the input's lowering, correlatedReads' lifecycle
@@ -317,9 +323,10 @@ class CodeShapeGuardrailTest {
             // the shared minimal JSON reader's walk position — a parser
             // cursor, same family as Lexer.pos
             "Json.i",
-            // 2026-11-07, register S144: json-simple 1.1.1's grammar (JudgeJson, the compatibility rules' JSON) -- a
-            // parser cursor and the token it last read (its kind and value), one instance per text, never shared
-            "JudgeJson.at", "JudgeJson.kind", "JudgeJson.value",
+            // 2026-11-07, register S144: json-simple 1.1.1's grammar (the compatibility rules' JSON; moved to the edge
+            // as JsonSimpleGrammar's parser, census C1, 2026-11-17) -- a parser cursor and the token it last read (its
+            // kind and value), one instance per text, never shared
+            "JsonSimpleGrammar.at", "JsonSimpleGrammar.kind", "JsonSimpleGrammar.value",
             // ';'-ownership context for unbraced lambda code blocks: where the
             // enclosing sequence's statement that owes the next ';' began (or
             // -1) -- a cursor-adjacent mark, saved and restored around each
@@ -331,12 +338,17 @@ class CodeShapeGuardrailTest {
             // driver-scoped emission opt-in (builder-style, set once
             // before lower()): engine-parity join-distinct exists form —
             // the standalone-SQL surface constructs without it
-            "Lowerer.engineExistsJoinForm",
+            // (Lowerer.engineExistsJoinForm: gone 2026-11-17, Phase 6's B5 -- the shape's existsAsJoinDistinct)
             // Phase 2a (batch 136): the two lowering MODES that were
             // thread-locals — verbatim equality (save/set/restore around
             // the two mapping-definition sites) and the engine-text
             // option (builder-style, set once before lower())
-            "Lowerer.verbatimEquality", "Lowerer.engineText",
+            // (Lowerer.shape -> Lowerer.existsJoinable, 2026-11-18, J40, the orchestrator's ruling (7): the shape's forms
+            // are the plan style's alone, its one remaining field the planner's fact, set once by withExistsJoinable)
+            "Lowerer.verbatimEquality", "Lowerer.existsJoinable",
+            // a DateTime's text in a message, the style's two-form answer (census B9, 2026-11-17): builder-style, set
+            // once by withStyled before lower(), beside the style's other text facets
+            "Lowerer.dateTimes",   // engineText until 2026-11-17 (Phase 6's B5: a LoweringShape, the edge's choice)
             // the query's execution feature flags (Feature): builder-style,
             // set once by the executor before lower(), same lifecycle as
             // engineText — a flag selects an emission during the lowering
@@ -344,6 +356,12 @@ class CodeShapeGuardrailTest {
             // lite's own planning options (PlanOption, 2026-11-07: the deterministic as-of join): builder-style, set
             // once before lower() beside the features, same lifecycle
             "Lowerer.deterministicAsOf",
+            // the plan style's text forms and plain raises the static helpers read (lowering.Styled: legend-pure's only
+            // texts, a list's text -- the product's own or the edge's -- and the raises written plain), builder-style,
+            // set once by PlanEnv.configure before lower(), same lifecycle (the separation census's B8, TEXT_FORMS,
+            // 2026-11-17; Lowerer.plainRaises, B7's of the same day, folded into it). Made visible 2026-11-17:
+            // declared over two lines since B17/B8, unseen by the line-based guard; not new state
+            "Lowerer.styled",
             // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
             // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set
@@ -372,6 +390,10 @@ class CodeShapeGuardrailTest {
             // serialize arm, consumed at the envelope build — same
             // per-resolution frame lifecycle
             "StoreResolver.checkedEnvelope",
+            // a graph fetch's key arguments in the plan's style (D1.2, 2026-11-15): set once by the planner that
+            // builds the resolver (BodyPlanner.resolver), read at the envelope build, carried to each emission it
+            // copies -- the same per-resolution frame lifecycle as serializeTypeCfg
+            "StoreResolver.graphKeyText", "GraphEmission.keyText",
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",
             "UserCallInliner.fresh", "Bindings.contravariantDepth",
             // walk-scoped mode flag: inside a postprocessor-CONFIG
@@ -405,6 +427,15 @@ class CodeShapeGuardrailTest {
             "Snowflake.fresh", "ExplosionMarkers.next",
             // render mode toggle + import memo
             "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports",
+            // 2026-11-16 (audit B's item 1, the plan's raises typed at render): the kinds of the raises the statement
+            // under way writes, set by the outermost renderStatement and cleared when it returns (collectingRaises),
+            // inlineMode's lifecycle -- one render at a time per dialect, as the writer's cursor is; renamed
+            // 2026-11-16 (phase D's Phase 2, raises as SITES: the same field, now the statement's numbered raise
+            // sites rather than its kinds; no new entry)
+            "AnsiSqlRenderer.raiseSites",
+            // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): the edge's engine receiver's execution and writer,
+            // told by the run before any column (ResultSink.execution, planned) and read after; one answer each
+            "EngineAnswers.execution", "EngineAnswers.writer",
             // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md §5.1): the MongoDb pipeline writer's stage counter -- Stages
             // IS the frame object, one per pipeline level, scoped to one render() as the renderer's cursor is: it
             // puts the comma before every stage but the first

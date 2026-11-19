@@ -37,21 +37,21 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 80 | 79 | 50 | 15 | 27 |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 74 | 127 | 8 | 15 | 34 |
-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 109 | 6 | 15 | 37 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 82 | 122 | 5 | 15 | 37 |
-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 127 | 12 | 15 | 34 |
-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 95 | 107 | 7 | 15 | 35 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 145 | 64 | 0 | 15 | 43 |
-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 138 | 7 | 15 | 35 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 56 | 146 | 7 | 15 | 37 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 52 | 149 | 8 | 15 | 35 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 52 | 149 | 8 | 15 | 35 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 198 | 11 | 15 | 198 |
-| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 105 | 86 | 18 | 15 | — |
-| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 107 | 83 | 19 | 15 | — |
-| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 108 | 82 | 19 | 15 | — |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 81 | 80 | 50 | 18 | 29 |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 128 | 8 | 18 | 36 |
+| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 111 | 6 | 18 | 39 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 83 | 123 | 5 | 18 | 39 |
+| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 129 | 12 | 18 | 36 |
+| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 108 | 7 | 18 | 37 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 146 | 65 | 0 | 18 | 45 |
+| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 140 | 7 | 18 | 37 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 57 | 147 | 7 | 18 | 39 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 53 | 150 | 8 | 18 | 38 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 53 | 150 | 8 | 18 | 38 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 200 | 11 | 18 | 200 |
+| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 106 | 86 | 19 | 18 | — |
+| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 108 | 83 | 20 | 18 | — |
+| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 109 | 82 | 20 | 18 | — |
 
 ## Functions
 
@@ -86,6 +86,7 @@ input).
 | `GREATEST` | S | S | S | S | E | S | S | E | E | E | E | E· | S | S | S |
 | `LEAST` | S | S | S | S | E | S | S | E | E | E | E | E· | S | S | S |
 | `CONCAT_JOIN` | S· | S· | E· | E· | E· | E· | S· | S· | E· | E· | E· | E· | S | S | S |
+| `CONCAT_WS` | S· | S· | E· | S· | E· | S· | S· | E· | S· | S· | S· | E· | S | S | S |
 | `LIST_FILTER` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
 | `LIST_TRANSFORM` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
 | `LIST_CONCAT` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
@@ -130,6 +131,7 @@ input).
 | `REGEXP_EXTRACT_ALL` | S | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
 | `REGEXP_REPLACE` | S | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
 | `REGEXP_FULL_MATCH` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
+| `IS_NUMERIC` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | R | R |
 | `MAP_FROM_LISTS` | S | E | E | S | E | S | S | S | E | E | E | E· | S | S | S |
 | `MAP_FROM_ENTRIES` | S | E | E | S | E | S | S | E | E | E | E | E· | S | S | S |
 | `MAP_EMPTY` | R | E | S | S | E | S | E | S | S | S | S | E· | E | E | E |
@@ -234,8 +236,11 @@ input).
 | `TO_VARIANT` | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `BOOL_TO_TEXT` | E | E | E | E | E | E | E | S | E | E | E | E· | E | E | E |
 | `DECIMAL_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `FLOAT_CANON` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E· | E | E | E |
-| `FLOAT_PRINT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
+| `FLOAT_SHORTEST_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
+| `FLOAT_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
+| `DATETIME_TO_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
+| `DATETIME_CANON_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
+| `CELL_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `VARIANT_ELEMENTS` | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `VARIANT_GET` | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `JSON_TYPE` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |

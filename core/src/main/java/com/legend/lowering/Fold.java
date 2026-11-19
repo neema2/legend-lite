@@ -24,37 +24,34 @@ import java.util.List;
  */
 final class Fold {
 
-    /** The plan-template placeholder KIND for a field type (h2New spells
-     * date placeholders with the type keyword). */
-    static com.legend.sql.SqlExpr.PlanParam.Kind planKindOf(
+    /** The parameter's declared Pure type, as a value class (L-B.PlanParam, the orchestrator's ruling of 2026-11-18: a
+     *  product fact, the product's own decision reads it -- EnumValueTables' ENUM -- and legend-engine's template
+     *  spellings of it are the edge's dialects'). Total over the declared types, no default: OTHER is exactly the
+     *  declared types with no value class of their own -- Integer, Decimal, Number, Byte, LatestDate, StrictTime, a
+     *  precision Decimal, a class, a relation, a type variable, a generic or a function type. */
+    static com.legend.sql.SqlExpr.PlanParam.ValueType planValueTypeOf(
             com.legend.compiler.element.type.Type t) {
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.STRING;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DATE) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.DATE;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.STRICT_DATE;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive
-                .DATE_TIME) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.DATETIME;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.FLOAT;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
-            // spells like OTHER on H2; DB2-family dialects QUOTE boolean
-            // placeholders (the case-expr compares 'true'/'false' strings)
-            return com.legend.sql.SqlExpr.PlanParam.Kind.BOOLEAN;
-        }
-        if (t instanceof com.legend.compiler.element.type.Type.EnumType) {
-            // enum values travel as NAME strings — the engine spells the
-            // placeholder quoted ('\${yesOrNo}' = 'NO')
-            return com.legend.sql.SqlExpr.PlanParam.Kind.ENUM;
-        }
-        return com.legend.sql.SqlExpr.PlanParam.Kind.OTHER;
+        return switch (t) {
+            case com.legend.compiler.element.type.Type.Primitive p -> switch (p) {
+                case STRING -> com.legend.sql.SqlExpr.PlanParam.ValueType.STRING;
+                case DATE -> com.legend.sql.SqlExpr.PlanParam.ValueType.DATE;
+                case STRICT_DATE -> com.legend.sql.SqlExpr.PlanParam.ValueType.STRICT_DATE;
+                case DATE_TIME -> com.legend.sql.SqlExpr.PlanParam.ValueType.DATETIME;
+                case FLOAT -> com.legend.sql.SqlExpr.PlanParam.ValueType.FLOAT;
+                case BOOLEAN -> com.legend.sql.SqlExpr.PlanParam.ValueType.BOOLEAN;
+                case NUMBER, INTEGER, DECIMAL, BYTE, LATEST_DATE, STRICT_TIME ->
+                        com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            };
+            // an enum's value travels as its NAME string
+            case com.legend.compiler.element.type.Type.EnumType e -> com.legend.sql.SqlExpr.PlanParam.ValueType.ENUM;
+            case com.legend.compiler.element.type.Type.PrecisionDecimal x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.ClassType x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.TypeVar x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.GenericType x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.FunctionType x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.RelationType x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.SchemaAlgebra x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+        };
     }
 
     /** An ORDER-SENSITIVE aggregate over a UNION-ALL-backed source with
@@ -438,18 +435,14 @@ final class Fold {
         return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty() && s.qualify() == null;
     }
 
-    /** PURE-semantics null placement for a sort key (the
-     * pureNullOrder-gated stamp, Sorts). THE TWO-SPEC SPLIT (§7
-     * slice-2, SQLTEXT charter landing record): upstream Legend itself
-     * diverges — pure-language sorts are NULL-LARGEST (PCT receipts)
-     * while the engine's relational sort emits NO NULLS clause and
-     * rides its H2 backend's NULLS-LOW default (the corpus goldens'
-     * own asserts pin nulls first ascending). Our emission carries
-     * each spec explicitly: pure sorts stamp here (null-largest, both
-     * directions); engine TDS sorts stay BARE and the execution
-     * dialects' bare-key rendering pins the engine placement
-     * (AnsiSqlRenderer.sortKey — nulls-low). The old C1.2 story
-     * ("connected target places nulls") conflated the two specs. */
+    /** PURE-semantics null placement for a sort key: null is LARGEST -- ASC nulls last, DESC nulls first (witness
+     * PCT testRange_..._WithOrderByDESC), stamped explicitly in both directions on every relation sort's key without
+     * an explicit placement (Sorts). Since legend-engine 4.145.0 its relational sort's bare key has the same canonical
+     * placement (dbExtension.pure NullOrderingSupport.processSortItem), which the product dialects render for a bare
+     * key (AnsiSqlRenderer.sortKey), so the old two-spec split (legacy TDS sorts bare, pure sorts stamped; §7
+     * slice-2) is closed: L14, 2026-11-18, deleted TypedSort.pureNullOrder, its provenance flag. Only an aggregate's
+     * own ordering stays bare (AnsiSqlRenderer.aggOrderNullPlacement). The edge's engine text spells no NULLS clause
+     * either way (EngineStyleH2.sortKey). */
     static SqlSelect.SortKey.@com.legend.base.Nullable NullOrder sortNulls(boolean ascending) {
         // PURE null ordering: null is LARGEST — ASC nulls last, DESC
         // nulls first (witness testRange_..._WithOrderByDESC). BOTH
@@ -648,7 +641,7 @@ final class Fold {
      * kept projection among them, and at least the first -- costs its nodes less the read it replaces, against the
      * same {@link Budget#BLOAT}. Over it, the name of the projection whose copies cost most, and the pass is
      * unfoldable: its base isolated, the reads are reads of the subselect's column, as for every unfoldable read.
-     * What a dialect writes more than once from one node is counted once: the message's {@code FLOAT_PRINT} is one
+     * What a dialect writes more than once from one node is counted once: the message's {@code FLOAT_SHORTEST_TEXT} is one
      * call here and some 23 copies in DuckDB's text, a spelling the lowering may not know (invariant 3), so a sqrt
      * costs three copies of its argument here, not 27. */
     static @com.legend.base.Nullable String overCopied(SqlSelect base, List<SqlSelect.Projection> written) {
@@ -834,7 +827,6 @@ final class Fold {
             case SqlSource.Dual d -> false;
             case SqlSource.Join j -> physicallyRenderable(j.left(), c)
                     || physicallyRenderable(j.right(), c);
-            case SqlSource.VarSetPlaceholder vp -> false;
             case SqlSource.RawSql raw -> false;
             case SqlSource.GridReport g -> false;
             case SqlSource.Catalog cat -> false;
@@ -1177,7 +1169,6 @@ final class Fold {
             case SqlSource.Dual d -> null;
             case SqlSource.Table t -> stamped(t.alias(), t.outputs(), column);
             case SqlSource.Cte ct -> stamped(ct.alias(), ct.outputs(), column);
-            case SqlSource.VarSetPlaceholder vp -> null;
             // LATE-BOUND grid (P3-2 single-query): an undemanded raw
             // grid skipped the schema probe, so its outputs are empty
             // BY DESIGN — the trust-name rule applies (pivot's
@@ -1576,7 +1567,7 @@ final class Fold {
                     SqlExpr.Call.of(SqlFn.STRFTIME, e,
                             new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE))));
         }
-        return new SqlExpr.Case(arms, iso);
+        return new SqlExpr.Case(arms, iso, SqlExpr.Reason.OPERATOR);
     }
 
 
@@ -1609,7 +1600,7 @@ final class Fold {
         // decimal kind by the database prints 52.0, never 52)
         SqlExpr cell = t == com.legend.compiler.element.type.Type.Primitive.FLOAT
                 ? LiteralSpelling.declaredDouble(v) : v;
-        return new SqlExpr.Cast(cell, com.legend.sql.SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Cast(cell, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR);
     }
 
     /** The whole-row {@code distinct()} directly under a restrict (not the
@@ -1640,7 +1631,8 @@ final class Fold {
     /** All columns resolved against {@code base}, or null if any misses
      * (moved from Lowerer — this is Fold's own resolveInto vocabulary). */
     static @com.legend.base.Nullable List<SqlSelect.Projection> tryProjectAll(
-            SqlSelect base, List<String> columns, List<OutputCol> contract) {
+            SqlSelect base, List<String> columns, List<OutputCol> contract,
+            @com.legend.base.Nullable String unionFrame) {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         // the select's projections and the contract by name, built once (2026-10-15: a scan per column was
         // quadratic in a wide projection's width)
@@ -1667,7 +1659,7 @@ final class Fold {
             // union frame's outputs, which keep it (tds union goldens:
             // "unionalias_0"."lhs_lastName" as "lhs_lastName")
             boolean unionRead = base.from() instanceof SqlSource.Subselect sub
-                    && "unionAlias".equals(sub.frameName())
+                    && unionFrame != null && unionFrame.equals(sub.frameName())
                     && e instanceof SqlExpr.Column uc
                     && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,

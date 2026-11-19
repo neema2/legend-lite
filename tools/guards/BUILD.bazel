@@ -2,6 +2,7 @@
 # (@repo_inventory); defs.bzl's guards_package gives each package an `all_files` the content guards read.
 load("@bazel_skylib//rules:native_binary.bzl", "native_binary", "native_test")
 load("@repo_inventory//:packages.bzl", "PACKAGES")
+load("@rules_python//python:py_library.bzl", "py_library")
 load(":compile_only.bzl", "action_kinds_report", "compile_only_validated_fixture")
 load(":defs.bzl", "guards_package")
 load(":workflows.bzl", "git_marker")
@@ -10,6 +11,7 @@ load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/platforms:defs.bzl", "COMPILER_LIBRARY_PLATFORMS", "platform_select")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 # Every package's files (guards_package), from the inventory's package list: a package without guards_package()
 # fails analysis here (G0, Bazel workplan P6-00).
@@ -122,7 +124,8 @@ action_kinds_report(
     # zlib. Wherever it builds (COMPILER_LIBRARY_PLATFORMS: Windows on x86-64 too, since 2026-10-09), and not elsewhere:
     # an incompatible tier would make this report, and so the guard, incompatible there too
     tiers = select({
-        "//tools/platforms:" + platform: _TIERS | {"//native:compiler": "native"}
+        # and its opt-in engine library (//native:engine, K2: the user's "product root, edge opt-in", 2026-11-18)
+        "//tools/platforms:" + platform: _TIERS | {"//native:compiler": "native", "//native:engine": "native"}
         for platform in COMPILER_LIBRARY_PLATFORMS
     } | {"//conditions:default": _TIERS}),
 )
@@ -331,3 +334,58 @@ exports_files(
 )
 
 guards_package()
+
+# SHRINK-ONLY, BY THE MERGE-BASE (the edge audit's C.11, second half; the GUARD stream's C.13-CI, the orchestrator's GO of
+# 2026-11-17): a watched pin of a guard file grows (an entry added, a number raised) only with a dated note. The reader and
+# the rule on planted pins, hermetic, in the checks lane:
+py_library(
+    name = "shrink_only_lib",
+    srcs = ["shrink_only.py"],
+)
+
+py_test(
+    name = "shrink_only_test",
+    # medium (300 s): its 44 cases spawn git 482 times (the throwaway repositories' history and the check's own reads),
+    # 1.5 s of its 1.9 s here, and CI's Windows runner, where a process spawn costs far more, timed it out at small's
+    # 60 s (61.8 s, windows / checks at the PR head; PR #118 fix round, 2026-11-18)
+    size = "medium",
+    srcs = ["shrink_only_test.py"],
+    # the check's own target is read for its tags (the review of C.13-CI, M2, 2026-11-18), and its entry run as data
+    # (it runs the merge-base's copy: the review of 351e80daa2, M1, 2026-11-18); the real workflow's shrink-only job and
+    # the gate's suites, read as the check's own files (the review of the guard line, G, MUST-FIX 3 and SHOULD 4,
+    # 2026-11-18)
+    data = [
+        "BUILD.bazel",
+        "shrink_only_check.py",
+        "//:workflows",
+        "//gates:BUILD.bazel",
+    ],
+    main = "shrink_only_test.py",
+    deps = [":shrink_only_lib"],
+    visibility = ["//gates:__pkg__"],
+)
+
+# ... and the check itself, HEAD against its merge-base with origin/main: it reads the repository's history, so it runs
+# outside the sandbox (local), is never answered from the cache (external: its inputs are the history and the guard
+# files, none of them declared -- the review of C.13-CI, M2, 2026-11-18: cached, //gates:local answered "PASSED"
+# whatever the pins became), and runs by name (manual: //gates:local lists it, and so does //gates:heavy for the lane
+# guard); CI runs the same script in gate.yml's shrink-only job, on a full clone
+py_test(
+    name = "shrink_only_check",
+    size = "small",
+    # its entry calls the one library that holds the check: one target compiles shrink_only.py (2026-11-18: listed in
+    # two targets' srcs, its .pyc was written by two actions, a conflict that kept //gates:local from building)
+    srcs = ["shrink_only_check.py"],
+    args = [
+        "--base",
+        "origin/main",
+    ],
+    main = "shrink_only_check.py",
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    visibility = ["//gates:__pkg__"],
+    deps = [":shrink_only_lib"],
+)

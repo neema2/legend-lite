@@ -77,7 +77,8 @@ const SETTLE_TIMEOUT_MS = 20_000;
  */
 const CHECK_DEADLINE_MS = 30_000;
 
-// THE QUERY STORE, as legend-lite answers it: the fixture records ARE its answers
+// THE QUERY STORE, as legend-lite answers it at lite's own route, /api/lite/v1/queries (lite API v1, H6, 2026-11-17:
+// the one client's route since; a missing record lite's kind notFound): the fixture records ARE its answers
 // (fixtures/saved-queries/README.md), so this needs no server of its own -- CI runs it. The records are the ones the
 // BUILD file names (SAVED_QUERIES), never found beside this file.
 const storedQueries = async () => Promise.all(runfilesFromEnv('SAVED_QUERIES').filter((f) => f.endsWith('.json'))
@@ -88,22 +89,22 @@ const queryStore = async (req, res) => {
     res.end(JSON.stringify(body));
   };
   const all = await storedQueries();
-  if (req.method === 'POST' && req.url === '/api/pure/v1/query/search') {
+  if (req.method === 'POST' && req.url === '/api/lite/v1/queries/search') {
     let raw = '';
     for await (const chunk of req) raw += chunk;
     const term = (JSON.parse(raw || '{}').searchTermSpecification?.searchTerm ?? '').toLowerCase();
     return json(200, all.filter((q) => q.name.toLowerCase().includes(term)));
   }
-  const id = decodeURIComponent(req.url.slice('/api/pure/v1/query/'.length));
+  const id = decodeURIComponent(req.url.slice('/api/lite/v1/queries/'.length));
   const found = all.find((q) => q.id === id);
-  return found ? json(200, found) : json(404, { message: `no query ${id}` });
+  return found ? json(200, found) : json(404, { kind: 'notFound', message: `no saved query has the ID '${id}'` });
 };
 
 // PORT: a fixed one, for a warehouse that must allow this page's origin (warehouse-source.mjs)
 const { port, close: closeServer } = await serve(ROOT, {
   port: Number(process.env.PORT ?? 0),
   route: async (req, res) => {
-    if (!req.url.startsWith('/api/pure/v1/query')) return false;
+    if (!req.url.startsWith('/api/lite/v1/queries')) return false;
     await queryStore(req, res);
     return true;
   },

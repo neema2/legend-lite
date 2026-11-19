@@ -21,7 +21,7 @@ final class AssertErrorRuns {
      *  road's one rule; a side that raises nothing fails ("No error was thrown"), an error no arm takes (a wall) is
      *  raised as it was. */
     static TypedSide judge(HostJudgment.AssertError a, java.util.function.Supplier<List<TypedSide>> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
+            BodyRun run) {
         if (a.inner() != null) {
             // f IS an assert (2026-11-04): its failure is the error assertError matches, as upstream's assertError
             // catches an assert's failure as any error; the inner assert judged over its sides as any assert, by the
@@ -29,20 +29,20 @@ final class AssertErrorRuns {
             String message = null;
             try {
                 // the inner assert's sides were read with the step's, its caller's message among them: no reader
-                if (com.legend.testexec.HostJudgments.judge(a.inner().judgment(), sides, rules, null, run) == null) {
+                if (com.legend.testexec.HostJudgments.judge(a.inner().judgment(), sides, null, run) == null) {
                     throw new com.legend.error.NotImplementedException(a.inner().assertion().name()
                             + " inside assertError: the host judge declined the sides it read");
                 }
             } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {
-                message = String.valueOf(e.getMessage());
+                message = run.caughtMessage(e);
             }
-            return judged(a.expected(), a.line(), a.column(), message, null);
+            return judged(a.expected(), a.line(), a.column(), message, null, run);
         }
         com.legend.testexecutionplan.Failure planned = a.caught();
         if (planned != null) {
             // the error f raised while it was planned, as the plan's data: its message; no position (planning sends
             // no statement, so no database's raise carries one)
-            return judged(a.expected(), a.line(), a.column(), String.valueOf(planned.message()), null);
+            return judged(a.expected(), a.line(), a.column(), String.valueOf(planned.message()), null, run);
         }
         RuntimeException raised = null;
         try {
@@ -51,17 +51,17 @@ final class AssertErrorRuns {
             // the errors the arm takes (caught's): any other is a wall and stays loud, raised as it was
             raised = e;
         }
-        return judged(a.expected(), a.line(), a.column(), raised == null ? null : String.valueOf(raised.getMessage()),
-                raised instanceof com.legend.error.DataError ? raised.getCause() : null);
+        return judged(a.expected(), a.line(), a.column(), raised == null ? null : run.caughtMessage(raised),
+                raised instanceof com.legend.error.DataError ? raised.getCause() : null, run);
     }
+
 
     private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
             @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
-            @com.legend.base.Nullable Throwable caughtCause) {
+            @com.legend.base.Nullable Throwable caughtCause, BodyRun run) {
+        HostWords words = run.hearing().hostForms().words();   // whose words: the run hook's (census J29)
         if (caughtMessage == null) {
-            // interpreted AssertError.java: PureAssertFail("No error was
-            // thrown") — a FAIL, not an orchestration error
-            throw new com.legend.error.AssertFailed("No error was thrown");
+            throw new com.legend.error.AssertFailed(words.noError(expected));
         }
         // B7 (RaisedErrors): messages arrive ALREADY clean — the
         // Executor funnel unwraps the transport envelope from
@@ -71,12 +71,7 @@ final class AssertErrorRuns {
         // coincidence. The old broad prefix regex is deleted.
         String actual = caughtMessage;
         if (!actual.equals(expected)) {
-            // assertError.pure:24 — the /4 body's assertEquals format,
-            // verbatim
-            throw new com.legend.error.AssertFailed(
-                    "Execution error message mismatch.\nThe actual message"
-                    + " was \"" + actual + "\"\nwhere the expected"
-                    + " message was:\"" + expected + "\"");
+            throw new com.legend.error.AssertFailed(words.errorDiffers(expected, actual));
         }
         // POSITION adjudication (leg 2, assertError.pure:25-26 — message
         // first, then line, then column, each only when expected): the
@@ -95,16 +90,10 @@ final class AssertErrorRuns {
                         + " a raise emission without provenance)");
             }
             if (expectedLine != null && p.line() != expectedLine) {
-                // assertError.pure:25 — the /4 body's format, verbatim
-                throw new com.legend.error.AssertFailed(
-                        "Execution error line mismatch. Actual: " + p.line()
-                        + " where expected: " + expectedLine);
+                throw new com.legend.error.AssertFailed(words.lineDiffers(expectedLine, p.line()));
             }
             if (expectedColumn != null && p.column() != expectedColumn) {
-                // assertError.pure:26 — the /4 body's format, verbatim
-                throw new com.legend.error.AssertFailed(
-                        "Execution error column mismatch. Actual: "
-                        + p.column() + " where expected: " + expectedColumn);
+                throw new com.legend.error.AssertFailed(words.columnDiffers(expectedColumn, p.column()));
             }
         }
         return new TypedSide.Scalar(Boolean.TRUE,

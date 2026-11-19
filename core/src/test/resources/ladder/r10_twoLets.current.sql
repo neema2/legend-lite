@@ -1,7 +1,7 @@
 WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
   FROM T AS frame_r__t0), frame_s AS MATERIALIZED (SELECT frame_s__t0.*
   FROM T AS frame_s__t0
-  WHERE frame_s__t0.AMOUNT > 1.0), __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
+  WHERE frame_s__t0.AMOUNT > 1.0E0), __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
   FROM (
     SELECT COUNT(*) AS __n
     FROM frame_r AS frame_r_t0
@@ -28,16 +28,8 @@ WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
       SELECT 2 AS value
     ) AS side ON TRUE
   ) AS n)
-SELECT 0 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('
-expected: ', coalesce(replace(CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), '
-', '\n'), 'null'), '
-actual:   ', coalesce(replace(CAST(p.__c_n AS VARCHAR), '
-', '\n'), 'null')) AS __message
+SELECT 0 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('expected ', coalesce(CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), '[]'), ', got ', coalesce(CAST(p.__c_n AS VARCHAR), '[]')) AS __message
 FROM __p_0 AS p
 UNION ALL
-SELECT 1 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('
-expected: ', coalesce(replace(CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), '
-', '\n'), 'null'), '
-actual:   ', coalesce(replace(CAST(p.__c_n AS VARCHAR), '
-', '\n'), 'null')) AS __message
+SELECT 1 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('expected ', coalesce(CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), '[]'), ', got ', coalesce(CAST(p.__c_n AS VARCHAR), '[]')) AS __message
 FROM __p_1 AS p

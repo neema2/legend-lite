@@ -24,13 +24,13 @@ import java.util.Map;
  * the receiver calls, never Java in the plan). A group of constants alone sends nothing: each is read from its own
  * text, as the runner hands a constant side's.
  */
-final class HostSides {
+public final class HostSides {
 
     private HostSides() {
     }
 
     /** One side an arm asks for: the argument and the flags {@link JudgePlans#evalSide} took for it. */
-    record Ask(TypedSpec arg, boolean identity, boolean fold,
+    public record Ask(TypedSpec arg, boolean identity, boolean fold,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.@com.legend.base.Nullable ExecEnv at) {
         /** An ask planned under the step's environment. */
         Ask(TypedSpec arg, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
@@ -49,8 +49,8 @@ final class HostSides {
      * the record names over the rows. The answer is null where the arm declines the sides it read (the walk's generic
      * path continues; the program road refuses it by name, a shape {@code AssertVerdicts.planHost} leaves on the walk).
      */
-    record Check(List<Ask> asks, HostJudgment judgment) {
-        Check {
+    public record Check(List<Ask> asks, HostJudgment judgment) {
+        public Check {
             asks = List.copyOf(asks);
         }
     }

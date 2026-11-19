@@ -137,7 +137,8 @@ class InstanceIdentityTest {
                 "{|let a = ^m::P(name='a'); let b = ^m::P(name='a');"
                         + " assertEq($a, $b);}"));
         // upstream's words under either judge (2026-11-04, the core parity program): '\nexpected: %r\nactual:   %r'
-        assertTrue(e.getMessage().contains("instanceOf m::P>") && e.getMessage().contains("expected: <"),
+        // lite's own sentence: an identity assert names each instance by its class and identity (2026-11-17)
+        assertTrue(e.getMessage().matches("expected m::P \\(instance \\w+\\), got m::P \\(instance \\w+\\)"),
                 e.getMessage());
     }
 

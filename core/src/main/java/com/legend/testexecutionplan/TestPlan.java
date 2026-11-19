@@ -33,12 +33,24 @@ import java.util.Objects;
  * @param session             the target of the session the body runs on: its runtime's, planned (the plan-as-data
  *                            design's slice 5, 2026-11-09: until then the door planned it from the model beside the
  *                            plan, so a plan read back from its JSON could not open its own session)
+ * @param answerSizeWords     the body's answer's refusal of no rows under a required bound, worded at planning by the
+ *                            plan's style (C5's step E, 2026-11-17: the run spells no text); null where the answer has
+ *                            no required bound, or the plan sends none
+ * @param words               the name of the words the plan's failures are worded in, as its style planned them
+ *                            ({@link #LITE_WORDS}, or the compatibility edge's; census J29, 2026-11-18: a name, never a flag)
+ *                            (census C1, the orchestrator's ruling of 2026-11-17: one choice per run, the style's at
+ *                            planning and the run hook's at run -- the runner refuses a hook that words them otherwise)
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts) {
+        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts,
+        @com.legend.base.Nullable String answerSizeWords, String words) {
+
+    /** The name of lite's own words ({@code LiteHostWords}, {@code LiteFailureWords}). */
+    public static final String LITE_WORDS = "lite";
 
     public TestPlan {
+        java.util.Objects.requireNonNull(words, "words");
         Objects.requireNonNull(session, "session");
         // the body's facts (C5-J item 2, 2026-11-15): what a runner reads of the body, data the plan carries
         Objects.requireNonNull(facts, "facts");
@@ -57,7 +69,14 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
-        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts);
+        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts,
+                answerSizeWords, words);
+    }
+
+    /** The same plan carrying {@code words}, its answer's size refusal as its style words it. */
+    public TestPlan withAnswerSizeWords(@com.legend.base.Nullable String sizeWords) {
+        return new TestPlan(parameters, steps, judge, extensionsByStep, extensionsByVerdict, answersLastVerdict, session,
+                facts, sizeWords, words);
     }
 
     private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {
@@ -71,7 +90,23 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
     public enum Judge { HOST, DATABASE, AGREEMENT }
 
     /** A step of a test body's program. */
-    public sealed interface TestStep permits Run, FrameRun, Verdicts, Branch {
+    public sealed interface TestStep permits Run, FrameRun, Verdicts, Branch, Isolated {
+    }
+
+    /** BOTH JUDGES, ISOLATED (the user's judge model, 2026-11-17; the orchestrator's (b'), the same day): the body
+     *  planned by the HOST judge alone and by the DATABASE judge alone -- each sub-plan byte-identical to what that
+     *  judge plans by itself (TestPlannerIsolationTest) -- run each in its own run, and the two runs' assert outcomes
+     *  compared by the runner, verdict and message, at this step. The one step of a plan whose judge is
+     *  {@link Judge#AGREEMENT}. */
+    public record Isolated(TestPlan host, TestPlan database) implements TestStep {
+        public Isolated {
+            Objects.requireNonNull(host, "host");
+            Objects.requireNonNull(database, "database");
+            if (host.judge() != Judge.HOST || database.judge() != Judge.DATABASE) {
+                throw new IllegalArgumentException("an agreement holds a HOST plan and a DATABASE plan, not "
+                        + host.judge() + " and " + database.judge());
+            }
+        }
     }
 
     /** A product step as the product's plan holds it (never a sequence: a program's steps are one list). */
@@ -120,6 +155,49 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         return !(answer() instanceof ExecutionPlan.Constant);
     }
 
+    /** Whether this plan WRITES (the orchestrator's ruling on isolated BOTH, 2026-11-17): any statement that is not a
+     *  pure read -- a DDL, a DML, a plan load, a temp or staged table -- decided from the plan's own data alone: the
+     *  body's effects and inline-CSV seeds (its facts), its session target's loads, and every write node a step holds
+     *  (an update, an effect, a load), a branch's sides and each judge's plan of a pair included -- a write to the
+     *  graph's system database aside, which each run leases for itself. A plan that writes
+     *  cannot run both judges in turn on one given session: the second would read the first's writes. */
+    public boolean writes() {
+        if (facts.effects() || facts.seedsInlineCsv() || !session.loads().isEmpty() && !system(session)) {
+            return true;
+        }
+        return steps.stream().anyMatch(TestPlan::writes);
+    }
+
+    private static boolean writes(TestStep step) {
+        return switch (step) {
+            case Run r -> writes(r.node());
+            case FrameRun f -> false;
+            case Verdicts v -> false;
+            case Branch b -> b.then().stream().anyMatch(TestPlan::writes)
+                    || b.otherwise().stream().anyMatch(TestPlan::writes);
+            case Isolated pair -> pair.host().writes() || pair.database().writes();
+        };
+    }
+
+    private static boolean writes(Node node) {
+        return switch (node) {
+            case ExecutionPlan.Update u -> !system(u.sql().target());
+            case ExecutionPlan.Effect e -> !system(e.sql().target());
+            case ExecutionPlan.Load l -> !system(l.target());
+            case ExecutionPlan.Sequence s -> s.steps().stream().anyMatch(TestPlan::writes);
+            case ExecutionPlan.TdsResult t -> false;
+            case ExecutionPlan.Keyed k -> false;
+            case ExecutionPlan.Check c -> false;
+            case ExecutionPlan.Constant c -> false;
+        };
+    }
+
+    /** Whether {@code target} is the graph's system database: leased for each run, never the caller's session, so a
+     *  write there (the system metamodel store's seed) is no write to the session two judges would share. */
+    private static boolean system(ExecutionPlan.Target target) {
+        return target.database() instanceof ExecutionPlan.Database.System;
+    }
+
     /** The statements a verdict group or a branch may read, each a typed or keyed result: a group's fused statement,
      *  each verdict's wrapper, base sides and message; a branch's condition and both sides' steps' (whichever side
      *  runs). What the runner's callback for the step declares; a product step or a frame run has none here. */
@@ -127,6 +205,49 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         List<Node> out = new java.util.ArrayList<>();
         statementsOf(step, out);
         return out;
+    }
+
+    /** The texts of the statements {@code step} sends, in order: a product step's or a frame run's node's, a verdict
+     *  group's or a branch's statements' ({@link #statements}). A raise site's words are filed at a step by a text's
+     *  index in this list (the K10 trim, 2026-11-18), and the hearing reads the text back through it; an isolated pair
+     *  holds no records of its own (each judge's plan files its own), and is refused by name. */
+    public static List<String> sentTexts(TestStep step) {
+        List<String> out = new java.util.ArrayList<>();
+        switch (step) {
+            case Run r -> textsOf(r.node(), out);
+            case FrameRun f -> textsOf(f.check(), out);
+            case Verdicts v -> statements(v).forEach(n -> textsOf(n, out));
+            case Branch b -> statements(b).forEach(n -> textsOf(n, out));
+            case Isolated p -> throw new IllegalStateException("an isolated pair is assembled after its two plans, each"
+                    + " filed at its own door");
+        }
+        return out;
+    }
+
+    /** The texts of the statements {@code node} sends, in order. */
+    private static void textsOf(Node node, List<String> into) {
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> textsOf(step, into));
+            case ExecutionPlan.TdsResult t -> into.add(t.sql().statement());
+            case ExecutionPlan.Keyed k -> {
+                into.add(k.keys().statement());
+                into.add(k.body().statement());
+            }
+            case ExecutionPlan.Update u -> into.add(u.sql().statement());
+            case ExecutionPlan.Check c -> into.add(c.sql().statement());
+            case ExecutionPlan.Effect e -> into.add(e.sql().statement());
+            case ExecutionPlan.Load l -> {
+                for (ExecutionPlan.LoadStep step : l.steps()) {
+                    if (step instanceof ExecutionPlan.LoadStep.File f
+                            && f.delivery() instanceof ExecutionPlan.LoadStep.Delivery.Reads reads) {
+                        into.addAll(reads.statements());
+                    }
+                }
+            }
+            case ExecutionPlan.Constant c -> {
+                // rows, no statement
+            }
+        }
     }
 
     private static void statementsOf(TestStep step, List<Node> out) {
@@ -152,6 +273,63 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             }
             case Run r -> throw new IllegalArgumentException("a product step's statements are the product plan's");
             case FrameRun f -> throw new IllegalArgumentException("a frame run's statement is its check's");
+            // each judge's plan is its own: its statements are its steps'
+            case Isolated iso -> {
+                iso.host().steps().forEach(each -> statementsOf(each, out));
+                iso.database().steps().forEach(each -> statementsOf(each, out));
+            }
+        }
+    }
+
+    /**
+     * The statements the test runner SENDS for {@code step} (2026-11-15, PR1's review: the judge-SQL pins counted the
+     * fused statement and the base sides alone): a verdict group's fused statement, else each verdict's wrapper; every
+     * raising verdict's wrapper (read with the raise's message bound, fused or not); each verdict's base and message
+     * sides; a branch's condition, then both sides' judge steps (a measurement counts what either side may send; a side's
+     * product steps are the product's).
+     */
+    public static List<Node> sent(TestStep step) {
+        List<Node> out = new java.util.ArrayList<>();
+        sentOf(step, out);
+        return out;
+    }
+
+    private static void sentOf(TestStep step, List<Node> out) {
+        switch (step) {
+            case Verdicts v -> {
+                if (v.fused() != null) {
+                    out.add(v.fused());
+                }
+                for (Verdict each : v.verdicts()) {
+                    if (each.wrapper() != null && (v.fused() == null || each.raises())) {
+                        out.add(each.wrapper());
+                    }
+                    each.base().forEach(side -> sideStatement(side, out));
+                    if (each.message() != null) {
+                        sideStatement(each.message(), out);
+                    }
+                }
+            }
+            case Branch b -> {
+                sideStatement(b.condition(), out);
+                b.then().forEach(inner -> sentInBranch(inner, out));
+                b.otherwise().forEach(inner -> sentInBranch(inner, out));
+            }
+            case Run r -> throw new IllegalArgumentException("a product step's statements are the product plan's");
+            case FrameRun f -> throw new IllegalArgumentException("a frame run's statement is its check's");
+            case Isolated iso -> {
+                iso.host().steps().forEach(each -> sentOf(each, out));
+                iso.database().steps().forEach(each -> sentOf(each, out));
+            }
+        }
+    }
+
+    /** A branch side's step: its judge statements, a product step's (a Run, a FrameRun) being the product's, which a
+     *  branch side holds beside its verdicts (round 55f, 2026-11-15: thrown here, two corpus bodies' judges measured
+     *  as refused -- relationalMapper's testRelationalDatabaseMapper, projection::union's testSimpleRelationalUnion). */
+    private static void sentInBranch(TestStep step, List<Node> out) {
+        if (!(step instanceof Run) && !(step instanceof FrameRun)) {
+            sentOf(step, out);
         }
     }
 
@@ -160,6 +338,8 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             case Side.Rows r -> out.add(r.result());
             case Side.KeyedRows k -> out.add(k.keyed());
             case Side.Constant c -> {
+            }
+            case Side.FusedCell f -> {
             }
         }
     }
@@ -179,15 +359,15 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * what the plan's judge asks ({@link Judge}) through the runner's open program; the runner judges nothing: the comparison rules and the messages are the judges' own code, reading the plan's
      * facts (the agreement's pairing among them, {@code agreement}). {@code roots}: the database judge's root loop of the segment this group closes (the plan-as-data
      * design's step 5, 2026-11-08), judged once the group's last verdict is in -- under the agreement judge, the
-     * database half's loop of the assert the group closes; null on every other group. {@code agreement}: under the
-     * agreement judge, the pairing of the assert this group closes (step 6), null otherwise.
+     * database half's loop of the asserts the group closes; null on every other group. {@code agreements}: under the
+     * agreement judge, the pairings of the asserts this group closes (step 6), one per root of {@code roots} in root
+     * order (E-5c, the user's ruling O5 of 2026-11-13: a segment's group may carry several asserts) -- or the one
+     * assert of a group with no loop (a raising assert's, or one the database judge declines); empty otherwise.
      */
     public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-            @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules,
-            @com.legend.base.Nullable RootLoop roots, @com.legend.base.Nullable Agreement agreement)
+            @com.legend.base.Nullable Savepoint savepoint, @com.legend.base.Nullable RootLoop roots)
             implements TestStep {
         public Verdicts {
-            Objects.requireNonNull(rules, "a verdict group names the rules it is judged by");
             verdicts = List.copyOf(verdicts);
             if (verdicts.isEmpty()) {
                 throw new IllegalArgumentException("a verdict group holds at least one verdict");
@@ -195,36 +375,43 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
             }
+            for (Verdict v : verdicts) {
+                for (Side side : v.base()) {
+                    if (side instanceof Side.FusedCell cell) {
+                        readsFused(fused, cell, v.name());
+                    }
+                }
+            }
+        }
+
+        /** A fused-cell side of verdict {@code name} reads columns of its group's fused statement. */
+        private static void readsFused(@com.legend.base.Nullable TdsResult fused, Side.FusedCell cell, String name) {
+            if (fused == null) {
+                throw new IllegalArgumentException(name + ": a side read from the fused row of a group with no fused"
+                        + " statement");
+            }
+            if (cell.at() + cell.columns().size() > fused.columns().size()) {
+                throw new IllegalArgumentException(name + ": a side reads the batch's columns from " + cell.at()
+                        + ", past the " + fused.columns().size() + " it answers");
+            }
         }
 
         /** A group with no savepoint: its database's transaction survives a failing statement, the group runs
          *  outside any transaction, or no failure of its statements is one the program survives but the fused
          *  statement's. */
-        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused, JudgingRules rules) {
-            this(verdicts, fused, null, rules, null, null);
+        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) {
+            this(verdicts, fused, null, null);
         }
 
         /** A group that closes no database segment and pairs no assert. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-                @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules) {
-            this(verdicts, fused, savepoint, rules, null, null);
-        }
-
-        /** A group that pairs no assert. */
-        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-                @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules,
-                @com.legend.base.Nullable RootLoop roots) {
-            this(verdicts, fused, savepoint, rules, roots, null);
+                @com.legend.base.Nullable Savepoint savepoint) {
+            this(verdicts, fused, savepoint, null);
         }
 
         /** The same group closing a database segment, judged by {@code r} once its last verdict is in. */
         public Verdicts withRoots(@com.legend.base.Nullable RootLoop r) {
-            return new Verdicts(verdicts, fused, savepoint, rules, r, agreement);
-        }
-
-        /** The same group closing the agreement judge's assert {@code a}. */
-        public Verdicts withAgreement(@com.legend.base.Nullable Agreement a) {
-            return new Verdicts(verdicts, fused, savepoint, rules, roots, a);
+            return new Verdicts(verdicts, fused, savepoint, r);
         }
 
         /**
@@ -260,34 +447,9 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         }
     }
 
-    /**
-     * THE RULES A VERDICT GROUP IS JUDGED BY (the user, 2026-11-04: "explicit rule"): chosen upfront per run
-     * ({@code ExecuteOptions.withEngineCompat}), stamped on every group by its planner, read by both judges -- the
-     * database judge's statement was planned under them, the host judge compares by them. A reader of the plan sees
-     * which rules it judges by.
-     * <ul>
-     *   <li>{@link #LITE}: lite's own -- what a product run and every core test judge by.</li>
-     *   <li>{@link #COMPILED_PURE_COMPAT}: backwards compatibility with legend-pure's compiled runtime and
-     *       legend-engine's goldens (PCT channel B, the corpus), each leniency a register row: S132 (a String's float
-     *       tokens within 2 ULP), S127 (an Integer equal to a Decimal by text), S15/S132 (a Float within 2 ULP), S139 (a Decimal's scale part of its value).</li>
-     * </ul>
-     */
-    public enum JudgingRules {
-        LITE, COMPILED_PURE_COMPAT;
-
-        /** Whether two Floats within 2 ULP are equal: compatibility mode's tolerance alone; lite compares a Float
-         *  exactly (S15/S132, the user's ruling of 2026-11-05, built that day). */
-        public boolean floatTolerance() {
-            return this == COMPILED_PURE_COMPAT;
-        }
-
-        /** Whether two Decimals of one value and different scales differ ({@code 0.3D} and {@code 0.30D}): compiled
-         *  Pure's assert, compatibility mode's alone; lite compares a Decimal by value (S139, the user's ruling of
-         *  2026-11-05). */
-        public boolean decimalScale() {
-            return this == COMPILED_PURE_COMPAT;
-        }
-    }
+    // (JudgingRules: deleted 2026-11-18, train 17, the orchestrator's ruling -- a Float's tolerance and a Decimal's
+    // scale are the two-form kinds' now, the style's VerdictNumbers and the run hook's HostForms; census C1's "the
+    // judging rules are data" (2026-11-17) is superseded by them, and the plan carries no rules)
 
     /**
      * One assert of a {@link Verdicts} group, as data: {@code name}, the label the test listener reports under;
@@ -385,7 +547,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** A side of an assert: a result the database answers (typed rows, or a keyed result's), or a constant the
      *  program wrote. */
-    public sealed interface Side permits Side.Rows, Side.KeyedRows, Side.Constant {
+    public sealed interface Side permits Side.Rows, Side.KeyedRows, Side.Constant, Side.FusedCell {
 
         /** A statement with its column facts, run as any typed result is. */
         record Rows(TdsResult result) implements Side {
@@ -401,6 +563,26 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             }
         }
 
+        /**
+         * A side read from its group's batch (the host plan's own batch, the orchestrator's (1), 2026-11-17:
+         * consecutive asserts' sides read by one statement, no verdict in it): {@code index}, the side's place in the
+         * batch, its rows the batch's rows of that index in their order; {@code columns}, the side's own columns with
+         * their names and type facts, read from the batch's columns at {@code at} on, in order. Nothing is sent for
+         * it; its group's batch is read once, and the cells decode by these columns' facts as the side's own
+         * statement's would. Only in a group with a batch that answers those columns ({@link Verdicts}' invariant).
+         */
+        record FusedCell(int index, int at, List<Column> columns) implements Side {
+            public FusedCell {
+                if (index < 0 || at < 0) {
+                    throw new IllegalArgumentException("a batched side's index is its place in the batch, its columns"
+                            + " a place among the batch's");
+                }
+                columns = List.copyOf(columns);
+                if (columns.isEmpty()) {
+                    throw new IllegalArgumentException("a fused-cell side reads at least one column");
+                }
+            }
+        }
         /**
          * A constant the program wrote (a literal side: {@code assertEquals(3, ...)}'s 3): its columns with their
          * type facts, and its rows as TEXT cells, each cell the literal's spelling as the program wrote it (null an

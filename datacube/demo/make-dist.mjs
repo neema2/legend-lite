@@ -67,6 +67,12 @@ for (const [page, bundle] of [['index.html', 'bundle'], ['engine.html', 'bundle-
   html = html.replace('</head>', `<style>\n${css}</style>\n</head>`);
   await writeFile(join(DIST, page), html);
 }
+// THE LEGEND-ENGINE PLANE (H11, 2026-11-17): its own bundle and its chunks, which a page loads by its URL beside the
+// page's bundle only when the `engine` plane is chosen (demo/planners.ts) -- no page's bundle imports it, so the loop
+// above never copied it, and the app failed to start in engine mode (PR #118 fix round, 2026-11-18;
+// test/dist/imports.ts holds the dist to every file its pages import)
+await cp(join(ROOT, 'demo', 'legend-engine.js'), join(DIST, 'legend-engine.js'));
+await cp(join(ROOT, 'demo', 'chunks-legend-engine'), join(DIST, 'chunks-legend-engine'), { recursive: true });
 
 // A NOTEBOOK'S CUBE (legend_lite.notebook.DataCube): anywidget's script (the loader) and DataCube's module it fetches
 // once per notebook page, its styles and its lazy chunks beside it, which Python's engine answers over the widget's

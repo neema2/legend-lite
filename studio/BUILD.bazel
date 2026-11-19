@@ -28,7 +28,6 @@ js_library(
         "//engine-client:engine_api",
         "//engine-client:planner",
         "//engine-client:records",
-        "//engine-client:server",
         "//legend-art:legend_art",
         # the query builder, Query's own (query/src/embed.ts, plan A5), and DataCube's grid it shows results in
         "//query:src",
@@ -194,9 +193,14 @@ browser_test(
     tags = ["ci-linux-only"],
 )
 
+# Studio's node tests, one per test/*.test.ts, by the name each is made under: the suite below is derived from the same
+# glob, so a new test file is in the suite, and in the lane, by construction (the review of PR #118's fix round,
+# 2026-11-18: run_test was made here and missing from the suite).
+_NODE_TESTS = {t: t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in glob(["test/*.test.ts"])}
+
 # Studio's model over the real WebAssembly modules: the compiler (WASM_PLANNER) and the SDLC (SDLC_PAGE).
 [node_test(
-    name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
+    name = name,
     size = "small",
     data = [
         ":src",
@@ -204,6 +208,9 @@ browser_test(
         "demo/projects/manifest.json",
         "test/modules.ts",
         "//depot-client:depot_client",
+        # legend-engine's shapes over the planner, which test/modules.ts builds for the engine test (H11, 2026-11-17:
+        # the edge's, a test's alone -- the app's :src never takes it)
+        "//engine-client:edge",
         "//sdlc-server:page_dir",
     ],
     entry_point = t,
@@ -212,7 +219,10 @@ browser_test(
         "STUDIO_PROJECTS_MANIFEST": "$(rlocationpath demo/projects/manifest.json)",
     },
     wasm = True,
-) for t in glob(["test/*.test.ts"])]
+    # the engine test asks legend-engine's routes too: the engine module's, beside the planner (the user's K2 ruling,
+    # 2026-11-18: "Product root, edge opt-in"); the other tests load the planner alone
+    engine = t == "test/engine.test.ts",
+) for t, name in _NODE_TESTS.items()]
 
 # the demo projects (design S18), by runfiles path for the test that publishes them (STUDIO_PROJECTS_MANIFEST)
 filegroup(
@@ -232,6 +242,7 @@ typescript.tsc_test(
         "package.json",
         "tsconfig.json",
         "//depot-client:depot_client",
+        "//engine-client:edge",
         "//engine-client:engine_client",
         "//legend-art:legend_art",
         "//query:src",
@@ -245,15 +256,7 @@ typescript.tsc_test(
 # every test here but the browser harness (verify_test, in //gates:ui, tagged ci-linux-only): the local gate and CI run it
 test_suite(
     name = "tests",
-    tests = [
-        ":demo_test",
-        ":engine_test",
-        ":query_builder_test",
-        ":rename_test",
-        ":split_test",
-        ":typecheck_test",
-        ":workspace_test",
-    ],
+    tests = [":" + name for name in _NODE_TESTS.values()] + [":typecheck_test"],
 )
 
 # THE APP'S DIRECT DEPS, as Bazel resolves them (the C5-T last round's T1, 2026-11-15): //tools/deps:ts_layering_test

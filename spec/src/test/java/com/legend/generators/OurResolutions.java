@@ -68,7 +68,7 @@ final class OurResolutions {
         Map<String, String> elementSources = Map.of();
         for (int round = 0; round < 4000 && ctx == null; round++) {
             Compiler.ParsedModule module = Compiler.parseSources(sources, (n, e) -> { },
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             List<PackageableElement> kept = module.model().elements().stream()
                     .filter(e -> !(e instanceof com.legend.model.NativeFunctionDefinition)).toList();
             ParsedModel pruned = new ParsedModel(kept, module.model().imports(), module.model().source(),

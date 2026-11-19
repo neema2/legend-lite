@@ -112,6 +112,7 @@ final class CollectionLanes {
             case TypedCFloat ignored -> true;
             case TypedCDecimal ignored -> true;
             case TypedCString ignored -> true;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> true;   // an expected present null cell (C5 step C)
             case TypedCBoolean ignored -> true;
             case TypedCDate ignored -> true;
             case TypedCTime ignored -> true;
@@ -377,7 +378,7 @@ final class CollectionLanes {
         return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
                 new SqlExpr.Call(SqlFn.EQUAL, java.util.List.of(
                         SqlExpr.Call.of(SqlFn.JSON_TYPE, el), new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.NULL))),
-                new SqlExpr.NullLit())), el);
+                new SqlExpr.NullLit())), el, SqlExpr.Reason.CARRIER);
     }
 
     /** uniqueValueOnly over a group (collectionExtension.pure): the
@@ -398,6 +399,6 @@ final class CollectionLanes {
                         new SqlExpr.IntLit(1)),
                 new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.MAX,
                         java.util.List.of(value), false, java.util.List.of()))),
-                uvDefault);
+                uvDefault, SqlExpr.Reason.CARRIER);
     }
 }

@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.edge.EngineStyleDB2;
+
 import com.legend.sql.DialectCapability;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
@@ -119,6 +121,19 @@ public final class CapabilityMatrix {
                 }
             }
         }
+        // the edge's own dialects (2026-11-13, phase D's O3: legend-engine's text printers, EngineStyle*, moved from
+        // sql/dialect to com.legend.edge): read from the edge's directory, the printers alone
+        if (args.length > 3) {
+            try (Stream<Path> files = Files.list(Path.of(args[3]))) {
+                for (Path p : files.toList()) {
+                    String file = p.getFileName().toString();
+                    if (file.startsWith("EngineStyle") && file.endsWith(".java")) {
+                        sources.put(file.substring(0, file.length() - ".java".length()),
+                                stripComments(Files.readString(p)));
+                    }
+                }
+            }
+        }
         Files.createDirectories(out);
         for (Map.Entry<String, String> f : write(sources, dialects(sources.keySet()), reach).entrySet()) {
             Files.writeString(out.resolve(f.getKey()), f.getValue(), StandardCharsets.UTF_8);
@@ -133,8 +148,8 @@ public final class CapabilityMatrix {
     static List<Class<?>> dialects(Set<String> names) throws ClassNotFoundException {
         Set<Class<?>> concrete = new LinkedHashSet<>();
         for (String name : new TreeSet<>(names)) {
-            Class<?> cls = Class.forName("com.legend.sql.dialect." + name, false,
-                    CapabilityMatrix.class.getClassLoader());
+            Class<?> cls = Class.forName((name.startsWith("EngineStyle") ? "com.legend.edge." : "com.legend.sql.dialect.")
+                    + name, false, CapabilityMatrix.class.getClassLoader());
             if (cls != AnsiSqlRenderer.class && AnsiSqlRenderer.class.isAssignableFrom(cls)
                     && !Modifier.isAbstract(cls.getModifiers())) {
                 concrete.add(cls);

@@ -23,7 +23,7 @@ H2	H2	call	IS_NULL	spelled	an operator (isNullTest)		522
 H2	H2	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 H2	H2	call	IN	emulated	inList		6
 H2	H2	call	COALESCE	spelled	coalesce		552
-H2	H2	call	PARSE_INT	emulated	castAs: BIGINT		11
+H2	H2	call	PARSE_INT	emulated	parseInteger		11
 H2	H2	call	CONCAT	emulated	concatFlat		756
 H2	H2	call	LENGTH	spelled	length		73
 H2	H2	call	UPPER	spelled	upper		2
@@ -31,6 +31,7 @@ H2	H2	call	LOWER	spelled	lower		3
 H2	H2	call	GREATEST	spelled	greatest		52
 H2	H2	call	LEAST	spelled	least		8
 H2	H2	call	CONCAT_JOIN	spelled	concat		0
+H2	H2	call	CONCAT_WS	spelled	concat_ws		0
 H2	H2	call	LIST_FILTER	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	23
 H2	H2	call	LIST_TRANSFORM	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	31
 H2	H2	call	LIST_CONCAT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	2
@@ -75,6 +76,7 @@ H2	H2	call	REGEXP_EXTRACT	emulated	regexpExtractArm		45
 H2	H2	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		13
 H2	H2	call	REGEXP_REPLACE	spelled	regexp_replace		8
 H2	H2	call	REGEXP_FULL_MATCH	emulated	regexpFullMatch		49
+H2	H2	call	IS_NUMERIC	emulated	isNumeric		0
 H2	H2	call	MAP_FROM_LISTS	spelled	map		3
 H2	H2	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
 H2	H2	call	MAP_EMPTY	refused	an empty map reached H2, which has no map type		8
@@ -179,8 +181,11 @@ H2	H2	call	FLOOR_RAW	spelled	floor		55
 H2	H2	call	TO_VARIANT	emulated	variantConstruct		8
 H2	H2	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END		2
 H2	H2	call	DECIMAL_TO_TEXT	emulated	REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')		0
-H2	H2	call	FLOAT_CANON	emulated	floatCanonByText		0
-H2	H2	call	FLOAT_PRINT	emulated	floatPrintByText		0
+H2	H2	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+H2	H2	call	FLOAT_TO_TEXT	emulated	floatToText		0
+H2	H2	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+H2	H2	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+H2	H2	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
 H2	H2	call	VARIANT_GET	emulated	variantGet		14
 H2	H2	call	JSON_TYPE	emulated	jsonType		1
@@ -247,7 +252,7 @@ Postgres	Postgres	call	IS_NULL	spelled	an operator (isNullTest)		522
 Postgres	Postgres	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Postgres	Postgres	call	IN	emulated	inList		6
 Postgres	Postgres	call	COALESCE	emulated	coalesceArm		552
-Postgres	Postgres	call	PARSE_INT	emulated	castAs: BIGINT		11
+Postgres	Postgres	call	PARSE_INT	emulated	parseInt		11
 Postgres	Postgres	call	CONCAT	emulated	concatFlat		756
 Postgres	Postgres	call	LENGTH	emulated	by its operands: length(…) / length(CAST(… AS VARCHAR))		73
 Postgres	Postgres	call	UPPER	spelled	upper		2
@@ -255,6 +260,7 @@ Postgres	Postgres	call	LOWER	spelled	lower		3
 Postgres	Postgres	call	GREATEST	spelled	greatest		52
 Postgres	Postgres	call	LEAST	spelled	least		8
 Postgres	Postgres	call	CONCAT_JOIN	spelled	concat		0
+Postgres	Postgres	call	CONCAT_WS	spelled	concat_ws		0
 Postgres	Postgres	call	LIST_FILTER	emulated	composed in a block	via Postgres.listCall	23
 Postgres	Postgres	call	LIST_TRANSFORM	emulated	listTransform		31
 Postgres	Postgres	call	LIST_CONCAT	emulated	listConcat		2
@@ -299,6 +305,7 @@ Postgres	Postgres	call	REGEXP_EXTRACT	emulated	regexpExtract		45
 Postgres	Postgres	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 Postgres	Postgres	call	REGEXP_REPLACE	emulated	regexpReplace		8
 Postgres	Postgres	call	REGEXP_FULL_MATCH	emulated	pattern: (… ~ …^(?:)$)		49
+Postgres	Postgres	call	IS_NUMERIC	emulated	isNumeric		0
 Postgres	Postgres	call	MAP_FROM_LISTS	emulated	composed in a block	via Postgres.maps	3
 Postgres	Postgres	call	MAP_FROM_ENTRIES	emulated	composed in a block	via Postgres.maps	13
 Postgres	Postgres	call	MAP_EMPTY	emulated	CAST(ARRAY[] AS JSONB[])	via Postgres.maps	8
@@ -345,14 +352,14 @@ Postgres	Postgres	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 Postgres	Postgres	call	MAKE_DATE	emulated	make_date(, CAST(… AS INTEGER))		2
 Postgres	Postgres	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 Postgres	Postgres	call	DATE_TRUNC	emulated	dateTrunc		0
-Postgres	Postgres	call	ADD_INTERVAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		93
+Postgres	Postgres	call	ADD_INTERVAL	emulated	addInterval		93
 Postgres	Postgres	call	DATE_DIFF	emulated	dateDiff		53
 Postgres	Postgres	call	TIME_BUCKET	emulated	timeBucket		109
 Postgres	Postgres	call	TIMEZONE	spelled	timezone		6
 Postgres	Postgres	call	DATE_AT_TIME	spelled	an operator (+)		0
 Postgres	Postgres	call	EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Postgres	Postgres	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
-Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		0
+Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval		0
 Postgres	Postgres	call	EPOCH_SECONDS	emulated	CAST(extract(epoch FROM …) AS DOUBLE PRECISION)		0
 Postgres	Postgres	call	EPOCH_MS	emulated	CAST(trunc(extract(epoch FROM …) * 1000) AS BIGINT)		24
 Postgres	Postgres	call	FROM_EPOCH_SECONDS	emulated	…TIMESTAMP '1970-01-01 00:00:00' + … * INTERVAL '1 second'		0
@@ -403,8 +410,11 @@ Postgres	Postgres	call	FLOOR_RAW	spelled	floor		55
 Postgres	Postgres	call	TO_VARIANT	emulated	variantConstruct		8
 Postgres	Postgres	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 Postgres	Postgres	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-Postgres	Postgres	call	FLOAT_CANON	emulated	floatCanonByText		0
-Postgres	Postgres	call	FLOAT_PRINT	emulated	floatPrintByText		0
+Postgres	Postgres	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+Postgres	Postgres	call	FLOAT_TO_TEXT	emulated	floatToText		0
+Postgres	Postgres	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Postgres	Postgres	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Postgres	Postgres	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	VARIANT_ELEMENTS	emulated	by its operands: composed / composed		2
 Postgres	Postgres	call	VARIANT_GET	emulated	variantGet		14
 Postgres	Postgres	call	JSON_TYPE	emulated	jsonType		1
@@ -471,7 +481,7 @@ Snowflake	Snowflake	call	IS_NULL	spelled	an operator (isNullTest)		519
 Snowflake	Snowflake	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Snowflake	Snowflake	call	IN	emulated	inArm		6
 Snowflake	Snowflake	call	COALESCE	emulated	by its operands: coalesce(, PARSE_JSON(…)TO_VARIANT(…)…) / …coalesce		552
-Snowflake	Snowflake	call	PARSE_INT	emulated	stringLit: CAST(CASE WHEN REGEXP_LIKE(…, \s*[-+]?[0-9]+\s*) THEN … ELSE … || ' is not an...		11
+Snowflake	Snowflake	call	PARSE_INT	emulated	guardedParseInt: REGEXP_LIKE(, , , ^[+-]?[0-9]+$, ), CAST(,  AS BIGINT)		11
 Snowflake	Snowflake	call	CONCAT	emulated	concat, flattenConcat		755
 Snowflake	Snowflake	call	LENGTH	spelled	length		73
 Snowflake	Snowflake	call	UPPER	spelled	upper		2
@@ -479,6 +489,7 @@ Snowflake	Snowflake	call	LOWER	spelled	lower		3
 Snowflake	Snowflake	call	GREATEST	spelled	greatest_ignore_nulls		52
 Snowflake	Snowflake	call	LEAST	spelled	least_ignore_nulls		8
 Snowflake	Snowflake	call	CONCAT_JOIN	emulated	concat		0
+Snowflake	Snowflake	call	CONCAT_WS	emulated	ARRAY_TO_STRING(ARRAY_CONSTRUCT_COMPACT(…), …)		0
 Snowflake	Snowflake	call	LIST_FILTER	emulated	composed in a block	via Snowflake.list	42
 Snowflake	Snowflake	call	LIST_TRANSFORM	emulated	composed in a block	via Snowflake.list	36
 Snowflake	Snowflake	call	LIST_CONCAT	emulated	composed in a block	via Snowflake.list	5
@@ -523,6 +534,7 @@ Snowflake	Snowflake	call	REGEXP_EXTRACT	emulated	regexpExtract		45
 Snowflake	Snowflake	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 Snowflake	Snowflake	call	REGEXP_REPLACE	emulated	regexpReplace		8
 Snowflake	Snowflake	call	REGEXP_FULL_MATCH	emulated	fullMatch		49
+Snowflake	Snowflake	call	IS_NUMERIC	emulated	isNumeric		0
 Snowflake	Snowflake	call	MAP_FROM_LISTS	emulated	mapFromLists		3
 Snowflake	Snowflake	call	MAP_FROM_ENTRIES	emulated	mapFromEntries		13
 Snowflake	Snowflake	call	MAP_EMPTY	spelled	OBJECT_CONSTRUCT		8
@@ -627,8 +639,11 @@ Snowflake	Snowflake	call	FLOOR_RAW	spelled	floor		55
 Snowflake	Snowflake	call	TO_VARIANT	emulated	variantConstruct		8
 Snowflake	Snowflake	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 Snowflake	Snowflake	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-Snowflake	Snowflake	call	FLOAT_CANON	emulated	floatCanon		0
-Snowflake	Snowflake	call	FLOAT_PRINT	emulated	by its operands: composed / composed		0
+Snowflake	Snowflake	call	FLOAT_SHORTEST_TEXT	emulated	by its operands: composed / composed		0
+Snowflake	Snowflake	call	FLOAT_TO_TEXT	emulated	floatToText		0
+Snowflake	Snowflake	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Snowflake	Snowflake	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Snowflake	Snowflake	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Snowflake	Snowflake	call	VARIANT_GET	emulated	variantGet		15
 Snowflake	Snowflake	call	JSON_TYPE	emulated	(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...		1
@@ -695,7 +710,7 @@ Trino	Trino	call	IS_NULL	spelled	an operator (isNullTest)		519
 Trino	Trino	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Trino	Trino	call	IN	emulated	inList		6
 Trino	Trino	call	COALESCE	emulated	by its operands: coalesce(, json_parse(…)…) / …coalesce		552
-Trino	Trino	call	PARSE_INT	emulated	castAs: BIGINT		11
+Trino	Trino	call	PARSE_INT	emulated	guardedParseInt: regexp_like(, , '^[+-]?[0-9]+$'), BIGINT		11
 Trino	Trino	call	CONCAT	emulated	flattenConcat: concat_ws('', , )		755
 Trino	Trino	call	LENGTH	spelled	length		73
 Trino	Trino	call	UPPER	spelled	upper		2
@@ -703,6 +718,7 @@ Trino	Trino	call	LOWER	spelled	lower		3
 Trino	Trino	call	GREATEST	spelled	greatest		52
 Trino	Trino	call	LEAST	spelled	least		8
 Trino	Trino	call	CONCAT_JOIN	emulated	concat_ws('', , )		0
+Trino	Trino	call	CONCAT_WS	spelled	concat_ws		0
 Trino	Trino	call	LIST_FILTER	emulated	by its operands: transform(filter(zip(…, zip_with(…, …, …)), "__z" -> "__z"[2]), "__z" -> "__z... / filter(…, …)	via Trino.listCall	42
 Trino	Trino	call	LIST_TRANSFORM	emulated	by its operands: zip_with(…, …, …) / transform(…, …)	via Trino.listCall	36
 Trino	Trino	call	LIST_CONCAT	emulated	composed in a block	via Trino.listCall	5
@@ -747,6 +763,7 @@ Trino	Trino	call	REGEXP_EXTRACT	emulated	group: regexp_extract(…, …, …)		4
 Trino	Trino	call	REGEXP_EXTRACT_ALL	emulated	group: regexp_extract_all(…, …, …)		13
 Trino	Trino	call	REGEXP_REPLACE	emulated	regexpReplace		8
 Trino	Trino	call	REGEXP_FULL_MATCH	emulated	anchored: regexp_like(…, …)		49
+Trino	Trino	call	IS_NUMERIC	emulated	isNumeric		0
 Trino	Trino	call	MAP_FROM_LISTS	spelled	map		3
 Trino	Trino	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
 Trino	Trino	call	MAP_EMPTY	spelled	MAP		8
@@ -851,8 +868,11 @@ Trino	Trino	call	FLOOR_RAW	spelled	floor		55
 Trino	Trino	call	TO_VARIANT	emulated	variantConstruct		8
 Trino	Trino	call	BOOL_TO_TEXT	emulated	CAST(… AS VARCHAR)		2
 Trino	Trino	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-Trino	Trino	call	FLOAT_CANON	emulated	floatCanonByText		0
-Trino	Trino	call	FLOAT_PRINT	emulated	floatPrintByText		0
+Trino	Trino	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+Trino	Trino	call	FLOAT_TO_TEXT	emulated	floatToText		0
+Trino	Trino	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Trino	Trino	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Trino	Trino	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Trino	Trino	call	VARIANT_GET	emulated	variantGet		15
 Trino	Trino	call	JSON_TYPE	emulated	jsonType		1
@@ -919,7 +939,7 @@ BigQuery	BigQuery	call	IS_NULL	spelled	an operator (isNullTest)		522
 BigQuery	BigQuery	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 BigQuery	BigQuery	call	IN	emulated	in		6
 BigQuery	BigQuery	call	COALESCE	emulated	coalesceArm		552
-BigQuery	BigQuery	call	PARSE_INT	emulated	CAST(… AS INT64)		11
+BigQuery	BigQuery	call	PARSE_INT	emulated	parseInt		11
 BigQuery	BigQuery	call	CONCAT	emulated	flattenConcat, asText: CONCAT(, IFNULL(…, ''))		756
 BigQuery	BigQuery	call	LENGTH	emulated	asText: LENGTH(…)		73
 BigQuery	BigQuery	call	UPPER	spelled	UPPER		2
@@ -927,6 +947,7 @@ BigQuery	BigQuery	call	LOWER	spelled	LOWER		3
 BigQuery	BigQuery	call	GREATEST	emulated	nullSkipping: …GREATEST		52
 BigQuery	BigQuery	call	LEAST	emulated	nullSkipping: …LEAST		8
 BigQuery	BigQuery	call	CONCAT_JOIN	emulated	asText: CONCAT(, IFNULL(…, ''))		0
+BigQuery	BigQuery	call	CONCAT_WS	emulated	ARRAY_TO_STRING([…], …)		0
 BigQuery	BigQuery	call	LIST_FILTER	emulated	listFilter		23
 BigQuery	BigQuery	call	LIST_TRANSFORM	emulated	listTransform		31
 BigQuery	BigQuery	call	LIST_CONCAT	emulated	emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))		2
@@ -971,6 +992,7 @@ BigQuery	BigQuery	call	REGEXP_EXTRACT	emulated	regexpExtract		45
 BigQuery	BigQuery	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 BigQuery	BigQuery	call	REGEXP_REPLACE	emulated	regexpReplace		8
 BigQuery	BigQuery	call	REGEXP_FULL_MATCH	emulated	anchored: REGEXP_CONTAINS(…, …)		49
+BigQuery	BigQuery	call	IS_NUMERIC	emulated	isNumeric		0
 BigQuery	BigQuery	call	MAP_FROM_LISTS	emulated	composed in a block	via BigQuery.maps	3
 BigQuery	BigQuery	call	MAP_FROM_ENTRIES	emulated	composed in a block	via BigQuery.maps	13
 BigQuery	BigQuery	call	MAP_EMPTY	emulated	composed in a block	via BigQuery.maps	8
@@ -1020,7 +1042,7 @@ BigQuery	BigQuery	call	DATE_TRUNC	emulated	dateTrunc		0
 BigQuery	BigQuery	call	ADD_INTERVAL	emulated	intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)		93
 BigQuery	BigQuery	call	DATE_DIFF	emulated	dateDiff		53
 BigQuery	BigQuery	call	TIME_BUCKET	emulated	timeBucket		109
-BigQuery	BigQuery	call	TIMEZONE	emulated	by its operands: DATETIME(…, …) / TIMESTAMP(CAST(… AS DATETIME), …)		6
+BigQuery	BigQuery	call	TIMEZONE	emulated	timezone		6
 BigQuery	BigQuery	call	DATE_AT_TIME	spelled	DATETIME		0
 BigQuery	BigQuery	call	EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 BigQuery	BigQuery	call	FROM_EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
@@ -1075,8 +1097,11 @@ BigQuery	BigQuery	call	FLOOR_RAW	spelled	FLOOR		55
 BigQuery	BigQuery	call	TO_VARIANT	emulated	variantConstruct		8
 BigQuery	BigQuery	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
 BigQuery	BigQuery	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-BigQuery	BigQuery	call	FLOAT_CANON	emulated	floatCanonByText		0
-BigQuery	BigQuery	call	FLOAT_PRINT	emulated	floatPrintByText		0
+BigQuery	BigQuery	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+BigQuery	BigQuery	call	FLOAT_TO_TEXT	emulated	floatToText		0
+BigQuery	BigQuery	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+BigQuery	BigQuery	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+BigQuery	BigQuery	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	VARIANT_ELEMENTS	emulated	variantElements		2
 BigQuery	BigQuery	call	VARIANT_GET	emulated	variantGet		14
 BigQuery	BigQuery	call	JSON_TYPE	emulated	jsonType		1
@@ -1143,7 +1168,7 @@ Databricks	Databricks	call	IS_NULL	spelled	an operator (isNullTest)		519
 Databricks	Databricks	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Databricks	Databricks	call	IN	emulated	inList		6
 Databricks	Databricks	call	COALESCE	spelled	coalesce		552
-Databricks	Databricks	call	PARSE_INT	emulated	castAs: BIGINT		11
+Databricks	Databricks	call	PARSE_INT	emulated	guardedParseInt:  RLIKE '^[+-]?[0-9]+$', BIGINT		11
 Databricks	Databricks	call	CONCAT	emulated	flattenConcat: concat_ws('', , )		755
 Databricks	Databricks	call	LENGTH	spelled	length		73
 Databricks	Databricks	call	UPPER	spelled	upper		2
@@ -1151,6 +1176,7 @@ Databricks	Databricks	call	LOWER	spelled	lower		3
 Databricks	Databricks	call	GREATEST	spelled	greatest		52
 Databricks	Databricks	call	LEAST	spelled	least		8
 Databricks	Databricks	call	CONCAT_JOIN	emulated	concat_ws('', , )		0
+Databricks	Databricks	call	CONCAT_WS	spelled	concat_ws		0
 Databricks	Databricks	call	LIST_FILTER	emulated	list, oneBasedIndex: filter(…, …)	via Databricks.listCall	42
 Databricks	Databricks	call	LIST_TRANSFORM	emulated	list, oneBasedIndex: transform(…, …)	via Databricks.listCall	36
 Databricks	Databricks	call	LIST_CONCAT	emulated	list: concat(, coalesce(…, array()))	via Databricks.listCall	5
@@ -1195,6 +1221,7 @@ Databricks	Databricks	call	REGEXP_EXTRACT	emulated	group: regexp_extract(…, �
 Databricks	Databricks	call	REGEXP_EXTRACT_ALL	emulated	group: regexp_extract_all(…, …, …)		13
 Databricks	Databricks	call	REGEXP_REPLACE	emulated	regexpReplace		8
 Databricks	Databricks	call	REGEXP_FULL_MATCH	emulated	anchored: regexp_like(…, …)		49
+Databricks	Databricks	call	IS_NUMERIC	emulated	isNumeric		0
 Databricks	Databricks	call	MAP_FROM_LISTS	spelled	map_from_arrays		3
 Databricks	Databricks	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
 Databricks	Databricks	call	MAP_EMPTY	spelled	map		8
@@ -1299,8 +1326,11 @@ Databricks	Databricks	call	FLOOR_RAW	emulated	(CASE WHEN abs(…) >= 45035996273
 Databricks	Databricks	call	TO_VARIANT	emulated	variantConstruct		8
 Databricks	Databricks	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
 Databricks	Databricks	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-Databricks	Databricks	call	FLOAT_CANON	emulated	floatCanonByText		0
-Databricks	Databricks	call	FLOAT_PRINT	emulated	floatPrintByText		0
+Databricks	Databricks	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+Databricks	Databricks	call	FLOAT_TO_TEXT	emulated	floatToText		0
+Databricks	Databricks	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Databricks	Databricks	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Databricks	Databricks	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Databricks	Databricks	call	VARIANT_GET	emulated	variantGet		15
 Databricks	Databricks	call	JSON_TYPE	emulated	jsonType		1
@@ -1367,7 +1397,7 @@ DuckDb	DuckDB	call	IS_NULL	spelled	an operator (isNullTest)		519
 DuckDb	DuckDB	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 DuckDb	DuckDB	call	IN	emulated	inList		6
 DuckDb	DuckDB	call	COALESCE	spelled	coalesce		561
-DuckDb	DuckDB	call	PARSE_INT	emulated	castAs: BIGINT		11
+DuckDb	DuckDB	call	PARSE_INT	emulated	guardedParseInt: regexp_full_match(, , '[+-]?[0-9]+'), BIGINT		11
 DuckDb	DuckDB	call	CONCAT	emulated	concatFlat		755
 DuckDb	DuckDB	call	LENGTH	emulated	lengthArm		73
 DuckDb	DuckDB	call	UPPER	spelled	upper		2
@@ -1375,6 +1405,7 @@ DuckDb	DuckDB	call	LOWER	spelled	lower		3
 DuckDb	DuckDB	call	GREATEST	spelled	greatest		53
 DuckDb	DuckDB	call	LEAST	spelled	least		8
 DuckDb	DuckDB	call	CONCAT_JOIN	spelled	concat		0
+DuckDb	DuckDB	call	CONCAT_WS	spelled	concat_ws		0
 DuckDb	DuckDB	call	LIST_FILTER	spelled	list_filter	via DuckDb.listCall	42
 DuckDb	DuckDB	call	LIST_TRANSFORM	spelled	list_transform	via DuckDb.listCall	37
 DuckDb	DuckDB	call	LIST_CONCAT	spelled	list_concat	via DuckDb.listCall	5
@@ -1419,6 +1450,7 @@ DuckDb	DuckDB	call	REGEXP_EXTRACT	spelled	regexp_extract		45
 DuckDb	DuckDB	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		13
 DuckDb	DuckDB	call	REGEXP_REPLACE	spelled	regexp_replace		8
 DuckDb	DuckDB	call	REGEXP_FULL_MATCH	spelled	regexp_full_match		49
+DuckDb	DuckDB	call	IS_NUMERIC	emulated	isNumeric		0
 DuckDb	DuckDB	call	MAP_FROM_LISTS	spelled	map		3
 DuckDb	DuckDB	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
 DuckDb	DuckDB	call	MAP_EMPTY	emulated	mapEmpty		8
@@ -1523,8 +1555,11 @@ DuckDb	DuckDB	call	FLOOR_RAW	spelled	floor		55
 DuckDb	DuckDB	call	TO_VARIANT	emulated	variantConstruct		8
 DuckDb	DuckDB	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 DuckDb	DuckDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-DuckDb	DuckDB	call	FLOAT_CANON	emulated	floatCanonByText		0
-DuckDb	DuckDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
+DuckDb	DuckDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+DuckDb	DuckDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+DuckDb	DuckDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+DuckDb	DuckDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+DuckDb	DuckDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	VARIANT_ELEMENTS	emulated	variantElements		4
 DuckDb	DuckDB	call	VARIANT_GET	emulated	variantGet		15
 DuckDb	DuckDB	call	JSON_TYPE	spelled	json_type		1
@@ -1591,7 +1626,7 @@ ClickHouse	ClickHouse	call	IS_NULL	spelled	an operator (isNullTest)		519
 ClickHouse	ClickHouse	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 ClickHouse	ClickHouse	call	IN	emulated	inList		6
 ClickHouse	ClickHouse	call	COALESCE	spelled	coalesce		552
-ClickHouse	ClickHouse	call	PARSE_INT	emulated	castAs: BIGINT		11
+ClickHouse	ClickHouse	call	PARSE_INT	emulated	parseInteger		11
 ClickHouse	ClickHouse	call	CONCAT	emulated	flattenConcat: concat(, )		755
 ClickHouse	ClickHouse	call	LENGTH	emulated	toInt64(lengthUTF8(…))		73
 ClickHouse	ClickHouse	call	UPPER	spelled	upperUTF8		2
@@ -1599,6 +1634,7 @@ ClickHouse	ClickHouse	call	LOWER	spelled	lowerUTF8		3
 ClickHouse	ClickHouse	call	GREATEST	emulated	unified: greatest(, )		52
 ClickHouse	ClickHouse	call	LEAST	emulated	unified: least(, )		8
 ClickHouse	ClickHouse	call	CONCAT_JOIN	spelled	concat		0
+ClickHouse	ClickHouse	call	CONCAT_WS	emulated	arrayStringConcat(arrayFilter("__x" -> "__x" IS NOT NULL, […]), …)		0
 ClickHouse	ClickHouse	call	LIST_FILTER	emulated	lambdaArrays: arrayFilter(…, …)	via ClickHouse.listCall	42
 ClickHouse	ClickHouse	call	LIST_TRANSFORM	emulated	lambdaArrays: arrayMap(…, …)	via ClickHouse.listCall	36
 ClickHouse	ClickHouse	call	LIST_CONCAT	emulated	list: arrayConcat(, …)	via ClickHouse.listCall	5
@@ -1643,6 +1679,7 @@ ClickHouse	ClickHouse	call	REGEXP_EXTRACT	emulated	regexpExtractArm		45
 ClickHouse	ClickHouse	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 ClickHouse	ClickHouse	call	REGEXP_REPLACE	emulated	regexpReplace		8
 ClickHouse	ClickHouse	call	REGEXP_FULL_MATCH	emulated	anchored: match(…, …)		49
+ClickHouse	ClickHouse	call	IS_NUMERIC	emulated	isNumeric		0
 ClickHouse	ClickHouse	call	MAP_FROM_LISTS	spelled	mapFromArrays		3
 ClickHouse	ClickHouse	call	MAP_FROM_ENTRIES	emulated	mapFromArrays(arrayMap("__e" -> tupleElement("__e", 1), …), arrayMap("__e" ->...		13
 ClickHouse	ClickHouse	call	MAP_EMPTY	spelled	map		8
@@ -1747,8 +1784,11 @@ ClickHouse	ClickHouse	call	FLOOR_RAW	spelled	floor		55
 ClickHouse	ClickHouse	call	TO_VARIANT	emulated	variantConstruct		8
 ClickHouse	ClickHouse	call	BOOL_TO_TEXT	spelled	toString		2
 ClickHouse	ClickHouse	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-ClickHouse	ClickHouse	call	FLOAT_CANON	emulated	floatCanonByText		0
-ClickHouse	ClickHouse	call	FLOAT_PRINT	emulated	floatPrintByText		0
+ClickHouse	ClickHouse	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+ClickHouse	ClickHouse	call	FLOAT_TO_TEXT	emulated	floatToText		0
+ClickHouse	ClickHouse	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+ClickHouse	ClickHouse	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+ClickHouse	ClickHouse	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	VARIANT_ELEMENTS	emulated	variantElements		4
 ClickHouse	ClickHouse	call	VARIANT_GET	emulated	variantGet		15
 ClickHouse	ClickHouse	call	JSON_TYPE	emulated	multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...		1
@@ -1823,6 +1863,7 @@ SQLite	SQLite	call	LOWER	spelled	lower		3
 SQLite	SQLite	call	GREATEST	emulated	nullSkipping: …max		52
 SQLite	SQLite	call	LEAST	emulated	nullSkipping: …min		8
 SQLite	SQLite	call	CONCAT_JOIN	emulated	asText: concat(, …)		0
+SQLite	SQLite	call	CONCAT_WS	spelled	concat_ws		0
 SQLite	SQLite	call	LIST_FILTER	emulated	composed in a block	via SQLite.lists	23
 SQLite	SQLite	call	LIST_TRANSFORM	emulated	composed in a block	via SQLite.lists	31
 SQLite	SQLite	call	LIST_CONCAT	emulated	concatLists	via SQLite.lists	2
@@ -1867,6 +1908,7 @@ SQLite	SQLite	call	REGEXP_EXTRACT	emulated	regexpExtract		45
 SQLite	SQLite	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 SQLite	SQLite	call	REGEXP_REPLACE	emulated	regexpReplace		8
 SQLite	SQLite	call	REGEXP_FULL_MATCH	emulated	matchesArm		49
+SQLite	SQLite	call	IS_NUMERIC	emulated	isNumeric		0
 SQLite	SQLite	call	MAP_FROM_LISTS	emulated	composed in a block	via SQLite.maps	3
 SQLite	SQLite	call	MAP_FROM_ENTRIES	emulated	composed in a block	via SQLite.maps	13
 SQLite	SQLite	call	MAP_EMPTY	spelled	json_object	via SQLite.maps	8
@@ -1913,14 +1955,14 @@ SQLite	SQLite	call	DATE_TRUNC_DAY	spelled	date		4
 SQLite	SQLite	call	MAKE_DATE	emulated	printf('%04d-%02d-%02d', …)		2
 SQLite	SQLite	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 SQLite	SQLite	call	DATE_TRUNC	emulated	dateTrunc		0
-SQLite	SQLite	call	ADD_INTERVAL	emulated	addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
+SQLite	SQLite	call	ADD_INTERVAL	emulated	addInterval, raise, raiseArgs: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
 SQLite	SQLite	call	DATE_DIFF	emulated	dateDiff		53
 SQLite	SQLite	call	TIME_BUCKET	emulated	timeBucket		109
 SQLite	SQLite	call	TIMEZONE	emulated	timezone		6
 SQLite	SQLite	call	DATE_AT_TIME	emulated	… || ' ' || …		0
 SQLite	SQLite	call	EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 SQLite	SQLite	call	FROM_EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
-SQLite	SQLite	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
+SQLite	SQLite	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, raiseArgs: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
 SQLite	SQLite	call	EPOCH_SECONDS	emulated	micros: (… / 1000000.0)		0
 SQLite	SQLite	call	EPOCH_MS	emulated	micros: (… / 1000)		24
 SQLite	SQLite	call	FROM_EPOCH_SECONDS	emulated	datetime(…, 'unixepoch')		0
@@ -1971,8 +2013,11 @@ SQLite	SQLite	call	FLOOR_RAW	spelled	floor		55
 SQLite	SQLite	call	TO_VARIANT	emulated	variantConstruct		8
 SQLite	SQLite	call	BOOL_TO_TEXT	emulated	textOf		2
 SQLite	SQLite	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-SQLite	SQLite	call	FLOAT_CANON	emulated	floatCanonByText		0
-SQLite	SQLite	call	FLOAT_PRINT	emulated	floatPrintByText		0
+SQLite	SQLite	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+SQLite	SQLite	call	FLOAT_TO_TEXT	emulated	floatToText		0
+SQLite	SQLite	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+SQLite	SQLite	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+SQLite	SQLite	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	VARIANT_ELEMENTS	emulated	variantElements		2
 SQLite	SQLite	call	VARIANT_GET	emulated	variantGet		14
 SQLite	SQLite	call	JSON_TYPE	emulated	(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...		1
@@ -2047,6 +2092,7 @@ MariaDb	MariaDB	call	LOWER	spelled	lower		3
 MariaDb	MariaDB	call	GREATEST	emulated	nullSkipping: …GREATEST		12
 MariaDb	MariaDB	call	LEAST	emulated	nullSkipping: …LEAST		8
 MariaDb	MariaDB	call	CONCAT_JOIN	emulated	asText: CONCAT_WS('', , …)		0
+MariaDb	MariaDB	call	CONCAT_WS	spelled	CONCAT_WS		0
 MariaDb	MariaDB	call	LIST_FILTER	emulated	composed in a block	via MariaDb.lists	23
 MariaDb	MariaDB	call	LIST_TRANSFORM	emulated	composed in a block	via MariaDb.lists	31
 MariaDb	MariaDB	call	LIST_CONCAT	emulated	composed in a block	via MariaDb.lists	2
@@ -2091,6 +2137,7 @@ MariaDb	MariaDB	call	REGEXP_EXTRACT	emulated	regexpExtract		5
 MariaDb	MariaDB	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
 MariaDb	MariaDB	call	REGEXP_REPLACE	emulated	regexpReplace		8
 MariaDb	MariaDB	call	REGEXP_FULL_MATCH	emulated	pattern: (… REGEXP …)		9
+MariaDb	MariaDB	call	IS_NUMERIC	emulated	isNumeric		0
 MariaDb	MariaDB	call	MAP_FROM_LISTS	emulated	composed in a block	via MariaDb.maps	3
 MariaDb	MariaDB	call	MAP_FROM_ENTRIES	emulated	composed in a block	via MariaDb.maps	13
 MariaDb	MariaDB	call	MAP_EMPTY	spelled	JSON_OBJECT	via MariaDb.maps	8
@@ -2137,14 +2184,14 @@ MariaDb	MariaDB	call	DATE_TRUNC_DAY	spelled	DATE		4
 MariaDb	MariaDB	call	MAKE_DATE	emulated	STR_TO_DATE(CONCAT_WS('-', …), '%Y-%m-%d')		2
 MariaDb	MariaDB	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 MariaDb	MariaDB	call	DATE_TRUNC	emulated	dateTrunc		0
-MariaDb	MariaDB	call	ADD_INTERVAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
+MariaDb	MariaDB	call	ADD_INTERVAL	emulated	addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
 MariaDb	MariaDB	call	DATE_DIFF	emulated	dateDiff		53
 MariaDb	MariaDB	call	TIME_BUCKET	emulated	timeBucket		109
 MariaDb	MariaDB	call	TIMEZONE	emulated	timezone		6
 MariaDb	MariaDB	call	DATE_AT_TIME	spelled	TIMESTAMP		0
 MariaDb	MariaDB	call	EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 MariaDb	MariaDB	call	FROM_EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
-MariaDb	MariaDB	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
+MariaDb	MariaDB	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
 MariaDb	MariaDB	call	EPOCH_SECONDS	emulated	micros: (… / 1000000)		0
 MariaDb	MariaDB	call	EPOCH_MS	emulated	micros: (… DIV 1000)		24
 MariaDb	MariaDB	call	FROM_EPOCH_SECONDS	emulated	(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (…) * 1000000 MICROSECOND)		0
@@ -2195,8 +2242,11 @@ MariaDb	MariaDB	call	FLOOR_RAW	spelled	floor		55
 MariaDb	MariaDB	call	TO_VARIANT	emulated	variantConstruct		8
 MariaDb	MariaDB	call	BOOL_TO_TEXT	emulated	textOf		2
 MariaDb	MariaDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-MariaDb	MariaDB	call	FLOAT_CANON	emulated	floatLayout		40
-MariaDb	MariaDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
+MariaDb	MariaDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+MariaDb	MariaDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+MariaDb	MariaDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+MariaDb	MariaDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+MariaDb	MariaDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	VARIANT_ELEMENTS	emulated	variantElements		2
 MariaDb	MariaDB	call	VARIANT_GET	emulated	variantGet		14
 MariaDb	MariaDB	call	JSON_TYPE	emulated	(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...		1
@@ -2271,6 +2321,7 @@ MySql	MySQL	call	LOWER	spelled	lower	as MariaDb	3
 MySql	MySQL	call	GREATEST	emulated	nullSkipping: …GREATEST	as MariaDb	12
 MySql	MySQL	call	LEAST	emulated	nullSkipping: …LEAST	as MariaDb	8
 MySql	MySQL	call	CONCAT_JOIN	emulated	asText: CONCAT_WS('', , …)	as MariaDb	0
+MySql	MySQL	call	CONCAT_WS	spelled	CONCAT_WS	as MariaDb	0
 MySql	MySQL	call	LIST_FILTER	emulated	composed in a block	as MariaDb, via MariaDb.lists	23
 MySql	MySQL	call	LIST_TRANSFORM	emulated	composed in a block	as MariaDb, via MariaDb.lists	31
 MySql	MySQL	call	LIST_CONCAT	emulated	composed in a block	as MariaDb, via MariaDb.lists	2
@@ -2315,6 +2366,7 @@ MySql	MySQL	call	REGEXP_EXTRACT	emulated	regexpExtract	as MariaDb	5
 MySql	MySQL	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll	as MariaDb	13
 MySql	MySQL	call	REGEXP_REPLACE	emulated	regexpReplace	as MariaDb	8
 MySql	MySQL	call	REGEXP_FULL_MATCH	emulated	pattern: (… REGEXP …)	as MariaDb	9
+MySql	MySQL	call	IS_NUMERIC	emulated	isNumeric	as MariaDb	0
 MySql	MySQL	call	MAP_FROM_LISTS	emulated	composed in a block	as MariaDb, via MariaDb.maps	3
 MySql	MySQL	call	MAP_FROM_ENTRIES	emulated	composed in a block	as MariaDb, via MariaDb.maps	13
 MySql	MySQL	call	MAP_EMPTY	spelled	JSON_OBJECT	as MariaDb, via MariaDb.maps	8
@@ -2361,14 +2413,14 @@ MySql	MySQL	call	DATE_TRUNC_DAY	spelled	DATE	as MariaDb	4
 MySql	MySQL	call	MAKE_DATE	emulated	STR_TO_DATE(CONCAT_WS('-', …), '%Y-%m-%d')	as MariaDb	2
 MySql	MySQL	call	MAKE_TIMESTAMP	emulated	makeTimestamp	as MariaDb	10
 MySql	MySQL	call	DATE_TRUNC	emulated	dateTrunc	as MariaDb	0
-MySql	MySQL	call	ADD_INTERVAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	93
+MySql	MySQL	call	ADD_INTERVAL	emulated	addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	93
 MySql	MySQL	call	DATE_DIFF	emulated	dateDiff	as MariaDb	53
 MySql	MySQL	call	TIME_BUCKET	emulated	timeBucket	as MariaDb	109
 MySql	MySQL	call	TIMEZONE	emulated	timezone	as MariaDb	6
 MySql	MySQL	call	DATE_AT_TIME	spelled	TIMESTAMP	as MariaDb	0
 MySql	MySQL	call	EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as MariaDb	0
 MySql	MySQL	call	FROM_EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as MariaDb	0
-MySql	MySQL	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	0
+MySql	MySQL	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	0
 MySql	MySQL	call	EPOCH_SECONDS	emulated	micros: (… / 1000000)	as MariaDb	0
 MySql	MySQL	call	EPOCH_MS	emulated	micros: (… DIV 1000)	as MariaDb	24
 MySql	MySQL	call	FROM_EPOCH_SECONDS	emulated	(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (…) * 1000000 MICROSECOND)	as MariaDb	0
@@ -2419,8 +2471,11 @@ MySql	MySQL	call	FLOOR_RAW	spelled	floor	as MariaDb	55
 MySql	MySQL	call	TO_VARIANT	emulated	variantConstruct	as MariaDb	8
 MySql	MySQL	call	BOOL_TO_TEXT	emulated	textOf	as MariaDb	2
 MySql	MySQL	call	DECIMAL_TO_TEXT	emulated	varcharCast	as MariaDb	0
-MySql	MySQL	call	FLOAT_CANON	emulated	floatLayout	as MariaDb	40
-MySql	MySQL	call	FLOAT_PRINT	emulated	floatPrintByText	as MariaDb	0
+MySql	MySQL	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as MariaDb	0
+MySql	MySQL	call	FLOAT_TO_TEXT	emulated	floatToText	as MariaDb	0
+MySql	MySQL	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
+MySql	MySQL	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
+MySql	MySQL	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	VARIANT_ELEMENTS	emulated	variantElements	as MariaDb	2
 MySql	MySQL	call	VARIANT_GET	emulated	variantGet	as MariaDb	14
 MySql	MySQL	call	JSON_TYPE	emulated	(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...	as MariaDb	1
@@ -2487,7 +2542,7 @@ MongoDb	MongoDB	call	IS_NULL	emulated	nullTest		0
 MongoDb	MongoDB	call	IS_NOT_NULL	emulated	nullTest		0
 MongoDb	MongoDB	call	IN	emulated	inList		0
 MongoDb	MongoDB	call	COALESCE	emulated	coalesce		0
-MongoDb	MongoDB	call	PARSE_INT	emulated	op1: $toLong		0
+MongoDb	MongoDB	call	PARSE_INT	emulated	guardedParse: ^[+-]?[0-9]+$, {"$toLong": , }		0
 MongoDb	MongoDB	call	CONCAT	emulated	concatSkippingNull		0
 MongoDb	MongoDB	call	LENGTH	emulated	length		0
 MongoDb	MongoDB	call	UPPER	emulated	guardedOp: $toUpper		0
@@ -2495,6 +2550,7 @@ MongoDb	MongoDB	call	LOWER	emulated	guardedOp: $toLower		0
 MongoDb	MongoDB	call	GREATEST	emulated	$max		0
 MongoDb	MongoDB	call	LEAST	emulated	$min		0
 MongoDb	MongoDB	call	CONCAT_JOIN	emulated	$concat		0
+MongoDb	MongoDB	call	CONCAT_WS	emulated	eachAfterSeparator		0
 MongoDb	MongoDB	call	LIST_FILTER	emulated	listFilter		0
 MongoDb	MongoDB	call	LIST_TRANSFORM	emulated	listMap		0
 MongoDb	MongoDB	call	LIST_CONCAT	emulated	listConcat		0
@@ -2539,6 +2595,7 @@ MongoDb	MongoDB	call	REGEXP_EXTRACT	emulated	regexExtract		0
 MongoDb	MongoDB	call	REGEXP_EXTRACT_ALL	emulated	regexExtractAll		0
 MongoDb	MongoDB	call	REGEXP_REPLACE	emulated	regexReplace		0
 MongoDb	MongoDB	call	REGEXP_FULL_MATCH	emulated	regexMatch		0
+MongoDb	MongoDB	call	IS_NUMERIC	emulated	isNumeric		0
 MongoDb	MongoDB	call	MAP_FROM_LISTS	emulated	{"$arrayToObject": {"$zip": {"inputs": […]}}}		0
 MongoDb	MongoDB	call	MAP_FROM_ENTRIES	emulated	{"$arrayToObject": {"$map": {"input": {"$ifNull": […, []]}, "in": {"k": "$$th...		0
 MongoDb	MongoDB	call	MAP_EMPTY	emulated	{"$literal": {}}		0
@@ -2643,8 +2700,11 @@ MongoDb	MongoDB	call	FLOOR_RAW	emulated	op1: $floor		0
 MongoDb	MongoDB	call	TO_VARIANT	emulated	variantConstruct		0
 MongoDb	MongoDB	call	BOOL_TO_TEXT	emulated	op1: $toString		0
 MongoDb	MongoDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
-MongoDb	MongoDB	call	FLOAT_CANON	emulated	floatCanonByText		0
-MongoDb	MongoDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
+MongoDb	MongoDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
+MongoDb	MongoDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
+MongoDb	MongoDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+MongoDb	MongoDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+MongoDb	MongoDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	VARIANT_ELEMENTS	emulated	variantElements		0
 MongoDb	MongoDB	call	VARIANT_GET	emulated	variantGet		0
 MongoDb	MongoDB	call	JSON_TYPE	emulated	jsonType		0
@@ -2719,6 +2779,7 @@ EngineStyleH2	-	call	LOWER	spelled	lower		-
 EngineStyleH2	-	call	GREATEST	spelled	greatest		-
 EngineStyleH2	-	call	LEAST	spelled	least		-
 EngineStyleH2	-	call	CONCAT_JOIN	spelled	concat		-
+EngineStyleH2	-	call	CONCAT_WS	spelled	concat_ws		-
 EngineStyleH2	-	call	LIST_FILTER	emulated	listCall		-
 EngineStyleH2	-	call	LIST_TRANSFORM	emulated	listCall		-
 EngineStyleH2	-	call	LIST_CONCAT	emulated	listCall		-
@@ -2763,6 +2824,7 @@ EngineStyleH2	-	call	REGEXP_EXTRACT	spelled	regexp_extract		-
 EngineStyleH2	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		-
 EngineStyleH2	-	call	REGEXP_REPLACE	spelled	regexp_replace		-
 EngineStyleH2	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match		-
+EngineStyleH2	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper		-
 EngineStyleH2	-	call	MAP_FROM_LISTS	spelled	map		-
 EngineStyleH2	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries		-
 EngineStyleH2	-	call	MAP_EMPTY	emulated	mapEmpty		-
@@ -2867,8 +2929,11 @@ EngineStyleH2	-	call	FLOOR_RAW	spelled	floor		-
 EngineStyleH2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	via AnsiSqlRenderer.variantConstruct	-
 EngineStyleH2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)		-
 EngineStyleH2	-	call	DECIMAL_TO_TEXT	emulated	varcharCast		-
-EngineStyleH2	-	call	FLOAT_CANON	emulated	floatCanonByText		-
-EngineStyleH2	-	call	FLOAT_PRINT	emulated	floatPrintByText		-
+EngineStyleH2	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		-
+EngineStyleH2	-	call	FLOAT_TO_TEXT	emulated	floatToText		-
+EngineStyleH2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
+EngineStyleH2	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
+EngineStyleH2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
 EngineStyleH2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	-
 EngineStyleH2	-	call	JSON_TYPE	spelled	json_type		-
@@ -2943,6 +3008,7 @@ EngineStyleDB2	-	call	LOWER	spelled	lower	as EngineStyleH2	-
 EngineStyleDB2	-	call	GREATEST	spelled	greatest	as EngineStyleH2	-
 EngineStyleDB2	-	call	LEAST	spelled	least	as EngineStyleH2	-
 EngineStyleDB2	-	call	CONCAT_JOIN	spelled	concat		-
+EngineStyleDB2	-	call	CONCAT_WS	spelled	concat_ws	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_FILTER	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleH2	-
@@ -2987,6 +3053,7 @@ EngineStyleDB2	-	call	REGEXP_EXTRACT	spelled	regexp_extract	as EngineStyleH2	-
 EngineStyleDB2	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as EngineStyleH2	-
 EngineStyleDB2	-	call	REGEXP_REPLACE	spelled	regexp_replace	as EngineStyleH2	-
 EngineStyleDB2	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match	as EngineStyleH2	-
+EngineStyleDB2	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper	as EngineStyleH2	-
 EngineStyleDB2	-	call	MAP_FROM_LISTS	spelled	map	as EngineStyleH2	-
 EngineStyleDB2	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as EngineStyleH2	-
 EngineStyleDB2	-	call	MAP_EMPTY	emulated	mapEmpty	as EngineStyleH2	-
@@ -3091,8 +3158,11 @@ EngineStyleDB2	-	call	FLOOR_RAW	spelled	floor	as EngineStyleH2	-
 EngineStyleDB2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantConstruct	-
 EngineStyleDB2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleH2	-
 EngineStyleDB2	-	call	DECIMAL_TO_TEXT	emulated	varcharCast	as EngineStyleH2	-
-EngineStyleDB2	-	call	FLOAT_CANON	emulated	floatCanonByText	as EngineStyleH2	-
-EngineStyleDB2	-	call	FLOAT_PRINT	emulated	floatPrintByText	as EngineStyleH2	-
+EngineStyleDB2	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as EngineStyleH2	-
+EngineStyleDB2	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleH2	-
+EngineStyleDB2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
+EngineStyleDB2	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
+EngineStyleDB2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
 EngineStyleDB2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
 EngineStyleDB2	-	call	JSON_TYPE	spelled	json_type	as EngineStyleH2	-
@@ -3167,6 +3237,7 @@ EngineStyleComposite	-	call	LOWER	spelled	lower	as EngineStyleDB2, as EngineStyl
 EngineStyleComposite	-	call	GREATEST	spelled	greatest	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LEAST	spelled	least	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	CONCAT_JOIN	spelled	concat	as EngineStyleDB2	-
+EngineStyleComposite	-	call	CONCAT_WS	spelled	concat_ws	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_FILTER	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
@@ -3211,6 +3282,7 @@ EngineStyleComposite	-	call	REGEXP_EXTRACT	spelled	regexp_extract	as EngineStyle
 EngineStyleComposite	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	REGEXP_REPLACE	spelled	regexp_replace	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	MAP_FROM_LISTS	spelled	map	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	MAP_EMPTY	emulated	mapEmpty	as EngineStyleDB2, as EngineStyleH2	-
@@ -3315,8 +3387,11 @@ EngineStyleComposite	-	call	FLOOR_RAW	spelled	floor	as EngineStyleDB2, as Engine
 EngineStyleComposite	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct	-
 EngineStyleComposite	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	DECIMAL_TO_TEXT	emulated	varcharCast	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FLOAT_CANON	emulated	floatCanonByText	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FLOAT_PRINT	emulated	floatPrintByText	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
 EngineStyleComposite	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
 EngineStyleComposite	-	call	JSON_TYPE	spelled	json_type	as EngineStyleDB2, as EngineStyleH2	-

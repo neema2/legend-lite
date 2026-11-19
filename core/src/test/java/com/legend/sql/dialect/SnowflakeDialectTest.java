@@ -37,11 +37,27 @@ class SnowflakeDialectTest {
      * digits, a tie to the even digit, each read back; the value is written once, carried by one-element TRANSFORMs
      * (Snowflake refuses a correlated subquery). Measured against Java's text on the lane.
      */
+    /** A guarded parse's raise takes the conversion's type (round 73: a VARCHAR raise beside CAST(x AS BIGINT) unified
+     *  to a scaled NUMBER, parseInteger('17') read back as 17.00000 in the database judge's statement). */
+    @Test
+    void aParseGuardsRaiseIsTypedAsItsConversion() {
+        SqlExpr s = SqlExpr.Column.of("t", "s", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
+        SqlSource t = new SqlSource.Table("t", "t", List.of(new OutputCol("s", SqlType.Scalar.VARCHAR, true)), false,
+                Map.of(), com.legend.sql.NameQuoting.BARE);
+        String i = rendered(t, SqlExpr.Call.of(SqlFn.PARSE_INT, s), List.of());
+        assertTrue(i.contains("ELSE CAST(CHR(31) || "), i);
+        assertTrue(i.contains("|| CHR(31) AS BIGINT) END"), i);
+        assertFalse(i.contains("AS INTEGER) AS VARCHAR)"), i);
+        String f = rendered(t, new SqlExpr.Cast(s, SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER), List.of());
+        assertTrue(f.contains("|| CHR(31) AS DOUBLE) END"), f);
+        assertFalse(f.contains("AS INTEGER) AS VARCHAR)"), f);
+    }
+
     @Test
     void aFloatsTextIsItsShortestDigitsThatReadBack() {
         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
         String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
-                new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR), "s", null)), false, new SqlSource.Table("t", "t",
+                new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER), "s", null)), false, new SqlSource.Table("t", "t",
                 List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
                 null, List.of(), null, null, List.of(), null, null, List.of()));
         // the value written once; its exact decimal by a power of two's scaling and an exact NUMBER, never its own cast
@@ -58,25 +74,16 @@ class SnowflakeDialectTest {
         assertFalse(sql.contains("(SELECT"), sql);
     }
 
-    /**
-     * Pure's literal spelling of a Float is spelled here, its shortest text read once per branch (2026-10-21): the
-     * portable spelling reads the double's text some fifty times, and channel B's standard suite took 57 minutes on the
-     * lane. A coalesce of a JSON value and a text parses the text and reads the JSON as a VARIANT (the zips).
-     */
+    /** A coalesce of a JSON value and a text parses the text and reads the JSON as a VARIANT (the zips). (Its Float
+     *  canon half went with SqlFn.FLOAT_CANON, 2026-11-16, W10 (b).) */
     @Test
-    void aFloatsCanonIsSpelledHere_andACoalesceOfJsonAndTextIsOneType() {
-        SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+    void aCoalesceOfJsonAndTextIsOneType() {
         SqlExpr j = SqlExpr.Column.of("t", "j", SqlType.Scalar.JSON, true, OutputCol.Origin.PHYSICAL);
         String sql = new Snowflake().render(new SqlSelect(List.of(
-                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.FLOAT_CANON, x), "c", null),
                 new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, j, new SqlExpr.StringLit("[]")), "z", null)),
-                false, new SqlSource.Table("t", "t", List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true),
-                        new OutputCol("j", SqlType.Scalar.JSON, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
+                false, new SqlSource.Table("t", "t", List.of(new OutputCol("j", SqlType.Scalar.JSON, true)), false,
+                        Map.of(), com.legend.sql.NameQuoting.BARE),
                 null, List.of(), null, null, List.of(), null, null, List.of()));
-        assertTrue(sql.contains(" AS DOUBLE) = 0 THEN '0.0'"), sql);
-        assertTrue(sql.split("\"t\"\\.\"x\"", -1).length - 1 == 1, sql);
-        assertTrue(sql.contains("RPAD("), sql);
-        assertTrue(sql.length() < 12_000, sql.length() + " characters: " + sql);
         assertTrue(sql.contains("coalesce(TO_VARIANT(\"t\".\"j\"), PARSE_JSON('[]'))"), sql);
     }
 
@@ -90,7 +97,7 @@ class SnowflakeDialectTest {
     @Test
     void aFloatsPrintFormsAreSpelledHere_theValueReadOnce() {
         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
-        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT)) {
+        for (SqlFn fn : List.of(SqlFn.FLOAT_SHORTEST_TEXT)) {
             String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
                     SqlExpr.Call.of(fn, x), "p", null)), false, new SqlSource.Table("t", "t",
                     List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
@@ -105,9 +112,21 @@ class SnowflakeDialectTest {
             assertTrue(sql.contains("THEN 'NaN' WHEN "), sql);
         }
         String literal = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
-                SqlExpr.Call.of(SqlFn.FLOAT_PRINT, new SqlExpr.FloatLit(1.5)), "p", null)), false,
+                SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, new SqlExpr.FloatLit(1.5)), "p", null)), false,
                 new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
         assertFalse(literal.contains("NUMBER(38, 28)"), literal);
+        // the product's text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): six decimals trimmed, NaN and the
+        // infinities by name, no shortest-digits machinery
+        String product = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+                SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x), "p", null)), false, new SqlSource.Table("t", "t",
+                List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
+                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
+        // below 1e32 NUMBER(38, 6), the -0.000000 of a value rounding to zero written 0.000000; from 1e32 the leading
+        // digits and zeros (round 56, 2026-11-15)
+        assertTrue(product.contains("RTRIM(RTRIM(REPLACE(CAST(CAST(\"t\".\"x\" AS NUMBER(38, 6)) AS VARCHAR), '-0.000000',"
+                + " '0.000000'), '0'), '.')") && product.contains("WHEN ABS(\"t\".\"x\") >= 1E32 THEN"),
+                product);
+        assertFalse(product.contains("NUMBER(38, 28)"), product);
     }
 
     /**

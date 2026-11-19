@@ -147,7 +147,7 @@ final class TaggedLists {
                     SqlExpr.Call.of(SqlFn.IS_NOT_NULL, tl.channelAt(k, pos))));
         }
         return SqlExpr.Call.of(SqlFn.LIST_FILTER, tl.positions(),
-                new SqlExpr.Lambda(List.of(p), SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null),
+                new SqlExpr.Lambda(List.of(p), SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER),
                         new SqlExpr.BoolLit(false))));
     }
 
@@ -159,7 +159,7 @@ final class TaggedLists {
             var cell = SqlExpr.Column.lookup(v, cellsOf(tl).outputs());
             return new SqlExpr.ScalarSubquery(new SqlSelect(
                     List.of(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(
-                            new SqlExpr.Cast(new SqlExpr.NullLit(), slot),
+                            new SqlExpr.Cast(new SqlExpr.NullLit(), slot, SqlExpr.Reason.CARRIER),
                             cell.apply(SqlExpr.TaggedList.ROW_POSITION)), "s", null)),
                     false, new SqlSource.Subselect(cellsOf(tl), v, null), null, List.of(), null, null, List.of(),
                     null, null, List.of()));
@@ -171,7 +171,7 @@ final class TaggedLists {
         for (int i = 0; i < ps.elements().size(); i++) {
             nulls.add(new SqlExpr.NullLit());
         }
-        return new SqlExpr.Cast(new SqlExpr.ArrayLit(nulls), new SqlType.Array(slot));
+        return new SqlExpr.Cast(new SqlExpr.ArrayLit(nulls), new SqlType.Array(slot), SqlExpr.Reason.CARRIER);
     }
 
     /** The list on the VARIANT carrier: a JSON array, each element the JSON value of its channel's value (an
@@ -186,7 +186,7 @@ final class TaggedLists {
                     SqlExpr.Call.of(SqlFn.TO_VARIANT, tl.channelAt(k, pos))));
         }
         return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, tl.positions(),
-                new SqlExpr.Lambda(List.of(p), new SqlExpr.Case(whens, null)));
+                new SqlExpr.Lambda(List.of(p), new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER)));
     }
 
     /** The element at 0-based {@code index}, out of bounds raising Pure's own message. */
@@ -198,10 +198,7 @@ final class TaggedLists {
                 SqlExpr.Call.of(SqlFn.LESS, index, new SqlExpr.IntLit(0)));
         SqlExpr position = SqlExpr.Call.of(SqlFn.LIST_GET, tl.positions(), plusOne(index));
         return Scalars.guarded(oob,
-                Scalars.cat(new SqlExpr.StringLit("The system is trying to get an element at offset "),
-                        Scalars.str(index),
-                        new SqlExpr.StringLit(" where the collection is of size "),
-                        Scalars.str(size)),
+                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INDEX_OUT_OF_BOUNDS, List.of(index, size)),
                 tl.element(position), pos);
     }
 
@@ -226,6 +223,7 @@ final class TaggedLists {
      * spelling carrier's own shape (its ids ordered by its comparables), the identity now a position.
      */
     static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias) {
+        refuseInexactRanks(tl);
         if (tl.rows() != null) {
             return sortRows(tl, alias);
         }
@@ -250,6 +248,99 @@ final class TaggedLists {
      * comparable's channels are the cells' scalar columns ({@code __cmp}, or {@code __cmp_g/n/d/s} for a rank across
      * kinds), compared field by field as the rank's struct compares them, a missing field after a present one.
      */
+    /**
+     * A mixed list's numbers are ordered by their value as a DOUBLE (MixedEncoding's rank): a Decimal, or an integer
+     * beyond 2^53, is not held exactly there, and two such values could be ordered wrongly
+     * ({@code [9007199254740993, 9007199254740992, 'a']->min()} answered ...993). Such an order is refused by name at
+     * planning until the kinds-kept carrier ranks numbers exactly (2026-11-15, PR1's review, D2).
+     */
+    static void refuseInexactRanks(SqlExpr.TaggedList tl) {
+        List<SqlExpr> scanned = new ArrayList<>();
+        scanned.add(tl.comparable());
+        if (tl.rows() != null) {
+            scanned.add(tl.rows());
+        }
+        for (SqlExpr e : scanned) {
+            String why = inexact(e);
+            if (why != null) {
+                throw new com.legend.error.NotImplementedException("a mixed list's order over " + why
+                        + ": its numbers are ranked as DOUBLE, which does not hold it exactly (refused until the"
+                        + " kinds-kept carrier ranks numbers exactly)");
+            }
+        }
+    }
+
+    /** The literal {@code v} is, under any casts, groupings and negations; else {@code v} itself. */
+    private static SqlExpr literalUnder(SqlExpr v) {
+        SqlExpr at = v;
+        while (true) {
+            if (at instanceof SqlExpr.Cast c) {
+                at = c.value();
+            } else if (at instanceof SqlExpr.Group g) {
+                at = g.inner();
+            } else if (at instanceof SqlExpr.Call c && c.fn() == SqlFn.NEGATE && c.args().size() == 1) {
+                // a negative literal ({@code -2.0}): its magnitude decides, and the double's range is symmetric
+                at = c.args().get(0);
+            } else {
+                return at;
+            }
+        }
+    }
+
+    /** Whether the double nearest {@code d} is {@code d} itself (it round-trips). */
+    private static boolean exactInADouble(java.math.BigDecimal d) {
+        double x = d.doubleValue();
+        return Double.isFinite(x) && new java.math.BigDecimal(x).compareTo(d) == 0;
+    }
+
+    private static @com.legend.base.Nullable String inexact(SqlExpr e) {
+        if (e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.DOUBLE) {
+            SqlExpr v = c.value();
+            SqlExpr lit = literalUnder(v);
+            // a literal is known at planning, whatever casts carry it (an Integer's rank may pass through a DECIMAL
+            // cast): it ranks exactly where the double holds its value (round 55f, 2026-11-15: an Integer literal under
+            // a DECIMAL cast read as "a Decimal" and refused testMixedSortNoComparator)
+            if (lit instanceof SqlExpr.DecimalLit d) {
+                if (!exactInADouble(d.value())) {
+                    return "the Decimal " + d.value().toPlainString() + " (not exact as a DOUBLE)";
+                }
+            } else if (lit instanceof SqlExpr.IntLit i) {
+                // the double holds it or not (the PR1 re-review's B5, 2026-11-16: 2^53 and 2^60 are exact, and were
+                // refused by a magnitude bound)
+                if (!exactInADouble(java.math.BigDecimal.valueOf(i.value()))) {
+                    return "the integer " + i.value() + " (not exact as a DOUBLE)";
+                }
+            } else if (!(lit instanceof SqlExpr.FloatLit) && v.type() instanceof com.legend.sql.TypeFact.Typed t
+                    && t.type() instanceof SqlType.Decimal) {
+                // a Decimal computed at run time: not known at planning
+                return "a Decimal";
+            }
+        }
+        if (e instanceof SqlExpr.ScalarSubquery q && q.subquery() instanceof SqlSelect s) {
+            for (SqlSelect.Projection pr : s.projections()) {
+                String why = inexact(pr.expr());
+                if (why != null) {
+                    return why;
+                }
+            }
+            if (s.from() instanceof SqlSource.Subselect sub && sub.inner() instanceof SqlSelect in) {
+                for (SqlSelect.Projection pr : in.projections()) {
+                    String why = inexact(pr.expr());
+                    if (why != null) {
+                        return why;
+                    }
+                }
+            }
+        }
+        for (SqlExpr c : e.children()) {
+            String why = inexact(c);
+            if (why != null) {
+                return why;
+            }
+        }
+        return null;
+    }
+
     private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias) {
         SqlSelect cells = cellsOf(tl);
         var c = SqlExpr.Column.lookup(alias, cells.outputs());
@@ -295,7 +386,7 @@ final class TaggedLists {
         }
         return SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, tl.tagAt(p), tl.tagAt(q)),
-                SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null), new SqlExpr.BoolLit(false)));
+                SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER), new SqlExpr.BoolLit(false)));
     }
 
     /** A tagged value equals a value of the static {@code kind}: its tag names that kind's candidate, whose value
@@ -468,17 +559,37 @@ final class TaggedLists {
     }
 
     /** The list's print, Pure's: {@code [e1, e2, ...]}, each element printed as its kind. */
-    static SqlExpr print(SqlExpr.TaggedList tl) {
-        String p = "_tlp";
-        SqlExpr texts = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, tl.positions(), new SqlExpr.Lambda(List.of(p),
-                Scalars.pureToString(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY),
-                        tl.element(SqlExpr.Column.derived(null, p)))));
+    static SqlExpr print(Styled styled, SqlExpr.TaggedList tl) {
+        // the style's two-form kind (B8, 2026-11-17): the product's JSON array (the user's ruling of 2026-11-10), the
+        // edge's legend-pure [e1, e2]
+        return styled.lists().mixedList(styled, tl);
+    }
+
+    /** A mixed list as a JSON array: each element as its kind writes a JSON value -- a number and a Boolean as their
+     *  text, anything else a JSON string of its text. */
+    static SqlExpr json(Styled styled, SqlExpr.TaggedList tl) {
+        String p = "_tlj";
+        // through map's one carrier emission (the carrier purity ratchet: no new direct LIST_ site)
+        SqlExpr texts = map(tl, new SqlExpr.Lambda(List.of(p),
+                MixedEncoding.perCandidate(tl.element(SqlExpr.Column.derived(null, p)), (k, v) -> jsonValue(styled, k, v))));
         return Scalars.cat(new SqlExpr.StringLit("["),
                 SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, texts,
-                                List.of(new SqlExpr.StringLit(", "))),
+                        new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, texts, List.of(new SqlExpr.StringLit(","))),
                         new SqlExpr.StringLit("")),
                 new SqlExpr.StringLit("]"));
+    }
+
+    /** {@code v} of kind {@code k} as a JSON value's text. */
+    static SqlExpr jsonValue(Styled styled, Type k, SqlExpr v) {
+        SqlExpr text = Scalars.pureToString(styled, k, v);
+        if (k == Type.Primitive.INTEGER || k == Type.Primitive.FLOAT || k == Type.Primitive.DECIMAL
+                || k == Type.Primitive.NUMBER || k == Type.Primitive.BOOLEAN) {
+            return text;
+        }
+        SqlExpr escaped = SqlExpr.Call.of(SqlFn.REPLACE, SqlExpr.Call.of(SqlFn.REPLACE, text,
+                new SqlExpr.StringLit("\\"), new SqlExpr.StringLit("\\\\")),
+                new SqlExpr.StringLit("\""), new SqlExpr.StringLit("\\\""));
+        return Scalars.cat(new SqlExpr.StringLit("\""), escaped, new SqlExpr.StringLit("\""));
     }
 
     /** The elements kept whose key's first position is their own ({@code removeDuplicatesBy}): {@code key} a lambda
@@ -523,7 +634,7 @@ final class TaggedLists {
                         new SqlExpr.IntLit(k)));
             }
             List<SqlSelect.Projection> out = new ArrayList<>();
-            out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null), carrier), "value",
+            out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null, SqlExpr.Reason.CARRIER), carrier, SqlExpr.Reason.CARRIER), "value",
                     new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
             for (int k = 0; k < slots.size(); k++) {
                 String name = SqlType.Tagged.slotColumn("value", k);
@@ -543,7 +654,7 @@ final class TaggedLists {
         // position at each read of it (Snowflake, SQLite, MariaDB, MySQL) wrote the position list per channel in a CASE
         SqlExpr index = SqlExpr.Call.of(SqlFn.MINUS, tl.tagAt(p), new SqlExpr.IntLit(1));
         List<SqlSelect.Projection> out = new ArrayList<>();
-        out.add(new SqlSelect.Projection(new SqlExpr.Cast(index, carrier), "value",
+        out.add(new SqlSelect.Projection(new SqlExpr.Cast(index, carrier, SqlExpr.Reason.CARRIER), "value",
                 new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
         for (int k = 0; k < slots.size(); k++) {
             String name = SqlType.Tagged.slotColumn("value", k);

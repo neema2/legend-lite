@@ -141,7 +141,7 @@ final class ListEncodings {
             listSrc = srcOptional && !resultOne
                     ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, src),
-                            new SqlExpr.ArrayLit(List.of()))), singleton)
+                            new SqlExpr.ArrayLit(List.of()))), singleton, SqlExpr.Reason.CARRIER)
                     : singleton;
         }
         // a mixed list (track L; the L1 audit, 2026-10-29): the transform ranges over its positions, the lambda's
@@ -155,7 +155,7 @@ final class ListEncodings {
             return srcOptional
                     ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, src),
-                            new SqlExpr.NullLit())), applied)
+                            new SqlExpr.NullLit())), applied, SqlExpr.Reason.CARRIER)
                     : applied;
         }
         return collectionMapper
@@ -255,24 +255,18 @@ final class ListEncodings {
      * inclusive array_slice; NEGATIVE bounds clamp to the list head
      * (PCT — DuckDB reads a negative bound FROM THE END), and inverted
      * bounds RAISE real pure's message, in the database. */
-    static SqlExpr slice(SqlExpr src, SqlExpr start, SqlExpr stop) {
+    static SqlExpr slice(SqlExpr src, SqlExpr start, SqlExpr stop, LoweringForms forms) {
         SqlExpr lo = clamp0(start);
         SqlExpr hi = clamp0(stop);
         SqlExpr sliced = SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
                 onePlus(lo), hi);
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
-                SqlExpr.Call.of(SqlFn.ERROR,
-                        SqlExpr.Call.of(SqlFn.CONCAT,
-                                SqlExpr.Call.of(SqlFn.CONCAT,
-                                        SqlExpr.Call.of(SqlFn.CONCAT,
-                                                new SqlExpr.StringLit("The low bound ("),
-                                                new SqlExpr.Cast(lo, SqlType.Scalar.VARCHAR)),
-                                        new SqlExpr.StringLit(") can't be higher than the high bound (")),
-                                SqlExpr.Call.of(SqlFn.CONCAT,
-                                        new SqlExpr.Cast(hi, SqlType.Scalar.VARCHAR),
-                                        new SqlExpr.StringLit(") in a slice operation")))))),
-                sliced);
+        // the style's form (the audit's K5, 2026-11-17): the product's guard, or the database's own slice of inverted
+        // bounds where the style writes it plain (B7)
+        return forms.raise(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, () -> new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
+                SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, List.of(lo, hi))))),
+                sliced, SqlExpr.Reason.CARRIER), sliced);
     }
 
     /**
@@ -348,7 +342,7 @@ final class ListEncodings {
                 List.of(new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.IS_NULL, e),
                         new SqlExpr.ArrayLit(List.of(), one.type()))),
-                one);
+                one, SqlExpr.Reason.CARRIER);
     }
 
     /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */

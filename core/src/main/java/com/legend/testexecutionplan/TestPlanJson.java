@@ -41,17 +41,31 @@ public final class TestPlanJson {
      *  payloads bound or inline -- and the product's version 48; 18 (2026-11-12, the C checkpoint's SHOULD-FIX 3): a
      *  target may carry its database's settings, the product's version 49; 19 (2026-11-12, the re-audit's S8): a target
      *  may carry its database's transaction statements, the product's version 50; 20 (2026-11-12, the user's ruling on
-     *  a snapshot's pull): the product's version 51; 21 (2026-11-15, C5-J item 2): the body's facts, {@code facts}
-     *  (its effects, inline CSV seeds, verdicts and shape: what a runner reads of the body). */
-    public static final int VERSION = 21;
+     *  a snapshot's pull): the product's version 51; 21 (2026-11-13, phase D's D1.1): the product's version 52; 22 (2026-11-13, E-5c, the user's
+     *  ruling O5, its number after D's): a side read from its group's fused row, {@code fusedCell}, a group's agreements
+     *  one per root ({@code agreements}, each with its {@code root}), and the product's version 53 (E-4: every cast's and
+     *  case's reason); 23 (2026-11-15, main's C5-J item 2 merged into E, its 21 renumbered after E's 22): the body's
+     *  facts, {@code facts} (its effects, inline CSV seeds, verdicts and shape: what a runner reads of the body); 24
+     *  (2026-11-16, phase D's option (D), merged after E): the product's version 54 (a plan's raises); 25 (2026-11-16, the P2 checkpoint audit's S1):
+     *  the product's version 55 (each statement's raises); 26 (2026-11-16, phase D's Phase 2, raises as SITES): the
+     *  product's version 56 (each statement's raise sites, its token's words planned); 27 (2026-11-17, C5's step E):
+     *  a side's shape and the plan's answer carry their size refusal's words, planned ({@code SideShape.sizeWords},
+     *  {@code TestPlan.answerSizeWords}); 28 (2026-11-17, census C1): the judging rules' one spelling,
+     *  an isolated step's as a verdict group's ({@code lite}, {@code compiledPureCompat}); 29 (2026-11-17, census
+     *  C1): the plan states whose words its failures are in ({@code upstreamWords}); 30 (2026-11-17, census C1): the judging
+     *  rules as their data ({@code floatUlps}, {@code decimalScale}); 31 (2026-11-18, census J29): the words' name in
+     *  {@code upstreamWords}' place ({@code words}: {@code lite}, or the edge's); 32 (2026-11-18, train 17, the
+     *  orchestrator's ruling): no judging rules -- a Float's tolerance and a Decimal's scale are the two-form kinds'
+     *  (the style's VerdictNumbers, the run hook's HostForms), and census C1's "the rules are data" is superseded. */
+    public static final int VERSION = 32;
 
     private TestPlanJson() {
     }
 
     /** The {@code _type} tags of a test plan's steps and sides, one spelling for the writer and the reader. */
-    enum StepTag { run, frameRun, verdicts, branch }
+    enum StepTag { run, frameRun, verdicts, branch, isolated }
 
-    enum SideTag { rows, keyedRows, constant }
+    enum SideTag { rows, keyedRows, constant, fusedCell }
 
     private static <E extends Enum<E>> E tag(Class<E> family, Json.Obj o, String what) {
         String name = o.getString("_type");
@@ -77,7 +91,7 @@ public final class TestPlanJson {
     /** G11's guard for a test body's plan: it survives its JSON, or it is refused by name, never run. */
     public static void requireRoundTrip(TestPlan plan) {
         // the plan is self-contained: every appeal its verdicts name, it carries (the slice 2 invariant audit's D2)
-        PlannedAppeals.requireCarried(plan);
+        NamedExtensions.requireCarried(plan);
         String why = roundTripDifference(plan);
         if (why != null) {
             throw new IllegalStateException("a test plan that is not portable data (G11): " + why);
@@ -93,6 +107,8 @@ public final class TestPlanJson {
         out.put("productVersion", PlanJson.VERSION);
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
+        out.put("answerSizeWords", plan.answerSizeWords());
+        out.put("words", plan.words());
         out.put("session", PlanJson.targetJson(plan.session()));
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("effects", plan.facts().effects());
@@ -111,6 +127,12 @@ public final class TestPlanJson {
         // each load once, every target naming it by identity (the data-in-the-plan design's 2.6, L2)
         out.put("loads", PlanJson.hoistLoads(out));
         return Json.toCompact(out);
+    }
+
+    /** One step's JSON, as {@link #write} writes it inside a plan: what a measurement of a step's plan data reads
+     *  (the judge's plan JSON per verdict step, 2026-11-15). */
+    public static String writeStep(TestPlan.TestStep step) {
+        return Json.toCompact(step(step));
     }
 
     private static List<Object> steps(List<TestPlan.TestStep> steps) {
@@ -167,15 +189,8 @@ public final class TestPlanJson {
                     sp.put("release", v.savepoint().release());
                     o.put("savepoint", sp);
                 }
-                o.put("rules", switch (v.rules()) {
-                    case LITE -> "lite";
-                    case COMPILED_PURE_COMPAT -> "compiledPureCompat";
-                });
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
-                }
-                if (v.agreement() != null) {
-                    o.put("agreement", HostJson.wAgreement(v.agreement()));
                 }
             }
             case TestPlan.Branch b -> {
@@ -183,6 +198,12 @@ public final class TestPlanJson {
                 o.put("condition", side(b.condition()));
                 o.put("then", steps(b.then()));
                 o.put("otherwise", steps(b.otherwise()));
+            }
+            case TestPlan.Isolated a -> {
+                // each judge's plan whole, as that judge's plan is written by itself: the isolation is in the data
+                o.put("_type", StepTag.isolated.name());
+                o.put("host", write(a.host()));
+                o.put("database", write(a.database()));
             }
         }
         return o;
@@ -205,6 +226,12 @@ public final class TestPlanJson {
                 so.put("columns", PlanJson.columnsJson(c.columns()));
                 so.put("cells", c.cells());
                 so.put("folded", c.folded());
+            }
+            case TestPlan.Side.FusedCell f -> {
+                so.put("_type", SideTag.fusedCell.name());
+                so.put("index", f.index());
+                so.put("at", f.at());
+                so.put("columns", PlanJson.columnsJson(f.columns()));
             }
         }
         return so;
@@ -242,7 +269,8 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")));
+                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")),
+                o.get("answerSizeWords") instanceof Json.Str w ? w.value() : null, o.getString("words"));
     }
 
     private static BodyFacts factsOf(Json.Obj f) {
@@ -273,54 +301,47 @@ public final class TestPlanJson {
     }
 
     private static Map<String, Object> extensions(Map<Integer, List<Extension>> byKey) {
-        List<ExtensionCodec> codecs = codecs();
         Map<String, Object> out = new LinkedHashMap<>();
         byKey.forEach((key, records) -> {
             List<Object> written = new ArrayList<>(records.size());
             for (Extension e : records) {
-                Map<String, Object> o = null;
-                if (e instanceof Appeal a) {
-                    // the test plan's own record (an engine-text assert's appeal, step 8b): its own codec
-                    o = new LinkedHashMap<>();
-                    o.put("_type", "appeal");
-                    o.putAll(HostJson.wAppeal(a));
-                }
-                for (ExtensionCodec c : o != null ? List.<ExtensionCodec>of() : codecs) {
-                    o = c.write(e);
-                    if (o != null) {
-                        break;
-                    }
-                }
-                if (o == null) {
-                    throw new IllegalStateException("a test plan's extension no codec writes: "
-                            + e.getClass().getSimpleName());
-                }
-                written.add(o);
+                written.add(extension(e));
             }
             out.put(Integer.toString(key), written);
         });
         return out;
     }
 
+    /** One extension record as its codec writes it, tagged; refused by name where no codec writes it (census C3,
+     *  2026-11-17: an edge-judged comparison's record, held by its verdict's judgment, written so too). */
+    static Map<String, Object> extension(Extension e) {
+        for (ExtensionCodec c : codecs()) {
+            Map<String, Object> o = c.write(e);
+            if (o != null) {
+                return o;
+            }
+        }
+        throw new IllegalStateException("a test plan's extension no codec writes: " + e.getClass().getSimpleName());
+    }
+
+    /** One extension record read by the codec that knows its tag; refused by name where none does. */
+    static Extension readExtension(Json.Obj o) {
+        String tag = o.getString("_type");
+        for (ExtensionCodec c : codecs()) {
+            Extension read = c.read(tag, o);
+            if (read != null) {
+                return read;
+            }
+        }
+        throw new IllegalArgumentException("a test plan's extension tagged '" + tag + "' no codec reads");
+    }
+
     private static Map<Integer, List<Extension>> readExtensions(Json.Obj byKey) {
-        List<ExtensionCodec> codecs = codecs();
         Map<Integer, List<Extension>> out = new LinkedHashMap<>();
         for (Map.Entry<String, Json.Node> e : byKey.fields().entrySet()) {
             List<Extension> records = new ArrayList<>();
             for (Json.Node n : ((Json.Arr) e.getValue()).items()) {
-                Json.Obj o = (Json.Obj) n;
-                String tag = o.getString("_type");
-                Extension read = "appeal".equals(tag) ? HostJson.rAppeal(o) : null;
-                for (ExtensionCodec c : read != null ? List.<ExtensionCodec>of() : codecs) {
-                    read = c.read(tag, o);
-                    if (read != null) {
-                        break;
-                    }
-                }
-                if (read == null) {
-                    throw new IllegalArgumentException("a test plan's extension tagged '" + tag + "' no codec reads");
-                }
-                records.add(read);
+                records.add(readExtension((Json.Obj) n));
             }
             out.put(Integer.parseInt(e.getKey()), records);
         }
@@ -338,6 +359,7 @@ public final class TestPlanJson {
     private static TestPlan.TestStep readStep(Json.Obj o) {
         return switch (tag(StepTag.class, o, "test plan step")) {
             case run -> new TestPlan.Run(PlanJson.nodeOf(o.getObj("node")));
+            case isolated -> new TestPlan.Isolated(read(o.getString("host")), read(o.getString("database")));
             case frameRun -> {
                 if (!(PlanJson.nodeOf(o.getObj("check")) instanceof ExecutionPlan.Check c)) {
                     throw new IllegalArgumentException("a frame run's step is a check");
@@ -363,18 +385,10 @@ public final class TestPlanJson {
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
                 Json.Obj roots = o.getObjOr("roots", null);
-                Json.Obj agreement = o.getObjOr("agreement", null);
-                String rules = o.getString("rules");
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
                                 sp.getString("rollbackTo"), sp.getString("release")),
-                        switch (rules) {
-                            case "lite" -> TestPlan.JudgingRules.LITE;
-                            case "compiledPureCompat" -> TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
-                            default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
-                                    + "': lite or compiledPureCompat");
-                        }, roots == null ? null : HostJson.rRootLoop(roots),
-                        agreement == null ? null : HostJson.rAgreement(agreement));
+                        roots == null ? null : HostJson.rRootLoop(roots));
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));
@@ -400,6 +414,8 @@ public final class TestPlanJson {
             }
             case constant -> new TestPlan.Side.Constant(PlanJson.columnsOf(so.getArr("columns")),
                     PlanJson.textCells(so.getArr("cells"), "a constant side"), so.getBool("folded"));
+            case fusedCell -> new TestPlan.Side.FusedCell(so.getInt("index"), so.getInt("at"),
+                    PlanJson.columnsOf(so.getArr("columns")));
         };
     }
 }

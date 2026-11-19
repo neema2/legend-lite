@@ -45,7 +45,7 @@ final class PivotAsGroupBy extends com.legend.sql.SqlRewriter {
                             + " native pivot");
                 }
                 args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null));
+                        SqlExpr.Call.of(SqlFn.EQUAL, p.on().get(0), v), args.get(0))), null, SqlExpr.Reason.DIALECT));
                 String name = pivotValueText(v) + "__|__" + u.alias();
                 ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(agg.fn(), args, agg.distinct(), agg.orderBy()),
                         name, CarrierStrategies.generatedSlot(p, u, name)));

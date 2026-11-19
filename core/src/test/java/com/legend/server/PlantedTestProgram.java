@@ -18,6 +18,7 @@ public final class PlantedTestProgram {
 
     /** A test's program planned outside the test door: the defect the rule refuses. */
     public static Object planned(TypedQuery query) {
-        return PlanMaker.testProgram(query, "r", java.util.Set.of(), null, false);
+        return PlanMaker.testProgram(query, "r", java.util.Set.of(), null, false,
+                com.legend.database.PlanStyle.PRODUCT);
     }
 }

@@ -33,6 +33,15 @@ public final class TestPlanner {
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
     public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        if (options.judgeMode() == PlanningOptions.JudgeMode.BOTH) {
+            // both judges ISOLATED (the user's judge model, 2026-11-17): each plans the body alone; under lite's own
+            // rules their verdicts and messages agree, under the compatibility rules their verdicts (the words are the
+            // host's alone; the orchestrator's (a), 2026-11-17)
+            return planIsolated(typed, given, options);
+        }
+        // the style of this planning call (K10b, 2026-11-17): under the compatibility edge's, a fresh recorder of its
+        // raise sites' words, which the test door reads once (TestDoor.planned); never shared with another call
+        options = options.forOnePlanningCall();
         // the body's facts over the body as given, BEFORE any rewrite below (the generator's planning, the unread lets
         // made statements, the lift): the record the test door's facts state, carried by the plan (the C5-J audit's
         // SHOULD 1, 2026-11-15: until then stated over the rewritten body, so an unread let or a generator's effect
@@ -40,17 +49,18 @@ public final class TestPlanner {
         com.legend.testexecutionplan.BodyFacts facts = facts(typed);
         // none given: the one runtime the body's from()s name (A5, PlanMaker.runtimeOf)
         String runtimeFqn = com.legend.planner.PlanMaker.runtimeOf(typed, given);
-        SqlDialect dialect = com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(),
+        SqlDialect dialect = options.style().dialect(com.legend.Compiler.executesOn(typed.context(),
                 runtimeFqn).type());
+        BodyDriver.refusePlanHandlesOffTheEdge(typed, options);
         // a test-data generator the body binds planned first (B2d.2, 2026-11-11): its reads the values they are, so the
         // body is classed and planned as any other
-        // its texts print a timestamp as the body is judged (L9, the user's ruling of 2026-11-12): lite's own rules the
-        // clean form, the compatibility rules upstream's
-        com.legend.testdatagen.TestDataPlanner.Printing printing = options.judgingRules()
-                == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
-                ? com.legend.testdatagen.TestDataPlanner.Printing.COMPAT
-                : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
-        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing)), runtimeFqn,
+        // its texts print a timestamp as the plan's style prints one (L9, the user's ruling of 2026-11-12; census C1,
+        // 2026-11-17: a two-form kind): the product's clean form, upstream's at the edge
+        com.legend.testdatagen.TestDataPlanner.Printing printing = options.style().twoForm(
+                com.legend.testdatagen.TestDataPlanner.Printing.class,
+                com.legend.testdatagen.LitePrinting.INSTANCE);
+        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing,
+                options.style())), runtimeFqn,
                 dialect, options, facts);
     }
 
@@ -60,6 +70,26 @@ public final class TestPlanner {
         List<TypedSpec> program = com.legend.planner.LetPlanner.unreadAsStatements(body, typed.resolved(),
                 typed.context());
         return program != body ? typed.withBody(program) : typed;
+    }
+
+    /**
+     * BOTH JUDGES, ISOLATED (the user's judge model, 2026-11-17; (b')): the body planned by each judge alone, exactly as
+     * that judge plans it by itself, the two plans held by one step at which the runner compares their verdicts and
+     * messages. Neither plan sees the other: no host column in a database statement, no fused agreement. The planner's
+     * answer under BOTH with lite's own rules.
+     */
+    static TestPlan planIsolated(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        TestPlan host = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.HOST));
+        if (host.judge() != TestPlan.Judge.HOST || !host.facts().verdicts()) {
+            // a body with no assert has nothing two judges could disagree on: planned once
+            return host;
+        }
+        TestPlan database = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.DATABASE));
+        TestPlan both = new TestPlan(List.of(), List.of(new TestPlan.Isolated(host, database)),
+                TestPlan.Judge.AGREEMENT, java.util.Map.of(), java.util.Map.of(), host.answersLastVerdict(),
+                host.session(), host.facts(), host.answerSizeWords(), host.words());
+        com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(both);
+        return both;
     }
 
     /**
@@ -76,17 +106,15 @@ public final class TestPlanner {
         boolean systemRouted;
         HostAsserts host = null;
         DatabaseAsserts database = null;
-        AgreementAsserts agreement = null;
         // the body's engine-text appeals as its arms planned them, by number: the plan carries those its verdicts name
         // (step 8b, 2026-11-08)
-        EngineTextAppeals textAppeals = null;
+        NumberedExtensions textAppeals = null;
         // THE WALL's rule 2 (2026-11-06): the body is PLANNED -- lifted, classed, its environment made, its asserts
         // planned -- with no run started, no session opened and no statement sent, each refused by name (until then
         // only the asserts' planning was scoped, and the system database's session was opened just before it)
         try (var planning = com.legend.base.RunScope.plans("a test body")) {
             typed = lifted(given, options);
-            // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
-            // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
+            // every judge plans its asserts on the program road, so the classes are one judge's rules whatever the mode
             bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
             // an assert program's asserts, planned by its judge before the program is (M6 the host's, M7 the
             // database's): a body holding an assert of a shape the judge's planner does not plan yet has none, and is
@@ -127,15 +155,14 @@ public final class TestPlanner {
                 switch (judgesNothing ? PlanningOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
-                    // both judges in one plan: each assert's step carries the host's sides and the database's
-                    // statement
-                    case BOTH -> agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
-                            systemRouted);
+                    // both judges are planned ISOLATED, each alone (planIsolated): the fused agreement is deleted
+                    // (the orchestrator's (b), 2026-11-17)
+                    case BOTH -> throw new IllegalStateException("BOTH is planned isolated, each judge alone");
                 }
             }
         }
         boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
-        TestDoor.Asserts asserts = host != null ? host : database != null ? database : agreement;
+        TestDoor.Asserts asserts = host != null ? host : database;
         if (runtimeFqn == null || bodyClass == null || assertsPlanned && asserts == null) {
             String queryRule = runtimeFqn == null || bodyClass != null ? null : BodyClass.queryRuleRefusal(typed, runtimeFqn);
             String why = (runtimeFqn == null ? "no runtime" : bodyClass == null ? "no class admits the body"
@@ -151,7 +178,7 @@ public final class TestPlanner {
         try (var p = com.legend.base.RunScope.plans("a test body's program")) {
             plan = TestDoor.planned(typed, runtimeFqn, options.features(),
                     asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.stores(),
-                    options.edge(), facts);
+                    options.edge(), options.style(), facts);
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
@@ -162,7 +189,7 @@ public final class TestPlanner {
             // heard at their verdicts' steps, decided after the run from these records. Under lite's own rules the
             // verdicts name none, so the plan carries none; whatever the rules, a plan naming an appeal it does not
             // carry is refused (PlannedAppeals.requireCarried, the slice 2 invariant audit's D2)
-            plan = plan.withExtensionsByVerdict(AppealsByVerdict.of(plan, textAppeals));
+            plan = plan.withExtensionsByVerdict(textAppeals.byVerdict(plan));
         }
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(plan);
         if (com.legend.diagnostics.Diagnostics.on("decoded-plan")) {
@@ -197,11 +224,8 @@ public final class TestPlanner {
      *  rules refuse it, the compatibility rules count it as upstream does). */
     private static TypedQuery lifted(TypedQuery given, PlanningOptions options) {
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
-        if (options.judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE) {
-            com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
-        } else {
-            lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
-        }
+        lifted = options.style().twoForm(com.legend.compiler.spec.RelationCounting.class,
+                com.legend.compiler.spec.RelationCountAsserts.REFUSED).counted(lifted);
         TypedQuery out = lifted == given.body() ? given : given.withBody(lifted);
         // the run's planning options reach the body's own statements (its lets, checks and answer, which
         // ProductStatements plans by the query's options) as they reach its asserts (the planner's env): the final

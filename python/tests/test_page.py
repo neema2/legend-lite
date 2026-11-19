@@ -213,9 +213,9 @@ class Document(Paged):
         grid.calculate('scaled', '$x.notional->toOne() * 1.50D')
         first = page.save()
         engine = Engine(ll.Frames())
-        listed = json.loads(engine.answer('POST', '/api/pure/v1/query/dataCube/search', '', '{}').body)
+        listed = json.loads(engine.answer('POST', '/api/lite/v1/queries/dataCube/search', '', '{}').body)
         self.assertIn((first, page.name, 'this user'), [(q['id'], q['name'], q['owner']) for q in listed])
-        opened = engine.answer('GET', f'/api/pure/v1/query/dataCube/{first}', '', None)
+        opened = engine.answer('GET', f'/api/lite/v1/queries/dataCube/{first}', '', None)
         self.assertEqual(opened.status, 200)
         # its content the page document, its decimal's digits kept
         self.assertEqual(json.loads(opened.body)['content'], json.loads(page.to_json()))
@@ -223,15 +223,17 @@ class Document(Paged):
         # saved again: over the copy it was saved as, its new name taken -- by the page too, its content so named, as
         # DataCube's Save renames it (B4: the record by DataCube's rule, savedRecord)
         self.assertEqual(page.save(name='  Q3, again '), first)
-        again = json.loads(engine.answer('GET', f'/api/pure/v1/query/dataCube/{first}', '', None).body)
+        again = json.loads(engine.answer('GET', f'/api/lite/v1/queries/dataCube/{first}', '', None).body)
         self.assertEqual(again['name'], 'Q3, again')
         self.assertEqual(again['content']['name'], 'Q3, again')
         self.assertEqual(page.name, 'Q3, again')
         self.assertEqual(page._page_commands[-1], {'kind': 'renamePage', 'name': 'Q3, again'})
         # deleted meanwhile (in DataCube's Open…): refused, as DataCube's Save is refused, never made again under its id
         # (the S7 audit's Y-8: Python made it again)
-        self.assertEqual(engine.answer('DELETE', f'/api/pure/v1/query/dataCube/{first}', '', None).status, 204)
-        with self.assertRaisesRegex(ValueError, f"the page was not saved: Can't find query with ID '{first}'"):
+        self.assertEqual(engine.answer('DELETE', f'/api/lite/v1/queries/dataCube/{first}', '', None).status, 204)
+        # lite's words, the product store's (the edge program's H6, 2026-11-17: a Python page saves through the native
+        # library's product entry; until then through the edge's, in legend-engine's "Can't find query with ID")
+        with self.assertRaisesRegex(ValueError, f"the page was not saved: no saved query has the ID '{first}'"):
             page.save()
         # another page is another saved page; one with nothing on it is not saved, as DataCube's Save refuses it (B14)
         other = ll.Page('Other')
@@ -254,7 +256,7 @@ class Document(Paged):
         second = other.save()
         self.assertNotEqual(second, first)
         engine = Engine(ll.Frames())
-        self.assertEqual(json.loads(engine.answer('GET', f'/api/pure/v1/query/dataCube/{first}', '', None).body)['name'],
+        self.assertEqual(json.loads(engine.answer('GET', f'/api/lite/v1/queries/dataCube/{first}', '', None).body)['name'],
                          'Q3 review', "the other page's saved page as it was")
         # opened by its id, it holds that record, by its command (savedAs): saved again, over it
         opened = ll.Page.open(second, frames={'trades': trades()})
@@ -272,7 +274,7 @@ class Document(Paged):
         page.grid(trades(), name='unnamed_trades')
         saved = page.save()
         engine = Engine(ll.Frames())
-        record = json.loads(engine.answer('GET', f'/api/pure/v1/query/dataCube/{saved}', '', None).body)
+        record = json.loads(engine.answer('GET', f'/api/lite/v1/queries/dataCube/{saved}', '', None).body)
         self.assertEqual(record['name'], 'unnamed_trades')
         self.assertEqual(page.name, 'unnamed_trades')
         # a name given is still judged by DataCube's one rule
@@ -2797,7 +2799,7 @@ class Abilities(Paged):
         self.assertEqual(page.to_dict()['record'], copy)
         self.assertEqual(page.name, 'Saved as, again')
         engine = Engine(ll.Frames())
-        stored = lambda id: json.loads(engine.answer('GET', f'/api/pure/v1/query/dataCube/{id}', '', None).body)
+        stored = lambda id: json.loads(engine.answer('GET', f'/api/lite/v1/queries/dataCube/{id}', '', None).body)
         self.assertEqual(stored(first)['name'], 'Saved as')
         self.assertEqual(stored(copy)['content']['record'], copy)
         self.assertEqual(page.save(), copy)
@@ -2880,13 +2882,13 @@ class Abilities(Paged):
             ll.Page.open(id)
         # a record deleted since (in DataCube's Open...): refused, as the tab's Save is, never made again under its id (the
         # S7 audit's Y-8)
-        self.assertEqual(store_call('lite_saved_cubes', pages_folder(), 'DELETE', f'/{id}', '', '', THIS_USER)[0], 204)
+        self.assertEqual(store_call('lite_store_cubes', pages_folder(), 'DELETE', f'/{id}', '', '', THIS_USER)[0], 204)
         with self.assertRaisesRegex(ValueError, 'the page was not saved'):
             opened.save()
-        self.assertEqual(store_call('lite_saved_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)[0], 404)
+        self.assertEqual(store_call('lite_store_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)[0], 404)
         # a cube saved alone, before pages: a page of its one grid, as the tab opens one
         cube = page.to_dict()['cubes'][0]['cube']
-        status, _ = store_call('lite_saved_cubes', pages_folder(), 'POST', '', '',
+        status, _ = store_call('lite_store_cubes', pages_folder(), 'POST', '', '',
                                _json.dumps({'id': 'old-cube', 'name': 'To open', 'content': cube}), THIS_USER)
         self.assertEqual(status, 200)
         alone = ll.Page.open('old-cube', frames={'open_trades': trades()})
@@ -5265,7 +5267,7 @@ class OverWarehouse(Paged):
             def objects(self):
                 return objects
 
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 ran.append(sql)
                 rows = held.cursor().execute(sql).to_arrow_table()
                 sink = pa.BufferOutputStream()
@@ -5469,7 +5471,7 @@ Data demo::party::PartyData
                   'content': '|demo::party::Party.all()->project(~[name: p|$p.name])',
                   'executionContext': {'_type': 'explicitExecutionContext', 'mapping': 'demo::party::PartyMapping',
                                        'runtime': 'demo::party::Runtime'}}
-        status, said = _home.store_call('lite_saved_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
+        status, said = _home.store_call('lite_store_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
                                         _home.THIS_USER)
         self.assertEqual(status, 200, said)
         page = ll.Page('Parties')
@@ -5526,7 +5528,7 @@ class PublishedQueries(Paged):
                   'executionContext': {'_type': 'explicitExecutionContext',
                                        'mapping': f"{model['package']}::mapping::Model",
                                        'runtime': f"{model['package']}::runtime::Python"}}
-        status, said = _home.store_call('lite_saved_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
+        status, said = _home.store_call('lite_store_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
                                         _home.THIS_USER)
         self.assertEqual(status, 200, said)
         # the grid over the query, its model read through this host's /depot/api and its columns typed by the compiler

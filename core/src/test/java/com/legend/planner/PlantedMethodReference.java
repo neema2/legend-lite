@@ -36,10 +36,10 @@ public final class PlantedMethodReference {
         private TestEntry() {
         }
 
-        /** {@code PlanMaker.testProgram}, as a function of its five parameters. */
+        /** {@code PlanMaker.testProgram}, as a function of its six parameters (its plan style the sixth, phase D). */
         public interface Entry {
             PlanMaker.TestProgram plan(TypedQuery query, String runtime, Set<Feature> features, ProgramKinds kinds,
-                    boolean systemRouted);
+                    boolean systemRouted, com.legend.database.PlanStyle style);
         }
 
         public static Entry entry() {

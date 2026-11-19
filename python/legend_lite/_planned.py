@@ -25,6 +25,7 @@ from collections import OrderedDict
 from collections.abc import Container, Iterable, Sequence
 from typing import Any
 
+from ._raised import declare_sites, worded
 from ._runframe import current_run
 
 
@@ -111,8 +112,10 @@ class Answered:
     CAPACITY = 4096
     KEYED_CAPACITY = 256
     # an answer whose statements DataCube's code hands the database, by the request's kind
-    PLANS = frozenset({'executionPlan', 'planJson', 'planModel', 'fileLoad', 'remoteMount', 'snapStream', 'snapCopy',
-                       'outputPlan', 'synthesize'})
+    PLANS = frozenset({'fileLoad', 'remoteMount', 'snapStream', 'snapCopy', 'outputPlan', 'synthesize'})
+    # lite's query/plan, over a model given and over one held: its plan is ``{"plan": <PlanJson>}`` (lite API v1, the
+    # host train, 2026-11-17)
+    QUERY_PLANS = frozenset({'queryPlan', 'queryPlanHeld'})
     # a plan's fields that hold a statement or a list of them (PlanJson's spellings)
     _STATEMENT_FIELDS = frozenset({'statement', 'sql', 'statements', 'after', 'session', 'read', 'reset', 'prepare',
                                    'count', 'begin', 'commit', 'rollback'})
@@ -176,13 +179,15 @@ class Answered:
                 self._all(database[step])
             if database.get('load') is not None:
                 self._plan(database['load'])
-        elif kind == 'plan':
-            text = json.loads(payload)
-            self._add(text['sql'])
-            if text.get('plan') is not None:
-                self._plan(text['plan'])
+        elif kind in self.QUERY_PLANS:
+            plan = json.loads(payload)['plan']
+            # the raises its statement can send, worded by the planner (_raised.declare_sites; phase D's option (D))
+            declare_sites(plan, f'a {kind} answer')
+            self._plan(plan)
         elif kind in self.PLANS:
-            self._plan(json.loads(payload))
+            plan = json.loads(payload)
+            declare_sites(plan, f'a {kind} answer')
+            self._plan(plan)
 
     def __contains__(self, text: object) -> bool:
         if not isinstance(text, str):
@@ -307,35 +312,51 @@ class Result:
     """A statement's answer as the host reads it: its rows, its Arrow table, its columns' description -- never the
     connection DuckDB answers with, which runs any text (``execute`` returns it)."""
 
-    __slots__ = ('_answer',)
+    __slots__ = ('_answer', '_statement')
 
-    def __init__(self, answer: Any) -> None:
+    def __init__(self, answer: Any, statement: str) -> None:
         self._answer = answer
+        # the text sent: a token its raise fires is read through the sites declared for it (_raised.py; phase D's
+        # Phase 2, 2026-11-16)
+        self._statement = statement
 
     @property
     def description(self) -> Any:
         return self._answer.description
 
+    def _read(self, read: Any, *args: Any) -> Any:
+        """``read`` of the answer, a product raise it fires worded (``_raised.worded``; #104's M2(b)): DuckDB raises a
+        statement's error at its fetch where its answer is large (a raise on the last of a million rows fires at
+        ``fetchall``, measured on duckdb 1.5.5), so the words are the same whether it fires at the send or here."""
+        failure: BaseException | None = None
+        try:
+            return read(*args)
+        except Exception as e:
+            failure = worded(e, self._statement)
+            if failure is None:
+                raise
+        raise failure
+
     def fetchall(self) -> list[tuple[Any, ...]]:
-        return self._answer.fetchall()
+        return self._read(self._answer.fetchall)
 
     def fetchone(self) -> tuple[Any, ...] | None:
-        return self._answer.fetchone()
+        return self._read(self._answer.fetchone)
 
     def fetchmany(self, size: int = 1) -> list[tuple[Any, ...]]:
-        return self._answer.fetchmany(size)
+        return self._read(self._answer.fetchmany, size)
 
     def to_arrow_table(self) -> Any:
-        return self._answer.to_arrow_table()
+        return self._read(self._answer.to_arrow_table)
 
     def fetch_arrow_table(self) -> Any:
-        return self._answer.fetch_arrow_table()
+        return self._read(self._answer.fetch_arrow_table)
 
     def fetch_record_batch(self, rows_per_batch: int = 1_000_000) -> Any:
-        return self._answer.fetch_record_batch(rows_per_batch)
+        return self._read(self._answer.fetch_record_batch, rows_per_batch)
 
     def df(self) -> Any:
-        return self._answer.df()
+        return self._read(self._answer.df)
 
 
 class Database:
@@ -411,7 +432,15 @@ class Database:
         # the one send's own check, here too (the re-audit's M2, 2026-11-12: this, `_run` until then, sent whatever it
         # was handed, and the guard refused no call of it -- it refuses any reference to it outside this module now)
         sql = require(sql, 'the database')
-        return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql))
+        failure: BaseException | None = None
+        try:
+            return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql), sql)
+        except Exception as e:
+            # a product raise in the database's words, worded as Java's runner words it (_raised.py; #104's M2(b))
+            failure = worded(e, sql)
+            if failure is None:
+                raise
+        raise failure
 
 
 def connect(path: str | None = None) -> Database:

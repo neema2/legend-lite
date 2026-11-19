@@ -32,14 +32,14 @@ import java.util.List;
  *       {@link #decimalPrintD}, {@link #datePrint},
  *       {@link #dateTimePrint}) — pure's toString output as the
  *       execution wire spells it today (dates WITHOUT the % prefix,
- *       DateTime with the +0000 suffix, Decimal with the D the canon
+ *       DateTime with lite's Z suffix, Decimal with the D the canon
  *       strips back off).</li>
  * </ul>
  *
  * <p>KNOWN DIVERGENCES between the tables (recorded, resolved by later
  * slices — slice 1 is byte-identical by charter):
- * float — {@link #floatCanon} unfolds EVERY exponent textually and
- * unifies zeros to '0.0'; {@link #floatPrint} re-renders through
+ * float — {@link #floatValueText} is the database's text of the double,
+ * every zero '0.0'; {@link #floatPrint} re-renders through
  * DECIMAL(38,18)/HUGEINT and keeps the exponent beyond that envelope.
  * temporal — the LITERAL grammar prefixes %, print forms do not;
  * {@link #temporalCanon} normalizes both wire spellings through one
@@ -65,7 +65,7 @@ public final class LiteralSpelling {
                 || t == Type.Primitive.STRICT_DATE) {
             // DuckDB casts: booleans print true/false, integers bare,
             // dates ISO — already the H1 forms
-            return new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            return new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         }
         if (t == Type.Primitive.DECIMAL
                 || t instanceof Type.PrecisionDecimal) {
@@ -84,7 +84,7 @@ public final class LiteralSpelling {
             // Float-DECLARED side — CanonicalRenderSql.wrapWithCanon —
             // never here: this leaf also spells the FLOAT candidate of
             // an unrefined Number side, whose wire kind is the answer)
-            return floatCanon(v);
+            return floatValueText(v);
         }
         if (t == Type.Primitive.DATE_TIME || t == Type.Primitive.DATE) {
             return temporalCanon(v);
@@ -237,8 +237,8 @@ public final class LiteralSpelling {
                                         new SqlExpr.FormatLit(
                                                 com.legend.sql.DateFmt
                                                         .DATE)))),
-                        nine),
-                        SqlType.Scalar.TEMPORAL_TEXT);
+                        nine, SqlExpr.Reason.PRINT),
+                        SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.PRINT);
             }
             // WRITTEN temporal literals spell STATICALLY — the
             // TIMESTAMP round-trip truncates written digits (the same
@@ -250,7 +250,7 @@ public final class LiteralSpelling {
             SqlExpr lit = staticTemporalText(e,
                     lane != ValueLane.SCALAR_ROOT);
             return lit == null ? null
-                    : new SqlExpr.Cast(lit, SqlType.Scalar.TEMPORAL_TEXT);
+                    : new SqlExpr.Cast(lit, SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.PRINT);
         }
         if (declared instanceof SqlType.Decimal) {
             // COLUMN-ROOTED cells only: the erasure is a STORE-READ
@@ -263,7 +263,7 @@ public final class LiteralSpelling {
             if (!columnRooted(e)) {
                 return null;
             }
-            SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR);
+            SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
             // strip FRACTIONAL trailing zeros only (a dotless spelling
             // has no wire scale to erase), then a bare trailing dot
             SqlExpr stripped = new SqlExpr.Case(List.of(
@@ -276,7 +276,7 @@ public final class LiteralSpelling {
                                     SqlExpr.Call.of(SqlFn.RTRIM, text,
                                             new SqlExpr.StringLit("0")),
                                     new SqlExpr.StringLit(".")))),
-                    text);
+                    text, SqlExpr.Reason.PRINT);
             // NULL-preserving by hand: DuckDB concat treats NULL as ''
             // (a NULL cell must egress NULL, not a bare 'D')
             return new SqlExpr.Cast(new SqlExpr.Case(List.of(
@@ -284,8 +284,8 @@ public final class LiteralSpelling {
                             SqlExpr.Call.of(SqlFn.IS_NULL, e),
                             new SqlExpr.NullLit())),
                     SqlExpr.Call.of(SqlFn.CONCAT, stripped,
-                            new SqlExpr.StringLit("D"))),
-                    SqlType.Scalar.DECIMAL_TEXT);
+                            new SqlExpr.StringLit("D")), SqlExpr.Reason.PRINT),
+                    SqlType.Scalar.DECIMAL_TEXT, SqlExpr.Reason.PRINT);
         }
         return null;
     }
@@ -308,7 +308,7 @@ public final class LiteralSpelling {
      * the DB's micro storage. */
     static String writtenTemporalText(
             com.legend.values.PureDateLiteral d) {
-        return d.toEngineString().replace(' ', 'T');
+        return d.canonicalText().replace(' ', 'T');
     }
 
     /** WRITTEN temporal literals at value egress — a bare
@@ -354,6 +354,13 @@ public final class LiteralSpelling {
         return null;
     }
 
+    /** {@code text}, a Decimal's text, without the value lane's D-suffixed carrier's mark ({@code 1D} -> {@code 1}; a
+     *  database's own text never ends in D): lite's message text of a store-read Decimal ({@link LiteText}; PR #118 fix
+     *  round, 2026-11-18) and, over the value's printed text, {@link #decimalCanon}'s. */
+    static SqlExpr withoutDecimalMark(SqlExpr text) {
+        return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, text, new SqlExpr.StringLit("[Dd]$"), new SqlExpr.StringLit(""));
+    }
+
     /** Decimal: SCALE-PRESERVING (X2, VERDICT_RULE_AUDIT — engine
      * Decimal equality is getValue().equals, scale-sensitive; the old
      * scale-normalized canon followed the deleted compareTo grant).
@@ -361,21 +368,9 @@ public final class LiteralSpelling {
      * representation suffix (variant/identity VARCHAR channel: 2D,
      * 1.0D) normalizes away. */
     static SqlExpr decimalCanon(SqlExpr v) {
-        return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
-                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR),
-                new SqlExpr.StringLit("[Dd]$"),
-                new SqlExpr.StringLit(""));
+        return withoutDecimalMark(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
     }
 
-    /**
-     * Float: fixed-point ALWAYS (H1 — pure never prints exponent
-     * notation). DuckDB's CAST is shortest-repr but switches to
-     * exponent for small/large magnitudes; those unfold through a
-     * COMPLETE textual exponent unfold. Non-finite
-     * spellings pass through — out of the claimed domain (§4), they
-     * can never equal legitimate canonical text and the parallel host
-     * referee names them residue.
-     */
     /** Rule 2's conversion for a Float-DECLARED cell (docs/JUDGING_TWO_MODES
      * §1): CAST AS DOUBLE unless the tree KNOWS the value is already a
      * DOUBLE or rides a text carrier (VARCHAR / temporal text / decimal
@@ -395,22 +390,31 @@ public final class LiteralSpelling {
                         || t.type() == SqlType.Scalar.JSON)) {
             return v;
         }
-        return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE);
-    }
-
-    /** Pure's literal spelling of a Float: one call, {@link SqlFn#FLOAT_CANON}, which each dialect spells (2026-10-11:
-     *  the portable spelling reads the value's text some fifty times, which multiplied a dialect whose double text is
-     *  itself a long expression -- MariaDB's five-element mixed list was 545 KB of SQL). */
-    static SqlExpr floatCanon(SqlExpr v) {
-        return SqlExpr.Call.of(SqlFn.FLOAT_CANON, v);
+        return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT);
     }
 
     /**
-     * Temporal (DateTime/Date stamps): the scalar-channel form —
-     * {@code T}-separated, trailing subsecond zeros stripped,
-     * {@code +0000} on time-bearing values only. Handles BOTH wire
-     * spellings (a TIMESTAMP cell's cast and the precision-faithful
-     * VARCHAR convention) through one text pipeline.
+     * A Float's canon for the judges' compare (W10 (b), 2026-11-16): the DATABASE's own text of the value as a double,
+     * every zero one text (Pure's {@code -0.0 == 0.0}, as the literal spelling unified them). Within one database
+     * two equal doubles have one text, so the compare is the typed one; Pure's literal spelling (the FLOAT_CANON call, deleted 2026-11-16,
+     * the unfolded exponent, some 4,000 characters a value on DuckDB) was text no compare needs. A failure's message
+     * prints a Float through {@link Repr}, never this.
+     */
+    static SqlExpr floatValueText(SqlExpr v) {
+        // IEEE: -0.0 + 0.0 is +0.0, so every zero has the one text
+        SqlExpr zero = new SqlExpr.Cast(new SqlExpr.FloatLit(0.0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE);
+        return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.PLUS,
+                new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE), zero),
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
+    }
+
+    /**
+     * Temporal (DateTime/Date stamps): the judges' canon, LITE'S spelling (census C5's step C, 2026-11-17, the
+     * orchestrator's ruling: no legend-pure spelling in the product judge, lite's date equality A1 kept exactly) --
+     * {@code T}-separated, the subsecond digits as written (a timestamp's trailing zeros stripped), {@code Z} on
+     * time-bearing values only. Handles BOTH wire spellings (a TIMESTAMP cell's cast and the precision-faithful
+     * VARCHAR convention, either carrying legend-pure's {@code +0000} or lite's {@code Z}) through one text pipeline.
+     * Every side of a comparison goes through it, so the spelling is the canon's alone, never a message's.
      */
     static SqlExpr temporalCanon(SqlExpr v) {
         // an ALREADY-SUFFIXED wire text (the variant-identity channel
@@ -424,7 +428,7 @@ public final class LiteralSpelling {
         // precision-faithful VARCHAR convention, where the text is
         // authoritative.
         SqlExpr bare = SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
-                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("(\\+0000|Z)$"),
                 new SqlExpr.StringLit(""));
         SqlExpr t = SqlExpr.Call.of(SqlFn.REPLACE, bare,
@@ -440,12 +444,20 @@ public final class LiteralSpelling {
             // and rowValueDifferenceTest, measured the same day). NULL stays NULL.
             return new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit()),
-                    new SqlExpr.Case.When(timeBearing, dateTimeText(v))), t);
+                    new SqlExpr.Case.When(timeBearing, instantAtItsDigits(v))), t, SqlExpr.Reason.PRINT);
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timeBearing,
-                SqlExpr.Call.of(SqlFn.CONCAT, t,
-                        new SqlExpr.StringLit("+0000")))),
-                t);
+                SqlExpr.Call.of(SqlFn.CONCAT, t, new SqlExpr.StringLit(INSTANT_SUFFIX)))),
+                t, SqlExpr.Reason.PRINT);
+    }
+
+    /** The canon's suffix of a time-bearing value: lite's UTC designator (census C5's step C, 2026-11-17). */
+    private static final String INSTANT_SUFFIX = "Z";
+
+    /** A timestamp's canon text: lite's {@link SqlFn#DATETIME_CANON_TEXT} node, which the base renderer composes
+     *  ({@code dialect.DateTimeCanonText}): one node in the plan's tree. */
+    private static SqlExpr instantAtItsDigits(SqlExpr x) {
+        return SqlExpr.Call.of(SqlFn.DATETIME_CANON_TEXT, x);
     }
 
 
@@ -470,25 +482,32 @@ public final class LiteralSpelling {
     // ==================================================================
 
     /**
-     * Pure prints a Float as its {@code toString} does: one call, {@link SqlFn#FLOAT_PRINT}, which each dialect spells
-     * (2026-10-22: the portable spelling, dialect/FloatPrintText, reads the value's text some nine times, which
-     * multiplied a dialect whose double text is itself a long expression -- Snowflake's PCT statement for
-     * {@code 1.5 + 2.25} was 48 KB).
+     * A Float's text ({@code toString}, {@code format}'s {@code %f}): one call, {@link SqlFn#FLOAT_TO_TEXT}, which each
+     * dialect writes -- the product six decimals trimmed (the user's ruling of 2026-11-10), the compatibility edge
+     * legend-pure's print form (phase D's D1.2, 2026-11-15; until then this was Pure's form, FLOAT_SHORTEST_TEXT, everywhere).
      */
     public static SqlExpr floatPrint(SqlExpr x) {
+        // (D1.2: the product's text of an integer-held value is its digits too, the same text as six decimals trimmed,
+        // so this lean form is both styles')
         // A Float the STORE holds as an integer -- a physical column the store declares integral under a Float
         // property (legend-engine's test tradeTable.quantity INT under the validation showcase's Float) -- prints the
         // integer the database holds, as legend-engine's cast of the column does ('Quantity not in range: 1000000',
         // measured on the corpus 2026-10-18, step 6 of the plan path program). The store's fact, read off the scan's
         // own column (origin PHYSICAL), never inferred; a computed Float, and a projected one read back through a
         // frame, keep Pure's text (the output layer's step 5: a whole Float's .0 on every database).
-        if (x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
+        if (heldAsInteger(x)) {
+            return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
+        }
+        return SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x);
+    }
+
+    /** Whether {@code x} is a Float the STORE holds as an integer: a physical column the store declares integral
+     *  (its text is its digits; {@link #floatPrint}). */
+    static boolean heldAsInteger(SqlExpr x) {
+        return x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
                 && (c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
                         || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
-                && isIntegral(t.type())) {
-            return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
-        }
-        return SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x);
+                && isIntegral(t.type());
     }
 
     /** Whether {@code t} is one of the integral SQL kinds. */
@@ -500,7 +519,7 @@ public final class LiteralSpelling {
      * suffix (the identity-channel wire spelling the canon strips). */
     public static SqlExpr decimalPrintD(SqlExpr x) {
         return SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("D"));
     }
 
@@ -511,10 +530,10 @@ public final class LiteralSpelling {
     public static @com.legend.base.Nullable String isoTimestamp(
             com.legend.values.PureDateLiteral d) {
         return switch (d) {
-            case com.legend.values.PureDateLiteral.DateWithHour h -> h.toEngineString() + ":00:00";
-            case com.legend.values.PureDateLiteral.DateWithMinute mi -> mi.toEngineString() + ":00";
-            case com.legend.values.PureDateLiteral.DateWithSecond se -> se.toEngineString();
-            case com.legend.values.PureDateLiteral.DateWithSubsecond su -> su.toEngineString();
+            case com.legend.values.PureDateLiteral.DateWithHour h -> h.canonicalText() + ":00:00";
+            case com.legend.values.PureDateLiteral.DateWithMinute mi -> mi.canonicalText() + ":00";
+            case com.legend.values.PureDateLiteral.DateWithSecond se -> se.canonicalText();
+            case com.legend.values.PureDateLiteral.DateWithSubsecond su -> su.canonicalText();
             default -> null;
         };
     }
@@ -540,18 +559,9 @@ public final class LiteralSpelling {
                 new SqlExpr.StringLit("%"), datePrint(x));
     }
 
-    /** DateTime LITERAL at the element's STATIC subsecond precision
-     * (the caller resolves the format): % + T-separated print + +0000.
-     * Precision-faithful by construction — pairs with the A1 fix
-     * (temporalCanon no longer strips written subseconds). */
-    public static SqlExpr dateTimeLiteral(SqlExpr x, SqlExpr.FormatLit fmt) {
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.StringLit("%"), dateTimePrint(x, fmt));
-    }
-
-    /** A DateTime's literal spelling at exactly {@code digits} subsecond digits (a tagged slot's kind
-     *  {@code DateTime(n)}, track L): the nine-digit text cut to the written digits, Pure's {@code +0000}; a whole
-     *  second's at none; NULL stays NULL. */
+    /** A DateTime's canon at exactly {@code digits} subsecond digits (a tagged slot's kind {@code DateTime(n)}, track
+     *  L): the nine-digit text cut to the written digits, lite's {@link #INSTANT_SUFFIX} (census C5's step C,
+     *  2026-11-17: legend-pure's {@code +0000} until then); a whole second's at none; NULL stays NULL. */
     public static SqlExpr dateTimeLiteralAt(SqlExpr x, int digits) {
         SqlExpr body = digits == 0
                 ? SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL))
@@ -560,7 +570,7 @@ public final class LiteralSpelling {
                         new SqlExpr.IntLit(20 + digits));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
                 new SqlExpr.NullLit())),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("%"), body, new SqlExpr.StringLit("+0000")));
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("%"), body, new SqlExpr.StringLit(INSTANT_SUFFIX)), SqlExpr.Reason.PRINT);
     }
 
     /** PARTIAL-date LITERAL: the string cell IS the body (master's
@@ -576,88 +586,9 @@ public final class LiteralSpelling {
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
     }
 
-    /** DateTime PRINT form: strftime at the literal's own subsecond
-     * precision (a STATIC attribute the caller resolves) with pure's
-     * {@code +0000} suffix. */
-    public static SqlExpr dateTimePrint(SqlExpr x, SqlExpr.FormatLit fmt) {
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.STRFTIME, x, fmt),
-                new SqlExpr.StringLit("+0000"));
-    }
+    // (dateTimeText, legend-pure's DATETIME_PRINT node for this canon: gone 2026-11-17, census C5's step C -- the
+    // canon is lite's own spelling, instantAtItsDigits)
 
-    /**
-     * THE DateTime's text (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, the one owner, 2026-10-18): Pure's print form
-     * of a DateTime read from a database -- {@code T}, the fraction's digits with their trailing zeros trimmed (a
-     * timestamp carries no written precision: {@code .123} prints {@code .123}, {@code .123456789} all nine, a whole
-     * second none), {@code +0000}. Every output of a timestamp slot writes this (the CSV, the JSON wires, Pure's TDS
-     * text, {@code toString}); a literal's own digits are {@link #dateTimePrint}'s, spelled statically where the
-     * typer knows them. The fraction is read at nine digits, which every SQL dialect spells.
-     */
-    public static SqlExpr dateTimeText(SqlExpr x) {
-        SqlExpr digits = SqlExpr.Call.of(SqlFn.RTRIM,
-                SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                        new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO))),
-                new SqlExpr.StringLit("0"));
-        SqlExpr fraction = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, digits, new SqlExpr.StringLit("")), new SqlExpr.StringLit(""))),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), digits));
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
-                        fraction),
-                new SqlExpr.StringLit("+0000"));
-    }
 
-    /**
-     * A DateTime cell's text in Pure's TDS text (a relation's {@code toString}): as
-     * {@link #dateTimeText}, with AT LEAST THREE fraction digits -- {@code 2024-01-02T10:30:00.000+0000} for a whole
-     * second, {@code .123} for a millisecond, {@code .123456789} for a nanosecond, finer trailing zeros trimmed. The
-     * reference is legend-engine's own test (core_functions_standard/date/extract/dayOfWeek.pure,
-     * {@code testDayOfWeek_Relation}): a TDS literal's {@code 1985-01-12T06:30:00Z} prints
-     * {@code 1985-01-12T06:30:00.000+0000} in the relation's text, where the value's own text (interpreted Pure's
-     * {@code toString} of {@code %1985-01-12T06:30:00}) has no fraction. Measured 2026-10-18 (the plan path
-     * program's step 6, channel B's relation and standard suites: 35 goldens spell the three digits), correcting
-     * step 2's one trimmed text for every cell.
-     */
-    public static SqlExpr dateTimeTextTds(SqlExpr x) {
-        SqlExpr nine = SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO)));
-        SqlExpr three = SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(1), new SqlExpr.IntLit(3));
-        SqlExpr finer = SqlExpr.Call.of(SqlFn.RTRIM,
-                SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(4), new SqlExpr.IntLit(6)),
-                new SqlExpr.StringLit("0"));
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
-                        SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), three),
-                                finer)),
-                new SqlExpr.StringLit("+0000"));
-    }
 
-    /** A date value carried as its own text (a value root spelled at the precision it has: a year, a month, a day,
-     *  an hour, a minute, a second or finer; with or without Pure's {@code %}; a literal's print form with its
-     *  {@code +0000} already): one with seconds and no zone takes Pure's {@code +0000}, as Pure prints a DateTime;
-     *  every other precision is its text, Pure's DateTime literal taking a zone only after seconds (the MongoDB
-     *  lane, 2026-10-18: {@code %1973-11-13T23} and {@code %2025-02-10T20:10:20+0000} are read as written). */
-    // the zone a written date-time text gets in SQL (register S121, pending: legend-pure writes +0000 from the minute)
-    public static SqlExpr dateTimeTextOfText(SqlExpr text) {
-        SqlExpr colons = SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, text),
-                SqlExpr.Call.of(SqlFn.LENGTH, SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit(":"),
-                        new SqlExpr.StringLit(""))));
-        SqlExpr secondsNoZone = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.GREATER_EQUAL, colons, new SqlExpr.IntLit(2)),
-                SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.ENDS_WITH, text, new SqlExpr.StringLit("+0000"))));
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(secondsNoZone,
-                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("+0000")))), text);
-    }
-
-    /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT
-     *  Date, defined over the value (hasHour) -- a timed value is a DateTime, a date-only one its day. */
-    public static SqlExpr timed(SqlExpr c) {
-        return SqlExpr.Call.of(SqlFn.NOT_EQUAL,
-                SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(com.legend.sql.DateFmt.TIME_ONLY)),
-                new SqlExpr.StringLit("00:00:00"));
-    }
 }

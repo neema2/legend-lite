@@ -26,7 +26,7 @@ export function renderConstants(container: HTMLElement, app: AppContext, session
       constants.map((c): Child => {
         const shown = h('span', { class: 'q-faint mono', style: 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap' },
           'type' in c ? `${simpleName(c.type)} = ${valueLabel(c.value)}` : 'calculated');
-        if ('calculated' in c) void app.engine.lambdaText(lambda([], c.calculated), 'STANDARD').then((t) => { shown.textContent = `= ${t.replace(/^\|/, '')}`; }, () => undefined);
+        if ('calculated' in c) void app.engine.queryPrint(lambda([], c.calculated), 'standard').then((t) => { shown.textContent = `= ${t.replace(/^\|/, '')}`; }, () => undefined);
         return h('div', { class: 'q-constant', style: 'display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:6px; padding:5px 7px; min-width:0' },
           h('b', { class: 'mono' }, `$${c.name}`), shown,
           h('span', { class: 'q-spacer' }),
@@ -70,7 +70,7 @@ export async function constantDialog(app: AppContext, session: Session, existing
     }));
   };
   const expression = h('textarea', { class: 'q-textarea', rows: 3, spellcheck: false, placeholder: 'today()->adjust(-7, DurationUnit.DAYS)', 'aria-label': 'Constant expression' });
-  expression.value = existing && 'calculated' in existing ? (await app.engine.lambdaText(lambda([], existing.calculated), 'STANDARD')).replace(/^\|/, '') : '';
+  expression.value = existing && 'calculated' in existing ? (await app.engine.queryPrint(lambda([], existing.calculated), 'standard')).replace(/^\|/, '') : '';
   const valueRows = h('div', null,
     h('div', { class: 'q-field' }, h('label', null, 'Type'), type),
     h('div', { class: 'q-field' }, h('label', { for: 'q-const-list' }, 'A list'), list),
@@ -106,7 +106,7 @@ export async function constantDialog(app: AppContext, session: Session, existing
               if (value === undefined || (value.kind === 'list' && value.values.length === 0)) return say('Give the constant a value.');
               c = { name: n, type: type.value, value };
             } else {
-              const parsed = await app.engine.lambdaJson(`|${expression.value.trim()}`);
+              const parsed = await app.engine.queryParse(`|${expression.value.trim()}`);
               if (parsed.body.length !== 1 || !expression.value.trim()) return say('The expression is one Pure expression.');
               c = { name: n, calculated: parsed.body[0]! };
             }

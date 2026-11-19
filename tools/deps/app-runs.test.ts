@@ -22,6 +22,13 @@
 // run side. Its calls include the held connection's (`exclusive(`, `.rows(`) and the receivers a database goes by
 // (`database`, `db`, `conn`, `held`). The re-export walk reads every package an app's modules import, fails on a module it
 // cannot read, and follows an import that a module exports again (`import { X } from ...; export { X }`).
+//
+// AND NO PRODUCT MODULE REACHES THE EDGE (H11, 2026-11-17: lite's API v1 spec §6, "no product module depends on the
+// edge"): legend-engine's API in TypeScript (//engine-client:edge -- its wire shapes, refusal, Grammar, engines and tab
+// bindings) is reached by no app, page, library an app takes, or engine-client module outside it -- by an import of any
+// kind, or through a re-export, followed to its end. The edge plans and runs as a door does (BrowserEngine asks its
+// planner, then runs in a run frame; RoutedEngine passes a server's execute on), so the census above counts its files
+// with the doors' (LAYERED): its one pinned row (legend/engine.ts's server.execute) left with it.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -47,7 +54,8 @@ const ENGINE_CLIENT = 'engine-client/src';
 const PAGES = ['datacube/demo', 'query/demo', 'studio/demo'];
 
 /** The run side's and the doors' own files -- DataCube's :run and :doors, engine-client's :run, :doors, :engine_api and
- *  :node_host (a genquery): they run by design, so the census reads none of them. */
+ *  :node_host, and the edge (2026-11-17, H11: legend-engine's API, which asks its planner and runs as a door does) (a
+ *  genquery): they run by design, so the census reads none of them. */
 const LAYERED: ReadonlySet<string> = new Set(readFileSync(runfileFromEnv('LAYERED_SRCS'), 'utf8').split('\n')
   .map((l) => l.trim()).filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
 
@@ -70,6 +78,12 @@ const COMPUTED_PAGES: readonly (readonly [string, string])[] = [
   ["studio/src/app/app.ts new Worker(new URL('./editor.worker.js', globalThis.location.href), ...)",
     "Monaco's editor worker, from the page's own site (Studio's ./editor.worker.js bundle): the editor's language"
       + ' services, no database (PlannedSqlTest.WORKERS pins it too)'],
+  // 2026-11-17 (H11, DataCube's half; the orchestrator's alignment: an app's legend-engine mode is its compat entry,
+  // loaded only where configured)
+  ['datacube/demo/planners.ts import(ENGINE_PLANE())',
+    "DataCube's legend-engine plane, its compat entry (//datacube:edge_entry), its own bundle beside the page"
+      + ' (legend-engine.js), loaded by its URL only when the page is configured to plan on legend-engine: no product'
+      + ' module imports an edge module'],
 ];
 
 const DATACUBE_RUNNER = "a call of DataCube's runner, a DOOR (runner.ts, //datacube:doors: it asks the planner, then runs"
@@ -82,6 +96,14 @@ const ENGINE_EXECUTE = "a DOOR call: an Engine's execute -- a server's (pure/v1'
 /** The run layers' own files (a genquery of //engine-client:run and //datacube:run): what no app module reaches. */
 const RUN_SRCS: ReadonlySet<string> = new Set(readFileSync(runfileFromEnv('RUN_SRCS'), 'utf8').split('\n')
   .map((l) => l.trim()).filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
+
+/** The edge's own files (a genquery of //engine-client:edge; 2026-11-17, H11): legend-engine's API in TypeScript, which
+ *  no product module reaches. */
+const EDGE_SRCS: ReadonlySet<string> = new Set(readFileSync(runfileFromEnv('EDGE_SRCS'), 'utf8').split('\n')
+  .map((l) => l.trim()).filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
+
+/** The libraries an app takes beside the engine client, whose modules are the product's too (2026-11-17, H11). */
+const LIBRARIES = ['depot-client', 'legend-art', 'model-changes', 'pure-protocol', 'query-store', 'sdlc-client'];
 
 /** Each module `text` (read at `file`) names by a relative literal: a static `import` or `export ... from` (a type's
  *  too), a bare `import '...'`, a dynamic `import('...')` and a `typeof import('...')` -- each resolved to its path. A
@@ -187,11 +209,6 @@ const CENSUS = new Map<string, { readonly calls: Readonly<Record<string, number>
   ['datacube/src/cube.ts', { calls: { 'runner.run(': 5, 'runner.stream(': 2 }, why: `DataCube's cube: ${DATACUBE_RUNNER}` }],
   ['datacube/src/plan.ts', { calls: { 'runner.run(': 1 }, why: `a page's plan: ${DATACUBE_RUNNER}` }],
   ['datacube/src/treeview.ts', { calls: { 'runner.run(': 2 }, why: `the tree view's rows: ${DATACUBE_RUNNER}` }],
-  ['query/src/app/cube.ts', { calls: { 'server.execute(': 1 }, why: `Query's cube, its rows: ${ENGINE_EXECUTE}` }],
-  ['query/src/app/probe.ts', { calls: { 'engine.execute(': 1 }, why: `Query's probe, a query's first rows: ${ENGINE_EXECUTE}` }],
-  ['query/src/app/run.ts', { calls: { 'engine.execute(': 1 }, why: `Query's run, the query's rows: ${ENGINE_EXECUTE}` }],
-  ['query/src/ui/results.ts', { calls: { 'engine.execute(': 1 }, why: `Query's results panel, a page of rows: ${ENGINE_EXECUTE}` }],
-  ['studio/src/backend/run.ts', { calls: { 'engine.execute(': 1 }, why: `Studio's Run, a function's or a service's rows: ${ENGINE_EXECUTE}` }],
   // 2026-11-15 (the C5-T final audit's MUST 1 and item 8: the held connection's calls, and engine-client's own modules)
   ['datacube/src/app/datacube-app.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
   ['datacube/src/app/join-flow.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
@@ -200,8 +217,6 @@ const CENSUS = new Map<string, { readonly calls: Readonly<Record<string, number>
   ['datacube/src/app/timeseries-together.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
   ['datacube/src/headless/grid.ts', { calls: { 'engine.exclusive(': 1 },
     why: "the headless grid's table output: the host's database held for writeTable, a DOOR (table-output.ts), which runs its one plan there" }],
-  ['engine-client/src/legend/engine.ts', { calls: { 'server.execute(': 1 },
-    why: "legend-engine's execute, the SERVER's door (pure/v1's execute: the server plans and runs in one request), passed on by the server layer's engine" }],
   // the pages (2026-11-15, the C5-T last round's T4)
   ['datacube/demo/remote-harness.ts', { calls: { 'engine.execute(': 1 },
     why: "the remote harness page's query: a plan its planner answered, executed on the engine the tab's door handed" }],
@@ -269,9 +284,15 @@ describe("the apps' plan-and-run sites, outside every door and run target (shrin
       'engine-client/src/duckdb.ts', 'engine-client/src/run-frame.ts', 'engine-client/src/doors/tab-duckdb.ts', 'engine-client/src/node-require.ts']) {
       assert.ok(LAYERED.has(f), `${f} is not among the doors' and the run targets' files: ${[...LAYERED].join(', ')}`);
     }
-    // engine-client's records, planner and server are read (the C5-T final audit's MUST 1)
-    for (const f of ['engine-client/src/legend/engine.ts', 'engine-client/src/legend/wasm-grammar.ts', 'engine-client/src/plan-guard.ts']) {
-      assert.ok(censused.includes(f), `the census does not read ${f}: the guard is not looking`);
+    // engine-client's records and planner are read (the C5-T final audit's MUST 1; 2026-11-17, H11, DataCube's half: the
+    // server layer is deleted -- pure-v1.ts is the edge's, run by design -- so the product file read beside the planner's
+    // is the doors' executor shape, remote-executor.ts)
+    for (const f of ['engine-client/src/remote-executor.ts', 'engine-client/src/legend/wasm-grammar.ts', 'engine-client/src/plan-guard.ts']) {
+      assert.ok(censused.includes(f) || LAYERED.has(f), `the census does not read ${f}: the guard is not looking`);
+    }
+    for (const f of ['engine-client/src/legend/edge-engine.ts', 'engine-client/src/legend/engine.ts', 'engine-client/src/pure-v1.ts',
+      'datacube/src/edge/upstream-planner.ts']) {
+      assert.ok(LAYERED.has(f), `${f}, the edge's, is not among the files run by design: ${[...LAYERED].join(', ')}`);
     }
     // the doors run, and only their target keeps them out of the census
     assert.ok(Object.keys(runSites(SOURCES.read('datacube/src/runner.ts'))).length > 0, "runner.ts's runs are not seen");
@@ -371,5 +392,48 @@ describe("the apps' plan-and-run sites, outside every door and run target (shrin
       'runPlan(': 1, 'runLoad(': 1, 'establish(': 1, 'runAuthored(': 1, 'inRun(': 1,
       'engine.exclusive(': 1, 'held.rows(': 2, 'db.run(': 1, 'conn.execute(': 1,
     });
+  });
+});
+
+/** No product module reaches the edge (H11, 2026-11-17): the same walk as the run side's, over every module that is the
+ *  product's -- the apps, their pages, the libraries they take and engine-client's own modules outside the edge. */
+describe("legend-engine's API, the edge, reached by no product module", () => {
+  const product = [...APPS, ...PAGES, ENGINE_CLIENT, ...LIBRARIES].flatMap((dir) => SOURCES.under(dir, '.ts', '.mts'))
+    .filter((f) => !f.endsWith('.d.ts') && !EDGE_SRCS.has(f));
+
+  it('reads the edge and the product, each by its files', () => {
+    for (const f of ['engine-client/src/legend/edge-engine.ts', 'engine-client/src/legend/engine-wire.ts',
+      'engine-client/src/legend/engine.ts', 'engine-client/src/legend/wasm-edge.ts']) {
+      assert.ok(EDGE_SRCS.has(f), `EDGE_SRCS does not name ${f}: the guard is not looking`);
+    }
+    for (const f of ['engine-client/src/legend/browser-engine.ts', 'engine-client/src/legend/wire.ts',
+      'engine-client/src/doors/lite-server.ts', 'query/src/app/cube.ts', 'studio/src/backend/run.ts',
+      'query-store/src/client.ts']) {
+      assert.ok(product.includes(f), `the edge's census does not read ${f}: the guard is not looking`);
+    }
+  });
+
+  it('no product module imports an edge module, by any import, or through a re-export of one it imports', () => {
+    const read = (f: string): string | undefined => (SOURCES.has(f) ? SOURCES.read(f) : undefined);
+    assert.deepEqual(runReaches(product, read, EDGE_SRCS), [], "a product module reaches legend-engine's API, the edge"
+      + ' (//engine-client:edge): lite\'s own shapes are the records\' (wire.ts PureModelContext, pmcd.ts), its client'
+      + " LiteEngine's (browser-engine.ts)");
+  });
+
+  it('names a planted product module that reaches the edge, directly or through a re-export', () => {
+    const [imp, exp, from] = [['im', 'port'].join(''), ['ex', 'port'].join(''), ['fr', 'om'].join('')];
+    const files = new Map<string, string>([
+      ['query/src/planted.ts', [
+        `${imp} type { ExecuteInput } ${from} '../../engine-client/src/legend/engine-wire.ts';`,
+        `${imp} { lite } ${from} '../../engine-client/src/legend/planted-relay.ts';`,
+      ].join('\n')],
+      ['engine-client/src/legend/planted-relay.ts', `${exp} { BrowserEngine as lite } ${from} './edge-engine.ts';`],
+    ]);
+    const edge = new Set(['engine-client/src/legend/engine-wire.ts', 'engine-client/src/legend/edge-engine.ts']);
+    assert.deepEqual(runReaches(['query/src/planted.ts'], (f) => files.get(f), edge), [
+      'query/src/planted.ts imports engine-client/src/legend/engine-wire.ts',
+      'query/src/planted.ts imports engine-client/src/legend/planted-relay.ts, which re-exports'
+        + ' engine-client/src/legend/edge-engine.ts',
+    ]);
   });
 });

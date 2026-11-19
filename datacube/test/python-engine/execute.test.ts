@@ -20,12 +20,15 @@ import { arrowIpcAnswer } from '../../../engine-client/src/arrow-ipc.ts';
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { setUpSession } from '../../../engine-client/src/engine.ts';
 import { arrowResultTable } from '../../../engine-client/src/engine-remote.ts';
-import { BrowserEngine } from '../../../engine-client/src/legend/browser-engine.ts';
+import { BrowserEngine } from '../../../engine-client/src/legend/edge-engine.ts';
 import { EngineError } from '../../../engine-client/src/legend/engine.ts';
 import { answer, type PlannerModule } from '../../../engine-client/src/legend/planner-answer.ts';
+import { ENGINE, enginePort, loadEngineModule, type EngineModule, type EnginePort }
+  from '../../../engine-client/src/legend/engine-module.ts';
 import type { RequestBody } from '../../../engine-client/src/legend/planner-protocol.ts';
-import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
-import type { ExecuteInput, TdsResult } from '../../../engine-client/src/legend/wire.ts';
+import { WasmGrammar, type PlannerPort } from '../../../engine-client/src/legend/wasm-grammar.ts';
+import { WasmEdgeGrammar } from '../../../engine-client/src/legend/wasm-edge.ts';
+import type { ExecuteInput, TdsResult } from '../../../engine-client/src/legend/engine-wire.ts';
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { arrowIpcStream } from '../../../engine-client/src/pure-v1.ts';
 import { runfileDirUrl, runfileFromEnv } from '../../../tools/js/runfiles.mts';
@@ -36,12 +39,15 @@ const home = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? '.', 'legend-lite-ho
 const engine = spawn(runfileFromEnv('ENGINE_FIXTURE'), ['--site', runfileFromEnv('DATACUBE_SITE')], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: { ...process.env, LEGEND_LITE_LIBRARY: runfileFromEnv('LEGEND_LITE_LIBRARY'),
+    LEGEND_LITE_ENGINE_LIBRARY: runfileFromEnv('LEGEND_LITE_ENGINE_LIBRARY'),
     LEGEND_LITE_DATACUBE: runfileFromEnv('LEGEND_LITE_DATACUBE'), LEGEND_LITE_HOME: home, PYTHONUTF8: '1',
     PYTHONDONTWRITEBYTECODE: '1' },
 });
 
 interface Served {
   readonly url: string;
+  /** legend-engine's API over the same frames, at the edge's door (engine_fixture.py; H5). */
+  readonly edge: { readonly url: string; readonly authorization: string };
   readonly authorization: string;
   readonly model: string;
   readonly runtime: string;
@@ -54,9 +60,10 @@ interface Served {
 let served: Served;
 let tab: BrowserEngine;
 let grammar: WasmGrammar;
+let edge: WasmEdgeGrammar;
 
 /** legend-lite's planner, in this process, answering as the tab's worker does. */
-async function loadPlanner(): Promise<WasmGrammar> {
+async function loadPlanner(): Promise<PlannerPort> {
   const dir = new URL(runfileDirUrl('WASM_PLANNER'));
   const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
     load(src: string, options: unknown): Promise<PlannerModule>;
@@ -67,7 +74,23 @@ async function loadPlanner(): Promise<WasmGrammar> {
       i.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
     },
   });
-  return new WasmGrammar({ async ask(r: RequestBody): Promise<string> { return answer(m, r); } });
+  return { async ask(r: RequestBody): Promise<string> { return answer(m, r); } };
+}
+
+/** The engine module, in this process: legend-engine's routes, loaded as an app configured engine: 'legend-engine' loads
+ *  it (engine-module.ts; the user's K2 ruling, 2026-11-18). */
+async function loadEngine(): Promise<EnginePort> {
+  return enginePort(await loadEngineModule(ENGINE, runfileDirUrl('WASM_ENGINE_PLANNER'), async (dir) => {
+    const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
+      load(src: string, options: unknown): Promise<EngineModule>;
+    };
+    return runtime.load(fileURLToPath(new URL('classes.wasm', dir)), {
+      stackDeobfuscator: { enabled: false },
+      installImports(i: Record<string, unknown>) {
+        i.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
+      },
+    });
+  }));
 }
 
 /** The frame's table as the model declares it: its name (schema-qualified as declared) and its columns' SQL types. */
@@ -107,7 +130,11 @@ before(async () => {
     engine.once('exit', (code) => fail(new Error(`the engine exited (${String(code)})`)));
     lines.on('line', (line) => { if (line.startsWith('{')) done(JSON.parse(line) as Served); });
   });
-  grammar = await loadPlanner();
+  // one planner, two clients over it: lite's (WasmGrammar) and legend-engine's shapes, the edge's BrowserEngine's
+  // (wasm-edge.ts; the TS host's H11 split, 2026-11-17), whose legend-engine routes are the engine module's (K2)
+  const port = await loadPlanner();
+  grammar = new WasmGrammar(port);
+  edge = new WasmEdgeGrammar(port, await loadEngine());
   const database = await openDatabase();
   const duck = new DuckDbEngine(database.connection);
   // the same frame in the tab's DuckDB: its table as the model declares it, the same rows
@@ -119,7 +146,7 @@ before(async () => {
   // (engine-client's setUpSession, which openDuckDbInTab's start runs): UTC, the server's
   await asTest(duck).run(unplanned("SET TimeZone = 'Asia/Kathmandu'"), 0);
   await setUpSession(asTest(duck), await grammar.sessionSetup(duck.databaseType));
-  tab = new BrowserEngine(grammar, duck, 'this browser');
+  tab = new BrowserEngine(edge, duck, 'this browser');
 });
 
 after(() => { engine.stdin?.end(); });
@@ -135,9 +162,9 @@ async function input(query: string, parameters = '', values?: ExecuteInput['para
 
 /** Python's engine's answer to `asked`, read as the tab reads it: its rows, its builder, its activities; or its refusal. */
 async function onPython(asked: ExecuteInput): Promise<{ builder: unknown; activities: readonly { sql?: string; comment?: string }[]; columns: string[]; rows: unknown[][] }> {
-  const r = await fetch(`${served.url}/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC`, {
+  const r = await fetch(`${served.edge.url}/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: served.authorization },
+    headers: { 'Content-Type': 'application/json', Authorization: served.edge.authorization },
     body: JSON.stringify({ clientVersion: 'vX_X_X', context: { _type: 'BaseExecutionContext' }, ...asked }),
   });
   if (!r.ok) {
@@ -156,9 +183,9 @@ const TRACE = /^-- "executionTraceID" : "[0-9a-f-]{36}"$/;
 
 /** Python's engine's answer to `asked` in legend-engine's JSON, as its text; a refusal its status and text. */
 async function onPythonText(asked: ExecuteInput): Promise<{ status: number; text: string }> {
-  const r = await fetch(`${served.url}/api/pure/v1/execution/execute`, {
+  const r = await fetch(`${served.edge.url}/api/pure/v1/execution/execute`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: served.authorization },
+    headers: { 'Content-Type': 'application/json', Authorization: served.edge.authorization },
     body: toJson({ clientVersion: 'vX_X_X', context: { _type: 'BaseExecutionContext' }, ...asked }),
   });
   return { status: r.status, text: await r.text() };
@@ -240,9 +267,9 @@ describe("the tab's execute answers as Python's, the same Java planning both", (
   it("a lambda's return type and an execution plan: the tab's pure/v1 answers as Python's", async () => {
     const asked = await input("->select(~[region, notional])->filter(x|$x.region == 'EMEA')");
     const python = async (path: string, body: unknown): Promise<unknown> => {
-      const r = await fetch(`${served.url}/api/pure/v1/${path}`, {
+      const r = await fetch(`${served.edge.url}/api/pure/v1/${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: served.authorization },
+        headers: { 'Content-Type': 'application/json', Authorization: served.edge.authorization },
         body: JSON.stringify(body),
       });
       assert.equal(r.status, 200, await r.clone().text());

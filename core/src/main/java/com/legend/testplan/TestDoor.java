@@ -105,19 +105,22 @@ public final class TestDoor {
      *  M10a), which the caller's sessions source opens. */
     public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted) {
-        return planned(body, runtime, features, asserts, systemRouted, com.legend.executionplan.DataStores.none(), null,
-                TestPlanner.facts(body));
+        return planned(body, runtime, features, asserts, systemRouted, com.legend.executionplan.DataStores.none(),
+                com.legend.testexecutionplan.NoEdge.NONE,
+                com.legend.database.PlanStyle.PRODUCT, TestPlanner.facts(body));
     }
 
     /** {@link #planned(TypedQuery, String, Set, Asserts, boolean)} with the stores a CSV load's file is read from at
-     *  planning, for its reference's digest (docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09). */
+     *  planning, for its reference's digest (docs/DATA_IN_THE_PLAN_2026_11_09.md L1, 2026-11-09), the program's
+     *  statements written in {@code dialects}' dialects (the run's options': the product's own, or the edge's, D1.0). */
     public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted,
             com.legend.executionplan.DataStores stores,
-            com.legend.testexecutionplan.@Nullable Edge edge,
+            com.legend.testexecutionplan.Edge edge,
+            com.legend.database.PlanStyle style,
             com.legend.testexecutionplan.BodyFacts facts) {
         TestKinds kinds = new TestKinds(body, runtime, asserts, stores);
-        PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
+        PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted, style);
         List<PlannedStep> planned = program.steps();
         // each step the planner holds as the test plan holds it: a product node, a frame let's eager run (M9: sent under
         // its own origin, LET -- a fact of the plan, marked where it was planned), or the verdict step the library
@@ -133,9 +136,10 @@ public final class TestDoor {
         Map<Integer, Effect> effects = byStep(planned, kinds.effects());
         Map<Integer, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds = byStep(planned, kinds.seeds());
         // the ledger texts are the compatibility edge's to plan, by the step's index (the plan-as-data design's step 8,
-        // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
+        // 2.7: a recorder implies the compatibility rules); a run whose hook records no ledger (the product's NoEdge)
+        // plans none
         Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
-        if (edge != null) {
+        if (edge.records()) {
             unseededLoads(planned, seeds);
             effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
                     e.statements().stream().map(Recorded::query).toList())));
@@ -143,6 +147,11 @@ public final class TestDoor {
                 com.legend.setup.LoadSteps referee = copy.get();
                 byStep.put(i, edge.seed(referee.steps(), referee.content()));
             });
+            // legend-pure's words of the raise sites this planning call's style recorded (K10 of the edge audit, the
+            // orchestrator's ruling (A) of 2026-11-17), read ONCE, after the planning above, planned by the edge and
+            // held at the step that sends their statement; a run whose hook records nothing judges by lite's rules,
+            // whose words are its own, and plans none
+            siteWordsByStep(steps, EngineTextGates.siteWords(style), byStep, edge);
         }
         // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
         // (the slice 2 invariant audit's hole 3, 2026-11-08)
@@ -151,8 +160,53 @@ public final class TestDoor {
         // door planned it beside the plan until then)
         // the body's facts, stated over the body as its caller gave it, before any rewrite (C5-J item 2, 2026-11-15;
         // the C5-J audit's SHOULD 1: the record the test door's facts state, TestPlanner.plan)
-        return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
-                PlanMaker.testSessionTarget(body.context(), runtime), facts);
+        TestPlan plan = new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
+                PlanMaker.testSessionTarget(body.context(), runtime, style), facts, null,
+                style.twoForm(com.legend.lowering.VerdictWords.class,
+                        com.legend.lowering.LiteVerdictWords.INSTANCE).name());
+        return plan.withAnswerSizeWords(answerSizeWords(plan, style));
+    }
+
+    /** Each statement text's records of its raise sites' words ({@code words}) held at the first of {@code steps} that
+     *  sends that text, beside the step's other records, keyed by the text's step-local index among the statements the
+     *  step sends ({@link TestPlan#sentTexts}; the K10 trim, 2026-11-18: the plan carries no statement's text twice). A
+     *  text no step sends is never run, so never raises: its records are not the plan's. */
+    private static void siteWordsByStep(List<TestPlan.TestStep> steps, Map<String, Map<Integer, String>> words,
+            Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep,
+            com.legend.testexecutionplan.Edge edge) {
+        if (words.isEmpty()) {
+            return;
+        }
+        java.util.Set<String> filed = new java.util.HashSet<>();
+        for (int i = 0; i < steps.size(); i++) {
+            List<String> texts = TestPlan.sentTexts(steps.get(i));
+            for (int at = 0; at < texts.size(); at++) {
+                String text = texts.get(at);
+                Map<Integer, String> records = words.get(text);
+                if (records != null && filed.add(text)) {
+                    List<com.legend.testexecutionplan.Extension> held = new java.util.ArrayList<>(
+                            byStep.getOrDefault(i, List.of()));
+                    held.addAll(edge.siteWords(at, records));
+                    byStep.put(i, held);
+                }
+            }
+        }
+    }
+
+    /** The body's answer's refusal of no rows, worded at planning as {@code style} words it (C5's step E, 2026-11-17):
+     *  where the plan sends a value's answer whose column requires a row ({@code TestRunner}'s walk contract), the
+     *  side's words ({@link JudgePlans#sizeWords}); null otherwise. */
+    private static @Nullable String answerSizeWords(TestPlan plan, com.legend.database.PlanStyle style) {
+        if (!plan.answers() || !plan.sendsTheAnswer()
+                || plan.answerShape() != com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
+            return null;
+        }
+        List<com.legend.executionplan.ExecutionPlan.Column> columns = com.legend.executionplan.ExecutionPlan
+                .reading(plan.parameters(), plan.answer()).answerColumns();
+        if (columns == null || columns.isEmpty() || columns.get(0).multiplicity().lower() < 1) {
+            return null;
+        }
+        return JudgePlans.sizeWords(style, columns.get(0).multiplicity().text());
     }
 
     /**

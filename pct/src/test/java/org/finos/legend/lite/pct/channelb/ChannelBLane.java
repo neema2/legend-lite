@@ -36,6 +36,30 @@ final class ChannelBLane {
         return PctBackend.isReference();
     }
 
+    /** E-5d, the PCT half: {@code suite}'s judge SQL held to its pins by the product's rule (growth fails, a shrink past
+     *  1% re-pins: bazel run //pct:update_ratchets), on the reference lane under BOTH, the pins' own mode; each suite's
+     *  reference test calls it after its ledger. */
+    static void judgeSqlHeld(String suite) {
+        if (ChannelB.measuresJudgeSql()) {
+            long[] j = ChannelB.judgeSql();
+            String key = "channel_b." + suite.toLowerCase(java.util.Locale.ROOT) + ".judge.";
+            held(suite + " judge statements", j[0], PctRatchets.measured(key + "statements"));
+            held(suite + " judge characters", j[1], PctRatchets.measured(key + "chars"));
+            held(suite + " judge plan JSON", j[2], PctRatchets.measured(key + "plan"));
+        }
+    }
+
+    /** {@code measured} held to {@code pinned}: growth fails, and so does a shrink past 1% (a re-pin is due). */
+    private static void held(String what, long measured, long pinned) {
+        if (measured > pinned) {
+            throw new AssertionError(what + " grew: " + measured + " > " + pinned + " (ratchets.tsv)");
+        }
+        if (measured < pinned - pinned / 100) {
+            throw new AssertionError(what + " shrank past 1%: " + measured + " < " + pinned
+                    + " -- re-pin with bazel run //pct:update_ratchets");
+        }
+    }
+
     /** Judge {@code suite}'s outcomes on this lane against its channel A ledger and engine manifest. */
     static void judge(String suite, String tag, List<ChannelB.Outcome> out) throws IOException {
         String lane = PctBackend.name();
@@ -64,6 +88,7 @@ final class ChannelBLane {
         // let a failure change kind, or a body the closed walk refused, pass unseen): every failure a row of the lane's
         // ledger with its text, every row's test failing (ChannelBLedger, ledger.tsv)
         ChannelBLedger.judge(lane + " " + suite, out, ChannelBLedger.of(lane, suite));
+
         // (the label-lie pin, SqlTypeCensus.mismatchCount() == 0, deleted 2026-11-09: its census had no feeder -- probe()
         // lost its last caller -- so it read zero by construction, a dead gate; the census is deleted)
     }

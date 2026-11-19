@@ -12,6 +12,17 @@
 # (docs/build-inventory/program/START_HERE.md §4).
 load("//tools/guards:defs.bzl", "guards_package")
 
+# the gate's own list, read by core's TaggedClassesHaveATargetTest: every census and guardrail class runs in a target
+# the local and lanes suites reach (2026-11-17); and by tools/guards' shrink_only_test, its lines naming the shrink-only
+# check one of the check's own files (the review of the guard line, G, SHOULD 4, 2026-11-18)
+exports_files(
+    ["BUILD.bazel"],
+    visibility = [
+        "//core:__pkg__",
+        "//tools/guards:__pkg__",
+    ],
+)
+
 # the engine: the compiler's unit tests (gate 1), spec parity (gate 3), the JSON and protocol libraries, the
 # engine-runner binaries through their launchers (P3-26), the server's Postgres arm (one query against the embedded
 # Postgres 16), the #SQL{}# island's cases on the same Postgres
@@ -38,11 +49,19 @@ test_suite(
         # the keyed expansion's one fixture, Java's reader (the C final audit's H8, 2026-11-12): the tab's and Python's
         # read it in //engine-client:plan_runner_test and //python:planned_test
         "//core:keyed_expansion_conformance_test",
+        # a product raise's envelope, one fixture Java's, the tab's and Python's readers agree on (#104's M2(b), 2026-11-15)
+        "//core:raise_envelope_conformance_test",
+        # lite API v1's conformance suite, the browser binding's reader (its fixture the server's and Python's read too);
+        # found in no lane by CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        "//core:lite_api_conformance_test",
         # the cross-engine differential over the stress corpus (P3-18): seconds
         "//core:corpus_differential_test",
         # the planner on java.base alone (P3-19): seconds
         "//core:planner_on_java_base_test",
         "//core:postgres_arm_test",
+        # isNumeric's one rule on DuckDB, H2, SQLite and the embedded Postgres 16 (census J20); found in no lane by CI's
+        # lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        "//core:is_numeric_probe_test",
         # the #SQL{}# island's cases on the embedded Postgres 16: Postgres's own answers, and the islands through the
         # Postgres dialect
         "//core:sql_island_postgres_test",
@@ -116,6 +135,14 @@ test_suite(
         "//projects:tests",
         "//tools/deps:core_closure_test",
         "//tools/deps:core_layering_test",
+        # the product's tests reach no edge (F's census lines A5 and A6, 2026-11-17)
+        "//tools/deps:edge_separation_closure_test",
+        # the query-store page is a product root: its module's closure holds no edge (the user's K2 ruling, 2026-11-18)
+        "//tools/deps:query_store_page_closure_test",
+        # the shrink-only reader and rule on planted pins (the GUARD stream's C.13-CI, 2026-11-17)
+        "//tools/guards:shrink_only_test",
+        # the tab's planner module is a product root: its closure holds no edge (the user's K2 ruling, 2026-11-18)
+        "//tools/deps:wasm_planner_closure_test",
         # the TypeScript hosts' layers (C5-T, 2026-11-15): records, run, planner, server, doors, pinned as core's are
         "//tools/deps:ts_layering_test",
         # each TypeScript run and planner layer typechecked alone (C5-T, 2026-11-15: the rule that replaces the run wall)
@@ -166,7 +193,20 @@ test_suite(
         "//scripts/corpus:quarantine_test",
         "//scripts/corpus:run_test",
         "//core:guardrails",
+        # the guardrails' edge half: the boundary's own guards (F's census line A5, 2026-11-17)
+        "//core:guardrails_edge",
         "//core:census",
+        # the edge's test library's census classes (PlannerSurfaceTest), 2026-11-17
+        "//core:census_edge",
+        # the product-SQL size baseline (G3's guard; E3, ruled 2026-11-12): fixed query sets planned on every database,
+        # shrink-only pins per set, database and family over the statements, their characters and the plans' JSON
+        "//core:cast_case_census_test",
+        "//core:lean_sql_baseline_test",
+        # its sets' capture, run with the switch on: text and names only, no plan changed
+        "//core:query_capture_test",
+        # the corpus's set (E3, 2026-11-12): every corpus body planned on DuckDB and H2, its product statements pinned
+        "//spec:lean_sql_corpus_duckdb",
+        "//spec:lean_sql_corpus_h2",
         "//pct:pct_discipline",
         # every hand tool compiles (L1b): the manual binaries of each package, built and not run; the three whose
         # closures hold the native image or the WebAssembly planner sit in the lanes that build those anyway
@@ -262,6 +302,9 @@ test_suite(
         # its Python bindings: the planner differential corpus, the bindings' own suite, the frames and the engine
         "//python:bindings_test",
         "//python:engine_test",
+        # the edge's Python tests, the one target that takes //python:edge (legend-engine's routes on); found in no lane by
+        # CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        "//python:edge_test",
         # the markets example over the trading model's classes on Python: its saved queries, tiles and marks (Phase 6, D6)
         "//python:markets_test",
         # #TS's Python builders: gs-quant's names over core's catalog, every Show Python fixture read back (item 13;
@@ -315,6 +358,10 @@ test_suite(
         "//datacube:package_test",
         "//datacube:browser",
         "//wasm:differential_test",
+        # the product module holds no edge entry, and the engine module answers legend-engine's routes as the planner did
+        # before the split (K2, 2026-11-18); found in no lane by CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        "//wasm:product_module_test",
+        "//wasm:engine_routes_test",
         "//wasm:zone_test",
         # TeaVM's class library against the JDK's, held to its ledger of known differences (seconds)
         "//wasm:conformance_test",
@@ -441,7 +488,20 @@ test_suite(
         # core/BUILD.bazel's pg_regress_corpus_test): manual, it names a suite kept out of the repository
         # (-Dsql.corpus.regress) and fails without it
         "//core:pg_regress_corpus_test",
+        # manual measurements and guards found in no lane by PR1's review (2026-11-15): channel B run twice (the G10
+        # determinism lanes), P3's before-Christ date probe per lane, and channel A's answer snapshot
+        "//pct:pct_channel_b_twice",
+        "//pct:pct_bc_date_probe_bigquery",
+        "//pct:pct_bc_date_probe_databricks",
+        "//pct:pct_bc_date_probe_h2",
+        "//pct:pct_bc_date_probe_snowflake",
+        "//pct:pct_bc_date_probe_sqlite",
+        "//core:answer_snapshot",
         "//pct:update_ratchets_test",
+        # the edge golden net's updaters (2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md Phase 0): the
+        # 36 diff tests of //pct:edge_contract_test (PCT's 27, the corpus's 8, pure/v1's 1), run by hand on every push
+        # of the edge program and on a re-record; found in no lane by stage-linux run 17, 2026-11-16
+        "//pct:edge_contract_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an
         # account's credentials (its §4, never in the repository; a CI workflow for them is not built), and the SQLite
@@ -481,6 +541,12 @@ test_suite(
         # credentials (LEGENDLITE_PCT_CLOUD_PROPERTIES) and its cost; found in no lane by CI's lane guard on PR #101
         # (2026-11-14)
         "//core:identifier_escaping_cloud_probe",
+        # the product's raise text on each external database (PR #104's fix round, 2026-11-15): manual, external and
+        # local, one database a run (LEGENDLITE_PROBE_DATABASE)
+        "//core:product_raise_probe",
+        # the shrink-only check against the merge-base with origin/main (C.13-CI, 2026-11-17): it reads the repository's
+        # history, so it is //gates:local's and CI's gate.yml job's, by name; listed here for the lane guard
+        "//tools/guards:shrink_only_check",
     ],
 )
 
@@ -512,6 +578,9 @@ test_suite(
         # snapshot's pull -- ran in the warehouse lane alone; it shares the native library and the bundle the lanes
         # above build
         "//python:headless_test",
+        # 2026-11-17 (the GUARD stream's C.13-CI, the orchestrator's GO): a guard file's pin grows only with a dated note,
+        # read against the merge-base with origin/main (tools/guards/shrink_only.py; manual, so listed by name)
+        "//tools/guards:shrink_only_check",
     ],
 )
 

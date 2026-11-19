@@ -38,16 +38,8 @@ public final class PlatformTypes {
     }
 
 
-    /**
-     * The TDS null-cell SENTINEL spelling — real pure's {@code ^TDSNull()}
-     * instance prints as this string (tds.pure). ONE constant for every
-     * producer (Typer toString-get desugar, makeString/joinStrings NULL
-     * coalesce) and parser (TDS-literal cells, harness wire compares) —
-     * audit 23 C-d. Divergence note: pure DROPS empty elements from
-     * ordinary collections; we print the sentinel only where TDS-row
-     * semantics apply (ledgered in AUDIT_23_SPECIAL_CASING.md).
-     */
-    public static final String TDS_NULL_CELL = com.legend.sql.SqlExpr.TDS_NULL_CELL;
+    // (TDS_NULL_CELL, legend-pure's "TDSNull" sentinel: gone 2026-11-17, census C5's step C, C-2 -- an expected
+    // present null cell is typed, TypedNullCell, its wire value lite's SqlExpr.NULL_CELL_WIRE)
 
     /** The TDS null-cell CLASS (engine tds.pure:127) — {@code ^TDSNull()}
      * types as an instance of it, stamped [1] (a VALUE, never an empty). */
@@ -263,14 +255,10 @@ public final class PlatformTypes {
      * evaluate in the EXECUTOR (the engine walks its Database metamodel;
      * we render from the compiled store model — model access the lowerer
      * does not have). Engine golden spellings: testDDL.pure:42-45. */
-    public static final String DROP_SCHEMA_STATEMENT =
-            "meta::relational::functions::toDDL::dropSchemaStatement";
-    public static final String CREATE_SCHEMA_STATEMENT =
-            "meta::relational::functions::toDDL::createSchemaStatement";
+    // (DROP_SCHEMA_STATEMENT, CREATE_SCHEMA_STATEMENT, DROP_TABLE_STATEMENT: moved to the edge's EnginePlans, 2026-11-18,
+    // the edge audit's J40 -- legend-engine's deprecated toDDL generators, the edge's plans' alone)
     public static final String CREATE_TABLE_STATEMENT =
             "meta::relational::functions::toDDL::createTableStatement";
-    public static final String DROP_TABLE_STATEMENT =
-            "meta::relational::functions::toDDL::dropTableStatement";
 
     /** The store metamodel's DATA TYPE classes (relational/metamodel.pure) — the
      * exact FQNs a {@code ^Column(type=^<T>(…))} literal names; the temp-table
@@ -312,34 +300,14 @@ public final class PlatformTypes {
     }
 
 
-    /** The engine's SQL-text surface — K-dispatched: the query lambda
-     * lowers through the platform's own G½->H->I against the given mapping
-     * and renders with the engine-style dialect (audit 19d B3: this was a
-     * name-intercepting harness arm; the corpus's own toSQLString body is
-     * engine plan-generation internals, suppressed like toDDL). */
-    public static final String TO_SQL_STRING =
-            "meta::relational::functions::sqlstring::toSQLString";
+    // (TO_SQL_STRING, TO_SQL_STRING_PRETTY: moved to the edge's EdgeEngineTestText, 2026-11-18, the edge audit's J40 --
+    // legend-engine's SQL-text producers, read by the edge alone)
 
-    /** toSQLString with the engine's pretty Format — same K-dispatch
-     * (sqlRemoveFormatting normalizes the whitespace difference away in
-     * every golden compare; engine toSQLString.pure:35). */
-    public static final String TO_SQL_STRING_PRETTY =
-            "meta::relational::functions::sqlstring::toSQLStringPretty";
+    // (TO_SQL: gone 2026-11-18, J40.PlatformTypes -- legend-engine's toSQL handle is read by the edge's SqlTextInputs
+    // alone, which names it by the native registry's own member, NativeFn.Handle.TO_SQL)
 
-    /** toSQL(f, mapping, runtime, ext) — the SQLResult HANDLE of the
-     * same doctrine (engine toSQLString.pure:46): the query lambda and
-     * mapping ride on it and {@code SQLResult.toSQLString(dbType, tz,
-     * quote, format)} (:151, the 5-argument toSQLString overload)
-     * forces it through the one renderer. Batch 75. */
-    public static final String TO_SQL =
-            "meta::relational::functions::sqlstring::toSQL";
-
-    /** toNonExecutableSQLString(f, mapping, dbType, ext) — toSQLString with
-     * the engine's nonExecutable post-processor installed (toSQLString.pure:83-86):
-     * the same K-routine, the nonExecutable IR pass applied before the
-     * render. Batch 81. */
-    public static final String TO_NON_EXECUTABLE_SQL_STRING =
-            "meta::relational::functions::sqlstring::toNonExecutableSQLString";
+    // (TO_NON_EXECUTABLE_SQL_STRING: moved to the edge's EdgeEngineTestText 2026-11-18, J40 -- legend-engine's
+    // toNonExecutableSQLString is read by the compatibility edge alone)
 
     /** The engine's CSV-seed SQL generator — K-dispatched (CsvSeed). */
     public static final String SET_UP_DATA_SQLS_V2 =

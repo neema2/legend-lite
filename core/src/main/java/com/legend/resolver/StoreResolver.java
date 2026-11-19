@@ -101,6 +101,14 @@ public final class StoreResolver {
     /** Pre-seed the let env with bindings a caller already consumed
      * (the inliner β-reduces query lets, but graph-tree date args keep
      * their source spelling and resolve here — engine inScopeVars). */
+    private @com.legend.base.Nullable GraphKeyText graphKeyText;
+
+    /** A graph fetch's key arguments spelled in the plan's style ({@link GraphKeyText}, D1.2), its planner's. */
+    public StoreResolver withGraphKeyText(GraphKeyText text) {
+        this.graphKeyText = text;
+        return this;
+    }
+
     public StoreResolver withLetBindings(Map<String, TypedSpec> lets) {
         letBindings.putAll(lets);
         return this;
@@ -1665,31 +1673,28 @@ public final class StoreResolver {
         // restores the caller's temporal frame on exit (T1.3 class kill)
         TemporalFrame caller = temporal;
         try {
-            return engineExecuteCardinality(top, resolveObject(top, context));
+            return readThroughExecuteValues(top, resolveObject(top, context));
         } finally {
             temporal = caller;
         }
     }
 
-    /** A serialize the result-envelope splice marked as an engine
-     * {@code execute(...)}'s values ({@code TypedSerialize
-     * .engineExecuteCardinality}) resolves to a graph carrying the same mark:
-     * the engine JsonBuilder's cardinality rule (exactly one object
-     * serializes bare), COMPATIBILITY ONLY — lite's own serialize results
-     * stay arrays (the user's ruling, 2026-11-03: "the right clean thing in
-     * lite, the backward-compatible thing in compatibility mode"). A serialize
-     * terminal always resolves to its graph; anything else is a resolver bug,
-     * loud (Invariant 4: the mark is never dropped silently). */
-    private static TypedSpec engineExecuteCardinality(TypedSpec top, TypedSpec resolved) {
-        if (!(top instanceof TypedSerialize sz) || !sz.engineExecuteCardinality()) {
+    /** A serialize read as an {@code execute(...)}'s values
+     * ({@code TypedSerialize.readThroughExecuteValues}, what the program wrote)
+     * resolves to a graph carrying the same fact; its root's presentation is the
+     * plan style's (LoweringForms#executeValues). A serialize terminal always
+     * resolves to its graph; anything else is a resolver bug, loud (Invariant 4:
+     * the fact is never dropped silently). */
+    private static TypedSpec readThroughExecuteValues(TypedSpec top, TypedSpec resolved) {
+        if (!(top instanceof TypedSerialize sz) || !sz.readThroughExecuteValues()) {
             return resolved;
         }
         if (!(resolved instanceof TypedSerializeGraph g)) {
-            throw new IllegalStateException("resolver bug: a serialize marked with the engine"
-                    + " execute() cardinality resolved to " + resolved.getClass().getSimpleName()
+            throw new IllegalStateException("resolver bug: a serialize read as an execute()'s"
+                    + " values resolved to " + resolved.getClass().getSimpleName()
                     + ", not its graph");
         }
-        return g.withEngineExecuteCardinality();
+        return g.readThroughExecute();
     }
 
     /**
@@ -3294,7 +3299,7 @@ public final class StoreResolver {
 
         if (tree != null) {   // 4a. GRAPH terminal (H4a snapshot envelope)
             TypedSerializeGraph env = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++)
-                    .buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(), fresh, tree, context, /*arrayWrap*/ true, g.info(), checkedEnvelope);
+                    .withKeyText(graphKeyText).buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(), fresh, tree, context, /*arrayWrap*/ true, g.info(), checkedEnvelope);
             return serializeTypeCfg == null ? env : GraphEmission.withTypeKey(
                     env, serializeTypeCfg, GraphEmission.stringPlusCallee(ctx),
                     serializeTypeCfg.includeObjectReference() ? GraphEmission.asorPrefix(ctx, cs) : null);

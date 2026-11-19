@@ -37,7 +37,7 @@ public final class AggregatesDeliverDouble extends SqlRewriter {
     @Override
     protected SqlExpr expr(SqlExpr e) {
         if (e instanceof SqlAgg a && fns.contains(a.fn())) {
-            return new SqlExpr.Cast(super.expr(e), SqlType.Scalar.DOUBLE);
+            return new SqlExpr.Cast(super.expr(e), SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
         }
         return super.expr(e);
     }

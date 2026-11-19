@@ -211,15 +211,50 @@ class PlanJsonTest {
         // over 47 when the two merged): the payload named by its digest, its text the statement's content; 49 since
         // 2026-11-12: a target's database settings (the C checkpoint's SHOULD-FIX 3); 50 the same day: a target's
         // transaction, the statements a host opens one with (the re-audit's S8); 51 the same day: a stream step's
-        // statement the planner's own plan of the snapshot's pull (the user's ruling)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":51,"), json);
+        // statement the planner's own plan of the snapshot's pull (the user's ruling); 52 since 2026-11-13: a raise's
+        // message as its kind and operands in a statement's tree (phase D's D1.1, merged onto 51); 53 since 2026-11-13 (E-4):
+        // every cast's and case's reason; 54 since 2026-11-15: a plan's raises, each kind its statements can send to its
+        // sentence (phase D's option (D), its number after E's); 55 since 2026-11-16: each statement's raises (S1); 56 since 2026-11-16: each statement's raise
+        // sites, a raise a bare token (phase D's Phase 2); 57 since 2026-11-17: a decimal column's digits (the host train); 58 since 2026-11-18: a site carries no upstream
+        // words (K10)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":58,"), json);
+    }
+
+    /** A v55 plan (each statement's raises a kind's name in its text) is refused by its version, never read as a v56
+     *  one whose statements declare no site (the P2 checkpoint audit's S1, 2026-11-16; phase D's Phase 2, the same
+     *  day); a v56 plan (an edge site's upstream words in it) likewise, never read as a v58 one (K10, 2026-11-18). */
+    @Test
+    void aV55PlanIsRefusedByItsVersion() {
+        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+                new Sql("select 1", List.of(), t, null))));
+        for (int old : List.of(55, 56, 57)) {
+            String older = json.replace("\"version\":58,", "\"version\":" + old + ",");
+            assertTrue(!older.equals(json), json);
+            var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(older));
+            assertTrue(refused.getMessage().contains("not a legend-lite-plan v58 plan (format legend-lite-plan, version "
+                    + old + ")"), refused.getMessage());
+        }
+    }
+
+    /** A column of no precise decimal writes no {@code decimal} key, and reads back null (2026-11-18, the orchestrator's
+     *  ruling (A): omitted when null, a codec form, not a format change -- lean SQL's G3). */
+    @Test
+    void aColumnOfNoDecimalWritesNoDecimalKeyAndReadsBackNull() {
+        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION,
+                List.of(new Column("x", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)),
+                new Sql("select 1", List.of(), t, null))));
+        assertTrue(!json.contains("\"decimal\""), json);
+        TdsResult read = (TdsResult) PlanJson.read(json).root();
+        assertEquals(null, read.columns().get(0).decimal(), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v51 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v58 plan"), refused.getMessage());
     }
 
     /**
@@ -290,9 +325,10 @@ class PlanJsonTest {
         assertTrue(json.contains("create table T(ID INT)"), json);
         assertEquals(plan, PlanJson.read(json));
         // the section naming one identity twice
-        String section = json.substring(json.indexOf("\"loads\":[{"));
+        // the section runs to the plan's raises (v53), which follow it
+        String section = json.substring(json.indexOf("\"loads\":[{"), json.indexOf(",\"raises\":"));
         String twice = json.replace("\"loads\":[{", "\"loads\":[" + section.substring("\"loads\":[".length(),
-                section.length() - 2) + ",{");
+                section.length() - 1) + ",{");
         IllegalArgumentException dup = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(twice));
         assertTrue(dup.getMessage().contains("names a load twice"), dup.getMessage());
         // a target naming a load the section lacks

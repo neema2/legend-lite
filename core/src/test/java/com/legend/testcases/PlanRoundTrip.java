@@ -70,7 +70,7 @@ public final class PlanRoundTrip {
     }
 
     private static ExecutionPlan.Sql withoutTree(ExecutionPlan.Sql sql) {
-        return new ExecutionPlan.Sql(sql.statement(), sql.slots(), sql.target(), null, sql.regions());
+        return new ExecutionPlan.Sql(sql.statement(), sql.slots(), sql.target(), null, sql.regions()).raising(sql.sites());
     }
 
     private static long statementChars(ExecutionPlan.Node node) {

@@ -149,12 +149,12 @@ class DecimalKindsTest {
         String scaled = "|assertEquals(0.3D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)";
         try (Connection c = seeded()) {
             assertTrue(judged(c, scaled).passed());
-            AssertFailed scale = assertThrows(AssertFailed.class, () -> Program.run(model(), scaled, "m::RT", c,
-                    com.legend.ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true)));
+            AssertFailed scale = assertThrows(AssertFailed.class, () -> com.legend.testing.EdgeProgram.run(model(), scaled, "m::RT", c));
             assertEquals("\nexpected: 0.3D\nactual:   0.30D", scale.getMessage());
             AssertFailed kind = assertThrows(AssertFailed.class,
                     () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
-            assertEquals("\nexpected: 0.3\nactual:   0.30D", kind.getMessage());
+            // lite's own sentence, each value its product text (the user's judge model, 2026-11-17)
+            assertEquals("expected 0.3, got 0.30", kind.getMessage());
             assertThrows(AssertFailed.class, () -> judged(c, "|assertEquals(0.4D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
         }
     }
@@ -165,9 +165,9 @@ class DecimalKindsTest {
         String body = "|assertEquals(0.3, " + ROW_ONE + ".fa + " + ROW_ONE + ".fb)";
         try (Connection c = seeded()) {
             AssertFailed exact = assertThrows(AssertFailed.class, () -> judged(c, body));
-            assertEquals("\nexpected: 0.3\nactual:   0.30000000000000004", exact.getMessage());
-            assertTrue(Program.run(model(), body, "m::RT", c, com.legend.ExecuteOptions.NONE
-                    .withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
+            // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17)
+            assertEquals("expected 0.3, got 0.30000000000000004", exact.getMessage());
+            assertTrue(com.legend.testing.EdgeProgram.run(model(), body, "m::RT", c).passed());
         }
     }
 
@@ -176,8 +176,8 @@ class DecimalKindsTest {
     void castKeepsTheValue() throws Exception {
         try (Connection c = seeded()) {
             // judged under the compatibility rules, which compare a Decimal's scale too: 1.25D stays 1.25D
-            assertTrue(Program.run(model(), "|assertEquals(1.25D, 1.25D->cast(@Numeric(10, 2)))", "m::RT", c,
-                    com.legend.ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
+            assertTrue(com.legend.testing.EdgeProgram.run(model(), "|assertEquals(1.25D, 1.25D->cast(@Numeric(10, 2)))",
+                    "m::RT", c).passed());
         }
     }
 
@@ -214,15 +214,15 @@ class DecimalKindsTest {
     @Test
     @DisplayName("a primitive takes exactly the type variable values it declares, each of its variable's type (the engine's messages)")
     void typeVariableValuesAreChecked() {
-        assertTrue(refused("Decimal(1)").getMessage().endsWith("Wrong type variables count (1) for type: Decimal"));
-        assertTrue(refused("Float(1)").getMessage().endsWith("Wrong type variables count (1) for type: Float"));
-        assertTrue(refused("Numeric").getMessage().endsWith(
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Decimal(1)")).endsWith("Wrong type variables count (1) for type: Decimal"));
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Float(1)")).endsWith("Wrong type variables count (1) for type: Float"));
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Numeric")).endsWith(
                 "Wrong type variables count (0) for type: Numeric(precision:Integer,scale:Integer)"));
-        assertTrue(refused("Numeric()").getMessage().endsWith(
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Numeric()")).endsWith(
                 "Wrong type variables count (0) for type: Numeric(precision:Integer,scale:Integer)"));
-        assertTrue(refused("Numeric(10)").getMessage().endsWith(
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Numeric(10)")).endsWith(
                 "Wrong type variables count (1) for type: Numeric(precision:Integer,scale:Integer)"));
-        assertTrue(refused("Varchar").getMessage().endsWith(
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Varchar")).endsWith(
                 "Wrong type variables count (0) for type: Varchar(x:Integer)"));
         assertTrue(refused("Numeric('a', 2)").getMessage().endsWith(
                 "Error for type: Numeric(precision:Integer,scale:Integer), 'a' is not an instance of Integer"));

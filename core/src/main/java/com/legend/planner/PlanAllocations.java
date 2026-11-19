@@ -33,11 +33,7 @@ import com.legend.lineage.ScanRelations;
 import com.legend.lowering.SqlPostProcessors;
 import com.legend.model.ConnectionDefinition;
 import com.legend.plan.LazyRows;
-import com.legend.plan.PlanNode;
 import com.legend.plan.PlanRows;
-import com.legend.plan.PlanSupportFunctions;
-import com.legend.plan.PlanText;
-import com.legend.plan.PurePrint;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CString;
@@ -50,11 +46,9 @@ import com.legend.sql.SqlSelect;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /** The Allocation plan-node factory for let bindings (extracted from
@@ -66,158 +60,32 @@ public final class PlanAllocations {
     private PlanAllocations() {
     }
 
-    /** The free PLAN VARIABLES the expression reads, in first-read
-     * order, spelled {@code name(Type[mult])}. */
-    private static void collectRequires(
-            TypedSpec n,
-            Map<String, String> paramSpells, StringBuilder out,
-            Set<String> seen) {
-        if (n instanceof TypedVariable v
-                && paramSpells.containsKey(v.name())
-                && seen.add(v.name())) {
-            if (out.length() > 0) {
-                out.append(", ");
-            }
-            out.append(v.name()).append('(')
-                    .append(paramSpells.get(v.name())).append(')');
-        }
-        for (TypedSpec c : n.children()) {
-            collectRequires(c, paramSpells, out, seen);
-        }
+    /** The execution context's time zone of an {@code executionPlan} call (its third argument), or null: a fact the
+     *  plan's rows are built from (legend-engine's support functions, the edge's). */
+    private static @Nullable String planTimeZone(TypedNativeCall pep, List<TypedSpec> letPrefix) {
+        return pep.args().size() > 2
+                ? ExecutionContext.reader().bind(v -> Lets.bound(v, letPrefix))
+                        .read(Optional.empty(), pep.args().get(2)).timeZone()
+                : null;
     }
 
-    /** An Allocation child for one plan let: LITERAL values print as
-     * Constant nodes, scalar query values as SCALAR-projection
-     * Relational nodes (bare-typed, alias-less select), and CLASS query
-     * values as full Class-envelope Relational nodes — the engine's
-     * three Allocation value forms. */
-    static @Nullable String node(
-            TypedLet let, String mappingFqn,
-            SpecCompiler specs, PlanEnv env,
-            Map<String, SqlExpr.PlanParam> params,
-            Map<String, String> paramSpells,
-            boolean quote, @Nullable String timeZone, ConnectionDefinition.DatabaseType dbType,
-            @Nullable String connName) {
-        String literal = switch (let.value()) {
-            case TypedCString cs -> cs.value();
-            case TypedCInteger ci ->
-                    String.valueOf(ci.value());
-            case TypedCFloat cf ->
-                    String.valueOf(cf.value());
-            case TypedCBoolean cb ->
-                    String.valueOf(cb.value());
-            case TypedCDate cd ->
-                    cd.value().toEngineString();
-            default -> null;
-        };
-        if (literal != null) {
-            String typeName = PlanText
-                    .pureTypeName(let.info().type());
-            String size = PurePrint.sizeRange(let.info().multiplicity());
-            return PlanText.allocation(let.name(),
-                    PlanText.scalarTypeBlock(typeName, size),
-                    PlanText.constant(typeName, literal));
-        }
-        String rootClass = PlanText.rootGetAllClass(List.of(let.value()));
-        if (rootClass == null) {
-            // NON-RELATIONAL expression let — the engine's
-            // PureExpressionPlatformExecutionNode: the expression rides
-            // as PURE SOURCE with its required plan variables
-            String typeName = PlanText
-                    .pureTypeName(let.info().type());
-            String size = PurePrint.sizeRange(let.info().multiplicity());
-            StringBuilder req = new StringBuilder();
-            collectRequires(let.value(), paramSpells, req,
-                    new LinkedHashSet<>());
-            return PlanText.allocation(let.name(),
-                    PlanText.scalarTypeBlock(typeName, size),
-                    PlanText.pureExp(typeName, size,
-                            req.toString(),
-                            PurePrint.source(let.value())));
-        }
-        var renderer = EngineText.enginePlanText(dbType, quote, timeZone);
-        EnginePlans.EngineSql es = EnginePlans.engineSql(List.of(let.value()),
-                mappingFqn, specs, env, renderer, params,
-                UnaryOperator.identity());
-        String[] impl = ScanRelations.rootImpl(
-                env.ctx(), mappingFqn, rootClass);
-        if (let.info().type()
-                instanceof Type.ClassType) {
-            // class-valued allocation: the full Class-envelope node, and
-            // the Allocation's own type block is the impls form
-            String inner = PlanText.single(env.ctx(),
-                    rootClass, mappingFqn, es.plan(), es.sql(),
-                    List.of(let.value()), connName, List.of(), es.plan(), false,
-                    renderer::selectList);
-            return PlanText.allocation(let.name(),
-                    PlanText.typeBlock(env.ctx(), rootClass,
-                            impl, es.plan(), List.of(let.value())),
-                    inner);
-        }
-        String typeName = PlanText
-                .pureTypeName(let.info().type());
-        String size = PurePrint.sizeRange(let.info().multiplicity());
-        if (!(es.plan() instanceof SqlSelect sel)) {
-            throw new NotImplementedException(
-                    "plan: Allocation value lowers to a non-select");
-        }
-        SqlSelect bareSel = new SqlSelect(
-                sel.projections().stream().map(p ->
-                        new SqlSelect.Projection(
-                                p.expr(), null, p.out())).toList(),
-                sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
-                sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
-                sel.offset(), sel.outputs());
-        String bareSql = renderer.render(bareSel);
-        String inner = PlanText.scalarRelational(env.ctx(),
-                impl[2], sel, typeName, size, bareSql,
-                renderer::renderedAlias, connName);
-        return PlanText.allocation(let.name(),
-                PlanText.scalarTypeBlock(typeName, size),
-                inner);
+    /** The query's mapping of an {@code executionPlan} call (its second argument, a bare reference), or null. */
+    private static @Nullable String planMapping(TypedNativeCall pep) {
+        return pep.args().get(0) instanceof TypedLambda && pep.args().size() > 1
+                && pep.args().get(1) instanceof TypedPackageableRef pmr ? pmr.fullPath() : null;
     }
 
-    // ---- the plan handle AS ROWS (harness burn-down group Q, 2026-09-03):
-    // the executor's plan model becomes inline rows the DATABASE navigates
-    // (PlanRows) — nothing a verdict reads is computed here
-
-    /** The plan's {@code processingTemplateFunctions}: the freemarker
-     * support functions + enum-typed parameters' dynamic enum-map
-     * functions (relationalPlanSupportFunctions(connection),
-     * executionPlan_generation.pure:215). */
-    public static List<String> planTemplateFunctions(
-            TypedNativeCall pep,
-            List<TypedSpec> letPrefix,
-            PlanEnv env) {
-        List<String> supportFns = new ArrayList<>(
-                PlanSupportFunctions
-                        .relationalPlanSupportFunctions(
-                                pep.args().size() > 2
-                                        ? ExecutionContext.reader()
-                                                .bind(v -> Lets.bound(v, letPrefix))
-                                                .read(Optional.empty(), pep.args().get(2))
-                                                .timeZone()
-                                        : null));
-        if (pep.args().get(0) instanceof TypedLambda plam
-                && pep.args().size() > 1
-                && pep.args().get(1) instanceof TypedPackageableRef pmr) {
-            Set<String> seenFns =
-                    new LinkedHashSet<>();
+    /** The enumerations of the query's enum-typed parameters, in declaration order (none without a mapping). */
+    private static List<String> planEnumParameters(TypedNativeCall pep) {
+        List<String> out = new ArrayList<>();
+        if (planMapping(pep) != null && pep.args().get(0) instanceof TypedLambda plam) {
             for (QueryParameters.Declared prm : QueryParameters.of(plam)) {
-                if (!(prm.type() instanceof Type.EnumType et)) {
-                    continue;
-                }
-                String fn = PlanText.enumMapFnOf(
-                        env.ctx(), pmr.fullPath(), et.fqn());
-                var em = PlanText.enumMappingOf(
-                        env.ctx(), pmr.fullPath(), et.fqn());
-                if (fn != null && em != null && seenFns.add(fn)) {
-                    supportFns.add(PlanSupportFunctions
-                            .enumMapTemplateFunction(fn, em));
+                if (prm.type() instanceof Type.EnumType et) {
+                    out.add(et.fqn());
                 }
             }
         }
-        return supportFns;
+        return out;
     }
 
     /** The plan handle's nodes as rows under its scope id (PlanRows);
@@ -240,10 +108,12 @@ public final class PlanAllocations {
         }
         TypedNativeCall pnBound =
                 (TypedNativeCall) pn.withChildren(bound);
+        // the style asked BEFORE the walk's refusals are caught (J16/K4 of the edge audit, 2026-11-17, G7): the product's
+        // style refuses legend-engine's plan by name, and that refusal fails the body -- it is never "no rows"
+        UpstreamPlans upstream = env.style().facet(UpstreamPlans.class);
         try {
-            PlanNode model = EnginePlans.planModel(pnBound, specs, env);
-            var rows = PlanRows.rows(scope, model,
-                    planTemplateFunctions(pnBound, letPrefix, env));
+            var rows = upstream.planRows(scope, pnBound,
+                    planTimeZone(pnBound, letPrefix), planMapping(pnBound), planEnumParameters(pnBound), specs, env);
             env.planRows().put(scope, rows);
             env.planRows().put(PlanRows.scopeId(pnBound), rows);
         } catch (NotImplementedException | com.legend.sql.DialectCapability
@@ -280,18 +150,9 @@ public final class PlanAllocations {
         if (mappingFqn == null) {
             return null;
         }
-        return activityOrNone(() -> {
-            // C4 (handed off): the execute call's runtime type is not read here yet
-            var renderer = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
-            EnginePlans.EngineSql es = EnginePlans.engineSql(
-                    List.of(chain), mappingFqn, specs, env, renderer,
-                    Map.of(), UnaryOperator.identity());
-            SqlQuery post = SqlPostProcessors.applyRecorded(
-                    es.plan(), env.tableReplace(),
-                    env.postProcessors().extractCtes(),
-                    env.postProcessors().nonExecutable());
-            return post == es.plan() ? es.sql() : renderer.render(post);
-        });
+        // S310 (RULED by the user 2026-11-14, DE2 (a)): the style picks the activity's SQL; the one rule for an
+        // activity's SQL or none (C5-J item 4 and the C5-J audit's nit, 2026-11-15; merged 2026-11-15, #106 into #104)
+        return activityOrNone(() -> activitySql(List.of(chain), mappingFqn, specs, env, true));
     }
 
     /**
@@ -315,6 +176,33 @@ public final class PlanAllocations {
             }
             return null;
         }
+    }
+
+    /** An execute's activity SQL (S310, RULED by the user 2026-11-14, DE2 (a)): the style's form of
+     *  {@link ActivityTexts} -- the product's lite's own SQL, what runs; the edge's legend-engine's text for its test
+     *  connection's database, {@code recorded} its runtime's post-processors applied (J40.PlanStyle, 2026-11-18: each
+     *  form computes its own text alone). */
+    static String activitySql(List<TypedSpec> chain, @Nullable String mappingFqn, SpecCompiler specs, PlanEnv env,
+            boolean recorded) {
+        return env.style().twoForm(ActivityTexts.class, LITE_ACTIVITY).activitySql(chain, mappingFqn, specs, env,
+                recorded);
+    }
+
+    /** The product's form of {@link ActivityTexts}: lite's own SQL for the chain ({@link #activityLiteSql}). */
+    static final ActivityTexts LITE_ACTIVITY = (chain, mappingFqn, specs, env, recorded) ->
+            activityLiteSql(chain, mappingFqn, specs, env);
+
+    /** LITE'S OWN SQL for an execute's chain (S310, RULED by the user 2026-11-14, DE2 (a): the product's activity
+     *  record reports what actually runs): the chain inlined, resolved and lowered as a product statement is
+     *  ({@link BodyPlanner#lowerAndPrepare}), written in the dialect of the database the statement runs on -- the
+     *  planning's own where it chose one, else the style's for the runtime's database. */
+    static String activityLiteSql(List<TypedSpec> raw, @Nullable String mappingFqn, SpecCompiler specs,
+            PlanEnv env) {
+        com.legend.sql.dialect.SqlDialect dialect = env.dialect() != null ? env.dialect()
+                : env.style().dialect(com.legend.Compiler.executesOn(env.ctx(), env.runtimeFqn()).type());
+        List<TypedSpec> body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(raw);
+        body = BodyPlanner.resolver(specs, env).resolve(body, env.runtimeFqn(), mappingFqn, List.of());
+        return dialect.render(BodyPlanner.lowerAndPrepare(body, env, env.ctx(), dialect, false));
     }
 
     /** The mapping the chain itself carries (an in-query {@code from(m, r)}
@@ -366,14 +254,20 @@ public final class PlanAllocations {
         // program reads the result's activities (no SQL = no rows, as ever)
         env.planRows().put(scope, new LazyRows(
                 () -> activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
-                        AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment, commentParameter)));
+                        env.style().twoForm(RoutedQueries.class, NO_ROUTING_ACTIVITY).routingActivity(chain, env.ctx(), specs),
+                        comment, commentParameter)));
     }
+
+    /** The product's form of an execute's routing activity (J5 of the edge audit, 2026-11-17): none -- lite's activity
+     *  rows are the statements it runs; legend-engine's AggregationAwareActivity, the routed query's print, is the
+     *  compatibility edge's form ({@link RoutedQueries}). */
+    static final RoutedQueries NO_ROUTING_ACTIVITY = (chain, ctx, specs) -> null;
 
     /** The activity row's comment column (results scope, activity id, scope, index, kind, sql, comment, rewritten). */
     private static final int COMMENT = 5;
 
     private static LazyRows.@Nullable Computed activityRows(String scope,
-            @Nullable String sql, @Nullable String rewrittenQuery,
+            @Nullable String sql, @Nullable List<String> routing,
             @Nullable String comment, @Nullable String commentParameter) {
         if (sql == null) {
             return null;
@@ -382,12 +276,16 @@ public final class PlanAllocations {
                 new LinkedHashMap<>();
         rows.put("results", List.of(List.of(scope)));
         List<List<String>> acts = new ArrayList<>();
-        if (rewrittenQuery != null) {
-            // the engine records the aggregation-aware ROUTING activity
-            // first (it happens at routing, before execution): the routed
-            // query print names the set the router chose
-            acts.add(List.of(scope + "/0", scope, "0",
-                    "AggregationAwareActivity", "", "", rewrittenQuery));
+        if (routing != null) {
+            // a routing activity first (it happens at routing, before execution), the style's whole row (J37 of the edge
+            // audit, 2026-11-18): the compatibility edge's legend-engine AggregationAwareActivity alone
+            if (routing.size() != 4) {
+                throw new IllegalStateException("a routing activity is its kind, sql, comment and rewritten query: "
+                        + routing);
+            }
+            List<String> row = new ArrayList<>(List.of(scope + "/0", scope, "0"));
+            row.addAll(routing);
+            acts.add(List.copyOf(row));
         }
         int k = acts.size();
         acts.add(List.of(scope + "/" + k, scope, Integer.toString(k),

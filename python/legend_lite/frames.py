@@ -44,6 +44,7 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, compiler
+from ._params import ParametersRefused
 from ._planned import Database, connect
 # the run side (C5-P, 2026-11-15): what sends a plan's statements and reads their answer, frames.py's until then and
 # named here as they always were; frames.py plans, then hands the run its statements
@@ -74,14 +75,13 @@ class ModelRefused(compiler.LegendError):
     never a refusal of what it plans over the model."""
 
 
-# the kinds the compiler refuses a model by (projects._NOT_A_MODEL's): it does not parse, or does not compile -- any
-# other kind is a failure of the compiler's own, never the model's refusal (the C5 follow-up's staging check, 2026-11-15)
-_MODEL_REFUSALS = frozenset({'PARSER', 'COMPILATION'})
-
-
 def _refusal(refused: compiler.LegendError) -> compiler.LegendError:
-    """``refused`` as the model's refusal (``ModelRefused``) when the compiler refused the model, else as it is."""
-    return ModelRefused(refused.message, refused.kind) if refused.kind in _MODEL_REFUSALS else refused
+    """``refused`` as the model's refusal (``ModelRefused``) when the compiler refused the model -- it does not parse,
+    or does not compile, by the product's own kinds (``compiler.refuses_the_text``; the lite API spec's §3, 2026-11-17:
+    until then a constant of Python's) -- else as it is: any other kind is a failure of the compiler's own."""
+    if compiler.refuses_the_text(refused):
+        return ModelRefused(refused.message, refused.kind, refused.where, refused.raise_)
+    return refused
 
 
 def _arrow(frame: Any) -> pa.Table:
@@ -251,11 +251,12 @@ class Table:
             self._ready()
             return self._model().plan(self._tree(query), self.runtime)
 
-    def execute(self, query: str | dict[str, Any]) -> pa.Table:
-        """Runs a query over this table (as ``plan`` takes it) and answers as an Arrow table, typed by its plan."""
+    def execute(self, query: str | dict[str, Any], params: dict[str, Any] | None = None) -> pa.Table:
+        """Runs a query over this table (as ``plan`` takes it) and answers as an Arrow table, typed by its plan: its
+        declared parameters bound at run from ``params`` (the lite API spec's ``query/run``, §4)."""
         with self._frames._lock:
             self._ready()
-            return self._frames.run(self._model().plan(self._tree(query), self.runtime))
+            return self._frames.run(self._model().plan(self._tree(query), self.runtime), params)
 
 
 @dataclass
@@ -367,12 +368,17 @@ class Frames:
             self._tables[key] = table
             return table
 
-    def run(self, plan: compiler.Plan) -> pa.Table:
+    def run(self, plan: compiler.Plan, params: dict[str, Any] | None = None) -> pa.Table:
         """PYTHON'S EXECUTOR: a plan's SQL run on this database, its rows typed by the plan (``typed_by_plan``) --
         a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).
-        Only SQL a planner wrote for this database comes here (the run: ``_reads.run_plan``)."""
+        Only SQL a planner wrote for this database comes here (the run: ``_reads.run_plan``). Its declared parameters
+        are bound at this run from ``params``, checked before anything is sent: a value refused is lite's
+        ``parameters`` refusal (``compiler.parameters_refused``; the lite API spec's §3 and §4, 2026-11-17)."""
         with self._lock:
-            return run_plan(self.connection, plan, self.held_values())
+            try:
+                return run_plan(self.connection, plan, self.held_values(), params)
+            except ParametersRefused as refused:
+                raise compiler.parameters_refused(str(refused)) from None
 
     def held_values(self) -> tuple[str, ...]:
         """Every value the kept remote files' settings bind that the engine holds (a bearer URL): what a failure's words

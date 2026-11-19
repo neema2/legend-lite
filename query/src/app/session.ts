@@ -5,7 +5,8 @@
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { LoadedProject } from './context.ts';
-import type { ExecutionResult, Query } from '../backend/wire.ts';
+import type { Query } from '../backend/wire.ts';
+import type { LiteAnswer } from '../backend/engine.ts';
 import type { QueryState, Value } from '../builder/state.ts';
 
 /** A query the form cannot show: kept as its lambda, still run, saved and edited as text. */
@@ -17,7 +18,7 @@ export interface TextOnly {
 export type RunState =
   | { readonly status: 'idle' }
   | { readonly status: 'running'; readonly started: number; readonly abort: AbortController }
-  | { readonly status: 'done'; readonly result: ExecutionResult; readonly ms: number; readonly limit: number | undefined; readonly queryHash: string }
+  | { readonly status: 'done'; readonly result: LiteAnswer; readonly ms: number; readonly limit: number | undefined; readonly queryHash: string }
   /** The results are a DataCube over the query (`app/cube.ts`); it runs its own queries. */
   | { readonly status: 'cube'; readonly queryHash: string }
   | { readonly status: 'error'; readonly message: string };

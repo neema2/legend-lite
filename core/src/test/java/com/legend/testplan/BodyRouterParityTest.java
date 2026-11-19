@@ -3,6 +3,8 @@
 
 package com.legend.testplan;
 
+import com.legend.edge.RawLedger;
+
 import com.legend.Compiler;
 import com.legend.ExecuteOptions;
 import com.legend.Execution;
@@ -15,7 +17,7 @@ import com.legend.exec.StatementOrigin;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.result.Batch;
 import com.legend.result.ResultSink;
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
@@ -215,9 +217,6 @@ class BodyRouterParityTest {
                 "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1);}",
-                // the rendered text: one side a grid's text (the CSV form, toCSV, is the relational tests' own
-                // function, absent from this model: the corpora measure it)
-                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
                 // a side whose planning raises (a computed bound the lowering refuses by name): raised at its turn,
                 // after the assert before it ran and reported, counted under its family
                 "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
@@ -229,9 +228,16 @@ class BodyRouterParityTest {
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1, 1.0);}",
                 "{| assert([1, 2]->forAll(e|[1, 2, 3]->contains($e)));}",
-                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}",
-                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
+                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}")) {
             assertParity(backend, body, "select 1");
+        }
+        // the rendered text: one side a grid's text, legend-pure's and the compatibility edge's alone (the product
+        // refuses a relation's text by name: phase D's D1.3, 2026-11-15), so under the compatibility rules (the CSV
+        // form, toCSV, is the relational tests' own function, absent from this model: the corpora measure it)
+        for (String body : List.of(
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
+            inCompatibilityMode(() -> assertParity(backend, body, "select 1"));
         }
     }
 
@@ -517,7 +523,7 @@ class BodyRouterParityTest {
             for (String body : List.of(
                     "{| assertSize(" + EXECUTE + ".activities, 1);}",
                     "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                            + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));}",
+                            + "RelationalActivity).comment->toOne()->length() == 36);}",
                     "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2);}",
                     // two executions (the execution id as upstream, 2026-11-12): their stamps in the plan, no id
                     "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; assert($a.activities->at(0)" + COMMENT
@@ -534,14 +540,38 @@ class BodyRouterParityTest {
         }
     }
 
+    /**
+     * THE PR1 RE-REVIEW'S B9 (2026-11-16, a risk the reviewer could not verify): a frame let's ROWS and its ACTIVITY read
+     * by the asserts after it, now that frames do not run at their let -- the rows by a side of its own (a grid read, the
+     * root the fused row cannot carry) and the activity by a fused root. Under every judge the body ends as the host
+     * judge's run ends, its verdicts told alike.
+     */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void aFramesRowsAndActivityReadAfterItsLetAgreeUnderEveryJudge(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String body = "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2); assert($r.activities->at(0)"
+                // the product road's comment is the run's id itself (D1.4; legend-engine's comment around it, the edge's)
+                + COMMENT + "->length() == 36);}";
+        Run host = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                PlanningOptions.JudgeMode.HOST);
+        assertEquals("ok", host.outcome(), backend + " HOST: " + host.verdicts());
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals(host.outcome(), r.outcome(), backend + " " + mode);
+            assertEquals(host.verdicts(), r.verdicts(), backend + " " + mode + ": the verdicts told");
+        }
+    }
+
     /** An activity's comment, read by the body: its execution's trace comment. */
     private static final String COMMENT = "->cast(@meta::relational::mapping::RelationalActivity).comment->toOne()";
 
-    /** Every execution-trace comment an answer holds, in order. */
+    /** Every execution id an answer holds, in order (an activity's comment is the run's id itself on the product road;
+     *  legend-engine's comment around it, the edge's: D1.4, 2026-11-15). */
     private static List<String> traceIds(String answer) {
         List<String> out = new ArrayList<>();
         java.util.regex.Matcher m = java.util.regex.Pattern.compile(
-                "executionTraceID\\\\?\" : \\\\?\"([0-9a-f-]{36})").matcher(answer);
+                "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})").matcher(answer);
         while (m.find()) {
             out.add(m.group(1));
         }
@@ -656,7 +686,7 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE + "; assertEquals(1, x::TFirm.all(%2020-06-01)->from(x::M, x::RT)->size());"
                         + " assertSize($r.values.rows, 2);}",
                 "{| let r = " + EXECUTE + "; let cm = $r.activities->at(0)->cast(@meta::relational::mapping::"
-                        + "RelationalActivity).comment->toOne(); assert($cm->startsWith('-- \"executionTraceID\"'));}",
+                        + "RelationalActivity).comment->toOne(); assert($cm->length() == 36);}",
                 // M9d: a frame over a business-temporal class, read by the asserts
                 "{| let r = " + EXECUTE_TEMPORAL + "; assertSize($r.values.rows, 1); assertEquals(['New'],"
                         + " $r.values.rows.values);}",
@@ -791,12 +821,13 @@ class BodyRouterParityTest {
                         + " assertEqWithinTolerance(1.0, 1.05, 0.1);}",
                 // an assert after a failing one: planned, judged after the first failure raised -- never
                 "{| assertEquals(3, 1 + 1); assertEquals(2, 1 + 1);}",
-                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
-                // a relation's toString against a literal: a string equality the database judges (not the rendered
-                // form the host reads: that is toCSV's, pinned walked below)
-                "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}")) {
+                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}")) {
             assertParity(backend, ctx, RT, body, "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
         }
+        // a relation's toString against a literal: a string equality the database judges (not the rendered form the
+        // host reads: that is toCSV's, pinned walked below) -- legend-pure's text, the edge's alone (D1.3, 2026-11-15)
+        inCompatibilityMode(() -> assertParity(backend, ctx, RT, "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}",
+                "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
     }
 
     /** M7: the assert shapes whose DATABASE arm reads a side on the host at the assert's turn ({@code assertEq} over
@@ -1299,8 +1330,8 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE + "; assertSize($r.activities, 1); assert($r.activities->at(0)->cast("
                         + "@meta::relational::mapping::RelationalActivity).sql->toOne()->startsWith('select'));}",
                 "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                        + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
-                        + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                        + "RelationalActivity).comment->toOne()->length() == 36);"
+                        + " assertEquals(36, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                         + ".comment->toOne()->length());}",
                 "{| let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name], ['name']),"
                         + " x::M, x::RT.runtimeValue, []); assertNotEmpty($p.rootExecutionNode.executionNodes);}",
@@ -1775,7 +1806,7 @@ class BodyRouterParityTest {
      *  extent as a body's answer: BodyClass.answered). */
     private static String productText(TestBackend backend, ModelContext ctx, String runtime, String query,
             List<String> setup) throws Exception {
-        try (Connection c = backend.open()) {
+        try (Connection c = backend.open(com.legend.edge.PureText.UPSTREAM)) {   // the edge's style runs it (J22)
             try (Statement st = c.createStatement()) {
                 for (String sql : setup) {
                     st.execute(sql);
@@ -1783,22 +1814,28 @@ class BodyRouterParityTest {
             }
             Capture capture = new Capture();
             Sessions.Session session = Sessions.borrowed(c);
+            // the engine-text natives' answer is the compatibility edge's (S309, RULED by the user 2026-11-14: the
+            // product refuses it by name), so the golden is read through the edge's style
             Execution.run(typed(ctx, query), runtime, com.legend.exec.SessionSource.given(session),
                     com.legend.exec.PlanSessions.of(session), com.legend.exec.ProductRun.Establish.AS_GIVEN,
-                    new com.legend.result.Output.Rows(capture));
+                    java.util.Set.of(), com.legend.edge.PureText.UPSTREAM, new com.legend.result.Output.Rows(capture),
+                    com.legend.result.Batcher.DEFAULT_CAPACITY);
             return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), "", 0));
         }
     }
 
     /** The text {@code expr} evaluates to after {@code lets} on the program road, read off the failure of an assert
-     *  that cannot hold ({@code assertEquals}'s {@code actual:} line, its representation unescaped): a golden the walk
+     *  that cannot hold (lite's sentence's actual, after its last {@code , got }, JSON-unquoted): a golden the walk
      *  read off a body answering {@code expr} alone until it was deleted (2026-11-06), where neither the router nor the
      *  product's door answers that value as a body's answer. */
     private static String actualOf(TestBackend backend, ModelContext ctx, String runtime, String lets, String expr,
             List<String> setup) throws Exception {
         Run run = run(backend, ctx, runtime, "{| " + lets + " assertEquals('no such text', " + expr + ");}",
                 "select count(*) from FIRM", setup, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
-        String marker = "\nactual:   ";
+        // lite's own sentence (the user's judge model, 2026-11-17): the actual after its last ", got ", JSON-quoted; on
+        // the edge's run (a body binding legend-engine's plan handle) legend-pure's, after "\nactual:   ", %r-quoted
+        // (census C1, 2026-11-17: the edge's style and its hook write legend-pure's words together)
+        String marker = run.outcome.contains("\nactual:   ") ? "\nactual:   " : ", got ";
         int from = run.outcome.lastIndexOf(marker);
         assertTrue(run.outcome.startsWith("AssertFailed") && from >= 0, "an assert's failure naming its actual: "
                 + run.outcome);
@@ -1806,7 +1843,9 @@ class BodyRouterParityTest {
         if (shown.startsWith("[") && shown.endsWith("]")) {
             shown = shown.substring(1, shown.length() - 1);   // a collection of the one text
         }
-        assertTrue(shown.length() >= 2 && shown.startsWith("'") && shown.endsWith("'"), "one text: " + shown);
+        char quote = marker.equals(", got ") ? '"' : '\'';
+        assertTrue(shown.length() >= 2 && shown.charAt(0) == quote && shown.charAt(shown.length() - 1) == quote,
+                "one text: " + shown);
         StringBuilder text = new StringBuilder();
         for (int i = 1; i < shown.length() - 1; i++) {
             char ch = shown.charAt(i);
@@ -1843,9 +1882,11 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void theActivityCommentIsTheRunsStamp(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        // the comment is the run's id itself, 36 characters (D1.4, 2026-11-15: legend-engine's comment around it,
+        // 62, is the edge's)
         String body = "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
-                + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                + "RelationalActivity).comment->toOne()->contains('-'));"
+                + " assertEquals(36, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                 + ".comment->toOne()->length());}";
         Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                 com.legend.testplan.PlanningOptions.JudgeMode.HOST);
@@ -1925,7 +1966,9 @@ class BodyRouterParityTest {
         assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true),
                 "the body is a moved class's under one judge: " + body);
         Run moved = run(backend, ctx, runtime, body, check, setup, mode);
-        assertEquals(1, moved.moved, "the router moved the body: " + body);
+        // BOTH plans the body once per judge, each alone (isolated BOTH, 2026-11-17)
+        assertEquals(mode == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1, moved.moved,
+                "the router moved the body: " + body);
         return moved;
     }
 
@@ -1943,7 +1986,9 @@ class BodyRouterParityTest {
      *  registered after the run): the program binds the stamp as a parameter the run's check step binds (R17 C4; M9c)
      *  and never spells it. */
     private static final java.util.regex.Pattern STAMP_LITERAL =
-            java.util.regex.Pattern.compile("'-- \"executionTraceID\" : \"[0-9a-f-]{36}\"'");
+            // the run's id as a literal, bare (the product's comment since D1.4, 2026-11-15) or in legend-engine's comment
+            java.util.regex.Pattern.compile("'(-- \"executionTraceID\" : \")?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}"
+                    + "-[0-9a-f]{12}\"?'");
 
     /** @param statements the statements sent on the body's own connection, recorded there
      *  @param sent       every statement the run sent on any session, counted by exec by origin: {@link #allRecorded}
@@ -1987,26 +2032,39 @@ class BodyRouterParityTest {
 
     private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup, com.legend.testplan.PlanningOptions.JudgeMode mode) throws Exception {
-        try (Connection c = backend.open()) {
+        // the session is the database the run's style plans for (the audit's J22, 2026-11-17: H2's settings are the
+        // style's): the edge's where the run below is handed the edge's style
+        boolean edgeStyle = COMPAT.get() || body.contains("meta::pure::executionPlan::executionPlan(")
+                || body.contains("meta::legend::executeLegendQuery(");
+        try (Connection c = backend.open(edgeStyle ? com.legend.edge.PureText.UPSTREAM
+                : com.legend.database.PlanStyle.PRODUCT)) {
             try (Statement st = c.createStatement()) {
                 for (String sql : setup) {
                     st.execute(sql);
                 }
             }
             TypedQuery q = typed(ctx, body);
-            RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
+            RawLedger.Recorder recorder = new RawLedger.Recorder();
             // a run under the compatibility rules is handed the edge, which records the ledger; lite's own records
             // none (the plan-as-data design's step 8, 2026-11-08: an edge implies the compatibility rules)
             ExecuteOptions options = (COMPAT.get()
                     ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder,
                             com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
-                    : ExecuteOptions.NONE).withJudgeMode(mode);
+                            .withStyle(com.legend.edge.PureText.UPSTREAM)
+                    // a body that binds a plan handle (executionPlan's value, legend-engine's) runs on the edge's
+                    // style: the product refuses it by name (D's hook fold, a4ac096b5, 2026-11-16); so does one whose
+                    // executeLegendQuery answers legend-engine's result envelope (Phase 6's B5, 2026-11-17: the
+                    // product refuses it at LOWER, ResultEnvelopeRefusalTest)
+                    : body.contains("meta::pure::executionPlan::executionPlan(")
+                            || body.contains("meta::legend::executeLegendQuery(")
+                            ? ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM)
+                            : ExecuteOptions.NONE).withJudgeMode(mode);
             Capture capture = new Capture();
             // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's
             // process-wide observer is gone)
             List<String> statements = new ArrayList<>();
             Sessions.Session session = Sessions.borrowed(com.legend.testbackend.RecordingConnection.wrap(c, statements));
-            com.legend.testexec.SqlReplayReferee referee = new StubReferee(c);
+            com.legend.edge.SqlReplayReferee referee = new StubReferee(c);
             long[] before = StatementOrigin.snapshot();
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
@@ -2036,7 +2094,10 @@ class BodyRouterParityTest {
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
                     com.legend.diagnostics.VerdictCensus.sqlCensus());
             try {
-                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener, referee, options,
+                // the run's hook goes with its style (census C1, the orchestrator's ruling of 2026-11-17)
+                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener,
+                        options.planning().style() == com.legend.database.PlanStyle.PRODUCT
+                                ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(referee), options,
                         new com.legend.result.Output.Rows(capture));
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -2079,7 +2140,7 @@ class BodyRouterParityTest {
      *  witnesses use run on every in-process backend), its rows against ours as sorted text multisets -- a test
      *  double of the SPI, not the harness's comparison policy (spec's {@code ReplayReferee}); a golden the connection
      *  refuses is a decline. The generator's fetch entries are not exercised by any witness here. */
-    private static final class StubReferee implements com.legend.testexec.SqlReplayReferee {
+    private static final class StubReferee implements com.legend.edge.SqlReplayReferee {
         private final Connection c;
 
         StubReferee(Connection c) {
@@ -2113,7 +2174,7 @@ class BodyRouterParityTest {
         @Override
         public RowVerdict verify(Sessions.Session session, String goldenSql, com.legend.testexecutionplan.TypedSide ours,
                 @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String rootClassFqn,
-                ReplayFacts facts, com.legend.testexecutionplan.Appeal.Enums enums) {
+                ReplayFacts facts, com.legend.edge.Appeal.Enums enums) {
             List<String> golden = new ArrayList<>();
             try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(goldenSql)) {
                 int n = rs.getMetaData().getColumnCount();

@@ -67,7 +67,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
         Cursor c = new Cursor(Lexer.tokenize(src.text()), 0, 0, // SPI overlay hosting = the drop-in seam: engine grammar
-                com.legend.parser.Dialect.LEGEND_ENGINE);
+                com.legend.parser.GrammarLevel.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {
                 SectionImports.parseImport(c);
@@ -123,7 +123,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
      *  offset every line, column offset first line only) so spans stay
      *  file-absolute. */
     public static Protocol.PConnectionValue parseIslandValue(String islandText,
-            int baseLine, int baseColumn, com.legend.parser.Dialect dialect) {
+            int baseLine, int baseColumn, com.legend.parser.GrammarLevel dialect) {
         Cursor c = new Cursor(Lexer.tokenize(islandText),
                 baseLine - 1, baseColumn - 1, dialect);
         String flavor = c.safeText();
@@ -1332,13 +1332,13 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     private static final class Cursor implements TokenStreamCursor {
 
         private final TokenStream tokens;
-        private final com.legend.parser.Dialect dialect;
+        private final com.legend.parser.GrammarLevel dialect;
         private int pos;
         private final int lineOffset;
         private final int colOffset;
 
         Cursor(TokenStream tokens, int lineOffset, int colOffset,
-                com.legend.parser.Dialect dialect) {
+                com.legend.parser.GrammarLevel dialect) {
             this.tokens = tokens;
             this.lineOffset = lineOffset;
             this.colOffset = colOffset;
@@ -1346,7 +1346,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         }
 
         @Override
-        public com.legend.parser.Dialect dialect() {
+        public com.legend.parser.GrammarLevel dialect() {
             return dialect;
         }
 

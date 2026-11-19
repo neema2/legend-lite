@@ -17,13 +17,20 @@ import java.util.List;
  * <p>Every dialect writes all of its SQL here (E, complete 2026-10-09): every query, its expressions and composing
  * helpers, the legacy engine-text printer's text, and DML's rows. DDL spells only names, types and keywords, so it is
  * text, as any spelling is.
+ *
+ * <p>Public for the compatibility edge's printers (phase D, 2026-11-12: legend-engine's text printers moved to
+ * {@code com.legend.edge}, subclasses of the product's dialects that write into the writer their dialect made); only a
+ * dialect makes one (the constructor stays the package's).
  */
-final class SqlWriter {
+// public, with its write API alone (append, expr, function, join, list, piece, text): the compatibility edge's engine-text
+// printers (com.legend.edge.EngineStyle*, O3, 2026-11-12) write into it; its binding and region API stays the
+// package's (narrowed 2026-11-15, the D part 1 audit's nit)
+public final class SqlWriter {
 
     /** How the writer's dialect writes an expression into a writer ({@code AnsiSqlRenderer.expr}): the writer is made
      *  by its dialect, so {@link #expr} writes a sub-expression in that dialect's spelling, in place. */
     @FunctionalInterface
-    interface Expressions {
+    public interface Expressions {
         void write(SqlWriter writer, com.legend.sql.SqlExpr e, int parentPrec);
     }
 
@@ -31,7 +38,7 @@ final class SqlWriter {
      *  jsonb, a list whose elements it ranges over): written where the helper writes it, as often as it does, its
      *  parameters with it (jOOQ's QueryPart). */
     @FunctionalInterface
-    interface Piece {
+    public interface Piece {
         void writeTo(SqlWriter writer);
     }
 
@@ -55,29 +62,29 @@ final class SqlWriter {
         this.expressions = java.util.Objects.requireNonNull(expressions, "expressions");
     }
 
-    SqlWriter append(String text) {
+    public SqlWriter append(String text) {
         sql.append(text);
         return this;
     }
 
-    SqlWriter append(char c) {
+    public SqlWriter append(char c) {
         sql.append(c);
         return this;
     }
 
-    SqlWriter append(long n) {
+    public SqlWriter append(long n) {
         sql.append(n);
         return this;
     }
 
     /** Writes {@code e} here, in the writer's dialect, at {@code parentPrec}. */
-    SqlWriter expr(com.legend.sql.SqlExpr e, int parentPrec) {
+    public SqlWriter expr(com.legend.sql.SqlExpr e, int parentPrec) {
         expressions.write(this, e, parentPrec);
         return this;
     }
 
     /** Writes the expressions joined by {@code separator}, each at {@code parentPrec}. */
-    SqlWriter join(List<com.legend.sql.SqlExpr> es, String separator, int parentPrec) {
+    public SqlWriter join(List<com.legend.sql.SqlExpr> es, String separator, int parentPrec) {
         for (int i = 0; i < es.size(); i++) {
             if (i > 0) {
                 sql.append(separator);
@@ -88,17 +95,17 @@ final class SqlWriter {
     }
 
     /** Writes the expressions, comma-separated. */
-    SqlWriter list(List<com.legend.sql.SqlExpr> es) {
+    public SqlWriter list(List<com.legend.sql.SqlExpr> es) {
         return join(es, ", ", 0);
     }
 
     /** Writes {@code name(args...)}, the arguments comma-separated. */
-    SqlWriter function(String name, List<com.legend.sql.SqlExpr> args) {
+    public SqlWriter function(String name, List<com.legend.sql.SqlExpr> args) {
         return append(name).append("(").list(args).append(")");
     }
 
     /** Writes each item as {@code each} writes it, joined by {@code separator}. */
-    <T> SqlWriter join(List<T> items, String separator, java.util.function.BiConsumer<SqlWriter, T> each) {
+    public <T> SqlWriter join(List<T> items, String separator, java.util.function.BiConsumer<SqlWriter, T> each) {
         for (int i = 0; i < items.size(); i++) {
             if (i > 0) {
                 sql.append(separator);
@@ -109,7 +116,7 @@ final class SqlWriter {
     }
 
     /** Writes {@code piece} here. */
-    SqlWriter piece(Piece piece) {
+    public SqlWriter piece(Piece piece) {
         piece.writeTo(this);
         return this;
     }
@@ -217,7 +224,7 @@ final class SqlWriter {
 
     /** The text written, for a caller that takes SQL as text: refused when a parameter was bound, which only a
      *  statement ({@link #statement}) can carry. */
-    String text() {
+    public String text() {
         if (!regions.isEmpty()) {
             throw new IllegalStateException("a statement with per-key regions was asked for as text: render it as a"
                     + " statement, which the runner writes once per key");

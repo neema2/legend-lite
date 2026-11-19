@@ -97,7 +97,7 @@ async function attempt(
     // print is what the outcome records for a person to read.
     query = await levelWithValues(snapshot, scope, async (values) =>
       deps.engine.execute(await deps.planner.plan(values), snapshot.epoch));
-    pure = await deps.planner.print(query, 'STANDARD');
+    pure = await deps.planner.print(query, 'standard');
   } catch (e) {
     // The query builder refusing is still a refusal, not a crash: it
     // declines shapes the cube cannot express.
@@ -162,7 +162,7 @@ export async function runStress(): Promise<Outcome[]> {
         detail: (e as Error).message });
       continue;
     }
-    models.use(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
+    models.use(opened.model, opened.runtime);
     const cols = await sourceColumns(planner, opened.source);
     const snap = (over: Partial<QuerySnapshot>): QuerySnapshot =>
       ({ ...base(opened.source, cols), ...over });

@@ -30,11 +30,19 @@ exports_files(["pnpm-lock.yaml", "package.json"])
 # - run: what sends a plan's statements and reads their rows: records and npm only, NO planner, no server, no door;
 # - planner: legend-lite's planner in the tab and its planning client (no execute): records and the protocol only;
 # - server: legend-engine's API clients, whose execute is the SERVER's door;
-# - doors: the one target over both -- each asks the planner, then runs the answer in a run frame (run-frame.ts).
+# - doors: the one target over both -- each asks the planner, then runs the answer in a run frame (run-frame.ts);
+# - edge: legend-engine's API in TypeScript (H11, 2026-11-17) -- its wire shapes, its refusal, its Grammar and Engine,
+#   their HTTP clients and their tab bindings -- over the layers above; no product layer and no app reaches it.
 _RECORDS = [
+    # the raises the plans declare (phase D's option (D), 2026-11-15): a plan reader of either side declares them, the
+    # run side words a failure from them -- no send, no plan
+    "src/declared-raises.ts",
     "src/generated/lite-facts.ts",
+    # a product raise's envelope marks (#104's M2(b)): facts both sides may read
+    "src/generated/lite-raise.ts",
     "src/json-unknown.ts",
-    "src/legend/engine-api.ts",
+    # lite's one error shape (lite's API v1 spec §3, 2026-11-17): a record both bindings read
+    "src/lite-error.ts",
     "src/legend/pmcd.ts",
     "src/legend/wire.ts",
     "src/locale.ts",
@@ -72,34 +80,56 @@ _RUN = [
     "src/model-data.ts",
     "src/plan-runner.ts",
     "src/project-data.ts",
+    # a send's failure worded (#104's M2(b)): the run side's
+    "src/raised.ts",
     "src/warehouse.ts",
 ]
 
 # 2026-11-15 (the C5-T audit's item 3): the planner's protocol (PlannerWorker, its requests) and Grammar out of the
 # records, which handed the run side a typed way into the planner
 _PLANNER = [
-    "src/legend/grammar.ts",
     "src/legend/planner-answer.ts",
     "src/legend/planner-protocol.ts",
     "src/legend/planner-worker.ts",
-    "src/legend/planning-client.ts",
     "src/legend/wasm-grammar.ts",
     "src/planner-sources.ts",
-    "src/pure-v1-planning.ts",
-]
-
-_SERVER = [
-    "src/legend/engine.ts",
-    "src/pure-v1.ts",
 ]
 
 # the multi-step doors kept in place (the orchestrator's note 3: each made one keyed plan later, the backlog of
 # docs/records/c5-typescript-2026-11-15.md)
 _DOORS = glob(["src/doors/**/*.ts"]) + [
-    "src/engine-remote.ts",
+    # a remote executor's shape, the product's (H11, 2026-11-17: out of engine-remote.ts, which is the edge's)
+    "src/remote-executor.ts",
     "src/legend/browser-engine.ts",
     "src/snap.ts",
     "src/tab-data.ts",
+]
+
+# LEGEND-ENGINE'S API, THE EDGE'S (H11, 2026-11-17: the orchestrator's go; lite's API v1 spec §6, "no product module
+# depends on the edge"): its wire shapes (engine-wire.ts, out of wire.ts, whose model input stays the product's), its
+# refusal (engine-api.ts, out of the records), its Grammar and HTTP planning client (grammar.ts, planning-client.ts, out
+# of the planner), its engines (engine.ts, out of the server layer), and its tab bindings over the product's planner and
+# runner (wasm-edge.ts, out of the planner; edge-engine.ts's BrowserEngine, out of browser-engine.ts). Over the layers
+# above, never under them: no product target depends on it -- an app's compat entry alone, loaded when configured
+# `engine: legend-engine` (the orchestrator's alignment, the same day; tools/deps/ts-layers.txt, TsLayeringTest
+# EDGE_ENTRIES and noAppReachesTheEdge) -- no product module imports one of its files (//tools/deps:app_runs_test), and
+# the aggregate below does not carry it: a test that builds legend-engine's engines names it.
+_EDGE = [
+    "src/legend/edge-engine.ts",
+    "src/legend/engine-api.ts",
+    # legend-engine's routes in the tab, the engine module (the user's K2 ruling, 2026-11-18: "Product root, edge opt-in")
+    "src/legend/engine-module.ts",
+    "src/legend/engine-wire.ts",
+    "src/legend/engine.ts",
+    "src/legend/grammar.ts",
+    "src/legend/planning-client.ts",
+    "src/legend/wasm-edge.ts",
+    # (H11's moves, DataCube's half, 2026-11-17: legend-engine's pure/v1 client and its planning half, out of the server
+    # and planner layers -- the server layer, emptied, is deleted -- and its executor, out of the doors; each file at its
+    # own path, as this BUILD's convention keeps them)
+    "src/engine-remote.ts",
+    "src/pure-v1-planning.ts",
+    "src/pure-v1.ts",
 ]
 
 # NODE'S HOST, for code run in Node alone -- tests, benchmarks and harnesses: a require rooted in this package, and
@@ -107,7 +137,7 @@ _DOORS = glob(["src/doors/**/*.ts"]) + [
 # it, and the run layer, which the browser bundles carry, holds no require door (the C5-T audit's item 8, 2026-11-15)
 _NODE_HOST = ["src/node-require.ts"]
 
-_ASSIGNED = _RECORDS + _ENGINE_API + _RUN + _PLANNER + _SERVER + _DOORS + _NODE_HOST
+_ASSIGNED = _RECORDS + _ENGINE_API + _RUN + _PLANNER + _DOORS + _EDGE + _NODE_HOST
 
 [fail("engine-client/%s is in no target of engine-client/BUILD.bazel: add it to the one whose layer it is" % f) for f in glob(["src/**/*.ts"]) if f not in _ASSIGNED]
 
@@ -159,24 +189,6 @@ js_library(
 )
 
 js_library(
-    name = "server",
-    srcs = _SERVER,
-    visibility = _APPS + ["//tools/deps:__pkg__"],
-    deps = [
-        ":planner",
-        ":records",
-        "//pure-protocol:pure_protocol",
-        # fzstd 0.1.1, exact (2026-10-08, the user's approval): legend-engine's Arrow answer to execute (ARROW_IPC) is
-        # ALWAYS one zstd frame (RelationalResultToArrowIPCSerializer wraps its stream in a ZstdOutputStream; measured,
-        # core/src/test/resources/upstream-api/e8-arrow-groupby-sort.json), Python's engine answers the same bytes so
-        # one reader serves both, and the browser's DecompressionStream reads no zstd (the pinned Chromium 153,
-        # measured). A decoder, pure JavaScript, MIT, no dependencies, loaded on the first Arrow answer only
-        # (pure-v1.ts arrowIpcStream: the bundles that never meet one do not carry it).
-        ":node_modules/fzstd",
-    ],
-)
-
-js_library(
     name = "doors",
     srcs = _DOORS,
     visibility = _APPS + ["//tools/deps:__pkg__"],
@@ -185,9 +197,33 @@ js_library(
         ":planner",
         ":records",
         ":run",
-        ":server",
         "//pure-protocol:pure_protocol",
         ":node_modules/apache-arrow",
+    ],
+)
+
+js_library(
+    name = "edge",
+    srcs = _EDGE,
+    # the tests that build legend-engine's engines (DataCube's python-engine execute, Studio's engine and modules) and
+    # the layering census; no app's product target (tools/deps/ts-layers.txt)
+    visibility = [
+        "//datacube:__pkg__",
+        "//studio:__pkg__",
+        "//tools/deps:__pkg__",
+    ],
+    deps = [
+        ":doors",
+        ":engine_api",
+        ":planner",
+        ":records",
+        ":run",
+        "//pure-protocol:pure_protocol",
+        # legend-engine's executor reads its Arrow answers (engine-remote.ts), its client their zstd frame (pure-v1.ts;
+        # fzstd 0.1.1, exact, the user's approval of 2026-10-08: legend-engine's Arrow answer to execute is ALWAYS one
+        # zstd frame, RelationalResultToArrowIPCSerializer; moved here from the deleted server layer, H11 2026-11-17)
+        ":node_modules/apache-arrow",
+        ":node_modules/fzstd",
     ],
 )
 
@@ -200,7 +236,8 @@ js_library(
 )
 
 # every layer at once, what the apps depend on (their own layers name the one they reach: tools/deps/ts-layers.txt),
-# and Node's host for their Node tests and harnesses
+# and Node's host for their Node tests and harnesses -- never the edge (H11, 2026-11-17: an app that took this would
+# take legend-engine's API with it)
 js_library(
     name = "engine_client",
     srcs = ["package.json"],
@@ -212,7 +249,6 @@ js_library(
         ":planner",
         ":records",
         ":run",
-        ":server",
     ],
 )
 
@@ -236,11 +272,11 @@ js_library(
     expression = "labels(deps, //engine-client:%s)" % layer,
     scope = [":" + layer],
     visibility = ["//tools/deps:__pkg__"],
-) for layer in ["records", "engine_api", "run", "planner", "server", "doors", "node_host"]]
+) for layer in ["records", "engine_api", "run", "planner", "doors", "edge", "node_host"]]
 
 filegroup(
     name = "layer_queries",
-    srcs = [":layer_" + layer for layer in ["records", "engine_api", "run", "planner", "server", "doors", "node_host"]],
+    srcs = [":layer_" + layer for layer in ["records", "engine_api", "run", "planner", "doors", "edge", "node_host"]],
     visibility = ["//tools/deps:__pkg__"],
 )
 
@@ -279,6 +315,20 @@ exports_files(
 # expandKeyed and Python's _keyed_text each read it
 exports_files(
     ["test/fixtures/keyed-expansion.json"],
+    visibility = ["//core:__pkg__", "//python:__pkg__"],
+)
+
+# a product raise's envelope, one set of cases (#104's M2(b), 2026-11-15): Java's RaisedErrors, the tab's raised.ts and
+# Python's _raised.py each read it and must agree
+exports_files(
+    ["test/fixtures/raise-envelopes.json"],
+    visibility = ["//core:__pkg__", "//python:__pkg__"],
+)
+
+# lite API v1's conformance suite (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of
+# cases the three bindings answer alike -- the browser's (//core:lite_api_conformance_test), the server's and Python's
+exports_files(
+    ["test/fixtures/lite-api-cases.json"],
     visibility = ["//core:__pkg__", "//python:__pkg__"],
 )
 
@@ -323,7 +373,9 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["tools/typefacts/TypeFacts.java"],
-    deps = ["//core:compiler_element_type"],
+    # a product raise's envelope (#104's M2(b), 2026-11-15): exec.RaisedErrors's marks and sql.RaiseKind's; its words
+    # are the plans' own since 2026-11-15 (PlanJson.raises, phase D's option (D)), so error.ErrorKind is not read here
+    deps = ["//core:compiler_element_type", "//core:exec", "//core:sql"],
 )
 
 java_run(
@@ -331,6 +383,19 @@ java_run(
     outs = ["generated/lite-facts.gen.ts"],
     arguments = [
         "ts",
+        "{OUT}",
+    ],
+    main_class = "typefacts.TypeFacts",
+    deps = [":type_facts_main"],
+)
+
+# a product raise's envelope marks (#104's M2(b), 2026-11-15), a module of their own that raised.ts reads; the words are
+# the plans' own since phase D's option (D) (PlanJson.raises, declared-raises.ts)
+java_run(
+    name = "lite_raise",
+    outs = ["generated/lite-raise.gen.ts"],
+    arguments = [
+        "raise-ts",
         "{OUT}",
     ],
     main_class = "typefacts.TypeFacts",
@@ -356,6 +421,7 @@ write_source_files(
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact the engine client mirrors -- regenerate: bazel run //engine-client:update_generated, then read the diff (a changed Pure kind or pivot separator changes what a grid shows)",
     files = {
         "src/generated/lite-facts.ts": ":lite_facts",
+        "src/generated/lite-raise.ts": ":lite_raise",
     },
     visibility = ["//:__pkg__"],
 )
@@ -449,6 +515,8 @@ node_test(
     size = "small",
     data = [
         ":engine_client",
+        # legend-engine's engines (HttpEngine, RoutedEngine) checked for their run frames (H11, 2026-11-17: the edge's)
+        ":edge",
         # the choke points' test sends its own statements (C5-T, 2026-11-15)
         "test/unplanned.ts",
     ],
@@ -465,18 +533,60 @@ node_test(
     data = [
         "test/unplanned.ts",
         ":engine_client",
+        # the tab's pure/v1 execute binds 64-bit values too (BrowserEngine; H11, 2026-11-17: the edge's)
+        ":edge",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/fixtures/run-load-conformance.json",
         "test/fixtures/keyed-expansion.json",
+        "test/fixtures/raise-envelopes.json",
         "test/planner.ts",
+        # legend-engine's routes, the engine module's (the user's K2 ruling, 2026-11-18)
+        "test/engine.ts",
     ],
     entry_point = "test/plan-runner.test.ts",
     # the load runners' shared conformance fixture (B3): Python's engine test runs it too
     env = {
         "RUN_LOAD_FIXTURE": "$(rlocationpath test/fixtures/run-load-conformance.json)",
         "KEYED_FIXTURE": "$(rlocationpath test/fixtures/keyed-expansion.json)",
+        "RAISE_FIXTURE": "$(rlocationpath test/fixtures/raise-envelopes.json)",
     },
     wasm = True,
+    # the tab's pure/v1 execute asks the engine module beside the planner (the user's K2 ruling, 2026-11-18)
+    engine = True,
+)
+
+# THE ENGINE MODULE IS OPT-IN (the user's K2 ruling, ~06:00 2026-11-18: "Product root, edge opt-in"): loaded only for
+# engine: 'legend-engine', any other word refused by name with nothing opened, and never asked inside a run
+node_test(
+    name = "engine_module_test",
+    size = "small",
+    data = [
+        ":edge",
+        ":engine_client",
+        "test/planner.ts",
+    ],
+    entry_point = "test/engine-module.test.ts",
+    engine = True,
+)
+
+# LITE API V1'S CONFORMANCE SUITE, THE SERVER BINDING (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of
+# 2026-11-17): each case of the one cases file asked of legend-lite's server (//core:server, started for the file by
+# query-store's booter) over /api/lite/v1/<op>, its answer held to the case's
+node_test(
+    name = "lite_api_server_test",
+    # starts a JVM server: past `small`'s 60 s on a loaded runner (as //query-store:lite_test)
+    size = "medium",
+    data = [
+        ":engine_client",
+        "test/fixtures/lite-api-cases.json",
+        "//query-store:lite_server",
+        "//query-store:legend_server",
+    ],
+    entry_point = "test/lite-api-server.test.ts",
+    env = {
+        "LITE_API_CASES": "$(rlocationpath test/fixtures/lite-api-cases.json)",
+        "LEGEND_SERVER": "$(rlocationpath //query-store:legend_server)",
+    },
 )
 
 # The tab's warehouse driver held to the one corpus (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): each recorded scenario
@@ -550,13 +660,18 @@ test_suite(
     name = "tests",
     tests = [
         ":arrow_ipc_test",
+        # the engine module, opt-in (K2), and lite API v1's server binding: found in no lane by CI's lane guard on PR #118
+        # (PR #118 fix round, 2026-11-18)
+        ":engine_module_test",
+        ":lite_api_server_test",
         ":model_data_test",
         ":node_duckdb_test",
         ":plan_runner_test",
         ":planned_sql_test",
         ":run_frame_test",
         ":snap_test",
-        ":update_generated_test",
+        # two generated sources since 2026-11-15 (lite-raise.ts, #104's raise envelope): one diff test each, their suite
+        ":update_generated_tests",
         ":warehouse_corpus_test",
     ],
 )

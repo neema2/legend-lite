@@ -34,8 +34,8 @@ import java.util.Set;
  * The SQLite EXECUTION dialect (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12): a sibling of {@link BigQuery}
  * and {@link Postgres} over {@link AnsiSqlRenderer}, replacing the lexicon row SQLite was (remediation T3.2: it
  * differed then only lexically; the PCT lane measured otherwise). Every spelling here was measured on the product's own
- * driver (xerial sqlite-jdbc 3.47.1.0, its build of SQLite 3.47.1 with the math functions and the driver's statistics
- * extension) before it was trusted; the platform's semantics are DuckDB's.
+ * driver (xerial sqlite-jdbc 3.53.1.0 since 2026-11-16, its build of SQLite 3.53.1 with the math functions and the
+ * driver's statistics extension) before it was trusted; the platform's semantics are DuckDB's.
  *
  * <p>What differs from DuckDB, measured:
  * <ul>
@@ -67,7 +67,9 @@ import java.util.Set;
  * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
  * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
-public final class SQLite extends AnsiSqlRenderer {
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class SQLite extends AnsiSqlRenderer {
 
     /** {@inheritDoc} -- SQLite: half its SQLITE_MAX_SQL_LENGTH (1,000,000 bytes), a margin for multi-byte text. */
     @Override
@@ -122,13 +124,6 @@ public final class SQLite extends AnsiSqlRenderer {
     @Override
     public boolean inProcess() {
         return true;
-    }
-
-    /** The engine's H2 text is refused here: SQLite has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
     }
 
     /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
@@ -231,18 +226,6 @@ public final class SQLite extends AnsiSqlRenderer {
 
     @Override
     public boolean needsStaticPivot() {
-        return true;
-    }
-
-    /** The portable carrier strategies, star exclusions spelled out (no EXCLUDE), the substring start clamp, whole-
-     *  partition ordered sets as correlated subqueries, explosions placed as markers in FROM (a json_each), QUALIFY as
-     *  a wrapping subselect, a constant GROUP BY or ORDER BY key as an expression (an integer one is a position), and a
-     *  large repeated subexpression written once (a statement is capped at 1,000,000 bytes, measured). */
-    /** A Float's literal spelling over the double's text bound ONCE (the portable spelling reads the text some fifty
-     *  times, each read this dialect's shortest-digits expression, which no common-subexpression binding counts as
-     *  large: a five-element mixed list's sort was 1.6 MB, past the 1 MB statement cap -- measured 2026-10-11). */
-    @Override
-    protected boolean bindsFloatText() {
         return true;
     }
 
@@ -453,13 +436,18 @@ public final class SQLite extends AnsiSqlRenderer {
         }
         if (label instanceof SqlType.Decimal d) {
             // printf reads a NULL as 0 and writes '0.00' (measured 2026-10-11 for the Float text, and 2026-10-27 here:
-            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL
+            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL. A label of scale 0 promises
+            // nothing of the value's digits (a #TDS Decimal column is typed DECIMAL(38, 0), and 0.1 in it is a REAL
+            // here): its text is the value's own -- an integer's digits, a REAL's shortest (the scale-0 text, textOf)
+            // -- never printf('%.0f'), which read 0.1 back as 0 (F49, E-P5's FloatAndDecimalTest, 2026-11-17)
+            SqlExpr text = d.scale() == 0 ? new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT)
+                    : SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e);
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e),
-                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE))),
-                    SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e));
+                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT))),
+                    text, SqlExpr.Reason.DIALECT);
         }
         if (label == SqlType.Scalar.DOUBLE) {
-            return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE);
+            return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
         }
         // an integer past 64 bits has no SQLite value: its arithmetic overflows to a REAL silently (measured:
         // 9223372036854775807 + 3 is 9.22337203685478e+18), so a big integer's column raises instead
@@ -467,9 +455,9 @@ public final class SQLite extends AnsiSqlRenderer {
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR,
                     SqlExpr.Call.of(SqlFn.GREATER, e, new SqlExpr.IntLit(Long.MAX_VALUE)),
                     SqlExpr.Call.of(SqlFn.LESS, e, new SqlExpr.IntLit(Long.MIN_VALUE))),
-                    SqlExpr.Call.of(SqlFn.ERROR,
-                            new SqlExpr.StringLit("an integer past 64 bits has no SQLite value")))),
-                    e);
+                    SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                            "an integer past 64 bits has no SQLite value")))),
+                    e, SqlExpr.Reason.RAISE);
         }
         return e;
     }
@@ -868,6 +856,10 @@ public final class SQLite extends AnsiSqlRenderer {
         if (t == null && x instanceof SqlExpr.BoolLit) {
             t = SqlType.Scalar.BOOLEAN;
         }
+        // a Float literal is written as its own shortest digits, which read back (a computed one: jsonOf's Float)
+        if (t == SqlType.Scalar.DOUBLE && x instanceof SqlExpr.FloatLit) {
+            return w -> w.expr(x, 0);
+        }
         return jsonOf(w -> w.expr(x, 0), t);
     }
 
@@ -882,7 +874,28 @@ public final class SQLite extends AnsiSqlRenderer {
         if (nested(t)) {
             return w -> w.append("json(").piece(v).append(")");
         }
+        // a Float as a JSON number of seventeen significant digits (E-v3, 2026-11-16): SQLite's JSON writes a REAL
+        // with fifteen, so sqrt(2.0) read back 1.4142135623731 (134 of 2,011 doubles read back, measured on 3.53.1),
+        // and the product's 3.47.1 casts a REAL to TEXT with fifteen too (FloatCarrierExactTest, measured); seventeen
+        // read back every one. printf writes a NULL as 0.0, so the NULL is kept by a guard. 2.9x the raw form's time
+        // to build a list of a million (286 vs 99 ms), the price of the right answer
+        if (t == SqlType.Scalar.DOUBLE) {
+            return w -> w.append("json(").piece(exactText(v)).append(")");
+        }
         return v;
+    }
+
+    /** A double's text that reads back as the same double: seventeen significant digits (SQLite's JSON and its
+     *  3.47 CAST write fifteen, measured), the NULL kept (printf writes NULL as 0.0). The Float carrier
+     *  ({@link #exactFloatText}) and the JSON carrier's number ({@link #jsonOf}). */
+    private static SqlWriter.Piece exactText(SqlWriter.Piece v) {
+        return w -> w.append("CASE WHEN ").piece(v).append(" IS NULL THEN NULL ELSE printf('%!.17g', ").piece(v)
+                .append(") END");
+    }
+
+    @Override
+    protected SqlWriter exactFloatText(SqlWriter writer, SqlExpr.Cast c) {
+        return writer.piece(exactText(w -> w.expr(c.value(), 0)));
     }
 
     /** The element read by {@code json_each}'s columns as a value of type {@code t}: a Variant element is its JSON text
@@ -1306,7 +1319,40 @@ public final class SQLite extends AnsiSqlRenderer {
             return writer.piece(asText(typeOf(v) == SqlType.Scalar.HUGEINT ? deliveredValue(v, SqlType.Scalar.HUGEINT)
                     : v));
         }
-        return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
+        // a Float parsed from text (parseFloat), legend-pure's grammar (the user, 2026-11-16: "Parsefloat - sure"): an
+        // optional sign, digits with an optional point, an optional exponent; surrounding whitespace and one trailing f
+        // accepted, one rule on every database (the orchestrator, 2026-11-16) -- where SQLite's CAST read 'abc' as 0,
+        // '1.2.3' as 1.2 and 'NaN' as 0 (measured).
+        // The text is read once (t); the sign stripped (u), its leading zeros (z), a bare point or exponent given a
+        // digit (p), and the result (n) is JSON's number grammar, the one test SQLite has; the text is trimmed and one
+        // trailing f stripped first, as legend-pure strips it. NaN raises VALUE_NOT_HELD
+        // (S138) and an infinity is SQLite's own, as DuckDB and H2 read them. Prototyped against the grammar: the
+        // table and 30,000 fuzzed strings, no mismatch (Phase 8).
+        if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
+            SqlExpr t = SqlExpr.Column.derived(null, "__pf_t");
+            return writer.append("(SELECT CASE WHEN __pf_t IS NULL THEN NULL WHEN __pf_t IN ('NaN', '+NaN', '-NaN') THEN ")
+                    .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                            "parseFloat of NaN is NaN, which this database cannot hold"))))
+                    .append(" WHEN __pf_t IN ('Infinity', '+Infinity') THEN 9e999 WHEN __pf_t = '-Infinity' THEN -9e999"
+                            + " WHEN __pf_t NOT GLOB '*[^0-9.eE+-]*' AND (__pf_u GLOB '[0-9]*' OR __pf_u GLOB '.[0-9]*')"
+                            + " AND replace(replace(lower(__pf_u), 'e+', 'e'), 'e-', 'e') NOT GLOB '*[+-]*'"
+                            + " AND CASE WHEN json_valid(__pf_n) THEN json_type(__pf_n) IN ('integer', 'real') ELSE 0 END"
+                            + " THEN CAST(__pf_n AS REAL) ELSE ")
+                    .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, List.of(t)))))
+                    .append(" END FROM (SELECT __pf_t, __pf_u, CASE WHEN substr(__pf_t, 1, 1) = '-' THEN '-' ELSE '' END"
+                            + " || replace(replace(CASE WHEN __pf_p GLOB '*.' THEN __pf_p || '0' ELSE __pf_p END, '.e',"
+                            + " '.0e'), '.E', '.0E') AS __pf_n FROM (SELECT __pf_t, __pf_u, CASE WHEN __pf_z = '' OR"
+                            + " substr(__pf_z, 1, 1) IN ('.', 'e', 'E') THEN '0' || __pf_z ELSE __pf_z END AS __pf_p FROM"
+                            + " (SELECT __pf_t, __pf_u, ltrim(__pf_u, '0') AS __pf_z FROM (SELECT __pf_t, CASE WHEN"
+                            + " substr(__pf_t, 1, 1) IN ('+', '-') THEN substr(__pf_t, 2) ELSE __pf_t END AS __pf_u FROM"
+                            + " (SELECT CASE WHEN __pf_s GLOB '*[fF]' THEN substr(__pf_s, 1, length(__pf_s) - 1)"
+                            + " ELSE __pf_s END AS __pf_t FROM (SELECT trim(")
+                    .expr(v, 0).append(", char(9, 10, 11, 12, 13, 32)) AS __pf_s)))))))");
+        }
+        // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
+        boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT
+                || target == SqlType.Scalar.HUGEINT);
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code ->> '$'}: a string unquoted, a boolean 1 or
@@ -1516,8 +1562,43 @@ public final class SQLite extends AnsiSqlRenderer {
         return false;
     }
 
+    /** The arithmetic a Decimal operand is refused in here (D2a, the orchestrator's decision of 2026-11-17, found by
+     *  FloatAndDecimalTest): SQLite holds no exact decimal -- a decimal is a REAL, and the driver shipped (sqlite-jdbc
+     *  3.47.1.0) carries no decimal extension ({@code decimal_add}: "no such function", measured) -- so a Decimal's sum,
+     *  difference, product, quotient or remainder would be the double's, silently approximate ({@code 0.1D + 0.2D},
+     *  {@code rem(0.3D, 0.1D)}). Refused by name, never approximated (G7). */
+    private static final Set<SqlFn> DECIMAL_ARITHMETIC = Set.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES, SqlFn.DIVIDE,
+            SqlFn.MOD, SqlFn.REM);
+
+    /** Whether a Decimal's arithmetic is refused here: the product's, by the no-silent-approximation rule (D2a). The
+     *  compatibility edge writes it as REAL arithmetic, as legend-engine would here (the edge program's §6 row 22). */
+    protected boolean refusesDecimalArithmetic() {
+        return true;
+    }
+
+    /** Whether {@code e} is a Decimal value: of a Decimal fact, and holding a Decimal of the user's -- a Decimal
+     *  literal, a cast to a Decimal, or a column read as one -- not the lowering's own Float literal (an average's
+     *  {@code 1.0 *}, a DECIMAL fact by its digits, a REAL here like every Float). */
+    private static boolean holdsADecimal(SqlExpr e) {
+        if (!(e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Decimal)) {
+            return false;
+        }
+        return switch (e) {
+            case SqlExpr.DecimalLit d -> true;
+            case SqlExpr.Column col -> true;
+            case SqlExpr.Cast cast -> cast.target() instanceof SqlType.Decimal || holdsADecimal(cast.value());
+            case SqlExpr.FloatLit f -> false;
+            default -> e.children().stream().anyMatch(SQLite::holdsADecimal);
+        };
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        if (refusesDecimalArithmetic() && DECIMAL_ARITHMETIC.contains(c.fn())
+                && c.args().stream().anyMatch(SQLite::holdsADecimal)) {
+            throw new DialectCapability("a Decimal's arithmetic (" + c.fn() + ") reached SQLite, which holds no exact"
+                    + " decimal (a decimal is a REAL there): refused, never approximated");
+        }
         if (REPEATING.contains(c.fn()) && c.args().stream().anyMatch(SQLite::bindable)) {
             return writer.piece(over(c.args(), refs -> w -> calls(w, (SqlExpr.Call) c.withChildren(refs), 0)));
         }
@@ -1527,6 +1608,8 @@ public final class SQLite extends AnsiSqlRenderer {
     private SqlWriter calls(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -1547,8 +1630,10 @@ public final class SQLite extends AnsiSqlRenderer {
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
             case PI -> writer.append("pi()");
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1629,6 +1714,10 @@ public final class SQLite extends AnsiSqlRenderer {
             case CONCAT -> writer.append("concat(").join(flattenConcat(a), ", ", (w, x) -> w.piece(asText(x)))
                     .append(")");
             case CONCAT_JOIN -> writer.append("concat(").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
+            // the product's join of a row's cells: concat_ws skips a NULL part with its separator (SQLite 3.44 on;
+            // measured on 3.47, Phase 3)
+            // each part is already a text: written as it is (asText would cast it again, round 75's lean note)
+            case CONCAT_WS -> writer.append("concat_ws(").list(a).append(")");
             case LENGTH -> writer.append("length(").piece(asText(a.get(0))).append(")");
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
             case LPAD, RPAD -> writer.piece(pad(c.fn(), a));
@@ -1681,7 +1770,8 @@ public final class SQLite extends AnsiSqlRenderer {
             // past SQLite's years 0000-9999 a date function answers NULL (measured): raised, never a NULL value
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("(CASE WHEN ").expr(a.get(1), 4)
                     .append(" IS NULL OR ").expr(a.get(2), 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                    .piece(addInterval(a, c)).append(", ").piece(raise(List.of(new SqlExpr.StringLit(
+                    .piece(addInterval(a, c)).append(", ").piece(raise(raiseArgs(SqlExpr.RaiseText.placed(
+                            com.legend.sql.RaiseKind.VALUE_NOT_HELD,
                             "a date past the years 0000-9999 has no SQLite value")))).append(") END)");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
@@ -1730,7 +1820,8 @@ public final class SQLite extends AnsiSqlRenderer {
                 .append("(").expr(a.get(0), 0).append("), ")
                 // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
                 // engine's answer), and says so -- not DuckDB's words
-                .piece(raise(List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
+                .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                        c.fn().name().toLowerCase(java.util.Locale.ROOT)
                         + " of a value outside [-1, 1] is NaN, which this database cannot hold"))))
                 .append(") END)");
     }
@@ -1846,13 +1937,14 @@ public final class SQLite extends AnsiSqlRenderer {
 
     /** DuckDB's 64-bit parse: an optional sign and digits, else an error (SQLite's CAST reads 'abc' as 0, measured). */
     private SqlWriter.Piece parseInt(SqlExpr s) {
-        SqlWriter.Piece digits = w -> w.append("ltrim(trim(").expr(s, 0).append("), '+-')");
+        // no trim: legend-pure's parseInteger raises on surrounding whitespace in both modes (Long.valueOf,
+        // Long.parseLong; the orchestrator's decision, Phase 8, 2026-11-16)
+        SqlWriter.Piece digits = w -> w.append("ltrim(").expr(s, 0).append(", '+-')");
         return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(digits)
-                .append(" <> '' AND ").piece(digits).append(" NOT GLOB '*[^0-9]*' AND length(trim(").expr(s, 0)
-                .append(")) - length(").piece(digits).append(") <= 1 THEN CAST(trim(").expr(s, 0)
-                .append(") AS INTEGER) ELSE ").piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT,
-                        new SqlExpr.StringLit("Could not convert string '"), s,
-                        new SqlExpr.StringLit("' to INT64"))))).append(" END)");
+                .append(" <> '' AND ").piece(digits).append(" NOT GLOB '*[^0-9]*' AND length(").expr(s, 0)
+                .append(") - length(").piece(digits).append(") <= 1 THEN CAST(").expr(s, 0)
+                .append(" AS INTEGER) ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))))).append(" END)");
     }
 
     /** GREATEST/LEAST over the arguments, each replaced by the next non-NULL one when it is NULL: NULL only when every
@@ -2350,9 +2442,8 @@ public final class SQLite extends AnsiSqlRenderer {
      *  that is no date raises. */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
         return w -> w.append("(SELECT CASE WHEN date(substr(__pp.t, 1, 10)) = substr(__pp.t, 1, 10) AND (length(__pp.t)"
-                + " = 10 OR substr(__pp.t, 11, 1) = ' ') THEN __pp.t ELSE ").piece(raise(List.of(SqlExpr.Call.of(
-                        SqlFn.CONCAT, new SqlExpr.StringLit("Could not parse '"), x,
-                        new SqlExpr.StringLit("' as a date"))))).append(" END FROM (SELECT ")
+                + " = 10 OR substr(__pp.t, 11, 1) = ' ') THEN __pp.t ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))))).append(" END FROM (SELECT ")
                 .piece(padded(dateTimeText(w2 -> w2.expr(x, 0)))).append(" AS t) AS __pp)");
     }
 
@@ -3321,4 +3412,14 @@ public final class SQLite extends AnsiSqlRenderer {
             default -> false;
         };
     }
+
+    /** {@inheritDoc} {@code printf}'s six decimals, trimmed; its {@code Inf} by Pure's name (no NaN is stored: a NaN reads as NULL; measured 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("replace(");
+        trimmedSix(writer, "rtrim", w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'Inf', 'Infinity')");
+    }
+
 }

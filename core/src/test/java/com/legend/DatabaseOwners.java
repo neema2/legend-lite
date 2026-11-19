@@ -111,7 +111,8 @@ final class DatabaseOwners {
     /** The dialect package's shared files that own a database their name does not say: the engine text's reader owns
      *  the language it reads, legend-engine's H2 (D2). */
     private static final Map<String, Set<String>> NAMED_BY_ROLE = Map.of(
-            MAIN + "sql/dialect/RawSqlBoundary.java", Set.of("H2"));
+            // moved to the edge with the translation (Phase 6's B4 (ii), 2026-11-17)
+            MAIN + "edge/RawSqlBoundary.java", Set.of("H2"));
 
     /** The input languages (D11): each file and the database whose SQL it reads. 2026-10-18, the dialect program's
      *  D11: Postgres's rules that were the translator's (SqlToPure's) are its own files' (operators, casts, functions,
@@ -157,7 +158,18 @@ final class DatabaseOwners {
             // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer) -- the layer's execution
             // side, com.legend.driver, since step C (D73, 2026-10-30); the planner since the seam program's S2g
             // (2026-10-31: the engine's plan text is planning work; the quarantine names it alone of the planner)
-            MAIN + "planner/EngineText.java",
+            // 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): moved to the edge with the engine's plan text
+            MAIN + "edge/EngineText.java",
+            // 2026-11-12 (phase D's D1.0, the spelling hook): the edge's dialect registry, Databases' counterpart for
+            // upstream's spellings (a declared type to the edge's subclass of its product dialect), its test, and the
+            // test class planted for the rule that a dialect is the product's or the edge's
+            MAIN + "edge/PureText.java",
+            TEST + "integration/EdgeSpellingHookTest.java",
+            TEST + "planner/PlantedDialect.java",
+            // 2026-11-12 (phase D's guards): the test classes planted for the dialect-blind rule and the edge's
+            // spelling-only rule, each naming a dialect class by design
+            TEST + "lowering/PlantedDialectBranch.java",
+            TEST + "edge/PlantedEdgeDecision.java",
             // 2026-10-16, the dialect program's Phase 5: the connector registry, Databases' counterpart on the
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",
@@ -198,6 +210,9 @@ final class DatabaseOwners {
             // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A7 (S181, ruled): each database's kept digits of a second,
             // a literal's, a column's and a parameter's slot's, by design
             "core/src/test/java/com/legend/planner/DateTimeFractionTest.java",
+            // 2026-11-18, census J20 (the user's ruling of 2026-11-17 23:05): isNumeric's one rule answered alike on DuckDB,
+            // H2, SQLite and Postgres, each named, by design
+            "core/src/test/java/com/legend/planner/IsNumericProbeTest.java",
             // 2026-11-11 (the user: JSON on every database): a data: source on each embedded server, by the delivery
             // each dialect declares, by design
             "core/src/test/java/com/legend/exec/DataSourceServersTest.java",
@@ -238,8 +253,13 @@ final class DatabaseOwners {
         // the DuckDB-only sources are, owns its database as its dialect does; so does Postgres's (PostgresCells, its
         // jsonb cells behind the DriverCells seam, the plan path program's step 9, 2026-10-19; registered at main's
         // merge, 2026-10-22, when the absolute ban first read it)
+        // 2026-11-13 (phase D's O3): legend-engine's text printers (EngineStyleH2, DB2, Composite), dialects still, moved
+        // from sql/dialect to the edge, each owning its database as it did there
         if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")
-                || rel.startsWith("core/src/main/mongodb/") || rel.startsWith("core/src/main/postgres/")) {
+                || rel.startsWith("core/src/main/mongodb/") || rel.startsWith("core/src/main/postgres/")
+                // 2026-11-17 (Phase 6's B4 (ii)): legend-engine's H2 text translation, moved from sql/dialect to the edge,
+                // owning the language it reads as it did there
+                || rel.matches(MAIN + "edge/(EngineStyle\\w+|RawSqlBoundary)\\.java")) {
             Set<String> own = ownAndParent(rel, source);
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);

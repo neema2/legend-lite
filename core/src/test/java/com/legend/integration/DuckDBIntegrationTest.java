@@ -6502,7 +6502,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // DateTime wins — VARIANT preserves original TIMESTAMP type
         var result = Lean.run(getCompletePureModelWithRuntime(), "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::greatest()", "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
-        assertEquals("2025-02-10T20:10:20+0000", val.toString(),
+        assertEquals("2025-02-10T20:10:20.000000", val.toString(),
                 "greatest where DateTime wins keeps the DateTime print form");
     }
 
@@ -6835,8 +6835,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var ex = assertThrows(
                 com.legend.error.LegendCompileException.class,
                 () -> executeRelation(pureQuery));
-        assertTrue(ex.getMessage().contains("Invalid window frame boundary"),
-                "Expected 'Invalid window frame boundary' message, got: " + ex.getMessage());
+        // its kind, in lite's sentence on the product road; legend-pure's is the edge's (the P2 checkpoint audit's M4)
+        assertTrue(ex.getMessage().contains("window frame starts after it ends"),
+                "Expected the inverted frame's refusal, got: " + ex.getMessage());
     }
 
     @Test
@@ -6848,7 +6849,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var ex = assertThrows(
                 com.legend.error.LegendCompileException.class,
                 () -> executeRelation(pureQuery));
-        assertTrue(ex.getMessage().contains("Invalid window frame boundary"),
-                "Expected 'Invalid window frame boundary' message, got: " + ex.getMessage());
+        // its kind, in lite's sentence on the product road; legend-pure's is the edge's (the P2 checkpoint audit's M4)
+        assertTrue(ex.getMessage().contains("window frame starts after it ends"),
+                "Expected the inverted frame's refusal, got: " + ex.getMessage());
     }
 }

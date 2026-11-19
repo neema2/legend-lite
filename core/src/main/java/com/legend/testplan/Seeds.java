@@ -151,13 +151,14 @@ public final class Seeds {
 
     /** {@link #ddlTextSource}'s elements spelled at planning, in order: a generator's text from the compiled store
      *  (the engine's own spelling, as the walk's {@code Prepared.DdlTexts} sends it), a literal folded. */
-    public static List<String> ddlTexts(List<TypedSpec> elements, List<TypedSpec> lets, ModelContext ctx) {
+    public static List<String> ddlTexts(List<TypedSpec> elements, List<TypedSpec> lets, ModelContext ctx,
+            com.legend.database.PlanStyle style) {
         com.legend.planner.PlanEnv env = com.legend.planner.ProductStatements.env(ctx, null, java.util.Set.of(),
-                java.util.Map.of());
+                java.util.Map.of(), style);
         List<String> texts = new ArrayList<>(elements.size());
         for (TypedSpec e : elements) {
             if (e instanceof TypedNativeCall call && NativeFn.DdlStatement.of(call.callee().id()).isPresent()) {
-                texts.add(com.legend.planner.EnginePlans.ddlText(call, env));
+                texts.add(env.style().facet(com.legend.planner.UpstreamPlans.class).ddlText(call, env));
             } else {
                 texts.add((String) java.util.Objects.requireNonNull(Literals.fold(e, lets)));
             }

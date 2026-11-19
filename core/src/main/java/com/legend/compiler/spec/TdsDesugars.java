@@ -147,9 +147,10 @@ final class TdsDesugars {
                         List.of(new AppliedProperty(af.parameters().get(0), ncol))), env);
             }
         }
-        // engine TDSRow.get()->toString(): a NULL cell prints 'TDSNull'
-        // (tds.pure:131-133 — the engine materializes ^TDSNull() instances;
-        // our erasure emits the equivalent conditional string)
+        // TDSRow.get()->toString(): a cell's text, EMPTY where the cell is
+        // (cellText; the user's ruling of 2026-11-10, phase D's D1.3,
+        // 2026-11-15) -- legend-engine materializes ^TDSNull() instances
+        // and prints 'TDSNull' (tds.pure:131-133): the edge writes that
         if (com.legend.compiler.ResolvedNames.names(af, com.legend.compiler.element.type.PlatformTypes.TO_STRING) && af.parameters().size() == 1
                 && af.parameters().get(0) instanceof AppliedFunction g
                 && rowGetter(g, com.legend.builtin.NativeFn.RowGetter.GET) && g.parameters().size() == 2
@@ -158,25 +159,14 @@ final class TdsDesugars {
             if (Typer.tdsReceiver(grecv0.info().type())) {
                 if (erasedRow(grecv0)) {
                     TypedSpec cell = erasedCell(grecv0, gc.value());
-                    var str1 = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
-                    return new com.legend.compiler.spec.typed.TypedIf(
-                            nativeCall(com.legend.compiler.element.type.PlatformTypes.IS_EMPTY, List.of(cell)),
-                            new com.legend.compiler.spec.typed.TypedCString(
-                                    com.legend.compiler.element.type.PlatformTypes.TDS_NULL_CELL, str1),
-                            java.util.Optional.of(nativeCall(com.legend.compiler.element.type.PlatformTypes.TO_STRING,
-                                    List.of(nativeCall(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(cell))))),
-                            str1);
+                    return nativeCall(com.legend.builtin.Pure.Lite.CELL_TEXT, List.of(
+                            nativeCall(com.legend.compiler.element.type.PlatformTypes.TO_STRING,
+                                    List.of(nativeCall(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(cell))))));
                 }
                 var read = new AppliedProperty(g.parameters().get(0), gc.value());
-                return synth(Calls.platform("if", List.of(
-                        Calls.platform("isEmpty", List.of(read)),
-                        new com.legend.protocol.spec.LambdaFunction(List.of(),
-                                List.of(new CString(com.legend.compiler.element.type
-                                        .PlatformTypes.TDS_NULL_CELL))),
-                        new com.legend.protocol.spec.LambdaFunction(List.of(),
-                                List.of(Calls.platform("toString", List.of(
-                                        Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE,
-                                                List.of(read)))))))), env);
+                return synth(Calls.exact(com.legend.builtin.Pure.Lite.CELL_TEXT, List.of(
+                        Calls.platform("toString", List.of(
+                                Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read)))))), env);
             }
         }
         // the UNTYPED TDSRow getter $r.get('COL') — same desugar, but the
@@ -783,10 +773,9 @@ final class TdsDesugars {
             return null;    // schema unknown (executeInDb rows): the ordinary typing serves it
         }
         if (k < 0 || k >= prt.columns().size()) {
-            throw new IllegalStateException(
-                    "The system is trying to get an element at offset " + k
-                    + " where the collection is of size "
-                    + prt.columns().size());
+            // a kind, worded by the product and, for upstream's clients, by the edge (D1.6, W7)
+            throw new com.legend.error.TypeInferenceException(com.legend.error.CompileKind.ELEMENT_AT_OFFSET,
+                    List.of(String.valueOf(k), String.valueOf(prt.columns().size())));
         }
         return synth(Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                 new AppliedProperty(vp.receiver(),

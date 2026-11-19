@@ -9,7 +9,7 @@ import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.door.ModelFromText;
 import com.legend.protocol.Multiplicity;
 import com.legend.protocol.TypeExpression;
@@ -319,7 +319,7 @@ public final class NativesGenerator {
             ParsedModel parsed = Compiler.parseSources(
                     List.of(new Compiler.ModelSource(f.toString(),
                             Files.readString(f, StandardCharsets.UTF_8))),
-                    (n, err) -> parseWalls.add(n + ": " + err), Dialect.LEGEND_PLATFORM).model();
+                    (n, err) -> parseWalls.add(n + ": " + err), GrammarLevel.LEGEND_PLATFORM).model();
             if (!parseWalls.isEmpty()) {
                 walls.add(parseWalls.get(0));
                 continue;
@@ -415,7 +415,7 @@ public final class NativesGenerator {
     }
 
     static NativeFunctionDefinition parseSignature(String text) {
-        ParsedModel one = ModelFromText.parse(text, Dialect.LEGEND_PLATFORM);
+        ParsedModel one = ModelFromText.parse(text, GrammarLevel.LEGEND_PLATFORM);
         if (one.elements().size() != 1
                 || !(one.elements().get(0) instanceof NativeFunctionDefinition nfd)) {
             throw new IllegalStateException("rendered signature does not parse to one native: " + text);

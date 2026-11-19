@@ -10,7 +10,6 @@ import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
 import com.legend.result.Batch;
-import com.legend.result.CellText;
 import com.legend.result.JsonRowsWriter;
 import com.legend.result.ResultSink;
 import com.legend.result.RowDecode;
@@ -47,6 +46,39 @@ public final class Lean {
 
     public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c) {
         return run(model, query, runtime, c, com.legend.exec.SourceAdmission.any());
+    }
+
+    /** {@link #runInStyle(String, String, String, Connection, com.legend.database.PlanStyle)} on a session of
+     *  {@code backend}'s database as {@code style}'s plans declare it (the audit's J22, 2026-11-17: H2's settings are the
+     *  style's), opened for this run and closed after it. */
+    public static Result runInStyle(String model, String query, @com.legend.base.Nullable String runtime,
+            com.legend.testbackend.TestBackend backend, com.legend.database.PlanStyle style) {
+        try (Connection c = backend.open(style)) {
+            return runInStyle(model, query, runtime, c, style);
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** {@link #run(String, String, String, Connection)} planned in {@code style}: the product's door with the
+     *  compatibility edge's spellings ({@code edge.PureText.UPSTREAM}), whose raise is legend-pure's sentence -- a size
+     *  or a value a test pins (the D part 1 audit's S5, 2026-11-15). */
+    public static Result runInStyle(String model, String query, @com.legend.base.Nullable String runtime, Connection c,
+            com.legend.database.PlanStyle style) {
+        StringWriter out = new StringWriter();
+        Capturing sink = new Capturing(out);
+        ExecutionPlan plan;
+        try {
+            plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query)
+                            .withOptions(TEST_OPTIONS), runtime,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                    PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(), style,
+                    new com.legend.result.Output.Rows(sink), com.legend.result.Batcher.DEFAULT_CAPACITY);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Result.of(plan.answerShape(), sink.columns, out.toString());
     }
 
     /** {@link #run(String, String, String, Connection)} whose live sources may read under {@code admitted}'s
@@ -188,9 +220,9 @@ public final class Lean {
                 }
                 List<Object> cells = new ArrayList<>(planColumns.size());
                 for (ExecutionPlan.Column c : planColumns) {
-                    // the writer keys a row by the column's PRESENTED name (a generated pivot column in its quotes,
-                    // as the engine labels it: CellText.presentedName); the reader looks it up the same way
-                    Json.Node node = o.fields().get(CellText.presentedName(c.name()));
+                    // the writer keys a row by the column's name, a generated pivot column's bare (the user's ruling of
+                    // 2026-11-10, "Pivot names are bare"; D1.4, 2026-11-15)
+                    Json.Node node = o.fields().get(c.name());
                     if (node == null) {
                         throw new IllegalStateException("the row has no field for the column '" + c.name()
                                 + "' (it has " + o.fields().keySet() + ")");

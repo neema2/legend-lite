@@ -155,9 +155,11 @@ class ParserBoundaryArchTest {
                             || DIALECT_CLASSES.contains(rel)) {
                         continue;
                     }
-                    int line = firstHit(f, "Dialect.LEGEND" + "_");
+                    // the grammar level's names (renamed from Dialect by C5-J, 2026-11-15: the old names matched nothing
+                    // after it, the rule toothless; fixed in #104's merge of main, 2026-11-15)
+                    int line = firstHit(f, "GrammarLevel.LEGEND" + "_");
                     if (line < 0) {
-                        line = firstHit(f, "com.legend.parser." + "Dialect");
+                        line = firstHit(f, "com.legend.parser." + "GrammarLevel");
                     }
                     if (line > 0) {
                         violations.add(rel + ":" + line);

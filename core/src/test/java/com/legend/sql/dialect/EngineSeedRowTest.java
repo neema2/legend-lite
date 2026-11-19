@@ -3,10 +3,12 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.edge.EngineStyleH2;
+
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.DatabaseDefinition;
-import com.legend.setup.Ddl;
+import com.legend.edge.EngineSeedText;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -37,7 +39,7 @@ class EngineSeedRowTest {
     private static List<String> seed(String csvRows) {
         ModelContext ctx = Compiler.compileModel(MODEL);
         DatabaseDefinition top = ctx.findDatabase("s::Top").orElseThrow();
-        return Ddl.setUpDataSqlsText("default\nT\nID,NAME,D,TS,B,N\n" + csvRows, top, ctx::findDatabase,
+        return EngineSeedText.setUpDataSqlsText("default\nT\nID,NAME,D,TS,B,N\n" + csvRows, top, ctx::findDatabase,
                 new EngineStyleH2());
     }
 
@@ -81,7 +83,7 @@ class EngineSeedRowTest {
     void aColumnTheTableLacksIsRefused() {
         ModelContext ctx = Compiler.compileModel(MODEL);
         DatabaseDefinition top = ctx.findDatabase("s::Top").orElseThrow();
-        assertThrows(IllegalStateException.class, () -> Ddl.setUpDataSqlsText("default\nT\nID,COLOUR\n1,red\n", top,
+        assertThrows(IllegalStateException.class, () -> EngineSeedText.setUpDataSqlsText("default\nT\nID,COLOUR\n1,red\n", top,
                 ctx::findDatabase, new EngineStyleH2()));
     }
 }

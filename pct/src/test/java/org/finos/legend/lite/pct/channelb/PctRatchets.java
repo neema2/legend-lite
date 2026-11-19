@@ -34,15 +34,30 @@ public final class PctRatchets {
             throw new IllegalArgumentException("usage: PctRatchets <output>");
         }
         Map<String, Integer> out = new LinkedHashMap<>();
+        // E-5d: each suite's judge statements and characters under BOTH, planned as the suite runs
+        System.setProperty("pct.channelb.judgeSql", "true");
         out.put("channel_b.essential.discovered", ChannelBEssentialTest.runSuite(new ArrayList<>()).size());
+        judge(out, "essential");
         out.put("channel_b.grammar.discovered", ChannelBGrammarTest.runSuite(new ArrayList<>()).size());
+        judge(out, "grammar");
         out.put("channel_b.relation.discovered", ChannelBRelationTest.runSuite(new ArrayList<>()).size());
+        judge(out, "relation");
         out.put("channel_b.standard.discovered", ChannelBStandardTest.runSuite(new ArrayList<>()).size());
+        judge(out, "standard");
         out.put("channel_b.unclassified.discovered", ChannelBUnclassifiedTest.runSuite(new ArrayList<>()).size());
+        judge(out, "unclassified");
         StringBuilder text = new StringBuilder("# pct's measured ratchet values (PctRatchets) -- regenerate: bazel run"
                 + " //pct:update_ratchets\n");
         out.forEach((k, v) -> text.append(k).append('\t').append(v).append('\n'));
         Files.writeString(Path.of(args[0]), text.toString(), StandardCharsets.UTF_8);
+    }
+
+    /** The judge SQL the suite just run summed (E-5d), as its two pins. */
+    private static void judge(Map<String, Integer> out, String suite) {
+        long[] j = ChannelB.judgeSql();
+        out.put("channel_b." + suite + ".judge.statements", Math.toIntExact(j[0]));
+        out.put("channel_b." + suite + ".judge.chars", Math.toIntExact(j[1]));
+        out.put("channel_b." + suite + ".judge.plan", Math.toIntExact(j[2]));
     }
 
     /** The committed file, read on first use only: the generator ({@link #main}) never reads it, so a damaged copy

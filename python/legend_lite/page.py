@@ -2204,7 +2204,9 @@ class Timeseries(Tile):
         session = self._page._session
         with session.frames.reading():
             tree, base, _said = self._query(asked)
-            answer = session.engine().answer('POST', '/plan.json', '', json.dumps(_plan_request(tree, base)))
+            # the dry run takes the query's tree (lite's query/plan, the host train, 2026-11-17)
+            asked = {**{k: v for k, v in _plan_request(tree, base).items() if k != 'lambda'}, 'query': tree}
+            answer = session.engine().answer('POST', '/plan.json', '', _json.dumps(asked))
         said = json.loads(answer.body)
         if not (isinstance(said, dict) and isinstance(said.get('plan'), str)):
             raise ValueError(answer.body.decode('utf-8', errors='replace'))
@@ -3685,9 +3687,9 @@ class Page:
         # over the record it is saved as, else a new one, as the tab's Save decides (headless pageRecord's `over`:
         # page-document.ts pageSaving -- the S7 confirmation audit's Y2-5) -- a record deleted since (in DataCube's
         # Open…) refused, as the tab's Save is refused, never made again under its id (the S7 audit's Y-8)
-        status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
+        status, said = (store_call('lite_store_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
                         if made['over'] else
-                        store_call('lite_saved_cubes', pages_folder(), 'POST', '', '', record, THIS_USER))
+                        store_call('lite_store_cubes', pages_folder(), 'POST', '', '', record, THIS_USER))
         if status != 200:
             raise ValueError(f'the page was not saved: {_store_said(said)}')
         # the saved page it is, told (savedAs: an open page saves over it too, B13); saved under a name, the page is that
@@ -3711,7 +3713,7 @@ class Page:
         asked = json.loads(_current().headless().call('pageSearch', search, sort, limit))
         if 'problems' in asked:
             raise ValueError('; '.join(asked['problems']))
-        status, said = store_call('lite_saved_cubes', pages_folder(), 'POST', '/search', '', json.dumps(asked['spec']),
+        status, said = store_call('lite_store_cubes', pages_folder(), 'POST', '/search', '', json.dumps(asked['spec']),
                                   THIS_USER)
         if status != 200:
             raise ValueError(f'the saved pages were not read: {_store_said(said)}')
@@ -3724,7 +3726,7 @@ class Page:
         more, as Open… tells the tab's page (``savedAs`` of none, B13): saved again, a new one."""
         from ._home import THIS_USER, pages_folder, store_call
         from .datacube import _current
-        status, said = store_call('lite_saved_cubes', pages_folder(), 'DELETE', f'/{id}', '', '', THIS_USER)
+        status, said = store_call('lite_store_cubes', pages_folder(), 'DELETE', f'/{id}', '', '', THIS_USER)
         if status == 404:
             raise ValueError(f'no saved page {id!r} in this user\'s saved pages')
         if status not in (200, 204):
@@ -3754,7 +3756,7 @@ class Page:
         given as ``load`` takes them, and its fresh ``links``. Saved again, it saves over that record."""
         from ._home import THIS_USER, pages_folder, store_call
         from .datacube import _current
-        status, said = store_call('lite_saved_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)
+        status, said = store_call('lite_store_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)
         if status == 404:
             raise ValueError(f'no saved page {id!r} in this user\'s saved pages')
         if status != 200:
@@ -4094,7 +4096,7 @@ class Page:
                     **({'revision': revision} if revision is not None else {})}
         if query is not None:
             from ._home import THIS_USER, queries_folder, store_call
-            status, said = store_call('lite_saved_queries', queries_folder(), 'GET', f'/{query}', '', '', THIS_USER)
+            status, said = store_call('lite_store_queries', queries_folder(), 'GET', f'/{query}', '', '', THIS_USER)
             if status != 200:
                 raise ValueError(f'no saved query {query!r} in this user\'s store: {said}')
             return {'record': json.loads(said)}

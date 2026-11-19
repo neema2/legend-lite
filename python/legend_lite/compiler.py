@@ -8,116 +8,240 @@ compiled once and planned against many times, for as long as it is open.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from . import _json
 from ._library import library
 from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer
+from ._raised import declare_sites
 # the plan's records and its own data's readers, theirs since C5-P (2026-11-15): named here as they always were
-from ._plans import Column, Plan, PlanParamsRefused, host_rows, plan_params, statement_params  # noqa: F401
+from ._plans import (Column, Plan, PlanParamsRefused, host_rows, plan_binding, plan_params,  # noqa: F401
+                     statement_params)
 
 Tree = dict[str, Any]
 
 
 class LegendError(Exception):
-    """The compiler refused: what it said, and the kind of refusal, by one rule for every call: legend-engine's
-    ``errorType`` when the text is refused (``PARSER`` when it does not parse, ``COMPILATION`` when it does not
-    compile or uses a construct not implemented), else the status legend-lite's server answers (``'500'``), the
-    message then led by the failure's class, as the server writes it."""
+    """The compiler refused, in lite's one error shape (the lite API spec's §3, 2026-11-17): its ``kind`` -- LITE'S OWN,
+    as the native library folds it (``LiteV1Api.RefusalKind``; never a constant of Python's: ``refusal_kinds``) --
+    its ``message`` in lite's words, and, where there is one, its ``where`` (a position or a site) and, for a run's
+    raise, the raise's own kind (``raise_``)."""
 
-    def __init__(self, message: str, kind: str) -> None:
+    def __init__(self, message: str, kind: str, where: str | None = None, raise_: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.kind = kind
+        self.where = where
+        self.raise_ = raise_
 
 
-@dataclass(frozen=True)
-class Answer:
-    """An HTTP answer of legend-engine's ``pure/v1`` API, as legend-lite's server gives it: its status, media
-    type and body."""
+_KINDS: dict[str, str] | None = None
 
-    status: int
-    content_type: str
-    body: str
+
+def refusal_kinds() -> dict[str, str]:
+    """LITE'S ERROR KINDS, by name, as the product names them (``lite_refusal_kinds``: the one Java type of §3's kinds,
+    each name and its wire text), read once: a refusal's ``kind`` is compared with these, never with a spelling of
+    Python's own, so a rename in the product needs no edit here (the lite API spec's §3, 2026-11-17)."""
+    global _KINDS
+    if _KINDS is None:
+        tag, _, rest = library().call('lite_refusal_kinds').partition('\n')
+        if tag != 'OK':
+            raise OSError(f"the native library did not say lite's error kinds: {rest[:200]}")
+        _KINDS = _json.loads(rest)
+    return _KINDS
+
+
+def error_kind(name: str) -> str:
+    """The wire text of the product's kind ``name``; a name the product does not say, refused by name (the
+    orchestrator's ruling, 2026-11-17: never a raw lookup error)."""
+    kinds = refusal_kinds()
+    if name not in kinds:
+        raise LegendError(f'an error kind this binding does not know: {name}', kinds.get('INTERNAL', 'internal'))
+    return kinds[name]
+
+
+def parameters_refused(message: str) -> LegendError:
+    """A run's parameter values refused (the run side's ``_params.check``, its words ``message``) as lite's error: the
+    product's ``parameters`` kind (the lite API spec's §3, ruled 6)."""
+    return LegendError(message, error_kind('PARAMETERS'))
+
+
+def refuses_the_text(refused: LegendError) -> bool:
+    """Whether ``refused`` is the compiler's refusal of the TEXT it was given -- it does not parse, or does not compile
+    -- rather than a failure of its own: the product's PARSE and COMPILE kinds (``refusal_kinds``)."""
+    return refused.kind in (error_kind('PARSE'), error_kind('COMPILE'))
 
 
 def _answer(text: str) -> str:
-    """The compiler's answer, or its refusal raised (its kind as the server names it: ``planner.Folded``)."""
+    """The compiler's answer, or its refusal raised in lite's one error shape (``planner.Folded``: ``OK`` and the
+    answer, or ``ERR`` and §3's ``{kind, message, where?, raise?}``). A kind the product does not say is refused by
+    name (``_kind``)."""
     tag, _, rest = text.partition('\n')
     if tag == 'OK':
         return rest
     if tag == 'ERR':
-        kind, _, message = rest.partition('\n')
-        raise LegendError(message or 'the compiler refused it', kind)
+        try:
+            said = _json.loads(rest)
+        except ValueError:
+            said = None
+        if not (isinstance(said, dict) and isinstance(said.get('kind'), str) and isinstance(said.get('message'), str)):
+            raise OSError(f"the native library refused in no error shape lite's (§3): {rest[:200]!r}")
+        if said['kind'] not in refusal_kinds().values():
+            raise LegendError(f"an error kind this binding does not know: {said['kind']}", error_kind('INTERNAL'))
+        raise LegendError(said['message'], said['kind'], said.get('where'), said.get('raise'))
     raise OSError(f'the native library answered something unrecognised: {text[:120]!r}')
 
 
-def _http(text: str) -> Answer:
-    status, content_type, body = _answer(text).split('\n', 2)
-    return Answer(int(status), content_type, body)
+def folded(text: str) -> str:
+    """The native library's fold read as this binding reads every answer (``OK`` and the answer, or ``ERR`` and lite's
+    error raised): for the edge's entries, which answer in legend-engine's shape (legend_lite.edge)."""
+    return _answer(text)
 
 
-def _columns(relation_type: dict[str, Any]) -> tuple[Column, ...]:
-    return tuple(Column(c['name'], c['genericType']['rawType']['fullPath'], c) for c in relation_type['columns'])
+def operation(op: str, request: dict[str, Any]) -> Any:
+    """LITE'S OWN API, v1 (docs/records/lite-api-v1-2026-11-17.md §2, §5): one operation by its name (``query/parse``,
+    ``model/check``, ...), its request in and its answer out, through the native entry the spec's one rule names
+    (operation ``a/b`` -> ``lite_a_b``) -- the binding every public function below is a thin layer over. No
+    ``query/run``: Python runs a plan on its own database (``Frames.run``)."""
+    if op == 'user':
+        return user(request)
+    entry = OPERATIONS.get(op)
+    if entry is None:
+        raise ValueError(f"lite's API has no operation '{op}' this binding asks (it asks {sorted(OPERATIONS)})")
+    return _json.loads(_answer(library().call(entry, _json.dumps(request))))
 
 
-def _engine(path: str, query: str, body: str) -> str:
-    """One ``pure/v1`` call's body, as legend-lite's server answers it; a refusal raised, its kind the engine's
-    ``errorType``, else the answer's status."""
-    answer = pure_v1(path, query, body)
-    if answer.status == 200:
-        return answer.body
+# §2's operations Python asks, each its native entry (the spec's one rule; query/run is the host's runner)
+OPERATIONS = {
+    'model/check': 'lite_model_check', 'model/elements': 'lite_model_elements', 'query/parse': 'lite_query_parse',
+    'query/print': 'lite_query_print', 'query/type': 'lite_query_type', 'query/plan': 'lite_query_plan',
+    'model/createClass': 'lite_model_create_class', 'model/createAssociation': 'lite_model_create_association',
+    'model/createDataSpace': 'lite_model_create_data_space', 'ts/item': 'lite_ts_item', 'ts/statement': 'lite_ts_statement',
+}
+
+
+def user(request: dict[str, Any] | None = None) -> dict[str, str]:
+    """``user`` (the spec's §2, a host's own operation): who the store keeps saved queries for -- this user, as Python's
+    stores name the caller (_home.THIS_USER; there is no sign-in), ``{"user": <name>}``. Its request holds no key: one
+    that does is refused by name (kind ``request``), as the server's route refuses it."""
+    from ._home import THIS_USER
+    if request:
+        raise LegendError(f'a user request holds no key (it holds {", ".join(sorted(request))})', error_kind('REQUEST'))
+    return {'user': THIS_USER}
+
+
+def lite_route(path: str, body: str) -> tuple[int, str]:
+    """LITE'S OWN API, v1, AS A ROUTE (the spec's §2, §3, §5; the host train, 2026-11-17): ``/api/lite/v1/<operation>``
+    with its request JSON, answered by the operation's native entry (``operation``) -- 200 and the answer's JSON, or
+    §3's error ``{kind, message, where?, raise?}`` with its kind's status: 422 for a run's raise (``data``), 500 for
+    ``internal``, 400 for every other (ruled 1, 3, 6). Any other path is refused in lite's shape: the old route names
+    went in one step (ruled 5). The one rule Python's server and DataCube's code in this process (_headless) answer by."""
+    prefix = '/api/lite/v1/'
+    op = path[len(prefix):] if path.startswith(prefix) else None
+    if op not in OPERATIONS and op != 'user':
+        return refused_route(LegendError(f'no such legend-lite API: {path}', error_kind('REQUEST')))
     try:
-        refusal = _json.loads(answer.body)
+        # the user operation's request may be empty, as the server's route reads it
+        asked = {} if op == 'user' and not body.strip() else _json.loads(body)
     except ValueError:
-        raise LegendError(answer.body or 'the compiler refused it', str(answer.status)) from None
-    message = refusal.get('message') if isinstance(refusal, dict) else None
-    kind = refusal.get('errorType') if isinstance(refusal, dict) else None
-    raise LegendError(message or 'the compiler refused it', kind or str(answer.status))
+        asked = None
+    if not isinstance(asked, dict):
+        return refused_route(LegendError(f'{op}: the request is no JSON object', error_kind('REQUEST')))
+    try:
+        return 200, _json.dumps(operation(op, asked))
+    except LegendError as refused:
+        return refused_route(refused)
+
+
+def refused_route(refused: LegendError) -> tuple[int, str]:
+    """A refusal as lite's route answers it (the spec's §3): ``{kind, message, where?, raise?}`` and its kind's status
+    -- 422 a run's raise (``data``), 500 ``internal``, 400 every other."""
+    said: dict[str, Any] = {'kind': refused.kind, 'message': refused.message}
+    if refused.where is not None:
+        said['where'] = refused.where
+    if refused.raise_ is not None:
+        said['raise'] = refused.raise_
+    status = 422 if refused.kind == error_kind('DATA') else 500 if refused.kind == error_kind('INTERNAL') else 400
+    return status, _json.dumps(said)
 
 
 def parse(text: str) -> Tree:
-    """Pure text as its lambda's protocol tree, e.g. ``parse("|1 + 1")`` (``grammar/grammarToJson/lambda``)."""
-    return _json.loads(_engine('/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', text))
+    """Pure text as its query's tree, e.g. ``parse("|1 + 1")`` (``query/parse``)."""
+    return operation('query/parse', {'text': text})['query']
 
 
-def print_tree(tree: Tree, style: str = 'PRETTY') -> str:
-    """A lambda's tree as Pure text: ``PRETTY`` across lines, or ``STANDARD`` on one (``grammar/jsonToGrammar/lambda``)."""
-    if style not in ('PRETTY', 'STANDARD'):
-        raise ValueError(f"style must be 'PRETTY' or 'STANDARD', not {style!r}")
-    return _engine('/api/pure/v1/grammar/jsonToGrammar/lambda', f'renderStyle={style}', _json.dumps(tree))
+def print_tree(tree: Tree, style: str = 'pretty') -> str:
+    """A query's tree as Pure text (``query/print``): ``pretty`` across lines (the default), or ``standard`` on one;
+    any other style refused by name."""
+    return operation('query/print', {'query': tree, 'style': style})['text']
 
 
 def relation_type(model: str, tree: Tree) -> tuple[Column, ...]:
-    """The columns a relation query returns, as the compiler types them, compile-only
-    (``compilation/lambdaRelationType``)."""
-    request = {'model': {'_type': 'text', 'code': model}, 'lambda': tree}
-    return _columns(_json.loads(_engine('/api/pure/v1/compilation/lambdaRelationType', '', _json.dumps(request))))
+    """The columns a relation query returns, each its name and Pure type, compile-only (``query/type``)."""
+    return tuple(Column(c['name'], c['type'], c) for c in operation('query/type', {'model': model, 'query': tree})['columns'])
+
+
+def check(model: str) -> list[dict[str, Any]]:
+    """A model's every error, each its kind and message, empty when it compiles (``model/check``)."""
+    return operation('model/check', {'model': model})['errors']
+
+
+def create_class(request: dict[str, Any]) -> dict[str, Any]:
+    """DataCube's model edit making a class: the files to write, in the SDLC's change shape (``model/createClass``)."""
+    return operation('model/createClass', request)
+
+
+def create_association(request: dict[str, Any]) -> dict[str, Any]:
+    """DataCube's model edit making an association (``model/createAssociation``)."""
+    return operation('model/createAssociation', request)
+
+
+def create_data_space(request: dict[str, Any]) -> dict[str, Any]:
+    """DataCube's model edit making a data space (``model/createDataSpace``)."""
+    return operation('model/createDataSpace', request)
+
+
+def ts_statement(model: str, tree: Tree) -> Any:
+    """A #TS query as its one statement (``ts/statement``)."""
+    return operation('ts/statement', {'model': model, 'query': tree})
+
+
+def ts_item(text: str) -> Any:
+    """A #TS item's text, read (``ts/item``)."""
+    return operation('ts/item', {'text': text})
 
 
 def read_planned(answer: str) -> Plan:
-    """The planner's tagged answer (``OK`` and its plan, or ``ERR``, its kind and message) as a Plan, its refusal raised
-    (``LegendError``): what the plan function the tab's worker calls answers (``lite_plan_json_held``)."""
-    return read_plan(_answer(answer))
-
-
-def read_plan(answer: str) -> Plan:
-    """The planner's plan (``{"sql", "type", "plan"?}``, the answer after its ``OK`` tag) as a Plan: the one reading of
-    it, as DataCube's planner reads it (lite-planner.ts ``readPlan``) -- the values its statement binds read once, here
-    (``plan_params``)."""
-    out = _json.loads(answer)
-    return Plan(from_plan(out['sql']), _columns(out['type']), plan_params(out.get('plan')))
+    """``query/plan``'s tagged answer (``OK`` and ``{"plan": <lite's plan>}``, or ``ERR`` and §3's error) as a Plan, its
+    refusal raised (``LegendError``): what the held planner answers (``lite_query_plan_held``) and DataCube's page
+    reads (gridPlan)."""
+    return read_plan_data(_json.loads(_answer(answer))['plan'])
 
 
 def plan(model: str, tree: Tree, runtime: str) -> Plan:
-    """A relation query planned against ``model`` through ``runtime``: its SQL and its columns."""
-    return read_plan(_answer(library().call('lite_plan_json', model, _json.dumps(tree), runtime)))
+    """A relation query planned against ``model`` through ``runtime`` (``query/plan``): lite's plan, which is data -- its
+    SQL, its parameters' slots and its columns (``read_plan_data``)."""
+    return read_plan_data(operation('query/plan', {'model': model, 'query': tree, 'runtime': runtime})['plan'])
+
+
+def read_plan_data(plan: dict[str, Any]) -> Plan:
+    """``query/plan``'s plan (PlanJson) as a Plan: its typed result's statement, its columns each its name and Pure
+    type, its payloads, declared parameters and slots (``plan_binding``), the raises its statement can send declared
+    (``_raised.declare_sites``). A plan whose root is not one statement's typed result is refused by name."""
+    root = plan.get('root') if isinstance(plan, dict) else None
+    statement = root.get('sql') if isinstance(root, dict) else None
+    if not (isinstance(statement, dict) and isinstance(root.get('columns'), list)):
+        raise PlanParamsRefused(f"a query's plan runs here as one statement's typed result, not a "
+                                f"{root.get('_type') if isinstance(root, dict) else root!r}")
+    declare_sites(plan, 'a query plan')
+    payloads, parameters, slots = plan_binding(plan)
+    columns = tuple(Column(c['name'], c['type'], c) for c in root['columns'])
+    return Plan(from_plan(statement['statement']), columns, payloads, parameters, slots)
 
 
 def plan_text(model: str, text: str, runtime: str) -> Plan:
-    """The same, from Pure text."""
-    return read_plan(_answer(library().call('lite_plan_text', model, text, runtime)))
+    """The same, from Pure text: ``query/parse`` then ``query/plan`` (the lite API spec's §7)."""
+    return plan(model, parse(text), runtime)
 
 
 class HeldModel:
@@ -145,12 +269,16 @@ class HeldModel:
         return self._held()
 
     def plan(self, tree: Tree, runtime: str) -> Plan:
-        """A relation query planned against the model held, through ``runtime``: its SQL and its columns."""
-        return read_plan(_answer(library().call('lite_plan_json_held', self._held(), _json.dumps(tree), runtime)))
+        """A relation query planned against the model held, through ``runtime`` (``query/plan`` over the binding's cache,
+        the spec's §7a): lite's plan read as a Plan."""
+        request = _json.dumps({'query': tree, 'runtime': runtime})
+        return read_planned(library().call('lite_query_plan_held', self._held(), request))
 
     def relation_type(self, tree: Tree) -> tuple[Column, ...]:
-        """The columns a relation query returns, typed against the model held, compile-only."""
-        return _columns(_json.loads(_answer(library().call('lite_relation_type_held', self._held(), _json.dumps(tree)))))
+        """The columns a relation query returns, each its name and Pure type, typed against the model held, compile-only
+        (``query/type`` over the binding's cache)."""
+        said = _json.loads(_answer(library().call('lite_query_type_held', self._held(), _json.dumps({'query': tree}))))
+        return tuple(Column(c['name'], c['type'], c) for c in said['columns'])
 
     def close(self) -> None:
         """Lets the model go; closing it again does nothing."""
@@ -166,8 +294,8 @@ class HeldModel:
 
 
 def model_elements(text: str) -> list[dict[str, Any]]:
-    """A model's text as its elements (PureModelContextData), as the compiler reads them (``grammar/grammarToJson/model``)."""
-    return _json.loads(_engine('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text))['elements']
+    """A model's text as its protocol elements (PureModelContextData's), as the compiler reads them (``model/elements``)."""
+    return operation('model/elements', {'model': text})['elements']
 
 
 def database_from_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
@@ -184,8 +312,8 @@ def table_model(table: dict[str, Any]) -> dict[str, Any]:
     writer DataCube's tables and Python's frames share (the compiler's ``tableModelOrError``).
 
     Takes ``{"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog
-    rows]}``. Returns ``{"model", "runtime", "source", "accessor", "conversions", "copySelectList"?, "excluded",
-    "bitColumns"}``: ``model`` is Pure text, ``source`` the relation that reads the table (a tree; ``accessor`` its
+    rows]}``. Returns ``{"model", "runtime", "source", "accessor", "conversions", "copySelectList"?, "excluded"}``:
+    ``model`` is Pure text, ``source`` the relation that reads the table (a tree; ``accessor`` its
     text), ``copySelectList`` the select list the table applies, rewritten in place so it holds the declared types,
     written by its own database (``convertible``; absent when the table is never rewritten).
 
@@ -264,39 +392,3 @@ def project_data(model: str, database_type: str) -> dict[str, Any]:
     # its steps typed as it runs
     load = {} if answered.get('load') is None else {'load': plan_from_answer(_json.dumps(answered['load']))}
     return {**answered, **load, **{step: all_from_plan(answered[step]) for step in ('open', 'use', 'close')}}
-
-
-
-def pure_v1(path: str, query: str, body: str) -> Answer:
-    """One call of legend-engine's ``pure/v1`` API, answered by legend-lite's server code (``PureV1Api``) --
-    every endpoint it serves but execute's run: ``path`` as requested (``/api/pure/v1/...``), ``query`` its raw
-    query string (``''`` for none)."""
-    return _http(library().call('lite_pure_v1', path, query, body))
-
-
-def execute_plan(body: str, models: list[str]) -> Answer:
-    """The plan half of execute in upstream's Arrow format: for an ``ExecuteInput`` over one of ``models``
-    (the only models this host runs), an answer whose body is ``{"sql", "metadata"}`` -- the SQL to run, and
-    the Arrow schema metadata upstream's answer carries; any other answer is a refusal, to be sent as it is."""
-    return _http(library().call('lite_execute_plan', body, _json.dumps(models)))
-
-
-def execute_json_plan(body: str, models: list[str]) -> Answer:
-    """The plan half of execute in legend-engine's JSON, for a host that runs the SQL on its own database (the tab's, and
-    Python's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an answer whose body is ``{"sql", "run", "shape",
-    "resultColumns", "builder", ...}`` -- ``run`` the typed statement the server runs, whose rows go back to
-    :func:`execute_json_answer`; any other answer is a refusal, to be sent as it is."""
-    return _http(library().call('lite_execute_json_plan', body, _json.dumps(models)))
-
-
-def execute_json_answer(plan: str, rows: str) -> Answer:
-    """Execute's answer in legend-engine's JSON: ``plan`` the plan half's body, ``rows`` the rows the database answered
-    its ``run`` statement with (a JSON array of objects, each a column's name and its cell as the driver read it:
-    :func:`host_rows`), decoded by the plan's columns and written by legend-lite's server's own writer -- the server's
-    answer text."""
-    return _http(library().call('lite_execute_json_answer', plan, rows))
-
-
-def refusal(message: str) -> Answer:
-    """A database's refusal, as legend-lite's server answers one (``500``, legend-engine's error shape)."""
-    return _http(library().call('lite_pure_v1_refusal', message))

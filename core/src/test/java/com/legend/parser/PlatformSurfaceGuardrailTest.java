@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE PLATFORM-SURFACE QUARANTINE (Dialect levels, user directive
+ * THE PLATFORM-SURFACE QUARANTINE (GrammarLevel levels, user directive
  * 2026-08-12): {@code ElementParser.parsePlatform} — legend-lite's own
  * legend-pure dialect superset — may be referenced ONLY by the
  * whitelisted platform/bootstrap call sites below. User-facing code
@@ -35,9 +35,9 @@ class PlatformSurfaceGuardrailTest {
     private static final Set<String> WHITELIST = Set.of(
             // platform/bootstrap loading and internal pipeline
             // (ElementParser left the whitelist 2026-08-12: the named
-            // parseLegendPlatform entries are GONE — ONE parse(src, Dialect)
+            // parseLegendPlatform entries are GONE — ONE parse(src, GrammarLevel)
             // entry remains and it names nothing)
-            "com/legend/parser/Dialect.java",
+            "com/legend/parser/GrammarLevel.java",
             // (the parser-internal DEFAULTS left the whitelist 2026-08-12
             // — HONEST_DEBT #9 executed: every cursor and sub-parser now
             // takes its dialect explicitly, TokenStreamCursor.dialect()
@@ -65,7 +65,7 @@ class PlatformSurfaceGuardrailTest {
                         try {
                             String t = Files.readString(p);
                             return t.contains("parseLegendPlatform(")
-                                    || t.contains("Dialect.LEGEND" + "_PLATFORM");
+                                    || t.contains("GrammarLevel.LEGEND" + "_PLATFORM");
                         } catch (IOException e) {
                             throw new java.io.UncheckedIOException(e);
                         }
@@ -81,7 +81,7 @@ class PlatformSurfaceGuardrailTest {
         assertTrue(offenders.isEmpty(),
                 () -> "NEW callers of the PLATFORM dialect surface — user"
                         + " code must route through parseLegendLite or"
-                        + " parseStrict (Dialect levels):\n  "
+                        + " parseStrict (GrammarLevel levels):\n  "
                         + String.join("\n  ", offenders));
     }
 }

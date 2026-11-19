@@ -4,7 +4,6 @@
 package com.legend.lowering;
 
 import com.legend.compiler.element.type.Type;
-import com.legend.testexec.CanonicalForm;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
@@ -21,27 +20,49 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * THE DUAL-RENDER CONFORMANCE BATTERY (V10c close): the SQL canonical
- * render and the host reference render are ONE spec
- * (CANONICAL_FORM_SPEC §2) implemented twice — this pin holds them
- * byte-identical over a value battery that includes the magnitudes the
- * old DECIMAL(38,18) unfold silently zeroed (1e-30, 1e300). The DB
- * computes its text; the host computes its text; they must agree. Here
- * on the platform's engine; H2's battery is {@code SqlCanonConformanceH2Test}'s.
+ * THE CANON CONFORMANCE BATTERY: the database judge's canons hold the
+ * compare's contract on the platform's engine (a Float's: one text exactly
+ * for equal doubles, W10 (b) 2026-11-16; the other kinds' spellings below);
+ * H2's battery is {@code SqlCanonConformanceH2Test}'s.
  */
 class SqlCanonConformanceTest {
 
+    /** A Float's judge canon is the database's own text of the double, every zero one text (W10 (b), 2026-11-16:
+     *  Pure's literal spelling, which this battery pinned until then, was text no compare needs). Its contract is the
+     *  compare's: two values have one canon exactly when they are equal doubles ({@code -0.0 == 0.0}), across
+     *  magnitudes the old DECIMAL(38,18) unfold zeroed (1e-30, 1e300), and whatever the value's carrier (a literal, a
+     *  value cast from its text). */
     @Test
-    void floatCanonAgreesWithHostAcrossMagnitudes() throws Exception {
-        double[] battery = {
-                3.14, 17.000, 1.3421e8, 134.21e-10, .01, 0.0, -0.0,
-                -5.59, 5.59, 1.5e-30, 1e300, -2.5e-15, 123456.789,
-                9007199254740993.0, 1e16,
-        };
+    void floatCanonIsEqualityAcrossMagnitudes() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            for (double d : battery) {
-                assertEquals(hostText(d), dbCanon(c, d, Type.Primitive.FLOAT),
-                        "float canon diverged for " + d);
+            List<String> literal = new java.util.ArrayList<>();
+            List<String> fromText = new java.util.ArrayList<>();
+            for (double d : FLOAT_BATTERY) {
+                literal.add(dbCanon(c, d, Type.Primitive.FLOAT));
+                fromText.add(dbCanon(c, new SqlExpr.Cast(new SqlExpr.StringLit(Double.toString(d)),
+                        SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER), Type.Primitive.FLOAT));
+            }
+            assertCanonIsEquality(literal, fromText, "");
+        }
+    }
+
+    /** Values of every magnitude, with equal pairs written differently (17.000 and 17.0, 0.0 and -0.0). */
+    static final double[] FLOAT_BATTERY = {
+            3.14, 17.000, 17.0, 1.3421e8, 134.21e-10, .01, 0.0, -0.0,
+            -5.59, 5.59, 1.5e-30, 1e300, -2.5e-15, 123456.789,
+            9007199254740993.0, 1e16, 1e7, 12345678.9,
+    };
+
+    /** {@code a.get(i)} and {@code b.get(i)} are the canons of {@link #FLOAT_BATTERY}'s i-th value through two carriers:
+     *  every canon equals every other exactly when the two values are equal doubles. */
+    static void assertCanonIsEquality(List<String> a, List<String> b, String lane) {
+        for (int i = 0; i < FLOAT_BATTERY.length; i++) {
+            org.junit.jupiter.api.Assertions.assertNotNull(a.get(i), lane + "no canon for " + FLOAT_BATTERY[i]);
+            assertEquals(a.get(i), b.get(i), lane + "the canon of " + FLOAT_BATTERY[i] + " depends on its carrier");
+            for (int j = 0; j < FLOAT_BATTERY.length; j++) {
+                boolean equal = FLOAT_BATTERY[i] == FLOAT_BATTERY[j];
+                assertEquals(equal, a.get(i).equals(a.get(j)), lane + "canons of " + FLOAT_BATTERY[i] + " and "
+                        + FLOAT_BATTERY[j] + ": " + a.get(i) + " / " + a.get(j));
             }
         }
     }
@@ -56,21 +77,15 @@ class SqlCanonConformanceTest {
             // X2: scale-preserving Decimal canon
             assertEquals("8.00", dbCanon(c,
                     new SqlExpr.Cast(new SqlExpr.StringLit("8.00"),
-                            new SqlType.Decimal(10, 2)),
+                            new SqlType.Decimal(10, 2), SqlExpr.Reason.USER),
                     Type.Primitive.DECIMAL));
             assertEquals("3.80", dbCanon(c,
                     new SqlExpr.Cast(new SqlExpr.StringLit("3.80"),
-                            new SqlType.Decimal(10, 2)),
+                            new SqlType.Decimal(10, 2), SqlExpr.Reason.USER),
                     Type.Primitive.DECIMAL));
         }
     }
 
-    static String hostText(double d) {
-        return switch (CanonicalForm.render(d)) {
-            case CanonicalForm.Result.Text t -> t.value();
-            case CanonicalForm.Result.Residue r -> "residue:" + r.reason();
-        };
-    }
 
     private static String dbCanon(Connection c, double d, Type t)
             throws Exception {
@@ -120,7 +135,7 @@ class SqlCanonConformanceTest {
             assertEquals("{\"_type\":\"meta::pure::functions::collection"
                     + "::Pair\",\"first\":\"1\",\"second\":\"'a, b'\"}",
                     dbText(c, new SqlExpr.Cast(canon,
-                            SqlType.Scalar.VARCHAR)));
+                            SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)));
         }
     }
 
@@ -142,7 +157,7 @@ class SqlCanonConformanceTest {
             assertEquals("{\"_type\":\"meta::pure::functions::collection"
                     + "::List\",\"values\":[\"1\",\"2\"]}",
                     dbText(c, new SqlExpr.Cast(canon,
-                            SqlType.Scalar.VARCHAR)));
+                            SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)));
         }
     }
 

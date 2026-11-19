@@ -96,7 +96,8 @@ class IdentifierEscapingTest {
         var table = new SqlSource.Table("T", "t0", List.of(ID), false, Map.of(), com.legend.sql.NameQuoting.BARE);
         var select = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("t0", ID), NAME, null)), false,
                 table, null, List.of(), null, null, List.of(), null, null, List.of(ID));
-        for (SqlDialect engine : List.<SqlDialect>of(new EngineStyleH2(), new EngineStyleDB2(), new EngineStyleComposite())) {
+        for (SqlDialect engine : List.<SqlDialect>of(new com.legend.edge.EngineStyleH2(), new com.legend.edge.EngineStyleDB2(),
+                new com.legend.edge.EngineStyleComposite())) {
             assertEquals("select \"root\".ID as \"a\"b\\c\" from T as \"root\"", engine.render(select),
                     engine.getClass().getSimpleName());
         }

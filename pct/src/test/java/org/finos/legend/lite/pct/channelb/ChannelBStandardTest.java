@@ -180,5 +180,6 @@ class ChannelBStandardTest {
         // ledger only with a dated reason (ChannelBLedger)
         ChannelBLedger.judge("Standard", out, ChannelBLedger.of(
                 org.finos.legend.lite.pct.extension.PctBackend.name(), "Standard"));
+        ChannelBLane.judgeSqlHeld("Standard");
     }
 }

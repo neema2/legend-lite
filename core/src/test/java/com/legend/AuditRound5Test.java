@@ -78,13 +78,13 @@ class AuditRound5Test {
     void runtimeDateComponentGuard() {
         Exception e = assertThrows(Exception.class,
                 () -> scalar("|date(2016, [13]->at(0))"));
-        assertTrue(String.valueOf(e.getMessage()).contains("Invalid month: 13"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains(com.legend.error.ErrorKind.DATE_COMPONENT_INVALID.sentence()), e.getMessage());
     }
 
     @Test
     @DisplayName("audit: fractional seconds are legal up to (not including) 60")
     void fractionalSecondsStayLegal() throws Exception {
-        assertEquals("2016-01-01T00:00:59.999+0000",
+        assertEquals("2016-01-01T00:00:59.999000",   // the product's six digits (S312; W4, 2026-11-16)
                 String.valueOf(scalar("|date(2016, 1, 1, 0, 0, 59.999)")));
     }
 

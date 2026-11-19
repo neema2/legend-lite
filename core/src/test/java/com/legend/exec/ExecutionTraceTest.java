@@ -6,7 +6,7 @@ package com.legend.exec;
 import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.result.Batch;
-import com.legend.result.PureV1Writer;
+import com.legend.edge.PureV1Writer;
 import com.legend.result.ResultSink;
 import org.junit.jupiter.api.Test;
 
@@ -74,11 +74,11 @@ class ExecutionTraceTest {
     void anExecutionNamesItsDoorsIdToItsListenerFirst_andItsStampBindsThatId() throws IOException {
         Told first = new Told();
         PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), first, ONE);
-        assertEquals(List.of(ONE, "columns", ExecutionPlan.traceComment(ONE), "end"), first.told,
-                "the door's id, before the columns, and the statement's stamp bound to it");
+        assertEquals(List.of(ONE, "columns", ONE.toString(), "end"), first.told,
+                "the door's id, before the columns, and the statement's stamp bound to it (the id itself: legend-engine's comment is the edge's, D1.4)");
         Told second = new Told();
         PlanRunner.stream(stampReader(), Map.of(), PlanSessions.shared(), second, TWO);
-        assertEquals(List.of(TWO, "columns", ExecutionPlan.traceComment(TWO), "end"), second.told,
+        assertEquals(List.of(TWO, "columns", TWO.toString(), "end"), second.told,
                 "another execution, the id its door passed");
     }
 
@@ -154,8 +154,8 @@ class ExecutionTraceTest {
         assertTrue(refused.getMessage().contains("the run named no execution"), refused.getMessage());
         ExecutionPlan relation = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, List.of(), stampReader().answerSql()));
-        IllegalStateException arrow = assertThrows(IllegalStateException.class, () -> new com.legend.result.Output.Arrow(
-                new java.io.ByteArrayOutputStream(), null).writerFor(relation, null));
+        IllegalStateException arrow = assertThrows(IllegalStateException.class, () -> new com.legend.result.Output.Rows(
+                com.legend.edge.EngineAnswers.arrow(new java.io.ByteArrayOutputStream(), null)).writerFor(relation, null));
         assertTrue(arrow.getMessage().contains("the run named no execution"), arrow.getMessage());
     }
 
@@ -185,7 +185,7 @@ class ExecutionTraceTest {
                 PlanRunnerTest.cell(ExecutionPlan.Sql.of("SELECT c FROM exec_trace_activity", target)))));
         Told told = new Told();
         PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), told, ONE);
-        assertEquals(List.of(ONE, "columns", ExecutionPlan.traceComment(ONE), "end"), told.told);
+        assertEquals(List.of(ONE, "columns", ONE.toString(), "end"), told.told);
     }
 
     /** A plan that reads no stamp runs on its values as they are, no copy made (the re-audit's note 4, 2026-11-12: until

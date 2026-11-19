@@ -84,7 +84,7 @@ class ModelReaderRoundTripTest {
         String json = ProtocolEmitter.emit(parsed);
         assertEquals(PmcdParser.parseDocument(text), json, "parseDocument is the parsed records, emitted");
 
-        PureModelContextData read = ModelReader.read(json);
+        PureModelContextData read = ModelReader.read(com.legend.json.Json.parse(json, new com.legend.json.Json.Config(4096)));
         assertEquals(json, ProtocolEmitter.emit(read), "emit(read(J)) is J");
         assertEquals(parsed.elements().size(), read.elements().size());
         for (int i = 0; i < parsed.elements().size(); i++) {
@@ -94,7 +94,7 @@ class ModelReaderRoundTripTest {
         }
 
         String stripped = SourceInformation.stripAll(json);
-        PureModelContextData spanless = ModelReader.read(stripped);
+        PureModelContextData spanless = ModelReader.read(com.legend.json.Json.parse(stripped, new com.legend.json.Json.Config(4096)));
         assertEquals(stripped, SourceInformation.stripAll(ProtocolEmitter.emit(spanless)),
                 "without source information too");
         for (int i = 0; i < parsed.elements().size(); i++) {
@@ -114,7 +114,7 @@ class ModelReaderRoundTripTest {
                 () -> ModelReader.readElement(cls + ",\"somethingNew\":1}"));
         assertTrue(extra.getMessage().contains("somethingNew"), extra.getMessage());
         IllegalArgumentException unknown = assertThrows(IllegalArgumentException.class,
-                () -> ModelReader.read("{\"_type\":\"data\",\"elements\":[{\"_type\":\"aNewElement\"}]}"));
+                () -> ModelReader.read(com.legend.json.Json.parse("{\"_type\":\"data\",\"elements\":[{\"_type\":\"aNewElement\"}]}", new com.legend.json.Json.Config(4096))));
         assertTrue(unknown.getMessage().contains("aNewElement"), unknown.getMessage());
         // a function's constraints are carried since 2026-10-21 (pre and post, legend-pure's split): a malformed one
         // is refused, naming what it lacks
@@ -152,11 +152,11 @@ class ModelReaderRoundTripTest {
                   #/my::P/name#
                 }
                 """));
-        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)));
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(com.legend.json.Json.parse(json, new com.legend.json.Json.Config(4096)))));
         String mixed = json.replace("{\"_type\":\"propertyPath\",", "{\"_type\":\"propertyPath\",\"sourceInformation\":"
                 + "{\"endColumn\":13,\"endLine\":8,\"sourceId\":\"\",\"startColumn\":10,\"startLine\":8},");
         assertTrue(!mixed.equals(json), "the spanless JSON holds a path segment: " + json);
-        IllegalArgumentException mix = assertThrows(IllegalArgumentException.class, () -> ModelReader.read(mixed));
+        IllegalArgumentException mix = assertThrows(IllegalArgumentException.class, () -> ModelReader.read(com.legend.json.Json.parse(mixed, new com.legend.json.Json.Config(4096))));
         assertTrue(mix.getMessage().contains("path segment with a span in a path literal without one"), mix.getMessage());
     }
 
@@ -180,9 +180,9 @@ class ModelReaderRoundTripTest {
                 }
                 """;
         String json = PmcdParser.parseDocument(text);
-        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)));
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(com.legend.json.Json.parse(json, new com.legend.json.Json.Config(4096)))));
         String spanless = SourceInformation.stripAll(json);
-        assertEquals(spanless, ProtocolEmitter.emit(ModelReader.read(spanless)));
+        assertEquals(spanless, ProtocolEmitter.emit(ModelReader.read(com.legend.json.Json.parse(spanless, new com.legend.json.Json.Config(4096)))));
         assertEquals(2, spanless.split("\"type\":\">\"", -1).length - 1, "the two islands stay islands: " + spanless);
         assertTrue(spanless.contains("\"function\":\"tableReference\""), "the two calls stay calls: " + spanless);
     }
@@ -198,7 +198,7 @@ class ModelReaderRoundTripTest {
                 """;
         String json = PmcdParser.parseDocument(text);
         assertTrue(json.contains("\"value\":10.10"), json);
-        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)));
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(com.legend.json.Json.parse(json, new com.legend.json.Json.Config(4096)))));
     }
 
     // ---------------------------------------------------------------------

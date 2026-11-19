@@ -156,7 +156,7 @@ class HarnessDisciplineTest {
             // same-elements sort (sort, then ordered: the engine's own rule)
             // and the row-multiset match moved here from PureAsserts /
             // TdsCompare; two-sided comparison policy, never a result order
-            Map.entry("Equality.java", 4),
+            Map.entry("Equality.java", 3),   // 4 -> 3 (2026-11-17, J11's residue: the service-test EqualToJson's key set moved to the edge's EqualToJson)
             // 2026-11-09 (slice 5: the test's planner scanned in the driver's place): the body's kinds named in the
             // program road's refusal message, sorted so the message reads the same each run -- a diagnostic's text,
             // never a result's order
@@ -190,7 +190,11 @@ class HarnessDisciplineTest {
             // and order-leniency probes deleted with the policies they measured; 5 -> 7 (2026-11-03, the user's
             // ruling "no sort can be multiset compare" restored: an unsorted side may compare as a multiset, so the
             // rendered-text probe's two-sided line sort is back with the policy it measures)
-            Map.entry("CanonicalDivergence.java", 7),
+            Map.entry("CanonicalDivergence.java", 5),   // 7 -> 5 (2026-11-18, the edge audit's J40, E-Java: the toCSV grid probe's two sorts moved with it to the edge's UpstreamRenderedTexts)
+            // 2026-11-17 (isolated BOTH, the orchestrator's ruling): LiteWords.canonJson sorts a JSON root's elements
+            // where the root's order is incidental -- the database canon's sorted root mirrored, two-sided, gated on the
+            // side being JSON (the shared canon)
+            Map.entry("LiteWords.java", 1),
             // (MetamodelWalk.java: its 3 record-accessor `.distinct()`
             // sites left with the resolvePrimaryKey arm — metamodel-as-
             // relations batch 5, 2026-09-02)
@@ -212,7 +216,8 @@ class HarnessDisciplineTest {
             // order, the rendered text exactly -- the multiset and token-pool paths deleted); 0 -> 2 (2026-11-03, the
             // user's ruling "no sort can be multiset compare" restored: an unsorted render's lines and tokens compare
             // as a multiset again, a sorted one in order)
-            Map.entry("TdsCompare.java", 2),
+            // 2 -> gone (2026-11-17, census C1: the rendered text's line and token multisets moved with the compatibility
+            // rules' comparison to the edge's UpstreamRenderedTexts)
             // ---- src/main/com/legend/driver (step C, D73, 2026-10-30; the D73 audit): the judges' arms sat at
             // the root, which this guard never walked; the root dissolved into a package the walk now covers. ----
             // HostJudge: the host arm's compare sorts both sides' element lists (two sites, twice) before an
@@ -229,13 +234,10 @@ class HarnessDisciplineTest {
             // helpers left for the planner, and the discipline follows the code; the planner's own sites, walked for
             // the first time, register with them. None reorders a result: each is a set of names or a record's
             // accessor. ----
-            // PlanAllocations: sel.distinct() is the SqlSelect record's DISTINCT accessor, read to rebuild the
-            // select -- the regex's one false positive here, registered rather than special-cased (the driver's
-            // file until S2g)
-            Map.entry("PlanAllocations.java", 1),
-            // EnginePlans: a distinct() over the plan call's chain mappings (names, to find the one that binds the
-            // root class; the body driver's until S2g)
-            Map.entry("EnginePlans.java", 1),
+            // PlanAllocations (sel.distinct(), the SqlSelect record's DISTINCT accessor) and EnginePlans (a distinct()
+            // over a plan call's chain mappings' names): GONE 2026-11-16 (W9's planner half) -- both sites left the
+            // scanned packages with legend-engine's plan text for the edge (edge.EngineAllocations, edge.EnginePlans);
+            // neither is comparison policy, and the edge is no harness
             // CrossStoreGuard: the stores and connections a query names, collected in sorted sets and maps so the
             // refusal's message names them in one order (names, not a result)
             Map.entry("CrossStoreGuard.java", 5),

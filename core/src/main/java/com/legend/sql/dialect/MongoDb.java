@@ -48,7 +48,9 @@ import java.util.Set;
  * </ul>
  * No server-side JavaScript is written (D11), and nothing from MongoDB's own documentation or code is copied.
  */
-public final class MongoDb extends AnsiSqlRenderer {
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class MongoDb extends AnsiSqlRenderer {
 
     /** No quoting: a field or collection name is spelled as a JSON string, never delimited. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of());
@@ -247,12 +249,6 @@ public final class MongoDb extends AnsiSqlRenderer {
         return writer.append("{\"$toString\": ").expr(r.column(), 0).append("}");
     }
 
-    /** {@inheritDoc} The engine's H2 text has no translation into a pipeline. */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached MongoDb, which runs no SQL text");
-    }
-
     // ==================================================================
     // Expressions
     // ==================================================================
@@ -261,8 +257,6 @@ public final class MongoDb extends AnsiSqlRenderer {
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
             case SqlExpr.Group g -> writer.expr(g.inner(), 0);
-            case SqlExpr.TempTableInSplice t -> throw new IllegalStateException("temp-table IN splice '"
-                    + t.tempTableName() + "' reached an executable dialect — plan-text vocabulary only");
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
             // a dynamic pivot's probe plan: each copy of the per-key region binds its key's text
             case SqlExpr.KeyCell k -> writer.bindKey(KEY_MARKER, k.cell());
@@ -281,7 +275,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.JsonKindLit k -> MongoJson.literal(writer, jsonKindName(k.kind()));
             case SqlExpr.TypeNameLit t -> MongoJson.literal(writer, typeofName(t.scalar()));
             case SqlExpr.IntLit i -> writer.append("{\"$numberLong\": \"").append(i.value()).append("\"}");
-            case SqlExpr.FloatLit f -> writer.append("{\"$numberDouble\": \"").append(floatLiteral(f.value()))
+            case SqlExpr.FloatLit f -> writer.append("{\"$numberDouble\": \"").append(plainFloat(f.value()))
                     .append("\"}");
             case SqlExpr.DecimalLit d -> writer.append("{\"$numberDecimal\": \"").append(d.value().toPlainString())
                     .append("\"}");
@@ -296,7 +290,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.ArrayLit a -> arrayLit(writer, a.elements());
             case SqlExpr.StructLit s -> structLit(writer, s);
             case SqlExpr.StructGet g -> structGet(writer, g);
-            case SqlExpr.Call c -> call(writer, c, parentPrec);
+            case SqlExpr.Call c -> call(writer, raised(c), parentPrec);
             case SqlExpr.Case c -> caseExpr(writer, c);
             case SqlExpr.Exists ex -> throw new DialectCapability("an EXISTS subquery reached MongoDb: a correlated"
                     + " subquery has no shape yet");
@@ -313,15 +307,13 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " shape yet");
             case SqlExpr.CheckedOne co -> checkedOne(writer, co, parentPrec);
             case SqlExpr.CompactList cl -> compactList(writer, cl, parentPrec);
+            case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
                     + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
                     + " of it is not lowered");
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
                     + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
                     + " other consumer of it is not lowered");
-            case SqlExpr.DeferredTdsString d -> throw new IllegalStateException("deferred relation-toString reached"
-                    + " the renderer — the execution boundary must resolve the dynamic column list first"
-                    + " (DeferredTdsString id " + d.id() + ")");
             case SqlExpr.WindowCall w -> windowCall(writer, w);
             case SqlExpr.Lambda l -> lambda(writer, l);
             case SqlExpr.Cast c -> c.target() instanceof SqlType.Tagged
@@ -644,6 +636,14 @@ public final class MongoDb extends AnsiSqlRenderer {
      *  expressions), a computed text refused by name (MongoDB parses no JSON in a pipeline). */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (isParseFloat(c)) {
+            // parseFloat: $convert refused ' 1 ' and '1f' and raised its own ConversionFailure (241) for every other
+            // refusal (round 72): legend-pure's grammar, then the text trimmed of its whitespace and its one trailing
+            // f before the conversion (the grammar admits no leading f), else lite's kind by name (Phase 8)
+            return guardedParse(writer, c.value(), FLOAT_GRAMMAR, "{\"$toDouble\": {\"$trim\": {\"input\": " + G0
+                    + ", \"chars\": " + MongoJson.string(" \t\n\u000b\f\rfF") + "}}}",
+                    com.legend.sql.RaiseKind.TEXT_NOT_FLOAT);
+        }
         SqlType target = c.target();
         if (target == SqlType.Scalar.JSON) {
             if (c.value() instanceof SqlExpr.StringLit json) {
@@ -707,7 +707,7 @@ public final class MongoDb extends AnsiSqlRenderer {
         if (text && temporal(c.value()) != null) {
             return writer.append("{\"$dateToString\": {\"date\": ").expr(c.value(), 0).append(", \"format\": ")
                     .append(MongoJson.string(temporal(c.value()) == SqlType.Scalar.DATE ? "%Y-%m-%d"
-                            : "%Y-%m-%dT%H:%M:%S.%L+0000")).append("}}");
+                            : dateTimeFormat())).append("}}");
         }
         if (text && mayBeNumber(c.value())) {
             return numberText(writer, c.value());
@@ -753,7 +753,7 @@ public final class MongoDb extends AnsiSqlRenderer {
      * {@code $toString} spells a double in scientific notation past 1e15 and below 1e-4 ({@code 1e+20}) and without a
      * fraction when integral ({@code 2}), and a Decimal128 in its own scientific form ({@code 1.00000000000000E+20},
      * {@code 1.5000000000E-8}); Pure never spells an exponent and a Float always carries a fraction digit. So the text
-     * is bound once and read as a column of a lookup scope, and the portable spelling ({@link FloatCanonText}) is
+     * is bound once and read as a column of a lookup scope, and the portable spelling (the Float canon's, deleted 2026-11-16 with SqlFn.FLOAT_CANON) is
      * written over it: a double gets Pure's whole Float spelling; a decimal (a HUGEINT cast, a {@code DECIMAL(38,18)}
      * cast, a Pure Decimal) only its exponent unfolded, and a HUGEINT, an integer, its digits alone.
      */
@@ -766,7 +766,7 @@ public final class MongoDb extends AnsiSqlRenderer {
      * {@link #numberText} over a value already bound to a variable, which {@code bound} writes, spelled ONCE in the
      * pipeline's own operators (the MariaDb precedent: a dialect whose double text is a long expression spells it its
      * own way): the text's sign, digits and exponent found by one {@code $regexFind} and bound, the point moved as text
-     * -- the portable spelling's three shapes ({@link FloatCanonText}: the point before the digits, inside them, or
+     * -- the portable spelling's three shapes (the deleted Float canon's: the point before the digits, inside them, or
      * past them) -- so a cast to text costs about a kilobyte wherever the lowering writes one (the MongoDB lane's first
      * run, 2026-10-17: the portable composition rendered to 17 KB per cast, and a print path that casts a value a
      * few hundred times ran the driver out of memory). A double (by its run-time type: a float literal is written as
@@ -816,9 +816,18 @@ public final class MongoDb extends AnsiSqlRenderer {
         w.append("}}");
     }
 
-    /** The format a date's text takes in a wire: a date alone, or Pure's date-time to the millisecond. */
-    private static String dateFormat(SqlExpr e) {
-        return temporal(e) == SqlType.Scalar.DATE ? "%Y-%m-%d" : "%Y-%m-%dT%H:%M:%S.%L+0000";
+    /** The format a date's text takes in a wire: a date alone, or a date-time's ({@link #dateTimeFormat}). */
+    private String dateFormat(SqlExpr e) {
+        return temporal(e) == SqlType.Scalar.DATE ? "%Y-%m-%d" : dateTimeFormat();
+    }
+
+    /** The {@code $dateToString} format of a date-time's text: the product's, ISO 8601 in UTC with six fraction digits
+     *  and {@code Z} (the user's ruling of 2026-11-10, register S312; MongoDB keeps milliseconds, so the last three of
+     *  the six are its zeros); the compatibility edge writes legend-pure's ({@code +0000}) instead (phase D's D1.2,
+     *  2026-11-15: until then Pure's was the product's here). */
+    @SpellingArm
+    protected String dateTimeFormat() {
+        return "%Y-%m-%dT%H:%M:%S.%L000Z";
     }
 
     /**
@@ -902,7 +911,7 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " {\"$cond\": [" + isObject + ", {\"$concat\": [\"\\\"\", " + escapedJsonString("\"$$this.k\"")
                     + ", \"\\\":\"]}, \"\"]}, {\"$let\": {\"vars\": {\"v\": {\"$cond\": [" + isObject
                     + ", \"$$this.v\", \"$$this\"]}}, \"in\": ");
-            jsonLevel(writer, "%Y-%m-%dT%H:%M:%S.%L+0000", depth - 1);
+            jsonLevel(writer, dateTimeFormat(), depth - 1);
             writer.append("}}]}}}, {\"$cond\": [" + isObject + ", \"}\", \"]\"]}]}");
         }
         writer.append("}, {\"case\": {\"$in\": [{\"$type\": \"$$v\"}, [\"double\", \"decimal\"]]}, \"then\": ");
@@ -1013,6 +1022,8 @@ public final class MongoDb extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         // every function, each by name: MongoDB's operator, an emulation over its operators, or a refusal
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- logic: MongoDB's AND and OR read null as false, which is SQL's answer where a predicate decides;
             // NOT answers null for null (D7)
             case AND -> MongoJson.op(writer, "$and", a);
@@ -1048,7 +1059,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             case IN -> inList(writer, a);
             case COALESCE -> coalesce(writer, a);
             // ---- numbers
-            case PARSE_INT -> MongoJson.op1(writer, "$toLong", a.get(0));
+            case PARSE_INT -> guardedParse(writer, a.get(0), "^[+-]?[0-9]+$", "{\"$toLong\": " + G0 + "}",
+                    com.legend.sql.RaiseKind.TEXT_NOT_INTEGER);
             case SQRT -> writer.append("{\"$sqrt\": ").piece(unfolded(a.get(0))).append("}");
             case CBRT -> cubeRoot(writer, a);
             case EXP -> MongoJson.op1(writer, "$exp", a.get(0));
@@ -1085,6 +1097,8 @@ public final class MongoDb extends AnsiSqlRenderer {
             // ---- strings (a string operator over null errors or answers "", so each is null-guarded)
             case CONCAT -> concatSkippingNull(writer, a);
             case CONCAT_JOIN -> MongoJson.op(writer, "$concat", a);
+            // the product's join of a row's cells: no separator-join operator, so D1.3's form (Phase 3)
+            case CONCAT_WS -> writer.expr(CellTexts.eachAfterSeparator(a.get(0), a.subList(1, a.size())), parentPrec);
             case LENGTH -> length(writer, a);
             case UPPER -> MongoJson.guardedOp(writer, "$toUpper", a);
             case LOWER -> MongoJson.guardedOp(writer, "$toLower", a);
@@ -1230,8 +1244,10 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " no JSON text operator");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
-            case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // ---- raising
             case ERROR -> raise(writer, a);
         };
@@ -1569,7 +1585,7 @@ public final class MongoDb extends AnsiSqlRenderer {
                 + " {\"branches\": [{\"case\": {\"$eq\": [\"$$g0\", null]}, \"then\": \"\"},"
                 + " {\"case\": {\"$eq\": [{\"$type\": \"$$g0\"}, \"string\"]}, \"then\": \"$$g0\"},"
                 + " {\"case\": {\"$eq\": [{\"$type\": \"$$g0\"}, \"date\"]}, \"then\": {\"$dateToString\":"
-                + " {\"date\": \"$$g0\", \"format\": \"%Y-%m-%dT%H:%M:%S.%L+0000\"}}},"
+                + " {\"date\": \"$$g0\", \"format\": \"" + dateTimeFormat() + "\"}}},"
                 + " {\"case\": {\"$in\": [{\"$type\": \"$$g0\"}, [\"double\", \"decimal\"]]}, \"then\": ");
         numberTextOf(writer, MongoJson.var("g0"), false);
         writer.append("}], \"default\": {\"$toString\": \"$$g0\"}}}}}");
@@ -2143,6 +2159,18 @@ public final class MongoDb extends AnsiSqlRenderer {
         return writer.append("{\"$toString\": ").expr(a.get(0), 0).append("}, ")
                 .append(MongoJson.string(RAISE_SENTINEL)).append(", ").append(UNFOLDED)
                 .append("]}, \"to\": \"int\"}}");
+    }
+
+    /**
+     * A parse guarded by legend-pure's grammar (Phase 8, the user's error design of 2026-11-16: every refusal is
+     * lite's kind by name): the text bound once as {@code $$g0} (null for null), {@code conversion} over it when
+     * {@code grammar} matches, else the raise of {@code kind} carrying the text.
+     */
+    private SqlWriter guardedParse(SqlWriter writer, SqlExpr text, String grammar, String conversion,
+            com.legend.sql.RaiseKind kind) {
+        return MongoJson.guarded(writer, List.of(text), w -> w.append("{\"$cond\": [{\"$regexMatch\": {\"input\": "
+                + G0 + ", \"regex\": " + MongoJson.string(grammar) + "}}, " + conversion + ", ")
+                .expr(SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(kind, List.of(text))), 0).append("]}"));
     }
 
     /** An empty text that depends on the row ({@code $$ROOT}'s type, cut to nothing): concatenated into a raise so
@@ -2848,5 +2876,30 @@ public final class MongoDb extends AnsiSqlRenderer {
     @Override
     public @com.legend.base.Nullable Integer resultColumnLimit() {
         return null;
+    }
+
+    /** {@inheritDoc} The value as a Decimal128 rounded to six places, whose text MongoDB writes plain with its six
+     *  decimals, then its trailing zeros and point trimmed ({@code $rtrim}): a double's own {@code $toString} writes an
+     *  exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits, trimmed of the zeros
+        // and a point after them; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
+        // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
+        // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
+        writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
+        MongoJson.op1(writer, "$toDecimal", x);
+        return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
+                + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
+                + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
+                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"
+                + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
+                + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
+                + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"
+                + " \"in\": {\"$concat\": [{\"$replaceAll\": {\"input\": \"$$m\", \"find\": \".\", \"replacement\": \"\"}},"
+                + " {\"$reduce\": {\"input\": {\"$range\": [0, {\"$subtract\": [\"$$n\", {\"$cond\": [{\"$lt\": [\"$$p\", 0]},"
+                + " 0, {\"$subtract\": [{\"$subtract\": [{\"$strLenCP\": \"$$m\"}, \"$$p\"]}, 1]}]}]}]},"
+                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}]}}}}}]}}}}}");
     }
 }

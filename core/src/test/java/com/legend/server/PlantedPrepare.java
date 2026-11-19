@@ -18,7 +18,8 @@ public final class PlantedPrepare {
 
     /** A statement prepared outside the planners: the defect the rule refuses. */
     public static ProductStatements.Statement prepared(TypedQuery query) {
-        return ProductStatements.prepare(query, query.body(), null, null, java.util.Set.of());
+        return ProductStatements.prepare(query, query.body(), null, null, java.util.Set.of(),
+                com.legend.database.PlanStyle.PRODUCT);
     }
 
     /** The same, by the method's reference, never called. */
@@ -26,10 +27,11 @@ public final class PlantedPrepare {
         private ByReference() {
         }
 
-        /** {@code prepare}'s five-argument form as a function. */
+        /** {@code prepare}'s six-argument form as a function (its plan style the sixth, phase D, 2026-11-15). */
         public interface Preparing {
             ProductStatements.Statement prepare(TypedQuery query, java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-                    String runtime, Integer mark, java.util.Set<com.legend.platform.Feature> features);
+                    String runtime, Integer mark, java.util.Set<com.legend.platform.Feature> features,
+                    com.legend.database.PlanStyle style);
         }
 
         public static Preparing preparing() {

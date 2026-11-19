@@ -3,7 +3,7 @@ package com.legend.sql.dialect;
 import com.legend.sql.DialectCapability;
 
 import com.legend.compiler.element.type.ExprType;
-import com.legend.plan.UpstreamRelationType;
+import com.legend.plan.PureSpelling;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -107,8 +107,8 @@ class CatalogModelTest {
         List<CatalogModel.Column> columns = readCatalog(EXPECTED.keySet());
         CatalogModel.Database db = CatalogModel.database("t::DB", null, "T", columns, new DuckDb(), true);
         ExprType root = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor()).resultType();
-        List<String> types = UpstreamRelationType.columns(root).stream()
-                .map(c -> UpstreamRelationType.typePath(c.type())).toList();
+        List<String> types = PureSpelling.relationColumns(root).stream()
+                .map(c -> PureSpelling.typePath(c.type())).toList();
         assertEquals(List.copyOf(EXPECTED.values()), types, db.text());
     }
 
@@ -161,7 +161,7 @@ class CatalogModelTest {
                 "|#>{t::DB.s.trades}#->join(#>{t::DB.customers}#, meta::pure::functions::relation::JoinKind.LEFT,"
                         + " {a, b | $a.cust == $b.id}, 'c_')").resultType();
         assertEquals(List.of("id", "at", "cust", "c_id", "c_region"),
-                UpstreamRelationType.columns(joined).stream().map(c -> c.name()).toList());
+                PureSpelling.relationColumns(joined).stream().map(c -> c.name()).toList());
         IllegalArgumentException twice = assertThrows(IllegalArgumentException.class, () -> CatalogModel.database("t::DB",
                 List.of(new CatalogModel.Table(null, "customers", customers, true),
                         new CatalogModel.Table(null, "customers", customers, true)), new DuckDb()));
@@ -249,6 +249,31 @@ class CatalogModelTest {
     }
 
     /**
+     * A read-only source's zoned column, read in place through the product door, answers its UTC instant: DuckDB hands
+     * the cell as an OffsetDateTime at the session's zone, UTC, and the decode carries it as the instant it is, no
+     * shift in Java (E1 item 3, 2026-11-12, the orchestrator's acceptance: a value at any other offset is refused by
+     * name, JdbcDecodeH2Test). A value written at +05:00 reads back five hours earlier, its UTC wall clock.
+     */
+    @Test
+    void aReadOnlySourcesZonedColumnAnswersItsUtcInstant() throws Exception {
+        try (java.sql.Connection conn = java.sql.DriverManager.getConnection("jdbc:duckdb:");
+             java.sql.Statement st = conn.createStatement()) {
+            // the user's table, as a catalog source finds it; the plan's declared setup puts the session in UTC
+            st.execute("CREATE TABLE orders AS SELECT CAST(1 AS BIGINT) AS id,"
+                    + " TIMESTAMPTZ '2024-01-02 10:30:00+05:00' AS \"at\"");
+            CatalogModel.Database db = CatalogModel.database("t::DB", "main", "orders",
+                    columnsOf(st, "main", "orders"), new DuckDb(), false);
+            com.legend.result.Collector collector = new com.legend.result.Collector();
+            var session = com.legend.testbackend.TestSessions.over(conn);
+            com.legend.Execution.run(db.text() + WRAPPER, db.accessor() + "->select(~[id, at])", "t::RT",
+                    com.legend.exec.SessionSource.given(session), com.legend.exec.PlanSessions.of(session),
+                    new com.legend.result.Output.Rows(collector));
+            assertEquals(List.of(List.of(1L, com.legend.values.PureDateLiteral.parse("2024-01-02T05:30:00.000000000"))),
+                    collector.collected().rows());
+        }
+    }
+
+    /**
      * The same model on a Postgres runtime (a warehouse's Postgres catalog): the zoned column is read as
      * stored, compared with a timestamp literal and grouped by its year and month in Postgres's own SQL --
      * which the session's UTC zone makes its UTC instant's.
@@ -282,13 +307,13 @@ class CatalogModelTest {
                 catalog("\"a b\" INTEGER"), new DuckDb(), true);
         assertEquals("#>{t::DB.\"my schema\".\"total \\\"pnl\\\" 2024\"}#", db.accessor());
         ExprType root = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor()).resultType();
-        assertEquals(List.of("a b"), UpstreamRelationType.columns(root).stream().map(c -> c.name()).toList());
+        assertEquals(List.of("a b"), PureSpelling.relationColumns(root).stream().map(c -> c.name()).toList());
         String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor() + "->select(~['a b'])").plan("t::RT").sql();
         assertTrue(sql.contains("FROM \"my schema\".\"total \"\"pnl\"\" 2024\""), sql);
         for (String name : List.of("select", "a-b", "2024")) {
             CatalogModel.Database k = CatalogModel.database("t::DB", null, name,
                     catalog("a INTEGER"), new DuckDb(), true);
-            assertEquals(List.of("a"), UpstreamRelationType.columns(
+            assertEquals(List.of("a"), PureSpelling.relationColumns(
                     com.legend.Compiler.query(com.legend.Compiler.compileModel(k.text() + WRAPPER), k.accessor()).resultType()).stream().map(c -> c.name()).toList(),
                     name);
         }

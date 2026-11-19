@@ -25,6 +25,7 @@ public sealed interface TypedSpec permits
         TypedTestDataGen,
         TypedCInteger,
         TypedCString,
+        TypedNullCell,
         TypedCBoolean,
         TypedCFloat,
         TypedCDecimal,

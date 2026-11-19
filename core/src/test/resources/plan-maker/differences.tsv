@@ -25,18 +25,15 @@ sqlite	JSON	|let ts = [%2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T
 # refused alike: SQLite binds no array.
 # 2026-10-16 (Phase 6, as above): a Decimal parameter answers 2.500000000000000000 in CSV on SQLite, where today's path
 # answers 2.50. A defect of SQLite's plan path (the plan's defect 11).
-sqlite	CSV	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	ID,p,x\r\n1,2.500000000000000000,2.500000000000000000\r\n2,2.500000000000000000,5.000000000000000000\r\n3,2.500000000000000000,7.500000000000000000\r\n
+# 2026-11-17 (D2a, the orchestrator's ruling (c), under the user's 5b approval): SQLite holds no exact decimal, so the plan refuses a Decimal's arithmetic by name where the query answered the REAL's approximation (defect 11's rows below)
+sqlite	CSV	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	refused: a Decimal's arithmetic (TIMES) reached SQLite, which holds no exact decimal (a decimal is a REAL there): refused, never approximated
 # 2026-10-16 (Phase 6, as above): a Decimal parameter answers "2.50", a string, in JSON on SQLite, where today's path
 # answers 2.5, a number. A defect of SQLite's plan path (defect 11). 2026-10-22 (main's merge into the plan path
 # branch): the plan's JSON writes a Decimal as its text (register S104, the value's own scale), so SQLite's bound value
 # shows its eighteen places here as in CSV: the same defect.
-sqlite	JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	[{"ID":1,"p":2.500000000000000000,"x":2.500000000000000000},{"ID":2,"p":2.500000000000000000,"x":5.000000000000000000},{"ID":3,"p":2.500000000000000000,"x":7.500000000000000000}]
-# 2026-11-09 (the total wall's M2, P4: the type hole deleted; D1, ruled 2026-11-07): a run-time parameter is typed by
-# its DECLARED Pure type, as upstream's database extension writes its template, never by its value. On H2 a Float
-# parameter is upstream's CAST(? AS FLOAT): its arithmetic is binary, where the query with the literal (a decimal in
-# the database, the numeric charter's Rule 1) is exact. Posted to the user for a register row.
-h2	CSV	|let f = 1.1;#>{s::DB.T}#->extend(~x: r|$r.ID * $f)->select(~[ID, x])->sort(~ID->ascending());	ID,x\r\n1,1.1\r\n2,2.2\r\n3,3.3000000000000003\r\n
-h2	JSON	|let f = 1.1;#>{s::DB.T}#->extend(~x: r|$r.ID * $f)->select(~[ID, x])->sort(~ID->ascending());	[{"ID":1,"x":1.1},{"ID":2,"x":2.2},{"ID":3,"x":3.3000000000000003}]
+sqlite	JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	refused: a Decimal's arithmetic (TIMES) reached SQLite, which holds no exact decimal (a decimal is a REAL there): refused, never approximated
+# (2026-11-17, register S20 built, Phase 5b: H2's let f = 1.1 rows went -- the literal is the double too, so the
+# query with the literal and the plan with the parameter answer alike: 3.3000000000000003.)
 # 2026-11-09 (P4, D1): on H2 a Decimal parameter is a DECFLOAT, the closest exact fixed type: a value's trailing zeros
 # are not kept (2.50 answers 2.5, ID * 2.50 answers 5), where the literal's NUMERIC(3,2) keeps them. Posted to the user.
 h2	CSV	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	ID,p,x\r\n1,2.5,2.5\r\n2,2.5,5\r\n3,2.5,7.5\r\n
@@ -44,13 +41,13 @@ h2	JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select
 # 2026-11-09 (P4, D1): a Date parameter is a timestamp, as upstream writes it on every database but BigQuery: a
 # StrictDate value answers as a midnight date-time, where the query with the StrictDate literal answers the date.
 # Upstream's own outcome (D1); posted to the user with the two above.
-h2	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000000+0000\r\n2,2024-01-02T00:00:00.000000000+0000\r\n3,2024-01-02T00:00:00.000000000+0000\r\n
-h2	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":2,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":3,"d":"2024-01-02T00:00:00.000000000+0000"}]
-duckdb	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000000+0000\r\n2,2024-01-02T00:00:00.000000000+0000\r\n3,2024-01-02T00:00:00.000000000+0000\r\n
-duckdb	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":2,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":3,"d":"2024-01-02T00:00:00.000000000+0000"}]
+h2	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000Z\r\n2,2024-01-02T00:00:00.000000Z\r\n3,2024-01-02T00:00:00.000000Z\r\n
+h2	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000Z"},{"ID":2,"d":"2024-01-02T00:00:00.000000Z"},{"ID":3,"d":"2024-01-02T00:00:00.000000Z"}]
+duckdb	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000Z\r\n2,2024-01-02T00:00:00.000000Z\r\n3,2024-01-02T00:00:00.000000Z\r\n
+duckdb	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000Z"},{"ID":2,"d":"2024-01-02T00:00:00.000000Z"},{"ID":3,"d":"2024-01-02T00:00:00.000000Z"}]
 # 2026-11-09 (the correctness re-audit's 1; the user's ruling that day, "Duckdb timestamp is fine, later we need a
 # nanosecond pure type"): a DateTime parameter on DuckDB is upstream's microsecond TIMESTAMP, where lite's own literal
 # keeps a nanosecond digit (TIMESTAMP_NS). 2026-11-10 (S181 RULED, A7): a value of a finer digit than the slot keeps
 # is refused by the statement's own raise, never cut (until A7 it was cut to .123456).
-duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
-duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
+duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: more fraction digits than this database keeps: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
+duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: more fraction digits than this database keeps: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)

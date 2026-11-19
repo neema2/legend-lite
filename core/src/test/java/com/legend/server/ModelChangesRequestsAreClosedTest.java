@@ -106,10 +106,10 @@ class ModelChangesRequestsAreClosedTest {
                                 "classes", List.of("trades::domain::Trade")))));
     }
 
-    private static PureV1Api.Answer route(String route, Object request) {
-        return PureV1Api.route("/api/lite/v1/model/" + route, null, Json.toCompact(request), (q, r, o) -> {
+    private static LiteV1Api.Answer route(String route, Object request) {
+        return LiteV1Api.route(LiteV1Planning.API + "model/" + route, Json.toCompact(request), (q, r, v, o) -> {
             throw new AssertionError("a model change runs nothing");
-        });
+        }, LiteV1Api.Models.COMPILED);
     }
 
     /** Every JSON object of {@code node} whose keys are a reader's (not a map by name: columns' choices, samples), by
@@ -152,7 +152,7 @@ class ModelChangesRequestsAreClosedTest {
         List<String> wrong = new ArrayList<>();
         int refused = 0;
         for (Case c : cases()) {
-            PureV1Api.Answer whole = route(c.route(), c.request());
+            LiteV1Api.Answer whole = route(c.route(), c.request());
             if (whole.status() != 200) {
                 wrong.add(c.route() + ": its request with every key is refused: " + whole.json());
                 continue;
@@ -160,7 +160,7 @@ class ModelChangesRequestsAreClosedTest {
             List<String> paths = new ArrayList<>();
             objects(c.request(), "$", paths);
             for (String path : paths) {
-                PureV1Api.Answer a = route(c.route(), withUnknownKey(c.request(), "$", path));
+                LiteV1Api.Answer a = route(c.route(), withUnknownKey(c.request(), "$", path));
                 String message = a.status() == 200 ? "" : Json.parseObject(a.json()).getStringOr("message", "");
                 if (a.status() == 200) {
                     wrong.add(c.route() + " at " + path + ": an unknown key is read past");
@@ -184,7 +184,7 @@ class ModelChangesRequestsAreClosedTest {
     private static final int EXPECTED_OBJECTS = 8 + 16 + 17 + 2 + 3 + 3;
 
     /** A text model's serializer given as JSON's null is none -- upstream's protocol field is optional -- and one that
-     *  is not an object is refused by name, a malformed request as the routes answer one ({@link PureV1Api#answer}:
+     *  is not an object is refused by name, a malformed request as the routes answer one ({@link LiteV1Api#answer}:
      *  500, the exception named, as an unknown key is): until the C4 final fix round's B2 (2026-11-14) both were a
      *  ClassCastException, the null through {@code has} and the cast. */
     @Test
@@ -197,7 +197,7 @@ class ModelChangesRequestsAreClosedTest {
                 Map<String, Object> model = (Map<String, Object>) (where.equals("project") ? req.get("project")
                         : cls.get("source"));
                 model.put("serializer", given);
-                PureV1Api.Answer a = route("createClass", req);
+                LiteV1Api.Answer a = route("createClass", req);
                 if (given == null) {
                     assertEquals(200, a.status(), where + ": " + a.json());
                 } else {
@@ -216,7 +216,7 @@ class ModelChangesRequestsAreClosedTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> where = (Map<String, Object>) cls.get("where");
         where.put("samples", obj("other", obj("columns", List.of("x"), "rows", List.of())));
-        PureV1Api.Answer a = route("createClass", request("class", cls));
+        LiteV1Api.Answer a = route("createClass", request("class", cls));
         assertEquals(400, a.status(), a.json());
         assertEquals("a sample of the table 'other', which the relation does not read",
                 Json.parseObject(a.json()).getString("message"));

@@ -10,6 +10,11 @@ public class TypeInferenceException extends LegendCompileException {
         super(Phase.TYPE, message);
     }
 
+    /** An error of {@code kind} over {@code operands} (D1.6): its message lite's sentence. */
+    public TypeInferenceException(CompileKind kind, java.util.List<String> operands) {
+        super(Phase.TYPE, kind, operands, null, null);
+    }
+
     public TypeInferenceException(String message, Throwable cause) {
         super(Phase.TYPE, message, cause);
     }

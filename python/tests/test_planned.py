@@ -113,7 +113,7 @@ class OneSendTest(unittest.TestCase):
     def test_a_loads_steps_are_the_plans(self):
         # run_load types each step as it reads it from the plan: what reaches the database is a PlannedSql
         seen: list[object] = []
-        plan = {'format': 'legend-lite-plan', 'version': projects.PLAN_VERSION,
+        plan = {'format': 'legend-lite-plan', 'version': projects.PLAN_VERSION, 'raises': {},
                 'root': {'_type': 'load', 'identity': 'L', 'cadence': 'ONCE', 'connection': 'c',
                          'steps': [{'_type': 'statement', 'sql': 'CREATE TABLE a (x INT)'}]}}
         try:
@@ -252,7 +252,7 @@ class WitnessTest(unittest.TestCase):
             w.write_table(rows)
 
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 on_receipt({'statementId': 's1', 'serverRows': 3, 'as': 'rita', 'where': 'a stand-in'})
                 yield sink.getvalue().to_pybytes()
 
@@ -266,7 +266,7 @@ class WitnessTest(unittest.TestCase):
     def test_a_streams_failed_rollback_is_said_with_its_failure(self):
         # G7 (the final audit's item 4, 2026-11-12): a rollback that failed too was suppressed, the failure said alone
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 raise ConnectionResetError('the connection was reset')
                 yield b''
 
@@ -774,7 +774,7 @@ class C5SplitTest(unittest.TestCase):
         pulls = []
 
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 on_receipt({'statementId': 's1', 'serverRows': 9, 'as': 'rita', 'where': 'a stand-in'})
                 for _ in range(3):
                     pulls.append((current_run(), threading.current_thread() is threading.main_thread()))
@@ -802,7 +802,7 @@ class C5SplitTest(unittest.TestCase):
         seen = []
 
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 self.sql = sql
                 seen.append(current_run())
                 seen.append(warehouse._on_library(current_run))
@@ -839,7 +839,7 @@ class C5SplitTest(unittest.TestCase):
             def __init__(self, ask):
                 self.ask = ask
 
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 self.ask()
                 yield b''
 
@@ -941,7 +941,7 @@ class FollowupTest(unittest.TestCase):
         # a plane failing as its statement is asked for (no generator: at once) failed before the stream's try, and left
         # the transaction its begin opened; it is rolled back now, and the plane's failure raised
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 raise ConnectionResetError('the plane refused at once')
 
         plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'never'})
@@ -998,11 +998,12 @@ class TheBridgeTest(unittest.TestCase):
         """The C checkpoint's code audit, SHOULD-FIX 6 (2026-11-12): an answer's statements alone are kept, read by its
         kind -- a column's label, a constant in the typed tree, a value a slot binds and an HTTP body are not."""
         answered = Answered()
-        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT a AS "DROP TABLE t" FROM x', 'type': {
-            'columns': [{'name': 'DROP TABLE t', 'type': 'String'}]}}))
-        answered.record('executionPlan', 'OK\n' + json.dumps({'format': 'legend-lite-plan', 'root': {
+        answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'format': 'legend-lite-plan', 'raises': {}, 'root': {
+            '_type': 'tdsResult', 'columns': [{'name': 'DROP TABLE t', 'type': 'String'}],
+            'sql': {'statement': 'SELECT a AS "DROP TABLE t" FROM x', 'slots': []}}}}))
+        answered.record('queryPlanHeld', 'OK\n' + json.dumps({'plan': {'format': 'legend-lite-plan', 'raises': {}, 'root': {
             '_type': 'tds', 'sql': {'statement': 'SELECT ? AS v', 'slots': [], 'tree': {'value': 'DELETE FROM t'},
-                                    'content': {'abc': 'TRUNCATE t'}, 'target': {'session': ['SET threads = 1']}}}}))
+                                    'content': {'abc': 'TRUNCATE t'}, 'target': {'session': ['SET threads = 1']}}}}}))
         answered.record('pureV1', 'OK\n500\napplication/json\n{"sql": "DROP TABLE u"}')
         for text in ('SELECT a AS "DROP TABLE t" FROM x', 'SELECT ? AS v', 'SET threads = 1'):
             self.assertIn(text, answered)
@@ -1022,8 +1023,8 @@ class TheBridgeTest(unittest.TestCase):
         self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
         for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
             self.assertIn(local, answered, local)
-        answered.record('executionPlan', 'OK\n' + json.dumps({'root': {'_type': 'sequence', 'steps': [
-            {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}))
+        answered.record('queryPlanHeld', 'OK\n' + json.dumps({'plan': {'raises': {}, 'root': {'_type': 'sequence', 'steps': [
+            {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}}))
         self.assertIn('INSERT INTO t SELECT 1', answered)
         self.assertNotIn('written', answered, "an update's count names a value, never a statement")
 
@@ -1055,7 +1056,8 @@ class TheBridgeTest(unittest.TestCase):
         answered): a host operation takes no SQL -- a source query, a select list, a replacement -- whatever it is."""
         answered = Answered()
         ops = lambda op: {'kind': 'hostOperations', 'databaseType': 'DuckDB', 'operations': json.dumps([op])}
-        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT * FROM t'}))
+        answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'raises': {}, 'root': {
+            '_type': 'tdsResult', 'columns': [], 'sql': {'statement': 'SELECT * FROM t', 'slots': []}}}}))
         for op, key in (({'op': 'count', 'from': {'query': 'SELECT * FROM t'}}, 'query'),
                         ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*',
                           'from': {'relation': {'name': 't'}}}, 'selectList'),
@@ -1063,7 +1065,7 @@ class TheBridgeTest(unittest.TestCase):
                           'replacing': [{'column': 'a', 'sql': 'DROP TABLE t'}]}, 'replacing')):
             self.assertIn(f'takes no SQL, and its {key} is SQL', answered.refusal(ops(op)))
         self.assertIsNone(answered.refusal(ops({'op': 'count', 'from': {'relation': {'name': 't'}}})))
-        self.assertIsNone(answered.refusal({'kind': 'plan', 'query': 'anything'}), 'another kind carries no host text')
+        self.assertIsNone(answered.refusal({'kind': 'queryPlan', 'request': 'anything'}), 'another kind carries no host text')
 
     def test_the_set_is_bounded(self):
         answered = Answered()
@@ -1086,9 +1088,10 @@ class TheBridgeTest(unittest.TestCase):
         self.assertTrue(held['ok'], held)
         handle = int(held['answer'].partition('\n')[2])
         lam = json.dumps(compiler.parse('|#>{test::DB.T_TREES}#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())'))
-        request = {'kind': 'executionPlan', 'handle': handle, 'lambda': lam, 'runtime': 'test::RT'}
+        request = {'kind': 'queryPlanHeld', 'handle': handle,
+                   'request': '{"query":' + lam + ',"runtime":"test::RT"}'}
         answered = self.answered(request)
-        plan = json.loads(answer(library(), request)['answer'].partition('\n')[2])
+        plan = json.loads(answer(library(), request)['answer'].partition('\n')[2])['plan']
         keyed = plan['root']
         self.assertEqual(keyed['_type'], 'keyed', keyed['_type'])
         body = keyed['body']
@@ -1118,6 +1121,182 @@ class TheBridgeTest(unittest.TestCase):
             with self.assertRaises(NotPlanned):
                 across_the_bridge(wrong, "the hosted DataCube's query", answered)
 
+class ARaiseIsWorded(unittest.TestCase):
+    """A product raise in lite's words wherever it fires (#104's M2(b), 2026-11-15): the envelope read as Java's runner
+    and the tab's read it, one shared fixture; a raise DuckDB fires at a FETCH worded as one at the send."""
+
+    def test_each_envelope_reads_as_javas_runner_and_the_tabs_read_it(self):
+        import os
+
+        from legend_lite._raised import declare_statement_sites, raised_kind, raised_words
+        fixture = json.loads(open(os.environ['LEGEND_LITE_RAISE_FIXTURE'], encoding='utf-8').read())
+        # the sites are the statement's (PlanJson v56; phase D's Phase 2): declared first, as a plan read does
+        declare_statement_sites(fixture['statement'], fixture['sites'], 'the fixture')
+        cases = fixture['cases']
+        self.assertGreater(len(cases), 5)
+        for case in cases:
+            with self.subTest(case['name']):
+                if case.get('refused'):
+                    with self.assertRaisesRegex(ValueError, 'which the statement does not declare'):
+                        raised_words(case['message'], fixture['statement'])
+                    continue
+                said = raised_words(case['message'], fixture['statement'])
+                self.assertEqual(case['message'] if said is None else said, case['words'])
+                self.assertEqual(raised_kind(case['message'], fixture['statement']), case.get('kind'))
+
+    def test_a_token_its_statement_does_not_declare_is_refused_by_name(self):
+        from legend_lite._raised import raised_words
+        with self.assertRaisesRegex(ValueError, 'LG#1, which the statement does not declare'):
+            raised_words('\x1f\x1cLG#1\x1f', 'SELECT a statement no plan declared')
+
+    def test_a_raise_fired_at_a_fetch_is_worded(self):
+        from legend_lite._planned import Result
+        from legend_lite._raised import declare_statement_sites
+
+        # what a plan that divides declares for its statement (PlanJson v56's sites)
+        declare_statement_sites('SELECT 1 / 0', [{'n': 1, 'kind': 'DIVIDE_BY_ZERO', 'where': None,
+                                                  'message': 'division by zero', 'upstream': None}], 'a plan')
+
+        class Failing:
+            def fetchall(self):
+                raise RuntimeError('Invalid Input Error: Attempting to execute an unsuccessful or closed pending query'
+                                   ' result\nError: Invalid Input Error: \x1f\x1cLG#1\x1f')
+
+        with self.assertRaises(RuntimeError) as raised:
+            Result(Failing(), 'SELECT 1 / 0').fetchall()
+        self.assertEqual(str(raised.exception), 'division by zero')
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class BindAtRun(unittest.TestCase):
+    """A plan's parameters bound at RUN (the lite API spec's §4, 2026-11-17; Java's PlanParameters.check and the TS host's
+    checkParameters, one rule): each declaration read strictly; every value checked before anything is sent, every
+    problem named at once, the missing first; each value converted by its declared Pure type; an Integer within the
+    64-bit range on every host, a Python bool no Integer."""
+
+    @staticmethod
+    def p(name, type_, lower=1, upper=1, enum=()):
+        from legend_lite._plans import Declared
+        return Declared(name, type_, lower, upper, tuple(enum))
+
+    def test_a_remote_planes_run_binds_as_a_local_run_does(self):
+        # the warehouse's statement API binds at run (the host train, 2026-11-17, the orchestrator's ruling (a)): the
+        # plane is handed the plan's payloads and each parameter's checked value, positionally -- the same _params.bind
+        from legend_lite._plans import Column, Plan
+        from legend_lite._reads import run_on_plane
+        from legend_lite._planned import PlannedSql
+        import pyarrow as pa
+        import pyarrow.ipc
+        handed = []
+        rows = pa.table({'n': pa.array([1], pa.int64())})
+        sink = pa.BufferOutputStream()
+        with pyarrow.ipc.new_stream(sink, rows.schema) as w:
+            w.write_table(rows)
+
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
+                handed.append(tuple(params))
+                yield sink.getvalue().to_pybytes()
+
+        plan = Plan(PlannedSql('SELECT ? AS n WHERE ? = ?'), (Column('n', 'Integer', {'name': 'n', 'type': 'Integer'}),), (),
+                    (self.p('desk', 'String'),), (('payload', 'a payload'), ('parameter', 'desk'), ('payload', 'b')))
+        with in_run("a test's run"):
+            run_on_plane(Plane(), plan, None, {'desk': 'FX'})
+        self.assertEqual(handed, [('a payload', 'FX', 'b')])
+        from legend_lite._params import ParametersRefused
+        with in_run("a test's run"), self.assertRaises(ParametersRefused):
+            run_on_plane(Plane(), plan)
+        self.assertEqual(len(handed), 1, 'nothing sent before every value checked')
+
+    def test_a_declaration_is_read_strictly(self):
+        from legend_lite._plans import PlanParametersRefused, declared
+        ok = {'name': 'd', 'type': 'String', 'multiplicity': {'lower': 0}, 'enumValues': []}
+        self.assertEqual(declared(ok), self.p('d', 'String', 0, None))
+        for bad in ({**ok, 'extra': 1}, {**ok, 'multiplicity': {'lower': 0, 'upper': None}}, {**ok, 'enumValues': [1]},
+                    {**ok, 'multiplicity': {'lower': True}}, {'name': 'd'}, 'd'):
+            with self.subTest(bad=bad), self.assertRaisesRegex(
+                    PlanParametersRefused, "a plan parameter declared without its name, type, multiplicity and enumeration's values"):
+                declared(bad)
+
+    def test_every_problem_is_named_at_once_the_missing_first(self):
+        from legend_lite._params import ParametersRefused, check
+        declared = [self.p('a', 'Integer'), self.p('b', 'String', 0, None), self.p('c', 'Integer'), self.p('x', 'Boolean')]
+        with self.assertRaises(ParametersRefused) as refused:
+            check(declared, {'b': 'one value', 'c': [1, 2], 'x': 'yes', 'unknown': 1})
+        self.assertEqual(str(refused.exception),
+                         "no value for the parameter(s) a:Integer[1]; values their parameters do not take: "
+                         "[parameter 'b' (String[*]): takes a list, given one value; "
+                         "parameter 'c' (Integer[1]): takes one value, given a list of 2; "
+                         "parameter 'x' (Boolean[1]): given \"yes\" (string): a Boolean is a boolean]")
+        with self.assertRaises(ParametersRefused) as refused:
+            check([self.p('n', 'Integer', 1, 2)], {'n': [1, 2, 3]})
+        self.assertEqual(str(refused.exception),
+                         "values their parameters do not take: [parameter 'n' (Integer[1..2]): takes 1..2 values, given 3]")
+
+    def test_each_type_takes_its_values(self):
+        from legend_lite._params import Many, NoValue, One, check
+        cases = [
+            ('Integer', 2 ** 63 - 1, 2 ** 63 - 1), ('Integer', -(2 ** 63), -(2 ** 63)), ('Float', 1.5, 1.5), ('Float', 2, 2.0),
+            ('Decimal', '-12.30', '-12.30'), ('Number', 3, 3), ('Number', 0.5, 0.5), ('Number', '1.25', '1.25'),
+            ('Boolean', False, False), ('String', '', ''), ('StrictDate', '2026-11-17', '2026-11-17'),
+            ('DateTime', '2026-11-17T09:30Z', '2026-11-17 09:30:00.000000000'),
+            ('DateTime', '2026-11-17 09:30:01.5', '2026-11-17 09:30:01.500000000'),
+            ('Date', '2026-11-17', '2026-11-17'), ('Date', '2026-11-17T01:02:03.123456789', '2026-11-17 01:02:03.123456789'),
+        ]
+        for type_, given, bound in cases:
+            with self.subTest(type=type_, given=given):
+                self.assertEqual(check([self.p('v', type_)], {'v': given}), {'v': One(bound)})
+        self.assertEqual(check([self.p('c', 'p::Colour', enum=('RED', 'BLUE'))], {'c': 'BLUE'}), {'c': One('BLUE')})
+        self.assertEqual(check([self.p('o', 'String', 0, 1), self.p('l', 'Integer', 0, None)], {'l': []}),
+                         {'o': NoValue(), 'l': NoValue()})
+        self.assertEqual(check([self.p('l', 'Integer', 1, None)], {'l': [1, 2]}), {'l': Many((1, 2))})
+
+    def test_each_type_refuses_what_it_does_not_take(self):
+        from legend_lite._params import ParametersRefused, check
+        cases = [
+            ('Integer', True, 'given true (boolean): an Integer is a whole number within the 64-bit range'),
+            ('Integer', 2 ** 63, f'given {2 ** 63} (number): an Integer is a whole number within the 64-bit range'),
+            ('Integer', 1.0, 'given 1.0 (number): an Integer is a whole number within the 64-bit range'),
+            ('Number', 2 ** 63, f'given {2 ** 63} (number): an Integer is a whole number within the 64-bit range'),
+            ('Float', float('nan'), 'nan is not finite: no SQL literal stands for it'),
+            ('Decimal', '1e3', 'given "1e3" (string): a Decimal is its plain digits as text'),
+            ('StrictDate', '0000-01-01', '0000-01-01 is outside the years 1 to 9999: no date text a database reads stands for it'),
+            ('DateTime', '2026-11-17', 'given "2026-11-17" (string): a DateTime is its ISO 8601 text in UTC, '
+                                       'YYYY-MM-DDTHH:MM[:SS[.fffffffff]]'),
+            ('p::Unknown', 1, 'a p::Unknown value is not bound by a plan'),
+        ]
+        for type_, given, why in cases:
+            with self.subTest(type=type_, given=given), self.assertRaises(ParametersRefused) as refused:
+                check([self.p('v', type_)], {'v': given})
+            self.assertEqual(str(refused.exception),
+                             f"values their parameters do not take: [parameter 'v' ({type_}[1]): {why}]")
+        with self.assertRaises(ParametersRefused) as refused:
+            check([self.p('c', 'p::Colour', enum=('RED',))], {'c': 'BLUE'})
+        self.assertIn('"BLUE" is not a value of p::Colour [RED]', str(refused.exception))
+        with self.assertRaises(ParametersRefused) as refused:
+            check([self.p('l', 'Integer', 0, None)], {'l': [1, None]})
+        self.assertIn('a list holds no null', str(refused.exception))
+
+    def test_a_plans_slots_bind_payloads_and_parameters_in_order(self):
+        import hashlib
+        from legend_lite._params import bind
+        from legend_lite._plans import Plan, PlanParamsRefused, plan_binding
+        payload = '[1,2]'
+        digest = hashlib.sha256(payload.encode()).hexdigest()
+        plan = {'parameters': [{'name': 'd', 'type': 'String', 'multiplicity': {'lower': 0, 'upper': 1}, 'enumValues': []}],
+                'root': {'_type': 'result', 'sql': {'statement': 'S', 'content': {digest: payload}, 'slots': [
+                    {'parameter': 'd', 'binding': {'_type': 'one', 'nullType': 'VARCHAR'}},
+                    {'parameter': 'p', 'binding': {'_type': 'payload', 'digest': digest}},
+                    {'parameter': 'd', 'binding': {'_type': 'one', 'asText': {}}}]}}}
+        payloads, parameters, slots = plan_binding(plan)
+        bound = Plan(PlannedSql.__new__(PlannedSql), (), payloads, parameters, slots)
+        self.assertEqual(bind(bound, {'d': 'x'}), ('x', payload, 'x'))
+        self.assertEqual(bind(bound, {}), (None, payload, None), "an optional given none binds a typed null")
+        # a one slot of no declared parameter, and a dynamic pivot that takes parameters, refused by name
+        undeclared = {**plan, 'parameters': []}
+        with self.assertRaisesRegex(PlanParamsRefused, "'d' binds a value the run supplies"):
+            plan_binding(undeclared)
+        with self.assertRaisesRegex(PlanParamsRefused, 'a dynamic pivot that takes parameters is not run here'):
+            plan_binding({**plan, 'root': {'_type': 'keyed'}})

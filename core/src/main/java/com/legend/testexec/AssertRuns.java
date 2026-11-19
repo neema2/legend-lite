@@ -39,10 +39,9 @@ final class AssertRuns {
      *  route counted once the arm answered (M10b: never on a failed one, which raises before). */
     static @com.legend.base.Nullable TypedSide judge(com.legend.testexecutionplan.Assertion a, HostJudgment j,
             java.util.function.Supplier<List<TypedSide>> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
-        TypedSide v = judgedOrFellThrough(com.legend.testexec.HostJudgments.judge(j, sides, rules, message, run));
-        if (v != null && HostJudgment.core(j) instanceof HostJudgment.EngineText e && e.routed()) {
+        TypedSide v = judgedOrFellThrough(com.legend.testexec.HostJudgments.judge(j, sides, message, run));
+        if (v != null && HostJudgment.core(j) instanceof HostJudgment.EdgeJudged e && e.counted()) {
             sqlTextRouted(a.name());
         }
         return v;
@@ -67,7 +66,7 @@ final class AssertRuns {
      */
     static @com.legend.base.Nullable TypedSide judgedAtItsStep(com.legend.testexecutionplan.TestPlan.Host h,
             com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
+            java.util.function.Supplier<List<TypedSide>> sides,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
         com.legend.testexecutionplan.Assertion a = h.assertion();
         com.legend.testexecutionplan.Failure before = a.beforeTheArm();
@@ -77,13 +76,13 @@ final class AssertRuns {
         }
         if (listener == null) {
             enter(a);
-            return judge(a, h.judgment(), sides, rules, message, run);
+            return judge(a, h.judgment(), sides, message, run);
         }
         com.legend.diagnostics.VerdictCensus.sqlEnter();
         boolean settled = false;
         try {
             enter(a);
-            TypedSide v = judge(a, h.judgment(), sides, rules, message, run);
+            TypedSide v = judge(a, h.judgment(), sides, message, run);
             settled = true;
             if (v != null) {
                 listener.verdict(a.listenerName(), true, null);
@@ -108,17 +107,17 @@ final class AssertRuns {
      *  its step and counted and reported as {@link #judgedAtItsStep} counts and reports a host verdict: entered, its
      *  verdict to the listener, a failure counted as raised. The row's polarity and message decide. */
     static void judgedRowAtItsStep(com.legend.testexecutionplan.Assertion a, List<Object> row,
-            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, HostWords words) {
         if (listener == null) {
             enter(a);
-            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row);
+            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row, words);
             return;
         }
         com.legend.diagnostics.VerdictCensus.sqlEnter();
         boolean settled = false;
         try {
             enter(a);
-            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row);
+            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row, words);
             settled = true;
             listener.verdict(a.listenerName(), true, null);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
@@ -133,87 +132,6 @@ final class AssertRuns {
             if (!settled) {
                 com.legend.diagnostics.VerdictCensus.sqlRaised();
             }
-        }
-    }
-
-    /** The host half's verdict over its sides HELD for the agreement judge: its verdict, or the failure it raised
-     *  (an assert that does not hold), never null together. */
-    record HostHeld(@com.legend.base.Nullable TypedSide verdict, com.legend.error.@com.legend.base.Nullable AssertFailed failed) {
-    }
-
-    /**
-     * THE AGREEMENT JUDGE'S HOST HALF AT ITS STEP (the walker-deletion program, 2026-11-02): {@code a} judged over the
-     * sides the runner read, its verdict HELD -- the verdict of record is decided once the database half's rows are in
-     * ({@link #agreedAtItsStep}) -- counted as the deleted walk's adjudication counted an assert it judged in place over the
-     * agreement arm (entered; a side's data error counted raised, reported and thrown at once, as the agreement arm
-     * lets it through; any other exit counted raised). A judgment that declined the sides it read is refused by name.
-     */
-    static HostHeld heldAtItsStep(com.legend.testexecutionplan.TestPlan.Host h, com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
-        com.legend.testexecutionplan.Assertion a = h.assertion();
-        com.legend.testexecutionplan.Failure before = a.beforeTheArm();
-        if (before != null) {
-            throw com.legend.testexecutionplan.Failures.raised(before);
-        }
-        if (listener != null) {
-            com.legend.diagnostics.VerdictCensus.sqlEnter();
-        }
-        boolean settled = false;
-        try {
-            enter(a);
-            TypedSide v = null;
-            com.legend.error.AssertFailed failed = null;
-            try {
-                v = judge(a, h.judgment(), sides, rules, message, run);
-            } catch (com.legend.error.AssertFailed e) {
-                failed = e;
-            }
-            settled = true;
-            if (failed != null) {
-                return new HostHeld(null, failed);
-            }
-            if (v == null) {
-                throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
-                        + " judge declined the sides it read (the walk's generic path has no program form)");
-            }
-            return new HostHeld(v, null);
-        } catch (com.legend.error.DataError e) {
-            settled = true;
-            if (listener != null) {
-                com.legend.diagnostics.VerdictCensus.sqlRaised();
-                listener.verdict(a.listenerName(), false, e.getMessage());
-            }
-            throw e;
-        } finally {
-            if (!settled && listener != null) {
-                com.legend.diagnostics.VerdictCensus.sqlRaised();
-            }
-        }
-    }
-
-    /** The agreement judge's verdict of record for {@code a} ({@code agreed}: the agreement rule over both halves,
-     *  {@link AgreementArm#agree}), reported to {@code listener} as the deleted walk's adjudication reported it: a pass, or a
-     *  failure (an assert that does not hold, a data error) counted raised, its UNJUDGED reason and its verdict told,
-     *  and thrown. */
-    static TypedSide agreedAtItsStep(com.legend.testexecutionplan.Assertion a,
-            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
-            java.util.function.Supplier<@com.legend.base.Nullable TypedSide> agreed) {
-        try {
-            TypedSide v = java.util.Objects.requireNonNull(agreed.get(), "a host verdict the agreement rule dropped");
-            if (listener != null) {
-                listener.verdict(a.listenerName(), true, null);
-            }
-            return v;
-        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-            if (listener != null) {
-                com.legend.diagnostics.VerdictCensus.sqlRaised();
-                if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
-                    listener.unjudged(a.listenerName(), af.unjudgedReason());
-                }
-                listener.verdict(a.listenerName(), false, e.getMessage());
-            }
-            throw e;
         }
     }
 

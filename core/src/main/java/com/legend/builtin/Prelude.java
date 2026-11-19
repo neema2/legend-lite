@@ -53,7 +53,7 @@ public final class Prelude {
      * {@link Pure} native-catalog discipline; the same bootstrap-loader
      * regime as {@link SystemMetamodel}). */
     private static final ParsedModel PARSED = com.legend.door.ModelFromText.parse(
-            SOURCE, com.legend.parser.Dialect.LEGEND_PLATFORM);
+            SOURCE, com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
 
     // ORDERED, in module order (PRELUDE_MODULE_HOMEWORK §9.12): the
     // generator writes legend-pure's sections before legend-engine's, each

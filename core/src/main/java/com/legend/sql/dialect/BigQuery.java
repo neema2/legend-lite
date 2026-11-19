@@ -72,7 +72,9 @@ import java.util.Set;
  * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling
  * is a silent wrong answer.
  */
-public final class BigQuery extends AnsiSqlRenderer {
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class BigQuery extends AnsiSqlRenderer {
 
     /** {@inheritDoc} -- BigQuery: half its 1,024K-character query limit. */
     @Override
@@ -104,13 +106,6 @@ public final class BigQuery extends AnsiSqlRenderer {
     // ==================================================================
     // Session and structure
     // ==================================================================
-
-    /** The engine's H2 text is refused here: BigQuery has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
-    }
 
     /** {@inheritDoc} 6: its {@code DATETIME} keeps microseconds (a literal of nine digits is refused, measured) (S181, A7, 2026-11-10). */
     @Override
@@ -203,26 +198,11 @@ public final class BigQuery extends AnsiSqlRenderer {
         return false;
     }
 
-    /** The portable carrier strategies, a fold that reads nothing of its row as a top-level recursive expression (WITH
-     *  RECURSIVE is top-level only, measured), the substring start clamp (BigQuery reads a start of 0 as 1), averages
-     *  delivered as DOUBLE (an average of a NUMERIC or BIGNUMERIC is one), and a constant GROUP BY or ORDER BY key as a
-     *  typed expression (BigQuery reads an integer one as a position), and a large repeated subexpression written once
-     *  (a statement is capped at 1,024K characters: a float's text canon read a dozen times, nested, wrote 2.9M, measured;
-     *  the binding's one-row derived table under a scalar subquery correlates here, measured). QUALIFY and
-     *  PERCENTILE_* OVER are native; no root numeric cast: a parameterized type cannot be cast to, and the driver
-     *  reports no NUMERIC scale. */
-    /** A Float's literal spelling over the double's text bound once (its text is an expression here: a five-element
-     *  mixed list's sort was 436 KB, measured 2026-10-11). */
-    @Override
-    protected boolean bindsFloatText() {
-        return true;
-    }
-
     /** A Float's print forms over the value and its text bound once: the portable spellings read the text nine times
      *  (Pure's) and over a thousand (legend-engine's), each read this dialect's text of a double, its own subquery (the
      *  served statement for {@code 1.5 + 2.25} was 321 KB, measured 2026-10-22). */
     @Override
-    protected boolean bindsFloatPrint() {
+    protected boolean readsLongTextOnce() {
         return true;
     }
 
@@ -460,7 +440,7 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  casts to JSON and to text this dialect writes {@code TO_JSON_STRING(TO_JSON(key))}. */
     private static SqlExpr partitionKey(SqlExpr key) {
         return typeOf(key) == SqlType.Scalar.DOUBLE
-                ? new SqlExpr.Cast(new SqlExpr.Cast(key, SqlType.Scalar.JSON), SqlType.Scalar.VARCHAR) : key;
+                ? new SqlExpr.Cast(new SqlExpr.Cast(key, SqlType.Scalar.JSON, SqlExpr.Reason.DIALECT), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT) : key;
     }
 
     /** A mode where it is written: the value of its most counted row, the least value on a tie, NULLs ignored --
@@ -497,7 +477,7 @@ public final class BigQuery extends AnsiSqlRenderer {
         for (int i = 0; i < s.projections().size(); i++) {
             SqlSelect.Projection p = s.projections().get(i);
             ps.add(nullValued(p.expr())
-                    ? new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), labels.get(i).type()), p.alias(),
+                    ? new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), labels.get(i).type(), SqlExpr.Reason.DIALECT), p.alias(),
                             p.out())
                     : p);
         }
@@ -752,17 +732,53 @@ public final class BigQuery extends AnsiSqlRenderer {
     }
 
     /** A naive date-time is a DATETIME; it holds microseconds (a literal with nine digits is refused, measured), and
-     *  a literal of a finer digit is refused at planning ({@link #literalFractionDigits}; S181, A7). */
+     *  a literal of a finer digit is refused at planning ({@link #literalFractionDigits}; S181, A7). A year BigQuery
+     *  does not hold is refused at planning ({@link #heldYear}, S340). */
     @Override
     protected String timestampLit(String iso) {
+        heldYear(iso, "date-time");
         return "DATETIME '" + iso.replace('T', ' ') + "'";
+    }
+
+    /** A date literal, its year held by BigQuery or refused at planning ({@link #heldYear}, S340). */
+    @Override
+    protected String dateLit(String iso) {
+        heldYear(iso, "date");
+        return super.dateLit(iso);
+    }
+
+    /**
+     * BigQuery holds a DATE and a DATETIME from 0001-01-01 to 9999-12-31. A literal outside that range is refused at
+     * planning, by name (S340, ruled by the user 2026-11-15, DE6 (a); the BC probe on the BigQuery lane, 2026-11-13, measured the
+     * database refusing {@code date(-43, 3, 15)} with the driver's bare "BigQueryException during runQuery"). Only a
+     * LITERAL is known here: a date COMPUTED in SQL outside the range stays the database's own raise.
+     */
+    private static void heldYear(String iso, String what) {
+        int end = iso.indexOf('-', 1);
+        long year = Long.parseLong(iso.substring(0, end < 0 ? iso.length() : end));
+        if (year < 1 || year > 9999) {
+            throw new DialectCapability("the " + what + " " + iso + " is outside BigQuery's range: it holds dates from"
+                    + " 0001-01-01 to 9999-12-31 (S340)");
+        }
     }
 
     /** NUMERIC CHARTER Rule 1: a Float literal is typed exact-decimal by the database -- {@code 1.5} alone is a
      *  FLOAT64 here, so it is spelled {@code BIGNUMERIC '1.5'} ({@code 0.1 + 0.2} is 0.3, measured); a magnitude
      *  BIGNUMERIC cannot hold, and NaN and the infinities, are FLOAT64. */
     @Override
-    protected String floatLiteral(double v) {
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
+        // of its digits, written below
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+    }
+
+    @Override
+    protected String decimalFloatLiteral(double v) {
+        // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
+        // BigDecimal has no -0, so -0.0 was written 0.0)
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "CAST('-0' AS FLOAT64)";
+        }
         if (Double.isNaN(v)) {
             return "CAST('nan' AS FLOAT64)";
         }
@@ -893,7 +909,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             String type = bqType(p.out().type());
             boolean datetime = type.equals("DATETIME");
             writer.append(datetime ? "CAST(IF(TRUE, " : "IF(TRUE, ");
-            raiseEnvelope(writer, call.args(), "ERROR");
+            raiseEnvelope(writer, raised(call).args(), "ERROR");
             return writer.append(datetime ? ", CAST(NULL AS STRING)) AS DATETIME)" : ", CAST(NULL AS " + type + "))");
         }
         return super.projectionValue(writer, p);
@@ -945,7 +961,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             return super.caseExpr(writer, c);
         }
         java.util.function.Function<SqlExpr, SqlExpr> asText = b -> textual(b) || b instanceof SqlExpr.NullLit ? b
-                : new SqlExpr.Cast(b, SqlType.Scalar.VARCHAR);
+                : new SqlExpr.Cast(b, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT);
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
             writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").expr(asText.apply(w.then()), 0);
@@ -1091,7 +1107,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             if (typeOf(body) == null) {
                 throw new DialectCapability("a lambda of no known type over the empty list reached BigQuery");
             }
-            return new SqlExpr.Cast(new SqlExpr.NullLit(), java.util.Objects.requireNonNull(typeOf(body)));
+            return new SqlExpr.Cast(new SqlExpr.NullLit(), java.util.Objects.requireNonNull(typeOf(body)), SqlExpr.Reason.DIALECT);
         }
         if (listElement(xs) == SqlType.Scalar.JSON) {
             body = substitute(body, l.params().get(0), SqlExpr.Column.of(null, l.params().get(0),
@@ -1351,6 +1367,14 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: legend-pure's grammar, lite's TEXT_NOT_FLOAT by name, never the cast's own error (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x, w -> w.append("REGEXP_CONTAINS(").expr(x, 0)
+                            .append(", " + stringLit(FLOAT_GRAMMAR) + ")"),
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").expr(x, 0)
+                            .append(", " + stringLit("[fF][[:space:]]*$") + ", '')) AS FLOAT64)"));
+        }
         SqlType target = c.target();
         SqlExpr v = c.value();
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
@@ -1464,7 +1488,7 @@ public final class BigQuery extends AnsiSqlRenderer {
      * rounded to the even digit, as Java breaks one (-754686444319231.25 is -754686444319231.2; ROUND's own half away
      * from zero wrote .3 for six of 1,171 plain-range doubles, measured on the lane against 441f207a). Elsewhere
      * the text is the cast's, which reads back as the value. The value is bound once, in a one-row derived table under a
-     * scalar subquery (the form the Float canon's binding takes here, {@link #bindsFloatText}).
+     * scalar subquery (the form the Float canon's binding took here until SqlFn.FLOAT_CANON's deletion, 2026-11-16).
      */
     private SqlWriter.Piece floatText(SqlWriter.Piece x) {
         String v = param("__fv");
@@ -1515,10 +1539,29 @@ public final class BigQuery extends AnsiSqlRenderer {
     // Scalar functions -- every SqlFn decided here
     // ==================================================================
 
+    /** {@code PARSE_INT}: legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error
+     *  (Phase 8). Out of {@link #call} 2026-11-17 for its line limit (CodeShapeGuardrailTest), the SQL unchanged. */
+    private SqlWriter parseInt(SqlWriter writer, SqlExpr x) {
+        return guardedParseInt(writer, x,
+                w -> w.append("REGEXP_CONTAINS(").expr(x, 0).append(", " + stringLit("^[+-]?[0-9]+$") + ")"),
+                w -> w.append("CAST(").expr(x, 0).append(" AS INT64)"));
+    }
+
+    /** {@code TIMEZONE} (zone, t): an instant to the zone's time, a naive t read in the zone. Out of {@link #call}
+     *  2026-11-17 for its line limit, the SQL unchanged. */
+    private SqlWriter timezone(SqlWriter writer, List<SqlExpr> a) {
+        return isInstant(a.get(1))
+                ? writer.append("DATETIME(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")")
+                : writer.append("TIMESTAMP(CAST(").expr(a.get(1), 0).append(" AS DATETIME), ").expr(a.get(0), 0)
+                        .append(")");
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -1540,8 +1583,10 @@ public final class BigQuery extends AnsiSqlRenderer {
                     + " code points) reached BigQuery, whose binary collation is not measured");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1622,7 +1667,8 @@ public final class BigQuery extends AnsiSqlRenderer {
             case DEGREES -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (180 / ACOS(-1)))");
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
-            case PARSE_INT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS INT64)");
+            // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
+            case PARSE_INT -> parseInt(writer, a.get(0));
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
@@ -1636,6 +1682,9 @@ public final class BigQuery extends AnsiSqlRenderer {
                     (w, x) -> w.append("IFNULL(").piece(asText(x)).append(", '')")).append(")");
             case CONCAT_JOIN -> writer.append("CONCAT(").join(a, ", ",
                     (w, x) -> w.append("IFNULL(").piece(asText(x)).append(", '')")).append(")");
+            // a row's cells joined (Phase 3): no CONCAT_WS here; ARRAY_TO_STRING omits a NULL element
+            case CONCAT_WS -> writer.append("ARRAY_TO_STRING([").list(a.subList(1, a.size())).append("], ")
+                    .expr(a.get(0), 0).append(")");
             case LENGTH -> writer.append("LENGTH(").piece(asText(a.get(0))).append(")");
             // a negative count is all but that many (DuckDB's, measured); BigQuery's LEFT/RIGHT raise on it
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
@@ -1683,10 +1732,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             // DuckDB's timezone(zone, t): a naive t read in the zone (its instant); an instant to the zone's time
             // (an operand is an instant by its type, or as a timezone() of a naive one: format's zone shift is
             // timezone(zone, timezone('UTC', t)), whose inner call is typed naive but renders a TIMESTAMP)
-            case TIMEZONE -> isInstant(a.get(1))
-                    ? writer.append("DATETIME(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")")
-                    : writer.append("TIMESTAMP(CAST(").expr(a.get(1), 0).append(" AS DATETIME), ").expr(a.get(0), 0)
-                            .append(")");
+            case TIMEZONE -> timezone(writer, a);
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero (measured), as DIV does
             case EPOCH_SECONDS -> writer.append("(CAST(UNIX_MICROS(").piece(instant(a.get(0)))
                     .append(") AS FLOAT64) / 1000000)");
@@ -1951,7 +1997,7 @@ public final class BigQuery extends AnsiSqlRenderer {
                 continue;
             }
             if (conversion == 's' && arg < args.size()) {
-                args.set(arg, new SqlExpr.Cast(args.get(arg), SqlType.Scalar.VARCHAR));
+                args.set(arg, new SqlExpr.Cast(args.get(arg), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT));
             }
             arg++;
         }
@@ -2295,8 +2341,8 @@ public final class BigQuery extends AnsiSqlRenderer {
                                 + " WITH OFFSET AS " + o + " ORDER BY " + o + ")");
                 yield writer.append("(CASE WHEN ").expr(ks, 4).append(" IS NULL OR ").expr(vs, 4)
                         .append(" IS NULL THEN NULL WHEN ARRAY_LENGTH(").expr(ks, 0).append(") <> ARRAY_LENGTH(")
-                        .expr(vs, 0).append(") THEN ERROR('The map key list does not align with the map value list.')"
-                                + " ELSE ").piece(keysChecked(ks, e, e, zipped)).append(" END)");
+                        .expr(vs, 0).append(") THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_MISALIGNED))
+                        .append(" ELSE ").piece(keysChecked(ks, e, e, zipped)).append(" END)");
             }
             // the entries of every map, each key at its first place (map, then offset) with the last map's value
             // (wrapped in a struct: a NULL value is an entry, and an array holds no NULL)
@@ -2328,11 +2374,21 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     /** {@code then} when the keys {@code k} (read off each element {@code e} of {@code xs}) are each non-NULL and
      *  distinct; DuckDB's error otherwise. */
-    private static SqlWriter.Piece keysChecked(SqlExpr xs, String e, String k, SqlWriter.Piece then) {
+    private SqlWriter.Piece keysChecked(SqlExpr xs, String e, String k, SqlWriter.Piece then) {
         return w -> w.append("(CASE WHEN (SELECT COUNTIF(" + k + " IS NULL) FROM UNNEST(").expr(xs, 0)
-                .append(") AS " + e + ") > 0 THEN ERROR('Map keys can not be NULL.') WHEN (SELECT COUNT(DISTINCT " + k
+                .append(") AS " + e + ") > 0 THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEY_NULL))
+                .append(" WHEN (SELECT COUNT(DISTINCT " + k
                         + ") FROM UNNEST(").expr(xs, 0).append(") AS " + e + ") < ARRAY_LENGTH(").expr(xs, 0)
-                .append(") THEN ERROR('Map keys must be unique.') ELSE ").piece(then).append(" END)");
+                .append(") THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_NOT_UNIQUE)).append(" ELSE ")
+                .piece(then).append(" END)");
+    }
+
+    /** A map's raise of {@code kind}, inside the platform's envelope (phase D's D1.1; until then these three raised a
+     *  bare ERROR('...') outside it, which exec could not tell for a raise: the brief's defect). */
+    private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
+        // its where the map's construction, a fixed text (the D part 1 audit's S4, 2026-11-15)
+        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null,
+                "a map built from its key and value lists")), "ERROR");
     }
 
     /** A map cast to another map's key and value types, entry by entry; the empty map {@code MAP_EMPTY} typed. */
@@ -3188,5 +3244,14 @@ public final class BigQuery extends AnsiSqlRenderer {
         }
         return label == SqlType.Scalar.HUGEINT || label == SqlType.Scalar.DOUBLE
                 || label instanceof SqlType.Decimal d && d.scale() <= 38 && d.precision() - d.scale() <= 38;
+    }
+
+    /** {@inheritDoc} {@code FORMAT}'s six decimals, trimmed; its {@code nan} and {@code inf} by Pure's names (the brief's measurement, D_BRIEF §1). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("REPLACE(REPLACE(");
+        trimmedSix(writer, "RTRIM", w -> w.append("FORMAT('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
     }
 }

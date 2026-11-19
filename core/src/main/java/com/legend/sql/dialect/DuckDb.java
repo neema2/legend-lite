@@ -18,7 +18,9 @@ import java.util.Set;
  * operators (text extraction under scalar casts). Everything here is
  * SPELLING or SHAPE for this backend; meaning lives in the IR.
  */
-public final class DuckDb extends AnsiSqlRenderer {
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class DuckDb extends AnsiSqlRenderer {
 
     /**
      * An outer join's ON without the IS NOT NULL tests a comparison beside them already makes (2026-10-17, the IQ
@@ -174,13 +176,6 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     public String inMemoryPath() {
         return IN_MEMORY;
-    }
-
-    /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
-     *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
-    @Override
-    public String fromEngineText(String statement) {
-        return RawSqlBoundary.translated(statement, types -> types, bare -> bare);
     }
 
     /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
@@ -492,12 +487,36 @@ public final class DuckDb extends AnsiSqlRenderer {
         };
     }
 
+    /** A product of two Decimals whose digits together pass 18 (D1, the orchestrator's decision of 2026-11-17, found by
+     *  FloatAndDecimalTest): DuckDB keeps such a product a DECIMAL(18) when both operands fit 18 digits, and raises
+     *  "Overflow in multiplication of DECIMAL(18)" for a value Pure computes exactly ({@code 123456789.123456789D *
+     *  3.0D}). A DECIMAL(38) one before them, {@code CAST(1 AS DECIMAL(38,0)) * x * y}, makes the product a DECIMAL(38)
+     *  at the operands' own scales, exact -- no scale written, since an operand's fact may not be the database's (a
+     *  relation literal's column claims DECIMAL(38,0) where DuckDB holds the literal's DECIMAL(18,9): measured). Any
+     *  other product as written. */
+    private static SqlExpr.Call decimalProductWidened(SqlExpr.Call c) {
+        if (c.args().size() == 2 && decimalOf(c.args().get(0)) instanceof com.legend.sql.SqlType.Decimal x
+                && decimalOf(c.args().get(1)) instanceof com.legend.sql.SqlType.Decimal y
+                && x.precision() + y.precision() > 18) {
+            SqlExpr wide = new SqlExpr.Cast(new SqlExpr.IntLit(1), new com.legend.sql.SqlType.Decimal(38, 0),
+                    SqlExpr.Reason.OPERATOR);
+            return new SqlExpr.Call(c.fn(), List.of(wide, c.args().get(0), c.args().get(1)));
+        }
+        return c;
+    }
+
+    private static com.legend.sql.SqlType.@com.legend.base.Nullable Decimal decimalOf(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof com.legend.sql.SqlType.Decimal d ? d : null;
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         // every function, each by name (the dialect program's Phase 1, 2026-10-13: an exhaustive switch, so a new
         // function asks this dialect too)
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- DuckDB's own spellings (the base renderer's until the dialect program's Phase 1, D1, 2026-10-13)
             // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
             // the engine's H2 returns NaN for out-of-domain acos/asin;
@@ -530,8 +549,9 @@ public final class DuckDb extends AnsiSqlRenderer {
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
-            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS ->
                     infix(writer, c, parentPrec);
+            case TIMES -> infix(writer, decimalProductWidened(c), parentPrec);
             // the shared spellings this dialect's lanes prove
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             // Pure's divide is a Float division: both operands DOUBLE
@@ -543,11 +563,15 @@ public final class DuckDb extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.append("regexp_full_match(").expr(c.args().get(0), 0).append(", '[+-]?[0-9]+')"),
+                    w -> castAs(w, c.args().get(0), "BIGINT"));
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
+            case CONCAT_WS -> writer.function("concat_ws", c.args());
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -577,8 +601,10 @@ public final class DuckDb extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
@@ -711,16 +737,23 @@ public final class DuckDb extends AnsiSqlRenderer {
         return dateTruncDateGrained(writer, c.args(), spelled);
     }
 
+    /** The passes that make an implicit scan order explicit, where {@link #passes} runs them: none in the product (a
+     *  statement carries no order it did not ask for, the user's ruling of 2026-09-20); the compatibility edge's DuckDB
+     *  supplies legend-engine's ({@code edge.StableScanOrder}, the corpus replay's; W6, 2026-11-16). A spelling arm: the
+     *  order it adds is legend-engine's text of a statement the product leaves unordered, decided by no plan. */
+    @SpellingArm
+    protected java.util.List<com.legend.sql.SqlRewriter> scanOrderPasses() {
+        return java.util.List.of();
+    }
+
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         // carrier strategies FIRST (base contract), then this dialect's
         // structural rewrites
-        // StableScanOrder is ENGINE-CORPUS-COMPAT ONLY (user ruling,
-        // 2026-08-29): the engine's own tests assert positionally while
-        // relying on H2's implicit scan order — replaying them on DuckDB
-        // needs the order made explicit. The PLATFORM default stays
-        // order-honest (no sort demanded = no order guaranteed); the
-        // corpus runner opts in, the ENGINE_CASED precedent.
+        // the engine's scan order (edge.StableScanOrder) is ENGINE-CORPUS-COMPAT ONLY (user ruling, 2026-08-29): the
+        // engine's own tests assert positionally while relying on H2's implicit scan order -- replaying them on DuckDB
+        // needs the order made explicit. The product stays order-honest (no sort demanded = no order guaranteed); the
+        // compatibility edge's DuckDB supplies it, the corpus runner opting in (scanOrderPasses; W6, 2026-11-16).
         java.util.List<com.legend.sql.SqlRewriter> ps =
                 new java.util.ArrayList<>(java.util.List.of(
                         new CarrierStrategies(CAPS),
@@ -736,9 +769,9 @@ public final class DuckDb extends AnsiSqlRenderer {
         // a chain of levels laid out again, each value once at its lowest level: two words' identical windows one
         // (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers(java.util.function.UnaryOperator.identity()));
-        if (Boolean.getBoolean("legend.exec.engineScanOrder")) {
-            ps.add(new StableScanOrder());
-        }
+        // the scan-order passes the compatibility edge supplies (legend-engine's corpus replay; W6, 2026-11-16): none in
+        // the product, which carries no order it did not ask for
+        ps.addAll(scanOrderPasses());
         // last of this dialect's passes (StoredReads follows), on the statement root only: a stored Variant
         // column leaving through a star is read as JSON (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md, the 2026-10-12
         // addendum)
@@ -830,7 +863,6 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
 
-
     /** {@inheritDoc} DuckDB keeps the SQL standard's {@code information_schema} (and a {@code pg_catalog}, which no
      *  grid lists): the corpus's catalog-grid tests prove it, the primary keys' {@code key_column_usage} and
      *  {@code table_constraints} pair included (DuckDB 1.4.4, probed 2026-09-05: ordinal positions, quoted names). */
@@ -858,6 +890,11 @@ public final class DuckDb extends AnsiSqlRenderer {
      *  record whose quote never closes, in silence (measured 2026-11-10) -- so it is the user's to rule (S184). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        // its record check's raise a site of the load's one table (phase D's Phase 2, 2026-11-16)
+        return collectingSites(() -> csvStatements(load), CsvLoad::withSites);
+    }
+
+    private CsvLoad csvStatements(com.legend.sql.SqlDml.LoadCsv load) {
         StringBuilder columns = new StringBuilder();
         for (int i = 0; i < load.columns().size(); i++) {
             columns.append(i == 0 ? "" : ", ").append(stringLit("c" + i)).append(": 'VARCHAR'");
@@ -1223,6 +1260,23 @@ public final class DuckDb extends AnsiSqlRenderer {
             writer.append("CAST(");
             return navigated(writer, c.value()).append(" AS ").append(castTypeName(c.target())).append(")");
         }
+        // a Float parsed from text (parseFloat): DuckDB's CAST accepts forms legend-pure raises on ('+-1' read -1,
+        // '1_000' 1000, 'nan' and 'inf' in any case; measured, 87 shapes); the text is held to legend-pure's grammar
+        // as its compiled mode reads it (Double.valueOf: trimmed, NaN and Infinity as spelled, one trailing f accepted
+        // and stripped, one rule on every database), any other raising
+        // TEXT_NOT_FLOAT (the orchestrator's ruling, 2026-11-16: the guard applies wherever a database accepts an
+        // invalid form; Phase 8)
+        if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR) {
+            SqlExpr v = c.value();
+            return writer.append("(CASE WHEN ").expr(v, 4).append(" IS NULL THEN NULL WHEN regexp_full_match(")
+                    .expr(v, 0).append(", '\\s*[+-]?(NaN|Infinity|(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?[fF]?)\\s*')")
+                    .append(" THEN CAST(regexp_replace(").expr(v, 0).append(", '[fF]\\s*$', '') AS DOUBLE) ELSE ")
+                    .expr(SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT,
+                            List.of(v))), 0)
+                    .append(" END)");
+        }
         return super.variantAwareCast(writer, c);
     }
 
@@ -1322,4 +1376,14 @@ public final class DuckDb extends AnsiSqlRenderer {
     protected boolean writesGridReports() {
         return true;
     }
+
+    /** {@inheritDoc} {@code printf}'s six decimals, trimmed; its {@code nan} and {@code inf} by Pure's names (measured on 1.5, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("replace(replace(");
+        trimmedSix(writer, "rtrim", w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
+    }
+
 }

@@ -45,20 +45,25 @@ public final class ArrowWriter implements ResultSink {
     private final OutputStream out;
     private final java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> metadata;
     private List<Enc> encoders = List.of();
+    /** A date's text in a text column (W4's audit, 2026-11-16): the product's ({@link CellText#PRODUCT}), or the one a
+     *  compatibility route hands its writer -- legend-pure's, for the edge's pure/v1 Arrow answer. */
+    private final CellText.Forms dates;
 
     /** Onto {@code out}; {@code schemaMetadata} the stream's custom metadata (key to value), in order, made from the
      *  columns the result announces (an envelope of a dynamic pivot's columns is known only then). An activity in it
      *  names the execution its maker was given (the door's id, {@code Output.writerFor}: 2026-11-12, the exec-id item --
      *  until then the run told this writer, and a writer made after the run was told nothing). */
     public ArrowWriter(OutputStream out,
-            java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> schemaMetadata) {
+            java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> schemaMetadata,
+            CellText.Forms dates) {
         this.out = out;
         this.metadata = schemaMetadata;
+        this.dates = dates;
     }
 
-    /** Onto {@code out} with a fixed metadata. */
+    /** Onto {@code out} with a fixed metadata, a date written as the product writes one. */
     public ArrowWriter(OutputStream out, Map<String, String> schemaMetadata) {
-        this(out, columns -> schemaMetadata);
+        this(out, columns -> schemaMetadata, CellText.PRODUCT);
     }
 
     @Override
@@ -128,13 +133,13 @@ public final class ArrowWriter implements ResultSink {
     private static final java.util.Set<String> NUMERIC_SLOTS = java.util.Set.of("BIGINT", "INTEGER", "SMALLINT",
             "TINYINT", "HUGEINT", "DOUBLE", "FLOAT", "REAL", "DECIMAL", "NUMERIC");
 
-    private static Enc encoder(ExecutionPlan.Column c, String name, Map<String, String> metadata) {
+    private Enc encoder(ExecutionPlan.Column c, String name, Map<String, String> metadata) {
         String word = RowDecode.slotWord(c.slot());
         if (NUMERIC_SLOTS.contains(word) && !RowDecode.numericPure(c.type())) {
             // the decoders' rule (RowDecode.cell, JdbcDecode.cell): a non-numeric Pure type over a numeric slot (a
             // String-typed property over an INT column, measured on the corpus 2026-10-18) carries the column's own
             // text -- the type from the plan's two facts, never a fallback (the track A audit, finding 3)
-            return new Text(name, metadata, c, Text.Form.TEXT);
+            return new Text(name, metadata, c, Text.Form.TEXT, dates);
         }
         return switch (word) {
             case "BIGINT", "INTEGER", "SMALLINT", "TINYINT" -> new Int64(name, metadata, c);
@@ -142,15 +147,15 @@ public final class ArrowWriter implements ResultSink {
             case "DOUBLE", "FLOAT", "REAL" -> new Float64(name, metadata, c);
             case "DECIMAL", "NUMERIC" -> {
                 int[] ps = precisionAndScale(c.slot());
-                yield ps == null ? new Text(name, metadata, c, Text.Form.DIGITS)
+                yield ps == null ? new Text(name, metadata, c, Text.Form.DIGITS, dates)
                         : new Decimal128(name, metadata, c, ps[0], ps[1]);
             }
-            case "DECIMAL_TEXT" -> new Text(name, metadata, c, Text.Form.DIGITS);
+            case "DECIMAL_TEXT" -> new Text(name, metadata, c, Text.Form.DIGITS, dates);
             case "BOOLEAN" -> new Bools(name, metadata, c);
-            case "VARCHAR", "CHAR", "TEXT" -> new Text(name, metadata, c, Text.Form.TEXT);
+            case "VARCHAR", "CHAR", "TEXT" -> new Text(name, metadata, c, Text.Form.TEXT, dates);
             case "DATE" -> new Date32(name, metadata, c);
             case "TIMESTAMP", "TIMESTAMPTZ" -> new TimestampNanos(name, metadata, c);
-            case "TEMPORAL_TEXT" -> new Text(name, metadata, c, Text.Form.PURE);
+            case "TEMPORAL_TEXT" -> new Text(name, metadata, c, Text.Form.PURE, dates);
             case "TIME" -> new Time64(name, metadata, c);
             case "ARRAY" -> new ListOf(name, metadata, c, encoder(RowDecode.element(c), "item", Map.of()));
             case "STRUCT" -> {
@@ -180,7 +185,7 @@ public final class ArrowWriter implements ResultSink {
      *  ({@link RowDecode#cell}); a variant's value is the JSON text the database built, carried as it is; a class's
      *  (or Any's: a struct's field, a map's slot) is the object the decoder read, written as the JSON route writes it
      *  ({@link CellText#pureJson}, compact) -- Arrow has no object type (the track A audit, finding 11). */
-    private static Enc byPureType(ExecutionPlan.Column c, String name, Map<String, String> metadata) {
+    private Enc byPureType(ExecutionPlan.Column c, String name, Map<String, String> metadata) {
         String type = c.type();
         if (type.equals("Integer")) {
             return new Int64(name, metadata, c);
@@ -189,13 +194,13 @@ public final class ArrowWriter implements ResultSink {
             return new Float64(name, metadata, c);
         }
         if (type.equals("Decimal") || type.startsWith("Decimal(")) {
-            return new Text(name, metadata, c, Text.Form.DIGITS);
+            return new Text(name, metadata, c, Text.Form.DIGITS, dates);
         }
         if (type.equals("Boolean")) {
             return new Bools(name, metadata, c);
         }
         if (type.equals("String")) {
-            return new Text(name, metadata, c, Text.Form.TEXT);
+            return new Text(name, metadata, c, Text.Form.TEXT, dates);
         }
         if (type.equals("StrictDate")) {
             return new Date32(name, metadata, c);
@@ -204,16 +209,16 @@ public final class ArrowWriter implements ResultSink {
             return new TimestampNanos(name, metadata, c);
         }
         if (type.equals("Date")) {
-            return new Text(name, metadata, c, Text.Form.PURE);
+            return new Text(name, metadata, c, Text.Form.PURE, dates);
         }
         if (type.equals("StrictTime")) {
             return new Time64(name, metadata, c);
         }
         if (type.equals(RowDecode.VARIANT)) {
-            return new Text(name, metadata, c, Text.Form.TEXT);
+            return new Text(name, metadata, c, Text.Form.TEXT, dates);
         }
         if (type.contains("::")) {
-            return new Text(name, metadata, c, Text.Form.JSON);
+            return new Text(name, metadata, c, Text.Form.JSON, dates);
         }
         throw new com.legend.error.NotImplementedException("column '" + c.name() + "' (" + type + ", slot "
                 + c.slot() + "): no Arrow type for it yet");
@@ -398,10 +403,12 @@ public final class ArrowWriter implements ResultSink {
         enum Form { TEXT, DIGITS, PURE, JSON }
 
         private final Form form;
+        private final CellText.Forms dates;
 
-        Text(String name, Map<String, String> metadata, ExecutionPlan.Column c, Form form) {
+        Text(String name, Map<String, String> metadata, ExecutionPlan.Column c, Form form, CellText.Forms dates) {
             super(new ArrowField(name, new ArrowType.Utf8(), true, List.of(), metadata), c);
             this.form = form;
+            this.dates = dates;
         }
 
         @Override
@@ -421,8 +428,8 @@ public final class ArrowWriter implements ResultSink {
                         case Long l -> Long.toString(l);
                         default -> refusedText(cell, "a decimal's digits");
                     };
-                    case PURE -> CellText.pure(cell, column);
-                    case JSON -> Json.toCompact(CellText.pureJson(cell, column));
+                    case PURE -> CellText.pure(cell, column, dates);
+                    case JSON -> Json.toCompact(CellText.pureJson(cell, column, dates));
                 };
                 v[i] = text.getBytes(StandardCharsets.UTF_8);
             }

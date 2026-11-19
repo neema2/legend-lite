@@ -72,11 +72,18 @@ public final class SavedCubes {
      */
     public static SavedQueries.Answer answer(@com.legend.base.Nullable SavedCubes store, String method, String rest,
             @com.legend.base.Nullable String rawQuery, String body, String user) {
+        return answer(store, method, rest, rawQuery, body, user, SavedQueries.LITES_WORDS);
+    }
+
+    /** {@link #answer(SavedCubes, String, String, String, String, String)}, a refusal worded by {@code words} (D1.8). */
+    public static SavedQueries.Answer answer(@com.legend.base.Nullable SavedCubes store, String method, String rest,
+            @com.legend.base.Nullable String rawQuery, String body, String user,
+            java.util.function.Function<SavedQueries.Refusal, String> words) {
         if (store == null) {
-            return new SavedQueries.Answer(500, "{\"code\":-1,\"message\":\"DataCube query store has not been configured"
-                    + " properly (legend-lite: start the server with --query-store DIR)\",\"status\":\"error\"}");
+            return SavedQueries.refused(new SavedQueries.Refusal(SavedQueries.Refusal.Kind.STORE_NOT_CONFIGURED,
+                    java.util.List.of("page"), 500), words);
         }
-        try {
+        return SavedQueries.served(() -> {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
             String id = parts.length > 0
                     ? java.net.URLDecoder.decode(parts[0], java.nio.charset.StandardCharsets.UTF_8) : "";
@@ -86,34 +93,30 @@ public final class SavedCubes {
             }
             return switch (method + " " + parts.length) {
                 case "POST 0" -> ok(store.create(object(body), user));
-                case "POST 1" -> "search".equals(id) ? ok(store.search(object(body), user)) : notFound(rest);
+                case "POST 1" -> "search".equals(id) ? ok(store.search(object(body), user)) : notFound(rest, words);
                 case "GET 1" -> ok(store.get(id));
                 case "PUT 1" -> ok(store.update(id, object(body), user));
                 case "DELETE 1" -> {
                     store.delete(id, user);
                     yield new SavedQueries.Answer(204, "");
                 }
-                default -> notFound(rest);
+                default -> notFound(rest, words);
             };
-        } catch (SavedQueries.Refusal r) {
-            return new SavedQueries.Answer(r.status, Json.toCompact(Map.of("message", String.valueOf(r.getMessage()))));
-        } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
-            // the store's disk failing, or a body of another shape: the engine's 500, naming the exception
-            return SavedQueries.failed(e);
-        }
+        }, words);
     }
 
     private static SavedQueries.Answer ok(Object json) {
         return new SavedQueries.Answer(200, Json.toCompact(json));
     }
 
-    private static SavedQueries.Answer notFound(String rest) {
-        return new SavedQueries.Answer(404, "{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: "
-                + "/api/pure/v1/query/dataCube" + rest + "\",\"status\":\"error\"}");
+    /** A path the page store does not serve, under the query store's {@code /dataCube} ({@link SavedQueries#notFound}). */
+    private static SavedQueries.Answer notFound(String rest,
+            java.util.function.Function<SavedQueries.Refusal, String> words) {
+        return SavedQueries.notFound("/dataCube" + rest, words);
     }
 
     private static Json.Obj object(String body) {
-        return Json.parseObject(body.strip().isEmpty() ? "{}" : body);
+        return SavedQueries.requestBody(body.strip().isEmpty() ? "{}" : body);
     }
 
     // ------------------------------------------------------------------ the rules
@@ -162,7 +165,7 @@ public final class SavedCubes {
     public synchronized Json.Obj get(String id) {
         Json.Obj found = records.find(id);
         if (found == null) {
-            throw new SavedQueries.Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         Json.Obj opened = with(found, Map.of("lastOpenAt", Json.num(clock.getAsLong())));
         // read for the wire first: a content that cannot be read is the 500 with nothing written
@@ -175,7 +178,7 @@ public final class SavedCubes {
     public synchronized Json.Obj create(Json.Obj query, String user) {
         String id = validate(query);
         if (records.find(id) != null) {
-            throw new SavedQueries.Refusal("Query with ID '" + id + "' already existed", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.ID_TAKEN, java.util.List.of(id), 400);
         }
         Json.Node now = Json.num(clock.getAsLong());
         Map<String, Json.Node> stamps = new LinkedHashMap<>();
@@ -191,14 +194,14 @@ public final class SavedCubes {
     /** {@code PUT dataCube/{id}}: only the owner's; its id never changed, its creation kept. */
     public synchronized Json.Obj update(String id, Json.Obj query, String user) {
         if (!id.equals(validate(query))) {
-            throw new SavedQueries.Refusal("Updating query ID is not supported", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.ID_CHANGED, java.util.List.of(), 400);
         }
         Json.Obj current = records.find(id);
         if (current == null) {
-            throw new SavedQueries.Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         if (current.has("owner") && !user.equals(text(current, "owner"))) {
-            throw new SavedQueries.Refusal("Only owner can update the query", 403);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NOT_OWNER, java.util.List.of("update"), 403);
         }
         Json.Node now = Json.num(clock.getAsLong());
         Map<String, Json.Node> stamps = new LinkedHashMap<>();
@@ -217,10 +220,10 @@ public final class SavedCubes {
     public synchronized void delete(String id, String user) {
         Json.Obj current = records.find(id);
         if (current == null) {
-            throw new SavedQueries.Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         if (current.has("owner") && !user.equals(text(current, "owner"))) {
-            throw new SavedQueries.Refusal("Only owner can delete the query", 403);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NOT_OWNER, java.util.List.of("delete"), 403);
         }
         records.remove(id);
     }
@@ -228,19 +231,19 @@ public final class SavedCubes {
     /** The page's id, once its record is one the rules take (the engine's {@code validateQuery}, as far as a page's). */
     private static String validate(Json.Obj q) {
         if (!(q.has("id") && q.get("id") instanceof Json.Str id && !id.value().isEmpty())) {
-            throw new SavedQueries.Refusal("Query ID is missing or empty", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.FIELD_MISSING, java.util.List.of("ID", "id"), 400);
         }
         if (!(q.has("name") && q.get("name") instanceof Json.Str n && !n.value().isEmpty())) {
-            throw new SavedQueries.Refusal("Query name is missing or empty", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.FIELD_MISSING, java.util.List.of("name", "name"), 400);
         }
         if (!q.has("content") || q.get("content") instanceof Json.Null) {
-            throw new SavedQueries.Refusal("Query content is missing", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.FIELD_MISSING, java.util.List.of("content", "pageContent"), 400);
         }
         pageId(id.value());
         // the fields the rules read later, of their kinds (a check, not a cast: see searchShape)
         for (String f : List.of("description", "owner")) {
             if (q.has(f) && !(q.get(f) instanceof Json.Str || q.get(f) instanceof Json.Null)) {
-                throw new IllegalArgumentException("DataCubeQuery." + f + " is not a string");
+                throw SavedQueries.unread("DataCubeQuery", f, "is not a string", f);
             }
         }
         return id.value();
@@ -267,29 +270,31 @@ public final class SavedCubes {
     private static void searchShape(Json.Obj spec) {
         if (spec.has("searchTermSpecification") && !(spec.get("searchTermSpecification") instanceof Json.Null)) {
             if (!(spec.get("searchTermSpecification") instanceof Json.Obj term)) {
-                throw new IllegalArgumentException("QuerySearchSpecification.searchTermSpecification is not an object");
+                throw SavedQueries.unread("QuerySearchSpecification", "searchTermSpecification", "is not an object",
+                        "searchTermSpecification");
             }
             if (!(term.has("searchTerm") && term.get("searchTerm") instanceof Json.Str)) {
-                throw new SavedQueries.Refusal("Query search spec expecting a search term", 500);
+                throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NO_SEARCH_TERM, java.util.List.of(), 500);
             }
-            kind(term, "exactMatchName", "QuerySearchTermSpecification", true);
-            kind(term, "includeOwner", "QuerySearchTermSpecification", true);
+            kind(term, "exactMatchName", "QuerySearchTermSpecification", true, "searchTermSpecification.");
+            kind(term, "includeOwner", "QuerySearchTermSpecification", true, "searchTermSpecification.");
         }
-        kind(spec, "showCurrentUserQueriesOnly", "QuerySearchSpecification", true);
-        kind(spec, "sortByOption", "QuerySearchSpecification", false);
+        kind(spec, "showCurrentUserQueriesOnly", "QuerySearchSpecification", true, "");
+        kind(spec, "sortByOption", "QuerySearchSpecification", false, "");
         if (spec.has("limit") && !(spec.get("limit") instanceof Json.Num || spec.get("limit") instanceof Json.Null)) {
-            throw new IllegalArgumentException("QuerySearchSpecification.limit is not a number");
+            throw SavedQueries.unread("QuerySearchSpecification", "limit", "is not a number", "limit");
         }
     }
 
-    /** {@code o}'s {@code field}, when it has one: a boolean ({@code flag}) or a string. */
-    private static void kind(Json.Obj o, String field, String where, boolean flag) {
+    /** {@code o}'s {@code field}, when it has one: a boolean ({@code flag}) or a string; {@code in}, its place in the
+     *  request. */
+    private static void kind(Json.Obj o, String field, String where, boolean flag, String in) {
         if (!o.has(field) || o.get(field) instanceof Json.Null) {
             return;
         }
         Json.Node n = o.get(field);
         if (flag ? !(n instanceof Json.Bool) : !(n instanceof Json.Str)) {
-            throw new IllegalArgumentException(where + "." + field + " is not a " + (flag ? "boolean" : "string"));
+            throw SavedQueries.unread(where, field, "is not a " + (flag ? "boolean" : "string"), in + field);
         }
     }
 

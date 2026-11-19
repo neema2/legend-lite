@@ -18,7 +18,6 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.StatementEffects;
 import com.legend.compiler.spec.UserCallInliner;
 import com.legend.compiler.spec.typed.ExecutionContext;
-import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedCollection;
@@ -48,7 +47,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -70,6 +68,9 @@ public final class BodyPlanner {
     public static StoreResolver resolver(
             SpecCompiler specs, PlanEnv env) {
         return new StoreResolver(env.ctx(), specs)
+                // a graph fetch's key arguments in the plan's style (D1.2, register S312)
+                .withGraphKeyText(new com.legend.resolver.GraphKeyText(env.style()::graphKeyDate,
+                        env.style()::graphKeyString))
                 .withLetBindings(env.queryLets()).withPlanRows(env.planRows())
                 .withHandleRegistrar(pn -> {
                     // an INLINE handle met by the resolver: build its rows
@@ -77,13 +78,6 @@ public final class BodyPlanner {
                     PlanAllocations.registerHandleRows("", pn, List.of(), specs, env);
                     return env.planRows().get(PlanRows.scopeId(pn));
                 });
-    }
-
-    /** PUSH_DOWN_ENUM_TRANSFORM on this plan's context (the plan printer's
-     *  enum-tuple form follows it). */
-    public static boolean pushDownEnums(PlanEnv env, List<TypedSpec> body) {
-        return featuresOf(env, body).contains(
-                Feature.PUSH_DOWN_ENUM_TRANSFORM);
     }
 
     /** The feature flags an execution runs under: the executing frame's own
@@ -99,31 +93,6 @@ public final class BodyPlanner {
         all.addAll(env.features());
         all.addAll(ExecutionContext.treeFeatures(body));
         return all.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(all));
-    }
-
-    /** The execution context an executionPlan / execute / toSQLString call
-     * binds through its RUNTIME argument: the argument is brought to its
-     * VALUE (helper calls inlined) and read ONCE. */
-    public static ExecutionContext boundContext(
-            TypedSpec runtimeArg, SpecCompiler specs) {
-        com.legend.base.RunScope.planning("bind a runtime's context");
-        TypedSpec value = new UserCallInliner(specs)
-                .inlineBody(List.of(runtimeArg)).get(0);
-        return ExecutionContext.reader()
-                .read(Optional.empty(), value);
-    }
-
-    /** The same read under a statement: the argument and the values it
-     * names (a let-bound runtime, a let-bound hook operand) chase the
-     * statement's preceding lets. */
-    public static ExecutionContext boundContext(
-            TypedSpec runtimeArg, List<TypedSpec> letPrefix, SpecCompiler specs) {
-        com.legend.base.RunScope.planning("bind a runtime's context");
-        TypedSpec value = new UserCallInliner(specs)
-                .inlineBody(List.of(Lets.bound(runtimeArg, letPrefix))).get(0);
-        return ExecutionContext.reader()
-                .bind(v -> Lets.bound(v, letPrefix))
-                .read(Optional.empty(), value);
     }
 
     public static void collectStores(TypedSpec n, Set<String> out) {
@@ -164,16 +133,8 @@ public final class BodyPlanner {
                 env.tableReplace(),
                 env.postProcessors().extractCtes(),
                 env.postProcessors().nonExecutable());
-        // A DYNAMIC PIVOT's TEXT whose columns nothing names (its templates unresolved): its columns exist only once the
-        // database is asked, and planning asks the database nothing (the seam program's S3a, 2026-10-30: the LIMIT-0
-        // column probe deleted; the six channel B bodies that reached it named their columns by a cast, F10). Refused
-        // by name: the pivot's keyed form writes no text yet; no body in the corpus or channel B reaches it (step H's
-        // H1). A raw grid's text never comes here: toCSV is its report's texts, toString refused (Render, S3c).
-        if (!lowerer.deferredTds().isEmpty()) {
-            throw new NotImplementedException("a dynamic pivot's text (toString/toCSV) over columns"
-                    + " nothing names: its columns exist only once the database is asked, planning asks the database"
-                    + " nothing, and the pivot's keyed form writes no text");
-        }
+        // (a dynamic pivot's text over columns nothing names: refused by the edge AT LOWERING since 2026-11-18, J40's
+        // DeferredTdsString deletion -- edge.RelationTextLowering, the same words)
         return named ? lowerer.namedColumns(plan) : plan;
     }
 
@@ -185,11 +146,13 @@ public final class BodyPlanner {
         // the value lane's are the object layout (docs/OBJECT_IDENTITY_2026_10_20.md
         // §3.1): every object its __id and __type, so equal() compares a
         // keyless class's objects by identity, never as structs.
-        Lowerer lowerer = new Lowerer(
+        // the environment's time zone and relation-text facet (PlanEnv.configure, B17 2026-11-17)
+        Lowerer lowerer = env.configure(new Lowerer(
                 t -> identity ? ClassLayouts.layoutOf(ctx, t, true)
                         : ClassLayouts.objectLayoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
-                .withDbTimeZone(env.timeZone()).sharingRelations(!env.postProcessors().extractCtes());
+                f -> ctx.findClass(f).isPresent(), ctx.implementations()).withExistsJoinable()
+                .sharingRelations(!env.postProcessors().extractCtes()))
+                .withFloatLiteralKind(env::floatLiteralKind);
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
         // over keyed instances is the key relation on the execute path
         // too (the structural fallback erased class identity and read
@@ -246,7 +209,7 @@ public final class BodyPlanner {
             SpecCompiler specs, PlanEnv env) {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch
-                .stage(b, stageEnv, EnginePlans.nativeRoutines(specs, env)));
+                .stage(b, stageEnv, PlanTextRoutines.of(specs, env)));
         return resolvedToExecute(resolver(specs, env), body, env);
     }
 
@@ -345,7 +308,7 @@ public final class BodyPlanner {
         // compiled store model (the lowerer has no model access)
         if (root instanceof TypedNativeCall ds
                 && NativeFn.DdlStatement.of(ds.callee().id()).isPresent()) {
-            return new Prepared.DdlText(EnginePlans.ddlText(ds, env), ds.info().type());
+            return new Prepared.DdlText(env.style().facet(UpstreamPlans.class).ddlText(ds, env), ds.info().type());
         }
         com.legend.compiler.element.type.@Nullable Type handle = handleType(root, env.ctx());
         if (handle != null) {
@@ -362,7 +325,7 @@ public final class BodyPlanner {
             for (TypedSpec e : ddlColl.elements()) {
                 if (e instanceof TypedNativeCall enc
                         && NativeFn.DdlStatement.of(enc.callee().id()).isPresent()) {
-                    strs.add(EnginePlans.ddlText(enc, env));
+                    strs.add(env.style().facet(UpstreamPlans.class).ddlText(enc, env));
                 } else if (e instanceof TypedCString cs2) {
                     strs.add(cs2.value());
                 } else {

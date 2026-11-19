@@ -88,7 +88,7 @@ class LowerRelationDuckDbTest {
     }
 
     private String sqlOf(String query) {
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(MODEL), query).expression());
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(MODEL), query).expression());
         return DUCKDB.dialect().render(q);
     }
 
@@ -98,7 +98,7 @@ class LowerRelationDuckDbTest {
         var body = new com.legend.compiler.spec.SpecCompiler(ctx).typeQueryBody(
                 com.legend.compiler.NameResolver.resolveQuery(
                         com.legend.testing.Own.spec(query)));
-        return DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(body));
+        return DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(body));
     }
 
     /** {@link #exec}'s rows sorted: for a relation queried with no ORDER BY, whose row order is the database's
@@ -231,7 +231,7 @@ class LowerRelationDuckDbTest {
         String flat = sqlOf("#>{test::DB.T_PERSON}#->select(~FIRM)->distinct()"
                 + "->sort(~FIRM->ascending())");
         assertEquals(1, count(flat, "SELECT"), "distinct before sort is flat: " + flat);
-        // PURE-lane sort (colspec API, pureNullOrder stamp — §7 two-spec
+        // PURE-lane sort (colspec API, the null-largest stamp — §7 two-spec
         // split, 2026-09-01): null-largest, ASC NULLS LAST spelled
         // explicitly; the ENGINE lane's bare keys render nulls-low at
         // the execution dialect instead
@@ -251,6 +251,22 @@ class LowerRelationDuckDbTest {
                 exec(nested).stream().sorted(java.util.Comparator.nullsLast(
                         java.util.Comparator.naturalOrder())).toList(),
                 "exactly the three distinct firms");
+    }
+
+    @Test
+    @DisplayName("a deduplicating union keeps every column: a column read by no one still distinguishes its rows (L10)")
+    void dedupUnionKeepsUnreadColumns() throws SQLException {
+        // the four persons, concatenated with themselves and deduplicated over the whole row: four rows; FIRM alone is
+        // read after, so pruning the union's unread columns would deduplicate over FIRM and answer three (L10,
+        // 2026-11-18: until then only legend-engine's union frame name kept this union whole; the rule is the product's)
+        SqlQuery lowered = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
+                .withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(MODEL),
+                        "#>{test::DB.T_PERSON}#->select(~[NAME, FIRM])"
+                                + "->concatenate(#>{test::DB.T_PERSON}#->select(~[NAME, FIRM]))->distinct()->select(~FIRM)")
+                        .expression());
+        // the product's pruning, as its planner applies it (ProductLoweringForms.computedPruning)
+        String sql = DUCKDB.dialect().render(SubselectPrune.prune(lowered, true));
+        assertEquals(4, exec(sql).size(), "four persons, each its row: " + sql);
     }
 
     @Test
@@ -732,7 +748,7 @@ class LowerRelationDuckDbTest {
                   Table T_ORDERS (ID INTEGER NOT NULL, ITEMS SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_ORDERS}#->flatten(~ITEMS)").expression());
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_ORDERS}#->flatten(~ITEMS)").expression());
         String sql = DUCKDB.dialect().render(q);
         assertEquals(1, count(sql, "SELECT"), "flatten folds: " + sql);
         // the elements keep JSON's null (a JSON[] cast made it SQL's NULL), and a non-array is toMany's error
@@ -789,7 +805,7 @@ class LowerRelationDuckDbTest {
                   Table T_DOCS (ID INTEGER NOT NULL, PAYLOAD SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_DOCS}#->extend(~sku : x |"
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_DOCS}#->extend(~sku : x |"
                         + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))").expression());
         String sql = DUCKDB.dialect().render(q);
         // -> hops parenthesize (the JSON arrow collides with DuckDB's lambda
@@ -807,7 +823,7 @@ class LowerRelationDuckDbTest {
             st.execute("CREATE TABLE T_DOCS_N AS SELECT ID, CAST(PAYLOAD AS"
                     + " STRUCT(items STRUCT(sku VARCHAR)[], qty INTEGER)) AS PAYLOAD FROM T_DOCS");
         }
-        String nativeSql = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
+        String nativeSql = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT)
                 .lower(Compiler.query(Compiler.compileModel(model.replace("T_DOCS", "T_DOCS_N")), "#>{test::DB.T_DOCS_N}#->extend(~sku : x |"
                                 + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))").expression()));
         assertEquals(List.of("1|A-7", "2|B-2"),
@@ -822,11 +838,11 @@ class LowerRelationDuckDbTest {
         for (String table : List.of("T_VS", "T_VJ", "T_VN")) {
             String model = "###Relational\nDatabase test::DB ( Table " + table
                     + " (ID INTEGER NOT NULL, V SEMISTRUCTURED) )\n";
-            String projected = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
+            String projected = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT)
                     .lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB." + table + "}#->select(~[ID, V])").expression()));
             // the whole value is read as JSON, under its own name; navigation is not
             assertTrue(projected.contains("CAST(t0.V AS JSON) AS V"), projected);
-            String grouped = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
+            String grouped = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT)
                     .lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB." + table + "}#->groupBy(~[V], ~[n : x | $x.ID : y | $y->count()])").expression()));
             List<String> rows = new ArrayList<>(exec("SELECT ID, CAST(V AS VARCHAR) FROM (" + projected + ") ORDER BY ID"));
             rows.addAll(exec("SELECT CAST(V AS VARCHAR), n FROM (" + grouped + ") ORDER BY n DESC"));
@@ -884,7 +900,7 @@ class LowerRelationDuckDbTest {
             for (String shapeOf : shapes) {
                 String shape = shapeOf.formatted(table);
                 boolean join = shape.startsWith("->join");
-                String sql = DUCKDB.dialect().render(new Lowerer(PlatformRegistrations.catalogTable())
+                String sql = DUCKDB.dialect().render(new Lowerer(PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT)
                         .lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB." + table + "}#" + shape)
                                 .expression()));
                 // the whole value is read as JSON under its own name, in every shape; a UNION's in each branch
@@ -921,7 +937,7 @@ class LowerRelationDuckDbTest {
                   Table T_CARTS (ID INTEGER NOT NULL, NUMS SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~total : x | $x.NUMS->toMany(@Variant)"
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~total : x | $x.NUMS->toMany(@Variant)"
                         + "->map(i | $i->to(@Integer)->toOne())"
                         + "->fold({e, a | $e + $a}, 0))").expression());
         String sql = DUCKDB.dialect().render(q);
@@ -938,7 +954,7 @@ class LowerRelationDuckDbTest {
                 "sum of each row's JSON array");
 
         // toMany(@Integer): the TYPED-array cast branch.
-        String typed = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~first : x |"
+        String typed = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~first : x |"
                         + " $x.NUMS->toMany(@Integer)->fold({e, a | $e + $a}, 0))").expression()));
         assertTrue(typed.contains("CAST(t0.NUMS AS BIGINT[])"),
                 "typed array cast: " + typed);
@@ -953,7 +969,7 @@ class LowerRelationDuckDbTest {
         String nativeModel = model.replace("T_CARTS", "T_CARTS_N");
         for (String body : List.of("$x.NUMS->toMany(@Variant)->map(i | $i->to(@Integer)->toOne())->fold({e, a | $e + $a}, 0)",
                 "$x.NUMS->toMany(@Integer)->fold({e, a | $e + $a}, 0)")) {
-            String nativeSql = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
+            String nativeSql = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT)
                     .lower(Compiler.query(Compiler.compileModel(nativeModel), "#>{test::DB.T_CARTS_N}#->extend(~total : x | " + body + ")").expression()));
             assertEquals(List.of("1|6", "2|10"),
                     exec("SELECT ID, total FROM (" + nativeSql + ")\nORDER BY ID"), "native storage: " + nativeSql);
@@ -965,7 +981,7 @@ class LowerRelationDuckDbTest {
         // string's quotes -- '"abc"', where variant/convert/to.pure
         // testToString says 'abc'. The same cast inside a map lambda made
         // map(t|$t->to(@String))->contains('gift') false on every row.
-        String bare = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~txt : x | $x.NUMS->to(@String))").expression()));
+        String bare = DUCKDB.dialect().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~txt : x | $x.NUMS->to(@String))").expression()));
         assertTrue(bare.contains("CAST((t0.NUMS ->> '$') AS VARCHAR) AS txt"), bare);
         // An array's text is now DuckDB's compact JSON, not the stored
         // spelling -- upstream's own JSON text is compact too

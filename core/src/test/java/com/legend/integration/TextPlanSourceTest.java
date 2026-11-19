@@ -68,16 +68,16 @@ class TextPlanSourceTest {
             var query = Compiler.query(Compiler.compileModel(model), "|" + DataDeliveryMatrixTest.CATALOG);
             assertTrue(query.plan("x::RT").target().database()
                     instanceof com.legend.executionplan.ExecutionPlan.Database.System, db.name());
-            String lambda = com.legend.server.PureV1Api.grammarToJsonLambda("|" + DataDeliveryMatrixTest.CATALOG,
+            String lambda = com.legend.edge.PureV1Routes.grammarToJsonLambda("|" + DataDeliveryMatrixTest.CATALOG,
                     false).json();
             String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda + ",\"model\":"
                     + com.legend.json.Json.toCompact(java.util.Map.of("_type", "text", "code", model))
                     + ",\"runtime\":{\"runtime\":\"x::RT\"},\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-            var generated = com.legend.server.PureV1Api.generatePlan(request);
+            var generated = com.legend.edge.PureV1Routes.generatePlan(request);
             assertEquals(200, generated.status(), generated.json());
             assertTrue(SINGLE_EXECUTION_PLAN.containsAll(com.legend.json.Json.parseObject(generated.json()).fields()
                     .keySet()), db + ": legend-engine's plan alone: " + generated.json());
-            var arrow = com.legend.server.PureV1Api.arrowPlan(request, java.util.List.of(model));
+            var arrow = com.legend.edge.HostAnswers.arrowPlan(request, java.util.List.of(model), com.legend.edge.PureText.UPSTREAM);
             assertTrue(arrow.json().contains("the system metamodel store"), db + ": " + arrow.json());
         }
     }
@@ -97,7 +97,7 @@ class TextPlanSourceTest {
     void generatePlanAnswersTheEnginesPlanAlone_arrowPlanCarriesLitesPlan() {
         String model = DataDeliveryMatrixTest.model(DataDeliveryMatrixTest.bareConnection(DatabaseType.DuckDB), "");
         java.util.function.Function<String, String> request = text -> "{\"clientVersion\":\"vX_X_X\",\"function\":"
-                + com.legend.server.PureV1Api.grammarToJsonLambda(text, false).json() + ",\"model\":"
+                + com.legend.edge.PureV1Routes.grammarToJsonLambda(text, false).json() + ",\"model\":"
                 + com.legend.json.Json.toCompact(java.util.Map.of("_type", "text", "code", model))
                 + ",\"runtime\":{\"runtime\":\"x::RT\"},\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         String payload = "|sourceUrl('" + DataDeliveryMatrixTest.PAYLOAD + "')" + DataDeliveryMatrixTest.FROM_JSON;
@@ -105,7 +105,7 @@ class TextPlanSourceTest {
         String pivot = "|#TDS{\ndept, city, name\nA, NYC, x\nA, SAN, y\nB, NYC, z\n}#"
                 + "->pivot(~[city], ~[names:r|$r.name:y|$y->joinStrings(',')])->from(x::RT)";
         for (String query : java.util.List.of(payload, file, pivot)) {
-            var generated = com.legend.server.PureV1Api.generatePlan(request.apply(query));
+            var generated = com.legend.edge.PureV1Routes.generatePlan(request.apply(query));
             assertEquals(200, generated.status(), generated.json());
             var plan = com.legend.json.Json.parseObject(generated.json());
             assertTrue(SINGLE_EXECUTION_PLAN.containsAll(plan.fields().keySet()),
@@ -113,19 +113,19 @@ class TextPlanSourceTest {
             assertFalse(generated.json().contains("legendLitePlan"), generated.json());
         }
         // a pivot whose columns the data names: the keyed plan lite runs, marked dynamic as upstream marks its own
-        var keyed = com.legend.json.Json.parseObject(com.legend.server.PureV1Api.generatePlan(request.apply(pivot)).json());
+        var keyed = com.legend.json.Json.parseObject(com.legend.edge.PureV1Routes.generatePlan(request.apply(pivot)).json());
         var sql = (com.legend.json.Json.Obj) keyed.getObj("rootExecutionNode").getArr("executionNodes").items().get(0);
         assertEquals("sql", sql.getString("_type"));
         assertEquals(com.legend.json.Json.parse("true"), sql.get("isResultColumnsDynamic"), com.legend.json.Json.toCompact(sql));
         // a statement whose columns are known is not marked
-        var fixed = com.legend.json.Json.parseObject(com.legend.server.PureV1Api.generatePlan(request.apply(payload)).json());
+        var fixed = com.legend.json.Json.parseObject(com.legend.edge.PureV1Routes.generatePlan(request.apply(payload)).json());
         var fixedSql = (com.legend.json.Json.Obj) fixed.getObj("rootExecutionNode").getArr("executionNodes").items().get(0);
         assertFalse(fixedSql.has("isResultColumnsDynamic"), com.legend.json.Json.toCompact(fixedSql));
-        String lambda = com.legend.server.PureV1Api.grammarToJsonLambda(payload, false).json();
+        String lambda = com.legend.edge.PureV1Routes.grammarToJsonLambda(payload, false).json();
         String requestText = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda + ",\"model\":"
                 + com.legend.json.Json.toCompact(java.util.Map.of("_type", "text", "code", model))
                 + ",\"runtime\":{\"runtime\":\"x::RT\"},\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        var arrow = com.legend.server.PureV1Api.arrowPlan(requestText, java.util.List.of(model));
+        var arrow = com.legend.edge.HostAnswers.arrowPlan(requestText, java.util.List.of(model), com.legend.edge.PureText.UPSTREAM);
         assertEquals(200, arrow.status(), arrow.json());
         var arrowed = com.legend.json.Json.parseObject(arrow.json());
         assertTrue(arrowed.getString("sql").contains("?") && !arrowed.getString("sql").contains("data:"), arrow.json());
@@ -133,7 +133,7 @@ class TextPlanSourceTest {
         assertTrue(com.legend.json.Json.toCompact(root.getArr("slots")).contains("\"payload\""), arrow.json());
         assertFalse(root.getObj("content").fields().isEmpty(), "the payload, the statement's content: " + arrow.json());
         // the JSON execute's plan half: its `run` the statement, the plan beside it to bind from
-        var json = com.legend.server.PureV1Api.jsonPlan(requestText, java.util.List.of(model));
+        var json = com.legend.edge.HostAnswers.jsonPlan(requestText, java.util.List.of(model), com.legend.edge.PureText.UPSTREAM);
         assertEquals(200, json.status(), json.json());
         var planned = com.legend.json.Json.parseObject(json.json());
         assertEquals(planned.getString("sql"), planned.getString("run"));

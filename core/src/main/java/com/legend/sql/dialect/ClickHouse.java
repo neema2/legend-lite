@@ -44,7 +44,9 @@ import java.util.Set;
  *       raises it, the platform's U+001F markers around it, verbatim in the server's message.</li>
  * </ul>
  */
-public final class ClickHouse extends AnsiSqlRenderer {
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class ClickHouse extends AnsiSqlRenderer {
 
     /** {@inheritDoc} -- ClickHouse: one assert's statement (up to ~45K characters, measured) parses well
      *  under its AST limit; 1.3M characters fused passed neither the limit nor, raised, the memory (10-12 GB). */
@@ -115,13 +117,6 @@ public final class ClickHouse extends AnsiSqlRenderer {
     // ==================================================================
     // Session and structure
     // ==================================================================
-
-    /** The engine's H2 text is refused here: ClickHouse has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached ClickHouse, which has no translation of it");
-    }
 
     /** {@inheritDoc} 9: a literal of a digit past the microsecond is a {@code DateTime64(9)} ({@link #timestampLit}),
      *  which keeps all nine (round 34, 2026-11-11, the user's rule "refuse if the db cannot handle": ClickHouse can;
@@ -227,7 +222,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  exclusion and the as-of join are native. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new OuterJoinResidualsAsMatches(),
+        return List.of(new UncorrelatableExistsAsJoins(), new CarrierStrategies(CAPS), new PivotAsGroupBy(),
+                new OuterJoinResidualsAsMatches(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ArrayJoinColumnsNamed(), new CheckedDefectsToLists(), new SubstringClamp(),
                 new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)),
@@ -620,6 +616,20 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return s.where() != null && conjuncts(s.where()).stream().allMatch(x -> nullRejecting(x, own));
     }
 
+    /** A correlated EXISTS ClickHouse would answer wrong (its filter reads the outer row other than as a comparison's
+     *  operand: {@link #CORRELATED}) written as a join to the distinct keys, before every other pass (the edge audit's
+     *  J19, 2026-11-18, register S367: the product writes the EXISTS, the leanest SQL with the same answer, and this
+     *  dialect decomposes the one it cannot correlate -- AGENTS.md invariant 3). Every other EXISTS is kept. */
+    private static final class UncorrelatableExistsAsJoins extends com.legend.sql.SqlRewriter {
+        private final java.util.concurrent.atomic.AtomicInteger keys = new java.util.concurrent.atomic.AtomicInteger();
+
+        @Override
+        protected com.legend.sql.SqlQuery select(SqlSelect s) {
+            return com.legend.sql.ExistsJoins.rewrite(s, () -> "__ej" + keys.incrementAndGet(), com.legend.sql.ExistsJoins::encounterOrder,
+                    ex -> ex.subquery() instanceof SqlSelect q && correlated(q) && !correlatedRight(q));
+        }
+    }
+
     /** EXISTS a row of {@code s} under its filter {@code w} and {@code cond} (none: {@code w} alone). */
     private static SqlExpr someRow(SqlSelect s, SqlExpr w, @com.legend.base.Nullable SqlExpr cond) {
         return new SqlExpr.Exists(s.withWhere(cond == null ? w : new SqlExpr.Call(SqlFn.AND, List.of(w, cond)))
@@ -826,9 +836,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
         // a value of a digit past the six kept raises too (S181, A7: never cut)
         return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN toInt32(substring(")
                 .bind(textBind(p, asText)).append(", 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(")
-                .piece(x -> error(x, raised(DATE_RANGE))).append(" AS " + type.name() + ") WHEN substring(")
+                .piece(x -> error(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE))).append(" AS " + type.name() + ") WHEN substring(")
                 .bind(textBind(p, asText)).append(", 27) NOT IN ('', '000') THEN CAST(")
-                .piece(x -> error(x, raised(FRACTION))).append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
+                .piece(x -> error(x, raised(com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, FRACTION))).append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
                 .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
     }
 
@@ -857,7 +867,19 @@ public final class ClickHouse extends AnsiSqlRenderer {
     /** NUMERIC CHARTER Rule 1: a Float literal is an exact Decimal of its own digits ({@code 1.5} alone is a Float64
      *  here); NaN and the infinities are Float64. */
     @Override
-    protected String floatLiteral(double v) {
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
+        // of its digits, written below
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+    }
+
+    @Override
+    protected String decimalFloatLiteral(double v) {
+        // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
+        // BigDecimal has no -0, so -0.0 was written 0.0)
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "toFloat64('-0.0')";
+        }
         if (Double.isNaN(v)) {
             return "nan";
         }
@@ -1018,7 +1040,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                         new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.AND, List.of(
                                 new SqlExpr.Call(SqlFn.IS_NULL, List.of(v)), someRow(s, w, null))),
                                 new SqlExpr.NullLit())),
-                        new SqlExpr.BoolLit(false));
+                        new SqlExpr.BoolLit(false), SqlExpr.Reason.DIALECT);
                 correlatedExists[0] = true;
                 yield expr(writer, threeValued, parentPrec);
             }
@@ -1676,12 +1698,37 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return writer.append("JSONExtractArrayRaw(coalesce(").expr(args.get(0), 0).append(", 'null'))");
     }
 
+    /** parseInteger, guarded: multiIf evaluates every branch, so the cast reads '0' where the grammar refuses (as
+     *  parseFloat's, {@link #variantAwareCast}) and the text itself where it matches. */
+    private SqlWriter parseInteger(SqlWriter writer, SqlExpr x) {
+        SqlWriter.Piece matches = w -> w.append("match(").expr(x, 0).append(", '^[+-]?[0-9]+$')");
+        return guardedParseInt(writer, x, matches, w -> w.append("CAST(if(").piece(matches).append(", ")
+                .expr(x, 0).append(", '0') AS " + castTypeName(SqlType.Scalar.BIGINT) + ")"));
+    }
+
     /** Every cast names the nullable type ({@code CAST(NULL AS Int64)} is refused); a Decimal's too. */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: ClickHouse's cast read any bad text as NULL, even ' 1 ' (the probe, measured): legend-pure's
+        // grammar, the text trimmed and the f stripped before toFloat64 (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            // multiIf evaluates every branch (the local probe, 2026-11-16: toFloat64 raised CANNOT_PARSE_TEXT on 'abc'), so
+            // the conversion reads '0' where the grammar refuses and the text itself where it matches
+            SqlWriter.Piece matches = w -> w.append("match(").expr(x, 0).append(", '" + FLOAT_GRAMMAR + "')");
+            return guardedParseFloat(writer, x, matches,
+                    w -> w.append("toFloat64(trimBoth(replaceRegexpOne(if(").piece(matches).append(", ").expr(x, 0)
+                            .append(", '0'), '[fF][[:space:]]*$', '')))"));
+        }
         // an array is never NULL here ("Cannot convert NULL to a non-nullable type", measured): no list is the empty one
         if (c.value() instanceof SqlExpr.NullLit && c.target() instanceof SqlType.Array) {
             return writer.append("CAST([] AS " + castTypeName(c.target()) + ")");
+        }
+        // an unused slot of a type that is never NULL here (a Map, a Tuple: "Cannot convert NULL to a non-nullable
+        // type", measured on round 53's lane, 2026-11-15) holds the type's default: the slot is never read
+        if (c.reason() == SqlExpr.Reason.SLOT && c.value() instanceof SqlExpr.NullLit
+                && (c.target() instanceof SqlType.Map || c.target() instanceof SqlType.Struct)) {
+            return writer.append("defaultValueOfTypeName(" + stringLit(castTypeName(c.target())) + ")");
         }
         // a zoned timestamp from text: ISO 8601's T, Z and offsets, which a cast reads as NULL (measured)
         if (c.target() == SqlType.Scalar.TIMESTAMPTZ && typeOf(c.value()) == SqlType.Scalar.VARCHAR) {
@@ -1771,6 +1818,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -1783,7 +1832,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> parseInteger(writer, c.args().get(0));
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -1793,8 +1842,10 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1858,6 +1909,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat
             case CONCAT -> writer.append("concat(").join(flattenConcat(a), ", ", this::asText).append(")");
             case CONCAT_JOIN -> writer.append("concat(").join(a, ", ", this::asText).append(")");
+            // the product's join of a row's cells: the parts with their NULLs filtered out, joined (Phase 3). Each part
+            // goes into the array as it is (already a text) -- asText's coalesce would turn the NULL the filter drops
+            // into '' (lane round 75, 2026-11-17: 'a, , c')
+            case CONCAT_WS -> writer.append("arrayStringConcat(arrayFilter(\"__x\" -> \"__x\" IS NOT NULL, [")
+                    .list(a.subList(1, a.size())).append("]), ").expr(a.get(0), 0).append(")");
             // the platform guards a zero divisor with its own raise; ClickHouse folds a constant operation in a branch
             // not taken and raises its own (measured), so each is its non-raising form, the guard's message the one
             // a zero divisor raises; unguarded, a zero divisor is NULL, as DuckDB's (the OrZero forms answer 0). Pure's
@@ -2022,7 +2078,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
     }
 
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
-        List<SqlExpr> a = c.args();
+        // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence; D1.1), in
+        // main's unfoldable form (each raise its own rand(n), #81; merged 2026-11-14)
+        List<SqlExpr> a = raised(c).args();
         writer.append("toInt64(concat(char(31), ");
         if (a.size() > 1) {
             writer.expr(a.get(1), 0).append(", char(30), ");
@@ -2042,8 +2100,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
     private static final String DATE_RANGE = "a date outside the years 1900 to 2299 has no ClickHouse value (it clamps"
             + " one to the end it passed)";
 
-    private static SqlExpr.Call raised(String message) {
-        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(message));
+    /** A raise of {@code kind} whose sentence, lite's own, the edge writes ({@code message}, D1.1). */
+    private static SqlExpr.Call raised(com.legend.sql.RaiseKind kind, String message) {
+        return SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(kind, message));
     }
 
     /** Whether {@code date} moved by {@code n} of {@code unit} leaves ClickHouse's dates, 1900-01-01 to the last
@@ -2152,7 +2211,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
             writer.append(", ");
             boolean asText = conversions != null && i - 1 < conversions.size() && conversions.get(i - 1) == 's';
             if (real && asText) {
-                writer.expr(FloatCanonText.of(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE)), 0);
+                // a Float under %s is its toString: S311's one call (the plan's row 10, 2026-11-16; until then Pure's
+                // literal canon, FLOAT_CANON's portable spelling)
+                writer.expr(SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT)), 0);
             } else if (asText && (typeOf(x) == SqlType.Scalar.BOOLEAN || typeOf(x) == SqlType.Scalar.BIGINT
                     || typeOf(x) == SqlType.Scalar.INTEGER)) {
                 // %s takes only a String (a Bool or an Int64 is refused, measured): its text
@@ -2303,8 +2364,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 // first and raised outside them (2026-10-20, the parity phase)
                 SqlType slot = typeOf(c);
                 yield writer.append("CASE WHEN ").piece(outsideDates(unit, a.get(2), a.get(1))).append(" THEN ")
-                        .piece(slot == null ? x -> error(x, raised(DATE_RANGE)) : x -> x.append("CAST(")
-                                .piece(y -> error(y, raised(DATE_RANGE))).append(" AS " + castTypeName(slot) + ")"))
+                        .piece(slot == null ? x -> error(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE)) : x -> x.append("CAST(")
+                                .piece(y -> error(y, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE))).append(" AS " + castTypeName(slot) + ")"))
                         .append(" ELSE " + fn + "(").expr(a.get(2), 0).append(", ").expr(a.get(1), 0)
                         .append(") END");
             }
@@ -2713,7 +2774,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SqlType.Scalar.BIGINT, SqlType.Scalar.INTEGER -> new SqlExpr.IntLit(high ? Long.MAX_VALUE : Long.MIN_VALUE);
             // an infinity is no Float literal (a literal is a Decimal of its digits): the text cast
             case SqlType.Scalar.DOUBLE -> new SqlExpr.Cast(new SqlExpr.StringLit(high ? "inf" : "-inf"),
-                    SqlType.Scalar.DOUBLE);
+                    SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
             case SqlType t -> throw new DialectCapability("a RANGE frame of offsets over a " + t + " key reached"
                     + " ClickHouse, whose frame reaches a NULL key from any value");
             case null -> throw new DialectCapability("a RANGE frame of offsets over an untyped key reached ClickHouse");
@@ -3262,5 +3323,14 @@ public final class ClickHouse extends AnsiSqlRenderer {
     @Override
     public boolean deliversOwn(com.legend.sql.SqlType label, String wire) {
         return label == com.legend.sql.SqlType.Scalar.JSON && wire.equals("VARCHAR");
+    }
+
+    /** {@inheritDoc} {@code printf}'s six decimals, trimmed by the standard's trailing trim; its {@code nan} and {@code inf} by Pure's names (measured on 25.8, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("replaceAll(replaceAll(");
+        trimmedSixStandard(writer, w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
     }
 }

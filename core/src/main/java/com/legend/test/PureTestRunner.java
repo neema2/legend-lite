@@ -9,7 +9,6 @@ import com.legend.TestExecution;
 import com.legend.ExecuteOptions;
 import com.legend.compiler.element.ModelContext;
 import com.legend.testexecutionplan.AssertListener;
-import com.legend.testexec.SqlReplayReferee;
 import com.legend.model.ImportScope;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
@@ -225,13 +224,16 @@ public final class PureTestRunner implements AutoCloseable {
     /** The setup {@code call} run on {@code target} as a fixture (track C, 2026-10-29: the setup's body typed once):
      *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
      *  where a thread-scoped SEED mark around the program counted them until then). */
-    private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options) {
+    private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options,
+            com.legend.testexec.EdgeRun edgeRun) {
+        // a setup asserts nothing, so it hears no appeal; it is heard by the body's own hook, which goes with the run's
+        // style (census C1, the orchestrator's ruling of 2026-11-17: one choice per run)
         TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
-                options);
+                edgeRun, options);
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
-            ExecuteOptions options) {
+            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
         List<String> failures = new ArrayList<>();
         for (String fqn : setupCandidates(t.pkg())) {
             if (shared && setupsDone.contains(fqn)) {
@@ -245,7 +247,7 @@ public final class PureTestRunner implements AutoCloseable {
             try {
                 // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's
                 // origin); a package-start fixture keeps the engine's own rule -- the later one wins the name
-                runSetup(call, conn, options);
+                runSetup(call, conn, options, edgeRun);
                 if (shared) {
                     setupsDone.add(fqn);
                 }
@@ -298,13 +300,13 @@ public final class PureTestRunner implements AutoCloseable {
         observer.privateWorkspace(!shared);
         com.legend.exec.Sessions.Session conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
         ExecuteOptions options = observer.options(t, shared).judgedAs(judging);
-        SqlReplayReferee referee = observer.referee(t);
+        com.legend.testexec.EdgeRun referee = observer.edgeRun(t);
         try {
             // a setup that fails FAILS every test depending on it: the engine's
             // suite scores each BeforePackage function as a test case of its own,
             // so a failure there is scored, never tolerated; a body judged on a
             // half-seeded session is no verdict
-            List<String> setupFailures = runSetups(t, conn, shared, options);
+            List<String> setupFailures = runSetups(t, conn, shared, options, referee);
             if (!setupFailures.isEmpty()) {
                 return new Result(t.fqn(), Status.FAIL, List.of(),
                         "setup failed: " + String.join("; ", setupFailures));
@@ -325,7 +327,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     private Result judge(PureTests.TestCase t, ValueSpecification resolved,
             com.legend.testexecutionplan.BodyFacts facts,
-            com.legend.exec.Sessions.Session conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayReferee referee) {
+            com.legend.exec.Sessions.Session conn, ExecuteOptions options, com.legend.testexec.EdgeRun referee) {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();

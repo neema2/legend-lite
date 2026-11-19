@@ -26,7 +26,9 @@ import java.util.List;
  *   <li>the session: no {@code max_recursive_iterations} ({@code cte_max_recursion_depth}).</li>
  * </ul>
  */
-public final class MySql extends MariaDb {
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
+public class MySql extends MariaDb {
 
     public MySql() {
         // MariaDB's reserved words and quoting: the same lexicon, named
@@ -102,11 +104,11 @@ public final class MySql extends MariaDb {
         return switch (c.fn()) {
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
                  DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
-                 LOWER, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT,
+                 LOWER, GREATEST, LEAST, CONCAT_JOIN, CONCAT_WS, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT,
                  LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH,
                  SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
                  CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
-                 BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS,
+                 BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH, IS_NUMERIC, MAP_FROM_LISTS,
                  MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT, SUBSTRING, STRPOS,
                  STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, TRANSLATE, SPLIT,
                  SPLIT_PART, PURE_SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST, BINARY_COLLATE, ENCODE_BASE64,
@@ -119,7 +121,7 @@ public final class MySql extends MariaDb {
                  LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE,
                  LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
                  NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, VARIANT_ELEMENTS,
+                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_SHORTEST_TEXT, FLOAT_TO_TEXT, DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT, VARIANT_ELEMENTS,
                  VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
         };
     }
@@ -422,5 +424,21 @@ public final class MySql extends MariaDb {
         String occurrence = global ? "0" : "1";
         return w -> w.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", " + stringLit(pat) + ", "
                 + stringLit(icu.toString()) + ", 1, " + occurrence + ")");
+    }
+
+    /** A Float's text (S311): MariaDB's {@code FORMAT} below 1e60; from there MySQL's {@code FORMAT} writes at most 65
+     *  digits (measured 2026-11-15, the probe: 1e300 printed 61 digits), so the value's leading 21 digits are formatted
+     *  and the rest written as zeros -- its magnitude kept, the digits past the 21st zeros (S311's noise above 4.5e9).
+     *  One expression, the database's. */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        SqlExpr d = asDouble(x);
+        writer.append("CASE WHEN ABS(").expr(d, 0).append(") < 1E60 THEN ");
+        super.floatToText(writer, x);
+        writer.append(" ELSE CONCAT(REPLACE(FORMAT(").expr(d, 0).append(" / POW(10, FLOOR(LOG10(ABS(").expr(d, 0)
+                .append("))) - 20), 0, 'en_US'), ',', ''), REPEAT('0', FLOOR(LOG10(ABS(").expr(d, 0)
+                .append("))) - 20)) END");
+        return writer;
     }
 }

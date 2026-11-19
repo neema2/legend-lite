@@ -126,8 +126,8 @@ final class ModelIntegrity {
             for (String connection : binding.getValue()) {
                 if (model.findConnection(connection).isEmpty() && !model.isModelConnection(connection)
                         && !model.hasElement(connection)) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                            "Can't find connection '" + connection + "'");
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, com.legend.error.CompileKind.MISSING,
+                            List.of("connection", connection));
                 }
             }
         }
@@ -155,13 +155,13 @@ final class ModelIntegrity {
         for (com.legend.model.StereotypeApplication st : stereotypes) {
             if (!profile(st.profileName(), model).stereotypes().contains(st.stereotypeName())) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Can't find stereotype '" + st.stereotypeName() + "' in profile '" + st.profileName() + "'");
+                        com.legend.error.CompileKind.MISSING_PROFILE_MEMBER, List.of("stereotype", st.stereotypeName(), st.profileName()));
             }
         }
         for (com.legend.model.TaggedValue tv : taggedValues) {
             if (!profile(tv.profileName(), model).tags().contains(tv.tagName())) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Can't find tag '" + tv.tagName() + "' in profile '" + tv.profileName() + "'");
+                        com.legend.error.CompileKind.MISSING_PROFILE_MEMBER, List.of("tag", tv.tagName(), tv.profileName()));
             }
         }
     }
@@ -181,14 +181,14 @@ final class ModelIntegrity {
 
     private static com.legend.model.ProfileDefinition profile(String fqn, ModelBuilder model) {
         return model.findProfile(fqn).orElseThrow(() -> new com.legend.error.ModelException(
-                com.legend.error.LegendCompileException.Phase.MODEL, "Can't find the profile '" + fqn + "'"));
+                com.legend.error.LegendCompileException.Phase.MODEL, com.legend.error.CompileKind.MISSING_PROFILE, List.of(fqn)));
     }
 
     /** A named mapping exists; {@code null} is a reference not written (an optional one). */
     private static void requireMapping(@com.legend.base.Nullable String mapping, ModelBuilder model) {
         if (mapping != null && model.findMapping(mapping).isEmpty()) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                    "Can't find mapping '" + mapping + "'");
+                    com.legend.error.CompileKind.MISSING, List.of("mapping", mapping));
         }
     }
 
@@ -196,7 +196,7 @@ final class ModelIntegrity {
     private static void requireRuntime(@com.legend.base.Nullable String runtime, ModelBuilder model) {
         if (runtime != null && model.findRuntime(runtime).isEmpty()) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                    "Can't find runtime '" + runtime + "'");
+                    com.legend.error.CompileKind.MISSING, List.of("runtime", runtime));
         }
     }
 
@@ -205,7 +205,7 @@ final class ModelIntegrity {
         if (store != null && !"ModelStore".equals(store) && model.findDatabase(store).isEmpty()
                 && !model.hasElement(store)) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                    "The store '" + store + "' can't be found.");
+                    com.legend.error.CompileKind.MISSING_STORE, List.of(store));
         }
     }
 
@@ -219,10 +219,11 @@ final class ModelIntegrity {
      * layer's elements join the index. */
     static void refuseDuplicates(ModelBuilder model,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
-        model.duplicateElements().forEach((fqn, msg) ->
+        model.duplicateElements().forEach(fqn ->
                 withElement(fqn, () -> {
                     throw new com.legend.error.ModelException(
-                            com.legend.error.LegendCompileException.Phase.MODEL, msg);
+                            com.legend.error.LegendCompileException.Phase.MODEL,
+                            com.legend.error.CompileKind.DUPLICATE_ELEMENT, List.of(fqn));
                 }, wallSink));
     }
 
@@ -242,7 +243,7 @@ final class ModelIntegrity {
             if (e.element() != null) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), e.getMessage(), elementFqn);
+            throw com.legend.error.ModelException.attributed(e, elementFqn);
         }
     }
 
@@ -279,8 +280,8 @@ final class ModelIntegrity {
                     supFqn + " classified as a type but has none")) instanceof com.legend.compiler.element.type.Type.ClassType)) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Invalid supertype: '" + com.legend.protocol.Protocol.splitFqn(cd.qualifiedName())[1] + "' cannot extend '" + supFqn
-                                + "' as it is not a class.");
+                        com.legend.error.CompileKind.INVALID_SUPERTYPE,
+                        List.of(com.legend.protocol.Protocol.splitFqn(cd.qualifiedName())[1], supFqn));
             }
         }
         java.util.Set<String> propertyNames = new java.util.HashSet<>();
@@ -288,8 +289,7 @@ final class ModelIntegrity {
             if (!propertyNames.add(pd.name())) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Found duplicated property '" + pd.name()
-                                + "' in class '" + cd.qualifiedName() + "'");
+                        com.legend.error.CompileKind.DUPLICATE_PROPERTY, List.of(pd.name(), cd.qualifiedName()));
             }
             classifier.classify(pd.type(), typeParams);
             classifier.requireArguments(pd.type(), typeParams);
@@ -297,11 +297,11 @@ final class ModelIntegrity {
                     "property '" + pd.name() + "' of " + cd.qualifiedName());
             if (pd.hasDefault() && pd.multiplicity() instanceof com.legend.protocol.Multiplicity.Concrete m
                     && m.lowerBound() == 0) {
-                // legend-pure's PropertyValidator, in its words (its default value's TYPE is the body phase's: the
-                // lifted <class>$default$<property>, ModelNormalizer.liftDefaults)
+                // legend-pure's PropertyValidator, a kind whose upstream words are the edge's (J10, 2026-11-17; its
+                // default value's TYPE is the body phase's: the lifted <class>$default$<property>,
+                // ModelNormalizer.liftDefaults)
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Default values are supported only for mandatory fields, and property '" + pd.name()
-                                + "' is optional.");
+                        com.legend.error.CompileKind.DEFAULT_ON_OPTIONAL, List.of(pd.name()));
             }
         }
         for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
@@ -445,8 +445,7 @@ final class ModelIntegrity {
             if (!seen.add(v)) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Found duplicated value '" + v + "' in enumeration '"
-                                + ed.qualifiedName() + "'");
+                        com.legend.error.CompileKind.DUPLICATE_ENUM_VALUE, List.of(v, ed.qualifiedName()));
             }
         }
     }
@@ -508,7 +507,7 @@ final class ModelIntegrity {
         for (String include : db.includes()) {
             if (model.findDatabase(include).isEmpty()) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Can't find database '" + include + "'");
+                        com.legend.error.CompileKind.MISSING, List.of("database", include));
             }
         }
         for (var j : db.joins()) {
@@ -581,10 +580,8 @@ final class ModelIntegrity {
             if (!hasColumn(table.get(), cr.column())) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
-                        "The column '" + cr.column()
-                                + "' can't be found in the table '"
-                                + table.get().name() + "' (" + site
-                                + " of database '" + db.qualifiedName() + "')");
+                        com.legend.error.CompileKind.MISSING_STORE_COLUMN,
+                        List.of(cr.column(), "table", table.get().name(), site, db.qualifiedName()));
             }
             return;
         }
@@ -595,18 +592,14 @@ final class ModelIntegrity {
             if (!hit) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
-                        "The column '" + cr.column()
-                                + "' can't be found in the view '"
-                                + view.get().name() + "' (" + site
-                                + " of database '" + db.qualifiedName() + "')");
+                        com.legend.error.CompileKind.MISSING_STORE_COLUMN,
+                        List.of(cr.column(), "view", view.get().name(), site, db.qualifiedName()));
             }
             return;
         }
         throw new com.legend.error.ModelException(
                 com.legend.error.LegendCompileException.Phase.MODEL,
-                "The table '" + cr.table()
-                        + "' can't be found in the database '"
-                        + db.qualifiedName() + "' (" + site + ")");
+                com.legend.error.CompileKind.MISSING_STORE_TABLE, List.of(cr.table(), db.qualifiedName(), site));
     }
 
     /** Declared columns + milestoning-declared temporal columns, by bare name

@@ -60,11 +60,12 @@ postgres	Unclassified	meta::pure::functions::string::tests::char::testEmptyChar	
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 sqlite	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
-sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
-sqlite	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
-sqlite	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
-sqlite	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
-sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
+# PR #118 fix round, 2026-11-18: the range refusal's new wording (DataError: the value is outside the range this database can hold: <reason>)
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
 # SQLite has no time zones but UTC
 sqlite	Essential	meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	AssertFailed: ⏎ expected: [0] ⏎ actual:   []
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
@@ -76,9 +77,10 @@ sqlite	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	As
 # SQLite has no time zones but UTC
 sqlite	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached SQLite: SQLite has no time zones but UTC
 # an integer past 64 bits: SQLite has none
-sqlite	Grammar	meta::pure::functions::math::tests::minus::testLargeMinus	DataError: an integer past 64 bits has no SQLite value
-sqlite	Grammar	meta::pure::functions::math::tests::plus::testLargePlus	DataError: an integer past 64 bits has no SQLite value
-sqlite	Grammar	meta::pure::functions::math::tests::times::testLargeTimes	DataError: an integer past 64 bits has no SQLite value
+# PR #118 fix round, 2026-11-18: the range refusal's new wording (DataError: the value is outside the range this database can hold: <reason>)
+sqlite	Grammar	meta::pure::functions::math::tests::minus::testLargeMinus	DataError: the value is outside the range this database can hold: an integer past 64 bits has no SQLite value
+sqlite	Grammar	meta::pure::functions::math::tests::plus::testLargePlus	DataError: the value is outside the range this database can hold: an integer past 64 bits has no SQLite value
+sqlite	Grammar	meta::pure::functions::math::tests::times::testLargeTimes	DataError: the value is outside the range this database can hold: an integer past 64 bits has no SQLite value
 # a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
 sqlite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
 sqlite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
@@ -158,8 +160,9 @@ mariadb	Essential	meta::pure::functions::collection::tests::indexof::testIndexOf
 mariadb	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	Incorrect DATE value: '800002016-02-29'
 mariadb	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	Incorrect DATE value: '236611261-10-03'
 mariadb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	Incorrect DATE value: '33803336-12-17'
-mariadb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MariaDB value
-mariadb	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MariaDB value
+# PR #118 fix round, 2026-11-18: the range refusal's new wording (DataError: the value is outside the range this database can hold: <reason>)
+mariadb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: the value is outside the range this database can hold: a date past the year 9999 has no MariaDB value
+mariadb	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: the value is outside the range this database can hold: a date past the year 9999 has no MariaDB value
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
 mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
@@ -197,8 +200,9 @@ mysql	Essential	meta::pure::functions::collection::tests::removeDuplicates::test
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	Incorrect DATE value: '800002016-02-29'
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	Incorrect DATE value: '236611261-10-03'
 mysql	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	Incorrect DATE value: '33803336-12-17'
-mysql	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MySQL value
-mysql	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MySQL value
+# PR #118 fix round, 2026-11-18: the range refusal's new wording (DataError: the value is outside the range this database can hold: <reason>)
+mysql	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: the value is outside the range this database can hold: a date past the year 9999 has no MySQL value
+mysql	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: the value is outside the range this database can hold: a date past the year 9999 has no MySQL value
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
 mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
@@ -309,13 +313,14 @@ bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::t
 bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
 bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyListExplicit	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
 # a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal
-bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal
+# 2026-11-13 (S340, E, pending the user's ruling): the expected literal is refused at planning by BigQuery's dialect, by name, where the database's "Invalid DATE/DATETIME literal" stood -- the same five tests, still failing; to be confirmed on the BigQuery lane
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
 # a decimal literal past BigQuery's BIGNUMERIC (38 digits each side of the point)
-bigquery	Essential	meta::pure::functions::math::tests::pow::testComplexPow	DialectCapability: a decimal literal 182.88729271224377725957310758531093597412109375 reached BigQuery, whose BIGNUMERIC holds 38 digits each side of the point
+# 2026-11-17 (Phase 5b, register S20 built; round 76): bigquery testComplexPow PASSES and leaves -- its literal is the double, so the judge no longer writes a 47-digit decimal
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "BigQueryException during runQuery ⏎ Floating point error in function: ACOS(2)" ⏎ where
 bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "BigQueryException during runQuery ⏎ Floating point error in function: ASIN(2)" ⏎ where
@@ -352,7 +357,7 @@ databricks	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNum
 databricks	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '33803336-12-17'. SQLSTATE: 42604
 databricks	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "TIMESTAMP" is invalid: '1410404-07-12T00:00:00'. SQLSTATE: 42604
 # a decimal literal past Databricks' DECIMAL (38 digits of precision)
-databricks	Essential	meta::pure::functions::math::tests::pow::testComplexPow	[DECIMAL_PRECISION_EXCEEDS_MAX_PRECISION] Decimal precision 47 exceeds max precision 38. SQLSTATE: 22003
+# 2026-11-17 (Phase 5b, register S20 built; round 76): databricks testComplexPow PASSES and leaves -- its literal is the double, so the judge no longer writes a 47-digit decimal
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
 databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown

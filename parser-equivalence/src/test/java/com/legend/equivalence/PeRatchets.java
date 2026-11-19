@@ -73,17 +73,60 @@ public final class PeRatchets {
                     + " that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest,"
                     + " EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the"
                     + " snapshot-copy and output-plan tests)",
+            "own_corpus.matched 3211 -> 3221 (2026-11-13, claude/total-wall-d with main merged onto total-wall-e,"
+                    + " 8f0037994d, found by //:generated on 3a711976af): as measured, not attributed -- the merge"
+                    + " joined D's, main's and E's new tests (RaisedKindTest, ErrorKindTest, EdgeSpellingHookTest,"
+                    + " LetBindingTest, FusedHostColumnsTest and their siblings); the ten models were not traced one by"
+                    + " one",
+            "own_corpus.matched 3221 -> 3222 (2026-11-13, D3 and S341 on claude/total-wall-e): TypeToStringTest's model"
+                    + " (its d3::Car class)",
             "own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR"
                     + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
                     + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
                     + " tests')",
+            "own_corpus.matched 3222/3246 -> 3257 (2026-11-14, merged main 3a217086a (#81) into claude/total-wall-e, measured on"
+                    + " the merged tree):"
+                    + " both sides' models joined, 3222 + 3246 - 3211 = 3257, not one side's number",
+            "own_corpus.matched 3246 -> 3251 (2026-11-14, main 3a217086a (#81) merged into claude/total-wall-d,"
+                    + " whose own tests had not been measured: phase D's, the edge's and the raise kinds'), as measured"
+                    + " on the merged tree, not attributed",
+            "own_corpus.matched 3257/3251 -> 3257 (2026-11-14, claude/total-wall-d 392ce271b merged into"
+                    + " claude/total-wall-e, as measured): D's added models were already E's, through E's earlier merge of D",
             "own_corpus.matched 3211 -> 3226 (2026-11-14, C4's must-haves M1-M5, found red by the gate on b915e29405):"
                     + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
                     + " them)",
             "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
                     + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
+            "own_corpus.matched 3261 -> 3266 (2026-11-15, main cf865632c (#101, C4) merged into claude/total-wall-d,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
             "own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models,"
-                    + " measured by //parser-equivalence:update_ratchets");
+                    + " measured by //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3266, 3262 -> 3267 (2026-11-15, the merge of #106 into #104: both sides' tests'"
+                    + " models together; TO RE-MEASURE by //parser-equivalence:update_ratchets after the build)",
+            "own_corpus.matched 3257/3261 -> 3272 (2026-11-15, merged main cf865632c (#101) into claude/total-wall-e,"
+                    + " measured on the merged tree): E's 3257 and C4's fifteen (3261 - 3246), joined",
+            "own_corpus.matched 3272/3262 -> 3273 (2026-11-15, main 0c9032f56 (C5-J's 3261 -> 3262) merged into"
+                    + " claude/total-wall-e, measured on the merged tree): C5-J's one new model joined E's",
+            "own_corpus.matched 3267/3273 -> TO RE-MEASURE (2026-11-16, W1 of docs/records/d-plan-2026-11-16.md: E's PR1"
+                    + " merged into D's stage, both sides' models together; by //parser-equivalence:update_ratchets)",
+            "own_corpus.matched 3273 -> 3281 (2026-11-16, D's stage at 97c178a44, the first full CI's parser_equivalence"
+                    + " lane): eight more of lite's own models match, a ratchet UP",
+            "own_corpus.matched 3281 -> 3284 (2026-11-16, D's stage: PlanDeclaresItsRaisesTest's MongoDB model written"
+                    + " as the reference grammar reads it -- serverURLs [localhost:27017], where an IP address was refused"
+                    + " (GRAMMAR-REFUSAL-nullmsg, stage-linux 43917161620) -- and the stage's new test models; UP)",
+            "own_corpus.matched 3284 -> 3287 (2026-11-17, phase D's Phase 2, 8d38788b0: InterimEdgeSitesTest's model --"
+                    + " its s::DB, s::Conn and s::RT -- matches the reference grammar; UP)",
+            "own_corpus.matched 3287 -> 3290 (2026-11-17, A1 0902f0f33 (its 1c18e97f4): BoundaryLiteExportsTest's model --"
+                    + " its t::P, t::DB and t::M -- matches the reference grammar; UP; stage-linux run 44097841621)",
+            "own_corpus.matched 3290 -> 3302 (2026-11-18, D's train 8, measured on d-int8 ce6132f60: twelve more own-corpus"
+                    + " models, added by trains 7 and 8's tests, match the reference grammar (red on d-int7 a789d7095 too, E-P5's"
+                    + " report); UP)",
+            "own_corpus.matched 3302 -> 3309 (2026-11-18, the host train claude/total-wall-h-datacube at cd7d1eece, found by"
+                    + " its gate pass (update_ratchets_test): seven more own-corpus models, added by the host train's tests, match"
+                    + " the reference grammar, measured by //parser-equivalence:update_ratchets on its tree (D's d-int18 measures"
+                    + " 3302); a floor rising, UP)",
+            "own_corpus.matched 3309 -> 3310 (2026-11-18, PR #118 fix round: one more own-corpus model, added by the"
+                    + " batch's tests, matches the reference grammar; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

@@ -120,8 +120,7 @@ public final class ImportDataFlowAppend {
         }
         return new TypedProject(p.source(), cols,
                 new ExprType(Type.relation(new Type.RelationType(outCols,
-                        outRow.dynamicColumns())), p.info().multiplicity()),
-                p.wireForm());
+                        outRow.dynamicColumns())), p.info().multiplicity()));
     }
 
     /** The engine's {@code getDefaultLiteralValue} for a thread kind. */

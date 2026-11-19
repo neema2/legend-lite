@@ -34,6 +34,14 @@ class AuditRound3Test {
         }
     }
 
+    /** {@link #scalar} at the compatibility edge ({@code edge.PureText.UPSTREAM}): legend-pure's print forms. */
+    private static Object scalarAtTheEdge(String query) throws Exception {
+        try (Connection c = TestBackends.platform().open()) {
+            return Lean.runInStyle(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c,
+                    com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0);
+        }
+    }
+
     private static Exception rejects(String query) {
         return assertThrows(Exception.class, () -> Compiler.query(Compiler.compileModel(MODEL), query).expression());
     }
@@ -183,17 +191,24 @@ class AuditRound3Test {
     @Test
     @DisplayName("audit: floatRepr — fraction-free magnitudes render exact plain digits via HUGEINT")
     void floatReprLargeBand() throws Exception {
+        // legend-pure's print form, the compatibility edge's since D1.2 (2026-11-15)
         assertEquals("1000000000000000000.0",
-                scalar("|1000000000000000000.0->toString()").toString());
-        assertEquals("1.5", scalar("|1.5->toString()").toString());
+                scalarAtTheEdge("|1000000000000000000.0->toString()").toString());
+        assertEquals("1.5", scalarAtTheEdge("|1.5->toString()").toString());
         assertEquals("0.000000013421",
-                scalar("|0.000000013421->toString()").toString());
+                scalarAtTheEdge("|0.000000013421->toString()").toString());
+        // the product's text (register S311, the user's ruling of 2026-11-10): six decimals, trimmed
+        assertEquals("1000000000000000000", scalar("|1000000000000000000.0->toString()").toString());
+        assertEquals("1.5", scalar("|1.5->toString()").toString());
+        assertEquals("0", scalar("|0.000000013421->toString()").toString());
+        assertEquals("0.333333", scalar("|(1.0 / 3.0)->toString()").toString());
+        assertEquals("2", scalar("|2.0->toString()").toString());
     }
 
     @Test
     @DisplayName("audit: date() float-seconds carrier keeps MICROsecond precision")
     void dateCarrierMicros() throws Exception {
-        assertEquals("2015-04-16T14:51:59.999999+0000",
+        assertEquals("2015-04-16T14:51:59.999999",
                 scalar("|date(2015,4,16,14,51,59.999999)").toString());
     }
 
@@ -258,7 +273,7 @@ class AuditRound3Test {
     void addOutOfBoundsIsLoud() throws Exception {
         var ex = assertThrows(Exception.class,
                 () -> scalar("|[1,2]->meta::pure::functions::collection::add(9, 99)"));
-        assertTrue(String.valueOf(ex.getMessage()).contains("index out of bounds"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains(com.legend.error.ErrorKind.INSERT_OUT_OF_BOUNDS.sentence()), ex.getMessage());
         assertEquals("a", scalar(
                 "|['a','b']->meta::pure::functions::collection::add(1, 'c')").toString());
     }

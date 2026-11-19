@@ -13,6 +13,12 @@ import com.legend.sql.SqlQuery;
  */
 public interface SqlDialect {
 
+    /** How this dialect's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  planner passes it to the lowering as data, which builds the literal's fact by it, and the dialect writes the
+     *  literal by that fact -- one source for both. The compatibility edge's is legend-engine's DECIMAL (the edge
+     *  program's §6 row 21). */
+    com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind();
+
     /** A query as SQL text: a statement with no bound parameters (one reaching the text is refused). */
     String render(SqlQuery query);
 
@@ -171,7 +177,7 @@ public interface SqlDialect {
         if (payload.elements().isEmpty()) {
             java.util.List<com.legend.sql.SqlExpr> none = new java.util.ArrayList<>(java.util.List.of(
                     new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.NullLit(),
-                            com.legend.sql.SqlType.Scalar.JSON)));
+                            com.legend.sql.SqlType.Scalar.JSON, com.legend.sql.SqlExpr.Reason.DIALECT)));
             if (u.placed()) {
                 none.add(new com.legend.sql.SqlExpr.IntLit(0));
             }
@@ -183,7 +189,7 @@ public interface SqlDialect {
                 payload.elements().size());
         for (int i = 0; i < payload.elements().size(); i++) {
             com.legend.sql.SqlExpr element = new com.legend.sql.SqlExpr.Cast(
-                    new com.legend.sql.SqlExpr.StringLit(payload.elements().get(i)), com.legend.sql.SqlType.Scalar.JSON);
+                    new com.legend.sql.SqlExpr.StringLit(payload.elements().get(i)), com.legend.sql.SqlType.Scalar.JSON, com.legend.sql.SqlExpr.Reason.DIALECT);
             rows.add(u.placed() ? java.util.List.of(element, new com.legend.sql.SqlExpr.IntLit(i))
                     : java.util.List.of(element));
         }
@@ -215,13 +221,25 @@ public interface SqlDialect {
      *  the runner's copy's path; {@code after}, the statements that undo what they set on the session (H2's path
      *  variable), run on every exit, a failed load's too (the A checkpoint's tenets audit, 14, 2026-11-10: until then
      *  the last of {@code statements}, which a failed insert never reached). */
-    record CsvLoad(java.util.List<String> statements, java.util.List<String> after) {
+    record CsvLoad(java.util.List<String> statements, java.util.List<String> after,
+            java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
         public CsvLoad {
             statements = java.util.List.copyOf(statements);
             after = java.util.List.copyOf(after);
+            sites = java.util.List.copyOf(sites);
             if (statements.isEmpty()) {
                 throw new IllegalArgumentException("a CSV load of no statement");
             }
+        }
+
+        /** A load whose render wrote no raise yet: its sites added by the render that returns it. */
+        public CsvLoad(java.util.List<String> statements, java.util.List<String> after) {
+            this(statements, after, java.util.List.of());
+        }
+
+        /** This load with the raise sites its render wrote (phase D's Phase 2: its statements' one site table). */
+        public CsvLoad withSites(java.util.List<com.legend.sql.dialect.RaiseSite> written) {
+            return new CsvLoad(statements, after, written);
         }
     }
 
@@ -331,16 +349,16 @@ public interface SqlDialect {
     }
 
     /**
-     * A raw statement as this session runs it (decision D2, the dialect program's Phase 1c): raw text is in the language
-     * of the database its connection DECLARES ({@code writtenFor}, that type's name), and is translated only when it
-     * runs on another. The engine's H2 text (legend-engine's test database's: its corpus's setup, an H2 connection's
-     * {@code executeInDb}) is this dialect's {@link #fromEngineText}; text written for any other database, or by this
-     * session's own dialect ({@code writtenFor} null), runs as written, as legend-engine sends it.
+     * A raw statement as this session runs it: AS WRITTEN, on every database (Phase 6's B4 (ii), 2026-11-17, ruled by the
+     * orchestrator under the user's "match engine": legend-engine sends executeInDb's text untranslated -- legend-pure
+     * 5.99.0's interpreted ExecuteInDb.java:127 takes the text and :191 runs statement.execute(sql); legend-engine
+     * 4.145.0's relationalExtension.pure:31-33 hands it there). {@code writtenFor} is the database its connection
+     * declares; the compatibility edge's dialects translate legend-engine's H2 text for DuckDB and Postgres
+     * ({@code edge.PureText.DuckDb}, {@code edge.PureText.Postgres}), the product never.
      */
-    String raw(String statement, @com.legend.base.Nullable String writtenFor);
-
-    /** One statement of the engine's H2 text as this database runs it: H2's own, translated, or refused by name. */
-    String fromEngineText(String statement);
+    default String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+        return statement;
+    }
 
     /** The path a written model's specification names for this database's in-memory session, where legend-engine must
      *  be given one (it opens the path a specification names, and refuses one that names none); null when this

@@ -58,7 +58,7 @@ class SentStatementsAreThePlansTest {
                 } catch (com.legend.error.DataError refused) {
                     // a value finer than its slot keeps, refused by the statement's own raise, which was sent as the
                     // plan wrote it (S181, A7, 2026-11-10: DuckDB's microsecond slot and the nanosecond case)
-                    assertTrue(String.valueOf(refused.getMessage()).contains("refused, never cut (S181)"),
+                    assertTrue(String.valueOf(refused.getMessage()).contains(com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()),
                             type + " " + q.withParameters() + ": " + refused.getMessage());
                 }
                 assertFalse(sent.isEmpty(), type + " " + q.withParameters());
@@ -123,7 +123,7 @@ class SentStatementsAreThePlansTest {
             reading++;
             ExecutionPlan.LoadStep.File file = new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE,
                     "people.csv", DataStores.sha256(csv), csv.length, DataRef.Csv.DEFAULT),
-                    new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(), reads.after()), 500);
+                    com.legend.setup.LoadSteps.reads(reads, com.legend.database.PlanStyle.PRODUCT::siteWords), 500);
             String create = "CREATE TABLE sent_people (NAME VARCHAR(20), AGE INTEGER)";
             ExecutionPlan.Load load = LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
                     List.of(new ExecutionPlan.LoadStep.Statement(create), file), target);
@@ -184,7 +184,7 @@ class SentStatementsAreThePlansTest {
                 List<String> verdicts = new ArrayList<>();
                 try (Connection c = RecordingConnection.wrap(b.open(), sent)) {
                     com.legend.TestExecution.runBody(plan, com.legend.testbackend.TestSessions.over(c),
-                            (name, pass, detail) -> verdicts.add(pass + " " + detail), null, options, null);
+                            (name, pass, detail) -> verdicts.add(pass + " " + detail), com.legend.testexec.NoEdgeRun.NONE, options, null);
                 }
                 assertEquals(List.of("true null"), verdicts, b.name() + " " + judge);
                 assertFalse(sent.isEmpty(), b.name() + " " + judge);
@@ -266,6 +266,12 @@ class SentStatementsAreThePlansTest {
                         com.legend.testexecutionplan.TestPlan.statements(v);
                 case com.legend.testexecutionplan.TestPlan.Branch br ->
                         com.legend.testexecutionplan.TestPlan.statements(br);
+                case com.legend.testexecutionplan.TestPlan.Isolated p -> {
+                    // each judge's plan runs alone, the host's first
+                    out.addAll(ordered(p.host()));
+                    out.addAll(ordered(p.database()));
+                    yield List.of();
+                }
             };
             for (ExecutionPlan.Node node : nodes) {
                 nodeTexts(node, out);

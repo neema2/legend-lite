@@ -14,20 +14,20 @@ import java.util.Optional;
  * @param tree   the validated property tree
  * @param config the optional serialization config argument
  * @param info   {@code String[1]}
- * @param engineExecuteCardinality COMPATIBILITY ONLY: this serialize is the
- *               query of a legend-engine {@code execute(...)} whose
- *               {@code .values} a statement reads, so its result follows the
- *               engine JsonBuilder's cardinality rule (exactly one object
- *               serializes bare, zero or several as the array). Set by the
- *               result-envelope splice alone ({@code ResultEnvelopeSplice});
- *               the resolver carries it to the {@link TypedSerializeGraph} it
- *               builds. Lite's own serialize results stay arrays (the user's
- *               ruling, 2026-11-03: "the right clean thing in lite, the
- *               backward-compatible thing in compatibility mode")
+ * @param readThroughExecuteValues what the program wrote: this serialize is the
+ *               query of an {@code execute(...)} call whose {@code .values} a
+ *               statement reads (train 17 item 1, the orchestrator's ruling of
+ *               2026-11-18: a fact about the program, the product's, as
+ *               {@code TypedTableReference#accessor}; until then a field named
+ *               for legend-engine's rule). Set by the result-envelope splice
+ *               alone; the resolver carries it to its graph. How such a root is
+ *               presented is the plan style's ({@code LoweringForms#executeValues}):
+ *               lite's array in the product, legend-engine's one-object fold at
+ *               the edge.
  */
 public record TypedSerialize(TypedSpec source, List<TypedGraphTree> tree,
                              Optional<TypedSpec> config, ExprType info,
-                             boolean engineExecuteCardinality) implements TypedSpec {
+                             boolean readThroughExecuteValues) implements TypedSpec {
     public TypedSerialize {
         tree = List.copyOf(tree);
     }
@@ -38,11 +38,11 @@ public record TypedSerialize(TypedSpec source, List<TypedGraphTree> tree,
         this(source, tree, config, info, false);
     }
 
-    /** This serialize as the query of an engine {@code execute(...)} whose
-     * values a statement reads (see {@link #engineExecuteCardinality}): the
+    /** This serialize as the query of an {@code execute(...)} call whose
+     * values a statement reads (see {@link #readThroughExecuteValues}): the
      * result-envelope splice's alone; every other component verbatim. */
-    public TypedSerialize withEngineExecuteCardinality() {
-        return engineExecuteCardinality ? this
+    public TypedSerialize readThroughExecute() {
+        return readThroughExecuteValues ? this
                 : new TypedSerialize(source, tree, config, info, true);
     }
 
@@ -58,10 +58,10 @@ public record TypedSerialize(TypedSpec source, List<TypedGraphTree> tree,
         TypedSpec.expectChildren(kids, config.isPresent() ? 2 : 1, "TypedSerialize");
         return new TypedSerialize(kids.get(0), tree,
                 config.isPresent() ? java.util.Optional.of(kids.get(1))
-                        : java.util.Optional.empty(), info, engineExecuteCardinality);
+                        : java.util.Optional.empty(), info, readThroughExecuteValues);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedSerialize(source, tree, config, info, engineExecuteCardinality);
+        return new TypedSerialize(source, tree, config, info, readThroughExecuteValues);
     }
 }

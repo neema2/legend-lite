@@ -141,9 +141,10 @@ public final class ClassSources {
                     List<String> r = new ArrayList<>(row.size());
                     for (String c : row) {
                         // the literal node copies rows null-rejecting: an
-                        // absent fact is the TDS null cell (lowered to NULL)
-                        r.add(c == null ? com.legend.compiler.element.type.PlatformTypes
-                                .TDS_NULL_CELL : c);
+                        // absent fact is an empty cell, which a literal
+                        // cell reads as NULL (Scalars.tdsCell; it was
+                        // legend-engine's TDSNull text until 2026-11-15, D1.3)
+                        r.add(c == null ? "" : c);
                     }
                     cells.add(r);
                 }
@@ -1236,6 +1237,7 @@ public final class ClassSources {
                         l.info());
             }
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;

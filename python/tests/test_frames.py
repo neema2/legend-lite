@@ -381,6 +381,31 @@ class TypedByPlan(unittest.TestCase):
         self.assertTrue(pd.isna(out['i'][1]) and pd.isna(out['b'][1]))
 
 
+class ModelTypesCarried(unittest.TestCase):
+    """lite's query/run (``model_types``) carries a column the plan types with the MODEL's own type -- an
+    enumeration's path, a class's -- as the driver read it, never converted (the server's JdbcDecode.byPureType; the
+    host train, 2026-11-17: Query's query/run on Python over a project with an enumeration); a bare name the lattice
+    does not know is still refused, and without ``model_types`` (DataCube's frames) a model's type is refused too
+    (TypedByPlan's pin)."""
+
+    def test_an_enumerations_column_is_carried_and_a_bare_unknown_name_refused(self):
+        from legend_lite._plans import Column, Plan
+        from legend_lite._planned import PlannedSql
+        from legend_lite._reads import UntypedColumn, typed_by_plan
+        rows = pa.table({'Country': ['US', None]})
+
+        def plan(type_):
+            return Plan(PlannedSql('SELECT 1'), (Column('Country', type_, {'name': 'Country', 'type': type_}),))
+
+        typed = typed_by_plan(rows, plan('demo::types::Country'), model_types=True)
+        self.assertEqual((typed.column('Country').to_pylist(), typed.schema.field('Country').metadata[b'legend.type']),
+                         (['US', None], b'demo::types::Country'))
+        with self.assertRaisesRegex(UntypedColumn, "'Countri'"):
+            typed_by_plan(rows, plan('Countri'), model_types=True)
+        with self.assertRaisesRegex(UntypedColumn, "'demo::types::Country'"):
+            typed_by_plan(rows, plan('demo::types::Country'))
+
+
 class TypeNamesAreReadHere(unittest.TestCase):
     """A column's type is read in one place (legend_lite/_types.py, over the generated _type_facts.py), as DataCube's
     guardrails test holds engine-client's types.ts the one: no other module of the package spells a type's name to
@@ -441,11 +466,11 @@ class ModelFor(unittest.TestCase):
         # told the page this engine serves none of its tables)
         with self.assertRaisesRegex(ll.LegendError, 'proj0::Nope') as refused:
             self.frames.model_for(broken)
-        self.assertEqual(refused.exception.kind, 'COMPILATION')
+        self.assertEqual(refused.exception.kind, ll.compiler.error_kind('COMPILE'))
         # and one that does not parse (the C5 follow-up's check, 2026-11-15: until then None, as "no model")
         with self.assertRaises(ll.LegendError) as refused:
             self.frames.model_for(self.project() + '\n###Pure\nClass proj0::A {')
-        self.assertEqual(refused.exception.kind, 'PARSER')
+        self.assertEqual(refused.exception.kind, ll.compiler.error_kind('PARSE'))
 
     def test_only_the_most_recent_are_held_each_let_go_of_as_it_is_evicted(self):
         first = self.frames.model_for(self.project(0))
@@ -494,8 +519,7 @@ class JsonConnection(unittest.TestCase):
     def test_a_payload_that_is_not_its_digest_or_another_slot_is_refused_by_name(self):
         from legend_lite import compiler
         model = self.model(self.RECORDS)
-        planned = json.loads(compiler._answer(compiler.library().call('lite_plan_json', model, compiler._json.dumps(ll.parse(self.QUERY)),
-                                                                      'm::RT')))
+        planned = compiler.operation('query/plan', {'model': model, 'query': ll.parse(self.QUERY), 'runtime': 'm::RT'})
         statement = planned['plan']['root']['sql']
         digest = next(iter(statement['content']))
         statement['content'][digest] = statement['content'][digest].replace('back', 'BACK')
@@ -520,5 +544,71 @@ class Refusals(unittest.TestCase):
         self.assertIn("'nope'", e.exception.message)
 
 
+class ARaiseIsWorded(unittest.TestCase):
+    """A product raise reaches Python in lite's words (#104's M2(b), 2026-11-15): its kind's sentence (error.ErrorKind,
+    generated into _type_facts.py), then its where -- never the database's envelope or the value."""
+
+    def test_a_divide_by_zero_raises_its_kinds_sentence(self):
+        table = ll.Frames().register('trades', trades())
+        with self.assertRaises(Exception) as raised:
+            table.execute('->extend(~[r: x|$x.id->toOne() / ($x.id->toOne() - 1)])->select(~r)')
+        self.assertEqual(str(raised.exception), 'division by zero')
+
+
 if __name__ == '__main__':
     unittest.main()
+
+
+class ParametersBoundAtRun(unittest.TestCase):
+    """A query's parameters, declared in its plan and bound when it runs, never pasted into its text (the lite API
+    spec's §4, 2026-11-17): the planner declares them, Python's runner checks and binds them on its own DuckDB."""
+
+    def setUp(self):
+        self.frames = ll.Frames()
+        self.table = self.frames.register('trades', pd.DataFrame({'desk': ['FX', 'EQ', 'FX'], 'qty': [1, 2, 3]}))
+
+    def query(self, params, body):
+        return f'{{{params}|{self.table.accessor}{body}->select(~[desk, qty])->from({self.table.runtime})}}'
+
+    def test_a_parameter_is_bound_at_run_and_never_in_the_text(self):
+        plan = self.table.plan(self.query('d:String[1]', '->filter(r|$r.desk == $d)'))
+        self.assertNotIn('FX', plan.sql)
+        self.assertEqual([p.name for p in plan.parameters], ['d'])
+        self.assertEqual(self.frames.run(plan, {'d': 'FX'}).column('qty').to_pylist(), [1, 3])
+        self.assertEqual(self.frames.run(plan, {'d': 'EQ'}).column('qty').to_pylist(), [2], 'the same plan, another value')
+        self.assertEqual(self.table.execute(self.query('n:Integer[1]', '->filter(r|$r.qty > $n)'), {'n': 1})
+                         .column('qty').to_pylist(), [2, 3])
+
+    def test_a_refused_value_is_lites_parameters_refusal_and_nothing_runs(self):
+        from unittest import mock
+        from legend_lite import compiler
+        plan = self.table.plan(self.query('d:String[1]', '->filter(r|$r.desk == $d)'))
+        # the product's parameters kind (F's rename, §3): read from the product, here as it will read
+        with mock.patch.object(compiler, '_KINDS', {'PARSE': 'parse', 'COMPILE': 'compile', 'PARAMETERS': 'parameters'}):
+            with self.assertRaises(ll.LegendError) as refused:
+                self.frames.run(plan, {})
+            self.assertEqual((refused.exception.kind, refused.exception.message),
+                             ('parameters', 'no value for the parameter(s) d:String[1]'))
+            with self.assertRaises(ll.LegendError) as refused:
+                self.frames.run(plan, {'d': True})
+            self.assertIn('given true (boolean): a String is a string', refused.exception.message)
+
+
+class TheProductsKinds(unittest.TestCase):
+    """The lite API spec's §3 (2026-11-17): the frames and a project's databases tell a model's refusal by the product's
+    kinds (compiler.refuses_the_text, read from the native library), never by a constant of Python's own -- so a
+    rename in the product needs no edit here."""
+
+    def test_a_model_refusal_follows_the_products_kinds_renamed(self):
+        from unittest import mock
+        from legend_lite import compiler, frames, projects
+        renamed = {'PARSE': 'unparsed', 'COMPILE': 'untyped', 'INTERNAL': 'failed'}
+        with mock.patch.object(compiler, '_KINDS', renamed):
+            self.assertTrue(compiler.refuses_the_text(ll.LegendError('no', 'untyped')))
+            self.assertFalse(compiler.refuses_the_text(ll.LegendError('no', 'compile')))
+            self.assertIsInstance(frames._refusal(ll.LegendError('no', 'unparsed')), frames.ModelRefused)
+            self.assertNotIsInstance(frames._refusal(ll.LegendError('no', 'failed')), frames.ModelRefused)
+            with mock.patch.object(compiler, 'project_data', side_effect=ll.LegendError('no model', 'untyped')):
+                with self.assertRaises(projects.NotAModel):
+                    with projects.ProjectDatabases(None).using('m', surface=True):
+                        pass

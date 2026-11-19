@@ -204,8 +204,12 @@ restoring the items' order; the `WHERE` after `WITH` is a `filter` over the grou
 
 ## 8. The SQL for DuckDB (rendered and run)
 
+(Re-rendered 2026-11-18: each hop that may find nothing is a correlated `EXISTS`, the product's leanest SQL, where it
+was a join to the distinct keys -- the edge audit's J19 (a), F's, landed in train 10 (fc767a86c), the user's ruling of
+2026-11-17 "Yes to the rule", register S367. The answers are unchanged: every cypher parity row passes.)
+
 ```sql
-SELECT t8.firm AS firm, t8.city AS city, t8.headcount AS headcount, t8.avgAge AS avgAge, t8.youngest AS youngest, t8.oldest AS oldest, CASE WHEN t8.avgAge IS NOT NULL AND t8.avgAge >= 32 THEN 'seasoned' ELSE 'young' END AS band
+SELECT t6.firm AS firm, t6.city AS city, t6.headcount AS headcount, t6.avgAge AS avgAge, t6.youngest AS youngest, t6.oldest AS oldest, CASE WHEN t6.avgAge IS NOT NULL AND t6.avgAge >= 32 THEN 'seasoned' ELSE 'young' END AS band
 FROM (
   SELECT t3.p_legalname AS firm, t3.HQ_p_name AS city, COUNT(1) AS headcount, AVG(1.0 * t0.p_age) AS avgAge, MIN(t0.p_age) AS youngest, MAX(t0.p_age) AS oldest
   FROM n_person AS t0
@@ -214,25 +218,17 @@ FROM (
     FROM n_firm AS t1
     LEFT OUTER JOIN n_city AS t2 ON t1.r_hq = t2.id
   ) AS t3 ON t0.r_works_at = t3.id
-  LEFT OUTER JOIN (
-    SELECT DISTINCT t4.id
-    FROM n_firm AS t4
-  ) AS t6 ON t0.r_works_at = t6.id
-  LEFT OUTER JOIN (
-    SELECT DISTINCT t5.id
-    FROM n_city AS t5
-  ) AS t7 ON t3.r_hq = t7.id
-  WHERE t6.id IS NOT NULL AND t7.id IS NOT NULL AND t0.p_age IS NOT NULL AND t3.HQ_p_name IS NOT NULL AND (t3.HQ_p_name IS DISTINCT FROM 'Nowhere')
+  WHERE EXISTS (SELECT * FROM n_firm AS t4 WHERE t0.r_works_at = t4.id) AND EXISTS (SELECT * FROM n_city AS t5 WHERE t3.r_hq = t5.id) AND t0.p_age IS NOT NULL AND t3.HQ_p_name IS NOT NULL AND (t3.HQ_p_name IS DISTINCT FROM 'Nowhere')
   GROUP BY t3.p_legalname, t3.HQ_p_name
   HAVING COUNT(1) >= 1
-) AS t8
-ORDER BY t8.headcount DESC NULLS FIRST, t8.firm NULLS LAST
+) AS t6
+ORDER BY t6.headcount DESC NULLS FIRST, t6.firm NULLS LAST
 ```
 
 ## 9. The SQL for Snowflake (rendered, not run)
 
 ```sql
-SELECT "t8"."firm" AS "firm", "t8"."city" AS "city", "t8"."headcount" AS "headcount", "t8"."avgAge" AS "avgAge", "t8"."youngest" AS "youngest", "t8"."oldest" AS "oldest", CASE WHEN "t8"."avgAge" IS NOT NULL AND "t8"."avgAge" >= 32 THEN 'seasoned' ELSE 'young' END AS "band"
+SELECT "t6"."firm" AS "firm", "t6"."city" AS "city", "t6"."headcount" AS "headcount", "t6"."avgAge" AS "avgAge", "t6"."youngest" AS "youngest", "t6"."oldest" AS "oldest", CASE WHEN "t6"."avgAge" IS NOT NULL AND "t6"."avgAge" >= 32 THEN 'seasoned' ELSE 'young' END AS "band"
 FROM (
   SELECT "t3"."p_legalname" AS "firm", "t3"."HQ_p_name" AS "city", COUNT(1) AS "headcount", CAST(AVG(CAST(1.0 AS NUMBER(2,1)) * "t0"."p_age") AS DOUBLE) AS "avgAge", MIN("t0"."p_age") AS "youngest", MAX("t0"."p_age") AS "oldest"
   FROM "n_person" AS "t0"
@@ -241,19 +237,11 @@ FROM (
     FROM "n_firm" AS "t1"
     LEFT OUTER JOIN "n_city" AS "t2" ON "t1"."r_hq" = "t2"."id"
   ) AS "t3" ON "t0"."r_works_at" = "t3"."id"
-  LEFT OUTER JOIN (
-    SELECT DISTINCT "t4"."id" AS "id"
-    FROM "n_firm" AS "t4"
-  ) AS "t6" ON "t0"."r_works_at" = "t6"."id"
-  LEFT OUTER JOIN (
-    SELECT DISTINCT "t5"."id" AS "id"
-    FROM "n_city" AS "t5"
-  ) AS "t7" ON "t3"."r_hq" = "t7"."id"
-  WHERE "t6"."id" IS NOT NULL AND "t7"."id" IS NOT NULL AND "t0"."p_age" IS NOT NULL AND "t3"."HQ_p_name" IS NOT NULL AND ("t3"."HQ_p_name" IS DISTINCT FROM 'Nowhere')
+  WHERE EXISTS (SELECT * FROM "n_firm" AS "t4" WHERE "t0"."r_works_at" = "t4"."id") AND EXISTS (SELECT * FROM "n_city" AS "t5" WHERE "t3"."r_hq" = "t5"."id") AND "t0"."p_age" IS NOT NULL AND "t3"."HQ_p_name" IS NOT NULL AND ("t3"."HQ_p_name" IS DISTINCT FROM 'Nowhere')
   GROUP BY "t3"."p_legalname", "t3"."HQ_p_name"
   HAVING COUNT(1) >= 1
-) AS "t8"
-ORDER BY "t8"."headcount" DESC NULLS FIRST, "t8"."firm" NULLS LAST
+) AS "t6"
+ORDER BY "t6"."headcount" DESC NULLS FIRST, "t6"."firm" NULLS LAST
 ```
 
 ## 10. What lite refused on the way

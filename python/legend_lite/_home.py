@@ -142,8 +142,9 @@ def pages_folder() -> Path:
 
 
 def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
-    """One call of a store the native library answers over ``folder`` (``entry``: ``lite_saved_queries`` or
-    ``lite_saved_cubes``, legend-lite's own rules), under the lock every Python process takes on it, the library's call
+    """One call of a store the native library answers over ``folder`` (``entry``: the product's ``lite_store_queries`` or
+    ``lite_store_cubes``, lite's mount and words -- the edge program's H6, 2026-11-17; legend-engine's mount is the
+    edge's, through the engine library: K2, 2026-11-18), under the lock every Python process takes on it, the library's call
     on one of the compiler's threads: its status and its body. A failure of the library's raised (``OSError``)."""
     from ._library import library
     from ._pool import _on_compiler_threads

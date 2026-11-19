@@ -160,7 +160,8 @@ class PlanMakerTest {
     private static String lowered(TypedQuery query, String zone) {
         List<com.legend.sql.SqlExpr.PlanParam> slots = query.parameters().stream()
                 .map(QueryParameters.Declared::slot).toList();
-        com.legend.sql.SqlQuery q = Lowered.lowerInZone(query, zone, slots);
+        com.legend.sql.SqlQuery q = Lowered.lowerInZone(query, zone, slots,
+                Databases.dialect(Databases.PLATFORM).floatLiteralKind());
         return Databases.dialect(Databases.PLATFORM).renderStatement(q).sql();
     }
 
@@ -174,14 +175,16 @@ class PlanMakerTest {
     void eachDatabaseWritesItsOwnDatePlaceholder() {
         // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
         // (ClickHouse's raise as the timeseries branch writes it since #81's final review, 2026-11-09: each ends in an
-        // empty text of a rand(n) of its own, no materialize -- main's #95 merged in 2026-11-13)
+        // empty text of a rand(n) of its own, no materialize -- main's #95 merged in 2026-11-13; with phase D's kind,
+        // VALUE_NOT_HELD, merged 2026-11-14; its mark and its where since the D part 1 audit's S4, 2026-11-15; its site's
+        // token since phase D's Phase 2, 2026-11-16)
         java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
         for (String line : """
                 Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
                 Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
                 BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
-                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
+                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('\034LG#1'	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('\034LG#1'
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");
             spelled.put(cells[0], new String[] {cells[1], cells[2]});
@@ -481,14 +484,15 @@ class PlanMakerTest {
      * each copy binding its key; every output and every database alike. Judged against the legacy probe route's text
      * on DuckDB, and the same answers on H2 and SQLite, which have no dynamic PIVOT (the row-as-JSON form this replaces
      * had no form there; DuckDB's streamed rows dropped the generated columns). Every carrier names a generated column
-     * as the engine labels it, the quotes part of the name (the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md).
+     * bare (the user's ruling of 2026-11-10, D1.4 2026-11-15: until then as the engine labels it, the quotes part of the
+     * name, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md; legend-engine's quoting is the edge's writer's).
      */
     @Test
     void aDynamicPivotsPlanReadsItsKeysFirst_everyOutputEveryDatabase() throws Exception {
         String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
                 + "->sort(~city->ascending())";
-        String json = "[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
-                + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]";
+        String json = "[{\"city\":\"NYC\",\"2000__|__newCol\":15,\"2011__|__newCol\":5},"
+                + "{\"city\":\"SAN\",\"2000__|__newCol\":3,\"2011__|__newCol\":2}]";
         for (DatabaseType type : IN_PROCESS) {
             String model = model(type.name());
             ExecutionPlan typed = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT");
@@ -497,7 +501,7 @@ class PlanMakerTest {
             for (Written output : List.of(Written.CSV, Written.JSON)) {
                 try (Connection c = fresh(type)) {
                     assertEquals(output == Written.CSV
-                            ? "city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n" : json,
+                            ? "city,2000__|__newCol,2011__|__newCol\r\nNYC,15,5\r\nSAN,3,2\r\n" : json,
                             PlanCases.write(typed, c, java.util.Map.of(), output::writer), type + " " + output);
                 }
             }
@@ -509,7 +513,7 @@ class PlanMakerTest {
         String model = model(Databases.PLATFORM.name());
         try (Connection c = fresh(Databases.PLATFORM)) {
             ExecutionPlan typed = Compiler.query(Compiler.compileModel(model), statics).executionPlan("s::RT");
-            assertEquals("city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n",
+            assertEquals("city,2000__|__newCol,2011__|__newCol\r\nNYC,15,5\r\nSAN,3,2\r\n",
                     PlanCases.write(typed, c, java.util.Map.of(), Written.CSV::writer));
             assertEquals(json, PlanCases.write(typed, c, java.util.Map.of(), Written.JSON::writer));
         }
@@ -620,8 +624,8 @@ class PlanMakerTest {
         try (Connection c = fresh(Databases.PLATFORM)) {
             String expression = TREES_PCT + "->pivot(~[year], ~[sum: x | $x.treePlanted->toOne() * $x.coefficient->toOne()"
                     + " : y | $y->plus(), count: x | 1 : y | $y->plus()])->sort(~city->ascending())";
-            assertEquals("city,country,'2000__|__sum','2000__|__count','2011__|__sum','2011__|__count','2012__|__sum',"
-                    + "'2012__|__count'\r\nLDN,UK,,,6000,1,,\r\nNYC,USA,30000,2,5000,1,22800,2\r\nSAN,USA,2000,1,2700,2,,\r\n",
+            assertEquals("city,country,2000__|__sum,2000__|__count,2011__|__sum,2011__|__count,2012__|__sum,"
+                    + "2012__|__count\r\nLDN,UK,,,6000,1,,\r\nNYC,USA,30000,2,5000,1,22800,2\r\nSAN,USA,2000,1,2700,2,,\r\n",
                     csv(Compiler.query(ctx, expression).executionPlan("s::RT"), c));
 
             String pivot = TREES_4 + "->pivot(~[year], ~[newCol: x | $x.treePlanted : y | $y->plus()])" + CAST_PIVOT;
@@ -714,9 +718,9 @@ class PlanMakerTest {
      *  of a finer digit raised by the statement (S181, A7, 2026-11-10). */
     static String platformDateTime() {
         return "CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS"
-                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('the DateTime parameter ''t'' has more fraction digits"
-                + " than " + Databases.dialect(Databases.PLATFORM).getClass().getSimpleName() + " keeps (6): refused,"
-                + " never cut (S181)') || chr(31)) WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS"
+                // the product's raise is its site's bare token (phase D's Phase 2, raises as SITES, 2026-11-16): its
+                // kind and its where, the parameter's name and the digits the database keeps, the plan's site
+                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('\034LG#1') || chr(31)) WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS"
                 + " VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP)";
     }
 

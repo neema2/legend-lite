@@ -206,7 +206,7 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
 
     /** The calls written as a regular expression's walk: a statement of its own (SqliteRegex: two kilobytes). */
     private static final Set<SqlFn> WALKS = Set.of(SqlFn.REGEXP_EXTRACT, SqlFn.REGEXP_EXTRACT_ALL,
-            SqlFn.REGEXP_REPLACE, SqlFn.REGEXP_FULL_MATCH, SqlFn.MATCHES);
+            SqlFn.REGEXP_REPLACE, SqlFn.REGEXP_FULL_MATCH, SqlFn.MATCHES, SqlFn.IS_NUMERIC);
 
     /** The calls written as a subquery over a list's elements. */
     private static final Set<SqlFn> SUBQUERIES = Set.of(SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM,
@@ -284,8 +284,6 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
             case SqlExpr.Quantified q -> false;
             case SqlExpr.Star st -> false;
             case SqlExpr.StarExcept st -> false;
-            case SqlExpr.DeferredTdsString d -> false;
-            case SqlExpr.TempTableInSplice t -> false;
             default -> !(e instanceof com.legend.sql.SqlAgg);
         };
         if (ok) {

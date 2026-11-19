@@ -38,7 +38,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
     public void parse(com.legend.spi.SectionSource src,
             com.legend.spi.ElementSink out) {
         for (var pe : parseRaw(src,
-                com.legend.parser.Dialect.LEGEND_ENGINE).elements()) {
+                com.legend.parser.GrammarLevel.LEGEND_ENGINE).elements()) {
             Protocol.PDiagram d = (Protocol.PDiagram) pe.protocol();
             out.accept(d.qualifiedName(),
                     com.legend.protocol.ProtocolEmitter.emitElement(d));
@@ -50,13 +50,13 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
             com.legend.spi.SectionSource src) {
         // dialect-less callers get the PRODUCT surface; the internal
         // pipeline passes its dialect explicitly (ElementParser)
-        return parseRaw(src, com.legend.parser.Dialect.LEGEND_LITE);
+        return parseRaw(src, com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
     @Override
     public LexableSectionGrammar.ParsedSection parseRaw(
             com.legend.spi.SectionSource src,
-            com.legend.parser.Dialect dialect) {
+            com.legend.parser.GrammarLevel dialect) {
         Raw r = new Raw(src.text(), src.startLine());
         List<LexableSectionGrammar.ParsedElement> elements = new ArrayList<>();
         List<String> imports = new ArrayList<>();
@@ -105,7 +105,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
     }
 
     private static Protocol.PDiagram parseDiagram(Raw r,
-            com.legend.parser.Dialect dialect) {
+            com.legend.parser.GrammarLevel dialect) {
         int[] start = r.mark();
         r.expectWord("Diagram");
         r.skipWs();

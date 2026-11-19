@@ -63,21 +63,29 @@ class OutputMatrixTest {
     private static final List<Kind> KINDS = List.of(
             new Kind("float_whole", "|2 * 1.5", "|" + T + "$r.ID * 1.5)->select(~[v])", "3.0"),
             new Kind("float_fraction", "|1.1", "|" + T + "$r.ID * 0.55)->select(~[v])", "1.1"),
-            new Kind("float_arithmetic", "|3 * 1.1", "|" + T + "$r.ID * 1.65)->select(~[v])", "3.3"),
+            // the value is the double's (register S20, built 2026-11-17, retires S105: legend-engine's pure/v1 and
+            // compiled legend-pure answer 3 * 1.1 as the double 3.3000000000000003); the column's 2 * 1.65 is 3.3
+            new Kind("float_arithmetic", "|3 * 1.1", "|" + T + "$r.ID * 1.65)->select(~[v])", "3.3000000000000003",
+                    "3.3"),
             new Kind("float_big", "|1.5e15", "|" + T + "$r.ID * 7.5e14)->select(~[v])", "1500000000000000.0"),
             new Kind("float_small", "|2.5e-7", "|" + T + "$r.ID * 1.25e-7)->select(~[v])", "0.00000025"),
             new Kind("decimal_literal", "|2.50D", "|" + T + "$r.ID * 1.25D)->select(~[v])", "2.50"),
             new Kind("decimal_arithmetic", "|2 * 2.50D", "|" + T + "$r.ID * 2.50D)->select(~[v])", "5.00"),
             new Kind("decimal_times_decimal", "|1.50D * 2.50D", "|" + T + "1.50D * 2.50D)->select(~[v])",
                     "3.7500"),
+            // a DateTime: lite's own text since W4 (2026-11-16, docs/records/d-plan-2026-11-16.md, and its audit), the
+            // product's (register S312: UTC, six fraction digits and Z; Pure's +0000 and written precision are the
+            // compatibility edge's), a value root and a relation's timestamp cell alike
             new Kind("datetime_whole", "|%2024-01-02T10:30:00", "|" + T + "%2024-01-02T10:30:00)->select(~[v])",
-                    "2024-01-02T10:30:00+0000", "2024-01-02T10:30:00.000000000+0000"),
+                    "2024-01-02T10:30:00.000000Z", "2024-01-02T10:30:00.000000Z"),
             new Kind("datetime_millis", "|%2024-01-02T10:30:00.123",
-                    "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123+0000",
-                    "2024-01-02T10:30:00.123000000+0000"),
+                    "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123000Z",
+                    "2024-01-02T10:30:00.123000Z"),
             new Kind("datetime_nanos", "|%2024-01-02T10:30:00.123456789",
                     "|" + T + "%2024-01-02T10:30:00.123456789)->select(~[v])",
-                    "2024-01-02T10:30:00.123456789+0000"),
+                    // a cell CARRIES the value exactly (the user's §10 items 3 and 5, 2026-11-16: "The value itself is
+                    // carried exactly"; S312's six digits are a value's TEXT): nine digits where it is finer
+                    "2024-01-02T10:30:00.123456789Z", "2024-01-02T10:30:00.123456789Z"),
             new Kind("date", "|%2024-01-02", "|" + T + "%2024-01-02)->select(~[v])", "2024-01-02"));
 
     private static final List<PlanCases.Written> OUTPUTS = List.of(PlanCases.Written.values());

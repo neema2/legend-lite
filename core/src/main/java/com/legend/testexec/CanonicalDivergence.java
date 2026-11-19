@@ -76,74 +76,8 @@ public final class CanonicalDivergence {
         record("assertSameElements", held, byteEqual(e, a, true));
     }
 
-    /** R1b — the GRID channel (toCSV text verdicts): the actual side is
-     * ALREADY the platform's SQL-side render (Render = engine toCSV,
-     * H3 headline), so the byte answer is plain string equality; the
-     * census measures how often TdsCompare.renderedText's KEPT
-     * leniencies (row multiset, bounded float tolerance) do work the
-     * byte channel would refuse. */
-    public static void probeGridText(String expected, String actual,
-            boolean held, boolean sorted, String form) {
-        if (expected.equals(actual)) {
-            record("gridText", held, "EQUAL");
-            return;
-        }
-        // The CSVJOIN family spells the whole grid on ONE line (rows
-        // joined by the form's separator), which hid row-order drift
-        // from the line-based classifier as cell-diff@line0. Normalize
-        // rows to lines FIRST so one classifier judges every form —
-        // applied to both sides identically, so the multiset check
-        // below stays two-sided.
-        if (form.startsWith("CSVJOIN:")) {
-            String sep = form.substring("CSVJOIN:".length());
-            expected = expected.replace(sep, "\n");
-            actual = actual.replace(sep, "\n");
-        }
-        // name the first difference so the census classifies WHICH
-        // leniency did the work (row order vs cell spelling)
-        String[] el = expected.split("\\n", -1);
-        String[] al = actual.split("\\n", -1);
-        String why;
-        if (el.length != al.length) {
-            why = "line-count " + el.length + "!=" + al.length;
-        } else {
-            int i = 0;
-            while (i < el.length && el[i].equals(al[i])) {
-                i++;
-            }
-            java.util.List<String> es = new java.util.ArrayList<>(List.of(el));
-            java.util.List<String> as = new java.util.ArrayList<>(List.of(al));
-            java.util.Collections.sort(es);
-            java.util.Collections.sort(as);
-            why = es.equals(as)
-                    ? "row-order-only@line" + i
-                    : "cell-diff@line" + i + " e<" + trunc(el[i]) + "> a<"
-                            + trunc(al[i]) + ">";
-        }
-        // Row order on an UNORDERED chain is undefined on BOTH backends
-        // (no ORDER BY — the SQL spec fixes no arrival order, and the
-        // engine golden's order is its own accident): the byte answer
-        // is content equality under the same two-sided multiset policy
-        // the host verdict already applies, gated on the SAME
-        // compile-time sortedness fact the caller passes. A sorted
-        // chain in the wrong order stays a REAL disagreement. Counted
-        // never silent: the rescue is its own printed census (it is
-        // arrival-order-dependent BY DEFINITION, so it is a diagnostic
-        // count, never a pinnable one — pin disagree instead, which
-        // this policy makes exact).
-        if (!sorted && why.startsWith("row-order-only")) {
-            Census.inc(Census.Key.ROW_ORDER_CANON);
-            record("gridText", held, "EQUAL");
-            return;
-        }
-        record("gridText", held, "DIFFER:" + why);
-    }
-
-    /** Unordered-chain grid compares whose content matched only under
-     * the declared row-multiset policy (see probeGridText). */
-    private static String trunc(String s) {
-        return s.length() > 60 ? s.substring(0, 60) + "…" : s;
-    }
+    // (R1b, the GRID channel's probe (probeGridText) and its trunc: moved to the edge's UpstreamRenderedTexts, 2026-11-18,
+    // the edge audit's J40 -- legend-engine's toCSV text channel, the edge's alone; its census rows recorded here)
 
     /** Byte-channel answer encoded as a STRING — {@code "EQUAL"},
      * {@code "DIFFER"}, or {@code "residue:<reason>"} naming what fell
@@ -208,7 +142,8 @@ public final class CanonicalDivergence {
     // (the R1 probe isolation and the full mute, R1_SUSPENDED, MUTED, r1Suspend and muteAll, deleted 2026-11-09: no
     // caller set either -- dead switches over the census)
 
-    private static void record(String family, boolean held, String byteAns) {
+    /** One verdict's census row: the lattice's {@code held} against the byte channel's answer, {@code byteAns}. */
+    public static void record(String family, boolean held, String byteAns) {
         if (byteAns.startsWith("residue:")) {
             Census.inc(Census.Key.DIVERGENCE_RESIDUE);
             sample(new Row(family, held, byteAns));

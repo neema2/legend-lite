@@ -103,7 +103,7 @@ public final class ModelOrchestrator {
         PackageableElement parsed = DocumentParse.element(slice,
                 // the IDE is a product surface (see Compiler.parseModel);
                 // it parses token SLICES, so it names the level itself
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
         cache.put(fqn, parsed);
         return parsed;
     }
@@ -137,7 +137,7 @@ public final class ModelOrchestrator {
             for (ModelIndex.ImportEntry imp : index.imports()) {
                 TokenStream slice = tokens.slice(imp.startTokenInclusive(), imp.endTokenExclusive());
                 builder.add(DocumentParse.importOf(slice,
-                        com.legend.parser.Dialect.LEGEND_LITE));
+                        com.legend.parser.GrammarLevel.LEGEND_LITE));
             }
             cachedImports = builder.build();
         }

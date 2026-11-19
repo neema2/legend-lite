@@ -31,11 +31,25 @@ class BigQueryDialectTest {
                         com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
     }
 
+    /** The parse guards write no raw '?': BigQuery's JDBC driver (1.6.0) counts a '?' inside a string literal as a
+     *  placeholder and refuses the statement before BigQuery sees it ("No value was set for parameter 1 of 5", round
+     *  73); the grammar's literals go through stringLit, which writes a '?' as \x3f. */
+    @Test
+    void theParseGuardsWriteNoRawQuestionMark() {
+        SqlExpr text = SqlExpr.Column.of("t", "s", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
+        String f = render(new SqlExpr.Cast(text, SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER), null);
+        String i = render(SqlExpr.Call.of(com.legend.sql.SqlFn.PARSE_INT, text), null);
+        for (String sql : List.of(f, i)) {
+            assertTrue(sql.contains("REGEXP_CONTAINS("), sql);
+            assertFalse(sql.contains("?"), sql);
+        }
+    }
+
     /** A Float's text is its shortest digits that read back as the same double, as DuckDB's cast writes it: BigQuery's
      *  own cast writes seventeen (pi() '3.1415926535897931') and FORMAT's %.17g is not correctly rounded. */
     @Test
     void aFloatsTextIsItsShortestDigitsThatReadBack() {
-        String sql = render(new SqlExpr.Cast(X, SqlType.Scalar.VARCHAR), null);
+        String sql = render(new SqlExpr.Cast(X, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER), null);
         // the value bound once; its exact BIGNUMERIC rounded to 15, 16 and 17 significant digits, each read back
         assertTrue(sql.contains("FROM (SELECT `t`.`x` AS `__fv`)"), sql);
         assertTrue(sql.contains("SAFE_CAST(`__fv` AS BIGNUMERIC) AS `__fn`"), sql);
@@ -51,7 +65,7 @@ class BigQueryDialectTest {
      *  with the database-written wires, 2026-10-27.) */
     @Test
     void aFloatsPrintFormsReadItsTextOnce() {
-        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT)) {
+        for (SqlFn fn : List.of(SqlFn.FLOAT_SHORTEST_TEXT)) {
             String sql = render(SqlExpr.Call.of(fn, X), null);
             // the double's text once (its own BIGNUMERIC read; the print form's HUGEINT and DECIMAL casts are BIGNUMERIC
             // here too)
@@ -60,6 +74,19 @@ class BigQueryDialectTest {
             assertTrue(sql.contains("AS `__fp0`"), fn + ": " + sql);
             assertTrue(sql.length() < 4_000, fn + ": " + sql.length() + ": " + sql);
         }
+    }
+
+    /** The product's Float text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): {@code FORMAT}'s six decimals,
+     *  trimmed, BigQuery's {@code nan} and {@code inf} by Pure's names; the value read once, no derived table. */
+    @Test
+    void aFloatsTextIsSixDecimalsTrimmed() {
+        String sql = render(SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, X), null);
+        // a negative value that rounds to zero is 0 (round 56, 2026-11-15: its -0.000000 written 0.000000 first)
+        assertTrue(sql.contains("REPLACE(REPLACE(RTRIM(RTRIM(REPLACE(FORMAT('%.6f', `t`.`x`), '-0.000000', '0.000000'),"
+                + " '0'), '.'), 'nan', 'NaN'),"
+                + " 'inf', 'Infinity')"), sql);
+        assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, sql);
+        assertFalse(sql.contains("(SELECT"), sql);
     }
 
     /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError); a DATETIME
@@ -86,7 +113,7 @@ class BigQueryDialectTest {
     @Test
     void aTextsFractionIsCutToMicrosecondsForATimestamp() {
         SqlExpr text = SqlExpr.Column.of("t", "s", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
-        String sql = render(new SqlExpr.Cast(text, SqlType.Scalar.TIMESTAMP), null);
+        String sql = render(new SqlExpr.Cast(text, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.USER), null);
         assertTrue(sql.contains("CAST(REGEXP_REPLACE(`t`.`s`, '(\\\\.[0-9]{6})[0-9]+', '\\\\1') AS DATETIME)"), sql);
     }
 
@@ -96,5 +123,22 @@ class BigQueryDialectTest {
         SqlExpr json = SqlExpr.Column.of("t", "j", SqlType.Scalar.JSON, true, OutputCol.Origin.PHYSICAL);
         String sql = render(new SqlExpr.Call(SqlFn.COALESCE, List.of(json, new SqlExpr.StringLit("[]"))), null);
         assertTrue(sql.contains("COALESCE(`t`.`j`, PARSE_JSON('[]'))"), sql);
+    }
+
+    /** A date or date-time literal BigQuery does not hold, a year before 1 or after 9999, is refused at planning by
+     *  name (S340): the database itself refuses it, with the driver's bare "BigQueryException during runQuery"
+     *  (measured on the lane, 2026-11-13). Its ends, 0001-01-01 and 9999-12-31, are held. */
+    @Test
+    void aDateLiteralOutsideBigQuerysRangeIsRefusedByName() {
+        for (SqlExpr lit : List.of(new SqlExpr.DateLit("-43-03-15"), new SqlExpr.TimestampLit("-43-03-15T10:30:00"),
+                new SqlExpr.DateLit("0-01-01"), new SqlExpr.DateLit("10000-01-01"))) {
+            com.legend.sql.DialectCapability refused = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.sql.DialectCapability.class, () -> render(lit, null), lit.toString());
+            assertTrue(refused.getMessage().contains("outside BigQuery's range: it holds dates from 0001-01-01 to"
+                    + " 9999-12-31"), refused.getMessage());
+        }
+        assertTrue(render(new SqlExpr.DateLit("0001-01-01"), null).contains("DATE '0001-01-01'"));
+        assertTrue(render(new SqlExpr.DateLit("9999-12-31"), null).contains("DATE '9999-12-31'"));
+        assertTrue(render(new SqlExpr.TimestampLit("2024-01-02T10:30:00"), null).contains("DATETIME '2024-01-02 10:30:00'"));
     }
 }

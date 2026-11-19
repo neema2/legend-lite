@@ -52,18 +52,18 @@ class LeniencyD6Test {
             // inheritance cycle: previously ACCEPTED, StackOverflow at demand
             expect(c, "Class m::A extends m::B {}\nClass m::B extends m::A {}",
                     "{|1}", "Inheritance cycle: m::A -> m::B -> m::A");
-            // duplicate stored property: engine "Found duplicated property"
+            // duplicate stored property: engine "Found duplicated property" (the edge's words; lite's, J10)
             expect(c, "Class m::A { x: String[1]; x: Integer[1]; }",
-                    "{|1}", "Found duplicated property 'x' in class 'm::A'");
-            // duplicate element FQN (shared namespace): engine "Duplicated element"
+                    "{|1}", "class 'm::A' declares property 'x' more than once");
+            // duplicate element FQN (shared namespace): engine "Duplicated element" (the edge's words; lite's, J10)
             expect(c, "Class m::A { x: String[1]; }\nClass m::A { y: Integer[1]; }",
-                    "{|1}", "Duplicated element 'm::A'");
+                    "{|1}", "'m::A' is defined more than once");
             // cross-KIND duplicate — one packageable-element namespace
             expect(c, "Class m::A { x: String[1]; }\nEnum m::A { V }",
-                    "{|1}", "Duplicated element 'm::A'");
-            // duplicate enum value: engine "Found duplicated value"
+                    "{|1}", "'m::A' is defined more than once");
+            // duplicate enum value: engine "Found duplicated value" (the edge's words; lite's, J10)
             expect(c, "Enum m::E { A, A }",
-                    "{|1}", "Found duplicated value 'A' in enumeration 'm::E'");
+                    "{|1}", "enumeration 'm::E' declares value 'A' more than once");
             // inverted multiplicity bounds: was a lazy, unattributed
             // IllegalArgumentException from the Bounded ctor guard
             expect(c, "Class m::A { x: String[2..1]; }",
@@ -80,7 +80,7 @@ class LeniencyD6Test {
                     Runtime m::RT { mappings: [m::M]; }
                     """,
                     "{|1}",
-                    "The column 'GHOST' can't be found in the table 'T'");
+                    "table 'T' of database 's::DB' has no column 'GHOST' (join 'bad')");
             // ghost join TABLE
             expect(c, """
                     Class m::P { id: Integer[1]; }
@@ -93,7 +93,7 @@ class LeniencyD6Test {
                     Runtime m::RT { mappings: [m::M]; }
                     """,
                     "{|1}",
-                    "The table 'NOPE' can't be found in the database 's::DB'");
+                    "database 's::DB' has no table 'NOPE' (join 'bad')");
             // out-of-range date components: LEGEND_LITE validates at PARSE
             // (was: DuckDB "Conversion Error: date field value out of
             // range"); LEGEND_ENGINE stays deferred — referee byte-parity.

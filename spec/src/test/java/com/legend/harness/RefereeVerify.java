@@ -338,7 +338,7 @@ public final class RefereeVerify {
             String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
-            com.legend.testexec.SqlReplayReferee.ReplayFacts facts)
+            com.legend.edge.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
         if (facts.population() != null) {
             // a PAGED chain (batch 0.5b): the page's contents over ties or
@@ -441,7 +441,7 @@ public final class RefereeVerify {
             String goldenSql, TypedSide.Graph g,
             java.util.function.Function<String,
                     java.util.Map<String, String>> enumProp,
-            com.legend.testexec.SqlReplayReferee.ReplayFacts facts) {
+            com.legend.edge.SqlReplayReferee.ReplayFacts facts) {
         java.util.TreeSet<String> keys = new java.util.TreeSet<>();
         List<java.util.Map<String, Object>> objs = flatObjects(g, keys);
         // the PAGE-MEMBERSHIP population (batch 0.5b): our unpaged frame,
@@ -686,7 +686,7 @@ public final class RefereeVerify {
     private static @com.legend.base.Nullable String goldenRowsCompare(Statement st,
             String goldenSql, TypedSide tab,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            com.legend.testexec.SqlReplayReferee.ReplayFacts facts)
+            com.legend.edge.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
                 List<Cells> theirs = new ArrayList<>();
                 int[] theirsCols = {0};
@@ -933,7 +933,7 @@ public final class RefereeVerify {
         }
         try {
             // the ONE home of the rule (Equality, §5a)
-            return com.legend.testexec.Equality.withinTwoUlp(Double.parseDouble(a), Double.parseDouble(b));
+            return com.legend.edge.CompiledPureHostForms.withinUlps(Double.parseDouble(a), Double.parseDouble(b));
         } catch (NumberFormatException e) {
             return false;
         }
@@ -1140,7 +1140,7 @@ public final class RefereeVerify {
     static java.util.@com.legend.base.Nullable Map<String, String> decodeOf(
             com.legend.compiler.element.ModelContext ctx, String mappingFqn,
             String enumFqn) {
-        var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn,
+        var em = com.legend.plan.EnumMappings.of(ctx, mappingFqn,
                 enumFqn);
         if (em == null) {
             // NO enumeration mapping anywhere in the mapping (nor its
@@ -1334,7 +1334,7 @@ public final class RefereeVerify {
                     com.legend.values.PureDateLiteral.Precision.HOUR)) {
                 v = pd.toInstantFloor();
             } else {
-                return pd.toEngineString();
+                return pd.canonicalText();
             }
         }
         if (v instanceof java.sql.Timestamp ts) {

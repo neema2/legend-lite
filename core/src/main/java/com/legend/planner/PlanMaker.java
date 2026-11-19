@@ -25,6 +25,7 @@ import com.legend.lowering.TypedRows;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.FunctionId;
 import com.legend.plan.PlanColumns;
+import com.legend.plan.PureSpelling;
 import com.legend.plan.ResultShape;
 import com.legend.platform.Feature;
 import com.legend.resolver.StagedRows;
@@ -88,7 +89,7 @@ public final class PlanMaker {
      *  database itself (every other run; the full audit, 2026-11-09: every product plan carried the project's whole
      *  Data fill, and a model whose fill could not be written was refused on every road). */
     public static ExecutionPlan plan(TypedQuery query, @Nullable String given, Set<Feature> features,
-            boolean projectDatabase) {
+            boolean projectDatabase, com.legend.database.PlanStyle style) {
         String runtime = runtimeOf(query, given);
         // THE QUERY DOOR (B6, B12 item 1): a test's kinds refused by name before anything is planned
         QueryDoor.refuseTestOnly(query, runtime);
@@ -105,19 +106,19 @@ public final class PlanMaker {
             // 2026-11-10), planned whole there in the catalog's dialect on every database; beside another source it is
             // refused by name
             Programmed probe = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS,
-                    false, projectDatabase, true);
+                    false, projectDatabase, true, style);
             if (probe.readsSystem() && probe.readsOther()) {
                 throw ProgramState.besideAnotherSource(query, Objects.requireNonNull(runtime));
             }
             Programmed p = programmed(query, runtime, slots, features, ProgramState.Door.QUERY, NO_TEST_KINDS,
-                    probe.readsSystem(), projectDatabase, false);
+                    probe.readsSystem(), projectDatabase, false, style);
             return ExecutionPlan.writing(declarations(declared, query.context()),
                     new ExecutionPlan.Sequence(products(p.steps())));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
         // a query's inline execute(...) reads are frames too (D15, M3f): their activities' stamps the statement's own
         ProgramFrames frames = new ProgramFrames();
-        ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, features, frames);
+        ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, features, frames, style);
         ExecutionPlan.Constant constant = ProductStatements.constant(st);
         if (constant != null) {
             return ExecutionPlan.reading(declarations(declared, query.context()), constant);
@@ -127,7 +128,7 @@ public final class PlanMaker {
         Compiler.LoweredQuery l = new Compiler.LoweredQuery(ProductStatements.lower(query, planned, st.temporal(), true,
                 withStamps(slots, frames), new ObjectSites()),
                 planned.body().get(planned.body().size() - 1), query.context());
-        Decided decided = decide(l.ctx(), runtime);
+        Decided decided = decide(l.ctx(), runtime, style);
         SqlDialect dialect = decided.dialect();
         if (st.stores().contains(SystemMetamodel.STORE_FQN)) {
             // a query that reads the metamodel: on the process's CATALOG, the model's rows registered in the run's turn
@@ -146,7 +147,7 @@ public final class PlanMaker {
             com.legend.executionplan.DatabaseType runsOn = ConnectionPlans.type(decided.target().type());
             ExecutionPlan.Target catalog = SystemCatalog.forQuery(l.ctx(), runsOn);
             return ExecutionPlan.reading(declarations(declared, l.ctx()), stampedIfRead(typed(l.root(),
-                    EnumValueTables.apply(l.plan()), SystemCatalog.dialect(runsOn), catalog), st.reads().ownStamp()));
+                    EnumValueTables.apply(l.plan()), SystemCatalog.dialect(runsOn, style), catalog, style), st.reads().ownStamp()));
         }
         // an enumeration parameter compared with a mapped column: through that place's value table; each data: source
         // read as the target's database takes it, by the statement itself (the JSON pass, 2026-11-11)
@@ -154,7 +155,7 @@ public final class PlanMaker {
                 projectDatabase);
         SqlQuery lowered = DataSources.read(EnumValueTables.apply(l.plan()), dialect);
         Staged staged = stagedShared(dialect, lowered, target, 0);
-        ExecutionPlan.Node answer = stampedIfRead(typed(l.root(), staged.statement(), dialect, target),
+        ExecutionPlan.Node answer = stampedIfRead(typed(l.root(), staged.statement(), dialect, target, style),
                 st.reads().ownStamp());
         if (staged.tables().isEmpty()) {
             return ExecutionPlan.reading(declarations(declared, l.ctx()), answer);
@@ -166,7 +167,7 @@ public final class PlanMaker {
         for (String table : staged.tables()) {
             // a table a failed run left in the session (its drop never ran) is dropped before it is made again
             steps.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
-            steps.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
+            steps.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target, style)));
         }
         steps.add(answer);
         if (!dialect.dropsStagedTablesWithTheirTransaction()) {
@@ -194,7 +195,7 @@ public final class PlanMaker {
         try (var planning = com.legend.base.RunScope.plans("a snapshot's copy")) {
             ProgramFrames frames = new ProgramFrames();
             ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, Set.of(),
-                    frames);
+                    frames, com.legend.database.PlanStyle.PRODUCT);
             if (ProductStatements.constant(st) != null) {
                 throw new NotImplementedException("the pull copied into " + table + " is not one statement: a value"
                         + " the program wrote");
@@ -207,7 +208,8 @@ public final class PlanMaker {
             Compiler.LoweredQuery l = new Compiler.LoweredQuery(ProductStatements.lower(query, planned, st.temporal(),
                     true, withStamps(List.of(), frames), new ObjectSites()),
                     planned.body().get(planned.body().size() - 1), query.context());
-            SqlDialect decided = decide(l.ctx(), runtime).dialect();
+            // the product's own spelling: a snapshot's copy is a host's product road (phase D, D1.0; merged 2026-11-13)
+            SqlDialect decided = decide(l.ctx(), runtime, com.legend.database.PlanStyle.PRODUCT).dialect();
             if (decided.getClass() != dialect.getClass()) {
                 throw new NotImplementedException("the pull copied into " + table + " runs on "
                         + decided.getClass().getSimpleName() + ", and the copy is made on "
@@ -223,7 +225,8 @@ public final class PlanMaker {
                 throw new NotImplementedException("the pull copied into " + table + " is not one statement: a raw"
                         + " grid's report (a keyed result)");
             }
-            return sql(dialect.renderStatement(new SqlDml.CreateTableAs(schema, table, statement)), target, null);
+            return sql(dialect.renderStatement(new SqlDml.CreateTableAs(schema, table, statement)), target, null,
+                    com.legend.database.PlanStyle.PRODUCT);
         }
     }
 
@@ -369,10 +372,10 @@ public final class PlanMaker {
      * program's target is the SYSTEM database on the runtime's engine (the test-is-the-product plan's M10a).
      */
     public static TestProgram testProgram(TypedQuery query, String runtime, Set<Feature> features,
-            ProgramKinds kinds, boolean systemRouted) {
+            ProgramKinds kinds, boolean systemRouted, com.legend.database.PlanStyle style) {
         List<QueryParameters.Declared> declared = query.parameters();
         Programmed programmed = programmed(query, runtime, slots(declared), features, ProgramState.Door.TEST, kinds,
-                systemRouted, false, false);
+                systemRouted, false, false, style);
         return new TestProgram(declarations(declared, query.context()), programmed.steps(), programmed.target());
     }
 
@@ -416,12 +419,12 @@ public final class PlanMaker {
     private static Programmed programmed(TypedQuery query, @Nullable String runtime,
             List<SqlExpr.PlanParam> slots, Set<Feature> features,
             ProgramState.Door door, ProgramKinds kinds, boolean systemRouted, boolean projectDatabase,
-            boolean probe) {
-        Decided decided = decide(query.context(), runtime);
+            boolean probe, com.legend.database.PlanStyle style) {
+        Decided decided = decide(query.context(), runtime, style);
         com.legend.executionplan.DatabaseType runsOn = ConnectionPlans.type(decided.target().type());
         // a program routed to the system store is written in its catalog's dialect, whatever database holds the user's
         // data (B4, 2026-11-11: the runtime's own in process, DuckDB's for a server)
-        SqlDialect dialect = systemRouted ? SystemCatalog.dialect(runsOn) : decided.dialect();
+        SqlDialect dialect = systemRouted ? SystemCatalog.dialect(runsOn, style) : decided.dialect();
         // the test door's target carries no setup (R17 C6), and names the process's CATALOG where the body reads the
         // metamodel store (M10a: the system tables keep their names there; the program's own seed step registers the
         // model's rows, below); a product program reading the store alone runs on the process's catalog, the model's
@@ -439,7 +442,7 @@ public final class PlanMaker {
         // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
         // construction read by two statements is one object in both, and every statement names its sites by the one
         // counter
-        ProgramState state = new ProgramState(query, Objects.requireNonNull(runtime), dialect, target,
+        ProgramState state = new ProgramState(query, Objects.requireNonNull(runtime), dialect, style, target,
                 slots, features, door != ProgramState.Door.QUERY ? ProgramState.CatalogReads.ANY
                         : probe ? ProgramState.CatalogReads.PROBE
                         : systemRouted ? ProgramState.CatalogReads.CATALOG : ProgramState.CatalogReads.RUNTIME);
@@ -509,7 +512,7 @@ public final class PlanMaker {
      *  one (hole 7), its session statements and its declared setup -- what a query's plan names, for a door that opens
      *  a session before a query of its own exists (a program's, a test's seeding). Planning: no session is opened. */
     public static ExecutionPlan.Target runtimeTarget(ModelContext ctx, String runtime) {
-        Decided decided = decide(ctx, runtime);
+        Decided decided = decide(ctx, runtime, com.legend.database.PlanStyle.PRODUCT);
         return target(decided.target(), runtime, ctx, decided.dialect(), true);
     }
 
@@ -517,18 +520,21 @@ public final class PlanMaker {
      *  no setup -- the test door's own target (R17 C6), never the server's project database (the full audit,
      *  2026-11-09: the test plan carried the product target, the project's Data fill and the declared setup with it,
      *  which no test run reads). */
-    public static ExecutionPlan.Target testSessionTarget(ModelContext ctx, String runtime) {
-        Decided decided = decide(ctx, runtime);
+    public static ExecutionPlan.Target testSessionTarget(ModelContext ctx, String runtime,
+            com.legend.database.PlanStyle style) {
+        Decided decided = decide(ctx, runtime, style);
         return Targets.of(database(decided.target(), null), decided.dialect());
     }
 
     private record Decided(Target target, SqlDialect dialect) {
     }
 
-    /** {@link Decided} for {@code runtime} of {@code ctx}. */
-    private static Decided decide(ModelContext ctx, @Nullable String runtime) {
+    /** {@link Decided} for {@code runtime} of {@code ctx}, its dialect {@code dialects}' (the door's: the product's own,
+     *  or the edge's, D1.0). */
+    private static Decided decide(ModelContext ctx, @Nullable String runtime,
+            com.legend.database.PlanStyle style) {
         Target decided = Compiler.executesOn(ctx, runtime);
-        return new Decided(decided, Databases.dialect(decided.type()));
+        return new Decided(decided, style.dialect(decided.type()));
     }
 
     /** A let before the program's last statement, planned by its KIND (the planner's {@link LetPlanner}, the walk's
@@ -573,7 +579,7 @@ public final class PlanMaker {
         // the one seam that carries authored text), its columns the database's own
         TypedQuery query = state.query();
         ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), raw), state.runtime(), i,
-                state.features(), state.frames());
+                state.features(), state.frames(), state.style());
         state.prepared(st);
         // a raw read acts on the connection's own database
         state.readsAnotherSource();
@@ -588,7 +594,7 @@ public final class PlanMaker {
                 withStamps(state.slots(), state.frames()), state.sites());
         SqlQuery grid = lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), query.context()));
         ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(new SqlDml.CreateTempTableAs(table, grid,
-                List.of(), true)), state.target(), null);
+                List.of(), true)), state.target(), null, state.style());
         state.add(new ExecutionPlan.Update(stagedSql, null));
         state.stage(table);
         state.let(StagedRows.gridBoundTo(let.name(), gridRead(table, state.dialect()), raw, let.info()));
@@ -609,7 +615,7 @@ public final class PlanMaker {
         String table = StagedRows.table(let.name());
         // the product's statement road (M2, B11): the test road's front half, the product's lowering
         ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), rows), state.runtime(), i,
-                state.features(), state.frames());
+                state.features(), state.frames(), state.style());
         state.prepared(st);
         Prepared.Planned sp = ProductStatements.planned(st);
         if (state.probing()) {
@@ -628,7 +634,7 @@ public final class PlanMaker {
                         sp.env()))), st.reads().definitions()));
         TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
         ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(SqlDml.CreateTempTableAs
-                .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null);
+                .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null, state.style());
         String own = st.reads().ownStamp();
         if (own != null && reads(stagedSql, own)) {
             // a write is sent with no trace comment (the M3 audit's B7c)
@@ -650,9 +656,11 @@ public final class PlanMaker {
         ExecutionPlan.Target target = routed != null ? routed : state.target();
         // a statement routed to the catalog beside the program's own database is written in the catalog's dialect
         // (B4, 2026-11-11: DuckDB's for a program on a server); every other in the program's
-        SqlDialect dialect = routed != null ? SystemCatalog.dialect(systemEngine(routed)) : state.dialect();
+        SqlDialect dialect = routed != null ? SystemCatalog.dialect(systemEngine(routed), state.style())
+                : state.dialect();
         ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), stmt), state.runtime(), i,
-                state.features(), state.frames(), Map.of(), last && door == ProgramState.Door.TEST);
+                state.features(), state.frames(), Map.of(), last && door == ProgramState.Door.TEST,
+                state.style());
         state.prepared(st);
         if (state.probing()) {
             // the probe: what the statement reads, nothing lowered or written; a store write writes another source
@@ -684,10 +692,10 @@ public final class PlanMaker {
         if (st.prepared() instanceof Prepared.StoreWrite w) {
             SqlDml dml = state.read(ProductStatements.storeWrite(query, w, st.temporal(), state.slots(),
                     state.sites()));
-            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
+            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null, state.style()),
                     last ? ExecutionPlan.COUNT : null));
             if (last) {
-                state.add(count(query, w.write(), dialect, target, state.features(), state.sites()));
+                state.add(count(query, w.write(), dialect, target, state.features(), state.sites(), state.style()));
             }
             return;
         }
@@ -698,13 +706,14 @@ public final class PlanMaker {
         Staged staged = stagedShared(dialect, state.lowered(st, last), target, state.staged().size());
         for (String table : staged.tables()) {
             state.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
-            state.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
+            state.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target, state.style())));
             state.stage(table);
         }
         SqlQuery q = staged.statement();
         TypedSpec answer = p.body().get(p.body().size() - 1);
-        state.add(stampedIfRead(last ? typed(answer, q, dialect, target)
-                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), st.reads().ownStamp()));
+        state.add(stampedIfRead(last ? typed(answer, q, dialect, target, state.style())
+                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q, state.style())),
+                st.reads().ownStamp()));
     }
 
     /**
@@ -839,9 +848,10 @@ public final class PlanMaker {
     }
 
     /** The statement that makes {@code table} of {@code staged}: a temporary table of the session holding its rows. */
-    static ExecutionPlan.Sql staging(SqlDialect dialect, Staged staged, String table, ExecutionPlan.Target target) {
+    static ExecutionPlan.Sql staging(SqlDialect dialect, Staged staged, String table, ExecutionPlan.Target target,
+            com.legend.database.PlanStyle style) {
         return sql(dialect.renderStatement(new SqlDml.CreateTempTableAs(table,
-                Objects.requireNonNull(staged.queries().get(table), table))), target, null);
+                Objects.requireNonNull(staged.queries().get(table), table))), target, null, style);
     }
 
     /** {@code q}, each read of a staged relation ({@code tables}' keys) a read of its table. */
@@ -915,7 +925,8 @@ public final class PlanMaker {
      * by {@code dialect}, on {@code target} -- an {@code Integer[1]} value, one row, one column {@code value}, as a write's
      * count is answered ({@link #count}). The table's name delimited, as its making names it.
      */
-    public static ExecutionPlan.Node countOf(String table, SqlDialect dialect, ExecutionPlan.Target target) {
+    public static ExecutionPlan.Node countOf(String table, SqlDialect dialect, ExecutionPlan.Target target,
+            com.legend.database.PlanStyle style) {
         OutputCol value = new OutputCol("value", com.legend.sql.SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED);
         SqlQuery q = new SqlSelect(List.of(new SqlSelect.Projection(new com.legend.sql.SqlAgg.Reducer(
                 com.legend.sql.SqlAgg.Fn.COUNT, List.of(), false, List.of()), "value", value)), false,
@@ -923,22 +934,26 @@ public final class PlanMaker {
                 List.of(), null, null, List.of(), null, null, List.of(value));
         ExprType type = new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
-                PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE), sql(q, dialect, target));
+                PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
+                sql(q, dialect, target, style));
     }
 
     /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
      *  binds ({@link ExecutionPlan#COUNT}), as an {@code Integer[1]} value: one row, one column {@code value}. */
     private static ExecutionPlan.Node count(TypedQuery query, TypedSpec write,
             SqlDialect dialect, ExecutionPlan.Target target, Set<Feature> features,
-            ObjectSites sites) {
+            ObjectSites sites, com.legend.database.PlanStyle style) {
         ExprType type = new ExprType(write.info().type(), Multiplicity.Bounded.ONE);
         QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
                 type.multiplicity());
+        // the count's statement reads one bound value, in the product's own forms (J40: the lowering's forms are its
+        // style's alone; until then the shape's product default answered here)
         SqlQuery q = ProductStatements.configured(query, false, false, List.of(count.slot()), features, sites)
+                .withStyled(com.legend.lowering.Styled.PRODUCT)
                 .lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
-                sql(q, dialect, target));
+                sql(q, dialect, target, style));
     }
 
     /**
@@ -953,7 +968,7 @@ public final class PlanMaker {
      * {@link com.legend.lowering.KeyedPivot}), and a statement that reads a raw grid's report ({@link #rowsOrGridKeyed}).
      */
     private static ExecutionPlan.Node typed(TypedSpec rootSpec, SqlQuery lowered,
-            SqlDialect dialect, ExecutionPlan.Target target) {
+            SqlDialect dialect, ExecutionPlan.Target target, com.legend.database.PlanStyle style) {
         ExprType root = rootSpec.info();
         return switch (ResultShape.of(rootSpec)) {
             case GRAPH -> {
@@ -964,12 +979,14 @@ public final class PlanMaker {
                             + ": the streaming graph root answers one object per row");
                 }
                 yield new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.OBJECTS, List.of(
-                        new ExecutionPlan.Column(outs.get(0).name(), root.type().typeName(),
+                        // the plain type path (PlanColumns.of's rule, 2026-11-17)
+                        new ExecutionPlan.Column(outs.get(0).name(), PureSpelling.typePath(root.type()),
                                 PlanColumns.multiplicity(root.multiplicity()),
                                 ColumnFacts.slot(outs.get(0).type()), null,
-                                ColumnFacts.precision(root.type().typeName(),
-                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS))),
-                        sql(lowered, dialect, target));
+                                ColumnFacts.precision(PureSpelling.typePath(root.type()),
+                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS),
+                                PlanColumns.decimal(root.type()))),
+                        sql(lowered, dialect, target, style));
             }
             case TABULAR -> {
                 // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns
@@ -977,11 +994,11 @@ public final class PlanMaker {
                 Type.RelationType rowSchema = TypedRows.schema(root);
                 SqlSource.Pivot dynamic = KeyedPivot.dynamic(lowered);
                 if (dynamic != null && !rowSchema.dynamicColumns().isEmpty()) {
-                    yield keyed(lowered, dynamic, rowSchema, dialect, target);
+                    yield keyed(lowered, dynamic, rowSchema, dialect, target, style);
                 }
                 yield rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.RELATION, PlanColumns.of(
                         rowSchema, lowered, ExecutionPlan.TdsResult.Shape.RELATION), TypedRows.statement(lowered),
-                        dialect, target);
+                        dialect, target, style);
             }
             // a value's one column is the value's: through a class's chain the map binder's cell carries it, typed by
             // the value and the root's multiplicity (ResultShape.valueInfo, as the test road answers it), never the
@@ -990,13 +1007,14 @@ public final class PlanMaker {
             case SCALAR, COLLECTION -> rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.VALUE,
                     PlanColumns.of(TypedRows.schema(ResultShape.valueInfo(root)), lowered,
                             ExecutionPlan.TdsResult.Shape.VALUE),
-                    TypedRows.statement(lowered), dialect, target);
+                    TypedRows.statement(lowered), dialect, target, style);
         };
     }
 
-    /** A rendered statement as the plan's, on {@code target}. */
+    /** A rendered statement as the plan's, on {@code target}, its raise sites offered to {@code style} (the plan's,
+     *  {@link #sites}). */
     static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
-            @Nullable SqlQuery tree) {
+            @Nullable SqlQuery tree, com.legend.database.PlanStyle style) {
         // each payload a slot binds named by its digest, its text the statement's content (the JSON pass, 2026-11-11:
         // the payload's bytes once in the plan's data, as a load's are), digested once
         Map<String, String> content = new LinkedHashMap<>();
@@ -1017,7 +1035,22 @@ public final class PlanMaker {
         // the typed tree carried beside the statement names each payload by its digest, never its text or rows (the
         // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
         SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
-        return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content);
+        // the raise sites its render wrote, planned: each token's kind, where and product words (phase D's Phase 2,
+        // 2026-11-16), the statement and its sites offered to the plan's style (K10b, 2026-11-17)
+        return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content)
+                .raising(sites(rendered.sql(), rendered.sites(), style));
+    }
+
+    /** The raise sites a dialect's render wrote into the statement {@code text} ({@code sql.dialect.RaiseSite}),
+     *  PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16): each one's product sentence its kind's and its where
+     *  ({@link ExecutionPlan.Site#sentence}). The statement and its sites are offered to {@code style}, the plan's
+     *  ({@code database.PlanStyle#siteWords}: the product's records nothing; the compatibility edge's recorder words
+     *  them as its own data; K10b of the edge audit, 2026-11-17). */
+    public static List<ExecutionPlan.Site> sites(String text, List<com.legend.sql.dialect.RaiseSite> written,
+            com.legend.database.PlanStyle style) {
+        style.siteWords(text, written);
+        return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
+                ExecutionPlan.Site.sentence(w.kind(), w.where()))).toList();
     }
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database
@@ -1037,7 +1070,7 @@ public final class PlanMaker {
      * answer typed rows.
      */
     public static ExecutionPlan.Keyed keyed(SqlQuery lowered, SqlSource.Pivot pivot, Type.RelationType schema,
-            SqlDialect dialect, ExecutionPlan.Target target) {
+            SqlDialect dialect, ExecutionPlan.Target target, com.legend.database.PlanStyle style) {
         // the database's snapshot first: a database with no probe plan (MongoDB) refuses by its own name before any
         // statement is written
         SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
@@ -1061,17 +1094,19 @@ public final class PlanMaker {
                         .requireNonNull(facts.get(f.column().name()), () -> "the fixed column '" + f.column().name()
                                 + "' has no facts in the typed schema " + facts.keySet()), field);
                 case KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
-                        new ExecutionPlan.Column(k.template().name(), k.template().type().typeName(),
+                        // the plain type path (PlanColumns.of's rule, 2026-11-17)
+                        new ExecutionPlan.Column(k.template().name(), PureSpelling.typePath(k.template().type()),
                                 PlanColumns.multiplicity(k.template().multiplicity()),
                                 ColumnFacts.slot(k.slot()), null,
-                                ColumnFacts.precision(k.template().type().typeName(),
-                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION)),
+                                ColumnFacts.precision(PureSpelling.typePath(k.template().type()),
+                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION),
+                                PlanColumns.decimal(k.template().type())),
                         k.nameCell(), field);
             });
         }
         List<String> keyFields = parts.keys().outputs().stream().map(OutputCol::name).toList();
-        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
-                sql(parts.body(), dialect, target), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
+        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target, style), keyFields, outputs, parts.perKeyAt(),
+                sql(parts.body(), dialect, target, style), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
     }
 
     /** The plan's snapshot for a keyed result's two reads, as its database declares it ({@link
@@ -1095,10 +1130,11 @@ public final class PlanMaker {
      * name. One grid per statement (two are refused by name: one keys step).
      */
     public static ExecutionPlan.Node rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape shape,
-            List<ExecutionPlan.Column> columns, SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
+            List<ExecutionPlan.Column> columns, SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target,
+            com.legend.database.PlanStyle style) {
         List<SqlSource.GridReport> reports = gridReports(statement);
         if (reports.isEmpty()) {
-            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target));
+            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target, style));
         }
         // the database's snapshot first, as the pivot's keyed result takes it: a database with no keyed result
         // refuses by its own name before any statement is written
@@ -1124,8 +1160,8 @@ public final class PlanMaker {
         for (ExecutionPlan.Column c : columns) {
             outputs.add(new ExecutionPlan.Keyed.Fixed(c, c.name()));
         }
-        return new ExecutionPlan.Keyed(sql(keys, dialect, target), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
-                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target),
+        return new ExecutionPlan.Keyed(sql(keys, dialect, target, style), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
+                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target, style),
                 snapshotOf(keysSnapshot), dialect.resultColumnLimit(), shape);
     }
 
@@ -1172,7 +1208,7 @@ public final class PlanMaker {
     /**
      * The runtime {@code query} runs on: {@code given}, or -- none given -- the one runtime its {@code from()}s name
      * (A5, 2026-11-10: as legend-engine runs a lambda's {@code ->from(mapping, runtime)} on that runtime when the
-     * request names none, and as lite's server already chose it, {@code PureV1Api.runtimeOf}; until then every door but
+     * request names none, and as lite's server already chose it, {@code edge.ExecuteInputs.runtimeOf} (moved from LiteV1Api, J40); until then every door but
      * the server's refused such a query, and a from()'s runtime's test data was refused as a test's seed on the
      * product's doors). A query naming several runtimes and given none is refused by name; one naming none stays
      * unplaced ({@code Compiler.executesOn} refuses it, {@code Compiler.NO_RUNTIME}).
@@ -1208,9 +1244,11 @@ public final class PlanMaker {
     }
 
     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
-     *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6). */
-    public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
-        return sql(dialect.renderStatement(statement), target, statement);
+     *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6), its raise sites
+     *  offered to {@code style}, the plan's. */
+    public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target,
+            com.legend.database.PlanStyle style) {
+        return sql(dialect.renderStatement(statement), target, statement, style);
     }
 
     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */
@@ -1334,7 +1372,6 @@ public final class PlanMaker {
                     case SqlSource.SourceUrl u -> other[0] = true;
                     case SqlSource.RawSql r -> other[0] = true;
                     case SqlSource.Catalog c -> other[0] = true;
-                    case SqlSource.VarSetPlaceholder v -> other[0] = true;
                     case SqlSource.GridReport g -> other[0] = true;
                     case SqlSource.Pivot p -> { }
                     case SqlSource.Cte c -> { }

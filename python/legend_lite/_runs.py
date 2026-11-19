@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ._planned import Database, PlannedSql, PlanText, all_from_plan, from_plan, read_plan, send
+from ._raised import declare_sites
 from ._plans import statement_params
 from ._runframe import in_run, runs
 
@@ -23,7 +24,7 @@ from ._runframe import in_run, runs
 # the plan format this host runs: the planner's (PlanJson.VERSION), as the tab's runner's is (plan-runner.ts PLAN_VERSION,
 # held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
 # runs (test_engine) -- so the two cannot drift apart unseen
-PLAN_VERSION = 51
+PLAN_VERSION = 58
 
 
 class LoadRefused(ValueError):
@@ -41,6 +42,8 @@ def _load_of(given: PlanText) -> dict[str, Any]:
         said = {'format': plan.get('format'), 'version': plan.get('version')} if isinstance(plan, dict) else {}
         raise LoadRefused(f'not a legend-lite execution plan of version {PLAN_VERSION}: '
                           f"{json.dumps(said, separators=(',', ':'))}")
+    # the raises its statements can send, worded by the plan (_raised.declare_sites; phase D's option (D))
+    declare_sites(plan, 'a plan')
     root = plan.get('root')
     if not isinstance(root, dict) or root.get('_type') != 'load':
         raise LoadRefused('a load\'s plan is a legend-lite plan with a load at its root')
@@ -127,6 +130,7 @@ def run_write(plan: PlanText, connection: Any) -> None:
         said = {'format': p.get('format'), 'version': p.get('version')} if isinstance(p, dict) else {}
         raise LoadRefused(f'not a legend-lite execution plan of version {PLAN_VERSION}: '
                           f"{json.dumps(said, separators=(',', ':'))}")
+    declare_sites(p, 'a plan')
     if p.get('parameters'):
         raise LoadRefused('a plan that takes parameters is not run here: its program binds none')
     root = p.get('root') or {}

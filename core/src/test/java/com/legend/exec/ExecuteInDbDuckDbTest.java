@@ -28,22 +28,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * evaluated; it is read statically for the database it declares, the
  * language of the SQL (decision D2). The SQL argument is an ordinary Pure
  * expression evaluated through the pipeline; the resulting blob is split on
- * top-level {@code ;}, and the engine's H2 text is translated for the session
- * (keyword column quoting, {@code CURRENT_TIMESTAMP()}), any other run as
- * written.
+ * top-level {@code ;}, and run AS WRITTEN on the product's road, as legend-engine
+ * runs it; on the compatibility edge's road ({@code PureText.UPSTREAM}) the
+ * engine's H2 text is translated for the session (keyword column quoting,
+ * {@code CURRENT_TIMESTAMP()}, its FLOAT; Phase 6's B4 (ii), 2026-11-17).
  */
 class ExecuteInDbDuckDbTest {
 
     /** The database each test's session runs on. */
-    private static final DatabaseType SESSION = DatabaseType.DuckDB;
+    static final DatabaseType SESSION = DatabaseType.DuckDB;
 
     /** A connection declaring the engine's H2: its SQL is H2's, translated for the DuckDB session (decision D2). */
-    private static final String CONN_LET =
+    static final String CONN_LET =
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                     + "type=meta::relational::runtime::DatabaseType.H2);\n";
 
     /** A connection declaring DuckDB, the session's own database: its SQL runs as written. */
-    private static final String OWN_CONN_LET =
+    static final String OWN_CONN_LET =
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                     + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
 
@@ -61,42 +62,34 @@ class ExecuteInDbDuckDbTest {
     }
 
     @Test
-    @DisplayName("executeInDb: multi-statement blob with H2-flavored keyword columns executes ambiently")
+    @DisplayName("executeInDb: the engine's H2 keyword column is DuckDB's syntax error on the product's road")
     void multiStatementBlobWithKeywordColumns() throws Exception {
-        // "default" is a keyword column name — legal unquoted on the
-        // engine's H2, a syntax error on DuckDB without the dialect's
-        // raw-SQL adaptation; the blob carries two statements
-        Lean.Result r = Program.last(StorelessRuntime.with("", SESSION), CONN_LET
-                + "meta::relational::metamodel::execute::executeInDb("
+        // "default" is a keyword column name -- legal unquoted on the engine's H2, a syntax error on DuckDB: the
+        // product's road runs the text as written, DuckDB's own answer (the edge's translation: ExecuteInDbDuckDbEdgeTest)
+        String blob = CONN_LET + "meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table kTest(id INT, default VARCHAR(20));"
-                + " Insert into kTest (id, default) values (7, \\'x\\');', $c, 0, 1000);}", StorelessRuntime.RUNTIME,
-                conn);
-        assertNull(r.value(), "opaque ResultSet handle");
-        try (Statement st = conn.createStatement();
-                ResultSet rs = st.executeQuery("select id, \"default\" from kTest")) {
-            assertTrue(rs.next());
-            assertEquals(7, rs.getInt(1));
-            assertEquals("x", rs.getString(2));
-        }
+                + " Insert into kTest (id, default) values (7, \\'x\\');', $c, 0, 1000);}";
+        assertThrows(RuntimeException.class,
+                () -> Program.last(StorelessRuntime.with("", SESSION), blob, StorelessRuntime.RUNTIME, conn));
     }
 
     @Test
-    @DisplayName("executeInDb: text written for the session's own database runs as written (decision D2)")
+    @DisplayName("executeInDb: text runs as written on the product's road (decision D2)")
     void ownDatabaseTextRunsAsWritten() throws Exception {
-        // H2's FLOAT is an 8-byte double, which the engine's H2 text maps to DOUBLE; on a connection declaring
-        // DuckDB the text is DuckDB's, whose FLOAT (a 4-byte REAL) stays
+        // the product's road runs a raw statement as written: DuckDB's FLOAT, a 4-byte REAL, whichever database the
+        // connection declares (the edge's H2 translation to DOUBLE: ExecuteInDbDuckDbEdgeTest)
         Program.last(StorelessRuntime.with("", SESSION), OWN_CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb('Create Table fOwn(f FLOAT);', $c, 0, 1000);}",
                 StorelessRuntime.RUNTIME, conn);
         Program.last(StorelessRuntime.with("", SESSION), CONN_LET
-                + "meta::relational::metamodel::execute::executeInDb('Create Table fH2(f FLOAT);', $c, 0, 1000);}",
+                + "meta::relational::metamodel::execute::executeInDb('Create Table fLite(f FLOAT);', $c, 0, 1000);}",
                 StorelessRuntime.RUNTIME, conn);
         try (Statement st = conn.createStatement();
                 ResultSet rs = st.executeQuery("select table_name, data_type from information_schema.columns"
-                        + " where table_name in ('fOwn', 'fH2') order by table_name")) {
+                        + " where table_name in ('fOwn', 'fLite') order by table_name")) {
             assertTrue(rs.next());
-            assertEquals("fH2", rs.getString(1));
-            assertEquals("DOUBLE", rs.getString(2), "the engine's H2 FLOAT, translated");
+            assertEquals("fLite", rs.getString(1));
+            assertEquals("FLOAT", rs.getString(2), "the engine's FLOAT, as written on the product's road");
             assertTrue(rs.next());
             assertEquals("fOwn", rs.getString(1));
             assertEquals("FLOAT", rs.getString(2), "DuckDB's own FLOAT, as written");

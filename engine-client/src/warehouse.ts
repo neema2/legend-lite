@@ -86,7 +86,7 @@ export class WarehouseBinding {
 
   /** The call `op` makes with `args`; a refusal of its arguments is this driver's bug, thrown. */
   call(op: string, args: Readonly<Record<string, unknown>>): HttpCall {
-    const said = JSON.parse(this.#module.exports.call(op, JSON.stringify(args))) as HttpCall | Refusal;
+    const said = JSON.parse(this.#module.exports.call(op, argsJson(args))) as HttpCall | Refusal;
     if ('error' in said) throw new Error(`the warehouse binding refused ${op}: ${said.error.code}: ${said.error.message}`);
     return said;
   }
@@ -204,13 +204,27 @@ export const SYSTEM_CLOCK: Clock = {
   clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
-/** A statement that binds values (a plan's data: payloads, M3) is not sent to the warehouse, which runs SQL text alone:
- *  refused by name, never sent without them. */
-function refuseParams(sql: string, params: readonly string[] | undefined): void {
-  if (params !== undefined && params.length > 0) {
-    throw new QueryError(`this statement binds ${params.length} value(s) (a data: source's payload), which the warehouse does not take: `
-      + 'it runs on the tab\'s own database or legend-lite\'s server', sql);
-  }
+/** What a statement binds on the warehouse: its values for its `?`s, in order (a run's parameters, a plan's data:
+ *  payloads), carried as the API's `parameters` and bound by the server at run, never pasted into the text (lite's API
+ *  v1 §4; the orchestrator's ruling (a), 2026-11-17). */
+type Bound = readonly (string | number | bigint | boolean | null)[];
+
+/**
+ * A call's arguments as JSON, exactly: a bigint as its digits (a 64-bit parameter; JSON.stringify writes none), a number
+ * that is not finite refused by name (JSON would write it as null, a different value).
+ */
+function argsJson(args: Readonly<Record<string, unknown>>): string {
+  const raw = (JSON as { readonly rawJSON?: (text: string) => unknown }).rawJSON;
+  return JSON.stringify(args, (_key, v: unknown) => {
+    if (typeof v === 'number' && !Number.isFinite(v)) {
+      throw new QueryError(`the value ${String(v)} has no JSON form: the warehouse binds no such number`, '');
+    }
+    if (typeof v !== 'bigint') return v;
+    if (raw === undefined) {
+      throw new Error('this browser cannot write a 64-bit integer exactly (JSON.rawJSON): a current Chrome, Edge, Firefox or Safari can');
+    }
+    return raw(String(v));
+  });
 }
 
 export class WarehouseEngine implements LiveWarehouse {
@@ -317,10 +331,9 @@ export class WarehouseEngine implements LiveWarehouse {
     onChunk: (chunk: ResultTable) => void,
     signal?: AbortSignal,
   ): Promise<void> {
-    refuseParams(plan.sql, plan.params);
     const started = performance.now();
     try {
-      for await (const bytes of this.arrowChunks(plan.sql, signal)) {
+      for await (const bytes of this.arrowChunks(plan.sql, signal, undefined, plan.params)) {
         const table = tableFromIPC(bytes) as unknown as ArrowishTable;
         onChunk(typedByPlan(toRawTable(table, epoch, performance.now() - started), plan));
       }
@@ -330,13 +343,12 @@ export class WarehouseEngine implements LiveWarehouse {
     }
   }
 
-  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable> {
-    refuseParams(sql, params);
+  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: Bound): Promise<RawTable> {
     const started = performance.now();
     const batches: RecordBatch[] = [];
     let receipt: Receipt | undefined;
     try {
-      for await (const bytes of this.arrowChunks(sql, signal, (r) => { receipt = r; })) {
+      for await (const bytes of this.arrowChunks(sql, signal, (r) => { receipt = r; }, params)) {
         batches.push(...tableFromIPC(bytes).batches);
       }
     } catch (error: unknown) {
@@ -372,10 +384,12 @@ export class WarehouseEngine implements LiveWarehouse {
     sql: PlannedSql,
     signal?: AbortSignal,
     onReceipt?: (receipt: Receipt) => void,
+    params: Bound = [],
   ): AsyncGenerator<Uint8Array> {
-    // a run's, on Node (run-frame.ts sending): the warehouse's one submit
+    // a run's, on Node (run-frame.ts sending): the warehouse's one submit, its values bound by the server
     sending("the warehouse's submit");
-    let step = await this.#call<Step>('submit', { sql, catalog: this.#catalog }, signal);
+    let step = await this.#call<Step>('submit',
+      { sql, catalog: this.#catalog, ...(params.length > 0 ? { parameters: params } : {}) }, signal);
     const id = step.statementId;
     // where a read that ends early leaves its statement: still running, cancelled; done, its result closed; read to the
     // end (or failed there), nothing

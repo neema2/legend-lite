@@ -54,6 +54,27 @@ class ClickHouseDialectTest {
         return new ClickHouse().render(q);
     }
 
+    /** A fused verdict row's unused slot of a type ClickHouse never makes NULL (a Map, a Tuple; round 53, 2026-11-15:
+     *  {@code CAST(NULL AS Map(...))} was refused, "Cannot convert NULL to a non-nullable type") holds the type's
+     *  default; a slot of a nullable type stays a typed NULL, and a product NULL of a Map is not a slot. */
+    @Test
+    void anUnusedSlotOfANeverNullTypeHoldsItsDefault() {
+        SqlType map = new SqlType.Map(SqlType.Scalar.VARCHAR, SqlType.Scalar.BIGINT);
+        String sql = render(select(new SqlSource.Dual(), null,
+                new SqlExpr.Cast(new SqlExpr.NullLit(), map, SqlExpr.Reason.SLOT),
+                new SqlExpr.Cast(new SqlExpr.NullLit(), PERSON, SqlExpr.Reason.SLOT),
+                new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.BIGINT, SqlExpr.Reason.SLOT)));
+        assertTrue(sql.contains("defaultValueOfTypeName('Map(String, Nullable(Int64))')"), sql);
+        assertTrue(sql.contains("defaultValueOfTypeName('Tuple("), sql);
+        assertFalse(sql.contains("CAST(NULL AS Map"), sql);
+        assertFalse(sql.contains("CAST(NULL AS Tuple"), sql);
+        assertTrue(sql.contains("CAST(NULL AS Nullable(Int64))"), sql);
+        // the product's own NULL of a Map is not a slot: it is not made a value
+        String product = render(select(new SqlSource.Dual(), null,
+                new SqlExpr.Cast(new SqlExpr.NullLit(), map, SqlExpr.Reason.DECLARED)));
+        assertFalse(product.contains("defaultValueOfTypeName"), product);
+    }
+
     @Test
     void aStructFieldIsItsVariantAndOnlyAFieldReadOfItUnwrapsIt() {
         SqlExpr p = col("t0", "p", PERSON);
@@ -186,7 +207,9 @@ class ClickHouseDialectTest {
         String sql = render(grouped);
         String keys = sql.substring(sql.indexOf("GROUP BY "));
         assertTrue(keys.startsWith("GROUP BY \"d2\", \"t0\".\"d\""), sql);
-        assertEquals(1, sql.split("a date outside the years", -1).length - 1, "the guard written once: " + sql);
+        // the date's range guard, by its raise's kind (phase D's D1.1, merged 2026-11-14: the product writes the kind,
+        // VALUE_NOT_HELD; until then the sentence, "a date outside the years ...")
+        assertEquals(1, sql.split("LG#", -1).length - 1, "the guard written once: " + sql);
     }
 
     /** ClickHouse's {@code *} reads no ARRAY JOIN column, so a star over a lateral explosion names the exploded column

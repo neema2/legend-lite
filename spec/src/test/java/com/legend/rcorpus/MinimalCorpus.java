@@ -51,7 +51,7 @@ import java.util.stream.Stream;
  *     (the engine's grouping), the package's setups run THROUGH THE
  *     PLATFORM once per session, every raw SQL a body executes recorded
  *     for the referee (the platform's {@link
- *     com.legend.sql.dialect.RawSqlBoundary} ledger); a test that carries
+ *     com.legend.edge.RawSqlBoundary} ledger); a test that carries
  *     its own inline data runs on a private workspace;</li>
  * <li><b>run + judge</b> — the PRODUCT's test runner ({@link PureTestRunner},
  *     upstream boundary batch 7a): sessions, setups, the body through the ONE
@@ -111,7 +111,7 @@ public final class MinimalCorpus {
             "meta::pure::functions::asserts::assertEmpty",
             "meta::pure::functions::asserts::assertNotEmpty");
 
-    private static final String RUNTIME = "rcorpus::Rt";
+    static final String RUNTIME = "rcorpus::Rt";
     private static final String CONNECTION = "rcorpus::Conn";
     /** Corpus files that are the ENGINE'S IMPLEMENTATION of a platform-owned
      * function family, not test input: loaded, they would redefine the
@@ -255,12 +255,12 @@ public final class MinimalCorpus {
                     "library/" + f.getFileName(), text);
             List<String> walls = new ArrayList<>();
             Compiler.parseSources(List.of(src), (name, err) -> walls.add(err),
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             if (walls.isEmpty()) {
                 // library sources contribute MODEL only: their own test
                 // functions (the platform's M2M suites) are not this corpus
                 Compiler.ParsedModule one = Compiler.parseSources(List.of(src),
-                        (name, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                        (name, err) -> { }, com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
                 refusePlatformNamespace(one.model().elements());
                 all.add(src);
                 for (PackageableElement el : one.model().elements()) {
@@ -273,7 +273,7 @@ public final class MinimalCorpus {
         List<String> parseWalls = new ArrayList<>();
         Compiler.ParsedModule parsed = Compiler.parseSources(all,
                 (name, err) -> parseWalls.add(name + " => " + err),
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         // EVERY source (the corpus's own files included) is under the
         // platform-namespace guard: nothing the harness loads may define
         // the platform's stdlib
@@ -312,7 +312,7 @@ public final class MinimalCorpus {
         // the shared fixture's own zero-arg functions (parsed apart so
         // their FQNs are known without an element→source index)
         Compiler.ParsedModule sharedParsed = Compiler.parseSources(shared,
-                (name, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                (name, err) -> { }, com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         for (PackageableElement el : sharedParsed.model().elements()) {
             // a TEST is never a setup, whatever its effects; a zero-arg
             // fixture function is a setup only when the PLATFORM says its
@@ -336,14 +336,15 @@ public final class MinimalCorpus {
         com.legend.testplan.PlanningOptions.JudgeMode judgeMode = switch (
                 System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
             case "host" -> com.legend.testplan.PlanningOptions.JudgeMode.HOST;
-            case "database" -> com.legend.testplan.PlanningOptions.JudgeMode.DATABASE;
             case "both" -> com.legend.testplan.PlanningOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
             default -> throw new IllegalArgumentException("legend.judge.mode='"
-                    + System.getProperty("legend.judge.mode") + "': 'host', 'database' or 'both'");
+                    + System.getProperty("legend.judge.mode") + "': 'host' or 'both' (the corpus's database pass left 2026-11-17)");
         };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(),
-                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode));
+                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode)
+                        // legend-engine's texts, spelled by the edge (phase D's D1.0)
+                        .withStyle(com.legend.edge.PureText.UPSTREAM));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -366,7 +367,7 @@ public final class MinimalCorpus {
             List<String> walls = new ArrayList<>();
             Compiler.ParsedModule one = Compiler.parseSources(
                     List.of(new Compiler.ModelSource(name, Files.readString(f))),
-                    (n, err) -> walls.add(err), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    (n, err) -> walls.add(err), com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             if (!walls.isEmpty()) {
                 libraryWalls.add(f.getFileName() + " => " + walls.get(0));
                 continue;
@@ -519,7 +520,8 @@ public final class MinimalCorpus {
      *  closes the workspace, as the backend's connection did. */
     private static com.legend.exec.Sessions.Session openWorkspace() {
         try {
-            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace());
+            // the corpus runs on the edge's database (the audit's J22, 2026-11-17)
+            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace(com.legend.edge.PureText.UPSTREAM));
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
@@ -532,10 +534,10 @@ public final class MinimalCorpus {
         private @com.legend.base.Nullable Connection mirrorConn;
         /** The session's non-query statements so far — the referee's seed
          * ledger prefix for every later test of the session. */
-        private final List<com.legend.sql.dialect.RawSqlBoundary.Raw> seedLedger = new ArrayList<>();
-        private @com.legend.base.Nullable com.legend.sql.dialect.RawSqlBoundary.Recorder recorder;
+        private final List<com.legend.edge.RawLedger.Raw> seedLedger = new ArrayList<>();
+        private @com.legend.base.Nullable com.legend.edge.RawLedger.Recorder recorder;
         private @com.legend.base.Nullable com.legend.harness.ReplayReferee referee;
-        private com.legend.sql.dialect.RawSqlBoundary.Recorder.@com.legend.base.Nullable Mark mark;
+        private com.legend.edge.RawLedger.Recorder.@com.legend.base.Nullable Mark mark;
         private @com.legend.base.Nullable String currentTest;
 
         @Override
@@ -590,7 +592,7 @@ public final class MinimalCorpus {
             // the raw-SQL ledger of THIS test (Phase 2b): the session's seed
             // prefix, then everything the setups and the body execute; the
             // executor appends through the options, the referee reads it
-            recorder = new com.legend.sql.dialect.RawSqlBoundary.Recorder(
+            recorder = new com.legend.edge.RawLedger.Recorder(
                     shared ? seedLedger : List.of());
             referee = new com.legend.harness.ReplayReferee(recorder);
             // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md L1,
@@ -599,14 +601,16 @@ public final class MinimalCorpus {
             com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
                     Corpus.RELATIONAL.getParent().getParent());
             return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
-                    // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
-                    // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-                    .withEngineCompat(true);
+                    // backwards-compatibility mode, the judges' leniencies that meet legend-engine's goldens: the
+                    // rules the CompatEdge names (census C1, 2026-11-17: Edge.rules(), the edge's CompatRules)
+                    // legend-engine's texts, spelled by the edge (phase D's D1.0)
+                    .withStyle(com.legend.edge.PureText.UPSTREAM);
         }
 
         @Override
-        public com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
-            return referee;
+        public com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase t) {
+            // the corpus's appeals heard at the edge, decided by its referee (census C2, 2026-11-17)
+            return com.legend.edge.AppealRun.with(referee);
         }
 
         @Override
