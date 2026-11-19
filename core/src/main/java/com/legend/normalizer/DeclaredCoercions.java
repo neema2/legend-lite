@@ -90,6 +90,13 @@ final class DeclaredCoercions {
         if (name.startsWith("meta::pure::metamodel::type::")) {
             return name.substring("meta::pure::metamodel::type::".length());
         }
+        // a precise primitive (legend-pure's precisePrimitives.pure: TinyInt extends Integer, Float4 extends Float, ...)
+        // is its parent's kind, as the typer reads it (Type.Primitive's BY_FQN): until then a TinyInt over a DECIMAL
+        // column was refused at compile where an Integer over it is asserted (F9 of the review of PR #121, 2026-11-19)
+        if (name.startsWith(com.legend.compiler.element.type.Type.Primitive.PRECISE_PRIMITIVES)) {
+            return com.legend.compiler.element.type.Type.Primitive.findByFqn(name)
+                    .map(com.legend.compiler.element.type.Type.Primitive::typeName).orElse(null);
+        }
         return null;
     }
 

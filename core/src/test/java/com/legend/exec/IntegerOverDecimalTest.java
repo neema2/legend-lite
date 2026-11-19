@@ -29,20 +29,42 @@ class IntegerOverDecimalTest {
             ###Pure
             Class p::R { id: Integer[1]; n: Integer[1]; }
             Class p::S { id: Integer[1]; f: Integer[1]; }
+            Class p::P { id: Integer[1]; t: meta::pure::precisePrimitives::TinyInt[1];
+                s: meta::pure::precisePrimitives::SmallInt[1]; i: meta::pure::precisePrimitives::Int[1];
+                b: meta::pure::precisePrimitives::BigInt[1]; }
             ###Relational
             Database p::DB ( Table V (ID INTEGER PRIMARY KEY, N DECIMAL(10,0))
-                Table W (ID INTEGER PRIMARY KEY, F DECIMAL(10,2)) )
+                Table W (ID INTEGER PRIMARY KEY, F DECIMAL(10,2))
+                Table X (ID INTEGER PRIMARY KEY, T DECIMAL(3,0), S DECIMAL(5,2), I DECIMAL(10,0), B DECIMAL(20,0)) )
             ###Mapping
             Mapping p::M ( p::R: Relational { ~mainTable [p::DB] V id: V.ID, n: V.N }
-                p::S: Relational { ~mainTable [p::DB] W id: W.ID, f: W.F } )
+                p::S: Relational { ~mainTable [p::DB] W id: W.ID, f: W.F }
+                p::P: Relational { ~mainTable [p::DB] X id: X.ID, t: X.T, s: X.S, i: X.I, b: X.B } )
             ###Connection
             RelationalDatabaseConnection p::C { store: p::DB; type: %s;
                 specification: LocalH2 {
-                    testDataSetupCSV: 'default\\nV\\nID,N\\n1,5\\n-----\\ndefault\\nW\\nID,F\\n1,5.50\\n2,5.00\\n3,-0.00\\n'; };
+                    testDataSetupCSV: 'default\\nV\\nID,N\\n1,5\\n-----\\ndefault\\nW\\nID,F\\n1,5.50\\n2,5.00\\n3,-0.00\\n-----\\ndefault\\nX\\nID,T,S,I,B\\n1,7,12.00,-3,3000000000\\n'; };
                 auth: DefaultH2; }
             ###Runtime
             Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
             """;
+
+    /** A precise Integer subtype (legend-pure's precisePrimitives: TinyInt, SmallInt, Int, BigInt, each an Integer) over
+     *  a DECIMAL column is the Integer it holds too, at any scale where whole, past 32 bits (F9 of the review of
+     *  PR #121, 2026-11-19: Q8's tests named Integer alone). */
+    @Test
+    void aPreciseIntegerSubtypeIsTheIntegerToo() throws Exception {
+        for (var backend : TestBackends.inProcess()) {
+            String model = MODEL.formatted(backend.type());
+            try (Connection c = backend.open()) {
+                Lean.Result r = Lean.established(model,
+                        "|p::P.all()->project(~[t: x|$x.t, s: x|$x.s, i: x|$x.i, b: x|$x.b])", "p::RT", c);
+                assertEquals(List.of("Integer", "Integer", "Integer", "Integer"),
+                        r.columns().stream().map(Lean.Column::type).toList(), backend.type() + ": " + r.text());
+                assertEquals(List.of(List.of(7L, 12L, -3L, 3000000000L)), r.rows(), backend.type() + ": " + r.text());
+            }
+        }
+    }
 
     /** The product's door: a relation of the column, and the property read alone, each the Integer 5, on each database
      *  the platform runs in-process; the fraction refused by name. */
