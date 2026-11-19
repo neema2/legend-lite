@@ -2516,3 +2516,20 @@ who confirms or changes phases 1-3.
   is missing (the typed schema at planning); 47 H2 no list encoding; 2 DuckDB binder errors. The relation's `toString`
   is a Pure program too, but PLATFORM (`meta::pure::functions::relation`, `PCT.platformOnly`): lite owns it. A TDS's
   `csv` is a stored property, no printer.
+- **~19:54 UTC, B2: S387 corrected** (`claude/compat-a3-docs` at `5b337b867`, local; reading copy `febd1adee`; sent to
+  the reviewer). **Upstream read and measured:** Pure's first day of the week is the most recent Monday
+  (`dateExtension.pure:202`); legend-engine's H2 SELECTs all go through its dialect translation
+  (`relationalMappingExecution.pure:440-443`), which writes `cast(date_trunc('week', d) as date)`
+  (`toPostgresModel.pure:356`), and H2 starts that week on the JVM locale's first day: the Sunday under en_US (the
+  corpus golden), the Monday under en_GB and fr_FR; the H2 extension the reviewer read (`:223`) is reached by no H2
+  SELECT; legend-engine's DuckDB gives the Monday under every locale; lite after A5 the Monday everywhere. **Both
+  meanings already ruled by the user:** 2026-09-05 (GATES.md batch 67b, joinStrings and firstDayOfWeek "are both just
+  broken on H2 basically? … quarantine/bucket those as engine bugs") and 2026-09-08 (batch 144, the 11 accepted
+  divergences, including firstDayOfWeek-h2-week-start, digest-joinStrings, joinStrings-literal-collection); S386 and
+  S387 cite both. **A finding for the batch:** four of those user-accepted divergences (DuckDB testHashFunctions,
+  testToSQLStringForTDSStringJoin, testToSqlGenerationFirstDayOfWeek; H2 testToSQLStringForTDSStringJoin) went to the
+  FAIL rosters under A2 (class b), not back to the accepted rosters (MinimalCorpusTest's accepted register, matched by
+  witness); with A5, H2's firstDayOfWeek likely joins them. Moving them is a guard-file move, for the user's word.
+  **A product-track finding:** lite's H2 still writes `extract(WEEK ...)` and `DATEDIFF(WEEK, ...)`, which follow the
+  JVM locale (week 49 under en_US, 48 under en_GB): `weekOfYear` and a WEEKS duration answer differently by machine,
+  a G10 gap; A5 fixed only the truncation.
