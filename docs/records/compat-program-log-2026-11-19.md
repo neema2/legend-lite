@@ -2081,3 +2081,13 @@ who confirms or changes phases 1-3.
 - **~17:32 UTC, PR #126 open** (the markets_test time, on the user's word in the CI-health session, "Push it"): head
   `699331ffd`, `main` `b75d6c73a` plus two commits, the Python host only. The CI-health worker watches its CI and
   #125's per OS; no merge. Sent to the independent reviewer (every assertion kept, no pin moved, the rules hold).
+- **~17:34 UTC, the CI-health worker: #125 and #126.** #125 (run 44573295984): 35 jobs green, 1 red (windows /
+  warehouse, the markets_test timeout #126 fixes), 15 running (mostly macOS); no lane hit a 404 or 429. Caveat: linux /
+  stress restored a download cache, so it does not prove the mirror. #126 (run 44578192197): linux / stress red at
+  analysis on Central's 404 for `h2-2.1.214.jar`, the failure #125 fixes (said once on #126). **Order: #125, then main
+  merged into #126, then #126**, each on the user's word.
+- **~17:33 UTC, the loop shortened** (the user: "Why are these pct tests taking long? Should it be fast loop"). The
+  spike's run was lite's whole `//core:core_tests` (about 50 targets, uncached since the change is in lowering) with six
+  PCT targets on 4 CPUs, about 8 min per variant; PCT alone is about 3 min. H14 told: V2 finishes as started; D1 and D2
+  run only the PCT targets holding the 423, each count sent as it lands; lite's suites run once at the end, on the
+  user's variant.
