@@ -989,7 +989,8 @@ class IqToPureTest {
         // read only strings that are their own keys (IQ shows the first value of a key it meets)
         // IQ island, 2026-10-15: MAX of a column of strings shows a value of the greatest key, packed behind its key
         String max = pure("SELECT MAX(vc) AS m FROM " + T);
-        assertTrue(max.contains("->max()") && max.contains("indexOf") && max.contains("regexpReplace(' +$'"), max);
+        assertTrue(max.contains("->max()") && max.contains("meta::legend::lite::sqlPosition")
+                && max.contains("regexpReplace(' +$'"), max);
         assertTrue(pure("SELECT MAX(RTRIM(vc)) AS m FROM " + T).contains("->max()"));
         assertTrue(pure("SELECT COUNT(DISTINCT vc) AS m FROM " + T).contains("regexpReplace(' +$', '', false)"));
     }
