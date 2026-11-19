@@ -16,6 +16,8 @@ CP-4 row, SQL text never promised).
 | S384 | A3: toOne of an empty collection | the translator |
 | S385 | A3: answering where legend-engine refuses | the translator |
 | S130, S134 | rewritten in place, ids kept | the translator |
+| S386 | `joinStrings` with a separator: legend-engine's SQL concatenates it as one more element; Pure (and lite) join with it (testToSQLStringForTDSStringJoin, testHashFunctions) | B2 (A3 piece 4, from the review's M2) |
+| S387 | `firstDayOfWeek`: Pure's most recent Monday against legend-engine's SQL's Sunday before (testToSqlGenerationFirstDayOfWeek); state lite's answer as on the MERGED batch (A5's H2 fix, `7cd59a571`) | B2 (A3 piece 4, from the review's M2) |
 
 Any further row takes the next free id from this table, through the compat owner.
 
