@@ -49,15 +49,29 @@ public final class ApiJson {
         return Json.toCompact(new Json.Obj(f));
     }
 
-    /** A statement's parameters as JSON: each its JSON value, a whole number its exact digits. */
+    /** A statement's parameters as JSON: each its JSON value, a whole number its exact digits, a double its own token. */
     public static Json.Arr parametersJson(List<@com.legend.base.Nullable Object> values) {
         List<Json.Node> out = new java.util.ArrayList<>(values.size());
         for (Object v : values) {
             out.add(v == null ? Json.Null.INSTANCE : v instanceof String s ? Json.str(s)
-                    : v instanceof Long l ? Json.Num.ofLong(l) : v instanceof Double d ? Json.Num.ofDouble(d)
+                    : v instanceof Long l ? Json.Num.ofLong(l) : v instanceof Double d ? doubleJson(d)
                     : v instanceof Boolean b ? Json.bool(b) : refusedValue(v));
         }
         return new Json.Arr(out);
+    }
+
+    /**
+     * A double parameter as its Java token ({@link Double#toString}: always a {@code .} or an exponent), which
+     * {@link #parameters} reads back as a double -- never as JSON's writer prints a whole double, its digits alone
+     * ({@code 2.0} as {@code 2}, {@code -0.0} as {@code 0}), which reads back as a whole number and binds as a BIGINT
+     * where DuckDB's own driver binds the same {@code Double} as a DOUBLE (track Q2, 2026-11-19: measured by
+     * {@code WarehouseJdbcParametersTest}).
+     */
+    private static Json.Num doubleJson(double d) {
+        if (Double.isNaN(d) || Double.isInfinite(d)) {
+            throw new IllegalArgumentException("a parameter of " + d + ", which JSON cannot carry");
+        }
+        return new Json.Num((long) d, d, false, null, Double.toString(d));
     }
 
     private static Json.Node refusedValue(Object v) {

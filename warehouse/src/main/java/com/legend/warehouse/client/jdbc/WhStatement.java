@@ -6,17 +6,31 @@ import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.StatementRequest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A statement, and a prepared one: the text goes to the warehouse, which
- * prepares it there (W1a). Parameters are not carried yet, so a prepared
- * statement is only its text.
+ * prepares it there (W1a). A prepared statement's parameters go beside its
+ * text as the API's values ({@link StatementRequest#parameters}), and the
+ * warehouse binds them to its {@code ?}s at run: a value is never written
+ * into the text (AGENTS.md invariant 3; the orchestrator's ruling (a),
+ * 2026-11-17). The values the warehouse binds are a String, a Long, a Double,
+ * a Boolean and null, each as DuckDB's own driver binds the same Java value
+ * (VARCHAR, BIGINT, DOUBLE, BOOLEAN, an untyped NULL); any other value is
+ * refused by name, never converted (track Q2, 2026-11-19).
  */
 final class WhStatement implements java.sql.PreparedStatement {
 
+    /** A parameter index never set: told apart from a value set to null. */
+    private static final Object UNSET = new Object();
+
     private final WhConnection conn;
     private final @Nullable String prepared;
+    /** The prepared statement's values, by index - 1 ({@link #UNSET} where none was set). */
+    private final List<@Nullable Object> parameters = new ArrayList<>();
     private @Nullable WhResultSet results;
     private long updateCount = -1;
     private int timeoutSeconds;
@@ -29,10 +43,10 @@ final class WhStatement implements java.sql.PreparedStatement {
         this.prepared = prepared;
     }
 
-    private boolean run(String sql) throws SQLException {
+    private boolean run(String sql, List<@Nullable Object> values) throws SQLException {
         results = null;
         updateCount = -1;
-        WarehouseClient.Result r = call(sql, false);
+        WarehouseClient.Result r = call(sql, false, values);
         // A statement with no columns reported an update count, not rows
         // (DDL: -1, as DuckDB's driver reports it; a write: its row count).
         if (r.meta().columns().isEmpty()) {
@@ -44,8 +58,10 @@ final class WhStatement implements java.sql.PreparedStatement {
         return true;
     }
 
-    /** One request: the statement run, or (describe) only prepared and its columns reported. */
-    private WarehouseClient.Result call(String sql, boolean describe) throws SQLException {
+    /** One request: the statement run with {@code values} bound to its {@code ?}s in order, or (describe) only
+     *  prepared and its columns reported, nothing bound. */
+    private WarehouseClient.Result call(String sql, boolean describe, List<@Nullable Object> values)
+            throws SQLException {
         if (closed) throw new SQLException("the statement is closed");
         long timeoutMs = timeoutSeconds > 0 ? timeoutSeconds * 1000L : StatementRequest.DEFAULT_TIMEOUT_MS;
         WarehouseClient.Result r;
@@ -54,6 +70,7 @@ final class WhStatement implements java.sql.PreparedStatement {
                     StatementRequest.DEFAULT_WAIT_MS, StatementRequest.DEFAULT_ROWS_PER_CHUNK, conn.session);
             // Arrow (with DuckDB's text for nested cells, for getString) unless the URL chose JSON
             if (conn.format == SqlApi.ResultFormat.ARROW) request = request.as(SqlApi.ResultFormat.ARROW).withCellText();
+            if (!values.isEmpty()) request = request.withParameters(values);
             r = conn.client.execute(describe ? request.describe() : request, id -> inFlight = id);
         } catch (WarehouseClient.Failure f) {
             throw new SQLException(f.error().message(), f.error().code().name(), f);
@@ -74,36 +91,103 @@ final class WhStatement implements java.sql.PreparedStatement {
         return s;
     }
 
+    /** The prepared statement's values in index order; an index below the highest set one that was never set is
+     *  refused by name, never sent as a null. */
+    private List<@Nullable Object> bound() throws SQLException {
+        List<@Nullable Object> out = new ArrayList<>(parameters.size());
+        for (int i = 0; i < parameters.size(); i++) {
+            Object v = parameters.get(i);
+            if (v == UNSET) {
+                throw new SQLException("parameter " + (i + 1) + " was not set (parameters up to "
+                        + parameters.size() + " were): the warehouse binds no value it was not given");
+            }
+            out.add(v);
+        }
+        return out;
+    }
+
+    /** {@code value} held for parameter {@code index}: a String, a Long, a Double, a Boolean or null -- what the
+     *  warehouse binds -- or refused by name ({@code setter} the call that gave it). */
+    private void hold(int index, @Nullable Object value, String setter) throws SQLException {
+        if (closed) throw new SQLException("the statement is closed");
+        if (prepared == null) throw new SQLException("not a prepared statement: " + setter);
+        if (index < 1) throw new SQLException("parameter index " + index + " is not a parameter (they count from 1)");
+        if (value != null && !(value instanceof String || value instanceof Long || value instanceof Double
+                || value instanceof Boolean)) {
+            throw new SQLFeatureNotSupportedException("the warehouse JDBC driver does not bind a "
+                    + value.getClass().getName() + " (" + setter + " of parameter " + index + "): the warehouse"
+                    + " binds a String, a Long, a Double, a Boolean or null");
+        }
+        if (value instanceof Double d && (d.isNaN() || d.isInfinite())) {
+            throw new SQLFeatureNotSupportedException("the warehouse JDBC driver does not bind the double " + d + " ("
+                    + setter + " of parameter " + index + "): the warehouse's values travel as JSON, which has no "
+                    + d);
+        }
+        while (parameters.size() < index) parameters.add(UNSET);
+        parameters.set(index - 1, value);
+    }
+
     @Override
     public boolean execute(String sql) throws SQLException {
-        return run(sql);
+        return run(sql, List.of());
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        if (!run(sql)) throw new SQLException("the statement did not return rows");
-        return getResultSet();
+        return query(sql, List.of());
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
-        if (run(sql)) throw new SQLException("the statement returned rows");
+        return update(sql, List.of());
+    }
+
+    private ResultSet query(String sql, List<@Nullable Object> values) throws SQLException {
+        if (!run(sql, values)) throw new SQLException("the statement did not return rows");
+        return getResultSet();
+    }
+
+    private int update(String sql, List<@Nullable Object> values) throws SQLException {
+        if (run(sql, values)) throw new SQLException("the statement returned rows");
         return (int) Math.max(0, updateCount);
     }
 
     @Override
     public boolean execute() throws SQLException {
-        return run(text());
+        return run(text(), bound());
     }
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        return executeQuery(text());
+        return query(text(), bound());
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-        return executeUpdate(text());
+        return update(text(), bound());
+    }
+
+    @Override
+    public void setString(int index, @Nullable String value) throws SQLException {
+        hold(index, value, "setString");
+    }
+
+    /** {@inheritDoc} A String, a Long, a Double, a Boolean or null; any other value is refused by name. */
+    @Override
+    public void setObject(int index, @Nullable Object value) throws SQLException {
+        hold(index, value, "setObject");
+    }
+
+    /** {@inheritDoc} A NULL, untyped, as DuckDB's own driver binds it whatever {@code sqlType} says. */
+    @Override
+    public void setNull(int index, int sqlType) throws SQLException {
+        hold(index, null, "setNull");
+    }
+
+    @Override
+    public void clearParameters() throws SQLException {
+        if (closed) throw new SQLException("the statement is closed");
+        parameters.clear();
     }
 
     @Override
@@ -191,6 +275,7 @@ final class WhStatement implements java.sql.PreparedStatement {
     public void close() {
         closed = true;
         results = null;
+        parameters.clear();
     }
 
     @Override
@@ -276,11 +361,6 @@ final class WhStatement implements java.sql.PreparedStatement {
     }
 
     @Override
-    public void setNull(int p0, int p1) throws java.sql.SQLException {
-        throw Unsupported.of("PreparedStatement.setNull");
-    }
-
-    @Override
     public void setNull(int p0, int p1, java.lang.String p2) throws java.sql.SQLException {
         throw Unsupported.of("PreparedStatement.setNull");
     }
@@ -288,11 +368,6 @@ final class WhStatement implements java.sql.PreparedStatement {
     @Override
     public void setBigDecimal(int p0, java.math.BigDecimal p1) throws java.sql.SQLException {
         throw Unsupported.of("PreparedStatement.setBigDecimal");
-    }
-
-    @Override
-    public void setString(int p0, java.lang.String p1) throws java.sql.SQLException {
-        throw Unsupported.of("PreparedStatement.setString");
     }
 
     @Override
@@ -343,16 +418,6 @@ final class WhStatement implements java.sql.PreparedStatement {
     @Override
     public void setBinaryStream(int p0, java.io.InputStream p1, int p2) throws java.sql.SQLException {
         throw Unsupported.of("PreparedStatement.setBinaryStream");
-    }
-
-    @Override
-    public void clearParameters() throws java.sql.SQLException {
-        throw Unsupported.of("PreparedStatement.clearParameters");
-    }
-
-    @Override
-    public void setObject(int p0, java.lang.Object p1) throws java.sql.SQLException {
-        throw Unsupported.of("PreparedStatement.setObject");
     }
 
     @Override
@@ -424,7 +489,7 @@ final class WhStatement implements java.sql.PreparedStatement {
     public java.sql.ResultSetMetaData getMetaData() throws java.sql.SQLException {
         WhResultSet r = results;
         if (r != null) return r.getMetaData();
-        return WhResultSetMetaData.of(call(text(), true).meta().columns());
+        return WhResultSetMetaData.of(call(text(), true, List.of()).meta().columns());
     }
 
     @Override

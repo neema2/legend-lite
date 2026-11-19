@@ -206,6 +206,7 @@ _HTTP_SUITE = [
     "WarehouseArrowTest",
     "WarehouseCorsTest",
     "WarehouseEntitlementsTest",
+    "WarehouseJdbcParametersTest",
     "WarehouseJdbcTest",
     "WarehouseServerTest",
 ]
