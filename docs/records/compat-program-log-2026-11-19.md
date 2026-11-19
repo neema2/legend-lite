@@ -970,3 +970,26 @@ who confirms or changes phases 1-3.
   through unchanged (agreed with H13 before either lands); the store's refusals stay codes, worded per mount, and
   nothing at the edge reads a `Refusal`'s message back; `lite_wire` depends on nothing in `com.legend.edge`. Its
   guard-file rows are its track's to name.
+- **~13:07 UTC, B1-R: H2's essential and standard ENGINE lanes run (local; pushing). 33 LITE_BEHIND rows.**
+  | H2 suite | tests | legend-engine passes | refuses | DEFECT | lite passes | SAME | LITE_ANSWERS | LITE_FIXES | BOTH_FAIL | LITE_BEHIND |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | essential | 345 | 131 | 139 (44 "No SQL translation", 95 other words) | 75 | 252 | 125 | 85 | 42 | 87 | 6 |
+  | standard | 205 | 134 | 38 (other words) | 33 | 113 | 107 | 0 | 6 | 65 | **27** |
+  | relation | 469 | 411 | 36 | 22 | 448 | 411 | 28 | 9 | 21 | 0 |
+  - **The 33:** standard 27 (`greatest` x7, `least` x7, `mode` x2, `testMax_Date`, `testMin_Date`: no list encoding
+    on H2; `bitAnd`/`bitOr`/`bitXor` x2 each and `bitShiftRight_UpTo62Bits`: no bit-op support; `bitNot` x2: no
+    `xor()`); essential 6 (`testSplit`, `testSplitWithNoSplit`, `testExistsInSelect`: no unnest placement;
+    `testCubeRoot`, `testReverseString`: lite names CBRT and REVERSE, which H2 2.5.252 lacks; `testBigFloatAbs`:
+    S120). None is a wrong answer: 29 refusals by name, 2 missing function names, 1 S120.
+  - **This corrects Q2 and the plain plan's headline**: "lite is behind legend-engine once" held for DuckDB and H2
+    relation only. On H2 standard lite passes fewer (113 against 134). Both documents corrected.
+  - Two refusal phrases added to the listed words, dated (H2's "Ensure the target system understands Year or
+    Year-month semantic."; the registry's "No matched function in function registry for - max(...)"); no DuckDB or
+    battery row moved.
+  - **Placement:** the three H2 lanes in `//gates:pct_h2`; `pct_duckdb` keeps DuckDB's five and the batteries. Pins
+    split by database (`//pct:engine_lane_duckdb_test`, `//pct:engine_lane_h2_test`). CI's first run: `pct_h2` 5.6
+    min, `pct_duckdb` 9.9 min.
+  - **This session's calls, 13:12:** B1-R pushes now and cross-checks each of the 33 against lite's own H2 PCT
+    ledger (a row not ledgered there is a route difference, sent at once). The 33 go to the product orchestrator as
+    H2 dialect work. The translator re-runs H12's change (1) and the combined set on the two new lanes; B2 runs its
+    S20/plain-set probe on them.

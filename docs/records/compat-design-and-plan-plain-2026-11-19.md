@@ -55,8 +55,20 @@ database in legend-engine's corpus. So none is built, unless decision D1 below s
 ## 4. What we lose, and what breaks
 
 **Will lite still take a legend-engine project and run it? Yes.** It loads, compiles and runs as today, and answers in
-legend-engine's formats. On legend-engine's own function test suite (PCT), lite's legend-engine route already passes
-more than legend-engine does: 1,212 against 1,005 on DuckDB, 448 against 411 on H2.
+legend-engine's formats. On legend-engine's own function test suite (PCT), lite's legend-engine route passes more than
+legend-engine does on four of the five places measured, and fewer on one:
+
+| PCT suite | lite | legend-engine | lite behind on |
+|---|---|---|---|
+| DuckDB, all five suites (1,249 tests) | 1,212 | 1,005 | 1 test |
+| H2 relation (469) | 448 | 411 | 0 |
+| H2 essential (345) | 252 | 131 | 6 |
+| H2 standard (205) | **113** | **134** | **27** |
+
+The 34 tests where lite is behind are gaps in lite's own H2 support that exist today; this program does not cause
+them. Lite refuses by name rather than answering wrongly: `greatest`, `least`, `mode`, the max and min of dates, the bit
+operations, splitting a string into rows, and two functions H2 does not have under the names lite uses (cube root,
+reverse). They are with the product track.
 
 **What changes for such a project** (each measured, or marked "not yet measured"):
 
@@ -87,7 +99,8 @@ rows above; real deployed legend-engine projects (legend-engine's six public sho
 affected functions); Studio end to end; very large results through the Java formatters.
 
 **What does not work today and still will not:** legend-engine's mapping test suites and service tests, cross-store
-queries, external formats, and databases lite has no dialect for (DB2, Oracle, SQL Server and others).
+queries, external formats, and databases lite has no dialect for (DB2, Oracle, SQL Server and others). On H2, the 34
+functions listed above are refused until the product track adds them.
 
 **What gets better:** where legend-engine refuses or answers wrongly, lite answers correctly: on DuckDB's PCT, 109
 wrong answers fixed and 99 of legend-engine's 110 refusals answered; on H2's relation suite, 9 and 28 of 36 (245 such
