@@ -1,0 +1,33 @@
+=== H5 probe (c) ===
+off	model built ms=634 walls={} compat translator: rewritten={} keptPure={} queryHelpers=[] unresolvedRoutedArguments=0 recordsRebuilt=0 ms=0 notes=[]
+off	q.ok	200	[[X], [re]]
+off	q.typeError	COMPILE	TypeInferenceException phase=TYPE position=null element=null :: in call to 'meta::pure::functions::string::substring', argument 1: expected String, got Integer
+off	q.raiseInArgument	COMPILE	TypeInferenceException phase=TYPE position=null element=null :: in call to 'meta::pure::functions::string::substring', argument 3: expected Integer, got Number
+off	q.runRaiseInArgument	SITES	[Site[n=1, kind=TEXT_NOT_INTEGER, where=null, message=text is not an integer]] SQLCHARS=289
+off	q.runRaiseInArgument	ERR	DataError :: text is not an integer
+off	q.runRaiseOverResult	SITES	[Site[n=1, kind=TEXT_NOT_INTEGER, where=null, message=text is not an integer]] SQLCHARS=319
+off	q.runRaiseOverResult	ERR	DataError :: text is not an integer
+off	q.runRaiseInModelFunction	SITES	[Site[n=1, kind=TEXT_NOT_INTEGER, where=null, message=text is not an integer]] SQLCHARS=289
+off	q.runRaiseInModelFunction	ERR	DataError :: text is not an integer
+off	q.indexOf	200	[[-1], [2]]
+off	q.modelFunction	200	[[X], [re]]
+off	q.modelFunctionTypeError	COMPILE	TypeInferenceException phase=TYPE position=null element=null :: in function 's::bad': in call to 'meta::pure::functions::string::substring', argument 1: expected String, got Integer [inlined via s::bad/1]
+everywhere	model built ms=13 walls={} compat translator: rewritten={substring/3=3} keptPure={} queryHelpers=[] unresolvedRoutedArguments=0 recordsRebuilt=3 ms=7 notes=[]
+everywhere	q.ok	200	[[Cre], [FX]]
+everywhere	q.typeError	COMPILE	TypeInferenceException phase=TYPE position=null element=null :: in call to 'meta::legend::compat::engine::substring', argument 1: expected String, got Integer
+everywhere	q.raiseInArgument	COMPILE	TypeInferenceException phase=TYPE position=null element=null :: in call to 'meta::legend::compat::engine::substring', argument 3: expected Integer, got Number
+everywhere	q.runRaiseInArgument	SITES	[Site[n=1, kind=TEXT_NOT_INTEGER, where=null, message=text is not an integer]] SQLCHARS=469
+everywhere	q.runRaiseInArgument	ERR	DataError :: text is not an integer
+everywhere	q.runRaiseOverResult	SITES	[Site[n=1, kind=TEXT_NOT_INTEGER, where=null, message=text is not an integer]] SQLCHARS=1055
+everywhere	q.runRaiseOverResult	ERR	DataError :: text is not an integer
+everywhere	q.runRaiseInModelFunction	SITES	[Site[n=1, kind=TEXT_NOT_INTEGER, where=null, message=text is not an integer]] SQLCHARS=469
+everywhere	q.runRaiseInModelFunction	ERR	DataError :: text is not an integer
+everywhere	q.indexOf	200	[[0], [3]]
+everywhere	q.modelFunction	200	[[Cre], [FX]]
+everywhere	q.modelFunctionTypeError	COMPILE	TypeInferenceException phase=TYPE position=null element=null :: in function 's::bad': in call to 'meta::legend::compat::engine::substring', argument 1: expected String, got Integer [inlined via s::bad/1]
+debug	compileModelText	200	[[Cre], [FX]]
+debug	parseSourcesBuildModel	200	[[Cre], [FX]]
+debug	parseSourcesBuildModule	200	[[Cre], [FX]]
+debug	renamed	LambdaFunction[parameters=[], body=[AppliedFunction[function=meta::legend::compat::engine::substring, parameters=[Variable[name=x, type=null, multiplicity=null, pos=SourceInfo[sourceId=, startLine=1, startColumn=2, endLine=1, endColumn=3]], CInteger[value=1, pos=SourceInfo[sourceId=, startLine=1, startColumn=16, endLine=1, endColumn=16]], CInteger[value=3, pos=SourceInfo[sourceId=, startLine=1, startColumn=19, endLine=1, endColumn=19]]], referents=[], pos=SourceInfo[sourceId=, startLine=1, startColumn=6, endLine=1, endColumn=14], propertyCall=false, grouped=false, infix=false, island=false, fControl=null, ownerClass=null]], pos=SourceInfo[sourceId=, startLine=1, startColumn=1, endLine=1, endColumn=20]]
+debug	written	LambdaFunction[parameters=[], body=[AppliedFunction[function=meta::legend::compat::engine::substring, parameters=[Variable[name=x, type=null, multiplicity=null, pos=SourceInfo[sourceId=, startLine=1, startColumn=2, endLine=1, endColumn=3]], CInteger[value=1, pos=SourceInfo[sourceId=, startLine=1, startColumn=46, endLine=1, endColumn=46]], CInteger[value=3, pos=SourceInfo[sourceId=, startLine=1, startColumn=49, endLine=1, endColumn=49]]], referents=[], pos=SourceInfo[sourceId=, startLine=1, startColumn=6, endLine=1, endColumn=44], propertyCall=false, grouped=false, infix=false, island=false, fControl=null, ownerClass=null]], pos=SourceInfo[sourceId=, startLine=1, startColumn=1, endLine=1, endColumn=50]]
+=== end ===

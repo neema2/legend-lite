@@ -157,6 +157,9 @@ public final class MinimalCorpus {
 
     private final ModelContext ctx;
 
+    /** H5 SPIKE: what the translator did, for the run's log. */
+    public static volatile String translatorReport = "off";
+
     /** The corpus's ONE compiled world (libraries, shapes, every corpus
      * file) — the eager-compile probe types every body in it
      * (COMPILE_EVERYTHING_HOMEWORK, P3: "everything compiles when needed"). */
@@ -270,6 +273,15 @@ public final class MinimalCorpus {
                 libraryWalls.add(f.getFileName() + " => " + walls.get(0));
             }
         }
+        // H5 SPIKE: the target is read from the lane's runtime (its one connection); the ENGINE translator's library
+        // for that target joins the sources, and the parsed model is translated before the normal build
+        com.legend.model.ConnectionDefinition laneConnection = new com.legend.model.ConnectionDefinition(CONNECTION,
+                null, BACKEND.type(), new com.legend.model.ConnectionSpecification.InMemory(),
+                new com.legend.model.AuthenticationSpec.NoAuth());
+        com.legend.compatspike.EngineTranslator.Scope translatorScope = com.legend.compatspike.EngineTranslator.scope();
+        if (translatorScope != com.legend.compatspike.EngineTranslator.Scope.OFF) {
+            all.add(com.legend.compatspike.EngineTranslator.library(laneConnection));
+        }
         List<String> parseWalls = new ArrayList<>();
         Compiler.ParsedModule parsed = Compiler.parseSources(all,
                 (name, err) -> parseWalls.add(name + " => " + err),
@@ -292,7 +304,18 @@ public final class MinimalCorpus {
         // declares yields to the prelude later (Compiler.withoutPreludeShadows,
         // the T4 receipt list). Each element keeps its section's imports.
         parsed = withShapes(parsed);
+        if (translatorScope != com.legend.compatspike.EngineTranslator.Scope.OFF) {
+            com.legend.compatspike.EngineTranslator.Report report = new com.legend.compatspike.EngineTranslator.Report();
+            parsed = com.legend.compatspike.EngineTranslator.translate(parsed, translatorScope, report);
+            translatorReport = translatorScope + " " + report.summary();
+            System.err.println("[H5] " + translatorReport);
+            for (String u : report.unresolvedRoutedArguments) {
+                System.err.println("[H5] unresolved routed argument: " + u);
+            }
+        }
+        long buildStart = System.nanoTime();
         Compiler.BuiltModule built = Compiler.buildModule(parsed.model());
+        System.err.println("[H5] buildModule ms=" + (System.nanoTime() - buildStart) / 1_000_000);
         Map<String, String> dbBindings = new LinkedHashMap<>();
         for (PackageableElement el : parsed.model().elements()) {
             if (el instanceof com.legend.model.DatabaseDefinition db) {
@@ -303,9 +326,7 @@ public final class MinimalCorpus {
                 .withExecutionOverlay(
                         new com.legend.model.RuntimeDefinition(RUNTIME, List.of(),
                                 dbBindings, List.of()),
-                        new com.legend.model.ConnectionDefinition(CONNECTION, null, BACKEND.type(),
-                                new com.legend.model.ConnectionSpecification.InMemory(),
-                                new com.legend.model.AuthenticationSpec.NoAuth()));
+                        laneConnection);
         discovery = PureTests.discover(parsed.model(), libraryElements);
         elementSources = Map.copyOf(parsed.model().elementSources());
         sources = List.copyOf(all);

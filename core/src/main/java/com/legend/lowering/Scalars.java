@@ -1491,9 +1491,10 @@ final class Scalars {
         // platform pure's 0-based). ONE verbatim emission (Phase 1
         // audit): the DuckDB start-clamp is SubstringClamp, that
         // dialect's own rewrite pass.
+        // H5 SPIKE (H3 (a), R4): substring is PURE's meaning, always -- 0-based, end-exclusive (the corrected rule);
+        // legend-engine's verbatim SQL substring is the ENGINE translator's rewrite, never a flag of the core
         for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTRING) {
-            RULES.put(f, (n, args) ->
-                    new SqlExpr.Call(SqlFn.SUBSTRING, args));
+            RULES.put(f, FeatureRules.CORRECTED_SUBSTRING);
         }
         // (the same call under CORRECT_SQL_SUBSTRING_INDEXING: FeatureRules)
         // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
@@ -1532,33 +1533,26 @@ final class Scalars {
                             new SqlExpr.IntLit(1)));
                 }
                 if (args.size() == 3) {
-                    // indexOf(s, sub, from): H2 LOCATE(sub, s, from)
-                    // semantics — 1-BASED from and result, miss 0 (the
-                    // engine has NO translation for this overload; the
-                    // convention follows the 2-arg golden). Search the
-                    // suffix, re-base hits.
-                    SqlExpr from1 = args.get(2) instanceof SqlExpr.IntLit il
-                            ? new SqlExpr.IntLit(Math.max(il.value(), 1))
-                            : SqlExpr.Call.of(SqlFn.GREATEST, args.get(2),
-                                    new SqlExpr.IntLit(1));
-                    SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(
-                            args.get(0), from1));
-                    SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS,
-                            List.of(suffix, args.get(1)));
+                    // H5 SPIKE (H3 (a)): PURE's indexOf(s, sub, from) -- Java's String.indexOf(sub, from): a 0-based
+                    // from (below 0 searches from 0), a 0-based hit, -1 on a miss. Search the suffix, re-base hits.
+                    SqlExpr from0 = args.get(2) instanceof SqlExpr.IntLit il
+                            ? new SqlExpr.IntLit(Math.max(il.value(), 0))
+                            : SqlExpr.Call.of(SqlFn.GREATEST, args.get(2), new SqlExpr.IntLit(0));
+                    SqlExpr from1 = from0 instanceof SqlExpr.IntLit il0
+                            ? new SqlExpr.IntLit(il0.value() + 1)
+                            : SqlExpr.Call.of(SqlFn.PLUS, from0, new SqlExpr.IntLit(1));
+                    SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(args.get(0), from1));
+                    SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS, List.of(suffix, args.get(1)));
                     return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.GREATER, k, new SqlExpr.IntLit(0)),
-                            SqlExpr.Call.of(SqlFn.MINUS,
-                                    SqlExpr.Call.of(SqlFn.PLUS, k, from1),
+                            SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.PLUS, k, from0),
                                     new SqlExpr.IntLit(1)))),
-                            new SqlExpr.IntLit(0), SqlExpr.Reason.OPERATOR);
+                            new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
                 }
-                // 1-BASED, raw strpos: the engine translates indexOf to
-                // locate() verbatim (testSqlFunctionsInMapping golden
-                // 'select locate(...)' with rows [12,12] — C1.5c; the
-                // reference DuckDB PCT adapter ledgers the same platform
-                // divergence, "expected: 4 actual: 5"). Composes with the
-                // 1-based verbatim substring above. Miss = 0.
-                return new SqlExpr.Call(SqlFn.STRPOS, args);
+                // H5 SPIKE (H3 (a)): PURE's indexOf(s, sub) -- Java's String.indexOf: 0-based, -1 on a miss (strpos is
+                // 1-based, 0 on a miss: minus one is exact for both); legend-engine's 1-based locate is the ENGINE
+                // translator's rewrite (register S134)
+                return SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1));
             });
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_AT) {

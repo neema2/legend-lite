@@ -1,0 +1,33 @@
+###Pure
+// H3 (a), SCRATCH (the compatibility homework, 2026-11-19): legend-engine's meaning of substring and indexOf on a
+// DUCKDB target, written as LITE programs over lite's (Pure's) meaning, for the ENGINE input adapter to call in place of
+// upstream's names. legend-engine (without CORRECT_SQL_SUBSTRING_INDEXING) sends Pure's arguments to the database's
+// SUBSTRING(s, start, length) unshifted (pureToSQLQuery.pure processSubstring), so its answer is that database's: the
+// window [p, p + length - 1] of 1-based positions, clipped to the string, where p is the start when it is positive,
+// counted from the end (length + start + 1) when it is negative (DuckDB raising a position before the first to 1, its
+// runtime rule; its constant folder keeps the window), and at 0 H2 starts at 1 and DuckDB at 0 (measured on
+// H2 2.1.214 and 2.5.252, DuckDB 1.3.0 and 1.5.6: docs/records/compat-homework/H3-prototypes.md). Each window is
+// written as Pure's 0-based, end-exclusive substring of valid bounds, so lite's own clamps never see it. A negative
+// length is not reproduced (DuckDB counts it backwards; H2 answers empty): the window is empty.
+
+function meta::legend::compat::engine::substring(s: String[1], a: Integer[1], b: Integer[1]): String[1]
+{
+    meta::pure::functions::string::substring($s,
+        min(max((if($a > 0, |$a, |if($a == 0, |0, |max($s->length() + $a + 1, 1)))) - 1, 0), $s->length()),
+        min(max((if($a > 0, |$a, |if($a == 0, |0, |max($s->length() + $a + 1, 1)))) - 1 + $b, min(max((if($a > 0, |$a, |if($a == 0, |0, |max($s->length() + $a + 1, 1)))) - 1, 0), $s->length())), $s->length()))
+}
+
+function meta::legend::compat::engine::substring(s: String[1], a: Integer[1]): String[1]
+{
+    meta::pure::functions::string::substring($s, min(max((if($a > 0, |$a, |if($a == 0, |0, |max($s->length() + $a + 1, 1)))) - 1, 0), $s->length()))
+}
+
+function meta::legend::compat::engine::indexOf(s: String[1], t: String[1]): Integer[1]
+{
+    meta::pure::functions::string::indexOf($s, $t) + 1
+}
+
+function meta::legend::compat::engine::indexOf<T>(set: T[*], value: T[1]): Integer[1]
+{
+    meta::pure::functions::collection::indexOf($set, $value)
+}

@@ -62,13 +62,135 @@ B2's 143 (`docs/records/census-b2-sqltext-probe-2026-11-19.tsv` on `claude/censu
 legend-engine's plan text and nothing else. No rewrite can make them pass (a rewrite changes the SQL text), so they
 are not the translator's to win.
 
+### F4. With the translator, H3's 15 come down to the 4 that judge legend-engine's text, and nothing else moves but one vacuous pass made real
+
+The corpus, Pure's meaning in the core, the dynaFunction split and the use-site translator (variant V3, §2):
+
+| lane | main (V0) | V3 | moved |
+|---|---|---|---|
+| H2 | 2,289 pass, 276 fail, 7 skipped | 2,285 pass, 280 fail, 7 skipped | +4 fail, all 4 in B2's CP-4 list |
+| DuckDB | 2,452 pass, 108 fail, 7 skipped | 2,447 pass, 113 fail, 7 skipped | +5 fail: the same 4, and one vacuous pass made real |
+
+- **11 of H3's 15 pass, on both lanes:** the 3 query-lambda tests by the translator
+  (`testFilterUsingSubstringFunction`, `testFilterUsingParseIntegerFunction`, `testFilterUsingParseDecimalFunction`),
+  the 7 dynaFunction tests by the core's split, and `testToSQLStringSubstringIsUncorrectedByDefault` (by the appeal).
+- **The 4 that stay failing are all in B2's 143** (CP-4, not promised): `testModelConnectionAgg`,
+  `testModelConnectionMultipleAgg`, `testSubstringIndexingCorrectedByFeatureFlag`, `testToSQLStringWithPosition`.
+  Each judges legend-engine's plan or SQL text only, with no replay the appeal can run (B2's classes a1, a2); they
+  passed at main only because the edge's engine-style printer reproduces that text, which CP-4 deletes anyway.
+- **8 tests now pass BY ANSWER through the appeal** (the unordered-register gains 8 lines on each lane): their SQL-text
+  assert no longer matches legend-engine's golden text, so the referee replays the golden statement and compares rows
+  (the propertyfunc 4 of 6, `sqlFunction::indexOf::testProject`, the two query-lambda filters,
+  `testToSQLStringSubstringIsUncorrectedByDefault`). This is CP-4 and §12 I3 working as designed: the appeal is
+  load-bearing. It moves a register, which is a guarded file: not moved here.
+- **DuckDB's fifth: `testPlanForDateTimeVariableESTTimeZone` was a vacuous pass at main.** Its assert
+  (`executionPlanTest.pure:982`) is `$planAsString->indexOf('...') != -1 || 'settlementDateTime = TIMESTAMP...' != -1`.
+  Under main's meaning `indexOf` answers 0 on a miss, so the left side is always true and DuckDB short-circuits. Under
+  Pure's meaning it is a real check, it is false (lite's plan text is not legend-engine's), and the right side runs:
+  legend-engine's own typo compares a String with an Integer, which legend-pure answers `true` and lite's SQL sends to
+  the database, where DuckDB raises a conversion error (`Could not convert string ... to INT32`). H2 already raised on
+  it at main (`Data conversion error converting "CHARACTER VARYING to DECFLOAT"`). Two findings: F1.4 confirmed (the
+  old meaning made host-side `indexOf` asserts vacuous), and **a product defect: a cross-kind `!=` (String vs
+  Integer) raises in the database instead of answering `true`** (S127's family; for the product owner). The code is
+  host-side and correctly NOT rewritten.
+
 ## 1. The spike's shape
 
-(to be filled in: the translator, its scopes, the core change, the runs)
+**The translator** (`spec/src/test/java/com/legend/compatspike/EngineTranslator.java`, 494 lines, about 400 without
+comments and blank lines):
+- **input:** the parsed model (`Compiler.ParsedModule`) and the target, read from the runtime's connection
+  (`ConnectionDefinition.databaseType()`: H2 or DuckDB; any other target refused by name);
+- **work:** a deep map over the model's records (functions, classes' derived properties and constraints, mappings,
+  services, test bodies): every record whose components change is rebuilt by its canonical constructor, so a renamed
+  call keeps everything else, its `SourceInfo` included. A call of `substring` (2 or 3 arguments) or `indexOf`
+  (2 arguments), bare or by its `meta::pure::functions::string::` name, is renamed to its twin in
+  `meta::legend::compat::engine::`, H3's target-aware library (`spec/src/test/resources/compatspike/`, unchanged);
+- **scopes** (`-Dcompat.translator`): `identity` (rebuild every record, rename nothing), `everywhere` (the
+  definition-site rename), `queries` (the use-site rename: only the code legend-engine sends to the store);
+- **`queries` finds the store-bound code** syntactically: the first argument of a routed call (`execute`,
+  `executionPlan`, `toSQLString`, `toSQL`, `toSQLStringPretty`, `toNonExecutableSQLString`, `executeInternal`,
+  `printDebug`, `relationalMapperSqlQuery`, `executeLegendQuery`, counted over the corpus), a lambda bound by `let` in
+  the same statement list and passed to one, and the parameters of the helpers that forward one (a fixpoint over the
+  model's functions, by simple name); a routed call carrying `CORRECT_SQL_SUBSTRING_INDEXING` keeps Pure's `substring`;
+- **output:** the rewritten `ParsedModule` plus the library's source, handed to the normal compiler through its public
+  doors: the corpus harness parses the library with the model (`Compiler.parseSources`), translates, then builds
+  (`Compiler.buildModule`) and runs through the test door as before (`MinimalCorpus.java`, +24 / -3); the probe uses
+  `Compiler.parseQuery`, `Compiler.query`, `Execution.runOnProjectDatabases`.
+
+**It sits in the spec tests' source tree on purpose**: only the core's public API is reachable from there, so "no
+new hook" is checked by javac.
+
+**The core** (the only core change, `core/src/main/java/com/legend/`):
+- `lowering/Scalars.java`, +20 / -26: H3 (a)'s change exactly: `substring` always `CORRECTED_SUBSTRING` (Pure's), string
+  `indexOf` 0-based with -1 on a miss, and Java's `indexOf(t, from)`;
+- `normalizer/RelOpTranslator.java`, +49 / -5: 3.1's split for the dynaFunctions (§3), no new native.
+
+**The runs** (each both lanes, `bazel build //spec:judge_host_h2 //spec:judge_host_duckdb`, outputs saved under
+`h5/runs/`):
+
+| variant | core | translator |
+|---|---|---|
+| V0 | main | none |
+| V3 | Pure + dyna split | `queries` |
+| V2 | Pure + dyna split | off |
+| V4 | Pure + dyna split | `everywhere` |
+| V5 | Pure + dyna split | `identity` |
 
 ## 2. The measurements
 
-(to be filled in)
+### (a) H3's 15, and what else moved: F4 above. Variants V2, V4, V5 below as they land.
+
+### (b) The core APIs it needed; no new hook
+
+Public API only, checked by javac (the spec tests' tree reaches nothing else):
+- `Compiler.parseSources`, `Compiler.ModelSource`, `Compiler.ParsedModule` (its record constructor),
+  `com.legend.model.ParsedModel` (its record constructor and `keyOf`), `Compiler.buildModule`;
+- the parsed model's records (`com.legend.model.*`, `com.legend.protocol.spec.*`), read and rebuilt by reflection
+  over their record components;
+- `ConnectionDefinition.databaseType()`, to know the target;
+- for a request: `Compiler.parseQuery`, `Compiler.query(ctx, ValueSpecification)`, `Execution.runOnProjectDatabases`.
+
+**No new hook and no core change beyond the meaning were needed by the translator.** The two core changes are
+Pure's meaning (R4, H3's diff) and the dynaFunction split (3.1), both planned slices, neither a hook. One trap found
+on the way: the parsed model keys `elementSources` by `ParsedModel.keyOf` (an overload's own key), not by the
+qualified name, so a translator that looks its library up by name rewrites the library's own bodies into
+self-recursion and every compat call is left un-inlined ("store resolution left user call ... uninlined"). The
+library must be recognised by its key (or its package).
+
+### (c) Source positions
+
+The probe (`spec/src/test/java/com/legend/compatspike/TranslatorProbeTest.java`; `bazel test
+//spec:h5_translator_probe --test_output=all`; output `h5/probe-c.out`) plants 9 cases over one H2 model, each with
+the translator off and on:
+- **positions are kept on the record:** a renamed call carries the user's `SourceInfo` (line 1, columns 6-14 in the
+  printed record), and every argument keeps its own;
+- **but no lite error on these doors prints a position, with or without the translator:** a type error is
+  `TypeInferenceException phase=TYPE position=null`; a run-time raise is `DataError: text is not an integer`, and the
+  plan's raise site is `Site[kind=TEXT_NOT_INTEGER, where=null]`. So the rewrite cannot move a position there today;
+  the guard I6 asks for needs a door that reports positions first;
+- **the words move:** a type error at a rewritten call names the compatibility function the user never wrote: `in
+  call to 'meta::legend::compat::engine::substring', argument 1: expected String, got Integer` (off:
+  `'meta::pure::functions::string::substring'`). A presenter (1.2) or the translator must map the name back;
+- **run-time raises are unchanged** (the same kind and words) when the raise is the user's own call, inside an
+  argument of a rewritten call or over its result;
+- **SQL grows:** the target-aware window is inlined at each call: the probe's answer SQL grew from 289 to 469
+  characters (one rewritten call) and from 319 to 1,055 (a rewritten call under `parseInteger`), G3's concern.
+
+### (d) Size, time, what broke
+
+- **Size:** translator 494 lines (about 400 without comments); library 32 + 33 Pure lines (H3's); the harness door
+  +24 / -3; the probe 161; core +69 / -31 (Scalars, RelOpTranslator).
+- **Time, the corpus world:** `buildModule` 3.4-3.6 s; the translator **26.1-26.8 s** on the
+  first build (uncached reflection: each record's components read and made accessible at every node). A cached
+  version (each record class's shape read once) is in V2's build onward; its time is reported below. A real
+  translator would be a typed visitor over the protocol records, not reflection.
+- **The probe's small model:** 4-12 ms to translate, against 548-690 ms to build.
+- **What the translator saw in the corpus:** 5 `substring` calls in store-bound code (all 3-argument), 0 string
+  `indexOf`; kept Pure's: 78 + 4 `substring`, 190 `indexOf` (mostly the list `indexOf`, the same meaning in both), 6
+  three-argument `indexOf`; 34 records rebuilt. 188 helper functions forward a query into a routed call (by simple name, so an over-count). **40 routed calls have
+  a first argument the syntactic search cannot follow** (a property such as `$t.query`, a function call, a string):
+  data flow; none of them moved a corpus verdict here, but a real translator must either follow them or refuse.
+- **What broke:** nothing beyond F4's list.
 
 ## 3. 3.1 sizing
 

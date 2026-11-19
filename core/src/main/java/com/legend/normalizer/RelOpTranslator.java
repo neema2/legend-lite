@@ -449,13 +449,15 @@ final class RelOpTranslator {
             // indexOf rule IS 1-based locate (engine parity), so the
             // dynafunction forwards VERBATIM (the old +1 emission paired
             // with the 0-based rule; both sides dropped together).
+            // H5 SPIKE (3.1, the split): the dynaFunction is SQL's LOCATE in every audience -- 1-based, 0 on a miss --
+            // written over Pure's indexOf (0-based, -1 on a miss) as indexOf + 1: exact for both
             case RelationalOperation.FunctionCall call
                     when dyna(call) == DynaFn.INDEX_OF && call.args().size() == 2 ->
-                    Calls.platform("indexOf", List.of(
+                    sqlLocate(Calls.platform("indexOf", List.of(
                             translate(call.args().get(0), tableScope,
                                     targetVarOrNull, rowBindOrNull, pipeline),
                             translate(call.args().get(1), tableScope,
-                                    targetVarOrNull, rowBindOrNull, pipeline)));
+                                    targetVarOrNull, rowBindOrNull, pipeline))));
             // dyna 'substring' is SQL SUBSTRING (1-based start, LENGTH
             // third arg) and the RELATIONAL substring rule is now a
             // VERBATIM passthrough with the H2 sub-1-start clamp — args
@@ -466,10 +468,13 @@ final class RelOpTranslator {
             // substring is strict String[1] and a column reached through
             // a join reads [0..1] (the stress corpus's substring cells,
             // 2026-10-29).
+            // H5 SPIKE (3.1, the split): the dynaFunction is SQL's SUBSTRING(s, start, length) in every audience,
+            // written over Pure's substring(s, start - 1[, start - 1 + length]); Pure's rule (CORRECTED_SUBSTRING)
+            // writes SQL's SUBSTRING back with the same operands -- literal ones folded, so the text is today's
             case RelationalOperation.FunctionCall call
                     when dyna(call) == DynaFn.SUBSTRING
                     && (call.args().size() == 2 || call.args().size() == 3) ->
-                Calls.platform("substring", toOneAll(translateArgs(call,
+                sqlSubstring(toOneAll(translateArgs(call,
                         tableScope, targetVarOrNull, rowBindOrNull, pipeline)));
             // dyna 'add'/'sub' are SQL ARITHMETIC — pure spells them
             // plus/minus; the bare names would hit pure's COLLECTION
@@ -497,13 +502,13 @@ final class RelOpTranslator {
                     // toOne on the haystack: an OPTIONAL column read would
                     // otherwise infect the whole arithmetic chain with [*]
                     // (SQL null-propagates; erasure makes toOne free)
-                    Calls.platform("indexOf", List.of(
+                    sqlLocate(Calls.platform("indexOf", List.of(
                             Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                                     translate(call.args().get(1), tableScope,
                                             targetVarOrNull, rowBindOrNull,
                                             pipeline))),
                             translate(call.args().get(0), tableScope,
-                                    targetVarOrNull, rowBindOrNull, pipeline)));
+                                    targetVarOrNull, rowBindOrNull, pipeline))));
             case RelationalOperation.FunctionCall call
                     when dyna(call) == DynaFn.IS_NULL && call.args().size() == 1 ->
                     Calls.platform("isEmpty", List.of(translate(call.args().get(0),
@@ -709,6 +714,45 @@ final class RelOpTranslator {
      *  engine registers as no dynafunction is a plain pure function the
      *  expression calls, under its own name (no respelling: the 2026-09-11
      *  audit deleted the bare-name respelling table). */
+    /** H5 SPIKE (3.1): SQL's LOCATE/POSITION over Pure's 0-based indexOf: one more. */
+    private static ValueSpecification sqlLocate(ValueSpecification pureIndexOf) {
+        return Calls.infixRun("plus", List.of(pureIndexOf, new com.legend.protocol.spec.CInteger(1L)));
+    }
+
+    /** H5 SPIKE (3.1): SQL's SUBSTRING(s, start[, length]) over Pure's substring(s, start - 1[, start - 1 + length]),
+     *  a literal operand folded (Pure's rule folds it back: the same SQL as before). */
+    private static ValueSpecification sqlSubstring(List<ValueSpecification> args) {
+        ValueSpecification start0 = shifted(args.get(1), -1);
+        if (args.size() == 2) {
+            return Calls.platform("substring", List.of(args.get(0), start0));
+        }
+        Long s = literal(args.get(1));
+        Long len = literal(args.get(2));
+        ValueSpecification end0 = s != null && len != null
+                ? new com.legend.protocol.spec.CInteger(s - 1 + len)
+                : Calls.infixRun("plus", List.of(start0, args.get(2)));
+        return Calls.platform("substring", List.of(args.get(0), start0, end0));
+    }
+
+    private static ValueSpecification shifted(ValueSpecification v, long by) {
+        Long lit = literal(v);
+        return lit != null ? new com.legend.protocol.spec.CInteger(lit + by)
+                : Calls.infixRun(by < 0 ? "minus" : "plus",
+                        List.of(v, new com.legend.protocol.spec.CInteger(Math.abs(by))));
+    }
+
+    /** The literal integer {@code v} spells, under the dyna lane's toOne wrapper, or null. */
+    private static @com.legend.base.Nullable Long literal(ValueSpecification v) {
+        if (v instanceof com.legend.protocol.spec.CInteger i) {
+            return i.value().longValue();
+        }
+        if (v instanceof com.legend.protocol.spec.AppliedFunction af && af.parameters().size() == 1
+                && af.function().equals(com.legend.builtin.Pure.Lite.TRUST_ONE)) {
+            return literal(af.parameters().get(0));
+        }
+        return null;
+    }
+
     static String dynaFnName(RelationalOperation.FunctionCall call) {
         DynaFn d = dyna(call);
         if (d == null) {

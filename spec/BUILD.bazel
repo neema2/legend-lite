@@ -176,6 +176,19 @@ junit_test(
     upstream = True,
 )
 
+# H5 SPIKE (scratch, never merges): the ENGINE translator's scope for both corpus lanes (off, identity, everywhere,
+# queries); com.legend.compatspike.EngineTranslator
+H5_TRANSLATOR = "-Dcompat.translator=off"
+
+# H5 SPIKE: measurement (c), source positions after the rewrite (prints its findings)
+junit_test(
+    name = "h5_translator_probe",
+    memory_mb = 1024,
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.compatspike.TranslatorProbeTest"],
+    tags = ["manual"],
+)
+
 # Maven gate 4: the relational corpus against DuckDB under the HOST judge (the build action :judge_host_duckdb, writing
 # its per-assert ledger). The database judge's pass (gate 11) left the corpus 2026-11-17 (the user's judge model: it
 # agreed with the host on 61% of the corpus's tests, about 95% of the rest compatibility-rule noise -- the corpus is
@@ -190,7 +203,7 @@ corpus_lane(
     # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
     # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
     # shows here as a verdict that moves, against the committed rosters
-    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
+    jvm_flags = ["-Dlegend.diagnostics=decoded-plan", H5_TRANSLATOR],
     rosters = "duckdb",
     runtime_deps = [":spec_tests_lib"],
 )
@@ -232,7 +245,7 @@ corpus_lane(
     name = "corpus_h2",
     memory_mb = 4096,
     data = _CORPUS_INPUTS,
-    jvm_flags = ["-Drcorpus.backend=h2"],
+    jvm_flags = ["-Drcorpus.backend=h2", H5_TRANSLATOR],
     rosters = "h2",
     runtime_deps = [":spec_tests_lib"],
 )
