@@ -2767,3 +2767,17 @@ who confirms or changes phases 1-3.
   run") only if a stale known failure turns its lane red, else keep and trim after CI. The unordered register's fourth
   line is `testToSQLStringSubstringIsUncorrectedByDefault` (in A2's real register). S383's legend-pure text: JDK 21
   says "Range [b, e) out of bounds for length n", JDK 17 "begin b, end e, length n"; the engine runner decides.
+- **~21:10 UTC, B1-R: the detector's review fixes pushed** (`claude/compat-a3-detector` at `337e66ade`, one commit on
+  `1dcc4259a`): M1, 7 tests (29 in all), each failing on its plant P1-P7; M2, the constraint `substring(1, 2)`, the old
+  `(0, 1)` plant measured to leave both green; S1, S2 done; own_corpus.matched 3312 → 3315 under the ~20:10 ruling
+  (3316 expected merged); 55 targets green (fast loop plus touched lanes); the golden net regenerated identical;
+  LiteBatteries under `warn` identical. The two gaps (the validate door, the packaged chain) recorded for the product
+  track. Sent to the reviewer for the re-check and to the judges to merge into the batch.
+- **~21:12 UTC, B1's three questions, ruled here under the approved design (lite-internal, door-only):**
+  (1) `substringAsGiven` joins `Pure.COMPILER_OWN` (a product set, not a guard; B1 measured that without it a user's
+  `|meta::legend::lite::substringAsGiven('abc', 1, 2)` compiles), with a test that a user is refused by full name, by
+  signature id and under eval; B1-R to prove the five routes run the rewritten node under `engine` (nothing re-resolves
+  it by name). (2) MongoDB's arm refuses SUBSTRING_AS_GIVEN (invariants 3 and 4: its `$substrCP` clamps, so "as given"
+  would be a fallback under a false name). (3) One edge class `EngineSubstitutes` (substring → substringAsGiven,
+  indexOf → sqlPosition, one `checked` path). B1's measurement: 11 relational dialects write the plain call; the same
+  arguments' `SUBSTRING` clamps on 10 of them (all but H2); H2 and DuckDB 72 of 72 equal to the database's own call.
