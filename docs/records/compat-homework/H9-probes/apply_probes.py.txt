@@ -1,0 +1,49 @@
+"""H9's probe patch (2026-11-19; the scratch branch claude/compat-b1-homework only, never merged). Run from the repository
+root: python3 -I apply_probes.py <probes dir>
+
+1. The raise census (the Operand's coverage): every RaiseText a dialect writes is noted by sql.dialect.RaiseCensus at
+   the renderer's three raiseMessage call sites, before the style's override words it.
+2. The G7 marker (0.4 (g)): legend-pure's sentence written in SQL for a computed-operand raise (the interim,
+   edge.PureMessages#sentence, reached only where PureMessages#wordable is false) is prefixed with the marker
+   "<<G7>>", so a net re-record moves exactly the lines whose observed words came from such a raise. A checked graph's
+   defect text (asData) and a user's fail are left as they are: neither is a raise of ours.
+"""
+import pathlib
+import shutil
+import sys
+
+probes = pathlib.Path(sys.argv[1])
+root = pathlib.Path(".")
+
+# 1. the census
+shutil.copy(probes / "RaiseCensus.java", root / "core/src/main/java/com/legend/sql/dialect/RaiseCensus.java")
+ansi = root / "core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java"
+s = ansi.read_text(encoding="utf-8")
+pairs = [
+    ("case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);",
+     "case SqlExpr.RaiseText r -> { RaiseCensus.note(getClass().getName(), r); yield writer.expr(raiseMessage(r), parentPrec); }"),
+    ("        args.set(0, raiseMessage(r));\n",
+     "        RaiseCensus.note(getClass().getName(), r);\n        args.set(0, raiseMessage(r));\n"),
+    ("        return List.of(raiseMessage(r));\n",
+     "        RaiseCensus.note(getClass().getName(), r);\n        return List.of(raiseMessage(r));\n"),
+]
+for old, new in pairs:
+    assert s.count(old) == 1, old
+    s = s.replace(old, new)
+ansi.write_text(s, encoding="utf-8")
+
+# 2. the marker
+pm = root / "core/src/main/java/com/legend/edge/PureMessages.java"
+s = pm.read_text(encoding="utf-8")
+old = "    public static SqlExpr sentence(SqlExpr.RaiseText r) {\n"
+assert s.count(old) == 1
+s = s.replace(old, """    public static SqlExpr sentence(SqlExpr.RaiseText r) {
+        SqlExpr words = sentenceUnmarked(r);
+        return r.asData() != null || r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? words
+                : cat(new SqlExpr.StringLit("<<G7>>"), words);
+    }
+
+    private static SqlExpr sentenceUnmarked(SqlExpr.RaiseText r) {
+""")
+pm.write_text(s, encoding="utf-8")
+print("probes applied")

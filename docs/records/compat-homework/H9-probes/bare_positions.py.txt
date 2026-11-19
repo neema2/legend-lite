@@ -1,0 +1,25 @@
+# H9's probe for slice 0.4 (f) (2026-11-19): H2's query-side spelling sites, upstream only (PCT and the corpus), by
+# class; the BARE ones listed with their snippet so each is classed by position (literal root, or nested) by reading.
+# Input: H2's tables (branch claude/compat-homework-h2, docs/records/compat-homework/H2-data/). Run:
+#   python3 -I bare_positions.py.txt <H2-data dir>
+import csv, collections, sys
+H = sys.argv[1]
+SPELL = {'toString', 'format', 'formatDate', 'char', 'toRepresentation', 'enumName', 'id', 'elementToPath', 'encrypt', 's'}
+STRING_ONLY = {'String', 'String,String'}   # identity prints: H2's "text-only toString/format" column, not counted
+bare, other = [], collections.Counter()
+for f in ["pct-comb.tsv", "corpus-comb.tsv"]:
+    for r in csv.DictReader(open(f"{H}/{f}"), delimiter="\t"):
+        if r['fn'] not in SPELL or r['class'] == 'HARNESS':
+            continue
+        if r['class'] == 'RETURNED-BARE':
+            if r['operandType'] not in STRING_ONLY:
+                bare.append(r)
+        elif r['class'] in ('FEEDS', 'RETURNED-COMPOSED') and r['operandType'] != 'String':
+            other[(r['class'], r['suite'], r['operandType'], r['program'].split('::')[-1])] += 1
+print(len(bare), "BARE sites (H2's 98)")
+for r in bare:
+    print("\t".join([r['suite'], r['fn'], r['operandType'], r['operandOrigin'], r['program'].split('::')[-1],
+                     r['snippet'][:200]]))
+print(sum(other.values()), "FEEDS and COMPOSED sites (H2's 14 and 8)")
+for k, v in sorted(other.items()):
+    print(v, *k, sep="\t")
