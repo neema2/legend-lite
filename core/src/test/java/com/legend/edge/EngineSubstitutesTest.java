@@ -49,15 +49,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code meta::legend::lite::substringAsGiven}, {@code SqlFn.SUBSTRING_AS_GIVEN}, and the {@code engine} rewrite's
  * substitute, {@link EngineSubstitutes}). Four claims, each with its partner:
  * <ul>
- *   <li>the substitute is the registry's function for the native's id, typed by the typer; each planted wrong callee
- *       or type is refused (D-S2 of the design's review);</li>
- *   <li>every dialect writes it as its plain call: no {@code GREATEST(..., 1)} and no raised literal start, where the
- *       same arguments under piece 1's {@code sqlSubstring} are clamped;</li>
+ *   <li>each substitute ({@code substring} to {@code substringAsGiven}, the 2-argument String {@code indexOf} to
+ *       {@code sqlPosition}) is the registry's function for its native's id, typed by the typer; each planted wrong
+ *       callee or type is refused, and so is a call no substitute stands for (D-S2 of the design's review);</li>
+ *   <li>every relational dialect writes it as its plain call: no {@code GREATEST(..., 1)} and no raised literal start,
+ *       where the same arguments under {@code SUBSTRING} are clamped; MongoDB, which has no SUBSTRING of its own,
+ *       refuses it by name;</li>
  *   <li>on the two databases the {@code engine} setting is measured on (H2, DuckDB), its answer to each of the
  *       batteries' {@code substring} rows ({@code tools/engine-runner/src/test/resources/batteries/
  *       substring_indexof.tsv}, {@code col.s01}-{@code s18} and {@code lit.s01}-{@code s18}) is the database's own
  *       SUBSTRING's, run directly as legend-engine writes it;</li>
- *   <li>the native is the census's: internal, not user-resolvable, its one lowering rule the SCALAR_RULE.</li>
+ *   <li>the native is internal and the compiler's own: a user's call by any name is refused.</li>
  * </ul>
  */
 class EngineSubstitutesTest {
@@ -65,8 +67,7 @@ class EngineSubstitutesTest {
     /** The battery's rows' subject: the trades seed's distinct desks, in a one-column table. */
     private static final List<String> DESKS = List.of("Credit", "Equity", "FX", "Rates");
 
-    /** The store, its connection's body {@code %s}, and the desks as the model's own data (a {@code ###Data} element:
-     *  the plan's load, no fixture write). */
+    /** The store and its connection, the connection's body {@code %s}. */
     private static final String STORE = String.join("\n",
             "###Relational",
             "Database t::DB ( Table DESKS ( DESK VARCHAR(32) PRIMARY KEY ) )",
@@ -74,16 +75,14 @@ class EngineSubstitutesTest {
             "RelationalDatabaseConnection t::Conn { store: t::DB; %s }",
             "###Runtime",
             "Runtime t::RT { mappings: []; connections: [ t::DB: [ c1: t::Conn ] ]; }",
-            "###Data",
-            "Data t::D",
-            "{",
-            "  Relational",
-            "  #{",
-            "    default.DESKS:",
-            "      'DESK\\n" + String.join("\\n", DESKS) + "\\n';",
-            "  }#",
-            "}",
             "");
+
+    /** A connection on {@code type} whose declared test data is the desks: the plan's load on the session it is given
+     *  (a LocalH2 specification's {@code testDataSetupCSV}, upstream's carrier of it), no fixture write. */
+    private static String withDesks(String type) {
+        return "type: " + type + "; specification: LocalH2 { testDataSetupCSV: 'default\\nDESKS\\nDESK\\n"
+                + String.join("\\n", DESKS) + "\\n'; }; auth: DefaultH2;";
+    }
 
     private static final String TABLE = "#>{t::DB.DESKS}#->sort(~DESK->ascending())";
 
@@ -308,16 +307,21 @@ class EngineSubstitutesTest {
         SqlExpr two = new SqlExpr.IntLit(2);
         List<String> clamped = new ArrayList<>();
         List<String> relational = new ArrayList<>();
+        int refused = 0;
         for (DatabaseType type : Databases.implemented()) {
-            String asGiven = render(type, SqlFn.SUBSTRING_AS_GIVEN, computed);
             String partner = render(type, SqlFn.SUBSTRING, computed);
             if (!Databases.dialect(type).relational()) {
-                // MongoDB has no SUBSTRING of its own: its arm writes lite's $substrCP translation, whose start is
-                // clamped in the pipeline ($max), for both functions alike -- so the label is not the database's own
-                // reading there. The engine setting is not enabled on it (refused by name, the design's section 2)
-                assertEquals(partner, asGiven, type.name());
+                // MongoDB has no SUBSTRING of its own (its SUBSTRING is lite's $substrCP translation, its start clamped
+                // in the pipeline), so it refuses the function by name rather than answer lite's reading under the
+                // "as given" name (the compat owner's ruling, 2026-11-19 ~21:12)
+                assertTrue(partner.contains("$substrCP"), type + ": " + partner);
+                com.legend.sql.DialectCapability e = assertThrows(com.legend.sql.DialectCapability.class,
+                        () -> render(type, SqlFn.SUBSTRING_AS_GIVEN, computed), type.name());
+                assertTrue(e.getMessage().contains("no SUBSTRING of its own"), e.getMessage());
+                refused++;
                 continue;
             }
+            String asGiven = render(type, SqlFn.SUBSTRING_AS_GIVEN, computed);
             relational.add(type.name());
             assertFalse(CLAMP.matcher(asGiven).find(), type + ": " + asGiven);
             // the plain call: where nothing rewrites SUBSTRING (a start of 2), the two write the same text -- but on
@@ -336,6 +340,7 @@ class EngineSubstitutesTest {
             }
         }
         assertEquals(11, relational.size(), relational.toString());
+        assertEquals(1, refused);
         // SubstringClamp's nine (BigQuery, ClickHouse, Databricks, DuckDB, MariaDB, Postgres, SQLite, Snowflake,
         // Trino) and MySQL, MariaDB's own chain; H2 reads a start below 1 itself
         assertEquals(10, clamped.size(), clamped.toString());
@@ -351,7 +356,7 @@ class EngineSubstitutesTest {
             if (!MEASURED.contains(b.type().name())) {
                 continue;
             }
-            String m = model(b.connectionBody());
+            String m = model(withDesks(b.type().name()));
             try (Connection c = b.open()) {
                 for (Row row : ROWS) {
                     for (boolean literal : new boolean[] {false, true}) {
@@ -362,7 +367,7 @@ class EngineSubstitutesTest {
                         for (List<Object> r : lite.rows()) {
                             liteAnswers.add(r.get(1) == null ? null : r.get(1).toString());
                         }
-                        // read after lite's run, whose plan loaded the model's data on this session
+                        // read after lite's run, whose plan loaded the declared test data on this session
                         List<String> direct = new ArrayList<>();
                         String sql = "SELECT substring(" + row.sql().replace("%s", sqlSubject)
                                 + ") FROM DESKS ORDER BY DESK";

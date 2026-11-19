@@ -1102,7 +1102,13 @@ public class MongoDb extends AnsiSqlRenderer {
             case LENGTH -> length(writer, a);
             case UPPER -> MongoJson.guardedOp(writer, "$toUpper", a);
             case LOWER -> MongoJson.guardedOp(writer, "$toLower", a);
-            case SUBSTRING, SUBSTRING_AS_GIVEN -> substring(writer, a);
+            case SUBSTRING -> substring(writer, a);
+            // the database's own SUBSTRING over the arguments as given (A3, the compat owner's ruling, 2026-11-19 ~21:12):
+            // MongoDB has none -- substring above is lite's $substrCP translation, whose start the pipeline clamps -- so
+            // writing it here would answer lite's reading under the "as given" name (AGENTS.md invariants 3 and 4)
+            case SUBSTRING_AS_GIVEN -> throw new DialectCapability("the database's own SUBSTRING over the arguments as"
+                    + " given reached MongoDb, which has no SUBSTRING of its own: its $substrCP form is lite's"
+                    + " translation, its start clamped");
             case STRPOS -> MongoJson.guarded(writer, a, MongoJson.text("{\"$add\": [{\"$indexOfCP\": [" + G0 + ", "
                     + G1 + "]}, 1]}"));
             case STARTS_WITH -> MongoJson.guarded(writer, a, MongoJson.text("{\"$eq\": [{\"$indexOfCP\": [" + G0
