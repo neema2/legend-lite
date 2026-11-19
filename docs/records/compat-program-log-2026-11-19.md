@@ -476,3 +476,23 @@ who confirms or changes phases 1-3.
   - **H11, a new session** (`session_0195rQEjVtMXfZdcaQdweUzf`, `claude/compat-relation-text-spike`): legend-pure's
     relation `toString` printed in Java over typed rows, judged by PCT channel B's relation suite with the SQL builder
     off. Record `H11-relation-text-spike.md`.
+- **~12:17 UTC, the judges session's shape note for 2.2a and 2.2b under CP-14 (iii)** (H6 §7, `491f6464`):
+  - **the end state:** ONE `edge.CompatJudge` handed in at the door (`ExecuteOptions` carries the judge), with three
+    product call sites: `TestDoor.java:141-155` through `testexecutionplan.Edge` (kept: records, effect, seed); the
+    per-assert entry through one claim (`EngineTestText`'s 13 methods become `claim(TextAsk)`); `TestRunner` through
+    `testexec.JudgeRun` and its `Hearing`;
+  - **`VerdictRecord`:** one record per today's 28 `HostWords` kinds, worded by two presenters;
+  - **the four door rewrites,** with exact inputs and outputs, run on the TYPED body through `TypedQuery.withBody`
+    (public): R-S137, R-S144, R-S131 typed, R-S15;
+  - **two cases the ruling did not cover:**
+    1. the JSON root array multiset (1 test per corpus lane). **This session's call:** a second whole-kind rule of
+       the edge judge (Json, as Rendered is). It is the same shape the ruling already allows, and loses no test;
+    2. R-S131 is weaker for flat cells of TDSes with 2 or more columns (at least 3 of DuckDB's 7 cell cases). H10
+       checks that no failing test turns into a pass; any case that would keeps the row-tuple compare in the edge
+       judge's own rule;
+  - `assertError` is the one place words decide a verdict: `Hearing.errorMatches` presents the raise record.
+- **~12:17 UTC, a register id collision,** caught by the product's hosts worker: PR #121 adds S371 and PR #122 adds
+  S371-S376. Proposed to the product orchestrator: #122 keeps its ids, #121's row becomes S377, and the `currentUser`
+  405 row S378. Awaiting its answer.
+- The hosts worker's re-owning plan for `currentUser` (a store-level `reown`, one native entry, run once under the
+  folder's lock with a marker file) matches the user's ruling.
