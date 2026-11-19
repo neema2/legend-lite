@@ -724,19 +724,18 @@ public final class Json {
      *  table was spelled three times, differing ONLY in hex case; it lived
      *  in protocol.Escapes until 2026-09-26, when JSON's own module took it. */
     public static void escapeTo(Appendable out, String s, boolean upperHex) throws IOException {
-        // the run that needs no escape (most of every text: no quote, backslash or control) appended whole, not a
-        // character at a time (the payoff measurement, 2026-11-01: a tenth of the JSON writer's time)
-        int plain = 0;
-        while (plain < s.length()) {
-            char c = s.charAt(plain);
-            if (c < 0x20 || c == '"' || c == '\\') {
-                break;
-            }
-            plain++;
-        }
-        out.append(s, 0, plain);
-        for (int i = plain; i < s.length(); i++) {
+        // each run that needs no escape (most of every text: no quote, backslash or control) appended whole, not a
+        // character at a time (the payoff measurement, 2026-11-01: a tenth of the JSON writer's time) -- every run, not
+        // the first alone (2026-11-19: a text went a character at a time past its first newline; a test plan's load
+        // bundle, a corpus fixture's statements, is written and read back by every body's round trip)
+        int run = 0;
+        for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
+            if (c >= 0x20 && c != '"' && c != '\\') {
+                continue;
+            }
+            out.append(s, run, i);
+            run = i + 1;
             switch (c) {
                 case '"' -> out.append("\\\"");
                 case '\\' -> out.append("\\\\");
@@ -746,19 +745,17 @@ public final class Json {
                 case '\b' -> out.append("\\b");
                 case '\f' -> out.append("\\f");
                 default -> {
-                    if (c < 0x20) {
-                        String hex = Integer.toHexString(c);
-                        out.append("\\u");
-                        for (int p = hex.length(); p < 4; p++) {
-                            out.append('0');
-                        }
-                        out.append(upperHex ? hex.toUpperCase(java.util.Locale.ROOT) : hex);
-                    } else {
-                        out.append(c);
+                    // a control character (c < 0x20): nothing else reaches here
+                    String hex = Integer.toHexString(c);
+                    out.append("\\u");
+                    for (int p = hex.length(); p < 4; p++) {
+                        out.append('0');
                     }
+                    out.append(upperHex ? hex.toUpperCase(java.util.Locale.ROOT) : hex);
                 }
             }
         }
+        out.append(s, run, s.length());
     }
 
     /** Reverse of {@link #escape} — decodes escape sequences in a JSON-string payload. */
@@ -918,11 +915,21 @@ public final class Json {
 
         String parseString() {
             expect('"');
-            StringBuilder out = new StringBuilder();
+            // each run of plain characters copied whole (2026-11-19, as escapeTo writes them), the builder made at the
+            // first escape: a string with none is its source's substring
+            StringBuilder out = null;
+            int run = pos;
             while (pos < src.length()) {
-                char c = src.charAt(pos++);
-                if (c == '"') return out.toString();
+                char c = src.charAt(pos);
+                if (c == '"') {
+                    String last = src.substring(run, pos++);
+                    return out == null ? last : out.append(last).toString();
+                }
                 if (c == '\\') {
+                    if (out == null) {
+                        out = new StringBuilder();
+                    }
+                    out.append(src, run, pos++);
                     if (pos >= src.length()) throw error("Bad escape at end of string");
                     char e = src.charAt(pos++);
                     switch (e) {
@@ -941,10 +948,12 @@ public final class Json {
                         }
                         default -> throw error("Invalid escape: \\" + e);
                     }
+                    run = pos;
                 } else if (c < 0x20) {
+                    pos++;
                     throw error("Unescaped control character in string: 0x" + Integer.toHexString(c));
                 } else {
-                    out.append(c);
+                    pos++;
                 }
             }
             throw error("Unterminated string");
