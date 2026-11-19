@@ -113,3 +113,14 @@ who confirms or changes phases 1-3.
   - **Relayed:** to the translator (findings 1 and 5, resolved calls, compile cost, the islands); to the judges (2, 3,
     the split, the referee's settings); to B2 ((j) with the corpus, (k), the Feature flags); to B1 (2, 1.4 to export,
     the critical path).
+- **~11:05 UTC, the independent review's full record** (`838e280c`; its "own view" section, written before it read the
+  plan, at `511ef632`). Findings F1-F13; 35 claims checked against `main`, 24 holding and 11 not or only in part (each
+  corrected in the plan: line numbers, `Appeals`' size, `DatabaseJudge` 852, `primaryKeyColumns`' two more users).
+  - **Folded into plan r7:** 2.3 split (2.3a, the engine-text printers, early; 2.3b, the executed shapes, after 2.2);
+    `toSQLString` for a database without a lite dialect refused by name; the appeal's "our rows" through the
+    translator (2.2b with 3.2); guards on the two judge interfaces and on 1.3's print analysis; saved artifacts carry
+    their meaning version (R4).
+  - **CP-13 for the checkpoint:** a smaller plan, deferring phase 5 and the LITE-host drift fixes (about 20 to 25
+    session-days).
+  - **The review's order of work:** the translator spike, PCT under LITE, the rulings CP-12 and plan structure, 2.3a,
+    2.2a, then the presenters. That is the order phase 0 and the checkpoint now follow.

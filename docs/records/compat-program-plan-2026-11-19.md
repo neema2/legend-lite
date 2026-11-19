@@ -1,6 +1,6 @@
 # The compatibility program: the re-cut plan (2026-11-19)
 
-**Status: r6, RATIFIED to start (phase 0) on 2026-11-19 ~10:45 UTC; phases 1-3 are confirmed at the phase-0 checkpoint. r6 folds in the independent review (`session_0195rQEnCA5MRQEk6iGfgDnb`, verdict: sound with changes).**
+**Status: r7, RATIFIED to start (phase 0) on 2026-11-19 ~10:45 UTC; phases 1-3 are confirmed at the phase-0 checkpoint. r6 and r7 fold in the independent review (`session_0195rQEnCA5MRQEk6iGfgDnb`, verdict: sound with changes; its record `docs/records/compat-independent-review-2026-11-19.md` on `claude/compat-review` at `838e280c`).**
 - **r1** (`71aa0fc7`) was reviewed by B1's lead (2026-11-19 ~04:08 UTC).
 - **r2** recorded the user's first rulings and revised CP-5.
 - **r3** folds in B1's review: the strand map corrected; the judges split before 1.3; 2.3 widened by the appeal stack and
@@ -87,7 +87,8 @@ The program is done when all six hold, each checked by a test that runs per push
    allowed seam: the test planner and the test runner each call the judge the door handed in through one narrow
    typed interface (planning, run), at exactly two call sites (`TestDoor`, `TestRunner`), which the SQL-text appeal
    needs. The planning interface writes into the test plan's typed extension point, so the plan stays data (the
-   2026-11-08 ruling). An ArchUnit rule forbids their return, and B1's
+   2026-11-08 ruling). The two call sites and the two interfaces' method sets are pinned, shrink-only, and the run
+   interface never receives a planning object. An ArchUnit rule forbids their return, and B1's
    `ModeBranchCensusTest` reads 0 and blocks.
 2. **No upstream meaning in the product.** The census (`MeaningCensusTest`) runs with `BLOCKING = true`. Its (a) and
    (p) counts are 0; every remaining hit is a (b) row citing the user's ruling.
@@ -568,7 +569,13 @@ precondition of 2.2a**, unless the user amends G2 ("the agreement judge on every
 - **Size:** 7.5 days: 2.2a about 4, 2.2b about 3.5.
 - **Depends on:** 2.1. **Owner:** the judges session.
 
-**2.3 Upstream's SQL text and shapes go, checked by answers** (rule 4, CP-4).
+**2.3 Upstream's SQL text and shapes go, checked by answers** (rule 4, CP-4). **Split in two** (the independent
+review):
+- **2.3a, early:** the engine-text printers alone (`EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`,
+  `EngineShape`, the plan-text family's SQL spellings, `RelationalRootForm.apply`). They are already measured by B2's
+  probe (152 tests moved, 3 answer differences), so 2.3a depends only on CP-4 and the appeal staying;
+- **2.3b, after 2.2:** the shapes that run in executed SQL (`existsJoin`, `whereZones`), the executed generated DDL and
+  `raw`.
 - **Changes:**
   - lite's own SQL everywhere an answer carries SQL text (`toSQLString`, `planToString`, `activities[].sql`,
     generatePlan's `sqlQuery`, the test-data generator's `sqls`);
@@ -579,6 +586,9 @@ precondition of 2.2a**, unless the user amends G2 ("the agreement judge on every
     is ALWAYS rows". The user, 2026-11-19 ~04:30 UTC: "one of the crown jewels of this project";
   - corpus tests whose appeal cannot decide (B2: a golden the referee cannot replay, lite's rows underivable there, a
     printed string compared with no appeal) form the listed "not promised" class: counted, never silently dropped;
+  - `toSQLString` for a database lite has no dialect for (DB2, Composite, Sybase, Oracle, SqlServer and the rest:
+    today `EngineStyleDB2` serves DB2 and Composite, and plan text refuses the rest, `edge/PureText.java:530-535`) is a
+    refusal by name, counted (B2 found 23 DB2 and Composite goldens among the declined appeals);
   - **statements a program EXECUTES are not text** (B1's review): `toDDL`'s create and drop texts
     (`edge/EnginePlans.java:958-995`) and `setUpDataSQLs` (`:754`, `:767`) are written for H2 whatever the target, and
     other targets run them through `PureText.raw`'s translation. They become target-aware lite DDL in this slice, and
@@ -588,7 +598,7 @@ precondition of 2.2a**, unless the user amends G2 ("the agreement judge on every
 - **Deletes:**
   - `EngineStyleH2` (2,507), `EngineStyleDB2` (365), `EngineStyleComposite` (79);
   - `RelationalRootForm.apply` alone (N-ROOTFORM). Its `primaryKeyColumns` is the product resolver's own key rule on
-    executed paths and stays;
+    executed paths (also `resolver/StoreResolver.java:3636`, `Substitution.java:1837`) and stays;
   - the SQL spellings of the plan-text family (`EnginePlans`, `PlanText`, `PlanEnumForm`, `InProtocol`,
     `PlanVariables`; its plan FORMAT stays as 1.4's presenter);
   - `EdgeLoweringForms.EngineShape` and with it the text-only halves of `LoweringForms.view`, `wireCast`,
@@ -654,6 +664,8 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
     upstream overload as H3 did (the independent review);
   - **a model compiles once per (audience, target):** what that costs the server's pure/v1 projects and the
     `HeldModels` caches is measured in the phase-0 spike;
+  - **the appeal's "our rows" come from the translated program,** or the appeal judges the wrong meaning. The appeal's
+    derivation is one of the translator's doors: a dependency between 2.2b and 3.2 (the independent review);
   - **upstream's flags are the translator's input,** never the core's: S130's `CORRECT_SQL_SUBSTRING_INDEXING`
     first;
   - **the target's settings are the translator's knowledge:** by default (CP-8) the edge's H2 runs H2's own settings,
@@ -670,6 +682,8 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
   - ArchUnit: the translator package reaches the planner only by `ArchitectureTest.PLANNER_ENTRIES_ONLY`'s public
     entries;
   - the translator evaluates nothing: no `values` arithmetic, rewrites only;
+  - 1.3's print-position analysis (carried or read) is a typed flow analysis: it reads types and computes nothing,
+    and its operation lists are pinned;
   - the compatibility library's Pure sources are edge resources, refused by the product loader
     (`LibraryPlatformNamespaceGuardTest`'s pattern).
 - **Size:** 3.5 days.
@@ -683,6 +697,9 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
   - the ENGINE translator rewrites both per target (H3's target-aware library);
   - the 15 corpus tests run through the model-level rewrite;
   - the core's tests that pin the old meaning move, listed;
+  - saved queries and cubes in deployed stores cannot be scanned from the repository, so a saved artifact carries
+    the meaning version it was written under, and an old `substring` is detected, not silently re-read (the
+    independent review);
   - the product's parity bug, DuckDB's `SubstringClamp` against H2's count-from-end (H3 item 4), is fixed in the
     core: a negative start raises, as Pure does.
 - **Deletes:** S130's flag path; `SubstringClamp`'s divergence.
@@ -1040,6 +1057,17 @@ Raised by the independent review: the plan contradicts itself here.
 - **Option B, fidelity:** where legend-engine's behaviour is its documented, tested meaning, copy it (with ordinary
   functions); answer Pure's way only for its outright defects. More translator work; more answers match legend-engine.
 - **Decided with task 0's numbers:** how many tests each strand loses (the translator session, phase 0).
+
+**CP-13. A smaller plan (the independent review's Q4): defer what removes no upstream meaning.** *For the phase-0
+checkpoint.*
+- **Defer phase 5** (export and import, 6.5 days). It is a new capability and removes no upstream meaning from the
+  core. But the user named it a goal on 2026-11-18 ("import upstream plans to run on our platform and export plans
+  from us to run in upstream"), so it is the user's call.
+- **Hand the LITE-host parts of 1.5 and 1.6 to the product track** (about 4 days): Python's lite `query/run` writer
+  and the other copies of lite's own rules are lite drift, not upstream. Keep HOSTS-9's store pilot (R11(a) put it in
+  this program), the CP-7 part, and 1.7.
+- **Shrink phase 3** under CP-12's strict reading, and 1.4 if plan structure is not promised.
+- **Together about 20 to 25 session-days**, without giving up done-when 1 to 3.
 
 **Held by the previous orchestrator:** R-a, a fractional cell under an Integer property (PR #121). Its ENGINE
 answer, when ruled, becomes a translator rewrite or a refusal in phase 3.
