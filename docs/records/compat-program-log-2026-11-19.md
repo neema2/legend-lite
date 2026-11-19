@@ -2785,3 +2785,10 @@ who confirms or changes phases 1-3.
   the proof met; 3316 on the merged tree answers its batch note; the two gaps rightly loud refusals for the product
   track. The ~21:12 rulings consistent with the design, on one condition passed to B1: `native-claims.tsv` names the
   door's class `EngineSubstitutes` as `substringAsGiven`'s producer.
+- **~21:15 UTC, the judges: the batch branch pushed** (`claude/compat-a4-host-only` at `5ab730cd`): before A3, 46
+  targets pass (the core set, the edge set, spec, both corpus gates with the rosters and the six accepted rows,
+  pct_channel_b, parser_equivalence); then merged the memo `6c4509e0c` (no conflicts) and the detector `337e66ade` (one
+  conflict, the parser ratchet's history, both lines kept). **own_corpus.matched on the merged tree: 3314**, measured
+  (3310 − 1 for A2's corrected DOWN + 2 + 3 for A3; B1-R's 3316 assumed A2's uncorrected +1); checked here against main
+  and the detector's lines; the reviewer told. A3's fast loop running on the merged tree; the full measurement waits for
+  the last pieces.
