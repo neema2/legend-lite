@@ -2098,3 +2098,8 @@ who confirms or changes phases 1-3.
   Notes, sent to the CI-health worker to fold in: a plant for the hold memo's eviction at `_HELD_KEPT=2`; the memory cost
   in the body (up to 2 extra compiled copies of a large model per host); named as a product change in lite's Python
   package (the tab and the server get no memos: a speed difference, never an answer difference).
+- **~17:37 UTC, #126's notes folded** (head `684f923b4`, an ordinary commit): the eviction plant
+  `ModelTexts.test_a_third_model_held_lets_the_oldest_go` (fails with the eviction broken, passes as written); the memory
+  cost in the body, corrected: not 2 extra copies, since the native `HeldStore` keeps one compiled model per text shared
+  by every holder (`HeldStoreTest.builtOncePerKeyWhileHeld`), so up to 2 large models per host stay compiled after
+  DataCube's code lets them go; the body names it a product change. #126's new CI run will 404 on H2 until #125 lands.
