@@ -2647,3 +2647,17 @@ who confirms or changes phases 1-3.
   `main`: the same 45 testcases and outcomes; 22 of 23 outputs byte-identical (the 23rd an unasserted diagnostic); both
   plants fail the same testcases with identical messages. It pushes and sends the reviewer the proof once the push is
   allowed.
+- **~20:40 UTC, A5: #127's CI finished:** 54 of 55 lane checks green (Linux 16/16, Windows 16/16, arm 1/1, macOS
+  15/16); the one red macOS `parser_equivalence`, `parser_parity` timing out at 901.3 s, no assertion failing (the
+  memo fixes it). A5 done until the batch closes #127.
+- **~20:40 UTC, B1-R: the `engine` rewrite's design note** (`compat-homework/A3-engine-rewrite-design.md` on
+  `claude/compat-a3-detector`). (1) **One new native, the database's own SUBSTRING as given**
+  (`SqlFn.SUBSTRING_AS_GIVEN`, untouched by `SubstringClamp`): legend-engine's uncorrected `substring` is
+  `processDynaFunction('substring', ...)` with the arguments as given (`pureToSQLQuery.pure:4658-4664`), and H2, DuckDB,
+  Postgres and Snowflake each write the plain call; H5's library and the clamped swap rejected; `indexOf` reuses piece
+  1's `sqlPosition`. (2) H2 and DuckDB first, one `ENGINE_FACTS` line in `PureText` (the literal-0 table folded in, the
+  pin stays 2); others refused by name. (3) Helpers rewritten after the inliner through the public API
+  (`UserCallInliner.inlineBody`, replace by position, `withBody`): no clones, no rebuilt model, byte-identical SQL on
+  four probes. (4) M2M chain transforms and `~func` mappings refused by name (reached only in phase H). (5) No error can
+  name the substitute. (6) The batteries pinned under `engine` per database. (7) About 2.5 days: B1 the core native (~1
+  day) in parallel with B1-R's edge rewrite (~1.5). Sent to the reviewer; B1 briefed to read and wait.
