@@ -71,7 +71,7 @@ pure/v1 net has 28 golden lines (14 requests, each also as its plan). PCT: §Tas
 | `isNumeric` (S370, `EdgeLoweringForms.isNumeric`) | 0 | 0 | 0 | **Pure is silent** (a `###Relational` dynaFunction only, `sqlDialectDefaults.pure:973`) | its real (and only) meaning, `lower(s) = upper(s)` |
 | `parseDecimal`, one argument (S365) | **-2** | **-2** | 0 | **departs**: legend-pure parses exactly (`CoreHelper.parseDecimal`, a `BigDecimal`) | **defect**: a hard-coded `DECIMAL(5, 2)` that rounds and overflows (`h2Extension2_1_214.pure:474-479`) |
 | `parseJson`'s `}{` tolerance (S366) | **+1** | **-1** | 0 | Pure is silent on JSON leniency; the text is not JSON | **defect** (lenient parse); and lite's edge form of it is itself broken on H2 (`REGEXP_REPLACE` flag `'g'`: "Invalid value g") |
-| SQLite Decimal as REAL (`refusesDecimalArithmetic`) | n/a | n/a | n/a | **departs**: a Decimal is exact | not legend-engine's (it has no SQLite): lite's own ruling (c) for the PURE audience; PCT SQLite below |
+| SQLite Decimal as REAL (`refusesDecimalArithmetic`) | n/a | n/a | n/a | **departs**: a Decimal is exact | not legend-engine's (it has no SQLite): lite's own ruling (c) for the PURE audience; PCT SQLite **-5** (below) |
 | `PureText.raw` (legend-engine's H2 `executeInDb` text translated) | n/a (H2 runs it as written) | **-2,452: the whole lane** (every setup's H2 text fails) | 0 | Pure is silent (SQL text, an input) | neither: **input acceptance**. legend-engine runs its corpus on H2 only; the translation exists so lite can run that corpus on DuckDB |
 | `LEGACY_SQL_NULL_UNSAFE_EQUALS` (a Feature flag, the Lowerer's) | -1 | -1 | 0 | **departs** (Pure's `==` is null-safe) | its real legacy meaning, opt-in by flag; the 1 test asserts PLAN TEXT ("expected plain equals in plan"), CP-4: no answer moved |
 | `DatabaseSettingsForm` (H2 `MODE=LEGACY`, `DEFAULT_NULL_ORDERING=HIGH`) | -1 | n/a | 0 | Pure is silent (database settings) | legend-engine's database config (CP-8: not emulated); the 1 test compares a BOOLEAN with `1`, which only LEGACY allows |
@@ -83,7 +83,18 @@ parsedJson 2,282). V8 (every strand off but `raw`) DuckDB 2,439 / 121 against 2,
 parseDecimal 2, nullunsafe 1). V7 DuckDB with `raw` off too: 0 / 2,613 (`setup failed: ... createTablesAndFillDb()`).
 pure/v1 with every strand off: 8 lines move (4 requests and their plans), of which 1 request in answer.
 
-**What it says, before PCT:**
+**PCT** (channel A as it runs today: the PURE audience, judged against PCT's expected values; the ENGINE lane, judged
+against legend-engine's manifests, is B1-R's and does not exist yet). `bazel test --test_env=H5_OFF=none|all` over the
+5 DuckDB suites, H2's relation suite and the 5 SQLite suites (`h5/pct/`):
+
+| strand | PCT DuckDB (5 suites, 345 essential) | PCT H2 (relation) | PCT SQLite (5 suites) |
+|---|---|---|---|
+| `substring`/`indexOf` (the core change, strands on) | **+3**: S134's 3 `indexOf` known failures now pass (PCT's expected values; the runner reports them as "expected an error but the test succeeded": ledger rows to move with the user's word) | 0 | **+3**, the same 3 |
+| every other strand off | 0 | 0 | **-5**: `refusesDecimalArithmetic` off, so `testRemWithDecimals`, `testDecimalTimes`, `testDecimalDivide`, `testDecimalPlus`, `testDecimalMinus` are refused by name ("a Decimal's arithmetic ... reached SQLite, which holds no exact decimal: refused, never approximated") |
+
+S20, `isNumeric`, `parseDecimal`, `parseJson` and the settings move no PCT test on any of these lanes.
+
+**What it says:**
 - **Beyond `substring`/`indexOf`, no strand loses more than 2 corpus tests on a lane, and two strands WIN tests when
   turned off** (S20 on H2, `parsedJson` on H2). The answer losses all come from legend-engine departing from Pure's own
   definition (`parseDecimal`'s `DECIMAL(5, 2)`, the unchecked `sqrt`) or from its database settings (CP-8).
@@ -110,8 +121,9 @@ meaning. Each is a single ordinary-function rewrite (`parseDecimal($s, 5, 2)` on
 `if($x < 0, |[], |sqrt($x))`), and each wins at most 2 corpus tests or 1 pure/v1 request (the table above).
 
 **The answer to the user's question:** no, lots of other things do not break. With no translator at all, beyond
-`substring`/`indexOf` (-4 per lane), the corpus nets -1 on H2 (-4, +3) and -4 on DuckDB, and pure/v1 loses 1 request
-(`sqrt` of a negative). Every one of those losses is legend-engine departing from Pure's own definition or its database
+`substring`/`indexOf` (-4 per lane), the corpus nets -1 on H2 (-4, +3) and -4 on DuckDB, pure/v1 loses 1 request
+(`sqrt` of a negative), PCT DuckDB and H2 lose nothing (and gain 3 from `indexOf`), and PCT SQLite loses the 5
+Decimal-arithmetic tests ruling (c) answers with REAL today. Every one of those losses is legend-engine departing from Pure's own definition or its database
 settings. The one large dependency, `PureText.raw` (the whole DuckDB lane), is input acceptance for legend-engine's
 H2-written corpus, not a program meaning, and belongs with the corpus harness or 2.3's target-aware DDL.
 

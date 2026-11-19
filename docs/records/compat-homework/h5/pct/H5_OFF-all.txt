@@ -1,0 +1,33 @@
+//pct:pct_duckdb_grammar                                                 PASSED in 38.8s
+//pct:pct_duckdb_relation                                                PASSED in 73.4s
+//pct:pct_duckdb_standard                                                PASSED in 41.3s
+//pct:pct_duckdb_unclassified                                            PASSED in 29.8s
+//pct:pct_h2                                                             PASSED in 66.5s
+//pct:pct_sqlite_relation                                                PASSED in 42.9s
+//pct:pct_sqlite_standard                                                PASSED in 38.7s
+//pct:pct_sqlite_unclassified                                            PASSED in 23.0s
+//pct:pct_duckdb_essential                                               FAILED in 43.2s
+//pct:pct_sqlite_essential                                               FAILED in 33.4s
+//pct:pct_sqlite_grammar                                                 FAILED in 32.9s
+# pct_duckdb_essential.xml tests 345 failed 3
+FAIL testFromIndex :: The PCT test runner expected an error containing: "" expected: 1 actual:   2"" but the test succeeded!
+FAIL testSimple :: The PCT test runner expected an error containing: "" expected: 4 actual:   5"" but the test succeeded!
+FAIL testIndexOfOneElement :: The PCT test runner expected an error containing: "" expected: 0 actual:   1"" but the test succeeded!
+# pct_duckdb_grammar.xml tests 137 failed 0
+# pct_duckdb_relation.xml tests 469 failed 0
+# pct_duckdb_standard.xml tests 205 failed 0
+# pct_duckdb_unclassified.xml tests 93 failed 0
+# pct_h2.xml tests 469 failed 0
+# pct_sqlite_essential.xml tests 345 failed 4
+FAIL testFromIndex :: The PCT test runner expected an error containing: "" expected: 1 actual:   2"" but the test succeeded!
+FAIL testIndexOfOneElement :: The PCT test runner expected an error containing: "" expected: 0 actual:   1"" but the test succeeded!
+FAIL testRemWithDecimals :: a Decimal's arithmetic (REM) reached SQLite, which holds no exact decimal (a decimal is a REAL there): refused, never approximated
+FAIL testSimple :: The PCT test runner expected an error containing: "" expected: 4 actual:   5"" but the test succeeded!
+# pct_sqlite_grammar.xml tests 137 failed 4
+FAIL testDecimalTimes :: a Decimal's arithmetic (TIMES) reached SQLite, which holds no exact decimal (a decimal is a REAL there): refused, never approximated
+FAIL testDecimalDivide :: a Decimal's arithmetic (DIVIDE) reached SQLite, which holds no exact decimal (a decimal is a REAL there): refused, never approximated
+FAIL testDecimalPlus :: a Decimal's arithmetic (PLUS) reached SQLite, which holds no exact decimal (a decimal is a REAL there): refused, never approximated
+FAIL testDecimalMinus :: a Decimal's arithmetic (MINUS) reached SQLite, which holds no exact decimal (a decimal is a REAL there): refused, never approximated
+# pct_sqlite_relation.xml tests 469 failed 0
+# pct_sqlite_standard.xml tests 205 failed 0
+# pct_sqlite_unclassified.xml tests 93 failed 0
