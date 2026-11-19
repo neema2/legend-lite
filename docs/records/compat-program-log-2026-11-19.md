@@ -1990,3 +1990,10 @@ who confirms or changes phases 1-3.
   only has CI change yes push PR and go"), branch `claude/compat-ci-maven-mirror`, head `ca523848d` = `main` +
   `f183b784a`: `.bazelrc`'s `common:ci` lines, `tools/ci/downloader.cfg` and its export. It watches CI per OS and reports
   any remaining 404 or 429; no merge. The independent reviewer reviews it before it goes to the user.
+- **~17:07 UTC, the reviewer on PR #125 (`ca523848d`): CODE APPROVED;** CI pending (run 44573295984 from 17:05).
+  CI-only (3 files, 20 lines, all under `common:ci`; the gate jobs pass `--config=ci`; desks and cloud sessions
+  unchanged; no pin, lock, MODULE or version moves). The sha256 checks unchanged for every fetch (all 16 `jars_table`
+  entries pinned; all six `rules_jvm_external` pools locked with a sha per file and `fail_if_repin_required`;
+  `tools/postgres/postgres.bzl`'s fetch integrity-pinned too). It rewrites only repo1.maven.org/maven2, Central first;
+  nothing can change what a build fetches beyond the URL. Nits: the export's visibility; the experimental retries flag
+  (the run proves it parses on every OS); name `postgres.bzl` in the body. The 404 answer when CI completes.
