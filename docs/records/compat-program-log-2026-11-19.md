@@ -1567,3 +1567,23 @@ who confirms or changes phases 1-3.
   midnight rule (`RelationTextLowering.timed`) is not upstream's; nothing measured depends on it. **For the plan:** the
   `Printed` judgment kind must cover `assertSameElements` (already written in); with it strict equals hybrid. Moves for
   the real slice: H2 corpus fail roster -3, unordered register +1, PCT H2 ledger -4 rows; DuckDB none. H11 is done.
+- **~14:12 UTC, the translator's A3 note, revision 2** (`b0ffb80d`; evidence in `a3/`). **PRs 2; about 6 to 6.5 days**
+  (PR1 1.5; PR2 4.5 to 5: the switch and guard moves 0.75, the raise 0.5 to 1, the PCT adapter's option off 0.25,
+  the detector on 5 routes with the mapping reach 1.5, the report 1.5); the cross-kind fix gates PR2, unsized. Lite
+  tests: 16 of the 17 move (the IQ showcase unchanged under option (a)). **Corpus, A3 after A2, MEASURED:** run Y (A2
+  alone) reproduces B2's 423 and 260; run X (A2 + A3) gives 430 and 267: each fail roster +7, the same 7 on both
+  (`testToSQLStringSubstringIsUncorrectedByDefault`, `testFilterUsing{Substring,ParseInteger,ParseDecimal}Function`,
+  `testPlanForDateTimeConstantParameter{No,GMT,EST}TimeZone`), each unordered register -3, the skipped and engine-order
+  registers unmoved. With the cross-kind fix the DuckDB roster is the same 7 (`testPlanForDateTimeVariableESTTimeZone`
+  already fails under A2). **Detector:** 5 routes (generatePlan, execute with Arrow, the three test-data routes); the
+  header at most 4 codes with counts; **H2's literal 0 measured** on 2.1.214 and 2.5.252, regular and legacy: start 0
+  reads as 1, equal to legend-pure wherever legend-pure answers, so exempt both forms; DuckDB's 3-argument form differs,
+  its 2-argument `substring(s, 0)` is equal (exempt too: this session's call, within §4a's rule). **Reach:** qualified
+  properties already covered (`Typer.java:555-592`); added the runtime's mapping (M2M transforms, association and
+  constraint bodies, via public entries); `###Relational` property mappings call PR1's natives, never flagged.
+  **The load-time report:** at the edge; once per model hash (LRU 1,024), on a background thread; triggered by Studio's
+  compile, the first query per model, or `POST /api/compat/v1/pure-meaning`; every lifted body pre-filtered by name,
+  and the one store's saved queries; a bounded log block and `GET /api/compat/v1/pure-meaning`; about 4 s on the corpus
+  world (8 s when compile triggers it), listing 48 calls (16 `indexOf/2`, 4 `substring/2`, 28 `substring/3`) and 83
+  unverified bodies; 7 tests; about 1.5 days. **A tenet to post:** it is eager G, once per model, as compile already is;
+  put to the user with the detector default (14:45). New core hooks 0.
