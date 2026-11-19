@@ -1155,3 +1155,28 @@ there are none. Drop them.
   - the two new pins.
 
   The `EdgeOnlyDataTest` census answer is D-S1's.
+
+### Addendum: the owner's two questions on the native (B1's), and a correction to my D-S1
+**1. Internal, not LITE_SURFACE: agreed.** `meta::legend::lite::substringAsGiven` stays lite-internal (not
+user-resolvable). Lite follows Pure: a user-callable function whose answer is "whatever this database's SUBSTRING
+does" would make lite's own programs answer differently per database. That is against G10 and the product's one
+meaning. Its only producer is the door's `engine` rewrite.
+
+**2. Where to record "only the door produces it" (this corrects my D-S1, which pointed at `EdgeOnlyDataTest`):**
+- **`EdgeOnlyDataTest` cannot hold it.** The test is exact: `assertEquals(new TreeSet<>(OPEN.keySet()), found)`. And
+  `found` holds only pieces with no real product use. `Scalars` (product) naming `SqlFn.SUBSTRING_AS_GIVEN` is a real
+  use by that test's own definition ("a constant is NAMED by product code"). So an `OPEN` entry for it would fail the
+  guard.
+- **`SqlFnSortedTest`: PRODUCT +1, as B1 expects.** The sort is measured by writers. `Scalars` writes it, and EDGE_ONLY
+  there means "the product's dialects refuse it by name", the opposite of this design, where every dialect renders it.
+  It takes a dated note, for the user's word.
+- **Not `ENGINE_VOCAB_SHIMS`.** That set is derived-verified equal to the dynaFunction SHIM rows (`DynaFnRegistryTest`),
+  and `substringAsGiven` is not a dynaFunction name.
+- **The honest record is where producers are counted:**
+  - `native-claims.tsv`, whose row names its claimers: the edge's rewrite and `Scalars`;
+  - `INTERNAL_DESUGAR` +1 on its ceiling (41 after piece 1), for the user's word. Its comment is amended from "emitted
+    by lite's normalizer/lowering" to add "or, for `substringAsGiven` alone, by the legend-engine door's `engine`
+    rewrite", with a dated note. Piece 1's `sqlSubstring` and `sqlPosition` set the precedent for the category.
+- **To hold it mechanically to that one producer** (no product class ever constructing a call to it), a new pin is
+  needed: for example, the native-claims row asserted to have no product claimer but `Scalars`. That is the user's
+  word, and optional.
