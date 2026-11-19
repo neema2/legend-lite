@@ -245,7 +245,7 @@ have a position legend-pure's sentence prints that can be computed:
 | Kind | Position at risk | Note |
 |---|---|---|
 | `DIVIDE_BY_ZERO` | the dividend (either) | `rem` and `quotient` only; `Integer / Integer` has no operand |
-| `DATE_PART_ABSENT` | the date (either) | the raise is written only when planning KNOWS the date's precision, so the date is a literal in practice, wrapped in a cast |
+| `DATE_PART_ABSENT` | the date (either) | the raise is written when planning knows the date's precision: a date literal (wrapped in a cast), a `date(...)` constructor call, or a `StrictDate` column asked for a time part. The last two are truly computed |
 | `INDEX_OUT_OF_BOUNDS` | the offset (either), the size (always computed) | the size is `LIST_LENGTH(...)` |
 | `SQRT_OF_NEGATIVE` | the value (always computed) | always `Cast(argument, DOUBLE)` |
 | `SIZE_NOT_MULTIPLICITY` | the size (always computed), in the 2-operand form | `toOne` over a relation or a list; a row count |
@@ -267,3 +267,58 @@ have a position legend-pure's sentence prints that can be computed:
    (`Scalars.java:2146`). It is lite's own sentence, but it is a planner-internal spelling in a message.
 4. **Six raises are not a `RaiseText` at all** (`VerdictSql.java:1915`, `CanonicalRenderSql.java:668`, four in
    `MongoDb.java`). They make no site and carry no operands; `RaiseTextGuardTest` exempts them.
+
+## 8. Planning failures, as prototyped
+
+**Today (`main`).** `PlanStyle.errorWords(e)` has ONE product call site: `testplan/AssertErrorNative.caught`. It asks
+the plan's style to word an error that `assertError`'s function raised while it was PLANNED, and stores the words in
+the test plan (`Failure.message`). The edge's answer is `PureMessages.compile(e)`, which finds the kinded error in
+the exception's cause chain and splices upstream's sentence into lite's message by string position
+(`message.lastIndexOf(own)`). pure/v1's routes call `PureMessages.compile` directly, on the live exception, at the
+edge's own door. No plan is involved there.
+
+**The prototype.**
+
+- `Failure` (the test plan's record of a planned error) gains `Compile compile`:
+  `(prefix, kind, operands, position, suffix)`. `kind` is lite's `CompileKind`. `prefix` and `suffix` are LITE'S
+  WRAPPER around the kinded sentence, as data: `"in function 'f': "` before (the body compiler,
+  `SpecCompiler.java:109`) and `" [inlined via a -> b]"` after (the inliner, `UserCallInliner.java:604`).
+- `Failure.message` is always lite's own message. The record checks that
+  `prefix + [position + " "] + kind.sentence(operands) + suffix` spells it exactly, so the data cannot drift from
+  the words.
+- The product builds the record (`Failures.compileOf(Throwable)`). The edge words it:
+  `PureMessages.planned(record) = prefix + upstream(kind, operands, position) + suffix`.
+- **No new hook.** At the verdict's turn the run rebuilds the planned exception as it always did
+  (`Failures.raised`), now with the record riding it as its cause, and words it through the EXISTING
+  `HostWords.caught(RuntimeException)`. Lite's words say the message. The edge's words read the record.
+- `PureMessages.compile(Throwable)` (pure/v1's routes) now reads the same record from the live exception, so the
+  splice by position exists in one place, in the product, and the edge only words data.
+- **Deleted:** `PlanStyle.errorWords` and its three implementations.
+- The test plan's JSON writes `compile` only where a failure has one (test plan v34 in the real slice).
+
+**What the spike did NOT do, and the real slice should:** the wrapper is still FOUND by position, now in the
+product (`Failures.compileOf`). The two wrapping sites should state their own texts (a wrapping exception that
+holds its prefix or suffix), so nothing is searched. That is 2 throw sites and one small exception field.
+
+**A dependency found here: the compatibility DATABASE judge.** Under it, a planned failure's message is planted as a
+literal in the verdict statement at PLANNING (`testplan/DatabaseAsserts.java:387`,
+`VerdictSql.Raised.raised(caught.message())`), and the database compares it with the expected message. With lite's
+sentence in `Failure.message`, that literal is lite's sentence, and an `assertError` expecting legend-pure's words
+fails under the compatibility database judge wherever the two differ. So **deleting `PlanStyle.errorWords` needs
+slice 2.2 (C4: the compatibility database judge deleted) first, or the host judge only.** Run-time raises are not
+affected: the host catches the raise, words it after the run and binds the words.
+
+**The test plan's other planned words (not prototyped; they are in slice 1.2's list, not in this spike's):**
+
+| Field | Holds | To become data |
+|---|---|---|
+| `SideShape.sizeWords` | under the edge, legend-pure's `Cannot cast a collection of size 0 to multiplicity [1]`; raised as it is by `testexec/SideShapes.java:262` | the bound is already in the record (`SideShape.multiplicity`). The run would raise a typed refusal and the run's words would word it |
+| `TestPlan.answerSizeWords` | the same sentence for the body's answer | the same |
+| `TestPlan.words` | a NAME (`lite` or `legend-pure`): which words the plan's failures were planned in | goes when no words are planned |
+
+- These are planned through the facet member `EngineTestText.sizeWords` and `EngineTextGates.sizeWords`, both of
+  which would be deleted.
+- **Wording them after the run needs one new member on the existing `HostWords` interface** (the run's word hook,
+  census J29), for example `noRows(multiplicity)`. No existing member says this sentence. That is a widening of an
+  existing hook's surface, not a new hook, and it deletes a facet member in exchange. **It is a question for the
+  orchestrator before it is built.**
