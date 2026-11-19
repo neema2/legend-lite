@@ -2714,3 +2714,7 @@ who confirms or changes phases 1-3.
 - **~20:47 UTC, the parser memo pushed** (on the user's word in the CI-health session, "Push parser test speed up"):
   `claude/compat-parser-parity-memo` at `37ef44ff0`, sent to the reviewer; it merges into the batch plainly (no file
   in common with #124).
+- **~20:48 UTC, the reviewer: the parser memo APPROVED** (record `b029e84e`): assertions, cases and plants unchanged;
+  only immutable Strings held; the heap no CI risk (soft references cleared before an OutOfMemoryError; live peak 827
+  MB); no size, timeout, shard or guard change. Should-fix: never memoize a VirtualMachineError. Sent to the CI-health
+  worker.
