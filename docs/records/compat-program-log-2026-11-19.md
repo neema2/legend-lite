@@ -2125,3 +2125,9 @@ who confirms or changes phases 1-3.
   into #124's branch (ordinary merges), close #123, #125, #126 pointing at #124, one CI run, the reviewer checks the
   combination, one merge word; later stage-A PRs stacked the same way. Waiting for the user's go. H14 started D1 (first
   count in about 10 minutes).
+- **~17:42 UTC, H14 D1** (on V2: an abstract Date in a timestamp slot printed by lite's own `DATETIME_TO_TEXT`, in
+  `Scalars.pureToString`, a table cell and a scalar alike). PCT's 423: DuckDB 390 (as V2), SQLite 379, Postgres 388, H2
+  relation 300 of 365. The 33 Date tests still fail, now on spelling alone (PCT `2000-10-25T06:30:00.000+0000`, lite
+  `2000-10-25T06:30:00.000000Z`), and **one text on every database** (each failing test's whole text identical to
+  DuckDB's on H2 30/30, SQLite 33/33, Postgres 33/33; each database's own cast gone). DuckDB's five suites otherwise
+  unchanged. D2 next.
