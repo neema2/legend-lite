@@ -94,8 +94,13 @@ class FixtureWriteCensusTest {
      *  E's side's one (CatalogModelTest) and main's twenty-five, joined. 925, 947 -> 950 (2026-11-14, merged main
      *  3a217086a (#81) into the separation stream, measured by the census's run on the merged tree): both sides' moves
      *  together. 948/950 -> 951 (2026-11-15, merged main cf865632c (#101) into claude/total-wall-e, measured by the
-     *  census's run on the merged tree): E's 948 and C4's three (950 - 947), joined. */
-    private static final int CEILING = 951;
+     *  census's run on the merged tree): E's 948 and C4's three (950 - 947), joined. 951 -> 957 (2026-11-19, track Q2,
+     *  approved by the orchestrator under the user's delegation of small explained pin steps): the warehouse JDBC
+     *  driver's parameter tests (WarehouseJdbcParametersTest, 6), whose writes are the subject -- a bound value never
+     *  spliced, a prepared write's update count, a described INSERT that runs nothing, exec's read_csv load -- in a
+     *  module that does not depend on core and so cannot say them as a model's load; cut from 15 to 6 before pinning
+     *  (one setup script for its tables, the refusals proven by reads). */
+    private static final int CEILING = 957;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -243,6 +248,9 @@ class FixtureWriteCensusTest {
             Map.entry("spec/src/test/java/com/legend/harness/ReplayReferee.java", 7),
             Map.entry("testing/src/main/java/com/legend/testing/EmbeddedPostgres.java", 1),
             Map.entry("warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java", 12),
+            // 2026-11-19, track Q2 (the orchestrator's approval): the driver's parameter tests, their writes the subject
+            // (the ceiling's note)
+            Map.entry("warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcParametersTest.java", 6),
             // 2026-11-13, main's #95 merged into the timeseries branch: the branch's own fixtures (the ceiling's note)
             Map.entry("core/src/test/java/com/legend/integration/TimeseriesLibraryTest.java", 2),
             Map.entry("core/src/test/java/com/legend/integration/TsAdversarialTest.java", 1),
