@@ -2533,3 +2533,12 @@ who confirms or changes phases 1-3.
   **A product-track finding:** lite's H2 still writes `extract(WEEK ...)` and `DATEDIFF(WEEK, ...)`, which follow the
   JVM locale (week 49 under en_US, 48 under en_GB): `weekOfYear` and a WEEKS duration answer differently by machine,
   a G10 gap; A5 fixed only the truncation.
+- **~19:58 UTC, the reviewer: A3 piece 4 APPROVED at `5b337b867`** (record `ce90f3df`). firstDayOfWeek's correction
+  read at the pin and holds; the referee's Sunday is stable because every test JVM pins en_US
+  (`tools/junit/defs.bzl:53-54` and the corpus targets); S386 and S387's rulings are the user's words in GATES.md (batch
+  67b, 2026-09-05; batch 144, 2026-09-08, "i agree with all 11"). Outstanding: legend-pure's `x / 0`, read by the
+  reviewer: compiled legend-pure raises "Cannot divide <right> by zero" (`CompiledSupport.divide:1481-1486`);
+  interpreted, a Float or Decimal operand raises BigDecimal's ArithmeticException, an Integer over an Integer 0 answers
+  Infinity. Conditions at the batch: the merged H2 lane settles item 2's H2 figures and S380; the user's word on the
+  PROPOSED rows (S130, S134, S380, S382-S385). The H2 week-locale defect needs an owner and a record: added to the
+  page's Gaps for the product track. Sent to B2 for one last commit, then its push on the user's word.
