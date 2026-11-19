@@ -373,13 +373,13 @@ public final class PureMeaningCheck {
             }
         }
 
-        /** A literal start of 0, where it is measured equal to Pure's answer: H2 both forms, DuckDB the 2-argument
-         *  form alone (a3/h2-literal-zero.tsv, a3/duckdb-literal-zero.tsv). Any other target is not measured. */
+        /** A literal start of 0, where legend-engine's answer is measured equal to Pure's on the target: the edge's
+         *  registry holds the measured table, per database and arity ({@link PureText#zeroStartAnswersAsPure}). */
         boolean zeroStartExempt(TypedNativeCall nc, int arity) {
             if (!(nc.args().get(1) instanceof TypedCInteger start) || start.value().longValue() != 0) {
                 return false;
             }
-            return target == DatabaseType.H2 || (target == DatabaseType.DuckDB && arity == 2);
+            return PureText.zeroStartAnswersAsPure(target, arity);
         }
 
         /** A user function's body (or a lifted one: a qualified property, a class mapping), once per corrected

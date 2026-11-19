@@ -126,7 +126,11 @@ public final class PeRatchets {
                     + " the reference grammar, measured by //parser-equivalence:update_ratchets on its tree (D's d-int18 measures"
                     + " 3302); a floor rising, UP)",
             "own_corpus.matched 3309 -> 3310 (2026-11-18, PR #118 fix round: one more own-corpus model, added by the"
-                    + " batch's tests, matches the reference grammar; UP)");
+                    + " batch's tests, matches the reference grammar; UP)",
+            "own_corpus.matched 3310 -> 3312 (2026-11-19, A3 piece 3 (the detector), ruled by the user 2026-11-19 ~20:10"
+                    + " ('Yes', to the owner's question on these three moves): PureMeaningCheckTest's two models, its"
+                    + " relational model over H2 and the same model over DuckDB, match the reference grammar; regenerated"
+                    + " again on the merged tree with A2's move; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

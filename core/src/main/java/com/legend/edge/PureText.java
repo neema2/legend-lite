@@ -29,6 +29,22 @@ public final class PureText {
      *  judges' engine-test methods, W9's judge half, 2026-11-16). */
     private static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
 
+    /** LEGEND-ENGINE'S {@code substring} AT A LITERAL START OF 0, per database and arity, where it is MEASURED equal to
+     *  legend-pure's answer (A3 piece 3, the pure-meaning detector, {@link PureMeaningCheck}; ruled by the user
+     *  2026-11-19 ~20:10). legend-engine sends {@code substring(s, 0[, n])} to the database as written, and the
+     *  database's own SUBSTRING decides (docs/records/compat-homework/a3/h2-literal-zero.tsv and
+     *  duckdb-literal-zero.tsv on claude/compat-translator-spike): H2 2.1.214 and 2.5.252 read start 0 as position 1,
+     *  in both arities; DuckDB 1.5.6 answers the whole string for the 2-argument form only, and drops a character in
+     *  the 3-argument one. Any other database is not measured. legend-engine's per-database facts live in this
+     *  registry, the edge's owner of database names, so the detector names none. */
+    private static final java.util.Map<DatabaseType, java.util.Set<Integer>> ZERO_START_AS_PURE = java.util.Map.of(DatabaseType.H2, java.util.Set.of(2, 3), DatabaseType.DuckDB, java.util.Set.of(2));
+
+    /** Whether legend-engine's {@code substring} of {@code arity} arguments at a literal start of 0 answers legend-pure's
+     *  answer on {@code target} ({@link #ZERO_START_AS_PURE}); false for a target not measured, or none. */
+    static boolean zeroStartAnswersAsPure(@com.legend.base.Nullable DatabaseType target, int arity) {
+        return target != null && ZERO_START_AS_PURE.getOrDefault(target, java.util.Set.of()).contains(arity);
+    }
+
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}): a plan in legend-pure's words,
      *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). A planning
