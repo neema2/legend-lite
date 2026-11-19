@@ -87,5 +87,8 @@ works only from lite's typed output.
   Java formatters at ~15:10 by misreading the correction; rule 3 allows them.
 - **The one call that broke a rule, reversed:** the AdjustBy date literal answered as a plan constant instead of being
   sent to the database (a fold beyond rule 1's String and Boolean). Option 2 keeps it in the database.
-- **A product gap the rules name, not this program's:** lite's own route refuses a relation's `toString()` by name
-  today; under rule 1 the database computes it.
+- **A product gap the rules name, now ruled (the user, 2026-11-19 ~18:05, "Agree with all four table printing
+  recommendations"):** lite's own route will print a relation's `toString()` in the database (rule 1), replacing
+  today's refusal; a whole Float prints `2.0`; a date with a time prints lite's standard `...000000Z`; it lands with
+  B2, so compatibility prints tables in Java from typed rows (rule 3). Measured first (H14): 390 of PCT's 423 table
+  tests pass on DuckDB this way, every database printing the same text.
