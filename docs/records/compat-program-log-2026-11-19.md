@@ -1329,3 +1329,16 @@ who confirms or changes phases 1-3.
     `RelationCounting` two-form is deleted in the same step. It is not a hook or a switch, so it does not need the
     user's ruling; the user is told. The final plan's B3 row says so.
   - A5 (`session_0195rQEn49s2BEcy7BVaoAL4`) has its answers.
+- **~13:38 UTC, the host-parity worker:** confirmed, after the 404/405 change (`86edc90e`, `3390f2e3`): the lite route's
+  helper asked for `/api/pure/v1/nope` answers lite's 404 (`notFound`); a client on the legend-engine route still gets
+  legend-engine's envelope (`PureV1Routes.route`, 404 `{"code":-1,...,"status":"error"}`, asserted by `PureV1ApiTest`,
+  `//core:core_tests_server` green). No edge-net line moved; `//:generated` green. `no_such_route` moved to MISSING in
+  the four adapters.
+- **~13:38 UTC, B1:** the lane split is pushed (#123 head `7d9929bf4`; a new CI run). `//gates:edge_net` holds 38 tests
+  and no corpus test; `corpus_duckdb` and `corpus_h2` each gained the 2 edge-ledger diff tests; the lane guard's query
+  is empty; the PR body names each gates-list move, dated. The push cancelled macOS edge_net in the old run; this run's
+  answers the same question.
+- **~13:38 UTC, THE INDEPENDENT REVIEWER'S RE-CHECK of `51888e28`: M1-M5 met as meant; S1-S4 and N1-N3 folded in;
+  stage A READY for the user to ratify** (`compat-final-plan-review-2026-11-19.md` §6 at `3736b2b7`). One decision is
+  the user's at ratification: the detector's default (the reviewer's view: warn with the load-time report; refuse by
+  default if the report is not built).
