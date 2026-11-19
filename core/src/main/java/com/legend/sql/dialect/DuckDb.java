@@ -765,7 +765,8 @@ public class DuckDb extends AnsiSqlRenderer {
                         // which DuckDB cannot plan, filters that side before the join
                         new OuterJoinSubqueryFilters()));
         // a select over one subselect merged into it where the answer is kept: DuckDB plans every level (SelectMerge)
-        ps.add(new SelectMerge(java.util.function.UnaryOperator.identity()));   // a bare name labelled as written
+        // a bare name labelled as written; every list operation a function, written in place
+        ps.add(new SelectMerge(java.util.function.UnaryOperator.identity(), SelectMerge.IN_PLACE));
         // a chain of levels laid out again, each value once at its lowest level: two words' identical windows one
         // (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers(java.util.function.UnaryOperator.identity()));

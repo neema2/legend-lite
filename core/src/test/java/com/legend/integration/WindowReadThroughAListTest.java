@@ -82,7 +82,8 @@ class WindowReadThroughAListTest {
             row(4, 4, "D", "D"), row(9, 5, "I", "I"));
 
     /** The same read of a GROUP's value (an aggregate, the other value of a select's level): the groups' names joined,
-     *  then split and sorted per row. */
+     *  then split and sorted per row. With no sort after it, the merge would write the aggregate into the list
+     *  operation; the rows are compared in the groups' order. */
     static final String GROUPED = "{|#TDS\n"
             + "  id, grp, name\n"
             + "  1, 2, E\n"
@@ -92,9 +93,14 @@ class WindowReadThroughAListTest {
             + "  5, 3, D\n"
             + "#->groupBy(~grp, ~names:x|$x.name:y|$y->joinStrings(':'))"
             + "->extend(~sorted:r|$r.names->toOne()->split(':')->sort()->joinStrings(''))"
-            + "->select(~[grp, sorted])->sort([~grp->ascending()])}";
+            + "->select(~[grp, sorted])}";
 
     static final List<List<Object>> GROUPED_ROWS = List.of(row(1, "BC"), row(2, "AE"), row(3, "D"));
+
+    /** SQLite's refusal of the chunked form, before any window is read (a ruled, loud refusal, kept: the compatibility
+     *  program's owner, 2026-11-19): chunk's pattern is built from its size, and SQLite compiles a literal pattern
+     *  only. */
+    static final String SQLITE_CHUNK_REFUSAL = "a regexp_extract_all pattern that is not a literal reached SQLite";
 
     private static List<Object> row(Object... cells) {
         List<Object> r = new ArrayList<>(cells.length);
@@ -113,6 +119,13 @@ class WindowReadThroughAListTest {
                 String query = (String) shape.get(0);
                 @SuppressWarnings("unchecked")
                 List<List<Object>> expected = (List<List<Object>>) shape.get(1);
+                if (backend.type() == DatabaseType.SQLite && query.equals(CHUNKED)) {
+                    Exception e = assertThrows(Exception.class,
+                            () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
+                    assertTrue(String.valueOf(e.getMessage()).contains(SQLITE_CHUNK_REFUSAL),
+                            query + ": " + e.getMessage());
+                    continue;
+                }
                 if (backend.type() == DatabaseType.H2) {
                     // H2 has no list encoding: refused by name, never answered (the channel B ledger's H2 rows)
                     Exception e = assertThrows(Exception.class,
@@ -122,7 +135,12 @@ class WindowReadThroughAListTest {
                     continue;
                 }
                 Lean.Result r = Lean.run(model, query, StorelessRuntime.RUNTIME, c);
-                assertEquals(expected, normalized(r.rows()), backend.name() + ": " + query);
+                List<List<Object>> rows = normalized(r.rows());
+                if (query.equals(GROUPED)) {
+                    // no order asked: the groups' order
+                    rows.sort(java.util.Comparator.comparing(x -> (Long) x.get(0)));
+                }
+                assertEquals(expected, rows, backend.name() + ": " + query);
             }
         }
     }

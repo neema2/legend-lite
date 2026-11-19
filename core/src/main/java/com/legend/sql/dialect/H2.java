@@ -149,7 +149,7 @@ public class H2 extends AnsiSqlRenderer {
         // every level above it (ProjectionWrapsFold)
         ps.add(new ProjectionWrapsFold(n -> n.toUpperCase(java.util.Locale.ROOT)));   // a bare name labelled in upper case
         // and a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04)
-        ps.add(new SelectMerge(n -> n.toUpperCase(java.util.Locale.ROOT)));
+        ps.add(new SelectMerge(n -> n.toUpperCase(java.util.Locale.ROOT), SelectMerge.IN_PLACE));
         // and a chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers(n -> n.toUpperCase(java.util.Locale.ROOT)));
         // (SharedRelationsInPlace.bindingAValue went 2026-11-06, with main's H2 2.5.252: a shared relation that binds a
