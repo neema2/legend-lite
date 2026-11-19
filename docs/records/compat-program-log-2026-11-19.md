@@ -1978,3 +1978,10 @@ who confirms or changes phases 1-3.
   facet, no hook; run PCT under LITE's rules (A5's channel-B LITE switch merged in), DuckDB's five suites first. Report:
   how many of the 423 pass byte for byte; failures by cause with examples; SQL size against `main`'s edge builder and
   the lean baseline; database limits; any hook (stop). Record `H14-table-text-in-db.md`. Half a day.
+- **~16:45 UTC, the user: "Yes let's do it / Is there any cheap/lean sql way to get whole floats to be what people expect
+  2.0? If not that's fine".** Added to H14 (17:15): two Float-cell variants measured side by side, (V1) the product's
+  `FLOAT_TO_TEXT` as it is (`2`), (V2) a whole value keeping one fraction digit (`2.0`) by a lean spelling that reads the
+  value once (trim the trailing zeros, append a marker, turn "point + marker" into ".0", drop the marker: two REPLACE
+  calls); checked per dialect with negatives, NaN, the infinities, 1e20 and 1e-7; for each, the 423's pass count, the
+  Float failures left and the SQL per cell; and, since V2 would change the product's scalar `toString()` of a whole
+  Float from `2` to `2.0` (the user's 2026-11-10 ruling), the count of lite's own tests and pins that would move.
