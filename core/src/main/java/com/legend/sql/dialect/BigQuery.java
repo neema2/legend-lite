@@ -1499,9 +1499,14 @@ public class BigQuery extends AnsiSqlRenderer {
      * BIGNUMERIC (38 decimals), rounded to 15, 16 and 17 significant digits, the first whose text reads back as the value
      * taken (a double's shortest digits are at most 17, and at 15 or fewer they are its 15-digit rounding); a tie is
      * rounded to the even digit, as Java breaks one (-754686444319231.25 is -754686444319231.2; ROUND's own half away
-     * from zero wrote .3 for six of 1,171 plain-range doubles, measured on the lane against 441f207a). Elsewhere
-     * the text is the cast's, which reads back as the value. The value is bound once, in a one-row derived table under a
-     * scalar subquery (the form the Float canon's binding took here until SqlFn.FLOAT_CANON's deletion, 2026-11-16).
+     * from zero wrote .3 for six of 1,171 plain-range doubles, measured on the lane against 441f207a). From 1e16 below
+     * 1e38 (whole values, which BIGNUMERIC holds exactly) the same rounding's digits are written with their exponent,
+     * as DuckDB writes them ({@code 9.223372036854776e+18}): the cast wrote 9.2233720368547758e+18, seventeen digits
+     * where sixteen read back, so lite's canonical text of 2^63 was 9223372036854775800.0 against the host's
+     * 9223372036854776000.0 (the BigQuery lane's probe, case 12, at 4d2f383c, 2026-11-19; the orchestrator's ruling:
+     * S117's text, Q4's family). Elsewhere the text is the cast's, which reads back as the value. The value is bound
+     * once, in a one-row derived table under a scalar subquery (the form the Float canon's binding took here until
+     * SqlFn.FLOAT_CANON's deletion, 2026-11-16).
      */
     private SqlWriter.Piece floatText(SqlWriter.Piece x) {
         String v = param("__fv");
@@ -1516,9 +1521,18 @@ public class BigQuery extends AnsiSqlRenderer {
             }
             w.append(" ELSE ROUND(" + n + ", 16 - " + e + ", 'ROUND_HALF_EVEN') END");
         };
+        // from 1e16: the rounded whole value's significant digits (its sign and trailing zeros dropped), a point after
+        // the first where more follow, then the exponent, counted on the rounded digits (a rounding can carry: 1e23's
+        // double is 99999999999999991611392, its 15-digit rounding 100000000000000000000000)
+        String unsigned = "REPLACE(" + r + ", '-', '')";
+        String digits = "RTRIM(" + unsigned + ", '0')";
+        String exponentForm = "CONCAT(IF(" + v + " < 0, '-', ''), SUBSTR(" + digits + ", 1, 1), IF(LENGTH(" + digits
+                + ") > 1, CONCAT('.', SUBSTR(" + digits + ", 2)), ''), 'e+', CAST(LENGTH(" + unsigned
+                + ") - 1 AS STRING))";
         return w -> w.append("(SELECT CASE WHEN IS_NAN(" + v + ") OR IS_INF(" + v + ") THEN CAST(" + v + " AS STRING)"
                 + " WHEN " + v + " = 0 OR (ABS(" + v + ") >= 1e-4 AND ABS(" + v + ") < 1e16) THEN (CASE WHEN STRPOS(" + r
-                + ", '.') = 0 THEN CONCAT(" + r + ", '.0') ELSE " + r + " END) ELSE CAST(" + v + " AS STRING) END"
+                + ", '.') = 0 THEN CONCAT(" + r + ", '.0') ELSE " + r + " END) WHEN ABS(" + v + ") < 1e38 THEN "
+                + exponentForm + " ELSE CAST(" + v + " AS STRING) END"
                 + " FROM (SELECT " + v + ", CAST(").piece(rounded).append(" AS STRING) AS " + r
                 + " FROM (SELECT " + v + ", " + n + ", CASE WHEN " + n + " IS NULL OR " + n + " = 0 THEN 0"
                 + " WHEN ABS(" + n + ") >= 1 THEN LENGTH(CAST(TRUNC(ABS(" + n + ")) AS STRING)) - 1"

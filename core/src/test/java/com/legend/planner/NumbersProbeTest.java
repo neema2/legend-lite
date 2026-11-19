@@ -117,7 +117,7 @@ class NumbersProbeTest {
     /** The whole doubles lite's canonical text of a Float ({@code FLOAT_SHORTEST_TEXT}, a message's text of a Float)
      *  lays out from the database's exponent text, and a few inside the other windows. */
     static final List<Double> WHOLE_AND_OTHER_FLOATS = List.of(9007199254740992.0, 1152921504606846976.0, 1e19,
-            9223372036854775808.0, 1.2345678901234567e19, 1e22, 1e37, -1152921504606846976.0, 123456789012345678.0,
+            9223372036854775808.0, 1.2345678901234567e19, 1e22, 1e23, 1e37, -1152921504606846976.0, 123456789012345678.0,
             1e16, 1.5, 0.1, 1e-5, 2.5e-7);
 
     /** Lite's canonical text of each double is the host writer's ({@code CellText.carriedFloat}: its shortest digits,

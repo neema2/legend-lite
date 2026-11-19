@@ -359,8 +359,8 @@ class ProductRaiseProbeTest {
                 st.execute(setup);
             }
             for (double d : List.of(9007199254740992.0, 1152921504606846976.0, 1e19, 9223372036854775808.0,
-                    1.2345678901234567e19, 1e22, 1e37, -1152921504606846976.0, 123456789012345678.0, 1e16, 1.5, 0.1,
-                    1e-5, 2.5e-7)) {
+                    1.2345678901234567e19, 1e22, 1e23, 1e37, -1152921504606846976.0, 123456789012345678.0, 1e16, 1.5,
+                    0.1, 1e-5, 2.5e-7)) {
                 // the double as the product writes a Float literal (S20), so its reading is held too (the same
                 // statement //core:numbers_probe_test sends on DuckDB, H2, SQLite and Postgres)
                 com.legend.sql.SqlExpr x = com.legend.sql.SqlExpr.FloatLit.of(d, com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE);
