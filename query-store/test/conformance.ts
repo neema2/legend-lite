@@ -62,7 +62,9 @@ export const LITE: Dialect = {
   idChanged: 'the ID cannot be changed',
   unread: (_where, _field, problem, path, liteProblem) => `the request's ${path} ${liteProblem ?? problem}`,
   malformedStatus: 400,
-  noRouteStatus: 400,
+  // an unknown path under lite's mount is no such route: 404 notFound (the orchestrator's ruling of 2026-11-19; until
+  // then 400 request)
+  noRouteStatus: 404,
   refusal: (status, message) => ({ kind: status >= 500 ? 'internal' : 'request', message }),
 };
 
@@ -370,9 +372,9 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       const r = await raw('GET', `/${id('a')}/nothing`);
       assert.equal(r.status, d.noRouteStatus);
       assert.equal((r.json as { message?: string }).message, d.noRoute(`/${id('a')}/nothing`));
-      // no record missing: lite's kind request, 400 (2026-11-17, notFound is a missing record's alone; the spec's 400,
-      // PR #118 fix round, 2026-11-18); legend-engine's 404
-      if (d === LITE) assert.equal((r.json as { kind?: string }).kind, 'request', r.text);
+      // no such route: lite's kind notFound, 404, as every unknown /api/lite/v1/ path (the orchestrator's ruling of
+      // 2026-11-19; until then request, 400); legend-engine's 404
+      if (d === LITE) assert.equal((r.json as { kind?: string }).kind, 'notFound', r.text);
     });
 
     it('the client: the same answers, typed, and a refusal as a QueryStoreError', async () => {

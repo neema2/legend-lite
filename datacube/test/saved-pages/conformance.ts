@@ -127,7 +127,7 @@ export function conformance(name: string, target: () => Target): void {
     // lite's API v1 spec §3 (PR #118 fix round, 2026-11-18): a malformed request -- a body of the wrong shape, a search
     // with no term, a path the store does not serve -- is 400 `request`, in lite's words (the request's field by its
     // path, never legend-engine's class); legend-engine's 500s and 404 are the edge's mount's alone
-    it('answers a body of the wrong shape, a search with no term and an unknown path as lite\'s request refusal, 400', async () => {
+    it('answers a body of the wrong shape and a search with no term as lite\'s request refusal, 400, an unknown path notFound, 404', async () => {
       const wrong = async (body: string, message: string): Promise<void> => {
         const r = await raw('POST', '/search', body);
         assert.equal(r.status, 400, r.text);
@@ -139,9 +139,10 @@ export function conformance(name: string, target: () => Target): void {
       const noTerm = await raw('POST', '/search', '{"searchTermSpecification":{}}');
       assert.equal(noTerm.status, 400);
       assert.deepEqual(noTerm.json, { kind: 'request', message: 'the search specification has no search term' });
+      // no such route, as every unknown /api/lite/v1/ path (the orchestrator's ruling of 2026-11-19: until then 400 request)
       const unknown = await raw('GET', `/${id('a')}/nothing`);
-      assert.equal(unknown.status, 400);
-      assert.equal((unknown.json as { kind?: string }).kind, 'request');
+      assert.equal(unknown.status, 404);
+      assert.equal((unknown.json as { kind?: string }).kind, 'notFound');
       assert.equal((unknown.json as { message?: string }).message,
         `no such legend-lite API: /api/lite/v1/queries/dataCube/${id('a')}/nothing`);
     });
