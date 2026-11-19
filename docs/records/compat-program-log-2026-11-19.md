@@ -1775,3 +1775,27 @@ who confirms or changes phases 1-3.
   product's hearing; COMPAT/BOTH as a check configuration (the checks become COMPAT/HOST, LITE/HOST, LITE/BOTH and the
   corpus); H13's database-judge binding. 2.2b about 4.25 days (was 4.5). Rules 1-3 hold against the designs; the one
   product gap the rules name (lite refusing a relation's `toString`) is the one its `Printed` design keeps.
+- **~14:50 UTC, A5 (rules read):**
+  1. **Where the compiler folds today** (no change made): `compiler/spec/NormalizeFolds.java` `fold`, reached only at the
+     inliner (`UserCallInliner.java:1343`, G½): `size(x)` where x's multiplicity is exactly [n..n] to the Integer n (a
+     type fact); `eq`/`equal` of two Integer literals to a Boolean; `and`/`or` of Boolean literals; an inlined `if` with a
+     literal condition keeps its branch. `compiler/spec/StaticFold.java`, only at schema positions inside
+     `<<functionType.NormalizeRequiredFunction>>` bodies (column names and lists the plan's shape needs): Integer
+     `plus`/`minus` (exact, refused past a long), String `+`, `toString` of a String, Integer, Boolean or Float literal,
+     `==`, `not`, `isEmpty`, `zip`, `pair`, `at`: schema, not row values, but beyond "constant String and Boolean".
+     `LiteralUnroll.java` compares spelled literals and makes no value. **Put to the user** to make rule 1's fold list
+     exact.
+  2. **H2's error text carries the statement**, so on H2 under BOTH a raise from a judged side never matches by message:
+     reach today 0 lanes (the LITE lane is DuckDB only); 4 channel-B COMPAT ledger rows carry the echo (the four
+     `testLateralJoin*`); 0 channel-A rows; 0 corpus roster rows.
+  3. **Stop: option 2 is built but not deterministic on DuckDB.** Built (WIP `81163ce10`, uncommitted parts): change
+     (1) removed; each verdict row reads its expected side before its actual, the batch's verdicts in order (MATERIALIZED
+     chains); a rejected fused statement is the first verdict's failure; no pin, no hook, no value leaves the database.
+     Measured: HOST alone 9/9 and DATABASE alone 9/9 on assert 1's literal; BOTH 5/9 agree; the fused statement alone,
+     30 runs: assert 1's literal 22, assert 2's 7, an INT64 overflow 1; with `SET threads TO 1` 30/30. A join's build
+     side is not an order DuckDB keeps. Options: (a) DuckDB test plans run single-threaded via a target-declared setup
+     step; (b) ledger as nondeterministic (breaks G10); (c) unfuse (still 1/30 within an assert).
+  **This session's call (15:45):** (a), as narrow as is deterministic (first: only test plans with a fused verdict
+  statement over a side that can raise; else every DuckDB test plan), as plan data the target declares; product plans
+  untouched; stop if a PCT lane grows more than ~10%; the setting named in the PR body for the user's word, with G10 as
+  its reason.
