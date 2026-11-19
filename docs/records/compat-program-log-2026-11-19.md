@@ -30,6 +30,8 @@ happens (the user, 2026-11-19 ~10:45 UTC: "write down all the learning/outcomes/
 
 | ~15:05 | "Wait what? Why are you going against our tenets - everything must be pushed to database" (to this session's call of option 1 on A5's AdjustBy fix) | Option 1 (neither judge sends a date literal to the database) REVERSED as against G6 and G3. Option 2: both judges send the literal to the database, ordered reads make both fail deterministically on the database's own range error, and the difference from upstream is a register row. A standing lesson: a call that takes evaluation out of the database is the user's, and is checked against G6 first |
 
+| ~15:10 | "We have the completely wrong design and plan if you are allowing things to not be pushed to database - legend lite tenet is java orchestrates and database does the work, upstream is not our implementation guide" | The design and plan are to be redone from lite's execution tenet: the database computes every value, text and verdict; Java orchestrates; legend-pure and legend-engine define the answers, never the implementation. Every piece that moves work from the database to Java (stage B's Java formatters, error records worded in Java, verdict presenters, A4 as written) is withdrawn |
+
 **Superseded ~13:25:** **Still open:** CP-12 (copy legend-engine's departures from Pure, or answer Pure's way) and CP-5 (no special functions),
 each waiting on its measurement; then the final plan and the ratification of phases 1 to 3. PCT under LITE's judges is
 being built by the product's judges track (C3).
@@ -1701,3 +1703,17 @@ who confirms or changes phases 1-3.
   answer and the tenets differ, the tenets win; a design that moves evaluation out of the database is checked against G6
   before it is chosen, and goes to the user if it does. The other Java-side pieces of the plan were re-checked against
   G6 the same hour (the next entry).
+- **~15:10 UTC, THE USER: the design and plan are wrong** (recorded in §1): "We have the completely wrong design and
+  plan if you are allowing things to not be pushed to database - legend lite tenet is java orchestrates and database
+  does the work, upstream is not our implementation guide". **This session's error, stated plainly:** the design took
+  legend-pure's and legend-engine's own structure (they print and word in Java, after the run) as the model, and
+  stretched G6's "small Java formatting step at the edge" into a design pillar. **What in the plan moves work out of the
+  database, and is withdrawn:** (1) stage B's formatters (printed tables and values in Java instead of SQL: B2, H11's
+  printer, the judges' `HostJudgment.Printed`/`Hearing.print`); (2) error records worded in Java after the run (B1,
+  H13's `PureMessages.worded`), where today the database builds the message, values included; (3) verdict records worded
+  by Java presenters (B3's `Hearing`); (4) A4 as written (legend-pure's comparison rules kept only in the Java-side
+  judge); (5) the date-literal call already reversed at 15:06. **What is sound (no work leaves the database):** A1's
+  nets; A2 (legend-engine's SQL spelling deleted; lite's own SQL shown); A3 (Pure's meaning computed in SQL; the detector
+  reads the query's types at planning); D2 (Pure's checks as SQL); the corpus door's rewrites (planning). Put to the
+  user (15:15): the corrected principles, the one design question they hinge on, and whether A1-A3 go ahead while the
+  rest is redesigned.

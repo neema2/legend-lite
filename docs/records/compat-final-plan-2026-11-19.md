@@ -1,5 +1,11 @@
 # The compatibility program: the final plan (2026-11-19)
 
+> **WITHDRAWN IN PART, 2026-11-19 ~15:10 UTC, by the user:** "We have the completely wrong design and plan if you are
+> allowing things to not be pushed to database - legend lite tenet is java orchestrates and database does the work,
+> upstream is not our implementation guide". The design's part 3 (formatters after the run, in Java), the Java wording
+> of error and verdict records (B1, B2, B3's presenters) and A4 as written are withdrawn. The design and plan are being
+> redone from the execution tenet; see the log's ~15:10 entry. A1 to A3 move no work out of the database.
+
 Written fresh after phase 0, once the user had ruled the goal, D1 and D2 (~13:25 UTC: "Okay agree with all"). It
 replaces the working plan (`compat-program-plan-2026-11-19.md`, history now) as the thing to build from.
 - **The evidence:** `compat-design-and-plan-plain-2026-11-19.md` (the design, what we lose, every measurement in plain
