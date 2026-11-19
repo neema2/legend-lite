@@ -174,7 +174,14 @@ class NativeCatalogGovernanceTest {
         // 37 -> 38 (PR #118 fix round, 2026-11-18: N2, the in-body assert's default message chosen by the plan's style
         // at lowering; the user's word "raise it"): assertFailedText, which LambdaBodies writes for fail's message where
         // the assert gives none -- the product's lite sentence, the compatibility edge's legend-pure "Assert failed"
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 38,
+        // 38 -> 40 (2026-11-19, A3 of the compatibility program, piece 1, the translator's: sqlSubstring and
+        // sqlPosition, SQL's SUBSTRING and POSITION by name, which the islands and the ###Relational dynaFunctions
+        // write; its own dated note replaces this line where piece 1 lands, claude/compat-a3-switch)
+        // 40 -> 41 (2026-11-19, A3, the user's ruling ~21:10 "Yes to all three for substring", relayed by the compat
+        // owner; the reviewer's D-S1 as corrected, ca8ea4a5): substringAsGiven, the database's own SUBSTRING over the
+        // arguments as given -- lite-internal, its one producer the legend-engine door's engine rewrite, its one
+        // product claimer Scalars (substringAsGivensOneProductClaimerIsScalars)
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 41,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -277,5 +284,44 @@ class NativeCatalogGovernanceTest {
         var u = new TreeSet<>(a);
         u.addAll(b);
         return u;
+    }
+
+    /** The edge's claimers of {@code substringAsGiven}: the class that builds the engine rewrite's substitutes. */
+    static final Set<String> SUBSTRING_AS_GIVEN_EDGE_CLAIMERS = Set.of("EngineSubstitutes");
+
+    /**
+     * NO PRODUCT CLAIMER OF {@code substringAsGiven} BUT {@code Scalars} (the pin the user ruled, 2026-11-19 ~21:10, "Yes
+     * to all three for substring", relayed by the compat owner; the reviewer's D-S1 as corrected, ca8ea4a5): the native
+     * is the legend-engine door's alone, so in the generated claims (native-claims.tsv, ClaimsGenerator's {@code also}
+     * column: the files naming one of its overload constants, its id group or its quoted name) its claimers are the
+     * lowering's rule and the edge's substitute builder, and no other. A product frontend that wrote it would be seen
+     * here. Named limit: the column does not read a use through the {@code Pure.Lite} name constant alone.
+     */
+    @Test
+    void substringAsGivensOneProductClaimerIsScalars() throws java.io.IOException {
+        List<String[]> rows = new java.util.ArrayList<>();
+        try (java.io.InputStream in = Pure.class.getResourceAsStream("/com/legend/builtin/native-claims.tsv")) {
+            for (String line : new String(java.util.Objects.requireNonNull(in, "native-claims.tsv").readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                String[] cells = line.split("\t", -1);
+                if (cells.length >= 6 && cells[0].equals(Pure.Lite.SUBSTRING_AS_GIVEN)) {
+                    rows.add(cells);
+                }
+            }
+        }
+        assertEquals(2, rows.size(), "substringAsGiven's two overloads");
+        for (String[] row : rows) {
+            assertEquals("", strayClaimers(row[5]), row[2]);
+            assertTrue(Set.of(row[5].split(";")).contains("Scalars"), row[2] + ": " + row[5]);
+        }
+        // the pin bites: a planted product claimer is named
+        assertEquals("CypherToPure", strayClaimers("CypherToPure;EngineSubstitutes;Scalars"));
+    }
+
+    /** The claimers in {@code also} that are neither Scalars nor the edge's, joined; empty when there are none. */
+    private static String strayClaimers(String also) {
+        return String.join(";", java.util.Arrays.stream(also.split(";"))
+                .filter(c -> !c.isEmpty() && !c.equals("Scalars") && !SUBSTRING_AS_GIVEN_EDGE_CLAIMERS.contains(c))
+                .toList());
     }
 }

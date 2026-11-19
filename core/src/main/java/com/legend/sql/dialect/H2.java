@@ -745,7 +745,7 @@ public class H2 extends AnsiSqlRenderer {
             case MAP_KEYS -> writer.function("map_keys", c.args());
             case MAP_VALUES -> writer.function("map_values", c.args());
             case MAP_CONCAT -> writer.function("map_concat", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case MATCHES -> writer.function("regexp_like", c.args());
             case LEFT -> writer.function("left", c.args());
             case RIGHT -> writer.function("right", c.args());

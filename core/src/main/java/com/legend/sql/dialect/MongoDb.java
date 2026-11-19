@@ -1102,7 +1102,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case LENGTH -> length(writer, a);
             case UPPER -> MongoJson.guardedOp(writer, "$toUpper", a);
             case LOWER -> MongoJson.guardedOp(writer, "$toLower", a);
-            case SUBSTRING -> substring(writer, a);
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> substring(writer, a);
             case STRPOS -> MongoJson.guarded(writer, a, MongoJson.text("{\"$add\": [{\"$indexOfCP\": [" + G0 + ", "
                     + G1 + "]}, 1]}"));
             case STARTS_WITH -> MongoJson.guarded(writer, a, MongoJson.text("{\"$eq\": [{\"$indexOfCP\": [" + G0

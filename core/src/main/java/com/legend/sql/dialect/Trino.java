@@ -1014,7 +1014,7 @@ public class Trino extends AnsiSqlRenderer {
             case SIN -> writer.function("sin", c.args());
             case SINH -> writer.function("sinh", c.args());
             case SQRT -> writer.function("sqrt", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case TAN -> writer.function("tan", c.args());
             case TANH -> writer.function("tanh", c.args());
             case UPPER -> writer.function("upper", c.args());

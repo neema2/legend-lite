@@ -54,7 +54,9 @@ class SqlFnSortedTest {
     // dialects' over the product's DATETIME_TO_TEXT, no MIR function of its own)
 
     /** Every other function, the product's: 189, sorted 2026-11-17 by the measured list (a new one is sorted here; IS_NUMERIC
-     *  2026-11-18, J20). */
+     *  2026-11-18, J20; SUBSTRING_AS_GIVEN 2026-11-19, A3 of the compatibility program, the user's ruling ~21:10 "Yes to
+     *  all three for substring": written by Scalars, the product's, and rendered by every dialect -- not EDGE_ONLY, which
+     *  is the product's dialects refusing it by name). */
     static final Set<String> PRODUCT = Set.of(
             "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
@@ -82,7 +84,7 @@ class SqlFnSortedTest {
             "REGEXP_EXTRACT", "REGEXP_EXTRACT_ALL", "REGEXP_FULL_MATCH", "REGEXP_REPLACE", "REM", "REPEAT_STR",
             "REPEAT_VALUE", "REPLACE", "REVERSE_STRING", "RIGHT", "ROUND", "ROUND_HALF_UP", "RPAD", "RTRIM", "SHA1",
             "SHA256", "SIGN", "SIN", "SINH", "SPLIT", "SPLIT_PART", "SQRT", "STARTS_WITH", "STRFTIME", "STRPOS",
-            "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",
+            "STRPTIME", "STRUCT_INSERT", "SUBSTRING", "SUBSTRING_AS_GIVEN", "TAN", "TANH", "TIMES", "TIMEZONE", "TIME_BUCKET", "TODAY",
             "TO_VARIANT", "TRANSLATE", "TRIM", "TYPEOF", "UC_FIRST", "UNNEST", "UPPER", "VARIANT_ELEMENTS",
             "VARIANT_GET", "XOR");
 

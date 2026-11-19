@@ -82,6 +82,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/edge/SiteWordsRecorderTest.java",
+    # the engine rewrite's substitute, typed as the typer types it, and the native it calls (A3, 2026-11-19)
+    "src/test/java/com/legend/edge/EngineSubstitutesTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",
     "src/test/java/com/legend/exec/ExecutionTraceTest.java",
     "src/test/java/com/legend/exec/InterimEdgeSitesTest.java",

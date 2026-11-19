@@ -1675,7 +1675,7 @@ public class SQLite extends AnsiSqlRenderer {
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case CHR -> writer.function("char", c.args());
             case FLOOR_RAW -> writer.function("floor", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case STRPOS -> writer.function("instr", c.args());
             case LIST_LENGTH, JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
             case IN -> in(writer, c, parentPrec);
