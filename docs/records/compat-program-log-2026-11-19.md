@@ -2415,3 +2415,7 @@ who confirms or changes phases 1-3.
   request's runtime connection. **It still carried the load-time report** (crossed with the ~19:20 ruling): **GO given
   with the report dropped and refuse as the default** (`engine` not accepted until the user rules the opt-in);
   constraints and M2M confirmed; a new size asked for.
+- **~19:27 UTC, B1-R building the detector** (shape note revision 2 on `claude/compat-a3-detector`): refuse the
+  default, `warn` an operator's choice, `engine` not accepted; the load-time report dropped. About 1.5 to 2 days:
+  about 380 main lines (`PureMeaningCheck` ~300, wiring ~80), about 400 test lines; guard moves `ENV_FLAGS` +1 and one
+  funnel-register row, re-checked on the real code.
