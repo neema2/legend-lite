@@ -2872,3 +2872,14 @@ who confirms or changes phases 1-3.
   the error-records session (session_0195rQEjNZoybxirC5uGba42; its 14:52 question closed by the fold ruling): PCT
   every lane both channels, the corpus on H2 and DuckDB, the server route and the net's pins, B1's size under the
   option, and what cannot use lite's sentence.
+- **~21:47 UTC, B1-R: the `engine` wiring built and tested** (local `d70b51089` on a merge with B1's `897db4bbe`): under
+  `engine` a flagged request is answered on all six routes (execute and Arrow 200 with the header
+  `engine substring/3=1, indexOf/2=1` and legend-engine's answers; generatePlan; the three seed routes lower the rewritten
+  seed query); a recording runner shows the rewritten query reaches the runner (`substringAsGiven`, `sqlPosition` by
+  FunctionId); an unmeasured database refused by name; 48 tests; plant W1 reds 3 route tests. Honest limit: without
+  piece 2 on the tree, `warn` answers as `engine`, so the both-ways halves and plant W2 wait for piece 2's tree. The
+  setting's `mode()` reads the enum's names (the bare-name-switch ceiling stays 188). **Product-track finding:** the
+  test-data scan (`ScanRelations`) reads `$p.name->substring(...)` as a property hop, so it serves no function over a
+  class's property in a filter, on any setting. Branches: section fix alone on `claude/compat-a3-detector`; the
+  landing branch `claude/compat-a3-engine`; a review-only `claude/compat-a3-engine-review` with the wiring, so the
+  reviewer reads it before the batch can take it.
