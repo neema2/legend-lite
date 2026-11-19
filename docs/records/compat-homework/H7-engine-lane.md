@@ -72,7 +72,7 @@ legend-engine itself (§2).
 - The edge net's short-name file cannot join the manifests, because short names collide across a suite's packages:
   DuckDB's essential suite runs 345 tests, but its short-name file has 341 lines.
 
-**The classification** (`tools/engine-runner`'s `planoracle.enginelane.EngineLaneTable`). The PCT module may hold no
+**The classification** (`tools/engine-runner`'s `com.legend.tools.enginelane.EngineLaneTable`). The PCT module may hold no
 comparison machinery (`PctDisciplineTest`), so the join lives beside the oracle. Each lane's outcomes are joined with
 legend-engine's manifest for the same database and suite, with the manifest's test name minus its PCT signature:
 - **legend-engine's side:**
@@ -177,9 +177,11 @@ The cases covered:
 
 **The per-push half** (`//pct:batteries_test`, in `//gates:pct_duckdb`). No legend-engine JVM runs.
 - lite answers each request as legend-engine's audience: pure/v1's execute route as the edge ships it
-  (`PureV1Routes.execute` over `EdgeServer.runner`; `pct/src/test/java/.../oracle/LiteBatteries.java`).
-- It answers on H2, and on a DuckDB file lite seeds with its own driver from the same statements.
-- The comparison (`planoracle.enginelane.Batteries`) refuses to run if lite's file holds other rows than
+  (`PureV1Routes.execute` over `EdgeServer.runner`; `pct/src/test/java/.../batteries/LiteBatteries.java`).
+- It answers on H2, and on a DuckDB file seeded with lite's own driver
+  (`//tools/engine-runner:lite_battery_seed`). The seed is the statements legend-engine's parser read from the model
+  (`trades_seed.json`, pinned by the heavy half), and the model swaps the connection as text (`lite_battery_model`).
+- The comparison (`com.legend.tools.enginelane.Batteries`) refuses to run if lite's file holds other rows than
   legend-engine's: the two digests must be equal.
 - Each request is compared by kind and rows: AGREE, BOTH_FAIL, or DIFFER, with both sides' answers listed. Refusals
   compare by status; their classes are listed and words are never compared.
@@ -217,6 +219,20 @@ one job at a time. These are action times, not test times.
 | the batteries' per-push half: `battery_seed`, `battery_lite_{h2,duckdb}`, `battery_compare_{h2,duckdb}` | 5 | 0.9 s, 3.0 s, 3.7 s, 0.1 s, 0.1 s | **7.7 s** |
 | the batteries' heavy half (heavy only): `trades_duckdb`, `engine_batteries_{h2,duckdb}`, the answers, the file check | 6 | 3.0 s, 16.4 s, 13.8 s, 0.1 s, 0.1 s, 0.6 s | 34.0 s |
 
+**Each target, separately:**
+
+| target | when | its own time | what it pulls |
+|---|---|---|---|
+| `//pct:engine_lane_test`, the pinned compare | per push | 8 diff tests, about 0.1 s each | the 6 lane actions (272.7 s serial) and the 7 table actions (under 1 s), when their inputs move |
+| `bazel run //pct:update_engine_lane`, the update | by hand, on a re-pin | 4.3 s with its actions cached (copying 8 files) | the same actions |
+| `//pct:batteries_test` | per push | 2 diff tests, about 0.1 s each | 8 s of actions: `lite_battery_seed`, `lite_battery_model`, `battery_lite_{h2,duckdb}`, `battery_compare_{h2,duckdb}` |
+| `bazel run //pct:update_batteries` | by hand | 1.5 s cached | the same |
+| `//tools/engine-runner:batteries_oracle_test` | heavy | 4 diff tests | 34 s of actions (legend-engine re-asked) |
+| `bazel run //tools/engine-runner:update_batteries` | by hand | 2.2 s cached | the same |
+
+For comparison, B1's edge net came in at 568 s against an estimate of 2-4 minutes (the orchestrator, 2026-11-19).
+The ENGINE lane is about half that: it runs the same PCT suites once more, under the other audience.
+
 **What a push pays:**
 - **The batteries: about 8 s.**
 - **The ENGINE lane: about 4.5 minutes of single-job time,** spread over 6 independent actions.
@@ -233,16 +249,60 @@ one job at a time. These are action times, not test times.
   which is nearly every push that touches the core. The tables, the summary and the batteries' comparisons cost
   nothing measurable.
 
-## 5. Files
+## 5. CP-12: does lite "fix" legend-engine into something other than PCT's expected value?
+
+**No.** None of the 153 DuckDB LITE_FIXES, the 55 LITE_ANSWERS or H2's 37 LITE_FIXES answers anything but PCT's
+expected value.
+
+The lane runs with no expected failures, so a pass means every assertion in the test held against legend-pure's
+values. To check what each assertion checks, every one of the 245 tests' bodies was read in the pinned sources (all
+found; `h7/cp12/assertion-scan.txt`):
+
+| the test's assertions | tests |
+|---|---|
+| an exact value: `assertEquals`, `assertEq`, `assertSameElements`, `assertTdsEquivalent` (14 of them pivot tests, qualified), `assertJsonStringsEqual` | 191 |
+| the Boolean lite computed, `assert($f->eval(\|...))` or `assertFalse`: exact against true or false | 44 |
+| emptiness of lite's answer, `assertEmpty` (`head` of `[]`, `zip` three times): exact | 4 |
+| a type, `assertIs` (`testConcatenateTypeInference`, `testAssignNewInstance`, `testSingleMinusType`, `testSinglePlusType`): exact on the type, which is what they test | 4 |
+| less than a value | 2 |
+| an error, `assertError` | 0 |
+
+The 2 that check less than a value are the only places where lite could answer something else and still pass:
+- `lang::tests::letFn::testLetChainedWithAnotherFunction`, a LITE_ANSWERS row (legend-engine refuses `letFunction`),
+  asserts only `assertNotEmpty`.
+- `string::tests::parseDate::testParseDateTypes`, a LITE_FIXES row, asserts only `assertInstanceOf` DateTime and
+  StrictDate.
+
+Checking them needs lite's answer beside legend-pure's own. That was not done here.
+
+## 6. The local gate, and what it caught
+
+**The result:** `bazel test --lockfile_mode=error //gates:local` at the final code gives 558 passed, 12 failed and 1
+skipped.
+- The 12 failures are the Postgres-backed tests (`//core:*_postgres_test`, `is_numeric_probe_test`,
+  `postgres_arm_test`, `//datacube:verify_app_test`): `initdb` refuses root in this container. All 12 pass run
+  unprivileged (`--run_under` as a non-root user), as in slice R.
+- **What the first run caught:** `//core:census` refused the batteries' first PCT runner. It named a database outside
+  its owners (a JDBC URL and database names: `DialectLeakRatchetTest`), and it parsed a model by grammar level outside
+  the parser (`ParserBoundaryArchTest`).
+- **The fix:**
+  - the seeding and the connection swap moved into the oracle's package;
+  - the seed became legend-engine's own parsed statements, pinned;
+  - the PCT runner is handed a model and a file.
+- **A trap for later sessions:** the census also reads the word "oracle" as a database. So the classifier lives in
+  `com.legend.tools.enginelane`, and the PCT runner in `org.finos.legend.lite.pct.batteries`.
+
+## 7. Files
 
 | file | what |
 |---|---|
 | `pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Engine_PCT.java` | the lane's suite: one PCT suite by `-Dpct.engine.suite`, no expected failures |
 | `pct/src/test/java/org/finos/legend/lite/pct/extension/PctPlanRoute.java` | the audience switch, `-Dpct.audience=engine` (+12 lines; the default unchanged) |
 | `tools/junit/JUnitMain.java` | `-Dlegend.junit.outcomes.full`: each test's outcome by its full name (+29 lines) |
-| `tools/engine-runner/src/main/java/planoracle/enginelane/EngineLaneTable.java` | the lane's classification against the manifests |
-| `tools/engine-runner/src/main/java/planoracle/enginelane/Batteries.java` | the batteries' answer form, comparison and file check |
-| `pct/src/test/java/org/finos/legend/lite/pct/oracle/LiteBatteries.java` | the batteries' per-push half: lite's seed and lite's answers |
+| `tools/engine-runner/src/main/java/com/legend/tools/enginelane/EngineLaneTable.java` | the lane's classification against the manifests |
+| `tools/engine-runner/src/main/java/com/legend/tools/enginelane/Batteries.java` | the batteries' answer form, comparison, the file check, the seed and the model's connection swap |
+| `tools/engine-runner/src/main/java/planoracle/SeedDuckDbMain.java` | `--statements-out`: the seed statements legend-engine's parser read, for the per-push half |
+| `pct/src/test/java/org/finos/legend/lite/pct/batteries/LiteBatteries.java` | the batteries' per-push half: lite's answers through pure/v1's route |
 | `pct/BUILD.bazel`, `tools/engine-runner/BUILD.bazel` | the actions, the pins, `//pct:engine_lane_test`, `//pct:batteries_test`, `//tools/engine-runner:batteries_oracle_test` |
 | `gates/BUILD.bazel` | the two per-push checks in `pct_duckdb`; the heavy half in `heavy` |
 | `tools/deps/jars_table.bzl` | `tools/engine-runner` as a `duckdb_jdbc` user (CP-9, the user's ruling, dated) |
