@@ -2492,3 +2492,15 @@ who confirms or changes phases 1-3.
   referee parse per source (keyed by source and options, held softly), no size, timeout or shard change; estimated 284
   s → about 130 s locally; branch `claude/compat-parser-parity-memo`, assertions proven unchanged, reviewed, riding in
   the batch.
+- **~19:48 UTC, the judges: the batch merged** (head `b1dc377dc` on `claude/compat-a4-host-only`; the one measure
+  running). A2 (`6551c2036`) merged with no conflicts, then A5 (`6f21bed29`, carrying A1): seven conflicts (the five
+  named, plus the two edge-net corpus ledgers both re-recorded), resolved by the rules; one compile break outside them
+  (A5's `RootLoopsRejectionTest` used the old six-field `RootLoop.Row`), adapted with what it proves unchanged;
+  `PctPlanRoute` A5's. Regenerated: the lean-SQL baseline (statements unchanged, DuckDB 2,319, H2 2,313; every move
+  A5's) and the edge-net corpus ledgers (DuckDB equal to A2's with the words stripped; H2 too, but
+  `testToSqlGenerationFirstDayOfWeek` PASS → FAIL, the predicted move). **A guard A4 left silent, for the user's
+  word:** channel B's judge-SQL ratchet measured only under COMPAT and BOTH on the reference lane; after A4 COMPAT runs
+  the host judge, so the ratchet measured nothing. In the merge it moves to the LITE-PCT lane (lite's rules, both
+  judges, DuckDB), the only place the database judge still runs, re-pinned at that lane's numbers (essential
+  statements 466 → 463, characters 1.73M → 7.19M; relation 469 → 106 statements; a different lane's baseline, not
+  growth). Taken to the user: keep it there (recommended) or drop the judge pins.
