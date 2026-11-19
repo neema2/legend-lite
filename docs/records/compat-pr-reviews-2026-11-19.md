@@ -1776,3 +1776,30 @@ v1.3.0). NOT a silent miss.**
 **S388 RULED:** the user said "Yes to A" at ~23:20, read in the owner's log on `claude/compat-program`. The row is
 recorded as a difference (lite follows Pure), not a refusal. B2 marks the row ruled on `claude/compat-a3-docs`, and I
 will check it in the combination review.
+
+### B1-R's round on 7b70932b3 (`claude/compat-a3-detector` `e9b130d69`, `claude/compat-a3-engine` `e86b92689`, the review branch `18d5c7181`)
+
+**Verdict: APPROVED. R2-S1, R2-S2 and the nit are met. The let shapes are pinned on legend-engine's own answers. Nothing
+is open from my rounds on the engine rewrite.**
+- **R2-S1:** the walk collects each variable that the query's own tree evaluates (`following == 0`). After the
+  fixpoint, such a variable bound by a let is UNVERIFIED unless the walk took the let and its value is a lambda.
+  - The condition is right even though `walkedLets.add` runs before the lambda test: the test requires both.
+  - A followed function's parameter is untouched.
+  - Plant P10 is taken as reported.
+- **R2-S2:** `refuseSharedLetRoots` now skips any let whose value is not a `TypedLambda`. legend-engine's answer backs
+  it: `let.value.sub3.then.upper` answers `"CRE"`, and `let.value.idx.then.plus` answers `13`, SQL's 1-based 3 plus
+  10. So the let's own value is in SQL, and a later read of it is no reason to refuse. Plant R8 is taken as reported.
+- **The let probes**, now pushed and read on `0490d059a`'s successor:
+  - the `let.rel.*` rows are all 500 (`letFunction` has no SQL translation; "RelationStoreAccessor should be used with
+    a from(...)");
+  - `let.cls.then.map` answers `["re"]`, Pure's meaning on the host;
+  - `let.cls.then.project` is 500.
+
+  The detector's handling of lets read through a variable is therefore right in every probed shape.
+- **The class shapes** (`1035b8f2e`) are guarded as `PureMeaningEngineTest` cases with the probed answers:
+  - a project's substring `abc`;
+  - a filter's rows;
+  - indexOf `3`;
+  - DuckDB's `substr(name, 0, 2)` in the plan under engine and not under warn;
+  - the graph tree's refusal.
+- **The merge** keeps one `following` field in `PureMeaningCheck`, both branches having added it.
