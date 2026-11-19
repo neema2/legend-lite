@@ -392,3 +392,25 @@ who confirms or changes phases 1-3.
     decide a verdict is `assertError`'s match (`BodyRun.java:39` → `HostWords.caught`).
   - The decoded-plan guard round-trips the edge's records (`TestPlanJson.java:121-124`, `:270-271`), so the planning
     interface stays data.
+- **~11:58 UTC, the judges session's H6 §6** (`9a8c4f6f`): the leniencies measured (logged, then switched off), every
+  lane run twice.
+  - **PCT:** 0 decisions and 0 verdicts change on channel B's DuckDB, H2 and SQLite lanes, or with S131 off under LITE.
+    Channel A has no lite judge.
+  - **The corpus** (the positive control: probe-on rosters byte-identical to the committed ones):
+    - DuckDB: 77 decisions; the fail roster goes 108 → 177, i.e. 69 tests (S131 33, S137 21, S132 14, S15 2, S144 2);
+    - H2: 30 decisions, 276 → 305, i.e. 29 tests;
+    - S127 and S139: 0 everywhere.
+  - **CP-14 (iii) as conditioned fails on the corpus.** It holds if four become door rewrites of test bodies (S137,
+    S144, S131's typed half, S15), leaving only the rendered-text comparison. Recorded in the plan with sizes:
+    2.2a 3.5 days; 2.2b 5.5 under (ii), 6 to 7 under (iii); plus about 1.5 days of rewrites.
+  - **S131's multiset is LIVE in LITE today in both judges** (`HostJudgments.java:128-135`, `:819-821`, `:868-871`;
+    `TdsCompare.java:76`; VerdictSql's multiset arguments). Its narrowing, ruled 2026-11-05, is "build pending": a
+    product item, sent to the product orchestrator. With S131 off, 0 PCT verdicts move, so the LITE-PCT lane needs no
+    leniency row.
+  - **The referee has no session of its own:** it replays on the body's own target's session, H2 goldens only. On H2
+    lanes that session carries the edge's `MODE=LEGACY`, so CP-8 would change the referee's replay. It needs its own
+    declared LEGACY target first (plan 3.2, now a named step).
+  - **Words are already separable** (verdict first, words only on failure; 29 kind-named sites). The one place words
+    decide a verdict is `assertError`'s match (`BodyRun.java:39` → `HostWords.caught`).
+  - The decoded-plan guard round-trips the edge's records (`TestPlanJson.java:121-124`, `:270-271`), so the planning
+    interface stays data.

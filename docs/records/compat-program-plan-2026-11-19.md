@@ -571,8 +571,8 @@ precondition of 2.2a**, unless the user amends G2 ("the agreement judge on every
   - the corpus rosters unchanged, except unordered-assert lines that now pass as multisets (listed);
   - core's BOTH green.
 - **Guards:** the census's 52 J hits leave (a); `JavaEvalLedgerTest`'s pins shrink.
-- **Size:** 8.5 days under CP-14's option (ii), 11.5 under (i) (the judges session's map); less under (iii) if the
-  leniencies are unused.
+- **Size (measured, H6 §6):** 2.2a 3.5 days (after the LITE-PCT lane); 2.2b 5.5 days under CP-14 (ii), or 6 to 7
+  under (iii). Option (i), the edge's own copy, is 3 days more than (ii).
 - **More is deleted than moved:** the database judge's appeal paths (`rowAppealed`, `RootLoops`' row appeals,
   `EngineTestText.batchTexts` and its gate, the database gate) go with the compatibility database judge. The
   `EngineTestText` facet's 13 methods reshape into one claim at the test planner's per-assert entry.
@@ -681,6 +681,10 @@ H3 (a) and (b) proved the pattern and found three conditions, which shape this p
     derivation is one of the translator's doors: a dependency between 2.2b and 3.2 (the independent review);
   - **upstream's flags are the translator's input,** never the core's: S130's `CORRECT_SQL_SUBSTRING_INDEXING`
     first;
+  - **the referee first gets its own declared target** (H6 §6 (b)). It has no session of its own: it replays on the
+    body's own target's session (`SqlTextVerdicts.java:1467-1472` → `SqlTextRuns.java:188-190`), and on H2 lanes that
+    session carries the edge's `MODE=LEGACY`. So before the edge's H2 settings go, the referee's replay gets a
+    declared LEGACY H2 target of its own: data, not a hook;
   - **the target's settings are the translator's knowledge:** by default (CP-8) the edge's H2 runs H2's own settings,
     and `DatabaseSettingsForm` goes. If 0.4 (h) shows material moves, the door declares the target's settings as data
     (`ExecutionPlan.Target.settings`, which exec already verifies), and the count goes to the user first;
@@ -1091,8 +1095,23 @@ checkpoint.*
   legend-pure's), with no rules parameter at all. This holds only if legend-pure's comparison leniencies (S15, S131,
   S132, S144, S366, S137) change no verdict. On channel B DuckDB they changed none (the judges session's I5); the
   other lanes are being measured.
-- **Recommendation:** (iii) if the measurement holds, since it matches the architecture (words are presentation);
-  otherwise (ii), with the parameter pinned.
+- **Measured** (the judges session's H6 §6, `9a8c4f6f`): every lane run twice, with the leniencies logged, then
+  switched off.
+  - **PCT, every lane: 0 verdicts change.**
+  - **The corpus does need them:** DuckDB 69 tests (S131 33, S137 21, S132 14, S15 2, S144 2); H2 29 (S137 21, S131 4,
+    S132 3, S144 2). S127 and S139 change nothing anywhere.
+- **So (iii) holds only if four of them become INPUT rewrites of the corpus's test bodies at the door:**
+  - S137 (already a planning-time body rewrite, `TestPlanner.java:227`);
+  - S144 (read the 2 non-JSON goldens with json-simple at the door);
+  - S131's typed half (an `assertEquals` over an incidental-order actual becomes `assertSameElements`: 22 of
+    DuckDB's 33);
+  - S15 (a Float `assertEquals` becomes a tolerance compare, 2 tests).
+  - What is left is the rendered-text comparison (DuckDB 26, H2 3). It stays the edge judge's own rule for the
+    Rendered judgment kind, or becomes "not promised".
+- **Sizes:** 2.2b is 5.5 days under (ii); 7 under (iii), or 6 if 1.2's error records are reused, plus about 1.5 days
+  of door rewrites in phase 3.
+- **Recommendation:** (iii). It costs about 3 days more than (ii), and leaves the product's judge with no rules
+  parameter at all; the four rewrites are small, named and tested. Otherwise (ii), with the parameter pinned.
 
 **Held by the previous orchestrator:** R-a, a fractional cell under an Integer property (PR #121). Its ENGINE
 answer, when ruled, becomes a translator rewrite or a refusal in phase 3.
