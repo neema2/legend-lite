@@ -1523,3 +1523,6 @@ who confirms or changes phases 1-3.
 - **~14:07 UTC, the translator:** it does the cross-kind fix's local work, but holds the push and PR until the user
   gives the word in its own session (its brief said "No PR"); it will ask the user directly. Its A3 measurement run X
   (A2 + A3) confirms the prediction: fail rosters 430 (H2) and 267 (DuckDB), exactly `main` + A2 + A3 by H12.
+- **~14:08 UTC, the product orchestrator confirmed the resumes:** the A5 session resumes for C3's lane, the five parity
+  bugs and `firstDayOfWeek` only; the CI-health session for the Maven mirror only (`claude/compat-ci-maven-mirror` and
+  its PR). Both take direction from and report to this session; everything else on their branches stays paused.
