@@ -2246,3 +2246,8 @@ who confirms or changes phases 1-3.
   `PlanMakerDuckDbTest#aDeclaredFileKeepsItsOwnThreads_anInMemoryOneTheTestsSetting`. #127's CI at `3cb787902`: linux
   pct_h2 and corpus_duckdb stopped on Central's 404 (no mirror on that head). Told: no re-run; push the three commits
   once (the merge brings the mirror), the new run is A5's evidence.
+- **~18:26 UTC, B2: A2 against A4, trial-merged** (A2's local `0c043ae96` with A4's `e91005cc6`, aborted): **0
+  conflicts**; 5 shared files all auto-merge (`core/BUILD.bazel`, `edge/PureText.java`, `ArchitectureTest`,
+  `JavaEvalLedgerTest`, `BodyRouterParityTest`); no A2 pin moves under A4 (read diff by diff: the dialect-boundary pins
+  stay 12 constructions and 13 arms; the ledgers re-pin different rows). The merged tree is built once by the judges'
+  session at the batch. A2's `//gates:local` re-running after its last fixes.
