@@ -165,6 +165,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 ## What is the same
 
 - **Your project** loads, compiles and runs as on legend-engine: models, mappings, stores, runtimes, connections.
+- **The database computes every answer.** Only the output's formatting happens in Java: legend-engine's printed
+  tables, envelopes and error sentences, written from lite's typed values.
 - **The legend-engine server routes Studio uses** answer in legend-engine's own formats. That covers the result
   envelopes, and the printed tables, byte for byte in a prototype (431 of 431 tables on DuckDB, 342 of 342 on H2).
 - **Studio's "generate plan" for an ordinary query** uses none of the code these changes remove (checked in the
