@@ -1663,3 +1663,12 @@ who confirms or changes phases 1-3.
   Windows. Next: macOS's verdict, Linux's re-run, Windows core, ~14:55.
 - **~14:55 UTC, THE USER: "Detector default warn is okay"** (recorded in §1): warn by default, with the load-time
   report. The user also asked for stage A's steps "clearly in English" (written in chat).
+- **~14:24 UTC, B1-R: PR #124 at `fa8294cca`, near-final CI** (run 44531926654). Linux: every lane the PR touches green,
+  core green; red only ui, product and corpus_h2, all Maven 404s. Windows: all green but edge_net (#123's 4 tests).
+  **macOS: pct_duckdb GREEN in 12.75 min** with the five DuckDB ENGINE lanes and the batteries; pct_h2 6.0 min;
+  pct_postgres, parser_equivalence, product, checks, corpus, datacube, warehouse, sdlc, pct_channel_b green. **macOS
+  edge_net fails the same 4 diff tests:** Float last digits from the platform's maths library, as on Windows, but macOS
+  also moves `acos`, `asin` and `cot`, so it needs its own `overlay_macos.tsv` (rows sent to B1). None of #124's own
+  code is red on any OS; left: #123's macOS overlay and the Maven mirror on `main`, then one batched merge.
+  **Note:** macOS's pct_duckdb at 12.75 min is over the ~11 min this session set as a soft limit for A5's lanes; A5's
+  channel A LITE targets stay out of `pct_duckdb` on that evidence.
