@@ -1,0 +1,37 @@
+diff --git a/pct/BUILD.bazel b/pct/BUILD.bazel
+index 3384b692a..7801f526e 100644
+--- a/pct/BUILD.bazel
++++ b/pct/BUILD.bazel
+@@ -880,7 +880,8 @@ test_suite(
+ # PCT adapters run a case), with no expected failures, on DuckDB's five suites and H2's relation suite; each test's
+ # outcome by its full name (JUnitMain's -Dlegend.junit.outcomes.full). tools/enginelane joins them with legend-engine's
+ # manifests into the lane's classification table, pinned below.
+-_ENGINE_LANES = [("duckdb", "", s) for s in _SUITES] + [("h2", "h2", "Relation")]
++# PROBE (census B2, 2026-11-19, never pushed): H2 on every suite, not the relation suite alone
++_ENGINE_LANES = [("duckdb", "", s) for s in _SUITES] + [("h2", "h2", s) for s in _SUITES]
+ 
+ [java_run(
+     name = "engine_lane_%s_%s" % (lane, s.lower()),
+@@ -889,11 +890,13 @@ _ENGINE_LANES = [("duckdb", "", s) for s in _SUITES] + [("h2", "h2", "Relation")
+         "engine_lane/%s_%s/verdict.txt" % (lane, s.lower()),
+         "engine_lane/%s_%s/run.log" % (lane, s.lower()),
+         "engine_lane/%s_%s/outcomes.tsv" % (lane, s.lower()),
++        "engine_lane/%s_%s/answers.tsv" % (lane, s.lower()),
+     ],
+     arguments = [
+         "{OUT_DIR}/verdict.txt",
+         "{OUT_DIR}/run.log",
+         "{OUT_DIR}/outcomes.tsv",
++        "{OUT_DIR}/answers.tsv",
+         "--",
+         "--select-class=org.finos.legend.lite.pct.Test_LegendLite_Engine_PCT",
+     ],
+@@ -902,6 +905,8 @@ _ENGINE_LANES = [("duckdb", "", s) for s in _SUITES] + [("h2", "h2", "Relation")
+         "-Dpct.audience=engine",
+         "-Dpct.engine.suite=" + s,
+         "-Dlegend.junit.outcomes.full={OUT_DIR}/outcomes.tsv",
++        # PROBE (census B2): each case's answer as the edge golden net records it (PctCaseRecorder)
++        "-Dlegend.edge.answers={OUT_DIR}/answers.tsv",
+     ],
+     main_class = "com.legend.tools.junit.JUnitAction",
+     memory_mb = 4096,

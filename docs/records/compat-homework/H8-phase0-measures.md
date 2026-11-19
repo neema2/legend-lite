@@ -795,3 +795,55 @@ The translator session measured the same strand on its own branch (`claude/compa
 `plain` moves pure/v1's `raise.sqrtOfNegative` from 200 null to a raise, and changes only `divideByZero`'s words. That
 agrees with (j.1).
 
+### (j.4) H2's other PCT suites, closing (j)'s "not measured" for H2
+
+The orchestrator's follow-up. **The method:**
+- B1-R's ENGINE lane (`815690a57`), widened in two local worktrees to H2's Essential, Grammar, Standard and
+  Unclassified suites beside Relation (`H8j4_h2_lane_widening.patch.txt`: `_ENGINE_LANES` takes H2 on every suite);
+- each case's answer recorded too (`-Dlegend.edge.answers`);
+- one worktree as the BASELINE, one with (j)'s probe.
+
+Each H2 table is joined with legend-engine's own H2 manifest for its suite (`relational-h2/<Suite>Functions_manifest.json`,
+read from the pinned sources). The baseline's Relation table is byte-identical to B1-R's pin. Tables:
+`H8j4-h2-lane-tables/{baseline,probe}/`. Runs: 2026-11-19, about 13:05-13:15 UTC.
+
+**The baseline**, H2 as legend-engine's audience, all 1,249 tests:
+
+| Suite | Tests | SAME | LITE_ANSWERS | LITE_FIXES | BOTH_FAIL | LITE_BEHIND |
+|---|---:|---:|---:|---:|---:|---:|
+| Essential | 345 | 125 | 26 | 101 | 87 | 6 |
+| Grammar | 137 | 77 | 14 | 28 | 18 | 0 |
+| Relation | 469 | 411 | 0 | 37 | 21 | 0 |
+| Standard | 205 | 107 | 0 | 6 | 65 | 27 |
+| Unclassified | 93 | 72 | 0 | 1 | 10 | 10 |
+
+**Verdict moves under the probe: 4, all BOTH_FAIL → LITE_FIXES. No SAME test moves** (`H8j4-h2-lane-moved.tsv`).
+H2's own answers to the unchecked SQL are from both H2 2.5.252, lite's, and 2.1.214, legend-engine's, which agree
+(`H8j4_H2Plain.java.txt`, `H8j4-h2-plain.txt`).
+
+| Test (H2) | legend-engine (manifest) | H2 on the unchecked SQL | Lite today (plain) | Lite, probe |
+|---|---|---|---|---|
+| `rem::testRemError` (`5->rem(0)`) | an error ("Unexpected error executing function") | `MOD(5, 0)`: Division by zero | H2's Division by zero | PCT's error: **the status is kept**, only the words move |
+| `testSquareRootError` (`sqrt(-1.0)`) | no error: a value | `SQRT(-1.0)` = **NaN** | lite's refusal: "the database answered NaN for a Float, which has no NaN in Pure" | PCT's error |
+| `bitShiftLeft::testBitShiftLeft_MoreThan62Bits` (`1->bitShiftLeft(63)`) | no error: a value | `LSHIFT(1, 63)` = **-9223372036854775808** | lite's refusal: "BIT_SHIFT_LEFT reached a dialect without bit-op support" | PCT's error |
+| `bitShiftRight::testBitShiftRight_MoreThan62Bits` (`1->bitShiftRight(63)`) | no error: a value | `RSHIFT(1, 63)` = **0** | lite's refusal: "BIT_SHIFT_RIGHT reached a dialect without bit-op support" | PCT's error |
+
+**Answers (`H8j4-h2-answers-moved.tsv`):**
+- **2 values move, both S20's**, as on DuckDB: `testFloatPlus` 1.7 → 1.7000000000000002, and `testFloatTimes` 2.1 →
+  its double. Both are SAME before and after, since PCT's verdict cannot see them.
+- 8 cases move their SQL text alone, with equal rows.
+- 3 errors change their words, and one value turns into PCT's error: the four tests above.
+
+**The answers that stop matching legend-engine on H2: 2**, both S20's Float case. They are reproducible only through
+Decimal, as (j.2) says. The plain set stops no H2 answer from matching: `rem` keeps its error status, and the other
+three never matched. (j.2)'s total becomes **9 answers: 5 by a guard, 4 through Decimal only.**
+
+**What D2 should know: 3 legend-engine answers on H2 that no ordinary guard reproduces.** Lite does not match them
+today, with or without the plain set:
+- `sqrt(-1.0)` → NaN. Pure has no NaN, so no Pure program, and so no rewrite, produces it.
+- `1->bitShiftLeft(63)` → -9223372036854775808. LSHIFT wraps.
+- `1->bitShiftRight(63)` → 0. A guard `if($n > 62, |0, |...)` answers 0, but its other branch still needs a shift.
+
+Lite's H2 dialect writes no shift at all (the `DialectCapability` refusal above), so no rewrite helps until it does. That
+is a capability gap of lite's H2, not a CP-5 cost.
+

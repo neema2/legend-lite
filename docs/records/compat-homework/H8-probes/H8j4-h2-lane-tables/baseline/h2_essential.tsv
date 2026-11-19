@@ -1,0 +1,347 @@
+# the ENGINE lane, h2 Essential: 345 tests (bazel run //pct:update_engine_lane)
+test	engine	engine_class	lite	lite_class	verdict
+meta::pure::functions::collection::tests::add::testAdd	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::add::testAddWithOffset	REFUSES	add_T_MANY__Integer_1__T_1__T_$1_MANY$_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::at::testAt	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::at::testAtError	DEFECT	UNSUPPORTED	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::collection::tests::at::testAtOtherScenario	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::at::testAtWithVariable	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::concatenate::testConcatenateMixedType	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::concatenate::testConcatenateSimple	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::concatenate::testConcatenateTypeInference	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::contains::testContainsNonPrimitive	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::contains::testContainsPrimitive	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::contains::testContainsWithFunction	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropExceedsSizeOnEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropExceedsSizeOnNonEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropInList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropManyOnEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropManyOnNonEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropNegativeOnEmptyList	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::drop::testDropNegativeOnNonEmptyList	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::drop::testDropOneOnEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropOneOnNonEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropZeroOnEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::drop::testDropZeroOnNonEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::exists::testExists	DEFECT	RUNTIME_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::exists::testExistsInSelect	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::collection::tests::find::testFindInstance	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::find::testFindLiteral	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::find::testFindLiteralFromVar	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::find::testFindUsingVarForFunction	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testFold	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testFoldCollectionAccumulator	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testFoldEmptyListAndEmptyIdentity	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testFoldEmptyListAndNonEmptyIdentity	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testFoldFiltering	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testFoldMixedAccumulatorTypes	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testFoldToMany	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testFoldWithEmptyAccumulator	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::fold::testFoldWithSingleValue	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::fold::testIntegerSum	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::fold::testStringSum	DEFECT	PLANNER_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::forall::testforAllOnEmptySet	REFUSES	forAll_T_MANY__Function_1__Boolean_1_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::forall::testforAllOnNonEmptySetIsFalse	REFUSES	forAll_T_MANY__Function_1__Boolean_1_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::forall::testforAllOnNonEmptySetIsTrue	REFUSES	forAll_T_MANY__Function_1__Boolean_1_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::get::testGet	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::head::testHeadComplex	DEFECT	RUNTIME_FAULT	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::collection::tests::head::testHeadOnEmptySet	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::head::testHeadOnOneElement	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::head::testHeadSimple	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::indexof::testIndexOf	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::collection::tests::init::testInit	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::init::testInitOnEmptySet	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::init::testInitOneElement	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::keys::testKeys	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::last::testLast	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::last::testLastFromEmpty	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::last::testLastOfOneElementList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::put::testPut_addsEntry	DEFECT	UNSUPPORTED	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::collection::tests::put::testPut_emptyMap	DEFECT	UNSUPPORTED	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::collection::tests::put::testPut_overridesEntry	DEFECT	UNSUPPORTED	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::collection::tests::putAll::testPutAll_emptyInputMap	DEFECT	UNSUPPORTED	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::collection::tests::putAll::testPutAll_emptyPutEntries	DEFECT	UNSUPPORTED	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::collection::tests::putAll::testPutAll_overridesExistingAndAddNew	DEFECT	UNSUPPORTED	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyListExplicit	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionSimple	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::removeDuplicatesBy::testRemoveDuplicatesByPrimitive	REFUSES	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::reverse::testReverse	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::reverse::testReverseEmpty	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::slice::testSlice	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::slice::testSliceEqualBounds	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::slice::testSliceError	DEFECT	UNSUPPORTED	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::collection::tests::slice::testSliceInList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::slice::testSliceOnBounds	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::slice::testSliceOnEmpty	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::slice::testSliceOutOfBounds	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testMixedSortNoComparator	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testSimpleSort	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testSimpleSortNoComparator	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testSimpleSortReversed	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testSimpleSortWithFunctionVariables	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testSimpleSortWithKey	REFUSES	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::sort::testSortEmptySet	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::tail::testTail	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::tail::testTailOnEmptySet	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::tail::testTailOneElement	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeExceedsSizeOnEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeExceedsSizeOnNonEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeInList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeManyOnEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeManyOnNonEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeNegativeOnEmptyList	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::take::testTakeNegativeOnNonEmptyList	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::take::testTakeOneOnEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeOneOnNonEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeZeroOnEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::take::testTakeZeroOnNonEmptyList	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::values::testValues	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::collection::tests::zip::testZipBothListsAreOfPairs	REFUSES	zip_T_MANY__U_MANY__Pair_MANY_	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::zip::testZipBothListsEmpty	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::zip::testZipBothListsSameLength	REFUSES	zip_T_MANY__U_MANY__Pair_MANY_	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::zip::testZipFirstListEmpty	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::zip::testZipFirstListLonger	REFUSES	zip_T_MANY__U_MANY__Pair_MANY_	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::zip::testZipFirstListsIsOfPairs	REFUSES	zip_T_MANY__U_MANY__Pair_MANY_	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::zip::testZipSecondListEmpty	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::collection::tests::zip::testZipSecondListLonger	REFUSES	zip_T_MANY__U_MANY__Pair_MANY_	PASS		LITE_ANSWERS
+meta::pure::functions::collection::tests::zip::testZipSecondListsIsOfPairs	REFUSES	zip_T_MANY__U_MANY__Pair_MANY_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testAdjustByDays	PASS		PASS		SAME
+meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DEFECT	DATABASE_ERROR	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::date::tests::testAdjustByHours	PASS		PASS		SAME
+meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DEFECT	DATABASE_ERROR	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::date::tests::testAdjustByMicroseconds	PASS		PASS		SAME
+meta::pure::functions::date::tests::testAdjustByMicrosecondsBigNumber	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testAdjustByMilliseconds	PASS		PASS		SAME
+meta::pure::functions::date::tests::testAdjustByMillisecondsBigNumber	PASS		PASS		SAME
+meta::pure::functions::date::tests::testAdjustByMinutes	PASS		PASS		SAME
+meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DEFECT	DATABASE_ERROR	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::date::tests::testAdjustByMonths	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DEFECT	DATABASE_ERROR	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::date::tests::testAdjustBySeconds	PASS		PASS		SAME
+meta::pure::functions::date::tests::testAdjustBySecondsBigNumber	DEFECT	DATABASE_ERROR	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::date::tests::testAdjustByWeeks	PASS		PASS		SAME
+meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DEFECT	DATABASE_ERROR	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::date::tests::testAdjustByYears	DEFECT	OTHER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDateDiffDays	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDateDiffHours	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDateDiffMilliseconds	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDateDiffMinutes	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDateDiffMonths	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDateDiffSeconds	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDateDiffWeeks	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDateDiffYears	DEFECT	OTHER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDateFromDay	DEFECT	UNSUPPORTED	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::date::tests::testDateFromHour	REFUSES	date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testDateFromMinute	REFUSES	date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testDateFromMonth	REFUSES	date_Integer_1__Integer_1__Date_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testDateFromSecond	DEFECT	UNSUPPORTED	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::testDateFromSubSecond	DEFECT	UNSUPPORTED	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::date::tests::testDateFromYear	REFUSES	date_Integer_1__Date_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testDatePart	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDatePartTrivial	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDatePartYearMonthOnly	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDatePartYearOnly	DEFECT	OTHER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testDayOfMonth	PASS		PASS		SAME
+meta::pure::functions::date::tests::testDayOfMonthError	DEFECT	OTHER	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testHasDay	REFUSES	hasDay_Date_1__Boolean_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testHasHour	REFUSES	hasHour_Date_1__Boolean_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testHasMinute	REFUSES	hasMinute_Date_1__Boolean_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testHasMonth	REFUSES	hasMonth_Date_1__Boolean_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testHasSecond	REFUSES	hasSecond_Date_1__Boolean_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testHasSubsecond	REFUSES	hasSubsecond_Date_1__Boolean_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testHasSubsecondWithAtLeastPrecision	REFUSES	hasSubsecondWithAtLeastPrecision_Date_1__Integer_1__Boolean_1_	PASS		LITE_ANSWERS
+meta::pure::functions::date::tests::testHour	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testHourError	DEFECT	OTHER	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testMinute	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testMinuteError	DEFECT	OTHER	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testMonthNumber	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::date::tests::testNewDateError	REFUSES	date_Integer_1__Integer_1__Date_1_	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testSecond	PASS		PASS		SAME
+meta::pure::functions::date::tests::testSecondError	DEFECT	OTHER	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::date::tests::testYear	DEFECT	OTHER	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::if::testIfWithEvaluate	PASS		PASS		SAME
+meta::pure::functions::lang::tests::if::testIfWithFunctionCall	PASS		PASS		SAME
+meta::pure::functions::lang::tests::if::testMultiIf	PASS		PASS		SAME
+meta::pure::functions::lang::tests::if::testSimpleIf	PASS		PASS		SAME
+meta::pure::functions::lang::tests::match::testMatch	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchManyWithMany	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchOneWith	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchOneWithMany	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchOneWithZeroOne	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchWithExtraParam	REFUSES	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchWithExtraParamsAndFunctionsAsParam	REFUSES	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	PASS		LITE_ANSWERS
+meta::pure::functions::lang::tests::match::testMatchWithFunctions	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchWithFunctionsAsParam	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchWithFunctionsAsParamManyMatch	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchWithFunctionsManyMatch	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::lang::tests::match::testMatchZeroWithMany	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::lang::tests::match::testMatchZeroWithZero	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::math::tests::abs::testBigFloatAbs	PASS		FAIL	WRONG_ANSWER	LITE_BEHIND
+meta::pure::functions::math::tests::abs::testBigIntAbs	PASS		PASS		SAME
+meta::pure::functions::math::tests::abs::testDecimalAbs	PASS		PASS		SAME
+meta::pure::functions::math::tests::abs::testFloatAbs	PASS		PASS		SAME
+meta::pure::functions::math::tests::abs::testIntAbs	PASS		PASS		SAME
+meta::pure::functions::math::tests::binFloor::testBinFloorExactBoundary	PASS		PASS		SAME
+meta::pure::functions::math::tests::binFloor::testBinFloorNegative	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::binFloor::testBinFloorPositive	PASS		PASS		SAME
+meta::pure::functions::math::tests::binFloor::testBinFloorWidthOne	PASS		PASS		SAME
+meta::pure::functions::math::tests::ceiling::testDecimalCeiling	PASS		PASS		SAME
+meta::pure::functions::math::tests::ceiling::testNegativeFloatCeiling	PASS		PASS		SAME
+meta::pure::functions::math::tests::ceiling::testNegativeFloatWithZeroDecimalCeiling	PASS		PASS		SAME
+meta::pure::functions::math::tests::ceiling::testNegativeIntegerCeiling	PASS		PASS		SAME
+meta::pure::functions::math::tests::ceiling::testPositiveFloatCeiling	PASS		PASS		SAME
+meta::pure::functions::math::tests::ceiling::testPositiveFloatWithZeroDecimalCeiling	PASS		PASS		SAME
+meta::pure::functions::math::tests::ceiling::testPositiveIntegerCeiling	PASS		PASS		SAME
+meta::pure::functions::math::tests::exp::testNumberExp	PASS		PASS		SAME
+meta::pure::functions::math::tests::exp::testNumberExpLowPrecision	PASS		PASS		SAME
+meta::pure::functions::math::tests::exp::testSimple	PASS		PASS		SAME
+meta::pure::functions::math::tests::exp::testSimpleLowPrecision	PASS		PASS		SAME
+meta::pure::functions::math::tests::floor::testDecimalFloor	PASS		PASS		SAME
+meta::pure::functions::math::tests::floor::testNegativeFloatFloor	PASS		PASS		SAME
+meta::pure::functions::math::tests::floor::testNegativeFloatWithZeroDecimalFloor	PASS		PASS		SAME
+meta::pure::functions::math::tests::floor::testNegativeIntegerFloor	PASS		PASS		SAME
+meta::pure::functions::math::tests::floor::testPositiveFloatFloor	PASS		PASS		SAME
+meta::pure::functions::math::tests::floor::testPositiveFloatWithZeroDecimalFloor	PASS		PASS		SAME
+meta::pure::functions::math::tests::floor::testPositiveIntegerFloor	PASS		PASS		SAME
+meta::pure::functions::math::tests::log10::testNumberLog10	PASS		PASS		SAME
+meta::pure::functions::math::tests::log10::testSimpleLog10	PASS		PASS		SAME
+meta::pure::functions::math::tests::log::testNumberLog	PASS		PASS		SAME
+meta::pure::functions::math::tests::log::testNumberLogLowPrecision	PASS		PASS		SAME
+meta::pure::functions::math::tests::log::testSimple	PASS		PASS		SAME
+meta::pure::functions::math::tests::log::testSimpleLowPrecision	PASS		PASS		SAME
+meta::pure::functions::math::tests::mod::testMod	PASS		PASS		SAME
+meta::pure::functions::math::tests::mod::testModWithNegativeNumbers	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::pow::testComplexPow	PASS		PASS		SAME
+meta::pure::functions::math::tests::pow::testNumberPow	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::pow::testSimplePow	PASS		PASS		SAME
+meta::pure::functions::math::tests::rem::testRem	PASS		PASS		SAME
+meta::pure::functions::math::tests::rem::testRemError	DEFECT	PLANNER_FAULT	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::math::tests::rem::testRemWithDecimals	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::rem::testRemWithFloats	PASS		PASS		SAME
+meta::pure::functions::math::tests::rem::testRemWithMixedIntegersAndFloats	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::math::tests::rem::testRemWithNegativeFloats	PASS		PASS		SAME
+meta::pure::functions::math::tests::rem::testRemWithNegativeIntegers	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testDecimalRound	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testFloatRoundWithScale	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testNegativeFloatRoundDown	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testNegativeFloatRoundHalfEvenDown	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testNegativeFloatRoundHalfEvenUp	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::round::testNegativeFloatRoundUp	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testNegativeFloatWithZeroDecimalRound	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testNegativeIntegerRound	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testPositiveFloatRoundDown	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testPositiveFloatRoundHalfEvenDown	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::round::testPositiveFloatRoundHalfEvenUp	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testPositiveFloatRoundUp	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testPositiveFloatWithZeroDecimalRound	PASS		PASS		SAME
+meta::pure::functions::math::tests::round::testPositiveIntegerRound	PASS		PASS		SAME
+meta::pure::functions::math::tests::sign::testSign	PASS		PASS		SAME
+meta::pure::functions::math::tests::testCubeRoot	PASS		FAIL	DATABASE_ERROR	LITE_BEHIND
+meta::pure::functions::math::tests::testSquareRoot	PASS		PASS		SAME
+meta::pure::functions::math::tests::testSquareRootError	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::math::tests::toDecimal::testDecimalToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::toDecimal::testDoubleToDecimal	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::math::tests::toDecimal::testIntToDecimal	PASS		PASS		SAME
+meta::pure::functions::math::tests::toFloat::testDecimalToFloat	PASS		PASS		SAME
+meta::pure::functions::math::tests::toFloat::testDoubleToFloat	PASS		PASS		SAME
+meta::pure::functions::math::tests::toFloat::testIntToFloat	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::testArcCosine	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::testArcCosineError	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::math::tests::trigonometry::testArcSine	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::testArcSineError	DEFECT	ERROR_MISMATCH	FAIL	ERROR_MISMATCH	BOTH_FAIL
+meta::pure::functions::math::tests::trigonometry::testArcTangent	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::testArcTangent2	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::testCoTangent	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::testCosine	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::testSine	PASS		PASS		SAME
+meta::pure::functions::math::tests::trigonometry::testTangent	PASS		PASS		SAME
+meta::pure::functions::string::tests::contains::testFalseContains	PASS		PASS		SAME
+meta::pure::functions::string::tests::contains::testTrueContains	PASS		PASS		SAME
+meta::pure::functions::string::tests::endswith::testFalseEndsWith	PASS		PASS		SAME
+meta::pure::functions::string::tests::endswith::testTrueEndsWith	PASS		PASS		SAME
+meta::pure::functions::string::tests::format::testFormatBoolean	REFUSES	format_String_1__Any_MANY__String_1_	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::format::testFormatDate	REFUSES	format_String_1__Any_MANY__String_1_	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::string::tests::format::testFormatFloat	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::format::testFormatFloatWithRounding	REFUSES	format_String_1__Any_MANY__String_1_	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::string::tests::format::testFormatFloatWithTruncation	REFUSES	format_String_1__Any_MANY__String_1_	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::string::tests::format::testFormatFloatWithZeroPadding	REFUSES	format_String_1__Any_MANY__String_1_	FAIL	OTHER	BOTH_FAIL
+meta::pure::functions::string::tests::format::testFormatInteger	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::format::testFormatIntegerWithZeroPadding	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::format::testFormatList	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::string::tests::format::testFormatPair	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::string::tests::format::testFormatRepr	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::format::testFormatString	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::format::testSimpleFormatDate	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::indexOf::testFromIndex	REFUSES	indexOf_String_1__String_1__Integer_1__Integer_1_	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::indexOf::testSimple	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::joinStrings::testJoinStrings	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::string::tests::joinStrings::testJoinStringsNoStrings	DEFECT	UNSUPPORTED	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::string::tests::joinStrings::testJoinStringsSingleString	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::string::tests::joinStrings::testJoinStringsUsingGenericArrow	DEFECT	UNSUPPORTED	PASS		LITE_FIXES
+meta::pure::functions::string::tests::left::testLeft	PASS		PASS		SAME
+meta::pure::functions::string::tests::left::testLeftEmptyString	PASS		PASS		SAME
+meta::pure::functions::string::tests::left::testLeftExactLength	PASS		PASS		SAME
+meta::pure::functions::string::tests::left::testLeftTooShortString	PASS		PASS		SAME
+meta::pure::functions::string::tests::left::testLeftZeroLength	PASS		PASS		SAME
+meta::pure::functions::string::tests::length::testEmptyLength	PASS		PASS		SAME
+meta::pure::functions::string::tests::length::testLength	PASS		PASS		SAME
+meta::pure::functions::string::tests::parseBoolean::testParseFalse	PASS		PASS		SAME
+meta::pure::functions::string::tests::parseBoolean::testParseTrue	PASS		PASS		SAME
+meta::pure::functions::string::tests::parseDate::testParseDate	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::string::tests::parseDate::testParseDateTypes	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::string::tests::parseDate::testParseDateWithTimezone	DEFECT	DATABASE_ERROR	FAIL	DATABASE_ERROR	BOTH_FAIL
+meta::pure::functions::string::tests::parseDate::testParseDateWithZ	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::string::tests::parseDecimal::testParseDecimal	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::string::tests::parseDecimal::testParseDecimalWithPrecisionScale	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::parseDecimal::testParseZero	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::parseFloat::testParseFloat	PASS		PASS		SAME
+meta::pure::functions::string::tests::parseFloat::testParseZero	PASS		PASS		SAME
+meta::pure::functions::string::tests::parseInteger::testParseInteger	DEFECT	DATABASE_ERROR	PASS		LITE_FIXES
+meta::pure::functions::string::tests::replace::testReplace	PASS		PASS		SAME
+meta::pure::functions::string::tests::reverse::testReverseString	PASS		FAIL	DATABASE_ERROR	LITE_BEHIND
+meta::pure::functions::string::tests::right::testRight	PASS		PASS		SAME
+meta::pure::functions::string::tests::right::testRightEmptyString	PASS		PASS		SAME
+meta::pure::functions::string::tests::right::testRightExactLength	PASS		PASS		SAME
+meta::pure::functions::string::tests::right::testRightIsTheMirrorOfLeft	PASS		PASS		SAME
+meta::pure::functions::string::tests::right::testRightTooShortString	PASS		PASS		SAME
+meta::pure::functions::string::tests::right::testRightZeroLength	PASS		PASS		SAME
+meta::pure::functions::string::tests::split::testSplit	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::string::tests::split::testSplitWithNoSplit	PASS		FAIL	REFUSED	LITE_BEHIND
+meta::pure::functions::string::tests::startswith::testFalseStartsWith	PASS		PASS		SAME
+meta::pure::functions::string::tests::startswith::testTrueStartsWith	PASS		PASS		SAME
+meta::pure::functions::string::tests::substr::testSubstrEmptyResult	PASS		PASS		SAME
+meta::pure::functions::string::tests::substr::testSubstrStart	PASS		PASS		SAME
+meta::pure::functions::string::tests::substr::testSubstrStartEnd	PASS		PASS		SAME
+meta::pure::functions::string::tests::substring::testStart	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::toString::testBooleanToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testClassToString	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testComplexClassToString	DEFECT	UNSUPPORTED	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::toString::testDateTimeToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testDateToString	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testEnumerationToString	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testFloatToString	PASS		PASS		SAME
+meta::pure::functions::string::tests::toString::testFloatToStringWithExcessTrailingZeros	PASS		PASS		SAME
+meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::toString::testFloatToStringWithNoLeadingZero	PASS		PASS		SAME
+meta::pure::functions::string::tests::toString::testFloatToStringWithPositiveExponent	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::toString::testIntegerToString	PASS		PASS		SAME
+meta::pure::functions::string::tests::toString::testListToString	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testPairCollectionToString	DEFECT	RUNTIME_FAULT	FAIL	REFUSED	BOTH_FAIL
+meta::pure::functions::string::tests::toString::testPairToString	DEFECT	RUNTIME_FAULT	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testPersonToString	PASS		PASS		SAME
+meta::pure::functions::string::tests::toString::testSimpleDateToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::toString::testStringToString	PASS		PASS		SAME
+meta::pure::functions::string::tests::tolower::testToLower	PASS		PASS		SAME
+meta::pure::functions::string::tests::toupper::testToUpper	PASS		PASS		SAME
+meta::pure::functions::string::tests::trim::testLTrim	PASS		PASS		SAME
+meta::pure::functions::string::tests::trim::testRTrim	PASS		PASS		SAME
+meta::pure::functions::string::tests::trim::testTrim	PASS		PASS		SAME
