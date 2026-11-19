@@ -7,9 +7,10 @@ moving a project. A register id marked provisional is settled when the program's
 
 **Who this is for:** a team bringing a legend-engine project to legend-lite.
 
-**The one rule behind every entry** (the user's ruling, 2026-11-19, and AGENTS.md's upstream-fidelity tenet): "Lite
-follows Pure. legend-engine's formats are matched, and its answers where they agree with Pure. The rest is recorded."
-Where they do not agree, the difference is listed here, with what to write if you need legend-engine's answer.
+**The one rule behind every entry** is the goal the user ruled on 2026-11-19 (~13:25, "Okay agree with all"), now
+AGENTS.md's upstream-fidelity tenet: lite follows Pure; legend-engine's formats are matched, and its answers where they
+agree with Pure; the rest is recorded. Where they do not agree, the difference is listed here, with what to write if
+you need legend-engine's answer.
 
 **When:**
 - **today:** lite behaved this way before the compatibility program;
@@ -19,7 +20,8 @@ Where they do not agree, the difference is listed here, with what to write if yo
 ## Where your answers can change
 
 ### 1. `substring` and `indexOf` count from 0, as Pure does
-- **You write:** `'abcdef'->substring(1, 3)`; `'abc'->indexOf('b')`.
+- **You write**, in a query sent to the database: `$p.name->substring(1, 3)` and `$p.name->indexOf('b')` inside a
+  `project`, over names `'abcdef'` and `'abc'`.
 - **legend-engine** (on H2 and DuckDB) answers `'abc'` and `2`: the database's 1-based meaning, and 0 when the text is
   not found. Its corrected-substring option fixes `substring` only, never `indexOf`.
 - **lite answers** `'bc'` and `1`, and `-1` when the text is not found, with or without that option.
@@ -30,11 +32,15 @@ Where they do not agree, the difference is listed here, with what to write if yo
   - a start below 0;
   - an end past the length;
   - an end before the start.
-- **To get legend-engine's answer:** `substring($a - 1, $a - 1 + $b)` for legend-engine's `substring($a, $b)`; and
-  `indexOf(...) + 1`, which also turns Pure's -1 into legend-engine's 0.
+- **To get legend-engine's answer**, in range only (a start of 1 or more, and an end within the text):
+  `substring($a - 1, $a - 1 + $b)` for legend-engine's `substring($a, $b)`, and `substring($a - 1)` for its
+  `substring($a)`. At a start of 0, H2 reads position 1 while the rewrite starts at -1 and raises Pure's error; past the
+  end, H2 clamps while Pure raises. For `indexOf`, `indexOf(...) + 1`, which also turns Pure's -1 into legend-engine's
+  0.
 - **Nothing changes silently:**
-  - **The legend-engine door refuses** a query sent to the database that calls either one, in legend-engine's error
-    envelope, naming the call.
+  - **The legend-engine door refuses** a query sent to the database that calls `substring` or the 2-argument
+    `indexOf`, in legend-engine's error envelope, naming the call. (legend-engine itself refuses the 3-argument
+    `indexOf`: item 10.)
   - **An operator may choose to warn instead:** the server setting `LEGEND_LITE_PURE_MEANING=warn` answers Pure's way,
     with a log line and a response header, `x-legend-lite-pure-meaning`.
   - **When the door lets the query through:** for `substring`, when the request sets legend-engine's corrected option.
@@ -64,10 +70,16 @@ Where they do not agree, the difference is listed here, with what to write if yo
   expected SQL and comparing answers.
 - **To get legend-engine's answer:** compare results, not SQL strings.
 - **When:** stage A.
-- **Measured:** of legend-engine's 2,761 corpus tests, 147 on H2 and 152 on DuckDB stop counting, because they check
-  only the text. That becomes 150 and 155 once item 1 lands. Every other SQL-text test passes by its answer. Studio's
-  "generate plan" for an ordinary query answers byte for byte as before. Evidence: A2's corpus rosters, exact against
-  `A2-roster.tsv`, and `server/PureV1SqlTextTest`.
+- **Measured:** of legend-engine's 2,761 corpus tests, 147 on H2 and 152 on DuckDB stop passing, in three kinds
+  (`A2-roster.tsv`):
+  - **text only:** 139 on H2 and 143 on DuckDB check only the SQL text;
+  - **plan structure:** 6 on each check legend-engine's plan structure (a `supportsStream` flag on its plan's
+    parameter-validation node);
+  - **answers the text had hidden:** 2 on H2 and 3 on DuckDB, items 12 and 13.
+- That becomes 150 and 155 once item 1 lands: three more text tests that the old `indexOf` hid.
+- Every other SQL-text test passes by its answer.
+- Studio's "generate plan" for an ordinary query answers byte for byte as before.
+- Evidence: A2's corpus rosters, exact against `A2-roster.tsv`, and `server/PureV1SqlTextTest`.
 - **Register:** S380 (provisional), which supersedes S4.
 
 ### 3. Maths legend-engine leaves unchecked raises Pure's error
@@ -85,7 +97,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 - **The rewrites are per database.** On H2, `x / 0` already raises under legend-engine, so the guard would be wrong
   there. On DuckDB, `sqrt(-2.0)` already raises, likewise.
-- **Why:** Pure defines these operations to raise (PCT, legend-pure's own suite, expects the error in every case).
+- **Why:** Pure defines these operations to raise. PCT, legend-pure's own suite, expects the error for the first five
+  rows. For `x / 0` PCT has no test: lite raises its own division-by-zero error, and legend-pure's own answer is still
+  to be read (its interpreted `divide` hands the work to `NumericAccumulator`).
 - **When:** stage B.
 - **Measured:** H8 (j), (j.3), (j.4). legend-engine's DuckDB divide answer is its own (B1-R's oracle); lite's DuckDB
   server route was not run. DuckDB 1.5.6 answers the unchecked divide with `Infinity`, so only the guard matches
@@ -143,8 +157,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 9. Error messages
 - **legend-engine's message** is often its database's own error over legend-engine's SQL.
-- **lite gives** its own clear message, in legend-engine's error envelope and with the same status. Neither carries a
-  source position on these routes.
+- **lite gives** its own clear message, in legend-engine's error envelope and with the same status. Neither points into your
+  code (legend-engine's can carry a position in legend-engine's own Pure).
 - **When:** today; the words move to a formatter in stage B.
 - **Measured:** the pure/v1 net (for example divide by zero: 500 on both, different words).
 
@@ -153,7 +167,7 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **lite answers them**, and checks those answers against PCT's expected values.
 - **What it means for you:** a query written against lite may not run back on legend-engine.
 - **When:** today.
-- **Measured:** on DuckDB, 99 of legend-engine's 110 refused PCT tests answered and 109 wrong answers fixed; on H2,
+- **Measured:** on DuckDB, 99 of legend-engine's 110 refused PCT tests answered and 109 failures fixed; on H2,
   28 of 36. Evidence: B1-R's lane, H7.
 - **Measured on the corpus:** no runnable verdict moves (census B2's H8 (k)).
 - **Register:** S385 (provisional).
@@ -174,15 +188,57 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   order, locale, path or line ending moved on either. Evidence: PR #123's runs on both, its overlays.
 - **Register:** S382 (provisional).
 
+### 12. `joinStrings` with a separator joins with it, as Pure does
+- **You write**, in a query sent to the database: `[$r.firstName, ' ', $r.lastName]->joinStrings('|')`, or with a
+  prefix, separator and suffix, `->joinStrings('[', ',', ']')`.
+- **legend-engine's SQL** concatenates the separator, and the prefix and suffix, as further elements:
+  `concat(first, ' ', last, '|')`. It answers `'Anthony Allen|'`, and `'Anthony Allen[,]'` for the 3-part form.
+- **lite answers** Pure's: `'Anthony| |Allen'` and `'[Anthony, ,Allen]'`.
+- **A hash over such a join differs with it** (`->joinStrings('|')->hash(HashType.MD5)`).
+- **Why:** Pure's `joinStrings` puts the separator between the strings (legend-pure `joinStrings.pure:23`).
+- **To get legend-engine's answer:** concatenate yourself, for example `$first + ' ' + $last + '|'`.
+- **When:** today. The corpus first saw it when SQL text stopped being compared, in A2.
+- **Measured:** the corpus's `testToSQLStringForTDSStringJoin` and `testHashFunctions`, on H2 and DuckDB (class b of
+  `A2-roster.tsv`).
+- **Register:** S386 (provisional).
+
+### 13. `firstDayOfWeek` is the Monday, as Pure defines it (on DuckDB)
+- **legend-engine's SQL** answers the Sunday before: `2014-11-30` for a date in the week of Monday `2014-12-01`.
+- **lite on DuckDB answers** the Monday, `2014-12-01`. Pure defines it as the most recent Monday (legend-engine's own
+  `core/pure/corefunctions/dateExtension.pure:202`, `mostRecentDayOfWeek(DayOfWeek.Monday)`).
+- **lite on H2 still answers legend-engine's Sunday.** That is lite's defect, listed under the gaps below.
+- **When:** today.
+- **Measured:** the corpus's `testToSqlGenerationFirstDayOfWeek` on DuckDB (class b of `A2-roster.tsv`); on H2 it
+  passes by its rows.
+- **Register:** S387 (provisional).
+
+### 14. A table's text used inside a query (stage B)
+- **You write** a relation's `toString()` or `toCSV()`.
+- **Where that text is the program's last step** (an assert's side; every PCT test), compatibility prints legend-pure's
+  text from lite's rows, as legend-pure itself does.
+- **Where the text is used further** inside the query (`->toString()->length()`), the database computes lite's own
+  text:
+  - a whole Float prints `2.0`;
+  - a date with a time prints `2000-10-25T06:30:00.000000Z`, where legend-pure prints `+0000`;
+  - an empty cell prints `null`.
+- **Ruled:** by the user on 2026-11-19: ~18:05, "Agree with all four table printing recommendations"; ~18:12, "Yes
+  record it, and count the nested cases"; ~18:36, "Null is good".
+- **When:** stage B (B2).
+- **Measured:** count pending; the nested cases are counted before B2 is built.
+- **Register:** a row comes with B2.
+
 ## Gaps lite has today (not differences by design)
 
 - **H2 functions lite does not write yet** are refused by name, never answered wrongly: `greatest`, `least`, `mode`,
   max and min of dates, the bit operations, splitting a string into rows, cube root, reverse, and list positions
   (`at`, `toOne` over a list).
-  - These are 33 PCT tests on H2, being added by the product track.
+  - These are 33 PCT tests on H2 in the pinned suites (Essential 6, Standard 27); Unclassified, measured once, adds 10.
+    The product track is adding them.
   - H2 also answers `sqrt(-1.0)` with NaN and wraps a 63-bit shift. Pure has no NaN, so no query can reproduce that,
     and lite does not write shifts on H2 at all.
   - **Measured:** B1-R's lane; H8 (j.4).
+- **`firstDayOfWeek` on H2** answers legend-engine's Sunday, not Pure's Monday (item 13). Lite's two databases
+  disagree, so it is a defect, for the product track.
 - **Not supported yet:**
   - legend-engine's mapping test suites and service tests;
   - cross-store queries;
@@ -193,18 +249,22 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 ## What is the same
 
 - **Your project** loads, compiles and runs as on legend-engine: models, mappings, stores, runtimes, connections.
-- **The database computes every answer.** Only the output's formatting happens in Java: legend-engine's printed
-  tables, envelopes and error sentences, written from lite's typed values.
-- **The legend-engine server routes Studio uses** answer in legend-engine's own formats. That covers the result
-  envelopes, and the printed tables, byte for byte in a prototype (431 of 431 tables on DuckDB, 342 of 342 on H2).
+- **The database computes every answer.** After stage B, only the output's formatting happens in Java:
+  legend-engine's printed tables, envelopes and error sentences, written from lite's typed values. Today a printed table
+  is still built in SQL, and an error reads lite's own code (item 5).
+- **The legend-engine server routes Studio uses** answer in legend-engine's own result envelopes (the pure/v1 golden
+  net).
+- **A printed table** whose text is the program's last step matches legend-pure's byte for byte in stage B's
+  prototype: 431 of 431 tables on DuckDB, 342 of 342 on H2. A table's text used further is item 14.
 - **Studio's "generate plan" for an ordinary query** uses none of the code these changes remove (checked in the
   compiled code; none of the 15 recorded requests is affected). Only a query that itself asks for SQL text is
   affected, and that is item 2.
 - **Tests that check SQL text** are still judged, by their answers, on legend-engine's own H2.
-- **Floats are doubles**, as in legend-engine. A 20-digit Float literal loses digits in both (only legend-pure's
+- **A Float value read from the database is a double**, as in legend-engine (a Float literal is item 4). A 20-digit Float literal loses digits in both (only legend-pure's
   interpreter keeps them; S120).
-- **On legend-engine's own function suite (PCT)**, lite's legend-engine route passes more tests than legend-engine
-  on DuckDB, H2 relation and H2 essential, and fewer on H2 standard:
+- **On legend-engine's own function suite (PCT)**, measured before stage A, lite's legend-engine route passes more
+  tests than legend-engine on DuckDB, H2 relation, H2 essential and H2 grammar, and fewer on H2 standard and H2
+  unclassified:
 
   | | lite | legend-engine |
   |---|---:|---:|
@@ -212,5 +272,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   | H2 relation | 448 | 411 |
   | H2 essential | 252 | 131 |
   | H2 standard | 113 | 134 |
+  | H2 grammar (measured once, not pinned) | 119 | 77 |
+  | H2 unclassified (measured once, not pinned) | 73 | 82 |
 
-  H2 standard is behind by the gaps above.
+  H2 standard and unclassified are behind by the gaps above. Item 1 moves 12 more PCT tests to PCT's answer: 7 on DuckDB
+  and 5 on H2.
