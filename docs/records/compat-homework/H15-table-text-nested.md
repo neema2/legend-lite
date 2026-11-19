@@ -200,3 +200,112 @@ assertEquals(['ytd,0.13,'], toCSV($result.values)->replace('\n', ','));
 - `H15-data/nodes.tsv`: every relation-text node, de-duplicated, with source, test, call, class, parent chain,
   statement, source line, argument type and how it was walked.
 - `H15-data/pct-a-programs.tsv`: channel A's programs per lane, all with 0 nodes.
+- `H15-data/calendar-floats.tsv`: §8's check of the 41 calendar tests: each expected literal, its Float cells, the most
+  decimals one needs, lite's ruled Float text of the same values, and the verdict on `main` per lane.
+
+## 8. The 46 tests with NESTED nodes: today, under B2, and whether any lite text could pass (the owner's follow-up)
+
+**Sources.**
+- `main`'s verdicts are its committed host-judge ledgers, `spec/src/test/resources/edge/corpus_{duckdb,h2}_host_judge-host.tsv`
+  at `b75d6c73a`. Under rule 4 the host judge is compatibility's judge.
+- `main`'s ledgers carry no messages. The reasons are read from the same ledgers run at #124's head (`f832a6671`,
+  which records each non-PASS message), whose verdicts for these 46 tests are identical to `main`'s on both lanes.
+- The lanes' database-judge fail rosters (`rcorpus/{duckdb,h2}-fail-roster.txt`) name none of the 46 on DuckDB and 7 on
+  H2.
+
+### 8.1 The answer
+
+| | DuckDB: pass of 46 | H2: pass of 46 |
+|---|---|---|
+| (1) `main` today | **39** (calendar 34 of 41, extensions 5 of 5) | **32** (calendar 32, extensions 0) |
+| (2a) B2 as ruled, lite as it is (the product refuses `toCSV` by name) | **5** (calendar 0: all 41 refused; extensions 5) | **0** |
+| (2b) B2 if lite had a CSV text (legend-pure's layout, lite's ruled Float text) | **37** (calendar 32, extensions 5) | **30** (calendar 30) |
+
+- **(3)** 9 of the 41 calendar tests expect a Float with more than six decimals (12 to 16). No lite text can pass
+  those. The other 32 need six or fewer, and lite's Float text of the same values reproduces their expected strings
+  byte for byte.
+- **(4)** The 5 extensions tests are not affected by B2. `println` is an inert diagnostic on both doors: its argument
+  is never planned or evaluated. So no relation text is made there, neither legend-pure's nor lite's, and nothing needs
+  to be taken over.
+
+### 8.2 Today on `main` (1)
+
+**The 41 calendar tests:**
+
+| lane | pass | fail at `assertSameSQL` (before the text) | fail at the `toCSV(...)->replace` assert |
+|---|---|---|---|
+| DuckDB | 34 | 4 | 3 |
+| H2 | 32 | 4 | 5 |
+
+- **`assertSameSQL` failures**, on both lanes: `testP12WaValue`, `testP52WaValue`, `testPwaValue` and
+  `testUnionWithWtdAndPwa`. Each is "sql-text ROW verdict ... golden rows vs ours diverged": the golden SQL's rows on
+  H2 are rounded to 12 decimals (`0.383333333333`), lite's are not.
+- **Text failures on both lanes** (`testPmaValueOnStartYear`, `testPwaValueOnStartYear`, `testPywaValueOnStartYear`):
+  the expected Floats are rounded to 12 or 13 decimals, and lite's text prints the full double:
+  - expected `0.236666666667`, got `0.23666666666666666` on DuckDB;
+  - on H2, got `0.236666666666666666`.
+- **Text failures on H2 only:**
+  - `testMtdValue`: expected `3.0`, got `3`;
+  - `testSubclassValue`: expected `10.0`, got `10`.
+
+  The H2 cell comes back whole, not as a Float.
+
+**The 5 extensions tests:**
+- On DuckDB, all 5 pass.
+- On H2, none passes:
+  - `columnValueDifferenceTest` and `rowValueDifferenceTest` fail at their fourth assert. That assert is
+    `assertEquals($relationalResult->toCSV(), $inMemoryResult->toCSV())`, a ROOT pair of relation texts (§3), so it
+    is not the `println`;
+  - `iqrClassifyTest`, `testExtendDigest_InMemory` and `zScoreTest` fail before any assert:
+    `DialectCapability: UNNEST reached a dialect without an unnest placement`. That is an H2 gap, not a text.
+
+### 8.3 Under the ruled B2 (2)
+
+**(2a) As lite is today.** NESTED means lite's own text, and lite has no CSV text of a relation:
+- the product refuses `toCSV` by name (`TextRefusals.relation("toCSV")`);
+- the ruled change of ~18:05 (H14) gives a relation's `toString` a database text, but leaves `toCSV` and a TDS's `csv`
+  untouched (H14 §2).
+
+So all 41 calendar bodies are refused at planning on both lanes. That turns DuckDB's 34 passes and H2's 32 into
+failures by name. The 5 extensions tests keep today's outcomes (§8.5).
+
+**(2b) If lite had a CSV text.** This assumes legend-pure's CSV layout (header row, `,` between cells, a line end after
+every row, an empty cell for a null), with lite's ruled Float text: six decimals; trailing zeros dropped; a whole value
+keeping `.0` (the user, ~18:05, H14 §6's V2).
+- **DuckDB, 32 of 41:** the two lost against today are `testAnnualizedValue` and `testCmeValue`, which need 15 and 16
+  decimals.
+- **H2, 30 of 41:** the same two are lost. `testMtdValue` and `testSubclassValue` presumably still fail there, because
+  the H2 cell is not a Float (today's `3` and `10`).
+- **Under the earlier Float text V1** (whole values trimmed to `3`), `testMtdValue` and `testSubclassValue` would also
+  fail on DuckDB: 30.
+
+### 8.4 Could ANY lite text pass the 41? (3)
+
+Lite's Float text is six decimals at most, so an expected Float with more digits cannot be matched by any lite text.
+The cell-by-cell check is `H15-data/calendar-floats.tsv`.
+
+| expected Floats need | tests | the tests | on `main` today |
+|---|---|---|---|
+| **more than 6 decimals** | **9** | `testAnnualizedValue` (15), `testCmeValue` (16) | both pass on both lanes: lost under any lite text |
+| | | `testP12WaValue`, `testP52WaValue`, `testPwaValue`, `testUnionWithWtdAndPwa` (12 or 13) | fail first at `assertSameSQL` |
+| | | `testPmaValueOnStartYear`, `testPwaValueOnStartYear`, `testPywaValueOnStartYear` (12 or 13) | fail at this text today |
+| **6 or fewer** | **32** | the other 32 (for example `1.65`, `0.8575`, `0.259`; `3.0` and `10.0` whole) | lite's V2 text of the same values equals the expected string byte for byte |
+
+### 8.5 `println(<relation text>)` as a last step (4)
+
+**There is nothing to take over: lite never makes the text.** `println` (and `print`) is an inert diagnostic on both
+doors: "no statement, the argument never evaluated". The code:
+- `planner/ProductStatements` answers the statement as a constant with no value, and the test road does the same;
+- `testplan/BodyDriver`'s `println` arm answers `TypedSide.Scalar(null, "String")`;
+- `resolver/StoreResolver` passes the statement through unresolved;
+- `lowering/Scalars` writes a `println` inside an expression as `NULL`.
+
+So under B2 the 13 `println` nodes produce no text of any kind, and no verdict reads them. Treating
+`println(<relation text>)` as a last step would change nothing at the door: the takeover would have no rows to print.
+Their 5 tests' outcomes come from their other asserts:
+- 2 of them compare `toCSV` against `toCSV` at a ROOT, which the takeover covers;
+- the other 3 hold no relation text in an assert.
+
+**One record gap, for the owner.** legend-pure's `println` writes the text to its console; lite writes nothing.
+Register row S128 records `print`'s inertness (R18), but no row names `println`. A divergence that is not a row is a
+defect by the upstream-fidelity tenet. A one-line amendment to S128 (or a row of its own) would close it.
