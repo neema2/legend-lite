@@ -2042,3 +2042,8 @@ who confirms or changes phases 1-3.
   times; 210.6 s → 45.8 s). **This session's call (17:30):** a piece this program needs (it reds every compatibility
   PR's Windows lane), so its own small PR, `claude/compat-markets-test-time`, checked against the rules of record; the
   CI-health session asks the user in its session for the word to push it (not CI-only).
+- **~17:20 UTC, the CI-health worker: the markets_test PR prepared locally, not pushed** (`claude/compat-markets-test-time`
+  from `main`: `0c3c6da7f` = `bb0fe2fc1`, and `699331ffd` = `c733c4265`, the project-name memo bounded with the
+  edited-text tests; Python host only, `_headless.py`, `projects.py`, `tests/test_headless.py`, +168 / -1). Checked
+  against the rules of record: the caches hold the compiler's own answers keyed by the whole request text; no value
+  computed or changed; no mode. `//python:all` running; it is asking the user in its session for the word to push.
