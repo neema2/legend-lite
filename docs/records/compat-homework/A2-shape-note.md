@@ -49,6 +49,23 @@ On `Compiler.lowerResolved`: its branch runs only when `relationalRootForm` is t
 `PlanAllocations.java:398` and the tests. So the branch is dead in the product, and the flag can go with `apply`. That
 changes two signatures `PlannerSurfaceTest` pins (§5).
 
+**`EngineStyleH2.raiseMessage` and `PureMessages.sentence`** (the compat owner's addition, from H13):
+- `EngineStyleH2.raiseMessage` (`EngineStyleH2.java:409-416`) goes with its file.
+- `PureMessages.sentence` (`edge/PureMessages.java:22`), legend-pure's raise sentence built in SQL, has **13** bytecode
+  callers at `main`, not one (`A2_Callers.java.txt`):
+  - `EngineStyleH2.raiseMessage:415`;
+  - 12 `PureText` dialect passes' `raiseMessage`: DuckDb `:391`, H2 `:429`, Postgres `:475`, Databricks `:507`,
+    Snowflake `:532`, BigQuery `:557`, SQLite `:590`, MariaDb `:615`, MySql `:640`, Trino `:672`, ClickHouse `:697`,
+    MongoDb `:728`.
+
+  The passes use it for raises whose sentence needs a computed operand (the interim that slice 1.2 deletes, G7).
+  H13's "one caller left" holds once 1.2 has landed. So **`sentence` joins A2's deletion list on the condition that
+  1.2 lands first**; otherwise it stays for 1.2 to delete.
+- **Its tests:** none calls `sentence` directly. `exec/InterimEdgeSitesTest` pins the interim sites it serves (1.2's
+  guard). `JavaEvalLedgerTest:1871` lists `PureMessages.java` among the files it reads; that stays, since the file
+  keeps `compile` and `wordable`.
+- **No census row names it:** `inventory.tsv:300` names `PureMessages.compile`.
+
 **What stays of `RelationalRootForm`:** `primaryKeyColumns` (:207-255), `stripQ` and `dedup`. They are the product
 resolver's key rule on executed paths: `ObjectReferenceDecode:133`, `ClassSources:797`, `CorrelatedSubselects:321`,
 `:486` and `:1094`, `GraphEmission:533` and `:537`, `StoreResolver:3636`, `Substitution:1837`.
@@ -105,7 +122,13 @@ today, through two hooks:
   natives, or an `executionPlan` read;
 - the `ActivityTexts` two-form, when the query reads an execute result's activity SQL.
 
-An ordinary query reaches none. After A2, both paths answer lite's SQL.
+An ordinary query reaches none. After A2, both paths answer lite's SQL, which is CP-4's promise: SQL text is not
+promised, and a query that asks for SQL text gets lite's. The compat owner accepted this answer, 2026-11-19.
+
+**None of pure/v1's golden-net requests takes either path.** Of the edge net's 15 requests at `claude/compat-s0`
+`ef9e9bfa3` (14 at `main`), none calls a plan-text native or a DDL native, or reads an activity's SQL. Each is sent to
+execute and to `generatePlan` (`PureV1EdgeGoldenTest.java:166`), so 0 of its 30 answers reach a printer. An ordinary
+Studio "generate plan" is the same shape.
 
 **What the walk cannot see:**
 - A call on a JDK type (`Object.toString`, `Function.apply`) is not followed into project code, except through the
@@ -234,6 +257,24 @@ The rest name the printers in comments only, and need edits but no moves: `Datab
   reported. No other answer moves.
 - **Size:** about −3,300 main lines and +80 to +120; tests: 16 test files lose a printer column, and the fixture loses 192 rows.
   **2 to 3 days**, most of it the guard moves and re-recording the goldens.
+
+- **PR 1's added tests** (the compat owner's call, 2026-11-19), on the pure/v1 route (`PureV1Routes.generatePlan` and
+  execute):
+  - one planted request of each hook's shape: a query calling `toSQLString` (or `planToString`, or a DDL native: the
+    `UpstreamPlans` path), and one reading an execute result's `activities[].sql` (the `ActivityTexts` path). Each
+    asserts lite's own SQL after the change;
+  - one ordinary request, asserting its plan is byte-identical before and after.
+- **PR 1's list of moves, for the user's word:**
+  - the rosters' 147 and 152 (150 and 155 after R4);
+  - the three nets re-recorded;
+  - `toSQLString` and plan text widened to all 12 lite dialects: a move toward E-R2;
+  - the dead `Compiler.lowerResolved` flag and its two `PlannerSurfaceTest` signatures;
+  - each guard row in §5.
+- **The calls of 2026-11-19:**
+  - two PRs, as cut here;
+  - `toDDL` writes lite's H2 DDL in PR 1, and `raw` stays for 2.3b;
+  - the dead flag goes, listed for the user's word;
+  - the widening is a listed move.
 
 **PR 2: the plan-text family's spelling-only code out.**
 - **Deletes:** the adapter's engine-only arms (template parameters, FreeMarker collection splices, the in-temp-table

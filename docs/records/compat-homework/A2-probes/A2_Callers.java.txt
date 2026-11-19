@@ -1,0 +1,25 @@
+import com.legend.tools.meaning.ClassFiles;
+import com.legend.tools.meaning.ClassFiles.ClassFile;
+import com.legend.tools.meaning.ClassFiles.Insn;
+import com.legend.tools.meaning.ClassFiles.Method;
+import com.legend.tools.meaning.ClassFiles.Ref;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+/** A2, census B2, 2026-11-19: every bytecode call site (invoke or method handle) of owner#name, over a jar list.
+ *  java -cp libcensus.jar A2_Callers.java <jar list> <owner> <name> */
+public class A2_Callers {
+    public static void main(String[] a) throws Exception {
+        List<Path> jars = new ArrayList<>();
+        for (String l : Files.readAllLines(Path.of(a[0]))) if (!l.isBlank()) jars.add(Path.of("bazel-bin", l.strip().replaceFirst("^_main/", "")));
+        for (ClassFile c : ClassFiles.ofJars(jars).values()) for (Method m : c.methods()) {
+            for (Insn in : m.code()) {
+                if (in.op() >= 0xb6 && in.op() <= 0xb9) {
+                    Ref r = c.ref(in.operand());
+                    if (r.owner().equals(a[1]) && r.name().equals(a[2])) System.out.println(c.name() + "#" + m.name() + ":" + m.lineAt(in.pc()));
+                }
+            }
+        }
+    }
+}
