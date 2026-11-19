@@ -85,6 +85,7 @@ H2	H2	call	MAP_KEYS	spelled	map_keys		4
 H2	H2	call	MAP_VALUES	spelled	map_values		4
 H2	H2	call	MAP_CONCAT	spelled	map_concat		9
 H2	H2	call	SUBSTRING	spelled	substr		140
+H2	H2	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 H2	H2	call	STRPOS	spelled	LOCATE		287
 H2	H2	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)		60
 H2	H2	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)		60
@@ -314,6 +315,7 @@ Postgres	Postgres	call	MAP_KEYS	emulated	composed in a block	via Postgres.maps	4
 Postgres	Postgres	call	MAP_VALUES	emulated	composed in a block	via Postgres.maps	4
 Postgres	Postgres	call	MAP_CONCAT	emulated	composed in a block	via Postgres.maps	9
 Postgres	Postgres	call	SUBSTRING	spelled	substr		140
+Postgres	Postgres	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 Postgres	Postgres	call	STRPOS	spelled	strpos		287
 Postgres	Postgres	call	STARTS_WITH	spelled	starts_with		60
 Postgres	Postgres	call	ENDS_WITH	emulated	(right(…, length(…)) = …)		60
@@ -543,6 +545,7 @@ Snowflake	Snowflake	call	MAP_KEYS	spelled	object_keys		4
 Snowflake	Snowflake	call	MAP_VALUES	emulated	mapValues		4
 Snowflake	Snowflake	call	MAP_CONCAT	emulated	mapConcat		9
 Snowflake	Snowflake	call	SUBSTRING	spelled	substr		140
+Snowflake	Snowflake	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 Snowflake	Snowflake	call	STRPOS	spelled	CHARINDEX		287
 Snowflake	Snowflake	call	STARTS_WITH	spelled	startswith		60
 Snowflake	Snowflake	call	ENDS_WITH	spelled	endswith		60
@@ -772,6 +775,7 @@ Trino	Trino	call	MAP_KEYS	spelled	map_keys		4
 Trino	Trino	call	MAP_VALUES	spelled	map_values		4
 Trino	Trino	call	MAP_CONCAT	spelled	map_concat		9
 Trino	Trino	call	SUBSTRING	spelled	substr		140
+Trino	Trino	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 Trino	Trino	call	STRPOS	spelled	strpos		287
 Trino	Trino	call	STARTS_WITH	spelled	starts_with		60
 Trino	Trino	call	ENDS_WITH	emulated	(substr(…, greatest(length(…) - length(…) + 1, 1)) = … AND length(…) >= lengt...		60
@@ -1001,6 +1005,7 @@ BigQuery	BigQuery	call	MAP_KEYS	emulated	unlessNull: …ARRAY(SELECT . FROM UNNE
 BigQuery	BigQuery	call	MAP_VALUES	emulated	unlessNull: …ARRAY(SELECT . FROM UNNEST(…) AS WITH OFFSET AS ORDER BY )	via BigQuery.maps	4
 BigQuery	BigQuery	call	MAP_CONCAT	emulated	composed in a block	via BigQuery.maps	9
 BigQuery	BigQuery	call	SUBSTRING	spelled	SUBSTR		140
+BigQuery	BigQuery	call	SUBSTRING_AS_GIVEN	spelled	SUBSTR		0
 BigQuery	BigQuery	call	STRPOS	spelled	STRPOS		287
 BigQuery	BigQuery	call	STARTS_WITH	spelled	STARTS_WITH		60
 BigQuery	BigQuery	call	ENDS_WITH	spelled	ENDS_WITH		60
@@ -1230,6 +1235,7 @@ Databricks	Databricks	call	MAP_KEYS	spelled	map_keys		4
 Databricks	Databricks	call	MAP_VALUES	spelled	map_values		4
 Databricks	Databricks	call	MAP_CONCAT	emulated	mapConcat		9
 Databricks	Databricks	call	SUBSTRING	spelled	substr		140
+Databricks	Databricks	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 Databricks	Databricks	call	STRPOS	spelled	instr		287
 Databricks	Databricks	call	STARTS_WITH	spelled	startswith		60
 Databricks	Databricks	call	ENDS_WITH	spelled	endswith		60
@@ -1459,6 +1465,7 @@ DuckDb	DuckDB	call	MAP_KEYS	spelled	map_keys		4
 DuckDb	DuckDB	call	MAP_VALUES	spelled	map_values		4
 DuckDb	DuckDB	call	MAP_CONCAT	spelled	map_concat		9
 DuckDb	DuckDB	call	SUBSTRING	spelled	substr		140
+DuckDb	DuckDB	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 DuckDb	DuckDB	call	STRPOS	spelled	strpos		287
 DuckDb	DuckDB	call	STARTS_WITH	spelled	starts_with		60
 DuckDb	DuckDB	call	ENDS_WITH	spelled	ends_with		60
@@ -1688,6 +1695,7 @@ ClickHouse	ClickHouse	call	MAP_KEYS	spelled	mapKeys		4
 ClickHouse	ClickHouse	call	MAP_VALUES	spelled	mapValues		4
 ClickHouse	ClickHouse	call	MAP_CONCAT	spelled	mapUpdate		9
 ClickHouse	ClickHouse	call	SUBSTRING	spelled	substringUTF8		140
+ClickHouse	ClickHouse	call	SUBSTRING_AS_GIVEN	spelled	substringUTF8		0
 ClickHouse	ClickHouse	call	STRPOS	emulated	toInt64(positionUTF8(…))		287
 ClickHouse	ClickHouse	call	STARTS_WITH	spelled	startsWith		60
 ClickHouse	ClickHouse	call	ENDS_WITH	spelled	endsWith		60
@@ -1917,6 +1925,7 @@ SQLite	SQLite	call	MAP_KEYS	emulated	unlessNull: …(SELECT json_group_array(key
 SQLite	SQLite	call	MAP_VALUES	emulated	unlessNull, jsonOf, elementRead: …(SELECT json_group_array(… ORDER BY id) FROM json_each(…))	via SQLite.maps	4
 SQLite	SQLite	call	MAP_CONCAT	emulated	jsonOf, elementRead, for: (SELECT json_group_object(__m.__k, …__m.__v ORDER BY __m.__s, __m.__i) FROM (...	via SQLite.maps	9
 SQLite	SQLite	call	SUBSTRING	spelled	substr		140
+SQLite	SQLite	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 SQLite	SQLite	call	STRPOS	spelled	instr		287
 SQLite	SQLite	call	STARTS_WITH	emulated	(substr(…, 1, length(…)) = …)		60
 SQLite	SQLite	call	ENDS_WITH	emulated	(substr(…, length(…) - length(…) + 1) = …)		60
@@ -2146,6 +2155,7 @@ MariaDb	MariaDB	call	MAP_KEYS	emulated	unlessNull: …JSON_KEYS(…)	via MariaDb
 MariaDb	MariaDB	call	MAP_VALUES	emulated	unlessNull: …coalesce(JSON_EXTRACT(…, '$.*'), JSON_ARRAY())	via MariaDb.maps	4
 MariaDb	MariaDB	call	MAP_CONCAT	spelled	JSON_MERGE_PATCH	via MariaDb.maps	9
 MariaDb	MariaDB	call	SUBSTRING	spelled	SUBSTRING		120
+MariaDb	MariaDB	call	SUBSTRING_AS_GIVEN	spelled	SUBSTRING		0
 MariaDb	MariaDB	call	STRPOS	spelled	INSTR		249
 MariaDb	MariaDB	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)		40
 MariaDb	MariaDB	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)		60
@@ -2375,6 +2385,7 @@ MySql	MySQL	call	MAP_KEYS	emulated	unlessNull: …JSON_KEYS(…)	as MariaDb, via
 MySql	MySQL	call	MAP_VALUES	emulated	unlessNull: …coalesce(JSON_EXTRACT(…, '$.*'), JSON_ARRAY())	as MariaDb, via MariaDb.maps	4
 MySql	MySQL	call	MAP_CONCAT	spelled	JSON_MERGE_PATCH	as MariaDb, via MariaDb.maps	9
 MySql	MySQL	call	SUBSTRING	spelled	SUBSTRING	as MariaDb	120
+MySql	MySQL	call	SUBSTRING_AS_GIVEN	spelled	SUBSTRING	as MariaDb	0
 MySql	MySQL	call	STRPOS	spelled	INSTR	as MariaDb	249
 MySql	MySQL	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)	as MariaDb	40
 MySql	MySQL	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)	as MariaDb	60
@@ -2604,6 +2615,7 @@ MongoDb	MongoDB	call	MAP_KEYS	emulated	mapSide: k		0
 MongoDb	MongoDB	call	MAP_VALUES	emulated	mapSide: v		0
 MongoDb	MongoDB	call	MAP_CONCAT	emulated	$mergeObjects		0
 MongoDb	MongoDB	call	SUBSTRING	emulated	substring		0
+MongoDb	MongoDB	call	SUBSTRING_AS_GIVEN	refused	the database's own SUBSTRING over the arguments as given reached MongoDb, which has no SUBSTRING of its own: its $substrCP form is lite's...		0
 MongoDb	MongoDB	call	STRPOS	emulated	guarded: {"$add": [{"$indexOfCP": [, , , ]}, 1]}		0
 MongoDb	MongoDB	call	STARTS_WITH	emulated	guarded: {"$eq": [{"$indexOfCP": [, , , ]}, 0]}		0
 MongoDb	MongoDB	call	ENDS_WITH	emulated	endsWith		0

@@ -107,6 +107,7 @@ Database types planned with it: H2.
 | `MAP_VALUES` | spelled | `map_values` |  | 4 |
 | `MAP_CONCAT` | spelled | `map_concat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `LOCATE` |  | 287 |
 | `STARTS_WITH` | emulated | `(LEFT(…, CHAR_LENGTH(…)) = …)` |  | 60 |
 | `ENDS_WITH` | emulated | `(RIGHT(…, CHAR_LENGTH(…)) = …)` |  | 60 |
@@ -303,6 +304,7 @@ Database types planned with it: Postgres.
 | `MAP_VALUES` | emulated | `composed in a block` | `via Postgres.maps` | 4 |
 | `MAP_CONCAT` | emulated | `composed in a block` | `via Postgres.maps` | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `strpos` |  | 287 |
 | `STARTS_WITH` | spelled | `starts_with` |  | 60 |
 | `ENDS_WITH` | emulated | `(right(…, length(…)) = …)` |  | 60 |
@@ -499,6 +501,7 @@ Database types planned with it: Snowflake.
 | `MAP_VALUES` | emulated | `mapValues` |  | 4 |
 | `MAP_CONCAT` | emulated | `mapConcat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `CHARINDEX` |  | 287 |
 | `STARTS_WITH` | spelled | `startswith` |  | 60 |
 | `ENDS_WITH` | spelled | `endswith` |  | 60 |
@@ -695,6 +698,7 @@ Database types planned with it: Trino.
 | `MAP_VALUES` | spelled | `map_values` |  | 4 |
 | `MAP_CONCAT` | spelled | `map_concat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `strpos` |  | 287 |
 | `STARTS_WITH` | spelled | `starts_with` |  | 60 |
 | `ENDS_WITH` | emulated | `(substr(…, greatest(length(…) - length(…) + 1, 1)) = … AND length(…) >= lengt...` |  | 60 |
@@ -891,6 +895,7 @@ Database types planned with it: BigQuery.
 | `MAP_VALUES` | emulated | `unlessNull: …ARRAY(SELECT . FROM UNNEST(…) AS WITH OFFSET AS ORDER BY )` | `via BigQuery.maps` | 4 |
 | `MAP_CONCAT` | emulated | `composed in a block` | `via BigQuery.maps` | 9 |
 | `SUBSTRING` | spelled | `SUBSTR` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `SUBSTR` |  | 0 |
 | `STRPOS` | spelled | `STRPOS` |  | 287 |
 | `STARTS_WITH` | spelled | `STARTS_WITH` |  | 60 |
 | `ENDS_WITH` | spelled | `ENDS_WITH` |  | 60 |
@@ -1087,6 +1092,7 @@ Database types planned with it: Databricks.
 | `MAP_VALUES` | spelled | `map_values` |  | 4 |
 | `MAP_CONCAT` | emulated | `mapConcat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `instr` |  | 287 |
 | `STARTS_WITH` | spelled | `startswith` |  | 60 |
 | `ENDS_WITH` | spelled | `endswith` |  | 60 |
@@ -1283,6 +1289,7 @@ Database types planned with it: DuckDB.
 | `MAP_VALUES` | spelled | `map_values` |  | 4 |
 | `MAP_CONCAT` | spelled | `map_concat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `strpos` |  | 287 |
 | `STARTS_WITH` | spelled | `starts_with` |  | 60 |
 | `ENDS_WITH` | spelled | `ends_with` |  | 60 |
@@ -1479,6 +1486,7 @@ Database types planned with it: ClickHouse.
 | `MAP_VALUES` | spelled | `mapValues` |  | 4 |
 | `MAP_CONCAT` | spelled | `mapUpdate` |  | 9 |
 | `SUBSTRING` | spelled | `substringUTF8` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substringUTF8` |  | 0 |
 | `STRPOS` | emulated | `toInt64(positionUTF8(…))` |  | 287 |
 | `STARTS_WITH` | spelled | `startsWith` |  | 60 |
 | `ENDS_WITH` | spelled | `endsWith` |  | 60 |
@@ -1675,6 +1683,7 @@ Database types planned with it: SQLite.
 | `MAP_VALUES` | emulated | `unlessNull, jsonOf, elementRead: …(SELECT json_group_array(… ORDER BY id) FROM json_each(…))` | `via SQLite.maps` | 4 |
 | `MAP_CONCAT` | emulated | `jsonOf, elementRead, for: (SELECT json_group_object(__m.__k, …__m.__v ORDER BY __m.__s, __m.__i) FROM (...` | `via SQLite.maps` | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `instr` |  | 287 |
 | `STARTS_WITH` | emulated | `(substr(…, 1, length(…)) = …)` |  | 60 |
 | `ENDS_WITH` | emulated | `(substr(…, length(…) - length(…) + 1) = …)` |  | 60 |
@@ -1871,6 +1880,7 @@ Database types planned with it: MariaDB.
 | `MAP_VALUES` | emulated | `unlessNull: …coalesce(JSON_EXTRACT(…, '$.*'), JSON_ARRAY())` | `via MariaDb.maps` | 4 |
 | `MAP_CONCAT` | spelled | `JSON_MERGE_PATCH` | `via MariaDb.maps` | 9 |
 | `SUBSTRING` | spelled | `SUBSTRING` |  | 120 |
+| `SUBSTRING_AS_GIVEN` | spelled | `SUBSTRING` |  | 0 |
 | `STRPOS` | spelled | `INSTR` |  | 249 |
 | `STARTS_WITH` | emulated | `(LEFT(…, CHAR_LENGTH(…)) = …)` |  | 40 |
 | `ENDS_WITH` | emulated | `(RIGHT(…, CHAR_LENGTH(…)) = …)` |  | 60 |
@@ -2067,6 +2077,7 @@ Database types planned with it: MySQL.
 | `MAP_VALUES` | emulated | `unlessNull: …coalesce(JSON_EXTRACT(…, '$.*'), JSON_ARRAY())` | `as MariaDb, via MariaDb.maps` | 4 |
 | `MAP_CONCAT` | spelled | `JSON_MERGE_PATCH` | `as MariaDb, via MariaDb.maps` | 9 |
 | `SUBSTRING` | spelled | `SUBSTRING` | `as MariaDb` | 120 |
+| `SUBSTRING_AS_GIVEN` | spelled | `SUBSTRING` | `as MariaDb` | 0 |
 | `STRPOS` | spelled | `INSTR` | `as MariaDb` | 249 |
 | `STARTS_WITH` | emulated | `(LEFT(…, CHAR_LENGTH(…)) = …)` | `as MariaDb` | 40 |
 | `ENDS_WITH` | emulated | `(RIGHT(…, CHAR_LENGTH(…)) = …)` | `as MariaDb` | 60 |
@@ -2263,6 +2274,7 @@ Database types planned with it: MongoDB.
 | `MAP_VALUES` | emulated | `mapSide: v` |  | 0 |
 | `MAP_CONCAT` | emulated | `$mergeObjects` |  | 0 |
 | `SUBSTRING` | emulated | `substring` |  | 0 |
+| `SUBSTRING_AS_GIVEN` | refused | `the database's own SUBSTRING over the arguments as given reached MongoDb, which has no SUBSTRING of its own: its $substrCP form is lite's...` |  | 0 |
 | `STRPOS` | emulated | `guarded: {"$add": [{"$indexOfCP": [, , , ]}, 1]}` |  | 0 |
 | `STARTS_WITH` | emulated | `guarded: {"$eq": [{"$indexOfCP": [, , , ]}, 0]}` |  | 0 |
 | `ENDS_WITH` | emulated | `endsWith` |  | 0 |
