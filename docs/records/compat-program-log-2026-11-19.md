@@ -1986,3 +1986,7 @@ who confirms or changes phases 1-3.
   Float failures left and the SQL per cell; and, since V2 would change the product's scalar `toString()` of a whole
   Float from `2` to `2.0` (the user's 2026-11-10 ruling), the count of lite's own tests and pins that would move.
 - **~16:50 UTC, the user: "Great let's do it"** (to H14 with both Float variants). Already running; no further change.
+- **~17:05 UTC, the CI-health worker: the Maven mirror PR is open as #125** (on the user's word in its session: "If it
+  only has CI change yes push PR and go"), branch `claude/compat-ci-maven-mirror`, head `ca523848d` = `main` +
+  `f183b784a`: `.bazelrc`'s `common:ci` lines, `tools/ci/downloader.cfg` and its export. It watches CI per OS and reports
+  any remaining 404 or 429; no merge. The independent reviewer reviews it before it goes to the user.
