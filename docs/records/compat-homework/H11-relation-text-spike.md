@@ -1,6 +1,6 @@
 # H11: legend-pure's relation text printed in Java (the spike for slice 1.3), 2026-11-19
 
-**Status: IN PROGRESS. Written as it is found; §0 is filled last.**
+**Status: DONE for the time box (about four hours of one working day used). The prototype works; §9 lists what it did not cover.**
 
 - **Branch:** `claude/compat-relation-text-spike`, from `main` `b75d6c73a`. Scratch: never proposed for merge as is.
 - **Session:** `session_0195rQEjVtMXfZdcaQdweUzf`; reports to the program's owner (`session_0195rQEoSpv1FxC3WndEk5ZH`).
@@ -11,7 +11,43 @@
 
 ## 0. The answers on one page
 
-(filled at the end)
+**It works. legend-pure's relation text, printed in Java from typed rows, is PCT's expected text byte for byte, on
+every text PCT has.**
+
+**The counts (PCT channel B, the SQL builder switched OFF for a relation's `toString`, HOST judge):**
+
+| Lane | Tests that assert a relation's text | Comparisons | Equal to PCT's text, byte for byte | Differ because of the printer | Suite pass count against `main` |
+|---|---|---|---|---|---|
+| DuckDB, five suites | 423 (relation 365, standard 58) | 431 | **431** | **0** | 1,240 of 1,249, the same |
+| H2, relation | 334 reach the compare | 342 | **342** | **0** | 436 against 432: **4 more pass**, none fewer |
+| SQLite, relation and standard | 412 reach it | 420 | 419 | **0** (1 is the product's rows, §8 P1) | relation 457 against 458; standard 205, the same |
+| Postgres 16, relation and standard | 422 reach it | 430 | 427 | **0** (2 fail on `main` with the same text; 1 is P1) | relation 465 against 467; standard 198, the same |
+
+- **Every failure, with its cause** (§4.5): 3 tests move from pass to fail, on SQLite (1) and Postgres (2), and all
+  three are ONE product defect, not the printer: a window column read through a list operation gives wrong rows when
+  the relation is read as rows at the root (§8 P1). The SQL text builder happened to hide it. It needs a product fix
+  before 1.3 lands.
+- **The print is at an assert side's root 431 times out of 431.** None is composed and none feeds, in PCT (§4.4: the
+  source census and the run agree). The corpus is different: 41 tests compose a relation's CSV with `replace` (§8 P4,
+  a source census, not run).
+- **No new hook in the core.** All edited code is in `com.legend.edge`. The assert arm rides three hooks that exist
+  (`EngineTestText`, `HostJudgment.EdgeJudged`, `EdgeHearing.judged`); the query-root path uses public doors only and
+  plans in the PRODUCT's style (§3, §6). Those three hooks are the ones 2.2b reshapes, and the compatibility database
+  judge cannot judge a presented side at all: under BOTH it refuses the 365 relation bodies. **So 1.3 must follow
+  2.2**, as the plan orders it; measured here.
+- **The typed facts (CP-6):** a relation's text needed the column's name, its Pure type and the typed cell. **It did
+  not need a DateTime's written precision, and it did not need the SQL slot** (§7). One case is unproven: a mixed
+  (tagged) column, which PCT never prints.
+- **The edge cases (§5):** EDGE-1's Float texts are the same in Java, on DuckDB and H2, as legend-pure's and today's.
+  EDGE-2 (`toCSV`'s DateTime) and EDGE-3 (`%r` of a newline) come out as UPSTREAM's answers (`2024-01-02 10:30:00`;
+  `'a\nb'`), which today's SQL does not give: two listed golden moves.
+- **Sizes (§10):** the printer is 213 lines (133 of code) for `toString`, `toCSV`, a TDS's `csv` and a value's print;
+  with the arm and the record about 400 lines (245 of code), against the SQL builder's 791 (574 of code). The judge's
+  SQL for the 365 relation tests shrinks by 73% (§4.6).
+- **The estimate (§11):** the relation-text half of 1.3 is 4 to 5 days after 2.2 and 1.1. The value prints of 1.3
+  were not prototyped; with them, all of 1.3 looks like 6 to 8 days against the plan's 4 to 6.
+- **Not done (§9):** the relational corpus was not run (so `toCSV` is unit-tested only); seven database lanes were not
+  run; no guard was run.
 
 ## 1. What was read
 
@@ -105,8 +141,9 @@ none. It uses three hooks that exist: `EngineTestText` (C4), `HostJudgment.EdgeJ
    be handed the sides' typed rows at the run".
 
 **What was stubbed.**
-- The failure message is `\nexpected: '<text>'\nactual:   '<text>'`, written by the spike, not legend-pure's words
-  through `EdgeHostWords` (no failing case exists to compare it with: §4).
+- The failure message is legend-pure's `\nexpected: %r\nactual:   %r`, written by the spike itself and not through
+  `EdgeHostWords`. Checked once: on Postgres two relation-text tests fail on `main` and under the spike for the same
+  reason (§4.5), and the spike's message matches that lane's ledger text for both.
 - `assertNotEquals` and `assertEquals` with `toString(rel, true)` are not claimed (PCT has neither over a relation's
   text; they would fail by name with the switch on).
 - A messaged `assertEquals` goes through the planner's own `Messaged` wrapper, untested (PCT has none over a
@@ -189,3 +226,225 @@ slice.
 - The receiver is `$res` (57), or `$res->sort(...)`, sometimes `->select(...)`, then `->toString()`.
 - The run agrees: with the SQL builder switched off, no body anywhere in the five suites reached it (0 "SPIKE H11"
   refusals in the six logs).
+
+### 4.5 Two more databases, HOST judge (`--jvmopt=-Dpct.channelb.judge=HOST` on the lanes' targets)
+
+Each lane was run twice, `main`'s judging and the spike's, and the two outcome lists compared test by test. The lanes'
+ledgers are written for BOTH, so only the comparison is read here.
+
+| Lane | Suite | Pass on `main` | Pass with the Java printer | Comparisons judged | Held | Differ | Tests that moved |
+|---|---|---|---|---|---|---|---|
+| SQLite | relation | 458 (11 error) | 457 (12 error) | 362 (354 tests) | 361 | 1 | 1, pass to fail |
+| SQLite | standard | 205 | 205 | 58 | 58 | 0 | 0 |
+| Postgres 16 | relation | 467 (2 error) | 465 (4 error) | 372 (364 tests) | 369 | 3 | 2, pass to fail |
+| Postgres 16 | standard | 198 (7 error) | 198 (7 error) | 58 | 58 | 0 | 0 |
+
+**None of the four differing texts is the printer's.** Each was read:
+
+- **Postgres, 2 texts** (`filter::testVariantColumn_filterOnKeyExtractionValue`,
+  `extend::testVariantColumn_keyExtraction`): both tests fail on `main` too, with the same text. Postgres's `jsonb`
+  answers `{"string":"hello","boolean":true,"integer":1}` where PCT expects the keys in source order. The Java printer
+  and the SQL builder print the identical cell. Not a move.
+- **SQLite 1 and Postgres 1, the same test** (`composition::testExtendJoinStringOnNull`), and one more Postgres test
+  that now fails in the database (`extend::testOLAPAggStringWithPartitionAndUnboundedWindow`: "window functions are
+  not allowed in functions in FROM"): **the relation's ROWS are wrong, a product defect the SQL text builder was
+  hiding.** §8, finding P1.
+
+So the three tests that move are one product defect, on the two databases whose list encoding is a subquery. With that
+defect fixed, the expectation is no move on either lane; that was not run.
+
+**Not run:** MariaDB, MySQL, ClickHouse, Trino, MongoDB and the three cloud lanes. The typed carriers differ by
+driver, and P1 shows a rows plan can differ from a text plan, so each lane needs this same two-run comparison before
+the real slice lands.
+
+### 4.6 The SQL the judge sends gets smaller (G3)
+
+`-Dlegend.diagnostics=sql-sizes`, DuckDB, the relation suite, HOST judge, session statements left out:
+
+| | Statements | Characters |
+|---|---|---|
+| `main` | 475 | 1,005,717 |
+| SQL builder OFF, Java printer | 475 | 496,617 |
+| of which the 365 relation-text tests, `main` | 376 | 696,964 |
+| the same tests, Java printer | 376 | **187,864** (73% less) |
+
+The same number of statements, each a plain read of rows instead of `STRING_AGG` over `CONCAT`s of `CASE`s. The
+suite's wall time is flat (13.9 s to 12.2 s, one run each: not a measurement).
+
+## 5. The edge cases the audit found (EDGE-1, EDGE-2, EDGE-3)
+
+The cases are `EdgeCasesGoldenTest`'s on `claude/presentation-b1`; "today" is its pinned answers
+(`core/src/test/resources/edge/edge_cases_answers.tsv`, the same on DuckDB and H2 under both edge styles). Each was
+run through the Java printer two ways: on hand-made cells (`pct/.../edge/RelationTextSpikeTest`, 7 tests) and END TO
+END at a query's root on DuckDB and H2 (`RelationTextRootSpikeTest`, §6; 24 answers).
+
+| Case | Today (the SQL builder) | legend-pure or legend-engine, read at the pin | The Java printer | Move |
+|---|---|---|---|---|
+| **EDGE-1**, a Float cell in a relation's `toString`: `0.00001`, `0.0005`, `25000000.0`, `10000000000000000.0`, `100000000000000000000.0` | those five texts (after PR #118's F7) | the same: `FloatCoreInstance.canonicalizeBigDecimal(BigDecimal.valueOf(d)).toPlainString()` | the same five, on both databases | none |
+| **EDGE-1**, the same cells in `toCSV` | those five texts | the same: `toCSVString` is `toString()->escapeCSVString()` (`helperFunctions.pure:234`) | the same five | none |
+| **EDGE-2**, a DateTime in `toCSV` (`2024-01-02T10:30:00.123+0000`) | `2024-01-02T10:30:00.123+0000` | **`2024-01-02 10:30:00`**: `formatDateTime` (`helperFunctions.pure:238-243`) formats a date with an hour by `SimpleDateTimeFormat()`, which is `'%t{yyyy-MM-dd HH:mm:ss}'` (`dateExtension.pure:384-387`); a date without one by `'%t{yyyy-MM-dd}'` | **`2024-01-02 10:30:00`**, on both databases | to upstream's answer: a listed golden move |
+| **EDGE-3**, `format('%r', ['a\nb'])` | `'a` LF `b'`: the newline raw | **`'a\nb'`**, the two characters `\` and `n`: `toRepresentation.pure:43` escapes `\`, `'` and the newline | `'a\nb'` (`RelationText.representation`, one line of Java) | to upstream's answer: a listed golden move |
+
+- EDGE-3 is a VALUE's print, not a relation's: the spike holds only its one rule, to answer the question. Its home in
+  the real slice is the value presenter (`edge/Presenter`), with `format`'s other directives.
+- **One rule the Java printer does NOT copy from the SQL builder, to be settled on the corpus.** For a column typed
+  abstract `Date` over a TIMESTAMP, the SQL builder's `toCSV` prints the day alone when the time of day is midnight
+  (`RelationTextLowering.timed`). legend-engine's rule at the pin is `hasHour`, a fact of the value, and a TIMESTAMP's
+  value has an hour. The Java printer follows the carrier: a TIMESTAMP cell prints `yyyy-MM-dd HH:mm:ss` even at
+  midnight; a DATE cell prints its day. No PCT test reaches it; the relational corpus will say which its goldens hold.
+
+## 6. A query's ROOT: the door rewrite, through public doors alone
+
+Slice 1.3: "the edge's door rewrites a root `toString` (or `toCSV`) into: answer the value; present it as text".
+Prototyped in `pct/src/test/java/com/legend/edge/RelationTextRootSpikeTest.java` (scratch):
+
+1. the query is typed once (`Compiler.query(ctx, parsed).expression()`) to read what its root IS, by its callee, a
+   typed fact;
+2. where the root is `relation::toString` or `toCSV`, the same lambda is typed again with the print's receiver in its
+   place (`Compiler.query(ctx, ValueSpecification)`);
+3. it is planned and run **in the product's own style** (`PlanStyle.PRODUCT`: no edge dialect, no edge SQL), its typed
+   rows collected (`result.Collector`);
+4. `RelationText` writes the text from the plan's columns and the rows.
+
+- **24 of 24 answers equal upstream's text** (12 cases, DuckDB and H2): EDGE-1's ten, EDGE-2, and the same DateTime in
+  a `toString`.
+- **No new hook, and no edge SQL at all on this path.** Every call is a public door: `Compiler.compileModel`,
+  `Compiler.parseQuery`, `Compiler.query`, `TypedQuery.expression`, `Execution.run`.
+- **What the product's plan carried for each column** (printed by the test): `x type=Float slot=DOUBLE
+  precision=null`, `id type=Integer slot=BIGINT precision=null`, `at type=DateTime slot=TIMESTAMP precision=INSTANT`;
+  cells `Double`, `Long`, `PureDateLiteral.DateWithSubsecond`.
+- **Not prototyped:** the real routes (`pure/v1` execute, the service tests' runner), a multi-statement lambda with
+  lets, a print inside a returned structure (a column, a Pair's side, `^C(p = ...)`), and the envelope's declared type
+  changing to String. The typing happens twice; a real door would keep the first typing.
+
+## 7. The typed facts the printer needed (for CP-6)
+
+| Fact | Needed by `toString` | Needed by `toCSV` and `csv` | Where it came from |
+|---|---|---|---|
+| A column's name | yes | yes | a judge side's `TypedSide.Tabular` column; the plan's `Column.name` |
+| A column's Pure type | yes: Variant (the quoting and `'null'`); Float against Number or Decimal when the cell is a `BigDecimal` or a whole number | yes, for the same number cases | `Column.pureType`; the plan's `Column.type` |
+| The typed cell (`Long`, `Double`, `BigDecimal`, `Boolean`, `String`, `PureDateLiteral`) | yes | yes | the run's typed read (`JdbcDecode`) |
+| Whether a date cell has a time of day | no (see below) | yes | the cell itself: `PureDateLiteral.precision()` |
+| **A DateTime's WRITTEN precision** | **no** | **no** | not needed: legend-pure's TDS re-reads every date at exactly three subsecond digits (§2), and `toCSV` drops the fraction |
+| The SQL slot | no | no | not needed: the carrier already says what the SQL builder read the slot for (a DATE or a TIMESTAMP; a DECIMAL, a DOUBLE or an integer) |
+| Whether the column is stored or computed | no | no | |
+
+- **Nothing is missing for a relation's text.** A judge side's column record is three fields (name, type,
+  multiplicity) and that was enough for all 431 PCT texts and the edge cases. CP-6's "a DateTime's written precision"
+  is not this printer's need; it remains the VALUE presenter's (a DateTime literal's own `toString`, S118).
+- **Unproven, because PCT never holds them** (§4.3): a mixed (tagged) column's cell, whose kind is per row; a list or
+  a Map cell; a class instance's cell. The SQL builder has a per-slot arm for the first (`perSlot`). If a tagged cell
+  arrives at the host as its winning value with its own carrier, the printer needs nothing more; if it arrives as a
+  tag and slots, the printer needs the tag's kind. That is the one place a fact may be missing; it was not reached.
+
+## 8. Findings outside the printer
+
+**P1. A product defect on SQLite and Postgres, hidden by the SQL text builder (for the product's owner).**
+- **What:** when a relation with a window column is read as ROWS at a statement's root, and a later column's
+  expression reads that window column through a list operation, the lowering puts the window call INSIDE the list
+  encoding's subquery. There it sees one row.
+- **Witness:** `meta::pure::functions::relation::tests::composition::testExtendJoinStringOnNull`:
+  `#TDS...#->extend(over(~grp), ~newCol:{p,w,r|$r.name}:y|$y->joinStrings(':'))->extend(~newColSorted:
+  r|$r.newCol->toOne()->split(':')->sort()->joinStrings(''))->select(...)`.
+  - SQLite sends `... FROM json_each((SELECT ... group_concat(_tds2.name, ':') OVER (PARTITION BY _tds2.grp) ...))`
+    and answers `A` and `E` for group 2 where the answer is `AE` and `AE`. **Silently wrong rows.**
+  - Postgres answers the same wrong rows for this test, and refuses
+    `extend::testOLAPAggStringWithPartitionAndUnboundedWindow` outright ("window functions are not allowed in
+    functions in FROM").
+- **Why `main` passes:** the text builder wraps the relation as a subselect (`FROM (SELECT _tds2.*, group_concat(...)
+  OVER (...) AS newCol ...) AS t10`), so the window is computed first and read by name. Both statements are in
+  `logs/pct_channel_b_sqlite_relation.dbg_{base,spike}.log` (scratch; `-Dlegend.diagnostics=dump-sql,chb-only=...`).
+- **DuckDB is right** (its list forms are not subqueries). **H2 refuses both tests by capability**, on `main` and under
+  the spike alike ("collection reduction 'STRING_AGG' reached a dialect without a list encoding").
+- **It matters to 1.3:** it must be fixed in the product first, or the SQLite lane loses 1 test and the Postgres lane
+  2 when the relation text moves to Java. It also means a product user's query of that shape is wrong on SQLite today.
+
+**P2. Today's SQL builder prints a finer DateTime fraction than legend-pure would.** `dateTimeTextTds` writes at least
+three digits and keeps up to nine (`.123456789`); legend-pure's TDS holds three, truncated (`.123`, §2). The Java
+printer writes three. No PCT golden has a finer fraction, so no test moves; one register row may be owed for the
+difference in today's product.
+
+**P3. H2 gains four tests** (§4.2): a relation whose TEXT needed `LIST_GET` in SQL has rows H2 can answer.
+
+**P4. The corpus has one composed family this spike did not run** (a source census at the pin, not a run):
+- legend-engine's relational tree has 225 `toCSV(` sites in 30 files. **41 of them are
+  `toCSV($result.values)->replace('\n', ',')`**, one per test, all in
+  `core_relational/relational/calendarAggregation/tests/testCalendarFunctions.pure` (41 of its 93 functions). Their
+  goldens hold Float cells (`'hireType,annualized,Campus,9.812850678733032,Lateral,9.267692307692307,'`). 39 are in
+  the DuckDB corpus's unordered register (`spec/src/test/resources/rcorpus/duckdb-unordered-register.txt`).
+- That is a relation's text whose CONTENT is read (`replace`), over Floats. By slice 1.3's rule it is refused by
+  name. The product's host judge already names this exact shape as one render form
+  (`AssertVerdicts.renderForm`: `CSVJOIN:<sep>`).
+- **A question for the owner, not answered here:** either "CSV with the rows joined by `<sep>`" is a presenter FORM
+  (a parameter of the format, written by Java from the rows, like the header separator), or these 41 tests are
+  refused. The log's 0.4 (f) says "0 of the 22 COMPOSED and FEEDS sites are over a Float, Decimal or DateTime"; these
+  41 look like a counter-example unless that census counted value prints only. To be reconciled with B1.
+- The other `toCSV` sites at a glance: 156 end a call (`...->toCSV())`), 16 are the first argument of an
+  `assertEquals`, 11 are `let actualValue = ...->toCSV();` (carried), 13 are inside `println` (never asserted), 1 is
+  inside `^CSVTestResult(result = ...)`. A TDS's `csv` property is read in 1 test (`testEnumInRelation`).
+
+## 9. What the spike did not do
+
+- **The relational corpus was not run.** `toCSV` and `csv` are written and unit-tested against upstream's rule, but
+  no assert arm claims them and no corpus lane ran. The corpus is where `toCSV` lives (PCT has none), where the ruled
+  rendered-text comparison is (S131, S132: 26 DuckDB tests and 3 H2 by H6 §6), and where P4's family is.
+- **The VALUE prints of slice 1.3** (a Float's or a DateTime's `toString`, a list's `[a, b]`, `format`'s `%0Nd`,
+  `toRepresentation`, an instance's id; `EdgePureOnlyTexts`, `PureListTexts`, `PureDateTimePrint`, the print half of
+  `PurePrintForms`) were not touched. H6 §3.3 counts 10 PCT tests that assert them (7 a value's print, 3 refused by
+  name today), beside the 16 that assert legend-pure's error words (slice 1.2's).
+- **BOTH** cannot run it (§3): the compatibility database judge refuses the 365 bodies.
+- **No guard was run:** `ArchitectureTest`, `PctDisciplineTest` (the two scratch tests sit in the PCT module's tree
+  and its source scan may object), `HookRulingTest`, `EdgeOnlyDataTest`, the plan-JSON round trip (`decoded-plan`).
+- **Seven lanes** were not run (§4.5).
+- `toString(rel, true)` (types and multiplicities in the header) is not written.
+
+## 10. Sizes
+
+| | Lines | Code lines (no comments, no blanks) |
+|---|---|---|
+| `edge/RelationTextLowering.java` (the SQL builder, to delete) | 791 | 574 |
+| `edge/RelationText.java`: `toString`, `toCSV`, a TDS's `csv`, a value's print, `%r` of a String (and 17 lines of the spike's own census) | 213 | 133 |
+| `edge/RelationTextArm.java`: the claim, the plan, the run's compare | 141 | 104 |
+| `edge/RelationTextJudgment.java`: the record | 16 | 4 |
+| Edits to `EdgeEngineTestText`, `Appeals`, `EdgeCodec`, and the switch in `RelationTextLowering` | 32 | |
+| **The Java side, all of it** | **about 400** | **about 245** |
+| The two scratch tests | 237 | |
+
+The SQL builder also keeps alive, in the product, the facet `lowering/RelationTexts.java` (61 lines), three `case`
+arms of `Lowerer.scalar`, `PlanStyleFacets`' entry and `Render.csvOverRelation`; they go with it.
+
+## 11. The estimate for the real slice 1.3
+
+**The relation-text half: 4 to 5 days**, given 2.2 (the compatibility database judge deleted, the edge judge's
+interface settled) and 1.1 (the presenter seam). The spike's own code is perhaps a day of it; the rest is the corpus
+and the lanes.
+
+| Piece | Days | Why |
+|---|---|---|
+| The printer, hardened: Decimal, a decimal under a Float, StrictDate, tagged and pivot columns, list and Map cells, `toString(rel, true)`; its unit tests from the pin | 0.5 | written; §4.3's unproven carriers each need a test |
+| The assert arm on 2.2b's interface: `assertEquals`, `assertNotEquals`, a messaged assert, both sides printed, legend-pure's failure words through the edge's words; the codec | 0.5 to 1 | written against today's three hooks; rewritten once |
+| A root's door rewrite on the real routes (`pure/v1` execute, the service tests' runner), the envelope's type as String, prints inside a returned structure (0.4 (f): 3 of 98) | 1 | §6 proves the mechanism on a test, not on a route |
+| **`toCSV`, `csv` and the corpus:** the arm's CSV forms, the ruled comparison over a presented text, EDGE-2's goldens, the abstract-Date question (§5), P4's family once ruled | 1 to 1.5 | not run here; each corpus lane is about 500 s |
+| Every lane compared as §4.5 does (seven more), the ledgers' listed moves (H2 loses 4 rows), the judge-SQL ratchets (they shrink, §4.6), the deletions and their guard rows | 1 | |
+
+- **Before it:** P1 fixed in the product (not sized here; it is one lowering rule), or the SQLite and Postgres lanes
+  lose 3 tests.
+- **Not in this figure:** the VALUE prints (§9). The plan gives all of 1.3 four days, or six if many prints are
+  nested. With the relation half alone at 4 to 5, **all of 1.3 looks like 6 to 8 days**, unless the value half is
+  much smaller than the relation half. That half has no prototype.
+
+## 12. Method
+
+- **Setup** (cloud container, Bazel 9.2.0 through bazelisk, 4 cores, 15 GB): `tools/cloud-distdir.sh <targets>`; the
+  two upstream archives packed from `git clone --depth 1` of the pinned tags (`legend-engine-4.145.0`,
+  `legend-pure-5.99.0`), their sha256 equal to `release.MODULE.bazel`'s pins. The same clones were read for §2 and §5.
+- **A lane:** `bazel test //pct:<target> --nocache_test_results [--jvmopt=-Dpct.channelb.judge=HOST]
+  [--jvmopt=-Dlegend.spike.relationText=java]`; its `test.log` holds one `[chB-...] PASS|FAIL|ERROR <test>` line per
+  test, one `[H11] HELD|DIFFERS <test>` line per comparison the arm judged, one `[H11-cell]` line per (type, carrier)
+  pair. Two runs' outcome lines are joined by test name.
+- **Postgres** as root: `--strategy=TestRunner=standalone --run_under="<a copy outside the workspace>/as_unprivileged.sh
+  ubuntu"` (docs/CLOUD_SESSIONS.md).
+- **The spike's own tests:** `bazel test //pct:h11_relation_text_test //pct:h11_relation_text_root_test` (two scratch
+  targets added to `pct/BUILD.bazel`).
+- **The source censuses** (`census.py`, `census_csv.py`, scratch): §4.4 and §8 P4 state their rules.
+- Every run's log was kept in the session's scratch folder; none is committed.
