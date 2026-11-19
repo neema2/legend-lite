@@ -1,0 +1,72 @@
+pct_update_edge_contract_0_test	< testAtError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 37"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>The system is trying to get an element at offset 2 where the collection is of size 2\"\nwhere the expected message was:\"The system is trying to get an element at offset 2 where the collection is of size 2\"\""
+pct_update_edge_contract_0_test	> testAtError	SUCCESSFUL	
+pct_update_edge_contract_0_test	< testDayOfMonthError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 36"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>Cannot get day of month for 2017\"\nwhere the expected message was:\"Cannot get day of month for 2017\"\""
+pct_update_edge_contract_0_test	> testDayOfMonthError	SUCCESSFUL	
+pct_update_edge_contract_0_test	< testHourError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 36"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>Cannot get hour for 2017\"\nwhere the expected message was:\"Cannot get hour for 2017\"\""
+pct_update_edge_contract_0_test	> testHourError	SUCCESSFUL	
+pct_update_edge_contract_0_test	< testMinuteError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 36"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>Cannot get minute for 2017\"\nwhere the expected message was:\"Cannot get minute for 2017\"\""
+pct_update_edge_contract_0_test	> testMinuteError	SUCCESSFUL	
+pct_update_edge_contract_0_test	< testSecondError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 36"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>Cannot get second for 2017\"\nwhere the expected message was:\"Cannot get second for 2017\"\""
+pct_update_edge_contract_0_test	> testSecondError	SUCCESSFUL	
+pct_update_edge_contract_0_test	< testSquareRootError	FAILED	Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), "Execution error message mismatch.
+pct_update_edge_contract_0_test	> testSquareRootError	SUCCESSFUL	
+pct_update_edge_contract_12_test	< testAtError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 37"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>The system is trying to get an element at offset 2 where the collection is of size 2\"\nwhere the expected message was:\"The system is trying to get an element at offset 2 where the collection is of size 2\"\""
+pct_update_edge_contract_12_test	> testAtError	SUCCESSFUL	
+pct_update_edge_contract_12_test	< testDayOfMonthError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 36"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>Cannot get day of month for 2017\"\nwhere the expected message was:\"Cannot get day of month for 2017\"\""
+pct_update_edge_contract_12_test	> testDayOfMonthError	SUCCESSFUL	
+pct_update_edge_contract_12_test	< testHourError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 36"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>Cannot get hour for 2017\"\nwhere the expected message was:\"Cannot get hour for 2017\"\""
+pct_update_edge_contract_12_test	> testHourError	SUCCESSFUL	
+pct_update_edge_contract_12_test	< testMinuteError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 36"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>Cannot get minute for 2017\"\nwhere the expected message was:\"Cannot get minute for 2017\"\""
+pct_update_edge_contract_12_test	> testMinuteError	SUCCESSFUL	
+pct_update_edge_contract_12_test	< testSecondError	FAILED	The PCT test runner expected an error containing: ""Execution error column mismatch. Actual: 23 where expected: 36"" but the the error was: "Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), \"Execution error message mismatch.\nThe actual message was \"<<G7>>Cannot get second for 2017\"\nwhere the expected message was:\"Cannot get second for 2017\"\""
+pct_update_edge_contract_12_test	> testSecondError	SUCCESSFUL	
+pct_update_edge_contract_12_test	< testSquareRootError	FAILED	Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), "Execution error message mismatch.
+pct_update_edge_contract_12_test	> testSquareRootError	SUCCESSFUL	
+pct_update_edge_contract_13_test	< testAtError	001	ERROR	<<G7>>The system is trying to get an element at offset 2 where the collection is of size 2
+pct_update_edge_contract_13_test	> testAtError	001	ERROR	The system is trying to get an element at offset 2 where the collection is of size 2
+pct_update_edge_contract_13_test	< testDayOfMonthError	001	ERROR	<<G7>>Cannot get day of month for 2017
+pct_update_edge_contract_13_test	> testDayOfMonthError	001	ERROR	Cannot get day of month for 2017
+pct_update_edge_contract_13_test	< testHourError	001	ERROR	<<G7>>Cannot get hour for 2017
+pct_update_edge_contract_13_test	> testHourError	001	ERROR	Cannot get hour for 2017
+pct_update_edge_contract_13_test	< testMinuteError	001	ERROR	<<G7>>Cannot get minute for 2017
+pct_update_edge_contract_13_test	> testMinuteError	001	ERROR	Cannot get minute for 2017
+pct_update_edge_contract_13_test	< testSecondError	001	ERROR	<<G7>>Cannot get second for 2017
+pct_update_edge_contract_13_test	> testSecondError	001	ERROR	Cannot get second for 2017
+pct_update_edge_contract_13_test	< testSquareRootError	001	ERROR	<<G7>>Unable to compute sqrt of -1.0
+pct_update_edge_contract_13_test	> testSquareRootError	001	ERROR	Unable to compute sqrt of -1.0
+pct_update_edge_contract_1_test	< testAtError	001	ERROR	<<G7>>The system is trying to get an element at offset 2 where the collection is of size 2
+pct_update_edge_contract_1_test	> testAtError	001	ERROR	The system is trying to get an element at offset 2 where the collection is of size 2
+pct_update_edge_contract_1_test	< testDayOfMonthError	001	ERROR	<<G7>>Cannot get day of month for 2017
+pct_update_edge_contract_1_test	> testDayOfMonthError	001	ERROR	Cannot get day of month for 2017
+pct_update_edge_contract_1_test	< testHourError	001	ERROR	<<G7>>Cannot get hour for 2017
+pct_update_edge_contract_1_test	> testHourError	001	ERROR	Cannot get hour for 2017
+pct_update_edge_contract_1_test	< testMinuteError	001	ERROR	<<G7>>Cannot get minute for 2017
+pct_update_edge_contract_1_test	> testMinuteError	001	ERROR	Cannot get minute for 2017
+pct_update_edge_contract_1_test	< testSecondError	001	ERROR	<<G7>>Cannot get second for 2017
+pct_update_edge_contract_1_test	> testSecondError	001	ERROR	Cannot get second for 2017
+pct_update_edge_contract_1_test	< testSquareRootError	001	ERROR	<<G7>>Unable to compute sqrt of -1.0
+pct_update_edge_contract_1_test	> testSquareRootError	001	ERROR	Unable to compute sqrt of -1.0
+pct_update_edge_contract_22_test	< meta::pure::functions::collection::tests::at::testAtError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>The system is trying to get an element at offset 2 where the collection is of size 2" ⏎ where the expected message was:"The system is trying to get an element at offset 2 where the collection is of size 2"
+pct_update_edge_contract_22_test	> meta::pure::functions::collection::tests::at::testAtError	PASS	
+pct_update_edge_contract_22_test	< meta::pure::functions::date::tests::testDayOfMonthError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Cannot get day of month for 2017" ⏎ where the expected message was:"Cannot get day of month for 2017"
+pct_update_edge_contract_22_test	> meta::pure::functions::date::tests::testDayOfMonthError	PASS	
+pct_update_edge_contract_22_test	< meta::pure::functions::date::tests::testHourError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Cannot get hour for 2017" ⏎ where the expected message was:"Cannot get hour for 2017"
+pct_update_edge_contract_22_test	> meta::pure::functions::date::tests::testHourError	PASS	
+pct_update_edge_contract_22_test	< meta::pure::functions::date::tests::testMinuteError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Cannot get minute for 2017" ⏎ where the expected message was:"Cannot get minute for 2017"
+pct_update_edge_contract_22_test	> meta::pure::functions::date::tests::testMinuteError	PASS	
+pct_update_edge_contract_22_test	< meta::pure::functions::date::tests::testSecondError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Cannot get second for 2017" ⏎ where the expected message was:"Cannot get second for 2017"
+pct_update_edge_contract_22_test	> meta::pure::functions::date::tests::testSecondError	PASS	
+pct_update_edge_contract_22_test	< meta::pure::functions::math::tests::testSquareRootError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Unable to compute sqrt of -1.0" ⏎ where the expected message was:"Unable to compute sqrt of -1.0"
+pct_update_edge_contract_22_test	> meta::pure::functions::math::tests::testSquareRootError	PASS	
+pct_update_edge_contract_28_test	< meta::pure::functions::collection::tests::at::testAtError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>The system is trying to get an element at offset 2 where the collection is of size 2" ⏎ where the expected message was:"The system is trying to get an element at offset 2 where the collection is of size 2"
+pct_update_edge_contract_28_test	> meta::pure::functions::collection::tests::at::testAtError	PASS	
+pct_update_edge_contract_28_test	< meta::pure::functions::date::tests::testDayOfMonthError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Cannot get day of month for 2017" ⏎ where the expected message was:"Cannot get day of month for 2017"
+pct_update_edge_contract_28_test	> meta::pure::functions::date::tests::testDayOfMonthError	PASS	
+pct_update_edge_contract_28_test	< meta::pure::functions::date::tests::testHourError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Cannot get hour for 2017" ⏎ where the expected message was:"Cannot get hour for 2017"
+pct_update_edge_contract_28_test	> meta::pure::functions::date::tests::testHourError	PASS	
+pct_update_edge_contract_28_test	< meta::pure::functions::date::tests::testMinuteError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Cannot get minute for 2017" ⏎ where the expected message was:"Cannot get minute for 2017"
+pct_update_edge_contract_28_test	> meta::pure::functions::date::tests::testMinuteError	PASS	
+pct_update_edge_contract_28_test	< meta::pure::functions::date::tests::testSecondError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Cannot get second for 2017" ⏎ where the expected message was:"Cannot get second for 2017"
+pct_update_edge_contract_28_test	> meta::pure::functions::date::tests::testSecondError	PASS	
+pct_update_edge_contract_28_test	< meta::pure::functions::math::tests::testSquareRootError	ERROR	AssertFailed: Execution error message mismatch. ⏎ The actual message was "<<G7>>Unable to compute sqrt of -1.0" ⏎ where the expected message was:"Unable to compute sqrt of -1.0"
+pct_update_edge_contract_28_test	> meta::pure::functions::math::tests::testSquareRootError	PASS	
