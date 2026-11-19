@@ -743,3 +743,22 @@ who confirms or changes phases 1-3.
   - **Its estimate:** the relation-text half of 1.3 is 4 to 5 days; with the value prints (not prototyped), all of 1.3
     is 6 to 8 days, against the plan's 4 to 6.
   - Not done: the corpus run (asked for now), seven other lanes, any guard run.
+- **~12:47 UTC, H10's first counts: the judge-as-records design and the appeal's move work on the spike**
+  (`claude/compat-judges-spike` at `beacf4c9`; scratch).
+  - **Built:** the product's host judge builds a `VerdictRecord` (25 kinds) and asks the run to present it;
+    `LiteHostWords` and `EdgeHostWords` become presenters; ONE interface (`testexec.JudgeRun` with its `Hearing`)
+    replaces `EdgeRun`, `EdgeHearing`, `HostWords` and `HostForms` (five files deleted); the SQL-text appeal runs
+    through it unchanged; `testexecutionplan.Edge` is untouched; `assertError`'s words come from
+    `hearing.caughtMessage(e)`. The diff is +410/-489.
+  - **The check, outcomes AND messages:**
+    - channel B DuckDB (5 suites, 1,249): 0 moved under COMPAT/BOTH, COMPAT/HOST and LITE/HOST (all 462 of lite's
+      failure messages byte-identical). Under LITE/BOTH, 0 outcomes moved; 4 messages differ in DuckDB's own
+      nondeterministic error text (the `testAdjustBy*BigNumber` tests);
+    - corpus H2: identical in every file;
+    - corpus DuckDB: 108 → 110. The +2 are exactly the S15 pair (`log::testFilter`, `testProject`), whose door rewrite
+      R-S15 is not built yet; the other 106 messages are byte-identical.
+  - **A stop-and-tell item:** the corpus has no door. `PureTestRunner` (`core/src/main/java/com/legend/test/`, the
+    product's test runner) plans each typed body itself, so a door rewrite of corpus test bodies needs either a hook
+    in it or the corpus run through an edge-owned door. **This session's steer:** no hook; measure an edge-owned door
+    composed of public entries, and judge honestly whether a "body preparer" parameter would be a legitimate product
+    extension point or a hook by another name.
