@@ -3647,12 +3647,14 @@ java_run(
     ],
 )
 
-# the net's pure/v1 requests, its model and its golden, read by the plan oracle (slice R of the presentation program,
+# the net's pure/v1 requests, its model and its goldens (the answers, and since #123 the plan text: each execute
+# answer's activities and each generated plan), read by the plan oracle (slice R of the presentation program,
 # 2026-11-18): the same requests sent to legend-engine 4.145.0, each golden set against its answer
 # (//tools/engine-runner:pure_v1_oracle_test)
 exports_files(
     [
         "src/test/resources/edge/pure_v1_answers.tsv",
+        "src/test/resources/edge/pure_v1_plan_text.tsv",
         "src/test/resources/edge/pure_v1_requests.tsv",
     ],
     visibility = ["//tools/engine-runner:__pkg__"],

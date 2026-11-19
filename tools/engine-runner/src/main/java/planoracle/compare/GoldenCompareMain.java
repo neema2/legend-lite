@@ -20,15 +20,26 @@ import java.util.regex.Pattern;
  * net's own line form, and each golden line set against legend-engine's (slice R, 2026-11-18). Test tooling.
  *
  * <pre>
- *   --engine=&lt;file&gt;        GoldenRunMain's recording, one JSON array [name, status, body] a line
- *   --answers-out=&lt;file&gt;   legend-engine's answers as the net writes lite's: name, status and the body made compact
- *                           by lite's JSON library, ids masked, newlines escaped ({@code PureV1EdgeGoldenTest.answer},
- *                           {@code .line}) -- so a golden line and an engine line compare byte for byte
- *   --golden=&lt;file&gt;        the net's golden (core/src/test/resources/edge/pure_v1_answers.tsv); with it:
- *   --differences-out=&lt;f&gt;  one line per golden line: its name, {@code same} or {@code differs} (or {@code missing},
- *                           a golden the runner has no request for), and where they differ: {@code status}, and each
- *                           JSON path whose value differs ({@code -} only lite's, {@code +} only legend-engine's)
+ *   --engine=&lt;file&gt;             GoldenRunMain's recording, one JSON array [name, status, body] a line
+ *   --answers-out=&lt;file&gt;        legend-engine's answers as the net writes lite's ({@code PureV1EdgeGoldenTest.answer},
+ *                                {@code .line}): name, status and the body made compact by lite's JSON library, an
+ *                                execute answer's {@code activities} taken out, ids masked, each backslash doubled,
+ *                                newlines escaped -- so a golden line and an engine line compare byte for byte
+ *   --plan-text-out=&lt;file&gt;      the net's plan-text file for legend-engine's answers: each execute answer's activities
+ *                                ({@code activities.<name>}, the JSON alone) and each generated plan ({@code
+ *                                plan.<name>}, its status and body), in the request's order, in the same line form
+ *   --golden=&lt;file&gt;             the net's answers (core/src/test/resources/edge/pure_v1_answers.tsv); with it:
+ *   --golden-plan-text=&lt;file&gt;   the net's plan text (core/src/test/resources/edge/pure_v1_plan_text.tsv), and
+ *   --differences-out=&lt;f&gt;       one line per golden line of both files: its name, {@code same} or {@code differs} (or
+ *                                {@code missing}, a golden the runner has no answer of that name for), and where they
+ *                                differ: {@code status}, and each JSON path whose value differs ({@code -} only
+ *                                lite's, {@code +} only legend-engine's); then each engine line no golden names
+ *                                ({@code extra})
  * </pre>
+ *
+ * <p>The net's form since #123 (the edge net hardened, S0): the activities -- the SQL an execute answer reports --
+ * moved out of the answers into the plan-text file, beside the generated plans, so an SQL-only change moves that file
+ * alone; and a backslash is doubled before a newline is escaped, so a raw newline and an escaped one are two texts.
  *
  * <p>One mask beyond the net's: an error's {@code trace} (legend-engine's {@code ExceptionError.trace}, the stack trace
  * {@code printStackTrace} writes) keeps its first line, the exception, and its frames become {@code <frames>}: they are
@@ -41,6 +52,7 @@ public final class GoldenCompareMain
     private static final Pattern IDS = Pattern.compile(
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     private static final int MAX_PATHS = 12;
+    private static final String ACTIVITIES = "activities.";
 
     private GoldenCompareMain()
     {
@@ -58,8 +70,10 @@ public final class GoldenCompareMain
             }
             a.put(arg.substring(2, eq), arg.substring(eq + 1));
         }
+        // every engine line by its name, answers' and plan text's alike (their names never meet)
         Map<String, String> engine = new LinkedHashMap<>();
         StringBuilder answers = new StringBuilder();
+        StringBuilder planText = new StringBuilder();
         for (String l : Files.readAllLines(Path.of(a.get("engine")), StandardCharsets.UTF_8))
         {
             Json.Arr row = (Json.Arr) Json.parse(l);
@@ -69,32 +83,60 @@ public final class GoldenCompareMain
             if (name.equals("#"))
             {
                 answers.append("# ").append(body).append('\n');   // what answered (GoldenRunMain.header)
+                planText.append("# ").append(body).append('\n');
                 continue;
             }
-            String line = netLine(status, body);
+            if (name.startsWith("plan."))
+            {
+                String line = netLine(status + "\t" + compact(body, null));
+                engine.put(name, line);
+                planText.append(name).append('\t').append(line).append('\n');
+                continue;
+            }
+            String[] activities = new String[1];
+            String line = netLine(status + "\t" + compact(body, act -> activities[0] = act));
             engine.put(name, line);
             answers.append(name).append('\t').append(line).append('\n');
+            if (activities[0] != null)
+            {
+                String act = netLine(activities[0]);
+                engine.put(ACTIVITIES + name, act);
+                planText.append(ACTIVITIES).append(name).append('\t').append(act).append('\n');
+            }
         }
         Files.writeString(Path.of(a.get("answers-out")), answers, StandardCharsets.UTF_8);
+        if (a.containsKey("plan-text-out"))
+        {
+            Files.writeString(Path.of(a.get("plan-text-out")), planText, StandardCharsets.UTF_8);
+        }
 
         if (a.containsKey("golden"))
         {
+            List<String> golden = new ArrayList<>(Files.readAllLines(Path.of(a.get("golden")), StandardCharsets.UTF_8));
+            if (a.containsKey("golden-plan-text"))
+            {
+                golden.addAll(Files.readAllLines(Path.of(a.get("golden-plan-text")), StandardCharsets.UTF_8));
+            }
             StringBuilder out = new StringBuilder();
             int same = 0;
             int differs = 0;
             List<String> seen = new ArrayList<>();
-            for (String l : Files.readAllLines(Path.of(a.get("golden")), StandardCharsets.UTF_8))
+            for (String l : golden)
             {
+                if (l.isBlank() || l.startsWith("#"))
+                {
+                    continue;
+                }
                 int tab = l.indexOf('\t');
                 String name = l.substring(0, tab);
-                String golden = l.substring(tab + 1);
+                String line = l.substring(tab + 1);
                 seen.add(name);
                 String mine = engine.get(name);
                 if (mine == null)
                 {
-                    out.append(name).append("\tmissing\tthe runner made no request of this name\n");
+                    out.append(name).append("\tmissing\tthe runner made no answer of this name\n");
                 }
-                else if (mine.equals(golden))
+                else if (mine.equals(line))
                 {
                     same++;
                     out.append(name).append("\tsame\t\n");
@@ -102,7 +144,9 @@ public final class GoldenCompareMain
                 else
                 {
                     differs++;
-                    out.append(name).append("\tdiffers\t").append(String.join(", ", paths(golden, mine))).append('\n');
+                    boolean withStatus = !name.startsWith(ACTIVITIES);
+                    out.append(name).append("\tdiffers\t")
+                            .append(String.join(", ", paths(unescape(line), unescape(mine), withStatus))).append('\n');
                 }
             }
             for (String name : engine.keySet())
@@ -117,36 +161,73 @@ public final class GoldenCompareMain
         }
     }
 
-    /** A body as the net writes an answer: compact if it is a JSON object, the trace's frames masked, then the ids
-     *  masked and the newlines escaped. */
-    static String netLine(String status, String body)
+    /** A body as the net records an answer ({@code PureV1EdgeGoldenTest.answer}): compact if it is a JSON object,
+     *  the trace's frames masked; with {@code activities}, an execute answer's activities handed to it (compact) and
+     *  taken out of the body (null: kept). A body that is no JSON object is kept as it is, as the net keeps lite's. */
+    static String compact(String body, java.util.function.Consumer<String> activities)
     {
-        String json = body;
         try
         {
             Json.Obj o = Json.parseObject(body);
-            if (o.fields().get("trace") instanceof Json.Str t)
+            LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>(o.fields());
+            if (fields.get("trace") instanceof Json.Str t)
             {
                 int nl = t.value().indexOf('\n');
-                LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>(o.fields());
                 fields.put("trace", new Json.Str((nl < 0 ? t.value() : t.value().substring(0, nl)) + "\n<frames>"));
-                o = new Json.Obj(fields);
             }
-            json = Json.toCompact(o);
+            if (activities != null && fields.containsKey("activities"))
+            {
+                activities.accept(Json.toCompact(fields.remove("activities")));
+            }
+            return Json.toCompact(new Json.Obj(fields));
         }
         catch (RuntimeException notJson)
         {
-            // an answer that is no JSON object is recorded as it is, as the net records lite's
+            return body;
         }
-        return IDS.matcher(status + "\t" + json).replaceAll("<id>").replace("\n", "\\n").replace("\r", "");
     }
 
-    /** Where a golden line and legend-engine's differ: the status, then each differing JSON path. */
-    static List<String> paths(String golden, String engine)
+    /** A recorded line as the net writes it ({@code PureV1EdgeGoldenTest.line}): the ids masked, then each backslash
+     *  doubled, then each newline escaped, carriage returns dropped. */
+    static String netLine(String text)
+    {
+        return IDS.matcher(text).replaceAll("<id>").replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "");
+    }
+
+    /** {@link #netLine}'s escaping undone (the mask stays), so a line's JSON can be read for its paths. */
+    static String unescape(String line)
+    {
+        StringBuilder out = new StringBuilder(line.length());
+        for (int i = 0; i < line.length(); i++)
+        {
+            char c = line.charAt(i);
+            if (c == '\\' && i + 1 < line.length() && (line.charAt(i + 1) == '\\' || line.charAt(i + 1) == 'n'))
+            {
+                out.append(line.charAt(i + 1) == 'n' ? '\n' : '\\');
+                i++;
+            }
+            else
+            {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    /** Where a golden line and legend-engine's differ: the status (a line that has one: not an activities line),
+     *  then each differing JSON path. */
+    static List<String> paths(String golden, String engine, boolean withStatus)
     {
         List<String> out = new ArrayList<>();
-        int g = golden.indexOf('\t');
-        int e = engine.indexOf('\t');
+        int g = withStatus ? golden.indexOf('\t') : -1;
+        int e = withStatus ? engine.indexOf('\t') : -1;
+        if (!withStatus)
+        {
+            golden = "\t" + golden;
+            engine = "\t" + engine;
+            g = 0;
+            e = 0;
+        }
         String gs = g < 0 ? golden : golden.substring(0, g);
         String es = e < 0 ? engine : engine.substring(0, e);
         if (!gs.equals(es))

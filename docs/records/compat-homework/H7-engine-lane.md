@@ -365,6 +365,24 @@ The 2 that check less than a value are the only places where lite could answer s
 
 Checking them needs lite's answer beside legend-pure's own. That was not done here.
 
+**The 33, cross-checked against lite's own route** (the owner's question, 2026-11-19: is each a known failure of lite's
+own H2 PCT, or a route difference?):
+- **No lite ledger exists for those suites.** lite's own H2 PCT runs only the relation suite, in both channels:
+  channel A's `//pct:pct_h2` is `Test_LegendLite_H2_RelationFunctions_PCT`, and channel B's H2 lane is
+  `["Relation"]`. H2's essential and standard suites never ran on lite before this lane.
+- **So it was measured.** lite's own audience (the PCT default: legend-pure's text, the substring flag) ran on H2's
+  essential and standard suites through a scratch target, not committed. All 33 fail there too, each with the same
+  message.
+  - None is a route difference: all 33 are H2 dialect gaps.
+  - lite's own route passes 256 of 345 and 115 of 205; the ENGINE route passes 252 and 113.
+- **The 6 tests the audiences split.** They are `testStart`, `testStartEnd`, `testRemError`, `testSquareRootError`,
+  `testBitShiftLeft_MoreThan62Bits` and `testBitShiftRight_MoreThan62Bits`.
+  - lite's own route passes them, and the ENGINE route fails them.
+  - All six are BOTH_FAIL: legend-engine fails them by its own defect, and lite, as legend-engine's audience,
+    reproduces it (substring's 1-based start, legend-engine's plain raise).
+- The owner routes the 33 to the product as H2 dialect work. The table stays the evidence, and a row moves only when a
+  fix lands, with the user's word.
+
 **The lane's limits** (B2's probe on this lane, H8 section (j) on `claude/census-b2` at `7082dd21f`):
 - The verdict reads PCT's assert, not the answer's exact value, so a tolerant assert hides a moved answer: switching
   off S20's bare DECIMAL moves `testFloatPlus` from 1.7 to 1.7000000000000002 and `testFloatTimes` from 2.1 to its

@@ -278,3 +278,36 @@ quirks included; S8's comparison is where each such case is classified.
 - **`//json`'s visibility** adds `//tools/engine-runner`, for the compare. This is Bazel visibility, not a guard
   allowlist; flagged for review.
 - **Not changed:** no pin, ceiling, ledger or guard allowlist. The lite-side DuckDB test waits on one (§3).
+
+## 8. The net's format after #123, and the re-pin (2026-11-19, B1-R; the review of PR #124, item 2)
+
+#123 (the edge net hardened, S0) landed its pure/v1 changes first, as the independent reviewer ruled. `claude/compat-s0`
+at `ef9e9bfa3` was merged into `claude/compat-engine-lane`, with B1's versions of the request list and the test.
+
+**The format the compare now writes,** as the net writes lite's:
+- An execute answer's `activities` (the SQL it reports) are out of `pure_v1_answers.tsv`. They are in
+  `pure_v1_plan_text.tsv`, as `activities.<name>` (the JSON alone), beside each request's generated plan
+  (`plan.<name>`, status and body), in the request's order.
+- Each backslash is doubled before a newline is escaped. The masks stay `<id>`: B1's first-appearance numbering was
+  offered to the user and not taken.
+- `GoldenCompareMain` writes legend-engine's answers in that form: `engine_<db>_answers.tsv` and the new
+  `engine_<db>_plan_text.tsv`.
+- It sets each golden line of BOTH files against legend-engine's (`--golden`, `--golden-plan-text`), undoing the
+  line escaping before it reads a JSON path.
+- Core's export to `//tools/engine-runner` gains `pure_v1_plan_text.tsv`.
+
+**The 15th request, `raise.toOneOfEmpty`,** comes with #123's list, and the oracle reads that list, so legend-engine
+was asked it too:
+- lite answers 500 ("Raised: SIZE_NOT_MULTIPLICITY", a raise the edge checks in its own plan);
+- legend-engine answers 200 with a row.
+- Its plan differs in the SQL and in a column's relational type.
+
+**The re-pin (H2, 38 golden lines: 15 answers, 23 plan-text lines):** 5 the same, 33 differ, and 2 `extra`.
+- The 5 the same are `raise.sqrtOfNegative`, `cell.dateTimeCoarse`, `cell.dateTimeSubMicro`, `cell.floatWhole` and
+  `cell.strictDate`. Each of these differed before only by its activities' SQL, which now differs on its own
+  `activities.*` line.
+- The 2 `extra` lines are `activities.value` and `activities.raise.toOneOfEmpty`: legend-engine reports SQL where lite
+  answered an error.
+- Every other difference is the one §4 lists; only its line moved.
+
+On DuckDB, legend-engine planned 12 of the 15 requests; on H2, 13.

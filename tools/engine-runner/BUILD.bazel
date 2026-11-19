@@ -269,22 +269,27 @@ java_run(
     deps = [":planoracle"],
 )
 
-# legend-engine's answers in the net's line form; on H2, each golden line set against legend-engine's
+# legend-engine's answers in the net's line form, its answers and its plan text apart as the net keeps lite's (#123);
+# on H2, each golden line of both files set against legend-engine's
 java_run(
     name = "engine_pure_v1_h2_compare",
     testonly = True,
     srcs = [
         ":pure_v1/h2/engine.jsonl",
         "//core:src/test/resources/edge/pure_v1_answers.tsv",
+        "//core:src/test/resources/edge/pure_v1_plan_text.tsv",
     ],
     outs = [
         "pure_v1/h2/answers.tsv",
+        "pure_v1/h2/plan_text.tsv",
         "pure_v1/h2/differences.tsv",
     ],
     arguments = [
         "--engine=$(execpath :pure_v1/h2/engine.jsonl)",
         "--answers-out={OUT_DIR}/answers.tsv",
+        "--plan-text-out={OUT_DIR}/plan_text.tsv",
         "--golden=$(execpath //core:src/test/resources/edge/pure_v1_answers.tsv)",
+        "--golden-plan-text=$(execpath //core:src/test/resources/edge/pure_v1_plan_text.tsv)",
         "--differences-out={OUT_DIR}/differences.tsv",
     ],
     main_class = "planoracle.compare.GoldenCompareMain",
@@ -297,10 +302,14 @@ java_run(
     name = "engine_pure_v1_duckdb_compare",
     testonly = True,
     srcs = [":pure_v1/duckdb/engine.jsonl"],
-    outs = ["pure_v1/duckdb/answers.tsv"],
+    outs = [
+        "pure_v1/duckdb/answers.tsv",
+        "pure_v1/duckdb/plan_text.tsv",
+    ],
     arguments = [
         "--engine=$(execpath :pure_v1/duckdb/engine.jsonl)",
-        "--answers-out={OUT}",
+        "--answers-out={OUT_DIR}/answers.tsv",
+        "--plan-text-out={OUT_DIR}/plan_text.tsv",
     ],
     main_class = "planoracle.compare.GoldenCompareMain",
     mnemonic = "EngineOracleCompare",
@@ -481,8 +490,10 @@ write_source_files(
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-engine's answer to a pure/v1 golden request, or how a golden differs from it, moved (the plan oracle, docs/records/engine-oracle-pure-v1-2026-11-18.md): in the diff, < is this tree (generated) and > the record; after a golden's ruled move, or a legend-engine bump, bazel run //tools/engine-runner:update_pure_v1_oracle and say in the commit which way it moved",
     files = {
         "src/test/resources/pure_v1/engine_h2_answers.tsv": ":pure_v1/h2/answers.tsv",
+        "src/test/resources/pure_v1/engine_h2_plan_text.tsv": ":pure_v1/h2/plan_text.tsv",
         "src/test/resources/pure_v1/engine_h2_differences.tsv": ":pure_v1/h2/differences.tsv",
         "src/test/resources/pure_v1/engine_duckdb_answers.tsv": ":pure_v1/duckdb/answers.tsv",
+        "src/test/resources/pure_v1/engine_duckdb_plan_text.tsv": ":pure_v1/duckdb/plan_text.tsv",
     },
     tags = ["manual"],
 )
