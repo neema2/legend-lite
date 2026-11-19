@@ -277,3 +277,32 @@ slot keeps its day.
   user picks, for the count of lite's tests and pins that would move. D1 is lite's text and only spelling separates it
   from PCT (compatibility's re-spelling, rule 3); D2 makes the product print legend-pure's form, which the rules of
   record leave to compatibility (rule 3, tenet 4), so D2 is a measurement of the ceiling, not a recommendation.
+
+**The SQL of one abstract-`Date` cell held as a timestamp** (`x` a column; each dialect's own render;
+`core/src/test/java/com/legend/sql/dialect/H14DateCellSizeTest.java`, scratch):
+
+| Database | Today (the database's cast) | D1 (`DATETIME_TO_TEXT`) | D2 (legend-pure's, composed) |
+|---|---|---|---|
+| DuckDB | 18 | 36 (`strftime(x, '%Y-%m-%dT%H:%M:%S.%fZ')`) | 89 |
+| SQLite | 15 | 166 | 206 |
+| Postgres | 18 | 53 | 108 |
+| H2 | 18 | 76 | 134 |
+
+## 9. The compatibility routes under the product's table text
+
+**The spike routes the `Lowerer`'s `toString` arm to the product's lowering under EVERY style**, so the edge style's
+table text no longer comes from the edge's builder. Measured at this branch's head (V2 + D2), the compatibility rules,
+the host judge: **PCT's `pct_channel_b_host_relation` 469 of 469 and `_standard` 205 of 205 pass, all 423 table
+texts equal**, as on `main`. Lite's own edge test shows where it would differ:
+`integration.FloatTextTest.anEdgeRelationsTextPrintsAFloatCellAsLegendPure` (`0.00001` and `1e20` print `1e-05` and
+`1e+20` under the edge style through the product's lowering; legend-pure's `0.00001` and `100000000000000000000.0`).
+The corpus under the compatibility rules was not run with the change.
+
+**What the real slice needs so the compatibility routes stay untouched:** the compatibility edge keeps its own
+spelling of a table until B2's Java formatter replaces it. Two ways, neither run here:
+- **Keep the `Lowerer`'s call of the plan style's `RelationTexts` facet**, with the product's answer the product's
+  lowering instead of the refusal: `RelationTexts` becomes a TWO-FORM kind (the product form passed by the caller, as
+  `DateTimeTexts` and `ListTexts` are, `PlanEnv.styled`), which is one row in `testplan.PlanStyleFacets.TWO_FORMS`,
+  the set `HookRulingTest` pins exactly: a guard row, for the user's word. No new hook: the facet exists (B17).
+- **Or land it with or after B2:** the compatibility edge prints a table in Java from lite's typed rows (H11: PCT 431
+  of 431, the corpus byte-identical on DuckDB and +3 on H2), so it never reads the product's in-database text.
