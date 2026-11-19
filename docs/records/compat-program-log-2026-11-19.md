@@ -3035,3 +3035,11 @@ who confirms or changes phases 1-3.
   one line there.
 - **~22:56 UTC, the judges: the detector's graphFetch walk merged** (batch head `f4525a31e`, clean; 55 of 55 touched
   lanes; no ledger, golden or ratchet moved; own_corpus stays 3325). Waiting on the translator's heads.
+- **~23:01 UTC, B1-R answered the reviewer's round** (heads: detector `9d86aa88f`, engine `fcb57e406`, review
+  `984ee555e`). **A second detector gap found by asking legend-engine, fixed:** the walk took a let whose value merely
+  held a lambda (`let n = ['ax','bx']->map(s|$s->indexOf('x'))`), which legend-engine computes on the host with Pure's
+  meaning (`qty in (1, 1)` in its SQL, H2 and DuckDB), so `refuse` over-refused and `engine` could have rewritten it
+  wrongly; now only a let whose value is a lambda is walked (plant P9). E-S1: `refuseSharedLetRoots` (plant R7, and the
+  realistic shared-let query end to end). E-S2: a DuckDB seed test pins W2. E-S3: the note's stale lines fixed. A
+  graph-fetch tree's qualified property is refused under `engine`. The batteries question answered again (crossed
+  messages); the reviewer's three nits relayed; the judges merge the detector's head; the reviewer checks all three.
