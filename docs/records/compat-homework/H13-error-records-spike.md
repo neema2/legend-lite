@@ -1126,9 +1126,9 @@ message mismatch": each asserts legend-pure's sentence). A5's 16 is confirmed, a
   (`testArcCosineError`, `testArcSineError`). Their manifest entries (`one(..., "\"a date past the years 0000-9999 has
   no SQLite value\"")` in `Test_LegendLite_SQLite_*Functions_PCT`) re-pin to lite's whole sentence.
 - **The ENGINE lanes** (PCT as legend-engine's audience): only the 4 window-frame tests move, on DuckDB and on H2, from
-  `SAME` (both pass) to `LITE_BEHIND` (`ERROR_MISMATCH`). The other 12 do not move there: legend-engine itself fails,
-  refuses or answers them otherwise (its unchecked maths, `at` only after a property), so lite's words never decided
-  them.
+  `SAME` (both pass) to `LITE_BEHIND` (`ERROR_MISMATCH`). The other 12 do not move there: on `main` they are already
+  `BOTH_FAIL` (legend-engine `REFUSES` them, e.g. `at` only after a property, or has a `DEFECT`, e.g. its unchecked
+  maths; and lite already fails them there with `ERROR_MISMATCH`), so lite's words decide none of them.
 - **Not moved, and why:** 4 more PCT `assertError` tests expect upstream text that is already lite's own product
   message today (the census's "upstream sentence inside the product" family: `The type ... is not supported yet!`, 1
   test; `Unsupported duration unit for StrictDate. ...`, 3 tests). They would move only if the product rewords those
