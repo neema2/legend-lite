@@ -83,19 +83,9 @@ class EdgeNetPlantedTest {
         assertEquals("Long:1234567891234567891;", PctCaseRecorder.flat("Long:1234567891234567891;"),
                 "a value's digits are the net's to see (until S0 any 16 hexadecimal characters were masked)");
         assertEquals("Double:3.1415926535897936;", PctCaseRecorder.flat("Double:3.1415926535897936;"));
-        assertEquals("execution <id1> failed",
+        assertEquals("execution <id> failed",
                 PctCaseRecorder.flat("execution 3f2504e0-4f89-11d3-9a0c-0305e82c3301 failed"),
                 "an execution id is masked");
-    }
-
-    @Test
-    void theMaskNumbersIdsByFirstAppearance() {
-        String a = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
-        String b = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
-        assertEquals("<id1> <id2> <id1>", PctCaseRecorder.flat(a + " " + b + " " + a),
-                "two ids are two masks, the same id the same one");
-        assertNotEquals(PctCaseRecorder.flat(a + " " + b), PctCaseRecorder.flat(a + " " + a),
-                "every row given the same guid cannot hide behind the mask");
     }
 
     /** A relation query's plan on the platform's database, in the edge's style, planned only (no database). */

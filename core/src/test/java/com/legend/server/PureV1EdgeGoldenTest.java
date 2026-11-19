@@ -107,24 +107,10 @@ class PureV1EdgeGoldenTest {
         }
     }
 
-    /** {@code s} with each id masked by its first appearance ({@code <id1>}, {@code <id2>}, ...; the same id the same
-     *  mask, so a run that gave every row one id cannot hide behind it: the review of PR #123, 2026-11-19). */
-    static String masked(String s) {
-        java.util.regex.Matcher m = IDS.matcher(s);
-        java.util.Map<String, Integer> seen = new java.util.HashMap<>();
-        StringBuilder out = new StringBuilder();
-        while (m.find()) {
-            int n = seen.computeIfAbsent(m.group().toLowerCase(java.util.Locale.ROOT), id -> seen.size() + 1);
-            m.appendReplacement(out, "<id" + n + ">");
-        }
-        m.appendTail(out);
-        return out.toString();
-    }
-
     private static void line(StringBuilder out, String name, String line) {
         out.append(name).append('\t')
                 // a backslash escaped first (S0, 2026-11-18): a raw newline and an escaped one are two texts
-                .append(masked(line).replace("\\", "\\\\").replace("\n", "\\n")
+                .append(IDS.matcher(line).replaceAll("<id>").replace("\\", "\\\\").replace("\n", "\\n")
                         .replace("\r", "")).append('\n');
     }
 

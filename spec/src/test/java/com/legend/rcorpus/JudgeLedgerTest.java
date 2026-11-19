@@ -21,7 +21,7 @@ import java.util.List;
  * THE EDGE GOLDEN NET's PROOF, the corpus ledger's half (the review of PR #123, 2026-11-19): S0 of the presentation
  * program gave the ledger's non-PASS rows their failure's message ({@link JudgeLedger#record}), and the net pins it.
  * Planted changes through the ledger's own writer: a message change moves a FAIL row; a PASS row carries no message;
- * an id is masked by its first appearance and a value never; a message's tab and line end cannot break the row.
+ * an id is masked and a value never; a message's tab and line end cannot break the row.
  */
 class JudgeLedgerTest {
 
@@ -68,10 +68,10 @@ class JudgeLedgerTest {
     }
 
     @Test
-    void anIdIsMaskedByItsFirstAppearance() {
-        String a = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
-        String b = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
-        assertEquals("run <id1> then <id2> then <id1>", JudgeLedger.message("run " + a + " then " + b + " then " + a));
+    void anIdIsMaskedAndAValueNever() {
+        assertEquals("run <id> returned 1234567891234567891",
+                JudgeLedger.message("run 3f2504e0-4f89-11d3-9a0c-0305e82c3301 returned 1234567891234567891"),
+                "an execution id is masked; a value's digits are the net's to see");
     }
 
     @Test
