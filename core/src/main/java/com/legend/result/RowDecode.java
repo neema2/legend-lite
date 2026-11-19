@@ -129,7 +129,10 @@ public final class RowDecode {
                 return node instanceof Json.Str s && !numericPure(type) ? s.value() : floating(node, c);
             }
             case "DECIMAL", "NUMERIC" -> {
-                return node instanceof Json.Str s && !numericPure(type) ? s.value() : decimal(node, c);
+                // an Integer over a DECIMAL slot: its exact integral, a fraction refused by name (JdbcDecode's rule,
+                // the PR #118 follow-up, 2026-11-19, Q8)
+                return node instanceof Json.Str s && !numericPure(type) ? s.value()
+                        : type.equals("Integer") ? integer(node, c) : decimal(node, c);
             }
             case "BOOLEAN" -> {
                 if (node instanceof Json.Bool b) {
@@ -281,12 +284,22 @@ public final class RowDecode {
             case Json.Num n when n.isInteger() -> BigInteger.valueOf(n.longValue());
             case Json.Num n when n.decimalValue() != null && n.decimalValue().stripTrailingZeros().scale() <= 0 ->
                     n.decimalValue().toBigIntegerExact();
-            case Json.Str s -> new BigInteger(s.value().trim());
+            case Json.Str s -> wholeText(s, c);
             default -> throw refused(node, c);
         };
         // a long holds a whole number of up to 63 bits beside its sign (bitLength counts the sign apart): until
         // 2026-10-29 the bound was 63 exclusive, and [2^62, 2^63-1] rode as a BigInteger (the track A audit, finding 2)
         return whole.bitLength() <= 63 ? (Object) whole.longValue() : whole;
+    }
+
+    /** An Integer's cell the wire spells as text: its whole number, any other text (a fraction) refused by name (as
+     *  JdbcDecode's; Q8, 2026-11-19). */
+    private static BigInteger wholeText(Json.Str s, ExecutionPlan.Column c) {
+        try {
+            return new BigInteger(s.value().trim());
+        } catch (NumberFormatException e) {
+            throw refused(s, c);
+        }
     }
 
     private static Object floating(Json.Node node, ExecutionPlan.Column c) {

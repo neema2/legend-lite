@@ -52,6 +52,22 @@ class RowDecodeTest {
         assertNull(one("Integer", "INTEGER", "null"));
     }
 
+    /** An Integer over a DECIMAL slot (the PR #118 follow-up, 2026-11-19, Q8; JdbcDecode's rule, IntegerOverDecimalTest):
+     *  its exact integral, a whole value at any scale included; a fraction refused by name. */
+    @Test
+    void anIntegerOverADecimalSlotIsItsIntegral() {
+        assertEquals(5L, one("Integer", "DECIMAL(10,0)", "5"));
+        assertEquals(-5L, one("Integer", "DECIMAL(10,2)", "-5.00"));
+        String refused = assertThrows(IllegalStateException.class, () -> one("Integer", "DECIMAL(10,2)", "5.50"))
+                .getMessage();
+        assertTrue(refused.startsWith("column 'v' is declared Integer in slot DECIMAL(10,2), and its cell's token 5.50"),
+                refused);
+        // a fraction the wire spells as text, refused by name too (never a parse error of no column)
+        String text = assertThrows(IllegalStateException.class, () -> one("Integer", "DECIMAL(10,2)", "\"5.50\""))
+                .getMessage();
+        assertTrue(text.startsWith("column 'v' is declared Integer in slot DECIMAL(10,2)"), text);
+    }
+
     @Test
     void aNumberIsDecodedByItsSlot_orByItsTokenWithoutOne() {
         assertEquals(2L, one("Number", "BIGINT", "2"));

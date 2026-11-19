@@ -100,6 +100,24 @@ class JdbcDecodeDuckDbTest {
         }
     }
 
+    /** An Integer over a DECIMAL slot (the PR #118 follow-up, 2026-11-19, Q8; IntegerOverDecimalTest, the product's
+     *  case): its exact integral, a whole value at any scale included; a fraction refused by name. */
+    @Test
+    void anIntegerOverADecimalSlotIsItsIntegral() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            assertEquals(5L, JdbcDecodeCases.row(c, DUCKDB, "SELECT 5::DECIMAL(10,0) AS n",
+                    List.of(JdbcDecodeCases.col("n", "Integer", "DECIMAL(10,0)"))).get(0));
+            // a whole value at a scale above zero is its integral too: the value decides, never its scale
+            assertEquals(-5L, JdbcDecodeCases.row(c, DUCKDB, "SELECT -5.00::DECIMAL(10,2) AS n",
+                    List.of(JdbcDecodeCases.col("n", "Integer", "DECIMAL(10,2)"))).get(0));
+            String refused = assertThrows(IllegalStateException.class, () -> JdbcDecodeCases.row(c, DUCKDB,
+                    "SELECT 5.50::DECIMAL(10,2) AS f", List.of(JdbcDecodeCases.col("f", "Integer", "DECIMAL(10,2)"))))
+                    .getMessage();
+            assertTrue(refused.startsWith("column 'f' is declared Integer in slot DECIMAL(10,2), and the driver's value,"
+                    + " a java.math.BigDecimal 5.50, is not of that kind"), refused);
+        }
+    }
+
     /** No slot (a late-bound grid's column): the Pure type decides, and a class or Any takes the driver's own kind. */
     @Test
     void withoutASlotThePureTypeDecides() throws Exception {
