@@ -1687,3 +1687,61 @@ that must be answered before `engine` is offered to an operator (E-M1) and three
     matters.
   - **Record the refusal:** the shape note should say that a graph-fetch tree's qualified property is refused under
     `engine`, since the tree's derived bodies are followed, not inlined.
+
+### B1-R's round on 285f98e18 (`claude/compat-a3-detector` `9d86aa88f`, `claude/compat-a3-engine` `fcb57e406`, the review branch `984ee555e`)
+
+**Verdict: APPROVED. E-S1, E-S2 and E-S3 are met. Two new shoulds (R2-S1, R2-S2) and one probe to ask.**
+
+**`9d86aa88f`: the walk takes a let only when its value IS a lambda.**
+- **Why:** legend-engine computes a store-free let made with a lambda (`['ax','bx']->map(...)`) on the host. Its SQL
+  reads `qty in (1, 1)`, in the probes added to `a3-engine-probes/`. So the old `holdsALambda` rule over-refused under
+  refuse, and under `engine` it could have rewritten that let against legend-engine.
+- **Tests:** the new test sits beside its partner, the let-bound lambda that is store-bound. Plant P9 is taken as
+  reported.
+- **R2-S1 (should):** an `eval` of a let-bound variable whose let is no longer walked is still taken as followable.
+  - **The cause:** the typer puts a literal lambda let into each of its uses, so a `TypedVariable` left under a
+    `TypedEval` is a let whose value is not a literal lambda (`[{s|...}]->toOne()`, `my::makeFn()`, a cast).
+  - **Before:** `holdsALambda` walked such a value.
+  - **Now:** nothing walks it, and `node`'s `TypedEval` arm admits a `TypedVariable`, so the call is clean without its
+    body ever being read.
+  - **The fix:** an `eval` of a variable bound by a let that the walk did not take is UNVERIFIED, with a plant. A
+    function's own parameter, whose lambda the caller's tree supplies, is not affected.
+
+**`fcb57e406`: E-S1 and E-S3.**
+- **The guard:** `refuseSharedLetRoots` refuses a let root that holds a flagged node when a statement that is not a
+  root reads its name. That is tested on a built walk result, with its partner, plus the realistic shared-let query,
+  where the typer's substitution leaves both lets as written and rewrites the store's use alone. Plant R7 is taken as
+  reported.
+- **E-S3:** the note's stale lines are fixed. I re-read it: D-S1 is settled as ruled, the class is named
+  `EngineSubstitutes`, the test-data routes are rewritten, and the text says identity, not position.
+- **R2-S2 (should): the guard is wider than its reason.**
+  - **The reason holds only for a lambda let:** that is one piece of code evaluated in two places with two meanings.
+  - **A store-bound VALUE let is computed once,** for example `let t = <relation>->extend(~a: ...substring...)->from(rt)`.
+    A statement that only reads it (`$t->select(~a)`, with no store read of its own, so host-side to the detector)
+    reads a value, and nothing in it changes meaning. The guard refuses it all the same, which is a false refusal of a
+    shape a user can write.
+  - **The fix:** narrow the guard to `let.value() instanceof TypedLambda`, or show by probe why a value let must be
+    refused.
+- **The probe to ask, on the same shape:**
+  - **The question:** a statement that reads a store-bound let through a variable, with no store read of its own, is
+    host-side to the detector. `StatementEffects.reaches` does not follow a variable, which is right for the probed
+    scalar let (`let.then`, `"re"`). So that statement's own calls are not walked, for example
+    `{|let t = #>{...}#->from(rt); $t->extend(~b: r|$r.desk->toOne()->substring(1, 3))}`.
+  - **Why it matters:** whether legend-engine writes that statement into the let's SQL, or computes it over the
+    let's result on the host, decides whether this is a silent miss under refuse and warn.
+  - **The ask:** one probe on DuckDB, where `'Cre'` and `'red'` differ.
+  - **If legend-engine writes it into the SQL:** a statement reading a relation-valued store-bound let is store-bound
+    too (a variable followed to a let whose value is a relation that reads a store, not to a scalar let), and R2-S2's
+    guard question goes away.
+
+**`984ee555e`: E-S2.**
+- **The seed test:** `theSeedIsRewrittenOnDuckDb_aThreeArgumentStartOfZero` plans the seed on DuckDB, without running
+  it. Under engine its SQL holds `substr('abcdef', 0, 3)`; under warn it does not. Plant W2 now bites on this tree.
+- **Nit:** the javadoc speaks of the answers (ID 4 against ID 3), but the test asserts the planned SQL. It should say
+  so.
+- **The graph fetch:** `aGraphFetchsQualifiedPropertyIsRefusedByNameUnderEngine` pins the refusal I asked the shape
+  note to record (a9e827e2e). The runner is never called, the answer is 500 "cannot be rewritten at this door", and
+  the header still names the call.
+
+**The batch is at `f4525a31e`,** waiting on the translator's two pieces (the user's word in that session). The
+combination review starts on the judges' merged measurement.
