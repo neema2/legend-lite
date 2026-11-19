@@ -180,6 +180,13 @@ public final class Equality {
             if (!(e instanceof Number en && a instanceof Number an)) {
                 return false;
             }
+            // a Decimal holds no NaN and no infinity: a non-finite carrier under a Decimal declaration (a Decimal
+            // property mapped to a DOUBLE column holding one) is the double it is, compared as the FLOAT branch
+            // compares one -- never a BigDecimal of "NaN", which threw NumberFormatException where a verdict was due
+            // (the PR #118 fix batch's JUDGES-WORDS-6, confirmed 2026-11-19: EqualityNonFiniteTest)
+            if (nonFinite(e) || nonFinite(a)) {
+                return sameNonFinite(e, a);
+            }
             // the run hook's form (train 17, 2026-11-18): lite's by value (register S139, the user's ruling of
             // 2026-11-05), as `==` does in the database; the edge's scale-sensitive, compiled legend-pure's
             boolean eq = rules.forms().equalDecimals(decimal(en), decimal(an));
@@ -195,8 +202,7 @@ public final class Equality {
                 return false;
             }
             if (nonFinite(e) || nonFinite(a)) {
-                return e instanceof Double de && a instanceof Double da
-                        ? de.doubleValue() == da.doubleValue() : e.equals(a);
+                return sameNonFinite(e, a);
             }
             if (decimal(en).compareTo(decimal(an)) == 0) {
                 return true;   // the carriers agree exactly (digits kept)
@@ -299,8 +305,19 @@ public final class Equality {
     static List<Typed> sorted(List<Typed> values) {
         List<Typed> out = new ArrayList<>(values);
         out.sort(java.util.Comparator.comparingInt((Typed t) -> typeRank(t.value()))
-                .thenComparing(t -> withinRank(t.value())));
+                .thenComparing(Typed::value, Equality::withinRank));
         return out;
+    }
+
+    /** Two values of one rank in order: numbers by value -- exactly, as decimals, where both are finite; by
+     *  {@link Double#compare} where either is NaN or an infinity, which no decimal holds (the infinities at the ends, NaN
+     *  after every number; until 2026-11-19 a NaN Float threw NumberFormatException here, EqualityNonFiniteTest) --
+     *  anything else by its own order. */
+    private static int withinRank(@com.legend.base.Nullable Object x, @com.legend.base.Nullable Object y) {
+        if (x instanceof Number m && y instanceof Number n && (nonFinite(m) || nonFinite(n))) {
+            return Double.compare(m.doubleValue(), n.doubleValue());
+        }
+        return withinRank(x).compareTo(withinRank(y));
     }
 
     private static int typeRank(@com.legend.base.Nullable Object v) {
@@ -438,6 +455,12 @@ public final class Equality {
     private static boolean nonFinite(Object v) {
         return (v instanceof Double d && !Double.isFinite(d))
                 || (v instanceof Float f && !Float.isFinite(f));
+    }
+
+    /** Two numbers, one of them NaN or an infinity, compared as doubles: NaN equal to nothing, an infinity to itself. */
+    private static boolean sameNonFinite(Object e, Object a) {
+        return e instanceof Double de && a instanceof Double da
+                ? de.doubleValue() == da.doubleValue() : e.equals(a);
     }
 
     private static BigInteger toBigInteger(Object v) {
