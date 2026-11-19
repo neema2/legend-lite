@@ -231,6 +231,35 @@ for i in ['S7', 'S8', 'S22', 'S23', 'S28', 'S32', 'S37', 'S38', 'S39', 'S40', 'S
     who = 'the presenter (protocol composer)' if i in ('S32', 'S37', 'S38', 'S39') else "lite's answer"
     row(i, d['difference'][:110], d['audience'], 'any', PASS, "upstream's defect is not reproduced: " + who + '; register row', 'register row ' + i, d['confidence'])
 
+# ---------------------------------------------------------------- H5 task 0: the measured no-translator cost --------
+T0 = {
+ 'S365': 'task 0 measured: product meaning costs corpus H2 -2, DuckDB -2 (testToSQLStringParseDecimal*inH2); pure/v1 0; PCT 0',
+ 'D10': 'task 0 measured: as S365',
+ 'S370': 'task 0 measured: product meaning costs 0 on the corpus, pure/v1 and PCT',
+ 'D12': 'task 0 measured: 0 everywhere',
+ 'S20': 'task 0 measured: product meaning WINS corpus H2 +2 (legend-engine goldens expect 52.0); DuckDB 0; pure/v1 SQL text only; PCT 0',
+ 'S9': 'task 0 measured: as S20',
+ 'D03': 'task 0 measured: as S20',
+ 'D08': 'task 0 measured: the plain set off costs pure/v1 1 request (raise.sqrtOfNegative); divideByZero words only',
+ 'C27': 'task 0 measured: product refusal costs PCT SQLite -5 (Decimal plus/minus/times/divide/rem)',
+ 'D16': 'task 0 measured: as C27',
+ 'S368': 'task 0 measured: DatabaseSettingsForm off costs corpus H2 -1 (testIsolationOfPropertyTargetFilter: BOOLEAN = 1, LEGACY only)',
+ 'D15': 'task 0 measured: as S368',
+ 'C09': 'task 0 measured: as S368',
+ 'D17': 'task 0 measured: PureText.raw off fails EVERY DuckDB corpus test (setup is H2 text): input acceptance, the corpus harness',
+}
+for r in R:
+    if r[0] in T0:
+        r[10] = (r[10] + '; ' if r[10] else '') + T0[r[0]]
+row('H5-D8', "parseJson's '}{' tolerance (S366's edge form)", 'ENGINE', 'H2,DuckDB', PUREREC,
+    "lite's strict parse (legend-engine's lenient reading is a defect); the edge's REGEXP_REPLACE form is broken on H2 anyway (flag 'g')",
+    'corpus testSubTypeAtRootLevelWithInheritanceMapping (DuckDB -1), testPushDownProjectWithParameter (H2 +1)', 'medium', '',
+    'task 0 measured: H2 +1, DuckDB -1, pure/v1 0, PCT 0', 'H5 V7/V8/V9 (h5/corpus/)')
+row('H5-D9', 'LEGACY_SQL_NULL_UNSAFE_EQUALS (a Feature flag the core consumes)', 'ENGINE', 'any', PUREREC,
+    "lite's null-safe equality; the flag becomes the translator's input or is ignored with a register row",
+    'corpus testLegacyFlagProjectionEmitsPlainEquals (a plan-text assert, CP-4)', 'medium', 'Y',
+    'task 0 measured: -1 per lane, plan text only; no answer moved', 'H5 V7/V8 (h5/corpus/)')
+
 with open(sys.argv[2], 'w', newline='') as f:
     w = csv.writer(f, delimiter='\t', lineterminator='\n')
     w.writerow(['row', 'construct', 'audience', 'database', 'action', 'rewrite_or_refusal', 'evidence', 'proving_test',

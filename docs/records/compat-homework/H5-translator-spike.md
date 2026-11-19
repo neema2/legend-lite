@@ -15,6 +15,14 @@ same archives the build pins.
 
 ## The answer, on one page
 
+0. **Task 0, the user's question ("do we just lose substring/indexof or lots of other things break too?"): with no
+   translator at all, little else is lost.** Beyond `substring`/`indexOf` (-4 corpus tests per lane), every other
+   meaning strand switched to the product's costs the corpus -1 on H2 (-4, +3) and -4 on DuckDB, pure/v1 1 request
+   (`sqrt` of a negative), PCT DuckDB and H2 nothing, PCT SQLite 5 (ruling (c)'s Decimal-as-REAL). Each loss is
+   legend-engine departing from Pure's own definition or its database settings (CP-12's column). The one large
+   dependency, `PureText.raw` (the whole DuckDB corpus lane), is input acceptance for the H2-written corpus, not a
+   meaning. Of the options for `substring`/`indexOf`, a typed use-site translator wins +4 per lane, a rename pass by
+   name wins nothing, a core flag is the mode the program deletes (§Task 0).
 1. **The model-level, target-aware translator works through the public doors, with no new core hook.** On the
    relational corpus (both lanes), with Pure's `substring`/`indexOf` in the core, the translator wins back exactly the
    tests it can win (+4 per lane, nothing else moves: V2 to V3). Of H3's 15 newly failing tests, 11 pass; the 4 left
@@ -33,7 +41,8 @@ same archives the build pins.
    substring`).
 5. **(d) cost:** translator 584 lines (spec tree; 494 before the typed retarget), library 65 Pure lines; 2.7 s on the corpus world's 11,168
    elements for the use-site scope, 7.1 s with typing (a first build plus 65 bodies); `buildModule` is 3.5-4 s.
-6. **0.6:** the ledger's first draft has 130 rows (every H1 row the translator touches, plus the spike's), 52 flagged.
+6. **0.6:** the ledger's first draft has 132 rows (every H1 row the translator touches, plus 9 of the spike's), 53
+   flagged; the strand rows carry task 0's measured cost.
 
 **For phase 3, in order of consequence:**
 - **3.1 lands before 3.3 (R4)**, with the frontends in it (§3); re-estimate about 2 days, +0.5 and one
@@ -484,11 +493,12 @@ real slice is the 17 listed test moves (9 old-meaning pins with R4, 8 goldens wi
 
 `H5-translator-ledger-draft.tsv` beside this record (generator: `h5/ledger.py.txt`, over H1's TSV).
 
-- **130 rows:** one per H1 row the translator touches (106 rows: every R0, R1, X other than lite-scope, and S
-  defect), split by audience or database where the action differs, plus 7 rows the spike found (H5-D1 to H5-D7).
-- **Actions:** rewrite 34; pass 39 (of which the parser's, the presenter's, the judge's or the core's, said in the
-  row); Pure's answer recorded 21; lite answers where upstream refuses 20 (E-R2); refuse by name 16.
-- **52 rows are flagged unclear**, each with its reason in the `note` column. The biggest groups:
+- **132 rows:** one per H1 row the translator touches (106 rows: every R0, R1, X other than lite-scope, and S
+  defect), split by audience or database where the action differs, plus 9 rows the spike found (H5-D1 to H5-D9); the
+  strand rows' notes carry task 0's measured cost.
+- **Actions:** rewrite 34; pass 39 (of which the parser's, the presenter's, the judge's or the core's, said in the row);
+  Pure's answer recorded 23; lite answers where upstream refuses 20 (E-R2); refuse by name 16.
+- **53 rows are flagged unclear**, each with its reason in the `note` column. The biggest groups:
   - **CP-5's cost** (S9, S20, D03, D08 class A): the rows move to "Pure's answer recorded" by CP-5, pending 0.4 (j);
   - **E-R2 against H1's refusals** (S50, S364, S29, D06's ENGINE half): H1 classed them X under E-R1; E-R2 says lite
     answers, so what lite answers (lite's own text, or legend-pure's) is unruled;
