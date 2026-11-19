@@ -81,3 +81,10 @@ who confirms or changes phases 1-3.
     imitate legend-engine's meaning is at stake, against today. Most of H1's other rewrite rows are differences lite
     already has. The full model-level translator is worth it only if task 0 shows much more than `substring`/`indexOf`
     and a few H2/DuckDB quirks.
+- **~10:59 UTC, B2's 0.4 (a), the strand map confirmed** (`H8-phase0-measures.md` at `ece476172`):
+  - every facet, two-form and `LoweringForms` member compared body to body;
+  - the EngineShape family is S as written;
+  - the ratchet's start: `PlanStyle` 10 methods, 49 parameters in 19 classes, 50 calls, 112 calls carrying a style
+    in 22 classes, 36 classes naming it; `LoweringForms` 15 members, 25 calls;
+  - corrections, applied to the plan: three PureText line numbers, `Appeals` is 401 lines (the appeal stack 3,411),
+    `LoweringForms` 15 not 17, and a missing strand, `PlanStyle.siteWords` (P, 1.2).

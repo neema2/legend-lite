@@ -144,8 +144,16 @@ Counted at `main` `b75d6c73a`:
 - `LoweringForms` has 15 members (`lowering/LoweringForms.java:45-107`);
 - the edge is 93 files and 21,988 lines.
 
-The handoff counts 45 parameters and 37 call sites carrying the style; slice 0.4 re-measures them as the ratchet's
-start.
+**The ratchet's start, measured by B2 (0.4 (a), from the product's bytecode at `b75d6c73a`):**
+- `PlanStyle`: 10 methods; 49 parameters in 19 classes (`PlanMaker` 14, `ProductStatements` 5, `TypedQuery` 4,
+  `EngineTextGates` 3, `GeneratedTestData` 3, ...); 4 fields;
+- 50 calls of its methods: `facet` 16, `twoForm` 16, `dialect` 8, `judgesEngineText` 4, `siteWords` 2, `errorWords` 1,
+  `traceCell` 1, and `graphKeyDate` and `graphKeyString` 1 each, by method reference;
+- 112 calls carrying a style, in 22 classes; 36 classes naming it;
+- `LoweringForms`: 15 members, 25 calls, 6 parameters;
+- the census's (a) at `main`: 142, plus 2 (p).
+B2 confirmed every row of the map below against the code, body to body (`docs/records/compat-homework/H8-phase0-measures.md`
+on `claude/census-b2` at `ece476172`).
 
 **Two families inside `LoweringForms`, with different consequences** (B1's review, 2026-11-19):
 - the edge's own forms (`EdgeLoweringForms`) run in every edge plan's EXECUTED SQL;
@@ -184,18 +192,19 @@ and H1's TSV, and the confirmed map is the ratchet. Paths are under `core/src/ma
 | `LoweringForms.view`, `wireCast`, `unionFrame` | executed edge forms equal the product's (`EdgeLoweringForms.java:44/49` against `ProductLoweringForms.java:31/36`; `unionFrame` null in both); only `EngineShape` differs (`:223`, `:234`, `UNION_FRAME`) | S, pure text, no answer risk | 2.3 |
 | `LoweringForms.existsJoin`, `whereZones` | run in EXECUTED SQL on every edge style (`EdgeLoweringForms.java:143`, `:176`): legend-engine's exists-join rule (C2, LOWERSQL-4), and its WHERE conjunct order feeding it (user conditions, then correlation, then temporal; `EngineWhereZones`) | S: answer-equal by S367's own measurement; but they change the executed statement and with it H2's row order for unordered results, so they go after 2.2's multiset compare | 2.3 (after 2.2) |
 | `LoweringForms.assertFailed` | "Assert failed" vs lite's "expected true, got false" (20:10-R1, R10) | P | 1.2 |
+| `PlanStyle.siteWords(text, sites)` | records legend-pure's raise-site words per planning call (`SiteWordsRecorder`); called twice in the product (B2's 0.4 (a)) | P: deleted with the recorder | 1.2 |
 | `PlanStyle.errorWords` | a planning failure's upstream sentence (also the test plan's `Failure.message`, `testplan/AssertErrorNative.java:81`) | P (a kind, operands and lite's wrapper as data; worded after) | 1.2 |
 | the test plan's words: `TestPlan.words`, `answerSizeWords` (`testexecutionplan/TestPlan.java:45-48`), `SideShape.sizeWords` (`SideShape.java:37`) | upstream words planned into the test plan | P | 1.2 |
 | `PlanStyle.traceCell` | an ANSWER cell: the activity rows' comment, `-- "executionTraceID" : "<id>"`, wrapped around the execution id in a TDS cell (`planner/PlanEnv.java:173-177`, `Lowerer.withTraceText`) | P: the ENGINE presenter writes the comment around the activity's (lite's) SQL | 1.4 |
 | `PlanStyle.graphKeyDate`, `graphKeyString` | ANSWERS: the JSON key of a qualified property in graph-fetch output (`resolver/GraphEmission.java:1846`, `:2938`; `planner/BodyPlanner.java:72`), written by the database at planning | P: the presenter renames the keys from the typed graph tree, after the run (real work, budgeted in 1.4) | 1.4 |
 | `PlanStyle.judgesEngineText` (`EngineTextGates`) | "is this the edge" in the product test planner (JUDGES-6, 13 hits) | J: deleted | 2.2 |
 | the test runner's hooks: `testexec` `EdgeRun`, `EdgeHearing`, `HostWords`, `HostForms`; `testexecutionplan` `Edge`, `NoEdge`; `ExecuteOptions.recording` | per-decision seams by which the edge changes the product's judges and runner | J: the door hands the runner a whole judge (the product's, or the edge's compatibility judge, appeal included), never per-decision two-form seams inside the product's | 2.2 |
-| the engine-text appeal, referee and ledger stack (`edge/`: `SqlTextVerdicts` 1,675, `Appeals` 354, `AppealJson` 273, `SqlTextRuns` 291, `SqlTextReferee` 231, `Appeal` 191, `SqlReplayReferee` 173, `PlannedAppeals` 56, `AppealRun` 40, `RefereeLoad` 34, `EffectTexts` 28, `EngineTextJudgment` 18; about 3,360 lines; `CompatEdge`'s ledger half; `EffectPlanner`'s referee CSV copies) | turns an engine-text assert failure into a pass by replaying the golden statement against a referee database | **KEPT** (G6, E3; the 2026-09-01 charter; the user, 2026-11-19: "one of the crown jewels"). Under CP-4 it decides every SQL-text assert by answer. Its seams into the product's runner move into the edge's whole judge (2.2) | 2.2 |
+| the engine-text appeal, referee and ledger stack (`edge/`: `SqlTextVerdicts` 1,675, `Appeals` 401, `AppealJson` 273, `SqlTextRuns` 291, `SqlTextReferee` 231, `Appeal` 191, `SqlReplayReferee` 173, `PlannedAppeals` 56, `AppealRun` 40, `RefereeLoad` 34, `EffectTexts` 28, `EngineTextJudgment` 18; 3,411 lines (B2's count); `CompatEdge`'s ledger half; `EffectPlanner`'s referee CSV copies) | turns an engine-text assert failure into a pass by replaying the golden statement against a referee database | **KEPT** (G6, E3; the 2026-09-01 charter; the user, 2026-11-19: "one of the crown jewels"). Under CP-4 it decides every SQL-text assert by answer. Its seams into the product's runner move into the edge's whole judge (2.2) | 2.2 |
 | `PlanStyle.dialect(type)` = `PureText`'s 12 subclasses | the edge's dialect wrapper. Its passes: | per pass, below; then `dialect` is `Databases.dialect` | 4.1 |
 | … `spellingPasses` (`PurePrintForms.passes`, all 12), `floatToText` | legend-pure's Float and DateTime prints inside EXECUTED SQL | P at roots and sides; X where composed or feeding (CP-5) | 1.3 |
-| … `floatLiteralKind` (H2 `:406`, DuckDB `:318`, Postgres, Trino, Databricks) | DECIMAL literals, which change arithmetic (S20) | a Pure answer with a register row (CP-5), deleted | 3.6 |
-| … `raw` (DuckDB, Postgres; `edge/PureText.java:326-330`) | translates legend-engine's H2 `executeInDb` text for the target: INPUT | generated text: target-aware lite DDL in 2.3; user-written H2 text on another target: the translator, or X by 0.4's count | 2.3, 3.2 |
-| … `refusesDecimalArithmetic` (SQLite `:535`) | the edge answers with REAL arithmetic where the product refuses (ruling (c), D16, C27) | a translator rewrite on SQLite (CP-11), or X | 3.4 |
+| … `floatLiteralKind` (H2 `:406`, DuckDB `:350`, Postgres, Trino, Databricks) | DECIMAL literals, which change arithmetic (S20) | a Pure answer with a register row (CP-5), deleted | 3.6 |
+| … `raw` (DuckDB `edge/PureText.java:359`, Postgres `:447`) | translates legend-engine's H2 `executeInDb` text for the target: INPUT | generated text: target-aware lite DDL in 2.3; user-written H2 text on another target: the translator, or X by 0.4's count | 2.3, 3.2 |
+| … `refusesDecimalArithmetic` (SQLite `:567`) | the edge answers with REAL arithmetic where the product refuses (ruling (c), D16, C27) | a translator rewrite on SQLite (CP-11), or X | 3.4 |
 | … `dateTimeFormat` (MongoDB) | a DateTime print | P | 1.3 |
 | … `scanOrderPasses`; `edge.StableScanOrder` (598 lines) | legend-engine's H2 scan order for unordered corpus asserts (S14, D14) | J: the compatibility host judge compares an unordered actual as a multiset (S131's rule) | 2.2 |
 | `RelationalRootForm.apply` (`resolver/RelationalRootForm.java:51`, called at `EnginePlans.java:164`) | legend-engine's root form, for its text only | S, `apply` alone. Its `primaryKeyColumns` is the product resolver's key rule on executed paths (`resolver/ObjectReferenceDecode.java:133`, `ClassSources.java:797`, `CorrelatedSubselects.java:321/486/1094`, `GraphEmission.java:533`) and stays the product's | 2.3 |
@@ -1106,7 +1115,7 @@ There is no force push. A pin, a ceiling, a ledger or an allowlist moves only wi
 - Product files naming it:
   `grep -rln PlanStyle --include=*.java core/src/main/java/com/legend | grep -v /edge/ | wc -l` (43).
 - The hook lists: `core/src/main/java/com/legend/testplan/PlanStyleFacets.java` (`KINDS` 5, `TWO_FORMS` 16).
-- `LoweringForms`: its 17 members read from `core/src/main/java/com/legend/lowering/LoweringForms.java`.
+- `LoweringForms`: its 15 members read from `core/src/main/java/com/legend/lowering/LoweringForms.java`.
 - The edge: `cat core/src/main/java/com/legend/edge/*.java | wc -l` (21,988 lines; 93 files).
 - The files' sizes: `wc -l` on each file named (§4).
 - The verified native sets: `core/src/test/java/com/legend/builtin/NativeCatalogGovernanceTest.java`
