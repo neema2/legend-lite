@@ -1,0 +1,119 @@
+From 0968d1220f8c13bce8452b47ef9c1a0782c9bb21 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 04:20:48 +0000
+Subject: [PATCH] PROBE (never for main): legend-engine's SQL text replaced by
+ lite's own, for the CP-4 count
+
+PureText.engineText and enginePlanText answer a proxy over the product's H2 dialect. The judging is untouched. Census B2, 2026-11-19; record: docs/records/census-b2-sqltext-probe-2026-11-19.md on claude/census-b2.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0195rQEjuF2imym274M9Qvva
+---
+ .../java/com/legend/edge/LiteTextProbe.java   | 68 +++++++++++++++++++
+ .../main/java/com/legend/edge/PureText.java   |  8 +++
+ 2 files changed, 76 insertions(+)
+ create mode 100644 core/src/main/java/com/legend/edge/LiteTextProbe.java
+
+diff --git a/core/src/main/java/com/legend/edge/LiteTextProbe.java b/core/src/main/java/com/legend/edge/LiteTextProbe.java
+new file mode 100644
+index 000000000..2a60b822e
+--- /dev/null
++++ b/core/src/main/java/com/legend/edge/LiteTextProbe.java
+@@ -0,0 +1,68 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.edge;
++
++import com.legend.sql.SqlQuery;
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.Proxy;
++
++/**
++ * PROBE, NEVER FOR MAIN (census B2's CP-4 measurement, 2026-11-19, branch claude/census-b2-sqltext): legend-engine's SQL
++ * text replaced by lite's own. Every engine-text and plan-text printer ({@link PureText#engineText},
++ * {@link PureText#enginePlanText}) answers what the product's H2 dialect writes for the same MIR, so a corpus test that
++ * passes only because lite reproduces legend-engine's text moves to fail. The judging is left as it is: a text verdict
++ * that fails appeals to rows, as on main. The engine-only parts of the printer interface answer lite's plainest form:
++ * no template parameters, an alias as given, the select list cut from lite's text, no FreeMarker collection splice
++ * (refused, marked {@link #MARK}).
++ */
++final class LiteTextProbe {
++
++    static final String MARK = "SQLTEXT-PROBE";
++
++    private LiteTextProbe() {
++    }
++
++    static EngineTextDialect of(String where) {
++        com.legend.sql.dialect.H2 h2 = new com.legend.sql.dialect.H2();
++        return (EngineTextDialect) Proxy.newProxyInstance(EngineTextDialect.class.getClassLoader(),
++                new Class<?>[] {EngineTextDialect.class}, (proxy, m, args) -> {
++                    if (m.getDeclaringClass() == EngineTextDialect.class) {
++                        switch (m.getName()) {
++                            case "params":
++                                return null;
++                            case "collectionSplice":
++                                throw new UnsupportedOperationException(MARK + ": lite has no FreeMarker collection"
++                                        + " splice (" + where + ")");
++                            case "renderedAlias":
++                                return args[0];
++                            case "selectList":
++                                return selectList(h2.render((SqlQuery) args[0]));
++                            case "renderAsAliased":
++                                return h2.render((SqlQuery) args[0]);
++                            case "inTempTableSelect":
++                                return "select * from " + args[0];
++                            default:
++                                throw new IllegalStateException(MARK + ": an engine-text method the probe does not"
++                                        + " answer: " + m);
++                        }
++                    }
++                    try {
++                        return m.invoke(h2, args);
++                    } catch (InvocationTargetException e) {
++                        throw e.getCause();
++                    }
++                });
++    }
++
++    /** The select list of lite's text: between its first "select " and the first " from " after it; null if none. */
++    private static @com.legend.base.Nullable String selectList(String sql) {
++        String low = sql.toLowerCase(java.util.Locale.ROOT);
++        int s = low.indexOf("select ");
++        if (s < 0) {
++            return null;
++        }
++        int f = low.indexOf(" from ", s);
++        return f < 0 ? sql.substring(s + 7) : sql.substring(s + 7, f);
++    }
++}
+diff --git a/core/src/main/java/com/legend/edge/PureText.java b/core/src/main/java/com/legend/edge/PureText.java
+index 165b978f1..1c97e6015 100644
+--- a/core/src/main/java/com/legend/edge/PureText.java
++++ b/core/src/main/java/com/legend/edge/PureText.java
+@@ -296,6 +296,10 @@ public final class PureText {
+      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). A fresh printer per use: a dialect keeps state while
+      *  it writes a statement (moved here from the planner's {@code EngineText}, phase D, 2026-11-12). */
+     public static EngineTextDialect engineText(DatabaseType type) {
++        // PROBE (census B2, CP-4): lite's own SQL in place of legend-engine's text
++        if (type == DatabaseType.H2 || type == DatabaseType.DB2 || type == DatabaseType.Composite) {
++            return LiteTextProbe.of("engineText " + type);
++        }
+         return switch (type) {
+             case H2 -> new EngineStyleH2();
+             case DB2 -> new EngineStyleDB2();
+@@ -311,6 +315,10 @@ public final class PureText {
+      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
+     public static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+             @com.legend.base.Nullable String timeZone) {
++        // PROBE (census B2, CP-4): lite's own SQL in place of legend-engine's plan text
++        if (type == DatabaseType.H2 || type == DatabaseType.DB2 || type == DatabaseType.Composite) {
++            return LiteTextProbe.of("enginePlanText " + type);
++        }
+         return switch (type) {
+             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
+             case DB2, Composite -> new EngineStyleDB2(quoteIdentifiers, timeZone);
+-- 
+2.43.0
+
