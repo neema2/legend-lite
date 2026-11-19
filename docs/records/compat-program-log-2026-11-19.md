@@ -2921,3 +2921,9 @@ who confirms or changes phases 1-3.
   refusal directly, shown red with it removed. **Ruled here: keep both** (the dialect's refusal at planning is the
   right first stop; InProtocol's is the loud backstop no guard proves unreachable, invariant 4). The census advisory
   applied (DialectOwnerExclusivityTest's ExecuteInDbDuckDbTest H2 crossing 6 → 2, down, ~20:45; predates the batch).
+- **~22:00 UTC, the user asked how many tests now fail in piece 2.** Answered: 14 newly failing (the 7 corpus tests on
+  H2 and on DuckDB, as predicted); 63 PCT rows newly passing; 4 per database leave the unordered register into the
+  fail roster (the same 7); 9 unit tests re-pinned. Corrected an earlier slip: the `engine` opt-in restores
+  legend-engine's answer at the server door, not in the corpus lanes, which judge lite's own meaning. A discrepancy to
+  reconcile, sent to B2: its docs expect +3 per database from A3 on the batch, the translator measured +7 on A2's
+  base; the judges' full measurement on the final head is the figure of record.
