@@ -402,6 +402,14 @@ class AssertBarTest {
                 "AssertFailed: expected 2015-04-16T14:00:00.000000Z, got 2015-04-16T15:00:00.000000Z");
         want.put("{|assertEquals(%2015-04-16T14:30, date(2015, 4, 16, 14, 31))}",
                 "AssertFailed: expected 2015-04-16T14:30:00.000000Z, got 2015-04-16T14:31:00.000000Z");
+        // Pure keeps a DateTime's precision (the orchestrator's ruling 3, 2026-11-19): an hour is not its minute --
+        // legend-pure's DateWithHour.getMinute() is -1 where a minute's is 0 (m4 PureDate.equals, the pinned jar), so
+        // %2015-04-16T14 == %2015-04-16T14:00 is false, under every judge (the text read to its minute is the message's
+        // alone, never the comparison's)
+        want.put("{|assertEquals(%2015-04-16T14, %2015-04-16T14:00)}", "AssertFailed: expected"
+                + " 2015-04-16T14:00:00.000000Z (DateTime, hour), got 2015-04-16T14:00:00.000000Z (DateTime, minute)");
+        want.put("{|assertNotEquals(%2015-04-16T14, %2015-04-16T14:00)}", "pass");
+        want.put("{|assertNotEquals(%2015-04-16T14, date(2015, 4, 16, 14, 0))}", "pass");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             for (var e : want.entrySet()) {
