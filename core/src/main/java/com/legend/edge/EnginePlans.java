@@ -985,19 +985,15 @@ public final class EnginePlans {
                 : ((com.legend.compiler.spec.typed.TypedCString)
                         ds.args().get(2)).value();
         String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
+        var declared = env.ctx().findTableDefinition(db.fullPath(), lookup);
         if (DROP_TABLE_STATEMENT.equals(fqn)) {
             // the table named as its store declared it, as the create statement names it (A2, 2026-11-19: legend-engine's
             // printer spelled every name bare, so its two texts agreed; a table the store does not declare, bare)
-            var declared = env.ctx().findTableDefinition(db.fullPath(), lookup);
-            return LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).render(declared.isPresent()
-                    ? com.legend.setup.Ddl.dropDeclaredTable(declared.get(), sch)
-                    : com.legend.setup.Ddl.dropTable(sch, tbl));
+            return LiteSqlText.of(EngineText.ENGINE_TEST_DATABASE).render(declared.map(d -> com.legend.setup.Ddl
+                    .dropDeclaredTable(d, sch)).orElseGet(() -> com.legend.setup.Ddl.dropTable(sch, tbl)));
         }
-        com.legend.model.DatabaseDefinition.TableDefinition def =
-                env.ctx().findTableDefinition(db.fullPath(), lookup)
-                        .orElseThrow(() -> new IllegalStateException(
-                                "createTableStatement: no table '" + lookup
-                                        + "' in store " + db.fullPath()));
+        com.legend.model.DatabaseDefinition.TableDefinition def = declared.orElseThrow(() -> new IllegalStateException(
+                "createTableStatement: no table '" + lookup + "' in store " + db.fullPath()));
         // the ENGINE_TEXT flavor of the ONE generator (NOT NULL /
         // PRIMARY KEY constraints) — the EXECUTION flavors stay
         // constraint-free for DuckDB re-seeds
