@@ -233,7 +233,16 @@ final class TestRun {
             }
             TestPlan.Verdict each = group.verdicts().get(0);
             RuntimeException[] caught = new RuntimeException[1];
-            List<PlanRunner.Rows> sides = open.guarded(guard(group, open), () -> hostSides(each, null, open), e -> {
+            // H13 spike: an error f raised while it was PLANNED is raised here, at its verdict's turn, as the host
+            // judge raises it (AssertErrorRuns.judge): the plan's data, never run
+            com.legend.testexecutionplan.Failure planned = each.host() != null
+                    && each.host().judgment() instanceof com.legend.testexecutionplan.HostJudgment.AssertError a
+                    && a.inner() == null ? a.caught() : null;
+            if (planned != null) {
+                caught[0] = com.legend.testexecutionplan.Failures.raised(planned);
+            }
+            List<PlanRunner.Rows> sides = planned != null ? null
+                    : open.guarded(guard(group, open), () -> hostSides(each, null, open), e -> {
                 if (e instanceof DataError || e instanceof com.legend.error.ModelException) {
                     // the errors assertError takes; any other is a wall, raised as it was -- never judged as "no error"
                     caught[0] = (RuntimeException) e;

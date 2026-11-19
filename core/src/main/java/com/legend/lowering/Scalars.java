@@ -1245,9 +1245,13 @@ final class Scalars {
                     PureDateLiteral.Precision prec =
                             datePrecisionOrUnknown(n.args().get(0));
                     if (prec != null && !prec.atLeast(needed)) {
-                        // the part's label and the date, the edge's sentence's operands (D1.1)
+                        // the part's label and the date, the edge's sentence's operands (D1.1). H13 spike: a date
+                        // LITERAL is its text as written (the typed node the precision was read from, as toString's
+                        // rule reads it), any other date the value lowered
+                        SqlExpr literal = dateLiteralText(n.args().get(0));
                         return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_PART_ABSENT,
-                                List.of(new SqlExpr.StringLit(label), args.get(0))), n.pos());
+                                List.of(new SqlExpr.StringLit(label), literal != null ? literal : args.get(0))),
+                                n.pos());
                     }
                     // A PARTIAL date that HAS the component carries as its
                     // print-form string ('2015-04') — the component is a
@@ -1573,7 +1577,7 @@ final class Scalars {
                 // same message
                 SqlExpr.TaggedList mixedAt = asTaggedList(n.args().get(0), args.get(0));
                 if (mixedAt != null) {
-                    return TaggedLists.at(mixedAt, args.get(1), n.pos());
+                    return TaggedLists.at(mixedAt, args.get(1), n.args().get(0), n.pos());
                 }
                 // OUT-OF-BOUNDS raises pure's message in the database;
                 // §5: the positional read consumes the COMPACTED carrier
@@ -1583,10 +1587,11 @@ final class Scalars {
                 SqlExpr oob = SqlExpr.Call.of(SqlFn.OR,
                         SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), size),
                         SqlExpr.Call.of(SqlFn.LESS, args.get(1), new SqlExpr.IntLit(0)));
-                // the offset and the size, the edge's sentence's operands (D1.1)
+                // the offset and the size, the edge's sentence's operands (D1.1); H13 spike: the size as the typed
+                // multiplicity states it where it is one number
                 return guarded(oob,
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INDEX_OUT_OF_BOUNDS,
-                                List.of(args.get(1), size)),
+                                List.of(args.get(1), statedSize(n.args().get(0), size))),
                         new SqlExpr.Call(SqlFn.LIST_GET,
                                 List.of(op, plusOne(args.get(1)))),
                         n.pos());
@@ -1923,8 +1928,9 @@ final class Scalars {
                 SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
                 return guarded(
                         SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
-                        // the value, the edge's sentence's operand, printed there as Pure prints a Float (D1.1)
-                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(x)),
+                        // the value, the edge's sentence's operand, printed there as Pure prints a Float (D1.1). H13
+                        // spike: the argument as it was given (a literal stays one), not the cast this rule builds
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(args.get(0))),
                         SqlExpr.Call.of(SqlFn.SQRT, args.get(0)), styled);
             });
         }
@@ -3675,6 +3681,14 @@ final class Scalars {
 
     static boolean isToOne(TypedSpec arg) {
         return Stamps.toOne(arg);
+    }
+
+    /** H13 spike: a collection's size as its typed multiplicity states it, where the bounds are one number (a literal
+     *  list's [2]); {@code counted} (the database's count) otherwise. Read from the frontend's annotation (invariant
+     *  2 MAY: read type annotations), never computed here; a raise's operand only, the guard keeps its count. */
+    static SqlExpr statedSize(TypedSpec arg, SqlExpr counted) {
+        return arg.info().multiplicity() instanceof Multiplicity.Bounded b && b.upper() != null
+                && b.upper() == b.lower() ? new SqlExpr.IntLit(b.lower()) : counted;
     }
 
     /** Equality where a side is a tagged value or a tagged list (track L); null where neither is. */

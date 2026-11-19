@@ -190,7 +190,7 @@ final class TaggedLists {
     }
 
     /** The element at 0-based {@code index}, out of bounds raising Pure's own message. */
-    static SqlExpr at(SqlExpr.TaggedList tl, SqlExpr index,
+    static SqlExpr at(SqlExpr.TaggedList tl, SqlExpr index, com.legend.compiler.spec.typed.TypedSpec list,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         SqlExpr size = size(tl);
         SqlExpr oob = SqlExpr.Call.of(SqlFn.OR,
@@ -198,7 +198,8 @@ final class TaggedLists {
                 SqlExpr.Call.of(SqlFn.LESS, index, new SqlExpr.IntLit(0)));
         SqlExpr position = SqlExpr.Call.of(SqlFn.LIST_GET, tl.positions(), plusOne(index));
         return Scalars.guarded(oob,
-                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INDEX_OUT_OF_BOUNDS, List.of(index, size)),
+                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INDEX_OUT_OF_BOUNDS,
+                        List.of(index, Scalars.statedSize(list, size))),
                 tl.element(position), pos);
     }
 

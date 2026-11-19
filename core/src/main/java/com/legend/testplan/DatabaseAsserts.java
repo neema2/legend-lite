@@ -386,10 +386,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             }
         } else if (ae.caught() instanceof com.legend.testexecutionplan.Failure caught) {
             // the error f raised while it was planned, as the plan's data: no position (planning sends no statement,
-            // so no database's raise carries one)
-            raised = com.legend.lowering.VerdictSql.Raised.raised(String.valueOf(caught.message()), null, null);
+            // so no database's raise carries one). H13 spike: its words BOUND at the verdict's turn, as a run-time
+            // raise's are (the runner raises the planned failure there, TestRun.raisingVerdict), never planted here
+            raised = com.legend.lowering.VerdictSql.Raised.bound(TestPlan.Verdict.RAISED_MESSAGE,
+                    TestPlan.Verdict.RAISED_LINE, TestPlan.Verdict.RAISED_COLUMN);
             base = List.of();
-            raises = false;
+            raises = true;
         } else {
             raised = com.legend.lowering.VerdictSql.Raised.bound(TestPlan.Verdict.RAISED_MESSAGE,
                     TestPlan.Verdict.RAISED_LINE, TestPlan.Verdict.RAISED_COLUMN);

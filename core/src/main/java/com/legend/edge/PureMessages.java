@@ -42,7 +42,8 @@ public final class PureMessages {
             case INSERT_OUT_OF_BOUNDS -> new SqlExpr.StringLit("add(set, index, value): index out of bounds");
             // [the value]: legend-pure's 'Unable to compute sqrt of <x>', <x> as Pure prints a Float (K2)
             case SQRT_OF_NEGATIVE -> cat(new SqlExpr.StringLit("Unable to compute sqrt of "),
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT, r.operands().get(0)));
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT, new SqlExpr.Cast(r.operands().get(0),
+                            com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR)));
             // [the bound] (a size known empty) or [the bound, the size]: 'Cannot cast a collection of size <n> to
             // multiplicity <bound>'
             case SIZE_NOT_MULTIPLICITY -> r.operands().size() == 1
@@ -136,7 +137,7 @@ public final class PureMessages {
             case USER_FAIL -> throw new IllegalStateException("a user's fail raises its own message, never a site");
             case DIVIDE_BY_ZERO -> o.isEmpty() ? "Division by zero" : "Cannot divide " + str(o, 0, t) + " by zero";
             case SHIFT_OUT_OF_RANGE -> "Unsupported number of bits to shift - max bits allowed is 62";
-            case DATE_PART_ABSENT -> "Cannot get " + text(o, 0, t) + " for " + str(o, 1, t);
+            case DATE_PART_ABSENT -> "Cannot get " + text(o, 0, t) + " for " + date(o, 1, t);
             case INDEX_OUT_OF_BOUNDS -> "The system is trying to get an element at offset " + str(o, 0, t)
                     + " where the collection is of size " + str(o, 1, t);
             case INSERT_OUT_OF_BOUNDS -> "add(set, index, value): index out of bounds";
@@ -232,6 +233,14 @@ public final class PureMessages {
                 yield WITHHELD;
             }
         };
+    }
+
+    /** Operand {@code i}, a date, as legend-pure's {@code DateFormat.append} prints one: a date LITERAL (the lowering
+     *  hands its text as written, {@code PureDateLiteral.canonicalText}) at its own precision, {@code +0000} from a
+     *  minute on ({@link EdgePureWords#pureText}); any other as {@link #str} prints it. */
+    private static String date(java.util.List<com.legend.executionplan.Operand> o, int i, Tally t) {
+        return o.get(i) instanceof com.legend.executionplan.Operand.Text x
+                ? EdgePureWords.pureText(com.legend.values.PureDateLiteral.parse(x.value())) : str(o, i, t);
     }
 
     /** Operand {@code i} as legend-pure prints a Float ({@code FLOAT_SHORTEST_TEXT} in the SQL half): a numeric

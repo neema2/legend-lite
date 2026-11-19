@@ -457,3 +457,130 @@ The largest growth, by family (summed over its databases) and by single key:
   plans whose guards are placed raises (`VALUE_NOT_HELD`).
 - **The gauge is a guard.** `LeanSqlBaselineTest` is shrink-only (G3) and goes red on any growth. The real slice
   re-records `baseline.tsv`'s plan column, with the orchestrator's amended done-when as its dated reason.
+
+## 11. The six tests: the lowering hands the raise the literal it was given (session 2, task 1)
+
+**Session 2** (`session_0195rQEjNZoybxirC5uGba42`, continuing `session_0195rQEoAgK9WB7AM5Cowp2f`'s spike, 2026-11-19 from ~13:20 UTC, from the branch's head
+`dad98589`). The orchestrator's calls of 13:15 UTC are its tasks.
+
+**The three sites, as changed** (`lowering/Scalars.java`, `lowering/TaggedLists.java`; 33 changed lines in the
+lowering, none in `sql/` or a dialect):
+
+| Site | Before | After | What the lowering reads | Invariant 2 |
+|---|---|---|---|---|
+| `sqrt` (`Scalars`, `AT_MATH_SQRT`) | the operand is `x`, the rule's own `Cast(args[0], DOUBLE)` | the operand is `args[0]`, the argument as it was lowered (a literal stays one) | nothing: the rule passes the node it was handed instead of the one it built | no dispatch at all |
+| the date parts (`Scalars`, `DATE_PART_ABSENT`, 6 natives) | the date is `args[0]`, its carrier (`Cast(StringLit '2017', TEMPORAL_TEXT)` for a partial date, a padded `TimestampLit` for an hour or minute date) | a date LITERAL is its text as written (`dateLiteralText(n.args()[0])`, a `StringLit` of `PureDateLiteral.canonicalText`); any other date is `args[0]` | the TYPED SPEC: the same `TypedCDate` node the rule already reads to decide that it raises (`datePrecision`), through the helper the `toString` rule already uses (`Scalars.java:2374`) | structural (is the argument a literal?), not type dispatch: the type is a date either way, and no cast is inspected |
+| `at` (`Scalars`, `AT_COLLECTION_AT`; `TaggedLists.at`, a mixed list) | the size is `LIST_LENGTH(list)` | the size is `statedSize(n.args()[0], LIST_LENGTH(list))`: `IntLit(k)` where the typed multiplicity is exactly `[k]` (a literal list), else the count | the TYPED SPEC's multiplicity annotation | "MAY: read type annotations"; the same rule already reads it (`isToOne`) |
+
+- **The guard keeps its count.** Only the raise's OPERAND changes: the out-of-bounds test is still `LIST_LENGTH` in SQL,
+  and `sqrt`'s test still reads its cast. No SQL statement changes (the product writes the site's token; the operands
+  are never rendered).
+- **No cast is inspected anywhere, and no value is read at run.** Condition (a) holds. So the stop condition (a site
+  needing the lowering to look inside a cast for its literal) was not met: none of the three needs it.
+- **Is the typed spec the cleaner place? Yes, for two of the three.** For the date and the size, the fact is the
+  typed spec's (the literal node; the multiplicity the frontend computed, invariant 1), and the lowered expression holds
+  only its carrier. For `sqrt`, the lowered argument already is the literal: the wrap was the rule's own.
+- **The formatter, one arm** (`edge/PureMessages.java`): `DATE_PART_ABSENT`'s date is printed as legend-pure's
+  `DateFormat.append` prints a date (read at the pin, legend-pure `7fbc7d6e`:
+  `legend-pure-m4/.../date/DateFormat.java:237-267`: the year, then `-MM`, `-DD`, `THH`, `:mm`, `:ss`, `.subsecond`,
+  and `+0000` written inside the minute branch), through the edge's existing printer `EdgePureWords.pureText`, from
+  the literal's text parsed back (`PureDateLiteral.parse`, whose round trip is the type's stated identity). The SQL
+  half (`PureMessages.sentence`, `EngineStyleH2`'s last caller) re-applies `sqrt`'s cast itself, so its SQL text is
+  unchanged.
+- **The record's typing, a question for the real slice.** The date reaches the record as `Operand.Text`; that it is a
+  date is the kind's contract (`DATE_PART_ABSENT`'s operands are `[the part's label, the date]`), not the operand's
+  type. A typed `Operand.Date` would need a MIR literal for a Pure date at its precision (a new `SqlExpr` variant and a
+  render arm per dialect) or typed operands on `RaiseText` beside its SQL ones. The spike does neither.
+
+**Upstream's sentences, read at the pins** (legend-pure `7fbc7d6e`, `legend-pure-runtime-java-engine-compiled`):
+
+| Kind | legend-pure (compiled) | The operand it prints |
+|---|---|---|
+| `SQRT_OF_NEGATIVE` | `CoreHelper.java:520`: `"Unable to compute sqrt of " + input`, `input` a Java `double` (`:510-513` converts any `Number`) | `sqrt(-1)` prints `-1.0`; `sqrt(-1.0)` `-1.0`. The interpreted runtime prints `input.toString()` (`Sqrt.java:53`: `-1` for an Integer): the two runtimes differ, and PCT's one test (`sqrt.pure:54`, `-1.0`) cannot tell them apart |
+| `DATE_PART_ABSENT` | `CoreHelper.java:266` and `:280` (`dayOfMonth`, `hour`; `minute`, `second` alike): `"Cannot get day of month for " + date` | `PureDate.toString` = `DateFormat.append` (above) |
+| `INDEX_OUT_OF_BOUNDS` | `CompiledSupport.java:225-273`: `"... at offset " + offset + " where the collection is of size " + size` | the collection's size |
+
+**THE CHECK, third run** (the whole net as in section 9: PCT DuckDB 5 suites, SQLite 5, H2 Relation, channel B on
+DuckDB 5, and `//core:edge_pure_v1`; this session's two code changes of sections 11 and 12 together; diffed against
+the goldens in the tree, which the spike does not move):
+
+| Golden | Lines | Differing lines, section 9 | Differing lines, now |
+|---|---|---|---|
+| DuckDB channel A answers (5 suites) | 2,710 | 8 | **2** (the 2 Relation lines' quoted SQL) |
+| DuckDB channel A outcomes (5 suites) | 1,165 | 6 | **0** |
+| SQLite channel A answers (5 suites) | 2,702 | 8 | **2** (the same 2 lines) |
+| SQLite channel A outcomes (5 suites) | 1,165 | 6 | **0** |
+| H2 channel A answers and outcomes (Relation) | 880 | 0 | **0** |
+| DuckDB channel B outcomes (5 suites) | 1,249 | 10 | **0** |
+| pure/v1's answers | 28 | 0 | **0** |
+
+- **The 6 tests pass on both databases and both channels**, byte for byte against their pinned lines. Condition (b)
+  holds: the net decided it.
+- **The 2 Relation lines per database are the only difference left** (`testFlatten_LateralJoin_Nested_Extend`,
+  `testVariantColumn_slice`): the SQL the answer line quotes holds the site's token (`'\u001cLG#1'`) where it held
+  `concat('The system is trying to get an element at offset ', ...)` and `concat('The low bound (', ...)`. Their rows
+  are the same. As section 6 says, this is the design's intent; B1's S0 takes the SQL out of the answer line.
+- **The raises worded after the run** (channel B's log, 26 raises: the channel A lanes came from the action cache,
+  section 13 has their log): every one exact, **0 withheld, 0 printed by Java where the database printed before**.
+  `DATE_PART_ABSENT` 8 (`Text 2017` each), `DATE_COMPONENT_INVALID` 6, `SHIFT_OUT_OF_RANGE` 4, `SQRT_OF_NEGATIVE` 2
+  (`Flt -1.0`), `INDEX_OUT_OF_BOUNDS` 2 (`Int 2, Int 2`), `SLICE_BOUNDS_INVERTED` 2, `RANGE_STEP_ZERO` 2,
+  `DIVIDE_BY_ZERO` 2.
+- **So A3's true cost on PCT is 0 tests**, as section 6 predicted: no PCT test raises over a value known only at run.
+
+**What changes beyond PCT** (not in any golden; read, not run):
+
+| Case | main (the SQL sentence) | Section 9's spike | Now | legend-pure |
+|---|---|---|---|---|
+| `%2017-01-01T10->minute()` | `Cannot get minute for 2017-01-01 10:00:00` (the padded timestamp, the database's text) | the same, Java's text of the `Instant` | `Cannot get minute for 2017-01-01T10` | `2017-01-01T10` |
+| `%2017-01-01T10:30->second()` | `... for 2017-01-01 10:30:00` | the same | `... for 2017-01-01T10:30+0000` | `2017-01-01T10:30+0000` |
+| `%2017-01-01->hour()` | `... for 2017-01-01` | the same | the same | the same |
+| `date(2017)->hour()` (the constructor) | the database's text of the computed date | `<computed>` | `<computed>` | `2017` |
+| `$strictDateColumn->hour()` | the database's text | `<computed>` | `<computed>` | the value |
+| `[1, 2]->filter(...)->at(5)` | the database's count | `<computed>` | `<computed>` | the count |
+
+- The first two move TOWARD legend-pure (main printed a timestamp's database text). The last three stay withheld:
+  true run-time values (A3).
+- **`SIZE_NOT_MULTIPLICITY` is not one of the three, and stays withheld:** its size is built by the DIALECT at render
+  (`AnsiSqlRenderer.checkedOne`: `COALESCE(LIST_LENGTH(list), 0)`) from a `SqlExpr.CheckedOne`, which carries no
+  typed spec. Stating it would need a MIR field (`CheckedOne`'s stated size, set by the lowering from the
+  multiplicity). Not built. It is section 5's 12 core edge tests (`toOne` over a list of another size); no PCT test.
+
+## 12. The database judge's 4 tests: the planned failure's words bound at the verdict's turn (task 2)
+
+**The minimal change, prototyped (no hook, no new member; +15 / -4 lines in two product files):**
+
+1. `testplan/DatabaseAsserts.java` (the `ae.caught()` arm of `errorVerdict`): the verdict statement no longer plants
+   the planned failure's message as a literal (`VerdictSql.Raised.raised(caught.message(), null, null)`). It BINDS it,
+   as it already does for a run-time raise: `VerdictSql.Raised.bound(RAISED_MESSAGE, RAISED_LINE, RAISED_COLUMN)`,
+   with no base and `raises = true`.
+2. `testexec/TestRun.java` (`raisingVerdict`): a verdict whose host judgment is an `assertError` with a planned
+   failure (`HostJudgment.AssertError.caught()`) raises that failure at its turn (`Failures.raised`, as the host judge
+   already does in `AssertErrorRuns.judge`) instead of running a base, and binds `judges.raisedMessage(each, error)`:
+   the run's words of it, which is the existing K10b path (`TestRunner.raisedMessage` -> `BodyRun.caughtMessage` ->
+   the hearing's words). Under the edge, those words read the record (section 8); under lite, they are lite's message.
+
+**Measured (section 11's run):** channel B Relation, 469 lines, **0 differ**. The 4 `*_InvalidWindowFrameBoundary`
+tests pass under both judges again. The planned-failure log has 8 wordings, all `WINDOW_FRAME_INVERTED`, bare: the 4
+tests under the host judge and under the database judge, each worded from the record. No other channel B line moved.
+
+**What it changes for lite's own plans:** a test plan whose `assertError` catches a planned failure now holds a
+raising verdict statement with a bound message (3 parameters) where it held a literal. The verdict is the same (the
+bound message is lite's own under lite's words). Section 13 has the core suites' result over it.
+
+**Does it wait for stage B's judge move?** It need not. Two orders work:
+
+| Order | What B1 needs for these 4 tests |
+|---|---|
+| B1 before the compatibility database judge is deleted (2.2a) | this change (+15 / -4 lines, product code, no hook), or the 4 tests stay `JudgesDisagree` on channel B until 2.2a |
+| 2.2a (PCT's compatibility runs host-only) before B1 | nothing: the host judge already words from the record |
+
+- The change is also right on its own terms: it makes a planned failure and a run-time raise reach the database judge
+  the same way (bound at the verdict's turn), so A4's "lite's own rules in lite's database judge" holds for both.
+- **Checked against the judges' H10** (`origin/claude/compat-judges-spike` at `beacf4c9`, `testexec/JudgeRun.java`):
+  H10's `JudgeRun.Hearing.caughtMessage(RuntimeException error)` has the shape this spike's words go through (an
+  exception in, the audience's words out): the run-time raise (`RaisedErrors.Raised`, its `Site` with operands) and the
+  planned failure (rebuilt by `Failures.raised`, its `Failures.Planned` record as the cause) both pass through it
+  unchanged. H10's `TestRun.raisingVerdict` binding is the same call (`judges.raisedMessage`), so the change above
+  ports to H10 as written. **One difference, for the judges session:** H6 §7.6 names the method
+  `errorMatches(expected, raised)` (the match inside the hearing), H10 builds `caughtMessage(RuntimeException)` (the
+  words, the match in the product). This spike needs only the second. Sent to the judges session.
