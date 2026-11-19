@@ -3,8 +3,6 @@
 
 package com.legend.tools.edgenet;
 
-import com.legend.json.Json;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,9 +22,14 @@ import java.util.Optional;
  * <p>THE ORDER (S0 of the presentation program, 2026-11-18, docs/records/presentation-program-design-2026-11-18.md
  * §4 (d)): a line whose plan sorts at its root carries {@code order=[...]}, the output columns its ORDER BY names. Its
  * rows keep their order across distinct values of those columns and are sorted only within a tie, whose order is the
- * database's; a row-order change across distinct keys is a difference the net sees. A line with no order, or one whose
- * key names no column ({@code "?"}: a sort on an expression the query does not project), has its rows sorted, as
- * before S0.
+ * database's; a row-order change across distinct keys is a difference the net sees. A key that names no column
+ * ({@code "?"}: a sort on an expression the query does not project) cannot be followed, so the net follows the longest
+ * prefix of the keys that names columns (the review of PR #123, 2026-11-19); a line with no order, or whose first key
+ * names no column, has its rows sorted, as before S0.
+ *
+ * <p>It reads the recorder's compact JSON itself ({@link #elements}, {@link #text}), with no JSON library: a column's
+ * name and a row's cells are the only things it reads, and the product's JSON library stays the product's (the review
+ * of PR #123: //json's visibility is not widened for a test tool).
  */
 public final class EdgeNormalize {
 
@@ -78,37 +81,125 @@ public final class EdgeNormalize {
         return String.join("\t", f);
     }
 
-    /** The column indexes the line's {@code order=[...]} names; none when it names none, or a key no column is. */
+    /** The column indexes of the longest prefix of the line's {@code order=[...]} keys that names columns; none when it
+     *  names none, or its first key no column is. */
     static Optional<int[]> keys(String head) {
         int order = head.indexOf(ORDER);
         if (!head.startsWith(COLUMNS) || order < 0) {
             return Optional.empty();
         }
-        Json.Node columns = Json.parse(head.substring(COLUMNS.length(), order));
-        Json.Node names = Json.parse(head.substring(order + ORDER.length(), head.length() - ROWS.length()));
-        if (!(columns instanceof Json.Arr cols) || !(names instanceof Json.Arr keys)) {
+        Optional<List<String>> columns = elements(head.substring(COLUMNS.length(), order));
+        Optional<List<String>> names = elements(head.substring(order + ORDER.length(), head.length() - ROWS.length()));
+        if (columns.isEmpty() || names.isEmpty()) {
             return Optional.empty();
         }
-        int[] out = new int[keys.items().size()];
-        for (int i = 0; i < out.length; i++) {
-            int index = keys.items().get(i) instanceof Json.Str s ? column(cols, s.value()) : -1;
+        List<Integer> out = new ArrayList<>();
+        for (String name : names.get()) {
+            int index = name.startsWith("\"") ? column(columns.get(), text(name)) : -1;
             if (index < 0) {
-                return Optional.empty();
+                break;   // the keys after one the net cannot follow are not followed either
             }
-            out[i] = index;
+            out.add(index);
         }
-        return Optional.of(out);
+        return out.isEmpty() ? Optional.empty() : Optional.of(out.stream().mapToInt(Integer::intValue).toArray());
     }
 
-    /** The index of the column named {@code name}, or -1 when no column is. */
-    private static int column(Json.Arr columns, String name) {
-        for (int i = 0; i < columns.items().size(); i++) {
-            if (columns.items().get(i) instanceof Json.Obj o && o.get("name") instanceof Json.Str s
-                    && s.value().equals(name)) {
+    /** The index of the column whose object's {@code "name"} is {@code name}, or -1 when no column's is. */
+    private static int column(List<String> columns, String name) {
+        for (int i = 0; i < columns.size(); i++) {
+            if (field(columns.get(i), "name").filter(name::equals).isPresent()) {
                 return i;
             }
         }
         return -1;
+    }
+
+    /** The text of {@code object}'s string field {@code key} (a compact JSON object's top-level member), if it has one. */
+    private static Optional<String> field(String object, String key) {
+        if (!object.startsWith("{") || !object.endsWith("}")) {
+            return Optional.empty();
+        }
+        for (String member : split(object.substring(1, object.length() - 1))) {
+            List<String> kv = splitAt(member, ':');
+            if (kv.size() == 2 && kv.get(0).startsWith("\"") && text(kv.get(0)).equals(key)
+                    && kv.get(1).startsWith("\"")) {
+                return Optional.of(text(kv.get(1)));
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** A compact JSON array's top-level elements, each as its own text; none when {@code array} is no array. */
+    public static Optional<List<String>> elements(String array) {
+        if (!array.startsWith("[") || !array.endsWith("]")) {
+            return Optional.empty();
+        }
+        String inner = array.substring(1, array.length() - 1);
+        return Optional.of(inner.isEmpty() ? List.of() : split(inner));
+    }
+
+    /** {@code s} split at its top-level commas: outside strings, brackets and braces. */
+    private static List<String> split(String s) {
+        return splitAt(s, ',');
+    }
+
+    private static List<String> splitAt(String s, char at) {
+        List<String> out = new ArrayList<>();
+        int depth = 0;
+        boolean inString = false;
+        int start = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (inString) {
+                if (c == '\\') {
+                    i++;   // an escape: the next character is the string's
+                } else if (c == '"') {
+                    inString = false;
+                }
+            } else if (c == '"') {
+                inString = true;
+            } else if (c == '[' || c == '{') {
+                depth++;
+            } else if (c == ']' || c == '}') {
+                depth--;
+            } else if (c == at && depth == 0) {
+                out.add(s.substring(start, i));
+                start = i + 1;
+                if (at == ':') {
+                    out.add(s.substring(start));
+                    return out;   // a member splits at its first top-level colon only
+                }
+            }
+        }
+        out.add(s.substring(start));
+        return out;
+    }
+
+    /** A JSON string literal's text, its escapes read ({@code \"}, {@code \\}, {@code \/}, {@code \b}, {@code \f},
+     *  {@code \n}, {@code \r}, {@code \t}, {@code \\u} and four hexadecimal digits). */
+    public static String text(String literal) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 1; i < literal.length() - 1; i++) {
+            char c = literal.charAt(i);
+            if (c != '\\') {
+                out.append(c);
+                continue;
+            }
+            char e = literal.charAt(++i);
+            switch (e) {
+                case 'b' -> out.append('\b');
+                case 'f' -> out.append('\f');
+                case 'n' -> out.append('\n');
+                case 'r' -> out.append('\r');
+                case 't' -> out.append('\t');
+                case 'u' -> {
+                    out.append((char) Integer.parseInt(literal.substring(i + 1, i + 5), 16));
+                    i += 4;
+                }
+                default -> out.append(e);
+            }
+        }
+        return out.toString();
     }
 
     /** The rows in the order received across distinct key values, each run of equal keys (a tie) sorted. */
@@ -131,19 +222,33 @@ public final class EdgeNormalize {
         return out;
     }
 
-    /** A row's values at the key columns, as their compact JSON joined by U+0000 ({@code {"values":[...]}}). The
-     *  recorder wrote the row with each backslash doubled (its one escape a compact JSON row can need: the row holds
-     *  no raw line end, tab or control character), undone here to read it. */
+    /** A row's values at the key columns, as their compact JSON text joined by U+0000 (the row is
+     *  {@code {"values":[...]}}, compact as the recorder wrote it, so two equal cells are equal texts). The recorder wrote
+     *  the row with each backslash doubled (its one escape a compact JSON row can need: the row holds no raw line end,
+     *  tab or control character), undone here to read it. */
     private static String key(String row, int[] keys) {
         if (row.isEmpty()) {
             return "";
         }
-        Json.Node values = ((Json.Obj) Json.parse(row.replace("\\\\", "\\"))).get("values");
-        List<Json.Node> cells = ((Json.Arr) values).items();
+        String json = row.replace("\\\\", "\\");
+        String values = field0(json);
+        List<String> cells = elements(values).orElseThrow(() -> new IllegalStateException("a row's values are no array: "
+                + row));
         StringBuilder key = new StringBuilder();
         for (int k : keys) {
-            key.append(Json.toCompact(cells.get(k))).append('\u0000');
+            key.append(cells.get(k)).append('\u0000');
         }
         return key.toString();
+    }
+
+    /** The text of a row object's {@code "values"} member (its one member). */
+    private static String field0(String row) {
+        for (String member : split(row.substring(1, row.length() - 1))) {
+            List<String> kv = splitAt(member, ':');
+            if (kv.size() == 2 && text(kv.get(0)).equals("values")) {
+                return kv.get(1);
+            }
+        }
+        throw new IllegalStateException("a row with no values: " + row);
     }
 }

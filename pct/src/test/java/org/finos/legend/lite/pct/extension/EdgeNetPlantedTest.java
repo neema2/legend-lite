@@ -5,112 +5,69 @@ package org.finos.legend.lite.pct.extension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.legend.json.Json;
-import com.legend.tools.edgenet.EdgeNormalize;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 /**
- * THE EDGE GOLDEN NET's PROOF (S0 of the presentation program, 2026-11-18,
- * docs/records/presentation-program-design-2026-11-18.md §4 (d)): planted changes over lines the net records, put
- * through its normalizer. What the net must pass passes (a swap within a sort-key tie, the rows of a line with no
- * order); what it must catch moves the normalized line (a row-order change across distinct keys, a Float's 17th
- * digit, a message). The recorder's half: an SQL-only change moves no line (the activities leave it), and its
- * mask hides an id, never a value.
- *
- * <p>The lines are real: {@code testSortCanonicalNullOrdering}'s answer on DuckDB (sorted by {@code id}, nulls last),
- * a value line of {@code testArcCosine} and an error line of {@code testAdjustByHoursBigNumber}, as the recorder writes
- * them (rows separated by U+001E).
+ * THE EDGE GOLDEN NET's PROOF, the recorder's half (S0 of the presentation program, 2026-11-18,
+ * docs/records/presentation-program-design-2026-11-18.md §4 (d); re-cut by the review of PR #123, 2026-11-19):
+ * planted changes put through the recorder's own writers -- {@link PctCaseRecorder#flat}, every line's text, and
+ * {@link PctCaseRecorder#relationText}, a relation's -- where S0's bug was (until S0 the mask hid any run of 16
+ * hexadecimal characters, a value's digits among them). What the net must catch moves the recorded text (a Float's
+ * 17th digit, a long number in a message); what it must pass does not (an SQL-only change); and the root ORDER BY's
+ * keys are written as the plan names them ({@link PctPlanRoute#rootOrder}). The normalizer's half, which sorts, is
+ * outside this module (tools/edgenet's EdgeNormalizeTest; PctDisciplineTest).
  */
 class EdgeNetPlantedTest {
 
-    private static final String RS = "\u001e";
-
-    private static final String COLUMNS = "columns=[{\"name\":\"id\",\"type\":\"Integer\",\"relationalType\":\"INTEGER\"},"
-            + "{\"name\":\"name\",\"type\":\"String\",\"relationalType\":\"VARCHAR(1024)\"}]";
-
-    private static String relation(String order, String... rows) {
-        return "testSortCanonicalNullOrdering\t001\tRELATION\t" + COLUMNS + (order == null ? "" : " order=" + order)
-                + " rows=" + String.join(RS, rows);
+    /** A relation answer as the server writes legend-engine's JSON: one Float column, its rows, its activities' SQL. */
+    private static Json.Obj answer(String sql, String... values) {
+        StringBuilder rows = new StringBuilder();
+        for (String v : values) {
+            rows.append(rows.isEmpty() ? "" : ",").append("{\"values\":[").append(v).append("]}");
+        }
+        return Json.parseObject("{\"builder\":{\"_type\":\"tdsBuilder\","
+                + "\"columns\":[{\"name\":\"x\",\"type\":\"Float\"}]},"
+                + "\"activities\":[{\"_type\":\"relational\",\"sql\":" + Json.toCompact(Json.str(sql)) + "}],"
+                + "\"result\":{\"columns\":[\"x\"],\"rows\":[" + rows + "]}}");
     }
 
-    private static final String SACHIN = "{\"values\":[1,\"Sachin\"]}";
-    private static final String GEORGE = "{\"values\":[2,\"George\"]}";
-    private static final String PIERRE = "{\"values\":[null,\"Pierre\"]}";
-    private static final String GEORGE_TIED = "{\"values\":[2,\"Anne\"]}";
-
-    @Test
-    void aRowOrderChangeAcrossDistinctKeysMovesTheLine() {
-        String recorded = EdgeNormalize.normalized(relation("[\"id\"]", SACHIN, GEORGE, PIERRE));
-        String planted = EdgeNormalize.normalized(relation("[\"id\"]", GEORGE, SACHIN, PIERRE));
-        assertNotEquals(recorded, planted, "the net sees a row-order change across distinct sort keys");
-        assertEquals(relation("[\"id\"]", SACHIN, GEORGE, PIERRE).replace(RS, ","), recorded,
-                "a sorted answer keeps the database's order across distinct keys");
-    }
-
-    @Test
-    void aSwapWithinATiePasses() {
-        String recorded = EdgeNormalize.normalized(relation("[\"id\"]", SACHIN, GEORGE, GEORGE_TIED, PIERRE));
-        String planted = EdgeNormalize.normalized(relation("[\"id\"]", SACHIN, GEORGE_TIED, GEORGE, PIERRE));
-        assertEquals(recorded, planted, "a tie's order is the database's: the net does not see it");
-    }
-
-    @Test
-    void aKeyHoldingAnEscapedCharacterIsRead() {
-        // the recorder doubles each backslash: a key cell holding a quote reaches the normalizer as \\"
-        String quoted = "{\"values\":[3,\"O\\\\\"Brien\"]}";
-        assertEquals(EdgeNormalize.normalized(relation("[\"name\"]", SACHIN, quoted)),
-                relation("[\"name\"]", SACHIN, quoted).replace(RS, ","),
-                "distinct keys keep their order, a key with an escaped quote read as JSON");
-    }
-
-    @Test
-    void aLineWithNoOrderHasItsRowsSorted() {
-        assertEquals(EdgeNormalize.normalized(relation(null, SACHIN, GEORGE, PIERRE)),
-                EdgeNormalize.normalized(relation(null, PIERRE, GEORGE, SACHIN)),
-                "an unsorted answer's order is the database's, as before S0");
-    }
-
-    @Test
-    void aKeyNamingNoColumnSortsTheRows() {
-        assertEquals(EdgeNormalize.normalized(relation("[\"?\"]", SACHIN, GEORGE, PIERRE)),
-                EdgeNormalize.normalized(relation("[\"?\"]", PIERRE, GEORGE, SACHIN)),
-                "a sort on an expression no column projects cannot be followed, so its rows are sorted");
-    }
+    private static final String SQL = "SELECT \"t0\".\"x\" AS \"x\" FROM \"T\" AS \"t0\"";
 
     @Test
     void aFloatsSeventeenthDigitMovesTheLine() {
-        String recorded = "testArcCosine\t002\tVALUE\ttype=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]]"
-                + " values=Double:3.141592653589793;";
-        String planted = recorded.replace("3.141592653589793", "3.1415926535897936");
-        assertNotEquals(EdgeNormalize.normalized(recorded), EdgeNormalize.normalized(planted),
-                "the net sees a value's 17th digit");
+        // 0.30000000000000004's digits after the point are 17 hexadecimal characters: the mask S0 replaced hid them
+        String recorded = "type=FLOAT values=Double:0.30000000000000004;";
+        String planted = "type=FLOAT values=Double:0.30000000000000006;";
+        assertNotEquals(PctCaseRecorder.flat(recorded), PctCaseRecorder.flat(planted),
+                "a value line: the net sees a Float's 17th digit");
+        assertNotEquals(PctCaseRecorder.flat(PctCaseRecorder.relationText(answer(SQL, "0.30000000000000004"), null)),
+                PctCaseRecorder.flat(PctCaseRecorder.relationText(answer(SQL, "0.30000000000000006"), null)),
+                "a relation's cell: the net sees a Float's 17th digit");
     }
 
     @Test
     void aMessageChangeMovesTheLine() {
-        String recorded = "testAdjustByHoursBigNumber\t001\tERROR\tOut of Range Error: Interval value 12345678912 hours"
-                + " out of range";
-        String planted = recorded.replace("hours out of range", "hours is out of range");
-        assertNotEquals(EdgeNormalize.normalized(recorded), EdgeNormalize.normalized(planted),
-                "the net sees a message change");
-    }
-
-    /** A relation answer as the server writes legend-engine's JSON, with its activities' SQL. */
-    private static Json.Obj answer(String sql) {
-        return Json.parseObject("{\"builder\":{\"_type\":\"tdsBuilder\","
-                + "\"columns\":[{\"name\":\"id\",\"type\":\"Integer\"}]},"
-                + "\"activities\":[{\"_type\":\"relational\",\"sql\":" + Json.toCompact(Json.str(sql)) + "}],"
-                + "\"result\":{\"columns\":[\"id\"],\"rows\":[{\"values\":[1]},{\"values\":[2]}]}}");
+        // a message holding a long number: its digits are a run of 16 or more hexadecimal characters
+        String recorded = "Out of Range Error: Interval value 1234567891234567891 hours out of range";
+        String planted = recorded.replace("1234567891234567891", "1234567891234567892");
+        assertNotEquals(PctCaseRecorder.flat(recorded), PctCaseRecorder.flat(planted),
+                "the net sees a message's number change");
+        assertNotEquals(PctCaseRecorder.flat(recorded), PctCaseRecorder.flat(recorded.replace("hours out", "hours is out")),
+                "the net sees a message's words change");
     }
 
     @Test
     void anSqlOnlyChangeMovesNoLine() {
-        Json.Obj recorded = answer("SELECT \"t0\".\"id\" AS \"id\" FROM \"T\" AS \"t0\" ORDER BY 1");
-        Json.Obj planted = answer("SELECT \"t1\".\"id\" AS \"id\" FROM \"T\" AS \"t1\" ORDER BY 1");
-        assertEquals(PctCaseRecorder.relationText(recorded, java.util.List.of("id")),
-                PctCaseRecorder.relationText(planted, java.util.List.of("id")), "an alias rename is lite's SQL alone");
+        Json.Obj recorded = answer(SQL, "1.5");
+        Json.Obj planted = answer(SQL.replace("t0", "t1"), "1.5");
+        assertEquals(PctCaseRecorder.relationText(recorded, List.of("x")),
+                PctCaseRecorder.relationText(planted, List.of("x")), "an alias rename is lite's SQL alone");
         assertNotEquals(PctCaseRecorder.activities(recorded), PctCaseRecorder.activities(planted),
                 "the informational file still shows it");
     }
@@ -126,8 +83,52 @@ class EdgeNetPlantedTest {
         assertEquals("Long:1234567891234567891;", PctCaseRecorder.flat("Long:1234567891234567891;"),
                 "a value's digits are the net's to see (until S0 any 16 hexadecimal characters were masked)");
         assertEquals("Double:3.1415926535897936;", PctCaseRecorder.flat("Double:3.1415926535897936;"));
-        assertEquals("execution <id> failed",
+        assertEquals("execution <id1> failed",
                 PctCaseRecorder.flat("execution 3f2504e0-4f89-11d3-9a0c-0305e82c3301 failed"),
                 "an execution id is masked");
+    }
+
+    @Test
+    void theMaskNumbersIdsByFirstAppearance() {
+        String a = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+        String b = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+        assertEquals("<id1> <id2> <id1>", PctCaseRecorder.flat(a + " " + b + " " + a),
+                "two ids are two masks, the same id the same one");
+        assertNotEquals(PctCaseRecorder.flat(a + " " + b), PctCaseRecorder.flat(a + " " + a),
+                "every row given the same guid cannot hide behind the mask");
+    }
+
+    /** A relation query's plan on the platform's database, in the edge's style, planned only (no database). */
+    private static com.legend.executionplan.ExecutionPlan planned(String query) {
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(PctBackend.withStorelessRuntime("")), query)
+                .executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME, java.util.Set.of(),
+                        com.legend.edge.PureText.UPSTREAM);
+    }
+
+    private static final String TDS = "|#TDS\n  id, name\n  2, b\n  1, a\n#";
+
+    @Test
+    void theRootOrderNamesTheSortedColumn() {
+        assertEquals(List.of("id"), PctPlanRoute.rootOrder(planned(TDS + "->sort(~id->descending())")),
+                "a sort on a projected column: its name");
+    }
+
+    @Test
+    void theRootOrderNamesAnAliasedKeyByItsAlias() {
+        assertEquals(List.of("ident"),
+                PctPlanRoute.rootOrder(planned(TDS + "->rename(~id, ~ident)->sort(~ident->ascending())")),
+                "a sort on a renamed column: the name the answer carries");
+    }
+
+    @Test
+    void theRootOrderMarksAnUnprojectedKey() {
+        assertEquals(List.of("?"),
+                PctPlanRoute.rootOrder(planned(TDS + "->sort(~id->ascending())->select(~name)")),
+                "a sort on a column the answer does not carry: no name to follow");
+    }
+
+    @Test
+    void aQueryWithNoRootSortHasNoOrder() {
+        assertNull(PctPlanRoute.rootOrder(planned(TDS + "->select(~name)")), "no root ORDER BY: no order= at all");
     }
 }

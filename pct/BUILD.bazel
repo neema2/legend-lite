@@ -104,8 +104,6 @@ legend_java_library(
         "//core:edge",
         "//core:test_backends",
         "//testing",
-        # the edge golden net's normalizer, which EdgeNetPlantedTest plants its changes through (S0, 2026-11-18)
-        "//tools/edgenet",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_upstream//:junit_junit",
         "@maven_upstream//:org_eclipse_collections_eclipse_collections",
@@ -700,10 +698,11 @@ junit_test(
     runtime_deps = [":pct_tests_lib"],
 )
 
-# THE EDGE GOLDEN NET's PROOF (S0 of the presentation program, 2026-11-18,
-# docs/records/presentation-program-design-2026-11-18.md §4 (d)): planted changes through the recorder and the
-# normalizer -- an SQL-only change and a swap within a sort-key tie pass; a Float's 17th digit, a row-order change
-# across distinct keys and a message change each move the line; the mask hides an id, never a value
+# THE EDGE GOLDEN NET's PROOF, the recorder's half (S0 of the presentation program, 2026-11-18,
+# docs/records/presentation-program-design-2026-11-18.md §4 (d)): planted changes through the recorder -- an SQL-only
+# change moves no line; a Float's 17th digit and a message change each move it; the mask hides an id, never a value;
+# the root ORDER BY's keys as the recorder writes them. The normalizer's half is //tools/guards:edge_normalize_test
+# (the review of PR #123, 2026-11-19: this module depends on no tool that sorts, PctDisciplineTest)
 junit_test(
     name = "pct_edge_net_planted_test",
     memory_mb = 512,
@@ -934,9 +933,11 @@ test_suite(
         ":update_edge_contract_tests",
         "//spec:update_edge_corpus_tests",
         "//core:update_edge_pure_v1_tests",
-        # the missing cases and the net's own proof (S0 of the presentation program, 2026-11-18)
+        # the missing cases and the net's own proof (S0 of the presentation program, 2026-11-18): the recorder's half
+        # here, the normalizer's in //tools/guards (the review of PR #123, 2026-11-19)
         "//core:update_edge_cases_tests",
         ":pct_edge_net_planted_test",
+        "//tools/guards:edge_normalize_test",
     ],
 )
 
