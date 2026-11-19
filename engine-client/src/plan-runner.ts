@@ -30,6 +30,7 @@
 import { boundValues, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
 import { familyOf, isBoolean, parameterKind } from './types.ts';
 import { payloadValue } from './plan-params.ts';
+import { PLAN_VERSION } from './generated/lite-facts.ts';
 import type { Receipt } from './receipt.ts';
 import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
 import { declareSites, declareStatementSites, type Site } from './declared-raises.ts';
@@ -298,9 +299,9 @@ interface Sql {
 // decimal's digits are data (its column's decimal: {precision, scale})
 // 58 since 2026-11-18 (K10 of the edge audit, with H9): a site carries no upstream words -- legend-pure's words are the
 // compatibility edge's records, never the product plan's
-const PLAN_VERSION = 58;
-// the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
-// declaration above stays one line, as PlanVersionsAgreeTest reads it
+// the version itself is the planner's (PlanJson.VERSION), GENERATED into lite-facts.ts (H4's P8, the user's CP-13 of
+// 2026-11-19: until then a constant here, held to Java's by a regex, PlanVersionsAgreeTest); a test's stand-in plan is
+// written at it too (the doors' witnesses, engine-client/test/run-frame.test.ts)
 export { PLAN_VERSION };
 interface Column { readonly name: string; readonly type: string }
 type Step =

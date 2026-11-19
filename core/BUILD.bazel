@@ -79,7 +79,8 @@ legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/valu
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
 # :error since 2026-11-15 (phase D's option (D)): a plan words its raises from ErrorKind, the one source (PlanJson.raises)
-legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":cache", ":error", ":sql"])
+# //engine-client: the generator of the plan format's version for the hosts' runners (TypeFacts; H4's P8, 2026-11-19)
+legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":cache", ":error", ":sql"], visibility = ["//engine-client:__pkg__"])
 # THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's steps 2 and 3, 2026-11-08): a test
 # body's plan as data, around the product's (:execution_plan) -- its steps, its verdict groups and branches, an error known
 # at planning (Failure) -- and its JSON. Data alone: it depends on no planning or runtime library.
@@ -592,8 +593,6 @@ legend_java_binary(
 _CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 
 _CENSUS_READS = _CORE_READS + [
-    # the host's plan runner, whose plan version the census holds equal to the planner's (P7, 2026-11-09)
-    "//engine-client:plan_runner_src",
     # the hosts' sources, where a deleted mechanism's host spellings must read zero too (the B checkpoint's tenets
     # audit, M4, 2026-11-11)
     "//datacube:census_src",

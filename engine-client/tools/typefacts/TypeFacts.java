@@ -106,6 +106,9 @@ public final class TypeFacts {
         for (Map.Entry<String, String> k : com.legend.result.ArrowKeys.all().entrySet()) {
             out.append("export const ARROW_KEY_").append(k.getKey()).append(" = '").append(k.getValue()).append("';\n");
         }
+        out.append("\n/** The plan format a host's runner reads: the planner's own (executionplan.PlanJson.VERSION; H4's P8,\n")
+                .append(" *  2026-11-19), never a constant of the host's. */\n")
+                .append("export const PLAN_VERSION = ").append(com.legend.executionplan.PlanJson.VERSION).append(";\n");
         return out.toString();
     }
 
@@ -185,6 +188,9 @@ public final class TypeFacts {
         for (Map.Entry<String, String> k : com.legend.result.ArrowKeys.all().entrySet()) {
             out.append("ARROW_KEY_").append(k.getKey()).append(" = '").append(k.getValue()).append("'\n");
         }
+        out.append("\n# The plan format a host's runner reads: the planner's own (executionplan.PlanJson.VERSION; H4's P8,\n")
+                .append("# 2026-11-19), never a constant of the host's. The same as DataCube's (lite-facts.ts PLAN_VERSION).\n")
+                .append("PLAN_VERSION = ").append(com.legend.executionplan.PlanJson.VERSION).append("\n");
         return out.toString();
     }
 

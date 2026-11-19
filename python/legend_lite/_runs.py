@@ -21,10 +21,9 @@ from ._plans import statement_params
 from ._runframe import in_run, runs
 
 
-# the plan format this host runs: the planner's (PlanJson.VERSION), as the tab's runner's is (plan-runner.ts PLAN_VERSION,
-# held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
-# runs (test_engine) -- so the two cannot drift apart unseen
-PLAN_VERSION = 58
+# the plan format this host runs: the planner's (PlanJson.VERSION), GENERATED into _type_facts as the tab's is into
+# lite-facts.ts (H4's P8, the user's CP-13 of 2026-11-19: until then a constant here, held to Java's by a regex)
+from ._type_facts import PLAN_VERSION
 
 
 class LoadRefused(ValueError):

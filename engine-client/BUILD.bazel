@@ -336,14 +336,6 @@ exports_files(
     visibility = ["//core:__pkg__", "//python:__pkg__"],
 )
 
-# The host's plan runner as a source the census reads (P7 of docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09: its plan
-# version equals the Java planner's, PlanVersionsAgreeTest)
-filegroup(
-    name = "plan_runner_src",
-    srcs = ["src/plan-runner.ts"],
-    visibility = ["//core:__pkg__"],
-)
-
 # the host sources the data mechanism census reads (DataMechanismCensusTest: a deleted mechanism's host spellings read
 # zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
 filegroup(
@@ -380,8 +372,9 @@ legend_java_library(
     # a product raise's envelope (#104's M2(b), 2026-11-15): exec.RaisedErrors's marks and sql.RaiseKind's; its words
     # are the plans' own since 2026-11-15 (PlanJson.raises, phase D's option (D)), so error.ErrorKind is not read here
     # lite's error kinds and their statuses (H4's P2, 2026-11-19): server.LiteV1Api.Kind; lite's Arrow metadata keys
-    # (H4's P10): result.ArrowKeys
-    deps = ["//core:compiler_element_type", "//core:exec", "//core:lite_v1", "//core:result", "//core:sql"],
+    # (H4's P10): result.ArrowKeys; the plan format (H4's P8): executionplan.PlanJson.VERSION
+    deps = ["//core:compiler_element_type", "//core:exec", "//core:execution_plan", "//core:lite_v1", "//core:result",
+            "//core:sql"],
 )
 
 java_run(

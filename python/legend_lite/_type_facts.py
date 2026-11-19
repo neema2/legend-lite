@@ -71,3 +71,7 @@ ARROW_KEY_PRECISION = 'legend.precision'
 ARROW_KEY_KIND = 'legend.kind'
 ARROW_KEY_PLAN = 'legend.plan'
 ARROW_KEY_RECEIPT = 'legend.receipt'
+
+# The plan format a host's runner reads: the planner's own (executionplan.PlanJson.VERSION; H4's P8,
+# 2026-11-19), never a constant of the host's. The same as DataCube's (lite-facts.ts PLAN_VERSION).
+PLAN_VERSION = 58
