@@ -1834,3 +1834,18 @@ who confirms or changes phases 1-3.
   runs legend-engine's expected SQL on the referee H2 and compares the rows in Java (`SqlReplayReferee.verify`), the
   host comparing, which fits rule 4. A2 proposes no value-computing Java. The B5 ratchet excludes `com/legend/edge/`
   and refuses any new compatibility hook in the core. Idle until A2's briefing.
+- **~14:52 UTC, H13 done: "B1 option: typed raise slots"** (§24 at `ad7dede1`, not built). `Operand.Computed` carries
+  its Pure type (`{"computed":"Integer"}`), so the plan holds no value; each dialect's raise writer prints the slots
+  into the envelope after the position field in a lossless spelling per type (Integer digits, `DECIMAL_TO_TEXT`,
+  `FLOAT_SHORTEST_TEXT`, a date's canonical text at its declared precision, a String escaped against chr(29)-chr(31));
+  `RaisedErrors` decodes them by their declared types; compatibility words upstream's sentence from them. Removes the
+  placeholder and its register row, `statedSize`, the unbuilt `CheckedOne.statedSize` and every withheld case (the 9
+  `toOne` tests keep legend-pure's words). Measurements first, 0.5 to 1 day (the 12 raise writers' error-text limits;
+  Snowflake's and ClickHouse's quoting; the Float round trip; MongoDB's raise; lite's SQL growth, since every plan
+  carries the slots, estimated from H9's 344 renders). Size about +570 / -30, 3.5 to 4 days; B1 with it about 10 to 11
+  days, or a later additive slice. For stage B's ratification.
+- **~14:55 UTC, the user asked** whether this session agrees with the rules on the merits, and for tenets built on them.
+  Answered: agreement with the reasons, four sharpenings (folds as constants and type facts, never row data;
+  compatibility re-spells and never re-computes; the host judge's exception with its reason; the one-judge gap anchored
+  by PCT's expected values and the engine check), and six proposed tenets, each with a test and a guard, for the user's
+  word.
