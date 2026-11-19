@@ -657,8 +657,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // two-spec split of §7 slice-2 (2026-09-01) closed UPSTREAM.
             // Until 4.138.2 the bare key rode H2 1.4's nulls-low default
             // (ASC nulls first, DESC nulls last) and the execution dialects
-            // pinned that explicitly; the engine-TEXT channel still spells
-            // no clause (EngineStyleH2.sortKey — goldens never do).
+            // pinned that explicitly; the engine-TEXT channel spelled
+            // no clause (legend-engine's SQL-text printer, deleted with A2, 2026-11-19).
             return writer.append(k.ascending() ? " NULLS LAST" : " NULLS FIRST");
         }
     }
@@ -682,8 +682,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.Cte c -> writer.append(cteName(c.name())).append(" AS ").append(aliasIdent(c.alias()));
             case SqlSource.Subselect sub -> subselectSource(writer, sub, depth);
             // a cross-store plan variable is legend-engine's plan text (its VarSetPlaceHolder, a FreeMarker splice at its
-            // execution): written by the compatibility edge's engine-text dialect (EngineStyleH2), refused by name by
-            // the product's (J6 of the edge audit, 2026-11-17: the base renderer wrote the FreeMarker)
+            // execution): written by the compatibility edge's engine-text dialect until A2 (2026-11-19, CP-4), refused
+            // by name by the product's (J6 of the edge audit, 2026-11-17: the base renderer wrote the FreeMarker)
             case SqlSource.Values v -> valuesSource(writer, v);
             // authored raw SQL as a relation source (the typed executeInDb grid) — carried text, parenthesized, in
             // this session's language (raw: the engine's H2 text translated, any other as written)

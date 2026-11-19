@@ -160,14 +160,16 @@ class AssertVerdictSpliceTest {
                 + "meta::relational::mapping::RelationalActivity))->at(0)"
                 + "->cast(@meta::relational::mapping::RelationalActivity)"
                 + ".sql;}").one();
-        assertEquals("select \"root\".NAME as \"name\" from P as \"root\"", v);
+        // lite's own text since A2 (2026-11-19, CP-4): the edge's H2 dialect's, legend-engine's printer gone
+        assertEquals("SELECT \"t0\".NAME AS \"name\"\nFROM P AS \"t0\"", v);
     }
 
     @Test
     @DisplayName("S310: on the product road the activity's sql is lite's own SQL, what ran -- never engine's text")
     void theProductsActivitySqlIsLitesOwn() throws Exception {
         // S310 (RULED by the user 2026-11-14, DE2 (a)): the product's style reports the chain's own statement, the
-        // product's lowering in the runtime database's (DuckDB's) product dialect; the edge's is engine's (above)
+        // product's lowering in the runtime database's (DuckDB's) product dialect; the edge's is its H2 dialect's (above;
+        // legend-engine's text until A2, 2026-11-19)
         String query = "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name], ['name']), e::M, e::RT.runtimeValue, []);"
                 + " $result.activities->filter(a|$a->instanceOf("
@@ -177,7 +179,7 @@ class AssertVerdictSpliceTest {
         String product = String.valueOf(Program.last(MODEL, query, "e::RT", conn,
                 ExecuteOptions.NONE.withJudgeMode(Program.laneJudge())).one());
         assertEquals(PRODUCT_ACTIVITY_SQL, product);
-        assertTrue(!product.equals(run(query).one()), "the edge's is engine's text: " + product);
+        assertTrue(!product.equals(run(query).one()), "the edge's is its own dialect's text: " + product);
     }
 
     /** lite's own DuckDB SQL for {@code Person.all()->project([p|$p.name], ['name'])} (S310). */
@@ -192,7 +194,8 @@ class AssertVerdictSpliceTest {
                 + "->project([p|$p.name], ['name']), e::M, e::RT.runtimeValue, []);"
                 + " meta::relational::mapping::sqlRemoveFormatting($result);}"))
                 .value();
-        assertEquals("select \"root\".NAME as \"name\" from P as \"root\"", v);
+        // lite's own text since A2 (2026-11-19, CP-4), its line breaks removed by the verbatim helper
+        assertEquals("SELECT \"t0\".NAME AS \"name\"FROM P AS \"t0\"", v);
     }
 
     @Test

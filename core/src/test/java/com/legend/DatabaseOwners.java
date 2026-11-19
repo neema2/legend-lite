@@ -155,7 +155,7 @@ final class DatabaseOwners {
             // 2026-10-16, the dialect program's Phase 3: the engine-text registry, Databases' counterpart for
             // legend-engine's golden text (which engine-style dialect a declared type gets, and the engine's test
             // database), the census's SEAM; it stays in the root layer, where the engine-style dialects are
-            // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer) -- the layer's execution
+            // quarantined (ArchitectureTest's quarantine rule, which went with them, A2, 2026-11-19) -- the layer's execution
             // side, com.legend.driver, since step C (D73, 2026-10-30); the planner since the seam program's S2g
             // (2026-10-31: the engine's plan text is planning work; the quarantine names it alone of the planner)
             // 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): moved to the edge with the engine's plan text
@@ -254,7 +254,8 @@ final class DatabaseOwners {
         // jsonb cells behind the DriverCells seam, the plan path program's step 9, 2026-10-19; registered at main's
         // merge, 2026-10-22, when the absolute ban first read it)
         // 2026-11-13 (phase D's O3): legend-engine's text printers (EngineStyleH2, DB2, Composite), dialects still, moved
-        // from sql/dialect to the edge, each owning its database as it did there
+        // from sql/dialect to the edge, each owning its database as it did there (they went 2026-11-19 with that text:
+        // A2 of the compatibility program, CP-4)
         if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")
                 || rel.startsWith("core/src/main/mongodb/") || rel.startsWith("core/src/main/postgres/")
                 // 2026-11-17 (Phase 6's B4 (ii)): legend-engine's H2 text translation, moved from sql/dialect to the edge,

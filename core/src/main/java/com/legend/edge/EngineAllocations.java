@@ -130,7 +130,7 @@ final class EngineAllocations {
                             req.toString(),
                             PurePrint.source(let.value())));
         }
-        var renderer = PureText.enginePlanText(dbType, quote, timeZone);
+        var renderer = LiteSqlText.of(dbType);
         EnginePlans.EngineSql es = EnginePlans.engineSql(List.of(let.value()),
                 mappingFqn, specs, env, renderer, params,
                 UnaryOperator.identity());

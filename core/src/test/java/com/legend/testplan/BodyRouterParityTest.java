@@ -1445,14 +1445,14 @@ class BodyRouterParityTest {
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
         String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
-        assertTrue(ours.startsWith("select "), ours);
+        assertTrue(ours.startsWith("SELECT "), ours);   // lite's own text since A2 (2026-11-19, CP-4)
         String frameSql = text(run(backend, ctx, "x::RT", "{| let r = " + EXECUTE
                 + "; meta::relational::mapping::sqlRemoveFormatting($r);}", "select count(*) from FIRM",
                 FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST));
-        assertTrue(frameSql.startsWith("select "), frameSql);
+        assertTrue(frameSql.startsWith("SELECT "), frameSql);   // lite's own text since A2 (2026-11-19, CP-4)
         // another spelling of the same query (the rows agree), and the same spelling over other rows
-        String sameRows = "SELECT" + ours.substring("select".length());
-        String otherRows = ours + " where \"root\".ID = 1";
+        String sameRows = respelled(ours);
+        String otherRows = overOtherRows(ours);
         int oursLeg = StatementOrigin.REFEREE_OURS.ordinal();
         for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
             // the text equal: the verdict, no replay (the user's ruling of 2026-09-21) -- pinned absolutely, so a
@@ -1488,13 +1488,14 @@ class BodyRouterParityTest {
             // a frame's executed SQL against another spelling of it: the appeal reads the frame's rows (MATCH)
             Run frameMatched = assertParity(backend, ctx, "x::RT", "{| let r = " + EXECUTE
                     + "; meta::relational::functions::asserts::assertSameSQL('"
-                    + pure("SELECT" + frameSql.substring("select".length())) + "', $r);}",
+                    + pure(respelled(frameSql)) + "', $r);}",
                     "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals("ok", frameMatched.outcome, "the frame's rows agree: the appeal holds");
             assertTrue(frameMatched.verdicts.toString().contains("refereed MATCH"), frameMatched.verdicts.toString());
             // a dialect with a renderer and no referee database (DB2): a DECLINE decided before the texts are
             // compared, counted; the text is the contract
-            String renderedElsewhere = producer.replace("DatabaseType.H2", "DatabaseType.DB2");
+            // since A2 (2026-11-19, CP-4) Snowflake is that dialect (lite's own text; until then DB2, legend-engine's)
+            String renderedElsewhere = producer.replace("DatabaseType.H2", "DatabaseType.Snowflake");
             Run declinedFails = assertParity(backend, ctx, "x::RT", "{| assertEquals('x', " + renderedElsewhere + ");}",
                     "select count(*) from FIRM", FIRM_ROWS, mode);
             assertTrue(declinedFails.outcome.startsWith("AssertFailed")
@@ -1504,14 +1505,16 @@ class BodyRouterParityTest {
             // the body moves under either judge -- the host plans the raise at the assert's turn; the database judge
             // closes a segment of walls alone as a decided step of its own (2026-11-03, the database judge on par
             // with the host: until then its static gate left this body to the walk, the one road difference)
-            String foreign = "{| assertEquals('x', " + producer.replace("DatabaseType.H2", "DatabaseType.Snowflake")
+            // since A2 (2026-11-19, CP-4) DB2 is that dialect: lite has none for it, refused by name (until then
+            // Snowflake, which legend-engine's printers did not spell)
+            String foreign = "{| assertEquals('x', " + producer.replace("DatabaseType.H2", "DatabaseType.DB2")
                     + ");}";
             assertParity(backend, ctx, "x::RT", foreign, "select count(*) from FIRM", FIRM_ROWS, mode);
         }
         // the decline under BOTH judges at once (the slice 3 invariant audit, 2026-11-08): told exactly once -- by the
         // host's half (its database half tells no listener), before the text decides
         Run agreed = assertParity(backend, ctx, "x::RT", "{| assertEquals('x', "
-                + producer.replace("DatabaseType.H2", "DatabaseType.DB2") + ");}", "select count(*) from FIRM",
+                + producer.replace("DatabaseType.H2", "DatabaseType.Snowflake") + ");}", "select count(*) from FIRM",
                 FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
         assertTrue(agreed.outcome.startsWith("AssertFailed"), agreed.outcome);
         assertEquals(1, declinedOnce(agreed), agreed.verdicts.toString());
@@ -1526,9 +1529,27 @@ class BodyRouterParityTest {
                 agreedMatch.verdicts.toString());
     }
 
-    /** How many times a run told the DB2 decline of its one engine-text assert. */
+    /** How many times a run told the foreign-dialect decline of its one engine-text assert (Snowflake's since A2,
+     *  2026-11-19: lite's own text, no referee database; DB2's until then). */
     private static long declinedOnce(Run run) {
-        return run.verdicts.stream().filter(v -> v.contains("declined foreign-dialect:DB2")).count();
+        return run.verdicts.stream().filter(v -> v.contains("declined foreign-dialect:Snowflake")).count();
+    }
+
+    /** Another spelling of {@code sql}, the same rows: its leading keyword's case flipped (lite's {@code SELECT} since
+     *  A2, 2026-11-19, CP-4; legend-engine's {@code select} until then). */
+    private static String respelled(String sql) {
+        return (sql.startsWith("SELECT") ? "select" : "SELECT") + sql.substring("select".length());
+    }
+
+    /** {@code sql} over other rows: its root relation filtered to one key. */
+    private static String overOtherRows(String sql) {
+        return sql + " where " + rootAlias(sql) + ".ID = 1";
+    }
+
+    /** The root relation's alias in {@code sql}: lite's {@code "t0"} since A2 (2026-11-19), legend-engine's
+     *  {@code "root"} until then. */
+    private static String rootAlias(String sql) {
+        return sql.contains("\"root\"") ? "\"root\"" : "\"t0\"";
     }
 
     /** M10c item 12: a GRAPH FRAME -- a frame whose query is a graph fetch and its serialize -- planned on the program
@@ -1655,8 +1676,8 @@ class BodyRouterParityTest {
         String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
         String equal = "{| assertEquals('M', x::M.name); assertEquals('" + pure(ours) + "', " + producer + ");}";
         String appealed = "{| assertEquals('M', x::M.name); assertEquals('"
-                + pure("SELECT" + ours.substring("select".length())) + "', " + producer + ");}";
-        String diverged = "{| assertEquals('M', x::M.name); assertEquals('" + pure(ours + " where \"root\".ID = 1")
+                + pure(respelled(ours)) + "', " + producer + ");}";
+        String diverged = "{| assertEquals('M', x::M.name); assertEquals('" + pure(overOtherRows(ours))
                 + "', " + producer + ");}";
         // our text a side the step reads (item 8: a plan handle's SQL through a navigation over the plan's rows) -- the
         // datetime plan tests' shape: the side planned on the program's environment names the program's one target
@@ -1669,9 +1690,9 @@ class BodyRouterParityTest {
         String deferred = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('" + pure(planSql) + "', "
                 + nav + ");}";
         String deferredAppealed = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('"
-                + pure("SELECT" + planSql.substring("select".length())) + "', " + nav + ");}";
+                + pure(respelled(planSql)) + "', " + nav + ");}";
         String deferredDiverged = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('"
-                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}";
+                + pure(overOtherRows(planSql)) + "', " + nav + ");}";
         for (var c : List.of(java.util.Map.entry(equal, "ok"), java.util.Map.entry(appealed, "ok"),
                 java.util.Map.entry(diverged, "AssertFailed"), java.util.Map.entry(deferred, "ok"),
                 java.util.Map.entry(deferredAppealed, "ok"), java.util.Map.entry(deferredDiverged, "AssertFailed"))) {
@@ -1714,13 +1735,13 @@ class BodyRouterParityTest {
                 + ".sqlQuery->toOne()";
         String planSql = text(run(backend, ctx, "x::RT", "{| " + planLet + " " + nav + ";}",
                 "select count(*) from FIRM", FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST));
-        assertTrue(planSql.startsWith("select "), planSql);
+        assertTrue(planSql.startsWith("SELECT "), planSql);   // lite's own text since A2 (2026-11-19, CP-4)
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
         String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
-        String replaced = ours.replace("\"root\"", "\"r\"");
+        String replaced = ours.replace(rootAlias(ours), "\"r\"");
         assertTrue(!ours.equals(replaced), ours);
-        String replace = "->replace('\"root\"', '\"r\"')";
+        String replace = "->replace('" + rootAlias(ours) + "', '\"r\"')";
         int oursLeg = StatementOrigin.REFEREE_OURS.ordinal();
         // the text equal: the verdict at the step over the side the step ran, no appeal
         for (String equal : List.of(
@@ -1747,12 +1768,12 @@ class BodyRouterParityTest {
         assertEquals("ok", matched.outcome, "the rows agree: the appeal holds");
         assertTrue(matched.verdicts.toString().contains("refereed MATCH"), matched.verdicts.toString());
         Run planMatched = assertParity(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
-                + pure("SELECT" + planSql.substring("select".length())) + "', " + nav + ");}",
+                + pure(respelled(planSql)) + "', " + nav + ");}",
                 "select count(*) from FIRM", FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
         assertEquals("ok", planMatched.outcome, "the plan's rows agree: the appeal holds");
         // the rows differing: the appeal fails the assert with the arm's own message, our text the step's
         Run diverged = assertParity(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
-                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}", "select count(*) from FIRM",
+                + pure(overOtherRows(planSql)) + "', " + nav + ");}", "select count(*) from FIRM",
                 FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
         assertTrue(diverged.outcome.startsWith("AssertFailed") && diverged.outcome.contains("diverged"),
                 diverged.outcome);
@@ -1785,7 +1806,7 @@ class BodyRouterParityTest {
         assertParityTextInRow(backend, ctx, "x::RT", "{| assertEquals('" + pure(ours) + "', " + producer + replace
                 + ");}", "select count(*) from FIRM", FIRM_ROWS);
         assertParityTextInRow(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
-                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}", "select count(*) from FIRM",
+                + pure(overOtherRows(planSql)) + "', " + nav + ");}", "select count(*) from FIRM",
                 FIRM_ROWS);
     }
 

@@ -126,7 +126,10 @@ public final class PeRatchets {
                     + " the reference grammar, measured by //parser-equivalence:update_ratchets on its tree (D's d-int18 measures"
                     + " 3302); a floor rising, UP)",
             "own_corpus.matched 3309 -> 3310 (2026-11-18, PR #118 fix round: one more own-corpus model, added by the"
-                    + " batch's tests, matches the reference grammar; UP)");
+                    + " batch's tests, matches the reference grammar; UP)",
+            "own_corpus.matched 3310 -> 3311 (2026-11-19, A2 of the compatibility program: PureV1SqlTextTest's model, the"
+                    + " net's trades model with an empty mapping, matches the reference grammar; LegacyTextTest's left with"
+                    + " the printers; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

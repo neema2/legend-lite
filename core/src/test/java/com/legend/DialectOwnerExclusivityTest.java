@@ -46,13 +46,9 @@ class DialectOwnerExclusivityTest {
     }
 
     private static final List<Crossing> CROSSINGS = List.of(
-            // 2026-10-15 (registered as measured): the engine-H2 text spells ten functions legend-engine's H2 text
-            // has no spelling for (MAP_EMPTY, TIME_BUCKET, ...) with DuckDB's own (DuckDbSpellings), because the corpus
-            // reads this text on DuckDB too; refusing them broke 14 passing corpus tests (c7cd917; the plan's Phase 1b
-            // step 2, the engine-H2 row). Whether the engine text should spell them at all is the engine-text work's
-            // question, not this guard's.
-            new Crossing("core/src/main/java/com/legend/edge/EngineStyleH2.java", "DuckDB", 9,
-                    "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"),
+            // (2026-10-15, registered as measured: the engine-H2 text's crossing, EngineStyleH2.java naming DuckDB on 9
+            // lines for ten DuckDB-only functions spelled DuckDB's way, left 2026-11-19 with its file -- A2 of the
+            // compatibility program, stage A ratified by the user 2026-11-19, legend-engine's SQL text deleted, CP-4.)
             // (2026-10-18, the dialect program's Phase 7: the warehouse's two crossings, its Postgres catalog tests
             // naming DuckDB, left this list: the warehouse is a host owner, its engine DuckDB (DatabaseOwners).)
             // 2026-10-18 (registered as measured, the dialect program's Phase 7, when the guards first read testing/):
@@ -194,7 +190,8 @@ class DialectOwnerExclusivityTest {
             }
         }
         // the dialect classes: SqlDialect's implementations in sql/dialect, by their extends chains, and the edge's
-        // (2026-11-13, phase D's O3: legend-engine's text printers, EngineStyle*, moved to com.legend.edge)
+        // (2026-11-13, phase D's O3: legend-engine's text printers, EngineStyle*, moved to com.legend.edge; they went
+        // with that text, A2, 2026-11-19)
         Set<String> dialects = new java.util.HashSet<>(Set.of("SqlDialect", "AnsiSqlRenderer"));
         Pattern declared = Pattern.compile("\\bclass\\s+(\\w+)\\s*(?:extends\\s+(\\w+))?([^{]*)\\{");
         Pattern implementsDialect = Pattern.compile("\\bimplements\\b.*\\bSqlDialect\\b", Pattern.DOTALL);
@@ -225,7 +222,9 @@ class DialectOwnerExclusivityTest {
                 }
             }
         });
-        assertTrue(dialects.containsAll(Set.of("DuckDb", "MySql", "H2", "EngineStyleComposite")),
+        // EngineStyleComposite (three classes deep) left the set 2026-11-19 with the printers (A2 of the compatibility
+        // program, CP-4); MySql (two deep, through MariaDb) is the chain the discovery is held to now
+        assertTrue(dialects.containsAll(Set.of("DuckDb", "MySql", "H2", "MariaDb")),
                 "the dialect classes were not all found by their extends chains: " + dialects);
         assertTrue(failures.isEmpty(), "a dialect is decided by asking which class it is: let the dialect answer"
                 + " (a method on SqlDialect it overrides), " + failures);

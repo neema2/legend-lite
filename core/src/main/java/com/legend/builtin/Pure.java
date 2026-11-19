@@ -413,7 +413,8 @@ public final class Pure {
          *  (extensionDefaults.pure mapToDBUnitType) while the new
          *  sqlDialectTranslation defaults print lowercase — TemporalFrame
          *  stamps this on milestoning window-condition dates so
-         *  EngineStyleH2 can render the channel it is quoting. */
+         *  the engine-text printer could render the channel it was quoting
+         *  (that printer went with A2, 2026-11-19). */
         public static final String ADJUST_TEMPORAL = PKG + "adjustTemporal";
         /** A time of day in SQL (2026-10-16, the Cypher island's time-of-day leg): {@code timeOf(dateTime)} is the
          *  date-time's time of day, {@code atTime(date, time)} the date-time at that time of that day. Emitted by

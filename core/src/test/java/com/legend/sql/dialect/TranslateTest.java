@@ -3,9 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleComposite;
-import com.legend.edge.EngineStyleDB2;
-import com.legend.edge.EngineStyleH2;
 
 import com.legend.sql.DialectCapability;
 
@@ -70,10 +67,7 @@ class TranslateTest {
         Map<SqlDialect, String> refused = Map.of(
                 new SQLite(), "SQLite",
                 new MariaDb(), "MariaDB",
-                new MySql(), "MySQL",
-                new EngineStyleH2(), "engine text",
-                new EngineStyleDB2(), "engine text",
-                new EngineStyleComposite(), "engine text");
+                new MySql(), "MySQL");
         refused.forEach((dialect, named) -> {
             DialectCapability refusal = assertThrows(DialectCapability.class,
                     () -> dialect.render(translate("aBc", "ABC", "abc")), dialect.getClass().getSimpleName());

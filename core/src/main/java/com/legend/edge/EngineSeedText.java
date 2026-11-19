@@ -55,9 +55,12 @@ public final class EngineSeedText {
                 defaults);
         java.util.List<String> out = new java.util.ArrayList<>();
         for (var sc : named.entrySet()) {
-            // the engine's text spells a schema bare (EngineStyleH2.storedName), quoted or not
-            out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema(sc.getKey(), false)));
-            out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema(sc.getKey(), false)));
+            // the schema's DDL as the dialect writes it, its name quoted where the store declared it quoted, as the
+            // table statements below name it (A2, 2026-11-19: legend-engine's printer spelled every schema bare, so its
+            // text agreed with itself; lite's dialect keeps the declaration)
+            boolean quoted = sc.getValue().values().stream().anyMatch(DatabaseDefinition.TableDefinition::schemaQuoted);
+            out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema(sc.getKey(), quoted)));
+            out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema(sc.getKey(), quoted)));
         }
         out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema("default", false)));
         out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema("default", false)));
@@ -240,8 +243,10 @@ public final class EngineSeedText {
             }
             row.add(cell(cells.get(c), col, table));
         }
+        // the table named as the store declared it, as its DDL above names it (A2, 2026-11-19: legend-engine's printer
+        // spelled every name bare, so its text agreed with itself; lite's dialect keeps the declaration)
         return engineText.render(new com.legend.sql.SqlDml.InsertValues(
-                "default".equals(schema) ? null : schema, table, com.legend.sql.NameQuoting.BARE, columns, quoted,
+                "default".equals(schema) ? null : schema, table, Ddl.quoting(def, schema), columns, quoted,
                 java.util.List.of(row)));
     }
 
@@ -267,17 +272,17 @@ public final class EngineSeedText {
                 || t instanceof RelationalDataType.SemiStructured) {
             return new com.legend.sql.SqlExpr.StringLit(text);
         }
-        if (t instanceof RelationalDataType.Date_) {
-            return new com.legend.sql.SqlExpr.DateLit(text);
-        }
-        if (t instanceof RelationalDataType.Timestamp) {
-            return new com.legend.sql.SqlExpr.TimestampLit(text);
+        // a date's and a timestamp's cell: its text quoted, as the engine's convertValuesToCsvH2 writes it -- a string
+        // the dialect escapes, never a temporal literal over unchecked text (A2, 2026-11-19: legend-engine's printer
+        // quoted them itself, seedCell; lite's dialect writes a temporal literal's text as given, for parsed text alone)
+        if (t instanceof RelationalDataType.Date_ || t instanceof RelationalDataType.Timestamp
+                || t instanceof RelationalDataType.TimestampNs) {
+            return new com.legend.sql.SqlExpr.StringLit(text);
         }
         if (t instanceof RelationalDataType.Time) {
-            return new com.legend.sql.SqlExpr.TimeLit(text);
-        }
-        if (t instanceof RelationalDataType.TimestampNs) {
-            return new com.legend.sql.SqlExpr.TimestampLit(text);
+            // no form in the engine's seed text (legend-engine's printer refused a TIME cell by name, and still)
+            throw new IllegalStateException("setUpDataSQLs: the TIME cell '" + text + "' of column '" + col.name()
+                    + "' in table '" + table + "': the engine's seed text writes no time of day");
         }
         if (t instanceof RelationalDataType.Bit) {
             String b = text.strip().toLowerCase(java.util.Locale.ROOT);

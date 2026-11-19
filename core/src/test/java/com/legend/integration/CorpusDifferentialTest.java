@@ -109,7 +109,7 @@ class CorpusDifferentialTest {
                         sessions.put(backend.name(), conn);
                     }
                     String sql = backend.dialect().render(
-                            com.legend.Compiler.lowerResolved(vs, ctx, rt, false));
+                            com.legend.Compiler.lowerResolved(vs, ctx, rt));
                     actualRows = run(conn, sql, header);
                 } catch (Exception e) {
                     // a service legend-lite cannot render or run is judged like a wrong answer: named, with its

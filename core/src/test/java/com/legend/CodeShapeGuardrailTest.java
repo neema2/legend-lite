@@ -199,10 +199,9 @@ class CodeShapeGuardrailTest {
             // lifecycle as the session's connection (SessionState lives in a weak map keyed by it). The body
             // driver's nested Established.dirty before, moved to the seam
             "SessionState.dirty",
-            "EngineStyleH2.frameDepth",
-            // anonymous-subselect nesting cursor (bare DISTINCT-key
-            // spelling scope) — same lifecycle as frameDepth
-            "EngineStyleH2.anonDistinctDepth",
+            // EngineStyleH2.frameDepth and EngineStyleH2.anonDistinctDepth (the printer's frame and anonymous-subselect
+            // nesting cursors) left 2026-11-19 with their class: A2 of the compatibility program (stage A ratified by the
+            // user 2026-11-19) deleted legend-engine's SQL text printers, CP-4
             // mapping-section context for AggregationAware span-shift
             // emulation: set once at parse entry / per ~modelOperation
             // view — same lifecycle as a parser cursor
