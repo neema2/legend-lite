@@ -132,3 +132,23 @@ code, PureText's 263 duplicated lines), PH-1, PH-6, ARCH-9 (corpus only).
 
 The order: A1 + A2 + R11(b) as one small PR (days 0-1) beside C1-C3; then three tracks in parallel: B1, B2 -> B3, and
 A3-A8; R4 early in B1.
+
+## 9. Found after the merge (2026-11-19), queued
+
+PR #118 merged to main as b75d6c73a (the user's word, 2026-11-19 ~01:35 UTC); main's CI green on the re-run
+(Maven Central 429s and one Windows markets_test timeout were environmental). The compatibility program moved to its
+own owner session (`docs/records/compat-program-handoff-2026-11-19.md`); this list is the product side's.
+
+| Item | What | Source |
+|---|---|---|
+| PR #121 | Q8, Q9 (+ N-b, N-c), R11(b): open; its review found two Q8 blockers: a whole value written as text ("5.00", SQLite's scaled DECIMAL) refused (being fixed), and R-a (the fraction under an Integer property) awaiting the user's ruling | the PR's xhigh review |
+| PR #121's follow-ups | F1 Python reads every plan's columns by position (as Java's runner does; the tab reads by name); F2 some query/run LOAD failures still answer differently from Java; F3 `redacted()` drops a raise's kind and where; F4 Python re-implements Java's classifier; F6 the tab and Python answer a fraction's text under an Integer column (N-a); F7 the judges disagree on that fraction (G2); F8 the Python door is a marker, bypassable; F9 precise Integer subtypes not covered; F10 Q8's graphFetch route untested | the PR's review |
+| Parity: substring | lite answers a negative substring start differently on H2 and DuckDB (DuckDB's SubstringClamp lifts it to 1; H2 counts from the end) | H3 |
+| Parity: firstDayOfWeek | lite answers 2014-12-01 (Monday) on DuckDB and 2014-11-30 (Sunday) on H2; Pure's firstDayOfWeek is Monday; the date_trunc('week') lowering differs by database; hidden on DuckDB by the engine-text verdict | B2's CP-4 probe |
+| TS warehouse binds | the TypeScript warehouse client writes a whole Float parameter as "2" (JSON.stringify), so the server binds BIGINT (the Java client is fixed on Q2's branch) | Q2 |
+| Q2's residue | an H2 server session is still sent a file load (the driver name equals the embedded one); the fix is a "remote" fact recorded where exec opens the session; the upload-then-read delivery is the real follow-up | Q2 |
+| Register misquotes | S138 (compiled CoreHelper.acos raises, it does not answer NaN) and S63 (cites a commented-out line) | H1 |
+| currentUser | Python answers GET only, with the local user; Java answers any method with "anonymous" | H4 |
+| The checks lane | grew from 8-10 to 13-18 minutes on Linux with #118's guard tests (guardrails_edge, census_edge, the lean SQL baseline, the cast census); bring it back under 10 | main's CI timings |
+| Manual heavy reds (pre-existing, red on main before #118) | update_reference_lane_test (out of date), manifest_world_census (28 > 27), timeseries_sql_measure and ts_examples_measure (statements outside a run), ts_scale_measure (2 SQL-size bounds; #118 fixed two), ts_line_spike_test, seam_benchmark_small_heap (H2 out of memory at the small heap), requirements.test (lock file) | the heavy round, checked at 4dfbb5b76 |
+| markets_test on Windows | //python:markets_test timed out once on main and once on PR #121; passed on re-run; to confirm it is not the Python read path | main's and #121's CI |
