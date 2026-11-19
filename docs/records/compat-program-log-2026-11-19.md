@@ -1548,3 +1548,9 @@ who confirms or changes phases 1-3.
     targets per push in `pct_channel_b`; the 5 channel A LITE targets in `//gates:heavy` unless they fit `pct_duckdb`
     under ~11 minutes on every OS; FIX the AdjustBy four (cause 2 is a G10 break, not to be ledgered); stop if the fix
     needs a hook or a mode or grows a pinned judge file; every move named in the PR body with a summary by class.
+- **~14:10 UTC, the judges: the size words follow H13's shape** (H10 §9.4 at `6c0a5889`; H13 §16): the refusal is the
+  1-operand placed raise site (SIZE_NOT_MULTIPLICITY, `[Text(bound)]`), raised as a `DataError` carrying the record and
+  worded by the existing `Hearing.caughtMessage`; no new record kind, the same deletions, about 0.25 day in 2.2b. **One
+  behaviour change for the user's word, at B3's PR:** today the refusal is an `IllegalStateException` that `assertError`
+  does not catch; as a `DataError` it is caught, as upstream's `assertError` catches `PureExecutionException` (closer to
+  upstream; reach 0 on the whole PCT net and both corpus lanes, H13 measured). Added to stage B's list.
