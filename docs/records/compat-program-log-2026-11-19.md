@@ -305,3 +305,18 @@ who confirms or changes phases 1-3.
     changes no runnable corpus verdict. Of the 148 tests legend-engine excludes (ExcludeAlloy 96, ToFix 52), lite on H2
     agrees with Pure's expected value in 44 and with the authors' value in 13, contradicts the test in 25, and refuses
     56. The 4 H2-only contradictions are a Float printed `100000` against `100000.0` (S20's class).
+- **~11:37 UTC, B1-R's H7 part 2** (record pushed on `claude/compat-engine-lane`):
+  - **the oracle sample: 21 of 21 rows agree with legend-engine's manifests**, asked of legend-engine 4.145.0 itself
+    (DuckDB 11, including its own wrong answers reproduced: `indexOf 'quick'` = 5, `pow(3.0, 2)` = 27.0, `round(-16.5)`
+    = -17; H2 relation 10, `asOfJoin` and `pivot` refused in the manifest's words). So the manifests are a trustworthy
+    oracle. Method limit: each sampled operation was sent as a pure/v1 request over the oracle's seed;
+  - **the batteries, permanent:** 49 requests (H3's 25 over the desk column, plus the same 24 over a literal).
+    - heavy half: `//tools/engine-runner:batteries_oracle_test`, which re-asks legend-engine and pins its answers;
+    - per-push half: `//pct:batteries_test` in `//gates:pct_duckdb`, with no legend-engine JVM; lite answers through
+      pure/v1's shipped route;
+    - today: H2 AGREE 46, BOTH_FAIL 1, DIFFER 2 (3-argument `indexOf`); DuckDB AGREE 31, DIFFER 18 (16 starts at or
+      below 0, plus 2 3-argument `indexOf`): H3's 16 of 25, exactly;
+  - **the per-push cost, measured:** the ENGINE lane is 6 actions, 272.7 s serial, about 1.5 to 2 minutes of wall time
+    on a 16 GB Linux runner (3 at once) and 4.5 minutes on the 7 GB macOS runner; each action asks 4 GB but peaks at
+    1.6-1.8 GB. The batteries' per-push half is 7.7 s; the heavy half 34 s;
+  - a visibility change only: core's trades model export gains `//pct`. `EDGE_TEST_SRCS` is untouched.
