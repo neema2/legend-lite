@@ -155,7 +155,9 @@ class OneFoldedReader(unittest.TestCase):
         with self.assertRaises(OSError) as failed:
             _home._answered('ERR\n{"kind":"internal","message":"IllegalStateException: the folder is gone"}')
         self.assertEqual(str(failed.exception), 'internal: IllegalStateException: the folder is gone')
-        self.assertEqual(_home._answered('OK\n204\ntext/plain\n'), (204, ''))
+        # the stores' own fold: OK, its status and its body (SavedStores, ModelHome)
+        self.assertEqual(_home._answered('OK\n204\n'), (204, ''))
+        self.assertEqual(_home._answered('OK\n404\n{"kind":"query_not_found"}'), (404, '{"kind":"query_not_found"}'))
 
 
 class TheProductsKinds(unittest.TestCase):

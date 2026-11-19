@@ -100,13 +100,12 @@ public final class TypeFacts {
                 .append("export const PIVOT_SEPARATOR = '")
                 .append(Type.RelationType.PIVOT_SEPARATOR.replace("\\", "\\\\").replace("'", "\\'"))
                 .append("';\n\n")
-                .append("/** LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer\n")
-                .append(" *  carries in its schema's or a field's metadata, never a literal of the host's own. */\n")
-                .append("export const ARROW_KEYS = {\n");
+                .append("// LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer\n")
+                .append("// carries in its schema's or a field's metadata, never a literal of the host's own -- one constant each, so\n")
+                .append("// a page's bundle carries the keys it reads alone.\n");
         for (Map.Entry<String, String> k : com.legend.result.ArrowKeys.all().entrySet()) {
-            out.append("  ").append(k.getKey()).append(": '").append(k.getValue()).append("',\n");
+            out.append("export const ARROW_KEY_").append(k.getKey()).append(" = '").append(k.getValue()).append("';\n");
         }
-        out.append("} as const;\n");
         return out.toString();
     }
 
@@ -182,7 +181,7 @@ public final class TypeFacts {
                 .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("'\n\n")
                 .append("# LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer\n")
                 .append("# carries in its schema's or a field's metadata, never a literal of the host's own. The same as DataCube's\n")
-                .append("# (lite-facts.ts ARROW_KEYS).\n");
+                .append("# (lite-facts.ts ARROW_KEY_*).\n");
         for (Map.Entry<String, String> k : com.legend.result.ArrowKeys.all().entrySet()) {
             out.append("ARROW_KEY_").append(k.getKey()).append(" = '").append(k.getValue()).append("'\n");
         }

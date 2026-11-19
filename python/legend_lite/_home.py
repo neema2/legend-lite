@@ -175,9 +175,8 @@ def _answered(said: str) -> tuple[int, str]:
     """A store's or the model home's folded HTTP answer, its status and body, read by the one reader (``_folded``; H4's
     P3, 2026-11-19: until then by the layout retired on 2026-11-17, so a refusal surfaced as its raw JSON text); the
     library's refusal in its place raised as a failure of the library's (``OSError``) in the words it says."""
-    from ._folded import LegendError, unfold_http
+    from ._folded import LegendError, unfold_status
     try:
-        status, _, answered = unfold_http(said)
+        return unfold_status(said)
     except LegendError as refused:
         raise OSError(f'{refused.kind}: {refused.message}') from None
-    return status, answered

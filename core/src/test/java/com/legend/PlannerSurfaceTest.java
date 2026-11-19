@@ -219,6 +219,15 @@ class PlannerSurfaceTest {
             door("tsItem", p("request", REQUEST)),
             door("tsStatement", p("request", REQUEST)),
             door("refusalKinds"),
+            // 2026-11-19 (H4's P4 and P5, the user's CP-13 "Yes to the six"; the orchestrator's approval of ~12:36 UTC
+            // that day, under the user's delegation of small explained steps): lite's own rules a host held by hand, held
+            // once -- query/run's request read as the server reads it, lite's routes answered as the server answers them
+            // (its user the host's), and query/run's answer from a host's own rows written by the server's writer, its
+            // Arrow facts the server's
+            door("queryRunRequest", p("request", REQUEST)),
+            door("liteRoute", p("method", OPTION), p("path", ROUTE), p("body", REQUEST), p("user", VALUE)),
+            door("queryRunJson", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            door("queryRunArrowFacts", p("plan", PLAN_DATA)),
             // a host's file read into its database: the file by the name the host keeps it under, its digest
             door("fileLoad", p("request", REQUEST), fields("databaseType", NAME, "file", OBJECT, "name",
                     DATA_REFERENCE, "digest", DATA_REFERENCE, "size", VALUE, "format", OPTION, "into", OBJECT,
@@ -745,7 +754,13 @@ class PlannerSurfaceTest {
             Map.entry("lite_ts_item", "tsItem"), Map.entry("lite_ts_statement", "tsStatement"),
             Map.entry("lite_query_plan_held", "queryPlanHeld"), Map.entry("lite_query_type_held", "queryTypeHeld"),
             // the lite API spec's §3 (2026-11-17): lite's error kinds by name, read by a host, never its own constant
-            Map.entry("lite_refusal_kinds", "refusalKinds")));
+            Map.entry("lite_refusal_kinds", "refusalKinds"),
+            // 2026-11-19 (H4's P4 and P5, the user's CP-13; the orchestrator's approval of ~12:36 UTC that day, under the
+            // user's delegation of small explained steps): Python's query/run request, its lite routes, and its query/run
+            // answer, each the server's
+            Map.entry("lite_query_run_request", "queryRunRequest"), Map.entry("lite_route", "liteRoute"),
+            Map.entry("lite_query_run_json", "queryRunJson"),
+            Map.entry("lite_query_run_arrow_facts", "queryRunArrowFacts")));
 
 
     /** The native library's exports that are no planner door, each with what it is instead. */

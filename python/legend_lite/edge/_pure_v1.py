@@ -109,13 +109,13 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
     said (500) -- as the product's store at lite's mount is answered (engine._stored, _home.store_call)."""
     from .._home import THIS_USER
     from ..engine import Answer, _said
-    from .._folded import unfold_http
+    from .._folded import unfold_status
     try:
         with locked(folder):
             said = _on_compiler_threads(lambda: engine_library().call(entry, str(folder), *asked, THIS_USER))
         # read by the product's one reader (H4's P3, 2026-11-19: until then the layout retired on 2026-11-17, so a
         # refusal of the library's was said as its raw JSON text); a refusal in its place said below in its own words
-        status, _, answered = unfold_http(said)
+        status, answered = unfold_status(said)
     except Exception as failure:
         traceback.print_exc()
         return _said(500, f'{type(failure).__name__}: {failure}')

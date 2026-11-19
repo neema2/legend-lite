@@ -64,15 +64,14 @@ export const TYPE_FACTS: Readonly<Record<string, TypeFact>> = {
 /** How a pivot's generated column name joins its parts (Type.RelationType.PIVOT_SEPARATOR). */
 export const PIVOT_SEPARATOR = '__|__';
 
-/** LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer
- *  carries in its schema's or a field's metadata, never a literal of the host's own. */
-export const ARROW_KEYS = {
-  SHAPE: 'legend.shape',
-  TYPE: 'legend.type',
-  MULTIPLICITY: 'legend.multiplicity',
-  SLOT: 'legend.slot',
-  PRECISION: 'legend.precision',
-  KIND: 'legend.kind',
-  PLAN: 'legend.plan',
-  RECEIPT: 'legend.receipt',
-} as const;
+// LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer
+// carries in its schema's or a field's metadata, never a literal of the host's own -- one constant each, so
+// a page's bundle carries the keys it reads alone.
+export const ARROW_KEY_SHAPE = 'legend.shape';
+export const ARROW_KEY_TYPE = 'legend.type';
+export const ARROW_KEY_MULTIPLICITY = 'legend.multiplicity';
+export const ARROW_KEY_SLOT = 'legend.slot';
+export const ARROW_KEY_PRECISION = 'legend.precision';
+export const ARROW_KEY_KIND = 'legend.kind';
+export const ARROW_KEY_PLAN = 'legend.plan';
+export const ARROW_KEY_RECEIPT = 'legend.receipt';

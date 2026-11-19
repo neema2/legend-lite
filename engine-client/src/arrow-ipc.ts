@@ -11,7 +11,7 @@ import { makeData, makeVector, Table, tableFromIPC, tableToIPC, Utf8, type Vecto
 
 import type { ArrowishTable } from './duckdb.ts';
 // lite's Arrow metadata keys, generated from the product's (result.ArrowKeys; H4's P10, 2026-11-19)
-import { ARROW_KEYS } from './generated/lite-facts.ts';
+import { ARROW_KEY_SHAPE, ARROW_KEY_TYPE } from './generated/lite-facts.ts';
 
 /** One Arrow IPC stream (the stream format) as the table a connection's `query` answers. */
 export function arrowIpcTable(stream: Uint8Array): ArrowishTable {
@@ -39,11 +39,11 @@ export function arrowIpcTyped(stream: Uint8Array): {
   readonly table: ArrowishTable;
 } {
   const { table, metadata, fields } = arrowIpcAnswer(stream);
-  const shape = metadata.get(ARROW_KEYS.SHAPE);
-  if (shape === undefined) throw new Error(`an Arrow answer with no ${ARROW_KEYS.SHAPE}: not lite's query/run answer`);
+  const shape = metadata.get(ARROW_KEY_SHAPE);
+  if (shape === undefined) throw new Error(`an Arrow answer with no ${ARROW_KEY_SHAPE}: not lite's query/run answer`);
   const columns = fields.map((f) => {
-    const type = f.metadata.get(ARROW_KEYS.TYPE);
-    if (type === undefined) throw new Error(`the Arrow answer's column ${f.name} carries no ${ARROW_KEYS.TYPE}: not lite's typed column`);
+    const type = f.metadata.get(ARROW_KEY_TYPE);
+    if (type === undefined) throw new Error(`the Arrow answer's column ${f.name} carries no ${ARROW_KEY_TYPE}: not lite's typed column`);
     return { name: f.name, type };
   });
   return { shape, columns, table };

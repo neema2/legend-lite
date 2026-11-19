@@ -62,7 +62,7 @@ RAISE_TOKEN = '\u001cLG#'
 
 # LITE'S ARROW METADATA KEYS (result.ArrowKeys; H4's P10, 2026-11-19): every key a product Arrow answer
 # carries in its schema's or a field's metadata, never a literal of the host's own. The same as DataCube's
-# (lite-facts.ts ARROW_KEYS).
+# (lite-facts.ts ARROW_KEY_*).
 ARROW_KEY_SHAPE = 'legend.shape'
 ARROW_KEY_TYPE = 'legend.type'
 ARROW_KEY_MULTIPLICITY = 'legend.multiplicity'

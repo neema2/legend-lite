@@ -6,7 +6,7 @@ package com.legend.result;
 /**
  * LITE'S ARROW METADATA KEYS, ONE SOURCE (H4's P10, the user's CP-13 of 2026-11-19): every key a product Arrow answer
  * carries in its schema's or a field's metadata, written here once and GENERATED for the hosts that write or read them
- * (engine-client's lite-facts.ts {@code ARROW_KEYS}, Python's _type_facts.py {@code ARROW_KEY_*}: TypeFacts, diff-tested)
+ * (engine-client's lite-facts.ts and Python's _type_facts.py, {@code ARROW_KEY_*} each: TypeFacts, diff-tested)
  * -- until then a literal typed in each language. legend-engine's keys (its builder, activities and columns) are the
  * edge's, never here.
  */

@@ -36,7 +36,7 @@
 
 import { hostAnswer } from '../../../engine-client/src/doors/host-answer.ts';
 // lite's Arrow metadata keys, generated from the product's (result.ArrowKeys; H4's P10, 2026-11-19)
-import { ARROW_KEYS } from '../../../engine-client/src/generated/lite-facts.ts';
+import { ARROW_KEY_PLAN, ARROW_KEY_RECEIPT } from '../../../engine-client/src/generated/lite-facts.ts';
 import { folded as foldedAnswer, foldedRefusal } from '../../../engine-client/src/folded.ts';
 import { typedByPlan } from '../../../engine-client/src/query-engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
@@ -345,11 +345,11 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
       if (signal?.aborted) throw e;
       throw new QueryFailure(new Error(`the engine's rows could not be read: ${e instanceof Error ? e.message : String(e)}`), query);
     });
-    const said = metadata.get(ARROW_KEYS.PLAN);
+    const said = metadata.get(ARROW_KEY_PLAN);
     if (said === undefined) throw new QueryFailure(new Error('the engine answered rows without the plan they are of'), query);
     const plan = readPlan(said, query);
     // where the rows were read, as Python says it: a warehouse table's on the warehouse, its statement its own (C3)
-    const theirs = metadata.get(ARROW_KEYS.RECEIPT);
+    const theirs = metadata.get(ARROW_KEY_RECEIPT);
     const receipt: Receipt = theirs !== undefined ? JSON.parse(theirs) as Receipt
       : { plane: 'engine', where: `the engine at ${hostOf(link.baseUrl)}` };
     try {

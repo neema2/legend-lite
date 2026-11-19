@@ -51,7 +51,7 @@ const offers = (word: string) => {
 
 describe('a page on Python, planned by Python', () => {
   it("sends Python the query in one plan-and-run, with the token, and reads Python's own planner's refusal", async () => {
-    const { link, calls } = python(() => json({ plan: 'ERR\nCOMPILATION\nno such class' }));
+    const { link, calls } = python(() => json({ plan: 'ERR\n{"kind":"compile","message":"no such class"}' }));
     await assert.rejects(pythonRunner(link, MODEL, RUNTIME).run(QUERY, { epoch: 1 } as CubeSnapshot), /no such class/);
     assert.equal(calls.length, 1);
     assert.equal(calls[0]!.path, '/plan-and-run.json');
@@ -115,7 +115,7 @@ describe('a page on Python, planned by Python', () => {
 
 describe("where Python reads a model's rows: a saved query's are its project's own, said so (F28)", () => {
   it('asks plan-and-run and the dry run for a project\'s rows only when the base is a saved query\'s', async () => {
-    const { link, calls } = python(() => json({ plan: 'ERR\nCOMPILATION\nno such class' }));
+    const { link, calls } = python(() => json({ plan: 'ERR\n{"kind":"compile","message":"no such class"}' }));
     await assert.rejects(pythonRunner(link, MODEL, RUNTIME, { project: true }).run(QUERY, { epoch: 1 } as CubeSnapshot));
     await assert.rejects(pythonRunner(link, MODEL, RUNTIME).run(QUERY, { epoch: 1 } as CubeSnapshot));
     assert.deepEqual(calls.map((c) => (JSON.parse(c.body) as { project?: boolean }).project), [true, undefined]);

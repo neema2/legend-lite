@@ -1,7 +1,8 @@
 """THE NATIVE LIBRARY'S ANSWERS, READ ONCE (H4's P3, the user's CP-13 of 2026-11-19): every entry answers in the one text
 encoding both strings-only hosts speak (``planner.Folded``, written once in Java) -- ``OK`` and the answer, a refusal as
 ``ERR`` and lite's error ``{kind, message, where?, raise?}`` (the lite API spec's §3), an HTTP answer as ``OK``, its
-status, its media type and its body -- and this module is Python's one reader of it, and its one writer of a refusal.
+status, its media type and its body, a store's answer as ``OK``, its status and its body -- and this module is Python's
+one reader of it, and its one writer of a refusal.
 Until then three readers still read the layout retired on 2026-11-17 (``ERR``, a kind, a message: ``_home``'s two and
 the edge's store), so a refusal surfaced as its raw JSON text, and eight more read the tag by hand.
 
@@ -59,6 +60,16 @@ def unfold_http(text: str) -> tuple[int, str, str]:
     if not (status.isascii() and status.isdigit() and media):
         raise OSError(f'the native library answered no HTTP answer: {text[:120]!r}')
     return int(status), media, body
+
+
+def unfold_status(text: str) -> tuple[int, str]:
+    """A store's or the model home's folded answer (``OK``, its status and its body: the stores' and the SDLC's entries,
+    ``SavedStores``, ``ModelHome``), its status and body; a refusal in its place raised as ``unfold`` raises it."""
+    rest = unfold(text)
+    status, _, body = rest.partition('\n')
+    if not (status.isascii() and status.isdigit()):
+        raise OSError(f'the native library answered no status: {text[:120]!r}')
+    return int(status), body
 
 
 def refusal(error: LegendError) -> str:
