@@ -2282,3 +2282,11 @@ who confirms or changes phases 1-3.
   slice's prerequisites named (the whole value's `.0` on Snowflake, MySQL and MongoDB; B2's presenter claiming every
   last-step toString on the edge's routes, proven on a route; until then the edge's toString SQL stays). H14 stopped.
 - **~18:36 UTC, the empty cell ruled** (§1's row): `null` in a printed table. Written into the final plan's B2 row.
+- **~18:49 UTC, the judges: A4's counts at `e91005cc6`** (on `main`; one invocation, 3,114 s). `//gates:local` GREEN,
+  597 pass and 1 skipped (12 failed on initdb refusing root and passed re-run unprivileged). **Both corpus rosters
+  byte-identical across A4** (the roster diff tests and both verdict tests pass; only `lean-sql-baseline.tsv` moves
+  under `rcorpus/`, for the user's word). PCT channel B: every lane against its pinned roster (DuckDB essential 336/345,
+  grammar 137, relation 469, standard 205, unclassified 93; H2 relation 432/469; SQLite 333/134/458/205/92), unchanged
+  from step 2. Edge integration H2 and SQLite pass; lean SQL both lanes against the re-pinned baseline; all 26 judge
+  targets, the guards, the census and the shrink-only check green. Ready to merge A2 then A5 once A2's head is in; the
+  rosters re-measured on top of A2 then.
