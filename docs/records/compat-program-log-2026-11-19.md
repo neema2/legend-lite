@@ -2842,3 +2842,6 @@ who confirms or changes phases 1-3.
     20 → 21 and one function-type leniency kind, is for the user's word). Merge order given: A2 PR 2 now; the
     translator's pieces; B1's native (the translator's side on piece-1 conflicts; the corpus rosters re-run, never by
     hand); B1-R's wiring; B2's docs.
+- **~21:31 UTC, B2's docs at `db4b9eea6`** (a fast-forward: S383's wording, the product's words, legend-pure's two
+  wrappers and the JDK text, each checked at 5.99.0 and JDK 21.0.13; the product side waits on the unpushed
+  `claude/compat-a3-switch`); `//gates:checks` 197 pass. The judges told to merge this head.
