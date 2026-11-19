@@ -273,3 +273,67 @@ I read the final plan's §3-§5 and §4a, the plain plan's row 1 and H6 §6.3 at
 
 **Verdict: stage A is ready for the user to ratify.** One decision is the user's at ratification: the detector's
 default. My view stands: warn, with the load-time report; refuse by default if the report is not built.
+
+## 7. Stage A and stage B against the rules of record (`e4aafee0`, ~15:30 UTC)
+
+I read `compat-rules-of-record-2026-11-19.md` and the final plan's §2-§5 at `e4aafee0`. Where a step's text was not
+enough, I also read the A3 shape note (`claude/compat-translator-spike` `f4a2dd53`), H13 (`claude/compat-error-records-spike`)
+and `main`'s code.
+
+**Short answer:** one step breaks rule 1 and goes to the user (A3's integer fold). Two steps are worded so that product
+presentation could decide things against rule 2 (B1, B2); restate them. Rule 3 holds, with one reading for the user to
+confirm (B1). Rule 4 holds, but nothing enforces it (A4).
+
+### Rule 1: a value computed outside the database
+
+**A3 breaks it.** The A3 shape note (`:92`, `:589`) makes `FeatureRules.CORRECTED_SUBSTRING` the plain rule for every
+String `substring`. That rule folds integer literals in Java (`lowering/FeatureRules.java:61-70`):
+`new SqlExpr.IntLit(s.value() + 1)` and `new SqlExpr.IntLit(e.value() - s.value())`. This is integer arithmetic done by
+the compiler, beyond rule 1's folds of constant String and Boolean. `substr` already folds this way today; A3 extends it
+to every `substring`.
+
+By the rules page, this stops and goes to the user, with two options:
+- emit `PLUS`/`MINUS` over the literals and let the database fold them (slightly longer SQL); or
+- the user names integer index arithmetic as an allowed compiler fold.
+
+**Nothing else breaks it:**
+- the detector reads types and computes nothing;
+- the door's DuckDB conversion of H2 setup SQL converts input, it computes no value;
+- D2 and the rest of B4 remove Java-side behaviour.
+
+### Rule 2: product presentation deciding anything
+
+**B1, as worded, breaks it for the product side.** "Each side's formatter words them" gives the product a formatter.
+H13 says lite's own sentence is `ErrorKind.sentence + (where == null ? "" : ": " + where)` (`ExecutionPlan.Site.sentence`):
+the kind's fixed text plus a planning-time String. That is compliant as a constant-String fold carried in the plan,
+which the writer only serializes. Restate B1 so: lite's sentence is plan data, and the only formatter is
+compatibility's.
+
+**B2 needs the same restatement.** "The plan names the program's own `toString`/`toCSV` call at a side's root ... each
+audience's run spells it." For lite's own audience, rule 1 says the database spells it: today it is refused by name,
+and that is a product gap. Rule 2 says no Java presenter does. Write that into B2, so a product Java spelling cannot
+come in with the compatibility one.
+
+### Rule 3: compatibility's Java working from anything but lite's typed output
+
+Holds for:
+- B2: printed tables, values and envelopes from typed rows;
+- B3: host-side comparison of typed rows, and the corpus door's rewrites at planning;
+- the referee, which compares rows that two databases computed.
+
+**One reading for the user to confirm.** B1's compatibility sentences print the raise site's operands. These are
+typed literals carried from the plan; H13's `javaPrinted` counts them: a Float, a Decimal, a DateTime or a Boolean that
+the SQL sentence used to have the database print. They are typed values, but they are the plan's literals, not
+something the run computed. Rule 3 holds if a raised error's record (kind, where, typed operands) counts as lite's typed
+output. The user should say that it does.
+
+Computed operands are withheld, never computed in Java. That is right.
+
+### Rule 4: the database judge in compatibility
+
+**A4 makes compatibility host-only.** The corpus is already host-judged (`//spec:judge_host_*`). The legend-engine PCT
+lane's verdict is PCT's own assert (channel A), not lite's database judge (`EngineLaneTable` javadoc).
+
+**But nothing enforces it.** Add to A4 a guard: no legend-pure or legend-engine audience plans a database-judge verdict.
+For example, the test planner refuses `DatabaseAsserts` under a compatibility audience, with a plant. Without it, rule 4
+is a convention and nothing will catch it drifting.
