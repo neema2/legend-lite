@@ -2074,3 +2074,7 @@ who confirms or changes phases 1-3.
   `warehouse`, `//python:markets_test` TIMEOUT in 300 s (the known slow test the markets_test PR fixes, not #125's);
   Linux `core` and most macOS jobs still running or queued. **B2** agreed to S380; it edits the id after its
   `//gates:local` run.
+- **~17:31 UTC, the CI-health worker: the markets_test fix is ready locally** (`claude/compat-markets-test-time`, head
+  `699331ffd`, not pushed). `//python:all` 18 of 18 green. `markets_test` 47.7 s alone on the container (`main`
+  210.6 s), 78.3 s inside the full run beside `engine_test` (247.9 s); Windows' 300 s limit is what failed #125's
+  `warehouse` job. It waits for the user's word in its session to push and open the PR.
