@@ -1420,3 +1420,15 @@ who confirms or changes phases 1-3.
   switching on is B5's, on the user's word. **The one limit** (it counts sites, not identities, so a strand moving
   sites passes): this session's call (14:10), commit each measure's site list beside its pin, landing with the ratchet.
   All of B2's homework is done; its next piece (14:10): a draft of the "differences from legend-engine" page.
+- **~13:45 UTC, the product orchestrator: the user (~13:40, in its session) told it to stop everything that is not
+  compatibility work; all seven product tracks are pausing**, each committing "WIP (paused 2026-11-19)" on its own
+  branch. Four paused things this program depends on:
+  1. **the Maven mirror fix** (`f183b784a`, parent `main` `b75d6c73a`; on `origin/claude/ci-health` as merged
+     `05368270f`): a CI-only downloader config, proven with a forced failure; unblocks #123, #124 and `main`; needs a
+     branch and the user's merge word. **Gates A1.**
+  2. **the window-in-a-list lowering** (`session_0195rQEjkEZDfj2GjXCAhyJr`, `claude/window-list-lowering`). **Gates B2.**
+  3. **the PCT-under-both-judges lane (C3)**, in the judges track (`session_0195rQEn49s2BEcy7BVaoAL4`,
+     `claude/parity-a5`), with the 5 judge-parity fixes. **Gates A1's third net and A4.**
+  4. **the cross-kind `!=` fix**, done at `63421e0a` on `claude/hosts-followups`, not landed. **Gates A3.**
+  The product orchestrator stays reachable for questions. **Put to the user (14:15):** the program takes over 1, 3 and 4
+  now as stage-A prerequisites (and 2 at stage B), each landing on the user's word.
