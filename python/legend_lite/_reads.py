@@ -21,6 +21,7 @@ import pyarrow.ipc
 from ._params import bind
 from ._planned import Database, PlannedSql, Result, send
 from ._plans import Plan, host_rows
+from ._raised import carry_raised
 from ._runframe import current_run, in_run, runs
 from ._types import UnknownType, is_integer, is_model_type
 
@@ -140,6 +141,8 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     redacted = copy.copy(failure)
     redacted.__dict__.clear()
     redacted.args = (out,)
+    # a raise stays its raise: its kind and where kept (F3 of PR #121's review, 2026-11-19)
+    carry_raised(failure, redacted)
     return redacted
 
 

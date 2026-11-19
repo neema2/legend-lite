@@ -138,6 +138,15 @@ def raised_of(failure: BaseException) -> Raised | None:
     return held if isinstance(held, Raised) else None
 
 
+def carry_raised(source: BaseException, copy_: BaseException) -> None:
+    """``source``'s raise facts (:func:`raised_of`) kept on ``copy_``, a copy of it whose attributes were cleared
+    (``_reads.redacted``): a raise's words redacted are still its raise, its kind and where (F3 of PR #121's review,
+    2026-11-19: the copy dropped them, so query/run answered a redacted raise as data of no raise)."""
+    said = raised_of(source)
+    if said is not None:
+        setattr(copy_, _RAISED, said)
+
+
 def wire_name(kind: str) -> str:
     """A raise kind as the wire spells it (the lite API spec's §3: lower camel, as every wire name is, and as Java's
     LiteV1Api spells it): ``DIVIDE_BY_ZERO`` as ``divideByZero``."""
