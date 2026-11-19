@@ -214,11 +214,11 @@ class ProductStatementsTest {
         com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(
                 ((com.legend.protocol.spec.LambdaFunction) raw).body(), com.legend.model.ImportScope.empty(), ctx);
         com.legend.error.NotImplementedException refused = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> Compiler.lowerResolved(resolved, ctx, "s::RT", false));
+                () -> Compiler.lowerResolved(resolved, ctx, "s::RT"));
         assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
         com.legend.protocol.spec.ValueSpecification plain = Compiler.resolveQuery(((com.legend.protocol.spec.LambdaFunction)
                 Compiler.parseQuery("|#>{s::DB.T}#->select(~[ID])")).body(), com.legend.model.ImportScope.empty(), ctx);
-        assertInstanceOf(com.legend.sql.SqlSelect.class, Compiler.lowerResolved(plain, ctx, "s::RT", false));
+        assertInstanceOf(com.legend.sql.SqlSelect.class, Compiler.lowerResolved(plain, ctx, "s::RT"));
     }
 
     /** The plan handles' scans answer "no rows" for a lowering's failure, but never for the raw-SQL refusal, which
@@ -231,7 +231,7 @@ class ProductStatementsTest {
                 + "::executeInDb('select 7 as A', $c).columnNames;\n#>{s::DB.T}#->select(~[ID]);}")).body(),
                 com.legend.model.ImportScope.empty(), ctx);
         com.legend.error.NotImplementedException refusal = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> Compiler.lowerResolved(resolved, ctx, "s::RT", false));
+                () -> Compiler.lowerResolved(resolved, ctx, "s::RT"));
         assertTrue(QueryDoor.isRawSqlRefusal(refusal));
         assertInstanceOf(com.legend.error.RawSqlRefusal.class, refusal);
         assertEquals(false, PlanAllocations.noLineageRows(refusal));

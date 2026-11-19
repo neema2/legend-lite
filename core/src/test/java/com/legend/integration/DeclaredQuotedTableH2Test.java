@@ -8,7 +8,6 @@ import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.edge.EngineSeedText;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.edge.EngineStyleH2;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
@@ -47,33 +46,25 @@ class DeclaredQuotedTableH2Test {
             Runtime q::RT { mappings: [q::M]; connections: [ q::DB: [ c1: q::Conn ] ]; }
             """;
 
-    private static String engineText(EngineStyleH2 printer, String query) {
+    /** The SQL text the compatibility routes print, the edge's H2 dialect's (lite's own since A2 of the compatibility
+     *  program, 2026-11-19: legend-engine's text printers, whose quoted-table alias this file pinned, went under CP-4). */
+    private static String sqlText(String query) {
         ModelContext ctx = Compiler.compileModel(MODEL);
-        return printer.render(com.legend.planner.Lowered.lower(Compiler.query(ctx, query), "q::RT", false).plan())
-                .replace("\n", " ");
+        return com.legend.edge.PureText.dialect(DatabaseType.H2)
+                .render(com.legend.planner.Lowered.lower(Compiler.query(ctx, query), "q::RT", false).plan());
     }
 
-    /** The engine text names a quoted table as the store wrote it, and aliases it by that name. */
-    @Test
-    void theEngineTextAliasesAQuotedTableByItsName() {
-        assertEquals("select \"items_0\".id from (select top 2 * from Items as \"root\") as \"items_0\""
-                        + " where \"items_0\".id > 0",
-                engineText(new EngineStyleH2(), "#>{q::DB.Items}#->limit(2)->filter(r|$r.id > 0)->select(~[id])"));
-        String quoted = engineText(new EngineStyleH2(true), "#>{q::DB.Sales.Orders}#->select(~[id, Amt])");
-        assertTrue(quoted.contains("from \"Sales\".\"Orders\" as \"root\""), quoted);
-        assertFalse(quoted.contains("\"\""), quoted);
-    }
-
-    /** The engine's own setup text spells every statement of a quoted schema and table one way, so it runs on H2,
-     *  and the engine text's query reads the rows it loaded. (Its statements for the {@code default} schema, which H2
-     *  refuses as a keyword, are older than D8 and not this test's: skipped.) */
+    /** The setup text spells every statement of a quoted schema and table one way, so it runs on H2, and the printed
+     *  query reads the rows it loaded. (Its statements for the {@code default} schema, which H2 refuses as a keyword,
+     *  are older than D8 and not this test's: skipped.) */
     @Test
     void theEngineSetupTextRunsAndItsQueryReadsTheRows() throws Exception {
         ModelContext ctx = Compiler.compileModel(MODEL);
         var db = ctx.findDatabase("q::DB").orElseThrow();
         String csv = String.join("\n", "Sales", "Orders", "id,Amt,name", "1,10,a", "2,20,b");
-        List<String> setup = EngineSeedText.setUpDataSqlsText(csv, db, ctx::findDatabase, new EngineStyleH2());
-        String query = engineText(new EngineStyleH2(), "#>{q::DB.Sales.Orders}#->select(~[id, Amt])");
+        List<String> setup = EngineSeedText.setUpDataSqlsText(csv, db, ctx::findDatabase,
+                com.legend.edge.PureText.dialect(DatabaseType.H2));
+        String query = sqlText("#>{q::DB.Sales.Orders}#->select(~[id, Amt])");
         try (Connection c = TestBackends.of(DatabaseType.H2).open();
              Statement s = c.createStatement()) {
             for (String st : setup) {

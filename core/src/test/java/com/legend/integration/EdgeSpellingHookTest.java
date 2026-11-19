@@ -139,7 +139,8 @@ class EdgeSpellingHookTest {
 
     /** S309 (RULED by the user 2026-11-14, DE1 (a)): the product's style writes none of legend-engine's text -- its
      *  upstream plan facet refused by name; the edge's answers it (O3). Since Phase 6's A (2026-11-17) the style names
-     *  no engine-text dialect at all: the printers are the edge's ({@code PureText}), reached through the facet. */
+     *  no engine-text dialect at all: the printers were the edge's ({@code PureText}), reached through the facet, until
+     *  A2 (2026-11-19) deleted them. */
     @Test
     void theProductRefusesEngineTextByNameAndTheEdgeAnswersIt() {
         var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
@@ -147,8 +148,8 @@ class EdgeSpellingHookTest {
         assertTrue(refused.getMessage().contains("UpstreamPlans") && refused.getMessage().contains("compatibility edge's"),
                 refused.getMessage());
         org.junit.jupiter.api.Assertions.assertNotNull(PureText.UPSTREAM.facet(com.legend.planner.UpstreamPlans.class));
-        org.junit.jupiter.api.Assertions.assertNotNull(PureText.engineText(DatabaseType.H2));
-        org.junit.jupiter.api.Assertions.assertNotNull(PureText.enginePlanText(DatabaseType.H2, true, null));
+        // (the edge's printers of legend-engine's text, PureText.engineText and enginePlanText, went 2026-11-19 with
+        // that text: A2 of the compatibility program, CP-4; the facet answers lite's own SQL text since)
     }
 
     @Test

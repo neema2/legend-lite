@@ -13,9 +13,9 @@ import java.util.Set;
 
 /**
  * The H2 EXECUTION dialect (H2_BACKEND.md §12 step 8) — a sibling of
- * {@link DuckDb} extending {@link AnsiSqlRenderer}, NEVER
- * {@link EngineStyleH2} (whose output is byte-pinned to the engine's
- * golden TEXT and stays quarantined). This dialect's contract is
+ * {@link DuckDb} extending {@link AnsiSqlRenderer} (legend-engine's
+ * golden-text printer, which extended it, went with that text: A2 of the
+ * compatibility program, 2026-11-19, CP-4). This dialect's contract is
  * EXECUTABLE SQL for lite's ONE H2, 2.5.252 (the user, 2026-11-05: "I want latest version of H2"; until then core
  * and the corpus ran 2.1.214, legend-engine's own and patched, and PCT's lane 2.4.240 through a second dialect,
  * {@code H2Modern}, chosen by the connected server's version; register S141): every spelling here was probed against
@@ -186,7 +186,7 @@ public class H2 extends AnsiSqlRenderer {
      * words the STOCK parser rejects in alias position (witnessed:
      * {@code AS right} &rarr; syntax error) that the engine's laxer
      * FORK omits. Execution-dialect-only — golden text channels use
-     * {@link #ENGINE_LEXICON} or {@link EngineStyleH2#LEXICON}. */
+     * {@link #ENGINE_LEXICON}. */
     public static final Lexicon LEXICON = new Lexicon('"',
             java.util.stream.Stream.concat(
                     ENGINE_LEXICON.reservedWords().stream(),
@@ -958,8 +958,8 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     /** A DurationUnit's part -> H2 dateadd unit keyword (the
-     * engine's extensionDefaults mapToDBUnitType; duplicated from the
-     * QUARANTINED EngineStyleH2 deliberately — semantic unit data, not
+     * engine's extensionDefaults mapToDBUnitType; once duplicated in
+     * legend-engine's SQL-text printer, deleted with A2, 2026-11-19 — semantic unit data, not
      * golden formatting). */
     private static String dateUnit(com.legend.sql.DatePart unit) {
         return switch (unit) {
@@ -1481,7 +1481,7 @@ public class H2 extends AnsiSqlRenderer {
      *  {@code \x{h…}}, so no character is special inside the class. It used to call
      *  {@code legend_h2_extension_split_part}, a function only the engine's H2 (and our test
      *  harness) installs, so product SQL failed on a plain H2 (execution plan W0.2(a)); that
-     *  spelling stays where it belongs, in {@link EngineStyleH2}'s golden text. A separator that
+     *  spelling was legend-engine's golden text's alone (gone with it, A2, 2026-11-19). A separator that
      *  is not a literal has no spelling here and is refused. */
     @Override
     protected SqlWriter splitPartCall(SqlWriter writer, java.util.List<SqlExpr> a) {

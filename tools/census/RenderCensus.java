@@ -6,7 +6,6 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.SqlQuery;
-import com.legend.edge.EngineStyleH2;
 import com.legend.sql.dialect.SqlDialect;
 import com.legend.testbackend.StorelessRuntime;
 
@@ -28,10 +27,11 @@ import java.util.function.Supplier;
  * {@code lowerResolved} with the storeless runtime on DuckDB declared beside the model ({@code StorelessRuntime.with};
  * since the dialect program's decision D2 the planner refuses a query with no runtime, the language of any raw text
  * being the runtime's database, and until 2026-10-15 this tool passed none, so every case failed to lower on both
- * sides of a comparison) -- and rendered by each dialect: DuckDb, H2, EngineStyleH2,
- * Postgres. One line per case and dialect: the SQL (newlines escaped), or the failure's class and
+ * sides of a comparison) -- and rendered by each database's dialect (legend-engine's text, EngineStyleH2, was a
+ * render target of its own until A2 of the compatibility program deleted it, 2026-11-19). One line per case and dialect: the SQL (newlines escaped), or the failure's class and
  * first message line. Run at two commits against each one's core test deploy jar ({@code //core:core_tests_root_deploy.jar})
- * and diff the outputs: a change to rendering shows as a changed line.
+ * and diff the outputs: a change to rendering shows as a changed line. It compiles against commits from A2 on (its
+ * {@code lowerResolved} lost a flag there); for an older commit, take this file from that commit's history.
  *
  * <p>usage: bazel run //tools/census:render_census -- out.tsv cases.tsv... (paths from where it is run), or
  * java -cp core_tests_root_deploy.jar:. RenderCensus out.tsv cases.tsv... (render.sh, at a commit older than the target)
@@ -46,12 +46,12 @@ public final class RenderCensus {
             cases.addAll(Files.readAllLines(arg(args[i])));
         }
         // every database the platform executes on, by its declared type (the dialect program's Phase 6, 2026-10-16:
-        // until then nine dialects by hand, three missing), and legend-engine's text, a render target of its own
+        // until then nine dialects by hand, three missing); legend-engine's text, a render target of its own, went with
+        // A2, 2026-11-19
         Map<String, Supplier<SqlDialect>> dialects = new LinkedHashMap<>();
         for (DatabaseType type : Databases.implemented()) {
             dialects.put(type.name(), () -> Databases.dialect(type));
         }
-        dialects.put("EngineStyleH2", EngineStyleH2::new);
         Map<String, Object> models = new HashMap<>();
         StringBuilder out = new StringBuilder();
         int n = 0;
@@ -82,7 +82,7 @@ public final class RenderCensus {
                                 ? lf.body() : List.of(parsed);
                 var resolved = Compiler.resolveQuery(statements,
                         new com.legend.model.ImportScope(List.of()), ctx);
-                q = Compiler.lowerResolved(resolved, ctx, StorelessRuntime.RUNTIME, false);
+                q = Compiler.lowerResolved(resolved, ctx, StorelessRuntime.RUNTIME);
             } catch (RuntimeException | StackOverflowError e) {
                 out.append(id).append("\tLOWER\t").append(failure(e)).append('\n');
                 continue;

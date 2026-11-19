@@ -1882,8 +1882,11 @@ class JavaEvalLedgerTest {
                             // 2026-11-18, J40's only-edge-callers census: legend-engine's toSQLString surface's inputs, moved from
                             // planner; a typed read, nothing evaluated
                             "SqlTextInputs.java",
-                            // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
-                            "EngineStyleH2.java", "EngineStyleDB2.java", "EngineStyleComposite.java", "PureText.java",
+                            // the dialects spelled upstream's way (D1.0); legend-engine's text printers (O3) left
+                            // 2026-11-19 (A2 of the compatibility program, stage A ratified by the user 2026-11-19:
+                            // legend-engine's SQL text deleted, CP-4), and lite's own SQL text took their seams: an
+                            // adapter over the edge's dialect, writing no SQL of its own and deciding nothing
+                            "PureText.java", "LiteSqlText.java",
                             // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,
                             // 2026-11-15): a node for a node, no value met
                             "PurePrintForms.java",
@@ -1927,9 +1930,8 @@ class JavaEvalLedgerTest {
                             // moved from testdatagen.TestDataGenerator (J6 of the edge audit, 2026-11-17): plans the
                             // generator's fetches for the edge's text, decides nothing, runs nothing
                             "TestDataFetches.java",
-                            // legend-engine's text dialect type, moved from com.legend.sql.dialect (Phase 6's B3,
-                            // 2026-11-17): an interface its printers implement, decides nothing
-                            "EngineTextDialect.java",
+                            // EngineTextDialect.java (legend-engine's text dialect type, here since Phase 6's B3,
+                            // 2026-11-17) left 2026-11-19 with its printers (A2 of the compatibility program, CP-4)
                             // the referee's raw-SQL ledger (Raw, FileRead, Recorder), moved from sql.dialect's
                             // RawSqlBoundary (Phase 6's B4 (i), 2026-11-17): records the statements run, decides nothing
                             "RawLedger.java",

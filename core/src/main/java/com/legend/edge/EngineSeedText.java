@@ -55,7 +55,7 @@ public final class EngineSeedText {
                 defaults);
         java.util.List<String> out = new java.util.ArrayList<>();
         for (var sc : named.entrySet()) {
-            // the engine's text spells a schema bare (EngineStyleH2.storedName), quoted or not
+            // the schema's DDL as the dialect writes it (A2, 2026-11-19: legend-engine's printer spelled it bare)
             out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema(sc.getKey(), false)));
             out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema(sc.getKey(), false)));
         }

@@ -15,6 +15,8 @@ public final class PlantedHostEdgeReach {
     }
 
     public static Class<?> reach() {
-        return com.legend.edge.EngineTextDialect.class;
+        // an edge type the host may not name: PureText since 2026-11-19 (A2 of the compatibility program; it named
+        // EngineTextDialect, deleted with legend-engine's SQL text)
+        return com.legend.edge.PureText.class;
     }
 }

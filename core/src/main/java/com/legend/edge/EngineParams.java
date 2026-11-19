@@ -22,7 +22,7 @@ import java.util.Set;
  * legend-engine's plan-TEMPLATE parameters, the edge's own table (the audit's J31, 2026-11-18, the orchestrator's
  * ruling: no edge node in the product's MIR -- J28's pattern, product MIR plus edge-held data). Each parameter lowers
  * to a plain {@link SqlExpr.PlanParam} of its name, its type {@code UNKNOWN} (a template binds nothing); what only
- * the FreeMarker template knows is held here, by name, and read by the edge's printers ({@link EngineTextDialect#params})
+ * the FreeMarker template knows is held here, by name, and read by the edge's plan text ({@link LiteSqlText#params})
  * and {@link PlanEnumForm}: an enumeration's mapping function ({@code enumMap_<mapping>_<enum>}), and the temp-table
  * protocol's wrapper variable, spliced bare ({@code ${inFilterClause_X}}, {@link InProtocol}). A field read through a
  * parameter ({@code $p.a.b}) is legend-engine's dotted placeholder {@code ${p.a.b}}: the edge resolves it before

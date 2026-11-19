@@ -341,7 +341,7 @@ class StressTest10K {
 
                 phase = "typeCheck";
                 t = System.nanoTime();
-                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);
+                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT");
                 typeUs = (System.nanoTime() - t) / 1000;
                 // Post-big-bang: TypeInfo sidecar is replaced by TypedSpec HIR.
                 // Leave these diagnostic counters at zero until the stress harness is
@@ -386,7 +386,7 @@ class StressTest10K {
                         com.legend.testing.Own.spec(query));
                 parseNs += System.nanoTime() - t;
                 t = System.nanoTime();
-                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);
+                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT");
                 typeNs += System.nanoTime() - t;
                 t = System.nanoTime();
                 // resolve is folded into the lowering above

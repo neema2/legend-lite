@@ -292,35 +292,6 @@ public final class PureText {
         return new SiteWordsRecorder(template);
     }
 
-    /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
-     *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). A fresh printer per use: a dialect keeps state while
-     *  it writes a statement (moved here from the planner's {@code EngineText}, phase D, 2026-11-12). */
-    public static EngineTextDialect engineText(DatabaseType type) {
-        return switch (type) {
-            case H2 -> new EngineStyleH2();
-            case DB2 -> new EngineStyleDB2();
-            case Composite -> new EngineStyleComposite();
-            case DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, MongoDB ->
-                    throw new com.legend.error.NotImplementedException("toSQLString for DatabaseType." + type
-                            + " — only the H2, DB2 and Composite engine-style renderers are built");
-        };
-    }
-
-    /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
-     *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
-    public static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
-            @com.legend.base.Nullable String timeZone) {
-        return switch (type) {
-            case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
-            case DB2, Composite -> new EngineStyleDB2(quoteIdentifiers, timeZone);
-            case DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, MongoDB ->
-                    throw new com.legend.error.NotImplementedException("plan text for DatabaseType." + type
-                            + " — only the H2 and DB2-family engine-style renderers are built");
-        };
-    }
-
     /** The edge's dialect of {@code type}; a database the product has no dialect for refused by name, as the
      *  product's own source refuses it. */
     public static SqlDialect dialect(DatabaseType type) {

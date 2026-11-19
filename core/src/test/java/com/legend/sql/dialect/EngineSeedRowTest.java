@@ -3,8 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleH2;
-
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.DatabaseDefinition;
@@ -40,7 +38,7 @@ class EngineSeedRowTest {
         ModelContext ctx = Compiler.compileModel(MODEL);
         DatabaseDefinition top = ctx.findDatabase("s::Top").orElseThrow();
         return EngineSeedText.setUpDataSqlsText("default\nT\nID,NAME,D,TS,B,N\n" + csvRows, top, ctx::findDatabase,
-                new EngineStyleH2());
+                com.legend.edge.PureText.dialect(com.legend.model.ConnectionDefinition.DatabaseType.H2));
     }
 
     private static String insert(String csvRow) {
@@ -84,6 +82,6 @@ class EngineSeedRowTest {
         ModelContext ctx = Compiler.compileModel(MODEL);
         DatabaseDefinition top = ctx.findDatabase("s::Top").orElseThrow();
         assertThrows(IllegalStateException.class, () -> EngineSeedText.setUpDataSqlsText("default\nT\nID,COLOUR\n1,red\n", top,
-                ctx::findDatabase, new EngineStyleH2()));
+                ctx::findDatabase, com.legend.edge.PureText.dialect(com.legend.model.ConnectionDefinition.DatabaseType.H2)));
     }
 }

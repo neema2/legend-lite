@@ -392,8 +392,8 @@ public final class PlatformTypes {
      * NORMALIZES it to the ordinary execute frame by peeling the plan
      * argument to its executionPlan(...) build (same positional arg
      * shape: query, mapping, runtime, extensions) — one execution
-     * semantics, the one router; plan TEXT is engine-text
-     * (EngineStyleH2) and never executes on the session connection. */
+     * semantics, the one router; plan TEXT is printed text
+     * (lite's own SQL since A2, 2026-11-19) and never executes on the session connection. */
     public static final String EXECUTION_PLAN_EXECUTE =
             "meta::pure::executionPlan::execute";
 

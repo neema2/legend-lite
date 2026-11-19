@@ -3,9 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleComposite;
-import com.legend.edge.EngineStyleDB2;
-import com.legend.edge.EngineStyleH2;
 
 import com.legend.sql.DialectCapability;
 
@@ -120,8 +117,7 @@ class TempTableAsTest {
     @Test
     void everyOtherDialectRefusesIt() {
         for (SqlDialect d : List.<SqlDialect>of(new MariaDb(), new MySql(), new Trino(),
-                new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(),
-                new EngineStyleDB2(), new EngineStyleComposite())) {
+                new Snowflake(), new Databricks(), new BigQuery())) {
             DialectCapability refusal = assertThrows(DialectCapability.class,
                     () -> d.render(new SqlDml.CreateTempTableAs("tdg_t", values("a"))), d.getClass().getSimpleName());
             assertTrue(refusal.getMessage().contains(d.getClass().getSimpleName()), refusal.getMessage());

@@ -3,7 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleDB2;
 
 import com.legend.sql.DialectCapability;
 
@@ -121,19 +120,8 @@ public final class CapabilityMatrix {
                 }
             }
         }
-        // the edge's own dialects (2026-11-13, phase D's O3: legend-engine's text printers, EngineStyle*, moved from
-        // sql/dialect to com.legend.edge): read from the edge's directory, the printers alone
-        if (args.length > 3) {
-            try (Stream<Path> files = Files.list(Path.of(args[3]))) {
-                for (Path p : files.toList()) {
-                    String file = p.getFileName().toString();
-                    if (file.startsWith("EngineStyle") && file.endsWith(".java")) {
-                        sources.put(file.substring(0, file.length() - ".java".length()),
-                                stripComments(Files.readString(p)));
-                    }
-                }
-            }
-        }
+        // the edge's own dialects, legend-engine's text printers (EngineStyle*, read from the edge's directory since
+        // 2026-11-13), went with that text (A2 of the compatibility program, 2026-11-19, CP-4)
         Files.createDirectories(out);
         for (Map.Entry<String, String> f : write(sources, dialects(sources.keySet()), reach).entrySet()) {
             Files.writeString(out.resolve(f.getKey()), f.getValue(), StandardCharsets.UTF_8);
@@ -143,13 +131,13 @@ public final class CapabilityMatrix {
     /**
      * The concrete dialects among {@code names}, in the matrix's order: each database type's dialect in the order
      * the database types are declared, then each dialect no database type names, after its nearest ancestor among them
-     * (EngineStyleDB2 after EngineStyleH2), the rest at the end by name.
+     * (a subclass after its parent), the rest at the end by name.
      */
     static List<Class<?>> dialects(Set<String> names) throws ClassNotFoundException {
         Set<Class<?>> concrete = new LinkedHashSet<>();
         for (String name : new TreeSet<>(names)) {
-            Class<?> cls = Class.forName((name.startsWith("EngineStyle") ? "com.legend.edge." : "com.legend.sql.dialect.")
-                    + name, false, CapabilityMatrix.class.getClassLoader());
+            Class<?> cls = Class.forName("com.legend.sql.dialect." + name, false,
+                    CapabilityMatrix.class.getClassLoader());
             if (cls != AnsiSqlRenderer.class && AnsiSqlRenderer.class.isAssignableFrom(cls)
                     && !Modifier.isAbstract(cls.getModifiers())) {
                 concrete.add(cls);

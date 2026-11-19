@@ -185,7 +185,10 @@ class DialectBoundaryTest {
             // registry, one subclass of each product dialect, the dialect source PCT, the corpus and pure/v1 plan with
             // 12 -> 17 (2026-11-13, phase D's O3): and legend-engine's text printers (EngineStyleH2, DB2, Composite),
             // which the edge's plan style hands the planner
-            "PureText.java", 17);
+            // 17 -> 12 (2026-11-19, A2 of the compatibility program, stage A ratified by the user 2026-11-19): the five
+            // printer constructions left with the printers (legend-engine's SQL text deleted, CP-4); the edge's dialect
+            // registry stays
+            "PureText.java", 12);
 
     /** Lines spelling a JDBC URL, by file: only a database's connector opens it (C3b; connectors since 2026-10-16). */
     // Sessions.java 9 -> 10 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): a MariaDB connection's

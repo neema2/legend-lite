@@ -319,10 +319,11 @@ statements take a `PlannedSql` and no `String`, minted only where a plan is read
 A run-time parameter's placeholder is typed by its DECLARED Pure type when the plan
 is made, per database, as upstream's database extension writes its template (D1 of docs/GOALS_OF_RECORD_2026_11_07.md;
 `SqlDialect`'s `parameterType`, a date or date-time bound as its text); the type hole that let the runner write a
-value's type into the statement was deleted 2026-11-09 (the total wall's M2, P4). The legacy engine-text printer
-(`EngineStyleH2`, the backwards-compatibility mode) writes legend-engine's own spellings directly — lowercase keywords and
-function names through the `keyword` and `aggregateName` hooks, `listagg ... within group` — and its one text step is
-legend-engine's own: a rendered column quoted into a FreeMarker template argument (each `'` as `\'`).
+value's type into the statement was deleted 2026-11-09 (the total wall's M2, P4). The legacy engine-text printers
+(`EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, which wrote legend-engine's own SQL spellings) were deleted
+2026-11-19 (A2 of the compatibility program, stage A ratified by the user; CP-4: upstream's SQL text is never promised):
+the compatibility routes print lite's own SQL through the edge's dialect (`edge/LiteSqlText`), and a database lite has no
+dialect for is refused by name.
 
 > **If you have read otherwise:** `SQLDialect`, `SqlAggregate`, `SqlRelation`
 > and legend-engine's three-render-method contract on that `SQLDialect` are **engine-only**. They do not exist
@@ -331,9 +332,9 @@ legend-engine's own: a rendered column quoted into a FreeMarker template argumen
 Dialects: `AnsiSqlRenderer` → `DuckDb`, `Postgres`, `SQLite`, `MariaDb` (→ `MySql`), `Trino`,
 `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb` (whose text is an aggregation pipeline, not SQL:
 docs/MONGODB_PLAN_2026_10_16.md); `H2` (lite's one H2, 2.5.252; `H2Modern`, the second dialect a server's version
-chose, went 2026-11-05 with every plan's server versions); `EngineStyleH2` →
-`EngineStyleDB2` → `EngineStyleComposite`. `com.legend.database.Databases` constructs the
-one a declared database type runs on.
+chose, went 2026-11-05 with every plan's server versions). `com.legend.database.Databases` constructs the
+one a declared database type runs on; the compatibility edge's `PureText.dialect` subclasses each with upstream's
+spellings.
 
 Render methods are switch **expressions** with **no `default ->` arm**, so
 javac enforces exhaustiveness. When a dialect genuinely cannot express a
