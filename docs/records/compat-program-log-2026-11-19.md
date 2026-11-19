@@ -1849,3 +1849,16 @@ who confirms or changes phases 1-3.
   compatibility re-spells and never re-computes; the host judge's exception with its reason; the one-judge gap anchored
   by PCT's expected values and the engine check), and six proposed tenets, each with a test and a guard, for the user's
   word.
+- **~15:09 UTC, A5: the DuckDB determinism fix built and measured.** Scope (ii), every DuckDB TEST plan: DuckDB's
+  `threads` is global and a platform session is shared by every plan of an equal target (`PlanSessions.openShared`),
+  so a node-level setting would leak into later plans, product ones included; a test plan's target differs from a
+  product plan's, so they never share a database. Built as a dialect fact, `SqlDialect.testSessionSetup()` (DuckDB
+  `SET threads TO 1`), written by `planner.Targets.forTest` at the three test-target sites; no exec change, no pinned
+  file. **The costly ordered CTE chains are gone** (they grew the reference lanes' judge characters 5-45% and failed
+  every ratchet): with the setting a zero-cost swap suffices (`FROM __sa a CROSS JOIN __se e`; DuckDB builds a cross
+  join's right side first). Counts: setting plus swap 12/12 cells 30/30, every judge the same error; swap without the
+  setting not deterministic; setting without the swap deterministic but BOTH disagree. **New fact** (legend-engine's
+  pinned DuckDB manifest): legend-engine's DuckDB fails the four on the ACTUAL side's cast. **This session's call
+  (16:00): keep the ruled outcome** (both judges on the expected literal's range error): neither failure is the answer
+  (legend-pure passes; DuckDB cannot hold the value), both keep evaluation in the database, and matching legend-engine's
+  failure text would reorder every host side batch. The register row states all three facts.
