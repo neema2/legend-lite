@@ -3130,3 +3130,9 @@ who confirms or changes phases 1-3.
 - **~00:18 UTC, the reviewer: the window fix's notes met at `bf2e9c4c3`** (record `3d8eda7fe`); nothing open on it. The
   combination review is ready when the judges report. Stage A is held only on the user's word on piece 2's lean-SQL
   re-pin (59 entries), in the translator's session.
+- **~00:22 UTC, the translator: piece 2's gate complete** (record `compat-homework/a3/piece2/gate/` at `8b31b6e9`):
+  green but the lean-SQL baseline (the 59 growing pins, pending the user's word) and channel B MariaDB and MySQL, which
+  fail the same way at A2's base without A3 in this container (MySQL the same 9 decimal-scale disagreements; MariaDB
+  list-order disagreements varying run to run, 9 at the base, 15 at A3's head, different tests). That matches A5's
+  earlier finding (MariaDB and MySQL channel-B lanes red on main already, Q3 and Q3b): pre-existing, not A3's; the
+  batch's CI run judges them on CI's servers. Its README's "only the 3 indexOf rows" corrected for those two lanes.
