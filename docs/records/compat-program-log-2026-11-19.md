@@ -3490,3 +3490,9 @@ who confirms or changes phases 1-3.
     - 6 tests: substr ×3, substring ×2, removeDuplicatesBy; +2,806 chars, +62,731 plan.
   - **CORRECTION** of this session's earlier explanation to the user ("+9 because tests now pass and run their later asserts"): wrong. The growth is kinds 1 to 3 above.
   - **A follow-up worth putting to the user:** in kind 3 the checks are over a literal string with literal positions (e.g. `1 > length('the quick…')`). Folding such a check at compile time, a constant-String fact under the fold ruling, would remove kind 3. That is a compiler-fold decision for the user, and not in this push.
+- **~12:19 UTC, why the plan bytes grow more than the SQL** (the judges, field by field, from the same dumps).
+  - **The root cause of the ratio:** each verdict step's plan carries every statement TWICE. Once as SQL text, and once as its full MIR tree, in which every node carries a full type object (about 75 bytes). So the tree is 15 to 20 times the text. This is pre-existing, not the batch's.
+  - **Kind 1:** +8 chars of SQL means +484 bytes of tree (2 × a MINUS node plus an int literal with its types).
+  - **Kind 2:** the range check's tree is +2,734 bytes; it re-serializes the whole list literal with a type per element. The new raise-site table adds +106.
+  - **Kind 3:** the ~50K per step is NOT repeated data. It is each assert's share of what the fused step already held: about 48K per assert, made of expected CTE 13.7K, actual CTE 14K, verdict row 17.6K and SQL 2.8K. What is truly repeated per extra step is target + columns + envelope, about 1.5K. In testSubstrStart, +5.9K = about 2.7K repetition + about 3.2K of the range check's tree.
+  - **For the user, a lean-plan question outside this batch:** the plan holds both the text and the full typed tree of each statement.
