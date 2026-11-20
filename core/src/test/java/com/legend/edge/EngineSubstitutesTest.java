@@ -68,13 +68,14 @@ class EngineSubstitutesTest {
     private static final List<String> DESKS = List.of("Credit", "Equity", "FX", "Rates");
 
     /** The store and its connection, the connection's body {@code %s}. */
+    // (each element's literal carries its own ###Section header, so parser-equivalence reads the snippet as it stands:
+    // its own-corpus check found the Database and the Runtime without theirs, 2026-11-20, the stage-A batch; the joined
+    // text is unchanged)
     private static final String STORE = String.join("\n",
-            "###Relational",
-            "Database t::DB ( Table DESKS ( DESK VARCHAR(32) PRIMARY KEY ) )",
+            "###Relational\nDatabase t::DB ( Table DESKS ( DESK VARCHAR(32) PRIMARY KEY ) )",
             "###Connection",
             "RelationalDatabaseConnection t::Conn { store: t::DB; %s }",
-            "###Runtime",
-            "Runtime t::RT { mappings: []; connections: [ t::DB: [ c1: t::Conn ] ]; }",
+            "###Runtime\nRuntime t::RT { mappings: []; connections: [ t::DB: [ c1: t::Conn ] ]; }",
             "");
 
     /** A connection on {@code type} whose declared test data is the desks: the plan's load on the session it is given

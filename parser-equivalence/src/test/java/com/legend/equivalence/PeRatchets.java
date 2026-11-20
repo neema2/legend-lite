@@ -157,7 +157,11 @@ public final class PeRatchets {
                     + " fix, measured by //parser-equivalence:update_ratchets there: 3314 + 6 (the section fix, under the"
                     + " user's ruling of 2026-11-19 ~20:10) + 5 (the batch's InCollectionSpliceRefusalTest model, a Class,"
                     + " a Database, a Mapping, a Connection and a Runtime, which match the reference grammar; 3320 measured"
-                    + " without it; a floor rising, listed for the user's word at the batch PR) = 3325; UP)");
+                    + " without it; a floor rising, listed for the user's word at the batch PR) = 3325; UP)",
+            "own_corpus.matched 3325 -> 3327 (2026-11-20, the stage-A batch with B1's native and the engine wiring: B1's"
+                    + " EngineSubstitutesTest model literals take their ###Section headers, so its Database and its"
+                    + " Runtime parse on the reference grammar and match; measured by //parser-equivalence:update_ratchets;"
+                    + " a floor rising, listed for the user's word at the batch PR; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
