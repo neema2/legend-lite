@@ -3565,3 +3565,8 @@ who confirms or changes phases 1-3.
 - **The follow-up's local gate on `bd595b8c` (the revert included): green.** 556 targets pass as root, and the 14 that
   refuse root pass as `ubuntu`. Both corpus lanes were green on `a35ac9bc`. The revert touches neither of them: it
   restores the core's trustOne lowering to #128's.
+- **#128 merged on the user's word** ("Merge 128 and push the follow-up PR"): `dd08482d` on `main`, a merge commit
+  as #124's, head `22eaa472` (CI 55/55). Marked ready first.
+- **The follow-up pushed as `claude/compat-next` (`bd595b8c`) and opened as PR #129**, on the same word. It carries the
+  toOne door fix with its revert, `RootLoops.rejected` removed, and the in-sequence order check. Its moves are listed
+  for the user's word. No independent review: no subagents. Its CI runs now.
