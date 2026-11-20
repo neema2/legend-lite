@@ -1962,3 +1962,73 @@ The combination review will check, on that one measurement:
     `indexOf(...) != -1` was vacuous under the old meaning;
   - the 5 edge-net re-records.
 - **The PCT adapters** now set no flag (`c2cb56bf5`), as upstream's own adapters do. `DETERMINISTIC_AS_OF` stays.
+
+## Stage-A combination audit: `origin/claude/compat-a4-host-only` at `71b7bf55e` over `main` `8eea8fa1` (2026-11-20)
+
+**The question:** every piece was approved on its own; this audit checks the pieces together. Each finding was sent
+to the compat owner as it was found.
+
+**Verdict: no merge defect, and the interactions are clean, except M-a1. Before landing:**
+- **M-a1:** an `engine` and S383 interaction, the user's call;
+- **M-b1 to M-b4:** four guard moves without the user's word;
+- **M-c1 to M-c3:** register rows (the code against S130/S383 via P2-M1, S383's stale status, six rows PROPOSED);
+- **P2-M1:** piece 2's open must-fix.
+
+### (d) The merges
+- **28 merges** were re-merged with `--remerge-diff`: 19 are clean. The 9 hand resolutions each keep both sides:
+  - `b08ec103e`: #124's audience enum beside A5's lanes.
+  - `efc3a4e0e`:
+    - VerdictSql: A5's join order, without A4's leniency;
+    - RootLoops: A5's held rejection, without A4's `orElse`;
+    - TestRunner: A5's rejection path, with A4's judge call (no `rowAppeals`);
+    - pct/BUILD: A4's host lanes gone, A5's LITE lanes kept.
+  - `5ab730cd0` and `9b3b6581e`: every dated ratchet line, plus the merged-tree lines.
+  - `ca26a09d5`: A2 PR 2's ledger values.
+  - `22ac877ab` and `caca297b4`: the detector's lambda-only rule, its roots and R2-S1.
+  - `f7b72ed94` and `dfe2d189f`: the cumulative ceilings (`INTERNAL_DESUGAR` ≤ 41, NOT_UPSTREAM 78, Intrinsic 740),
+    and piece 2's no-flag inside #124's audience switch.
+- **Every piece's tip is an ancestor of the head.** The review-only branch is not.
+- **The wiring re-applied at `087ee888e`** is identical to the reviewed copy, except PureText, where A4 deleted the
+  database judge's words, and the engine pins' i04 rows, whose lite side piece 2 moved.
+
+### (b) Guard moves without the user's word
+- **M-b1:** `22d53782f` re-records the ENGINE lane's six pin files, a golden re-record.
+- **M-b2:** `087ee888e` moves the warn battery pins: H2 AGREE 46 → 11, DuckDB 31 → 8. ~22:20 covers only the new
+  engine files.
+- **M-b3:** `39956d2b7` moves `own_corpus.matched` 3325 → 3327. The ~22:22 word list has only the +5.
+- **M-b4:** A2's ord registers (+5/+4) and A2's fail rosters (+145/+149). No ruling is found in the log.
+
+Notes:
+- The EnginePlans 760 → 757 note cites "stage A ratified", not ~20:45. It is a down move, so it is covered.
+- A5's new guard (`b0767cb7a`) is a tightening.
+- The six accepted rows are verified at the head.
+
+### (c) The register rows
+- **RULED, and the code matches:**
+  - S128 and S316 (amended ~20:05);
+  - S386 and S387 (meanings ruled 2026-09-05/08);
+  - S388 (~23:20).
+- **M-c1:** S130 ("the flag a documented no-op") and S383 ("raises on all three") are contradicted at the head by
+  P2-M1: the flag road and `substr` do not raise.
+- **M-c2:** S383 is ruled ~01:35, but its row still says PROPOSED.
+- **M-c3:** S130, S134, S380, S382, S384 and S385 are PROPOSED, on the ~22:22 word list. Their content matches the
+  code.
+- **Note:** S381 is cited by S382 and has no row.
+
+### (a) The interactions
+- **M-a1:** under `engine`, the literal-0 exemption leaves an H2 `substring(x, 0, n)` unrewritten.
+  - With `n` past the length, piece 2's S383 guard raises where legend-engine answers the text
+    (`h2-literal-zero.tsv`: `('abcdef', 0, 9)` → `'abcdef'`, `('', 0, 2)` → `''`).
+  - The same happens under `CORRECT_SQL_SUBSTRING_INDEXING` once P2-M1 is fixed.
+  - The options, for the user:
+    - (1) under `engine`, ignore the exemption and rewrite every store-bound `substring`;
+    - (2) record the narrowed promise in S130/S383, ruled.
+  - Either way, add a battery row with an end past a value's length.
+- **Clean:**
+  - **A2 against the detector and the rewrite:** neither reads a printer, and SUBSTRING_AS_GIVEN has its arm on every
+    edge dialect.
+  - **A4's guard against A5's lane:** LITE_OPTIONS keep PRODUCT with BOTH, and COMPAT forces HOST.
+  - **The window fix against piece 2:** a level is kept, never an answer changed. The merged-head lean-SQL and
+    query-capture runs are the proof, and should be in the judges' measurement.
+  - **The engine rewrite against piece 2's meaning:** a flagged call becomes the unguarded `substringAsGiven`, and an
+    unflagged call keeps Pure's meaning (M-a1).
