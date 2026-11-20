@@ -288,12 +288,6 @@ public class Postgres extends AnsiSqlRenderer {
     // Passes and structure
     // ==================================================================
 
-    /** The portable carrier strategies (static pivot, as-of emulation; FULL OUTER
-     * stays native), the substring start clamp (Postgres counts empties before 1,
-     * like DuckDB), string functions' 64-bit counts as its 32-bit integer, averages delivered as DOUBLE ({@code avg(int)} is numeric here),
-     * QUALIFY as a wrapping subselect (Postgres has no QUALIFY), and a constant GROUP BY or
-     * ORDER BY key as a typed expression (Postgres reads a bare one as a position, or refuses
-     * it). */
     /** The operations Postgres writes as a query of their own, their operands inside it (2026-11-19, the H11 record's
      *  P1): a list operation over {@code unnest}, a map over {@code jsonb_each}, a regular expression's matches over
      *  {@code generate_series}, Levenshtein and Jaro-Winkler as walks, a format's arguments. A window's or an
@@ -312,6 +306,13 @@ public class Postgres extends AnsiSqlRenderer {
             SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM, SqlFn.LIST_EXISTS, SqlFn.LIST_FOR_ALL, SqlFn.LIST_REDUCE,
             SqlFn.MAP_FROM_ENTRIES, SqlFn.MAP_EXTRACT, SqlFn.MAP_KEYS, SqlFn.MAP_VALUES, SqlFn.FORMAT));
 
+    /** The portable carrier strategies (static pivot, as-of emulation; FULL OUTER
+     * stays native), the substring start clamp (Postgres counts empties before 1,
+     * like DuckDB), string functions' 64-bit counts as its 32-bit integer, averages delivered as DOUBLE ({@code avg(int)} is numeric here),
+     * QUALIFY as a wrapping subselect (Postgres has no QUALIFY), and a constant GROUP BY or
+     * ORDER BY key as a typed expression (Postgres reads a bare one as a position, or refuses
+     * it); a select over one subselect merged into it where the merge keeps the answer, a window's or an aggregate's
+     * value never under an operation in {@link #OPERANDS_IN_A_QUERY}, and a chain of windowed levels laid out again. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS),
