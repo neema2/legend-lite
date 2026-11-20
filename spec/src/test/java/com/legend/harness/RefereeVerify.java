@@ -145,7 +145,9 @@ public final class RefereeVerify {
      * {@code unordered-chain} — the chain has no sort, so the rows are
      * compared as a multiset (SQL arrival order is not a contract);
      * {@code ordered-keys-unmappable} — the chain IS sorted but the compared
-     * output cannot carry its keys (the counted residue).
+     * output cannot carry its keys, and the two sides differ in sequence
+     * (the counted residue; one whose sides are equal in sequence is
+     * {@link #ORDERED_IN_SEQUENCE}, verified, since 2026-11-20).
      * Until 2026-09-10 the first tag was {@code unordered-leniency}: fired
      * only when the two sides' rows ALSO arrived in different orders — a
      * run- and platform-dependent event (DuckDB's parallel scan order), so
@@ -657,6 +659,17 @@ public final class RefereeVerify {
                 return divergence(theirs, mine);
             }
             if (facts.ordered()) {
+                // the keys unmappable: the two sides IN SEQUENCE (the user, 2026-11-20 ~13:10, "Yes need to do result
+                // order next") -- equal rows in equal order prove the orders agree, a tie's included; a difference may
+                // be a tie's, which no key here tells from a wrong order, so it keeps the multiset compare, counted
+                boolean collapsedInSequence = collapsed != null && collapsed.equals(mine);
+                if (theirs.equals(mine) || collapsedInSequence) {
+                    ord(ORDERED_IN_SEQUENCE);
+                    if (!theirs.equals(mine)) {
+                        verdict("golden-fanout-collapsed");
+                    }
+                    return null;
+                }
                 ordFallback();
             } else {
                 ord("unordered-chain");
@@ -800,6 +813,13 @@ public final class RefereeVerify {
                             mineKeys);
                 }
                 if (facts.ordered()) {
+                    // the keys unmappable: the two sides IN SEQUENCE (the user, 2026-11-20 ~13:10) -- equal rows in
+                    // equal order prove the orders agree, a tie's included; a difference may be a tie's, which no key
+                    // here tells from a wrong order, so it keeps the multiset compare, counted
+                    if (theirs.equals(mine)) {
+                        ord(ORDERED_IN_SEQUENCE);
+                        return null;
+                    }
                     ordFallback();
                 } else {
                     // F2.4 / §7: an UNORDERED query's rows compare as a
@@ -973,8 +993,16 @@ public final class RefereeVerify {
         return idx;
     }
 
+    /** An ORDERED query whose sort keys the compared output does not carry, verified IN SEQUENCE: both sides' rows
+     *  equal in order (2026-11-20, the user's "Yes need to do result order next": until then every such query rode the
+     *  multiset verdict, counted as {@code ordered-keys-unmappable}). Printed by the harness, not pinned: the pinned
+     *  residue is the queries whose sequences differ. */
+    static final String ORDERED_IN_SEQUENCE = "ordered-in-sequence";
+
     /** The counted §7 residue: an ORDERED query whose strict compare
-     * had no usable tie boundaries rode the multiset verdict. */
+     * had no usable tie boundaries, and whose two sides differ in
+     * sequence (a tie's order or a wrong one, which no key here tells
+     * apart), rode the multiset verdict. */
     private static void ordFallback() {
         ord("ordered-keys-unmappable");
     }
