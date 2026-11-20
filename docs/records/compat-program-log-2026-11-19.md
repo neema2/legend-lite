@@ -3559,3 +3559,9 @@ who confirms or changes phases 1-3.
       directories, granted for the run and then restored.
     - One real failure: the Cypher case above, now fixed.
     - The gate is being rerun on `bd595b8c`.
+- **#128's CI on `22eaa472`: all 55 jobs green**, on Linux, macOS, Windows and arm (run 44743584291). Its
+  description now marks every item of the word list as ruled (~13:00 and ~13:10) and names the follow-up. It waits
+  for the user's merge word.
+- **The follow-up's local gate on `bd595b8c` (the revert included): green.** 556 targets pass as root, and the 14 that
+  refuse root pass as `ubuntu`. Both corpus lanes were green on `a35ac9bc`. The revert touches neither of them: it
+  restores the core's trustOne lowering to #128's.
