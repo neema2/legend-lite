@@ -3141,3 +3141,9 @@ who confirms or changes phases 1-3.
   5 not run are the Snowflake channel-B cloud lanes, which need an account this container lacks (environmental, CI's
   run covers them); rosters, lean-SQL baselines and the dialect capability matrix unchanged. Waiting on the
   translator's piece 2 (the user's word on its lean-SQL re-pin).
+- **~00:45 UTC, the user: "Why are you letting this block all the other work we need to do?"** This session's error:
+  a strict merge order (A3 first, then the native, then the engine) put every piece behind one pending word.
+  **Re-ordered:** the judges merge A3 piece 1 (`a4c1f2b1`) and B1's native (`b622e54f1`) now, then B1-R lands the engine
+  wiring, then the docs, then the FULL measurement on that head, with the reviewer's combination review starting on it.
+  Piece 2 joins last, with its touched lanes and a delta measurement only. In parallel this session drafts the batch PR
+  and continues the stage B questions with the user.
