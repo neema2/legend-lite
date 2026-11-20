@@ -3344,3 +3344,10 @@ who confirms or changes phases 1-3.
   - (c), the register rows: RULED and matching, S128, S316, S386, S387, S388. Stale: S383, fixed by the judges at `9c4c9f231`. Missing: S381, written by the judges at `9c4c9f231`.
   - PROPOSED, for the word at the PR: S130, S134, S380, S381, S382, S384, S385.
   - The user declined the dialog for A/B and (1)/(3'). Both are asked again in chat; B and (3') are recommended.
+- **~07:35 UTC, piece 2's review round APPROVED by the reviewer.** The head is `97d4c78b2`, and the record is claude/compat-review `2d375d105`; the combination audit's record is `f1176d850`.
+  - P2-M1, P2-S1 and P2-S2 are met. M-c1 is met at the code: S130's no-op and S383's "raises on all three" are now true.
+  - A correction for any record: `97d4c78b2`'s message says the detector "names store-routed substr". It does not. PureMeaningCheck matches AT_STRING_SUBSTRING alone; `substr` gets its codes from B1-R's fix.
+  - B1 raised a point: folding literal positions (start + 1, end − start) in Java at the door is arithmetic outside the database.
+    - The core already folds the same way today (FeatureRules.CORRECTED_SUBSTRING), and the reviewer holds it allowed as a program constant.
+    - Whether it is allowed is the user's call, so the fold path is held.
+    - My recommendation moves from (3') to (1): a native whose SQL rule makes the database compute the positions.
