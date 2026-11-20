@@ -3097,3 +3097,13 @@ who confirms or changes phases 1-3.
 - **~23:50 UTC, the judges: the detector merged through its final head `afcb77770`** (batch head `104b0206c`; three
   clean merges, 55 of 55 touched lanes each; no ledger, golden or ratchet moved; own_corpus.matched 3325). Waiting on the
   translator's two heads.
+- **~00:08 UTC (11-20), the translator: piece 1 PUSHED** (`claude/compat-a3-frontends` at `a4c1f2b1`, its post-move gate
+  green: 558 pass, the 12 root-refusing tests pass as ubuntu). **Piece 2 held** (local `claude/compat-a3-switch` at
+  `09183550`: PCT −63, 9 re-pins, corpus +7/−4 per database, 5 edge-net re-records, every count as measured) on a guard
+  its fast loop missed: **the lean-SQL baseline grows on 59 pins, none shrink**: indexOf/2 on 11 channel-A databases and
+  core (the "− 1" on STRPOS: chars +126 and +12, plan JSON +5,450 and +738); indexOf/3 +1 char each; core substring/2
+  and /3 chars 199 → 539 and plan JSON 4,676 → 10,032 (S383's out-of-range raise, a guarded CASE whose bounds the
+  database checks); the sort-by-substring key 330 → 471; TypedExtend +106, TypedProject +97. The translator asks the
+  user in its session. Asked it here whether the guard skips what the literals prove (the fold ruling), and to trim it
+  in piece 2 if under an hour or two. Channel B MariaDB/MySQL and the Postgres lanes re-running (unrelated failures in
+  the parallel run).
