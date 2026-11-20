@@ -3107,3 +3107,10 @@ who confirms or changes phases 1-3.
   user in its session. Asked it here whether the guard skips what the literals prove (the fold ruling), and to trim it
   in piece 2 if under an hour or two. Channel B MariaDB/MySQL and the Postgres lanes re-running (unrelated failures in
   the parallel run).
+- **~00:10 UTC, the translator: S383's guard is already as small as the fold ruling allows** (literal start ≥ 0, a
+  literal end ≥ a literal start, and the 1-argument form with 0 are folded; what remains is the one bound that depends
+  on the text's length, which the database checks). The core tests' 199 → 539 is inflated by their 43-character literal
+  written twice (on a column the guard costs about 60 characters); the plan JSON growth is the site table's operands
+  (start, end, length). Unmade literal-only folds (a negative start, end below start, end ≤ 0) occur in no core test.
+  A later plan-JSON trim noted (the 1-argument form records LENGTH twice). Put to the user with the recommendation to
+  approve the 59-entry re-pin; Q3's option 1 cleanup would shrink the site table's operands later.
