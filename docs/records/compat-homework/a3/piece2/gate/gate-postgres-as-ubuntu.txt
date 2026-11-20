@@ -1,0 +1,15 @@
+//core:cypher_parity_postgres_test                                       PASSED in 108.5s
+//core:data_delivery_matrix_postgres_test                                PASSED in 22.2s
+//core:iq_parity_postgres_test                                           PASSED in 66.5s
+//core:is_numeric_probe_test                                             PASSED in 9.3s
+//core:postgres_arm_test                                                 PASSED in 4.4s
+//core:relation_to_one_postgres_test                                     PASSED in 5.2s
+//core:sql_island_postgres_test                                          PASSED in 6.6s
+//core:sql_parity_postgres_test                                          PASSED in 16.5s
+//core:store_writes_postgres_test                                        PASSED in 5.2s
+//core:ts_documents_postgres_test                                        PASSED in 18.1s
+//core:ts_island_postgres_test                                           PASSED in 71.4s
+//datacube:verify_app_test                                               PASSED in 12.0s
+//pct:pct_channel_b_postgres_essential                                   PASSED in 21.4s
+//pct:pct_postgres_essential                                             PASSED in 38.1s
+Executed 14 out of 14 tests: 14 tests pass.

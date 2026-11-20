@@ -1,0 +1,1 @@
+    => org.opentest4j.AssertionFailedError: Key[set=channel_a, database=DuckDB, family=meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_] ==> expected: <[2, 110, 2970]> but was: <[2, 118, 3462]>
