@@ -3427,3 +3427,8 @@ who confirms or changes phases 1-3.
     - `//core:pure_meaning_postgres_test`, with a plant.
   - Their moves: a new core target, the gate's Postgres list, and PeRatchets own_corpus 3327 → 3330. They are for the user's word, and land after #128. The reviewer is reviewing them.
 - **~09:09 UTC, the follow-ups APPROVED** by the reviewer (`claude/compat-a3-engine-followup` `2e24fb668`). own_corpus.matched 3327 → 3330 goes on the word list beside M-b3. They land after #128.
+- **~09:17 UTC, heavy round 1 on `67fa4df5`:** 77 targets run, 76 pass, 1 FAIL. The 5 renamed labels are covered through //pct:edge_contract_test.
+  - The red is `//pct:update_ratchets_test`, which PASSES on main `8eea8fa1`, so the batch introduced it. It is not in CI's lanes.
+  - channel_b.essential.judge: statements 463 → 477, chars 7,193,353 → 7,196,463, plan 47,442,679 → 47,512,616, against b1dc377dc's committed pins. It is an UP move and needs the user's word to re-pin.
+  - Being bisected from b1dc377dc to 67fa4df5.
+  - Plan: a single push after the bisect and the user's word, carrying the re-pin and the approved follow-ups `2e24fb668`, once the judges' gate and heavy round 2's manual targets have reported. It restarts #128's CI once.
