@@ -78,9 +78,10 @@ public final class PureMessages {
             case WINDOW_FRAME_INVERTED -> new SqlExpr.StringLit("Invalid window frame boundary - lower bound of window"
                     + " frame cannot be greater than the upper bound!");
             // lite's own sentence (S170: a bound's direction read from its shape), kept for the compatibility road
-            // [the start, the end, the length]: legend-pure's String.substring raise, Java's own words -- the JDK 21
-            // text measured here ("Range [-1, 6) out of bounds for length 6"); the JDK legend-pure runs on is read at the
-            // engine runner before this lands (register S383)
+            // [the start, the end, the length]: legend-pure's String.substring raise, Java's own words -- the JDK's
+            // part of its message, the same on lite's and the engine runner's JDK 25.0.4 (.bazelrc) and on 21: "Range
+            // [-1, 6) out of bounds for length 6" (measured 2026-11-19; register S383). legend-pure's envelope around
+            // it is the presenter's
             case SUBSTRING_OUT_OF_RANGE -> cat(new SqlExpr.StringLit("Range ["), str(r.operands().get(0)),
                     new SqlExpr.StringLit(", "), str(r.operands().get(1)), new SqlExpr.StringLit(") out of bounds for length "),
                     str(r.operands().get(2)));

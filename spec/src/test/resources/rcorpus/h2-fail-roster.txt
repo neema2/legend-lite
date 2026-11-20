@@ -292,6 +292,8 @@ meta::relational::tests::functions::sqlstring::testToSQLStringComposite
 meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat
 meta::relational::tests::functions::sqlstring::testToSQLStringNonPrestoSchemaNameShouldNotConvertDollarSign
 meta::relational::tests::functions::sqlstring::testToSQLStringReverse
+meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes
+meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregation
