@@ -2188,3 +2188,18 @@ S383 should also name `substr` and the flagged `substring`, which raise on lite'
   - S130, S134, S385, and S380, S381, S382 and S384 (PROPOSED);
   - the up moves listed above;
   - M-b1 to M-b4.
+
+**The two follow-ups, `origin/claude/compat-a3-engine-followup` at `2e24fb668` (off the batch, to land after #128): APPROVED.**
+- **`d54c7818c`:** S130's lite column now reads "on lite's own roads", as S134 does. My nit is met.
+- **`2e24fb668`:** `//core:pure_meaning_postgres_test` checks `generateTestData_WithSeed` on the embedded Postgres 16, a
+  database not yet checked, run unprivileged.
+  - It sends a flagged filter (`'xpublic'->substring(1, 7)`) and a clean one over `information_schema.schemata` with the
+    identifier `'public'`. Both answer 200 with the same CSV, byte for byte: the identifiers' row alone, with no
+    `pg_catalog` in it.
+  - It asserts its own precondition (`!engineAnswers(Postgres)`) and writes nothing.
+  - The plant, taken as reported: `doored` refusing a flagged call on an unchecked database turns the test red.
+  - This pins B1-R's WithSeed choice, which I agreed with.
+- **The moves:**
+  - a new core target, and the local gate's Postgres list gaining it, which is a tightening;
+  - `own_corpus.matched` 3327 → 3330 (the test's Database, Class and Mapping match the reference grammar), with its
+    dated HISTORY line. It is an up move, for the user's word at the PR, beside M-b3's 3325 → 3327.
