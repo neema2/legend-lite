@@ -2203,3 +2203,42 @@ S383 should also name `substr` and the flagged `substring`, which raise on lite'
   - a new core target, and the local gate's Postgres list gaining it, which is a tightening;
   - `own_corpus.matched` 3327 → 3330 (the test's Database, Class and Mapping match the reference grammar), with its
     dated HISTORY line. It is an up move, for the user's word at the PR, beside M-b3's 3325 → 3327.
+
+## The ClickHouse lambda-raise fix, `origin/claude/window-list-lowering` at `852a9737c` (`b87d3e789` and `852a9737c` on `67fa4df51`)
+
+**Verdict: APPROVED. The lean-SQL re-pin, `852a9737c`, waits for the user's word.**
+- **The guards are correct, NULL included:**
+  - In a lambda, a WHEN branch's guard is the conjunction `NOT coalesce(c₁, false) AND … AND cᵢ`, and the ELSE's is
+    every `NOT coalesce(cⱼ, false)`. That is exactly CASE's choice: a later branch is taken where an earlier condition
+    is false or NULL.
+  - Where the branch's own condition is NULL, the conjunction is NULL. ClickHouse's `if()` takes its else on NULL, so
+    the cast reads `'0'` and nothing raises, as a CASE takes no branch on a NULL condition.
+  - Nested CASEs join their guards outermost first, each parenthesized.
+  - The date parameter's raises: the year's is guarded by `yearOutside`, where a NULL parameter makes it NULL, so there
+    is no raise; the fraction's by `NOT coalesce(yearOutside, false) AND fractionPast`.
+  - ADD_INTERVAL's guard is its range check.
+- **Byte-identical outside a lambda:** unguarded, `error()` still writes `toInt64(` + `concat(…)` + `)`, the same text.
+  `caseExpr` pushes nothing outside a lambda, and the date CASE's pieces are the same text. Only two lean rows move,
+  both lambdas on ClickHouse. The render test asserts `toInt64(concat(` and no `toInt64(if(` outside a lambda in each
+  case.
+- **Invariant 3:** the diff adds no `default ->`.
+- **The stated limit (an `if()`/`multiIf()` raise not through a CASE) is not reachable from the MIR today:**
+  - the MIR has no IF function (its conditionals are `SqlExpr.Case`);
+  - the dialect writes a raise at two sites alone, the `ERROR` arm and `guardedError`;
+  - none of its own `if(`/`multiIf(` texts holds one.
+- **State:** `lambdas` and `raiseGuards` are per instance, as `raises` and `correlatedExists` already are.
+  `Databases.dialect` makes a new ClickHouse per call.
+- **The tests:**
+  - render: THEN, a later WHEN and ELSE, each with its exact guard; date arithmetic; the date parameter's two raises;
+    and outside a lambda as before;
+  - `//core:clickhouse_lambda_raise_test` on the embedded ClickHouse, manual and in `//gates:heavy`: valid text
+    answers `'o,m,r'` and out-of-range text still raises; dates in range answer and past 2299 still raise. Each was red
+    without the change, as reported.
+- **Should (small):** a server case with a NULL element. A lambda over `['a', NULL, 'abcdef']->map(x|$x->substring(1,
+  3))`, or a CASE whose first condition is NULL for one element, would pin at run time that a NULL condition neither
+  raises falsely nor hides a later branch's raise. Today only the render test's guard text shows the `coalesce`.
+- **The re-pin `852a9737c`, for the user's word:** two ClickHouse channel-A rows move up:
+  - `removeDuplicatesBy`: +96 characters and +100 plan JSON;
+  - `sort` with a substring key: +192 and +198.
+
+  Statements and subselects are unchanged.
