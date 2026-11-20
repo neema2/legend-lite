@@ -3382,3 +3382,14 @@ who confirms or changes phases 1-3.
   - **One moved message:** Postgres channel B, `testAdjustByMinutesBigNumber`, an ERROR at both commits. The database's own error now surfaces directly instead of as a judge disagreement (A4/A5's host-only verdict under COMPAT).
   - **The probe:** identical to main (Q1).
   - **Channel B wall times:** down 30–55%.
+- **~08:29 UTC, Snowflake's final run on `317204773`** (sibling 2; both commits in full):
+  - **Lost passes:** 0.
+  - **Gained:** the three `indexOf` tests, in channel A (its ledger rows removed) and in channel B.
+  - **Channel A:** all five suites pass at both commits, and the logs are identical apart from the three.
+  - **Channel B:** all five pass. The one moved message is `testAdjustByMinutesBigNumber`, now the database's own error.
+  - **substring:** testStart and testStartEnd pass at both.
+  - **The probe:** identical to main (7 known Q1).
+  - **The 18-row prediction so far:**
+    - BigQuery: channel A 3, channel B 3;
+    - Snowflake: channel A 3, channel B 3;
+    - Databricks pending.
