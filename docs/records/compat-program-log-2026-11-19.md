@@ -3160,3 +3160,9 @@ who confirms or changes phases 1-3.
   manual subset CI does not run, and the warm-database lanes (PCT A and B on MariaDB, MySQL, ClickHouse, Trino,
   Postgres). A fix, if any, goes on the branch and CI re-runs once. The judges told. Then stage B's questions with the
   user.
+- **~01:55 UTC, A3 pieces 1 and 2 PUSHED** on the user's "Yes raise it" in the translator's session:
+  `claude/compat-a3-frontends` `a4c1f2b1`, `claude/compat-a3-switch` `1f4b108d1` (72b94baf PCT −63 and the 9 re-pins;
+  09183550 corpus +7/−4 per database and the 5 edge-net re-records; 1f4b108d the lean-SQL baseline +59 entries in 29
+  rows, none shrinking, a dated note). The lean pair passes on 1f4b108d; channel B MariaDB/MySQL not A3's; the 18 cloud
+  PCT rows measured by the batch's CI. The judges told to assemble (piece 2, the native, the engine wiring, the docs)
+  and report the head for the PR.
