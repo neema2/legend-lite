@@ -26,7 +26,7 @@ rows. **Revision 2 (2026-11-19, the compat owner's calls).**
 | PRs | **2**: PR1 is the frontends and the dynaFunction split; PR2 is the core switch, the detector and the load-time report |
 | days | **about 6 to 6.5**: PR1 1.5; PR2 4.5 to 5. About half a day over the final plan's 5 to 6 |
 | PR2's days, by part | the switch and guard moves 0.75; the raise 0.5 to 1; the PCT adapter's option off 0.25; the detector on 5 routes with the mapping reach 1.5; the report 1.5 |
-| gate | the cross-kind `!=` fix lands before PR2 (not sized here) |
+| gate | **none** (corrected 2026-11-20, section 5 item 6): the cross-kind `!=` fix does not gate A3. A3's gate is green without it |
 | lite tests that move, by name | **16 of the 17 named**: 9 old-meaning pins (PR2) and 7 text goldens (PR1). The IQ showcase's SQL is predicted not to move under option (a) |
 | PCT known-failure rows that leave | **63**: S134's 3 tests on 11 channel A classes (33) and 10 channel B lanes (30) |
 | edge net golden lines | **9**: 3 answer lines in each of `duckdb_essential_answers.tsv` and `sqlite_essential_answers.tsv`, and 3 outcome lines in `channel_b_duckdb_essential_outcomes.tsv` |
@@ -84,7 +84,8 @@ unchanged at main's counts.
 
 ### PR2: the core switch, the detector, the report and the guard moves (about 4.5 to 5 days)
 
-**Gate first:** the product's cross-kind `!=` fix (`63421e0a` on `claude/hosts-followups`) lands before PR2.
+**No gate** (corrected 2026-11-20): the cross-kind `!=` fix (`63421e0a` on `claude/hosts-followups`) does not gate PR2;
+see section 5, item 6.
 
 | file at main | change | lines |
 |---|---|---|
@@ -645,8 +646,11 @@ gains no caller; it is package-private in `lowering`, which the edge does not re
    - PR1 before PR2, or about 1,240 parity cases break.
    - A3 lands after A2, so H12's 3 interaction tests (`testPlanForDateTimeConstantParameter{NoTimeZone,GMTTimeZone,
      ESTTimeZone}`) move in A3. They are inside its 7, measured (section 2).
-6. **The cross-kind `!=` fix gates A3.** It is `63421e0a` on `claude/hosts-followups` (legend-pure: a String and an
-   Integer are never equal, `'x' != -1` is true).
+6. **The cross-kind `!=` fix does NOT gate A3** (corrected 2026-11-20, from the A3 review's note). It is `63421e0a`
+   on `claude/hosts-followups` (legend-pure: a String and an Integer are never equal, `'x' != -1` is true).
+   - A3's gate on `claude/compat-a3-switch` is green without it: the corpus verdicts pass, and A3's corpus moves are
+     the same 7 per database (`a3/piece2/gate/`). The fix itself moves 26 corpus tests on H2 and 30 on DuckDB, and is
+     a separate question for the user (`xk/`).
    - **A3's DuckDB roster with it landed: the same 7 as H2's.** In this order, DuckDB's
      `testPlanForDateTimeVariableESTTimeZone` already fails under A2, on the untyped plan parameter (B2's class a3),
      before its `indexOf(...) != -1` assert can reach the cross-kind comparison. So neither A3 nor the fix moves it.
