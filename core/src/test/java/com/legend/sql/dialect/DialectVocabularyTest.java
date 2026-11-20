@@ -32,8 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DialectVocabularyTest {
 
     private static final String DIALECTS = "core/src/main/java/com/legend/sql/dialect";
-    /** The edge's own dialects (2026-11-13, phase D's O3: legend-engine's text printers, EngineStyle*, moved here from
-     *  sql/dialect; still dialects, so still held to deciding their whole vocabulary themselves). */
+    /** The edge's own dialects, held to deciding their whole vocabulary themselves (2026-11-13, phase D's O3:
+     *  legend-engine's text printers, EngineStyle*, moved here from sql/dialect; they went with that text, A2 of the
+     *  compatibility program, 2026-11-19, and the edge's dialect passes are PureText's nested classes, which extend a
+     *  product dialect each). */
     private static final String EDGE_DIALECTS = "core/src/main/java/com/legend/edge";
 
     /** A vocabulary: the method each dialect declares, its parameters, and the switch that decides it (none where a
@@ -104,7 +106,9 @@ class DialectVocabularyTest {
                 }
             }
         }
-        assertTrue(dialects >= 15, "the dialect package's concrete dialects were not found: " + dialects);
+        // 15 -> 12, 2026-11-19, A2 of the compatibility program (stage A ratified by the user 2026-11-19): the floor
+        // counted legend-engine's three text printers, deleted with that text (CP-4); the 12 are lite's dialects
+        assertTrue(dialects >= 12, "the dialect package's concrete dialects were not found: " + dialects);
         assertTrue(wrong.isEmpty(), "a dialect that does not decide its whole vocabulary itself: " + wrong);
     }
 

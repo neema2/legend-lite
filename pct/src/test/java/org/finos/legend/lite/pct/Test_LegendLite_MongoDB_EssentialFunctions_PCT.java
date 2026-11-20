@@ -62,7 +62,9 @@ public class Test_LegendLite_MongoDB_EssentialFunctions_PCT extends PCTReportCon
             // (LiteralSpelling.jsonInstanceText).
             // VALUE DIFFERENCES, measured (step 9, 2026-10-19: testRemWithDecimals unpinned, its Decimal read by the
             // wire header's type since the DuckDB lane's landing)
-            one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
+            // 2026-11-19, A3 of the compatibility program, piece 2 (the user's word, 2026-11-19: "approved: push both A3
+            // branches and make piece 2's moves"): indexOf is Pure's in the core, 0-based, -1 on a miss (S134), so
+            // indexOf::testSimple, testFromIndex and indexof::testIndexOfOneElement pass and leave (measured on this lane)
             one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "\"a date-time finer than a millisecond (2015-08-29T22:22:22.9914234) has no BSON date: refused, never cut\""),
             // 2026-10-20, pinned again (the user's rule: as many tests as possible without hacks): a Float is a double
             // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
@@ -70,8 +72,6 @@ public class Test_LegendLite_MongoDB_EssentialFunctions_PCT extends PCTReportCon
             // column was a double -- and is removed
             // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
-            one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
-            one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),

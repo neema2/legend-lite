@@ -40,7 +40,7 @@ class IsolatedRunTest {
             }
         };
         try {
-            IsolatedRun.conclude(host, database, true, listener);
+            IsolatedRun.conclude(host, database, listener);
         } catch (RuntimeException e) {
             heard.add("threw " + e.getClass().getSimpleName());
         }
@@ -49,7 +49,7 @@ class IsolatedRunTest {
 
     @Test
     void agreeingPassingRunsPassAndTheCallerHearsTheHostsVerdicts() {
-        assertDoesNotThrow(() -> IsolatedRun.conclude(run(null, true, null), run(null, true, null), true, null));
+        assertDoesNotThrow(() -> IsolatedRun.conclude(run(null, true, null), run(null, true, null), null));
         assertEquals(List.of("true null"), heard(run(null, true, null), run(null, true, null)));
     }
 
@@ -58,14 +58,14 @@ class IsolatedRunTest {
         RuntimeException hostFailure = new IllegalStateException("expected 1, got 2");
         RuntimeException thrown = assertThrows(RuntimeException.class, () -> IsolatedRun.conclude(
                 run(hostFailure, false, "expected 1, got 2"),
-                run(new IllegalStateException("expected 1, got 2"), false, "expected 1, got 2"), true, null));
+                run(new IllegalStateException("expected 1, got 2"), false, "expected 1, got 2"), null));
         assertSame(hostFailure, thrown);
     }
 
     @Test
     void aDifferentMessageRaisesJudgesDisagreeQuotingBoth() {
         IsolatedRun.JudgesDisagree e = assertThrows(IsolatedRun.JudgesDisagree.class, () -> IsolatedRun.conclude(
-                run(null, false, "expected 1, got 2"), run(null, false, "expected 1, got 3"), true, null));
+                run(null, false, "expected 1, got 2"), run(null, false, "expected 1, got 3"), null));
         assertTrue(e.getMessage().contains("\"expected 1, got 2\"") && e.getMessage().contains("\"expected 1, got 3\""),
                 e.getMessage());
     }
@@ -73,15 +73,15 @@ class IsolatedRunTest {
     @Test
     void aDifferentVerdictOrCountRaisesJudgesDisagree() {
         assertThrows(IsolatedRun.JudgesDisagree.class,
-                () -> IsolatedRun.conclude(run(null, true, null), run(null, false, "x"), true, null));
+                () -> IsolatedRun.conclude(run(null, true, null), run(null, false, "x"), null));
         assertThrows(IsolatedRun.JudgesDisagree.class,
-                () -> IsolatedRun.conclude(run(null, true, null), run(null), true, null));
+                () -> IsolatedRun.conclude(run(null, true, null), run(null), null));
     }
 
     @Test
     void aDifferentEndingRaisesJudgesDisagreeEvenWithEqualVerdicts() {
         IsolatedRun.JudgesDisagree e = assertThrows(IsolatedRun.JudgesDisagree.class, () -> IsolatedRun.conclude(
-                run(null, true, null), run(new IllegalStateException("boom"), true, null), true, null));
+                run(null, true, null), run(new IllegalStateException("boom"), true, null), null));
         assertTrue(e.getMessage().contains("ended differently") && e.getMessage().contains("boom"), e.getMessage());
     }
 
@@ -91,41 +91,11 @@ class IsolatedRunTest {
         host.verdict("t::helper", true, null);
         IsolatedRun.Recording database = new IsolatedRun.Recording();
         database.verdict("meta::pure::functions::asserts::assert", true, null);
-        assertDoesNotThrow(() -> IsolatedRun.conclude(host, database, true, null));
+        assertDoesNotThrow(() -> IsolatedRun.conclude(host, database, null));
     }
 
-    @Test
-    void underTheCompatibilityRulesTheVerdictsAloneAreCompared() {
-        // the words are the host's: a different message is no disagreement, a different verdict is
-        assertDoesNotThrow(() -> IsolatedRun.conclude(run(null, true, null), run(null, true, null), false, null));
-        RuntimeException hostFailure = new IllegalStateException("expected: 1 | actual: 2");
-        assertSame(hostFailure, assertThrows(RuntimeException.class, () -> IsolatedRun.conclude(
-                run(hostFailure, false, "expected: 1 | actual: 2"),
-                run(new IllegalStateException("expected 1, got 2"), false, "expected 1, got 2"), false, null)));
-        assertThrows(IsolatedRun.JudgesDisagree.class,
-                () -> IsolatedRun.conclude(run(null, true, null), run(null, false, "x"), false, null));
-        // a run that failed against one that passed disagrees
-        assertThrows(IsolatedRun.JudgesDisagree.class, () -> IsolatedRun.conclude(run(null, true, null),
-                run(new IllegalArgumentException("boom"), true, null), false, null));
-        // the database's own error stopping its run before the assert the host failed: both fail, the host's failure
-        // is the body's (the fused agreement's outcome, by verdict)
-        RuntimeException hostOwn = new IllegalStateException("Conversion Error: date field value out of range");
-        assertSame(hostOwn, assertThrows(RuntimeException.class, () -> IsolatedRun.conclude(
-                run(hostOwn, false, "Conversion Error: date field value out of range"),
-                run(new IllegalArgumentException("DataError: out of range")), false, null)));
-        // ... but not where the host held it
-        assertThrows(IsolatedRun.JudgesDisagree.class, () -> IsolatedRun.conclude(run(null, true, null),
-                run(new IllegalArgumentException("DataError: out of range")), false, null));
-    }
-
-    @Test
-    void underTheCompatibilityRulesAnAssertTheDatabaseDeclinedIsNotCompared() {
-        IsolatedRun.Recording host = run(null, true, null, false, "expected: 1 | actual: 2");
-        IsolatedRun.Recording database = new IsolatedRun.Recording();
-        database.declined("t::a0", "no SQL for it");
-        database.verdict("t::a2", false, "expected 1, got 2");
-        assertDoesNotThrow(() -> IsolatedRun.conclude(host, database, false, null));
-        // under lite's own rules both judge every assert
-        assertThrows(IsolatedRun.JudgesDisagree.class, () -> IsolatedRun.conclude(host, database, true, null));
-    }
+    // (underTheCompatibilityRulesTheVerdictsAloneAreCompared and underTheCompatibilityRulesAnAssertTheDatabaseDeclined-
+    // IsNotCompared: deleted with the comparison they pinned, A4 of the compatibility program, stage A ratified by the
+    // user 2026-11-19 -- the host judge is the only judge in compatibility, so no compatibility body runs both judges
+    // isolated, and an isolated run always compares the two judges' messages, both writing lite's sentences)
 }

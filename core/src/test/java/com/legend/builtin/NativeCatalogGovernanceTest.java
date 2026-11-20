@@ -174,7 +174,21 @@ class NativeCatalogGovernanceTest {
         // 37 -> 38 (PR #118 fix round, 2026-11-18: N2, the in-body assert's default message chosen by the plan's style
         // at lowering; the user's word "raise it"): assertFailedText, which LambdaBodies writes for fail's message where
         // the assert gives none -- the product's lite sentence, the compatibility edge's legend-pure "Assert failed"
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 38,
+        // 38 -> 40 (2026-11-19, A3 of the compatibility program, piece 1; the user's word in the translator session,
+        // "Yes to phases 1 guard move", and in the compat owner's session, "Okay approved", ~20:50): sqlSubstring and
+        // sqlPosition, SQL's SUBSTRING and POSITION by name, which the #Cypher, #SQL and #IQ islands and the
+        // ###Relational dynaFunctions write so that Pure's substring and indexOf can take Pure's meaning (register
+        // S130, S134); each the database's function verbatim, no SQL moved
+        // 40 -> 41 (2026-11-19, A3, the user's ruling ~21:10 "Yes to all three for substring", relayed by the compat
+        // owner; the reviewer's D-S1 as corrected, ca8ea4a5): substringAsGiven, the database's own SUBSTRING over the
+        // arguments as given -- lite-internal, its one producer the legend-engine door's engine rewrite, its one
+        // product claimer Scalars (spec's ClaimRegistryTest.substringAsGivensOneProductClaimerIsScalars)
+        // 41 -> 42 (2026-11-20, A3, the user's word ~07:45 "Okay 1", relayed by the compat owner): substrAsGiven, the
+        // database's own SUBSTRING over Pure's indexes corrected as legend-engine's processSubstr corrects them (start
+        // + 1 and end - start as SQL arithmetic, no range check) -- lite-internal, its one producer the legend-engine
+        // door's engine rewrite (for substr and the corrected substring), its one product claimer Scalars
+        // (ClaimRegistryTest.substrAsGivensOneProductClaimerIsScalars)
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 42,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -278,4 +292,5 @@ class NativeCatalogGovernanceTest {
         u.addAll(b);
         return u;
     }
+
 }

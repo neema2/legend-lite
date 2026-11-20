@@ -18,7 +18,9 @@ import java.util.Map;
  * path ({@code --database-file}, its token in the model {@code --file-token}), seeded by the oracle's package
  * ({@code //tools/engine-runner:lite_battery_seed}).
  *
- * <p>{@code run --model=<pure> --requests=<tsv> --out=<tsv> [--database-file=<file> --file-token=<text>]}.
+ * <p>{@code run --model=<pure> --requests=<tsv> --out=<tsv> [--database-file=<file> --file-token=<text>]}: each request
+ * answered by pure/v1's execute route, which answers legend-engine's meaning (A3's engine rewrite, with no setting since
+ * the user's ruling of 2026-11-20 ~07:55).
  */
 public final class LiteBatteries {
 
@@ -66,7 +68,7 @@ public final class LiteBatteries {
             String body = "{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":" + modelJson
                     + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
             com.legend.server.LiteV1Api.Answer a = com.legend.edge.PureV1Routes.execute(body,
-                    com.legend.edge.EdgeServer.runner(null));
+                    com.legend.edge.EdgeServer.runner(null), com.legend.server.LiteV1Api.Models.COMPILED);
             out.append(com.legend.tools.enginelane.Batteries.answer(name, a.status(), a.json())).append('\n');
         }
         Files.writeString(Path.of(o.get("out")), out, StandardCharsets.UTF_8);

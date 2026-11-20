@@ -33,7 +33,8 @@ deploy jar, so it also measures commits older than the target.
 The cases are the (model, expression) pairs the PCT lanes ran, recorded by the DEBUG-ONLY
 `PctCaseRecorder` under `-Dlegend.diagnostics=pct-cases` (`lanes.sh` sets both). `RenderCensus.java` lowers each
 case once, as `Compiler.execute` does, and renders it with every database's dialect (`Databases.implemented()`, each
-named by its declared type since 2026-10-16) and legend-engine's text (EngineStyleH2): one line per case and dialect,
+named by its declared type since 2026-10-16; legend-engine's text, EngineStyleH2, until A2 deleted it, 2026-11-19): one
+line per case and dialect,
 the SQL or the failure. It compiles against the measured commit's own
 `//core:core_tests_root_deploy.jar` (`core_tests_deploy.jar` at a commit before P3-05), so it runs at commits older than itself. This covers the dialects a
 lane does not execute on that host.

@@ -30,8 +30,8 @@ public interface EdgeHearing {
      *  2026-11-17: its facts the edge's own record). */
     TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, boolean messaged);
 
-    /** The database judge's failed {@code row}, whose appeal is numbered {@code number}, heard. */
-    TypedSide rowAppealed(int number, List<Object> row, boolean messaged);
+    // (rowAppealed, the database judge's failed row's appeal heard: deleted with the database judge's appeal path,
+    // A4 of the compatibility program, stage A ratified by the user 2026-11-19)
 
     /** legend-pure's words of site {@code n} of the planned statement whose text is {@code statement}, planned and
      *  looked up in the plan's records (K10b of the edge audit, the orchestrator's ruling (A) of 2026-11-17): what an

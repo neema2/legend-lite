@@ -47,10 +47,6 @@ import java.util.List;
         return env.engineText();
     }
 
-    public static @com.legend.base.Nullable VerdictBatch verdictBatch(BodyDriver.ExecEnv env) {
-        return env.verdictBatch();
-    }
-
     public static com.legend.database.PlanStyle style(BodyDriver.ExecEnv env) {
         return env.options().style();
     }
@@ -92,16 +88,9 @@ import java.util.List;
         EngineTextGates.restoreMarking(env, prior);
     }
 
-    // ---- the verdict batch --------------------------------------------------------------------------------------
-
-    public static boolean active(VerdictBatch batch) {
-        return batch.active();
-    }
-
-    public static void defer(VerdictBatch batch, String name, boolean wantEqual, com.legend.sql.SqlQuery query,
-            com.legend.executionplan.ExecutionPlan.Target on, int appeal, @com.legend.base.Nullable String decline) {
-        batch.defer(name, wantEqual, query, on, appeal, decline);
-    }
+    // (the verdict batch's reads -- active, defer -- and the text equalities below: the edge's engine-text rows' under
+    // the database judge, deleted with its appeal path, A4 of the compatibility program, stage A ratified by the user
+    // 2026-11-19)
 
     // ---- an assert's ask and check --------------------------------------------------------------------------------
 
@@ -175,20 +164,6 @@ import java.util.List;
         return JudgePlans.shapeOf(p, style);
     }
 
-    /** {@code side} planned as the database judge's rows (C4, 2026-11-17: forwarding alone; the edge reads them). */
-    public static DatabaseJudge.SideRows planSide(TypedSpec side, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv at, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        return DatabaseJudge.planSide(side, false, letPrefix, specs, at, hook);
-    }
-
-    public static @com.legend.base.Nullable String why(DatabaseJudge.SideRows rows) {
-        return rows.why();
-    }
-
-    public static com.legend.sql.@com.legend.base.Nullable SqlQuery scalarRow(DatabaseJudge.SideRows rows) {
-        return rows.scalarRow(false);
-    }
-
     // ---- the replay facts ------------------------------------------------------------------------------------------
 
     // (replayFacts, noReplayGates and the gates' three readers: gone 2026-11-18, the edge audit's J40 -- the referee's
@@ -214,14 +189,6 @@ import java.util.List;
     }
 
     // ---- the planner's and the lowering's reads ---------------------------------------------------------------------
-
-    public static com.legend.sql.SqlQuery textEquals(String golden, String ours) {
-        return com.legend.lowering.VerdictSql.constantTextsEqual(golden, ours);
-    }
-
-    public static com.legend.sql.SqlQuery textEquals(String golden, com.legend.sql.SqlQuery oursRow) {
-        return com.legend.lowering.VerdictSql.textEquals(golden, oursRow);
-    }
 
     public static @com.legend.base.Nullable String isoTimestamp(com.legend.values.PureDateLiteral value) {
         return com.legend.lowering.LiteralSpelling.isoTimestamp(value);

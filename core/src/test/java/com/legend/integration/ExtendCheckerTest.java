@@ -709,9 +709,11 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     abc
                     #->extend(~pos: x | $x.str->indexOf('o'))""");
             int idx = colIdx(result, "pos");
-            // 1-based: engine dialects emit the position function verbatim
-            // (LOCATE/instr, no -1) — 'o' in 'hello world' is position 5
-            assertEquals(5L, ((Number) result.rows().get(0).get(idx)).longValue());
+            // Pure's indexOf, 0-based (S134): 'o' in 'hello world' is at 4. Re-pinned by A3 of the
+            // compatibility program, piece 2, 2026-11-19 (the user's word: "approved: push both A3
+            // branches and make piece 2's moves"); it held legend-engine's verbatim 1-based LOCATE/instr,
+            // 5, which is the compatibility edge's meaning now
+            assertEquals(4L, ((Number) result.rows().get(0).get(idx)).longValue());
         }
 
         @Test

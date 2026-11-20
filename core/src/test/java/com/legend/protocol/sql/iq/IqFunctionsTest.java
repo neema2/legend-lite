@@ -189,7 +189,7 @@ class IqFunctionsTest {
         IqSettings sa = IqProfile.SQLA17_DEFAULT.settings();
         String p = pure("SELECT SUBSTRING(vc, sm, 3) AS s FROM " + T, sa);
         // a start below 1: the positions from 1 to start + length - 1
-        assertTrue(p.contains("substring(1, "), p);
+        assertTrue(p.contains("meta::legend::lite::sqlSubstring(1, "), p);
         assertTrue(p.contains("< 2"), p);
         // a length that may be negative is IQ's -1090 where computed
         assertTrue(pure("SELECT SUBSTRING(vc, 1, sm) AS s FROM " + T, sa).contains("cast(@String)->toOne()"));

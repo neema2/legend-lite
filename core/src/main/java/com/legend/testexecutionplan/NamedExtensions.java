@@ -53,17 +53,8 @@ public final class NamedExtensions {
                             }
                         }
                     }
-                    RootLoop roots = group.roots();
-                    if (roots != null) {
-                        for (RootLoop.Root r : roots.roots()) {
-                            for (RootLoop.Step s : r.steps()) {
-                                if (s instanceof RootLoop.Row row && row.appeal() != RootLoop.NO_APPEAL
-                                        && row.verdict() != RootLoop.NO_VERDICT) {
-                                    add(out, row.verdict(), row.appeal());
-                                }
-                            }
-                        }
-                    }
+                    // (a database root's row named an appeal here until A4 of the compatibility program, stage A
+                    // ratified by the user 2026-11-19: no row carries one now)
                 }
                 case TestPlan.Branch b -> {
                     walk(b.then(), out);

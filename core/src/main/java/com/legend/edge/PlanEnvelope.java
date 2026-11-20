@@ -24,22 +24,19 @@ public final class PlanEnvelope {
             String rootClass, String[] impl, String mappingFqn,
             TypedSpec term, @com.legend.base.Nullable String connName,
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
-            EngineTextDialect pd, boolean hasParams) {
+            com.legend.sql.dialect.SqlDialect pd, boolean hasParams) {
         EngineText.InListTempTables inList = EngineText.inListTempTables(dbType);
         var inp = InProtocol.apply(es.plan(),
                 InProtocol.thresholdFor(connName, inList.threshold()),
                 inList.tablePrefix());
         java.util.List<String> inTexts = inp == null ? java.util.List.of()
-                : InProtocol.allNodeTexts(inp, connName,
-                        inList.threshold(), pd::collectionSplice, pd::inTempTableSelect);
+                : InProtocol.allNodeTexts(inp, connName, inList.threshold());
         var planOut = inp != null ? inp.plan() : es.plan();
-        // the plan's template parameters, the protocol's wrappers spliced bare (the edge's table: the audit's J31)
-        pd.params(inp != null ? es.params().withProtocol(inp.splices(), inp.tempTables()) : es.params());
         boolean pushDownEnums = EnginePlans.pushDownEnums(env, java.util.List.of(term));
         String rel = PlanText.single(env.ctx(), rootClass,
                 mappingFqn, planOut,
                 inp != null ? pd.render(planOut) : es.sql(),
-                java.util.List.of(term), connName, java.util.List.of(), planOut, pushDownEnums, pd::selectList);
+                java.util.List.of(term), connName, java.util.List.of(), planOut, pushDownEnums);
         String tb = PlanText.typeBlock(env.ctx(), rootClass,
                 impl, es.plan(), java.util.List.of(term), mappingFqn, pushDownEnums);
         boolean hasLets = children.size() > (hasParams ? 1 : 0);

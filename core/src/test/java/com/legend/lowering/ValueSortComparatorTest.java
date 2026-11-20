@@ -45,10 +45,12 @@ class ValueSortComparatorTest {
     }
 
     @Test
-    @DisplayName("key-function sort orders by the key (1-based substring keys)")
+    @DisplayName("key-function sort orders by the key (Pure's 0-based substring keys)")
     void keyFunctionSort() throws Exception {
-        // keys are RELATIONAL (1-based) substrings: Do/Sm/Br -> Br,Do,Sm
-        assertEquals(List.of("Branche", "Doe", "Smith"),
+        // keys are Pure's substrings (S130): o/m/r -> m,o,r, PCT's sort::testSimpleSortWithKey answer (sort.pure:108).
+        // Re-pinned by A3 of the compatibility program, piece 2, 2026-11-19 (the user's word: "approved: push both A3
+        // branches and make piece 2's moves"); it held legend-engine's 1-based keys, Do/Sm/Br -> Br,Do,Sm
+        assertEquals(List.of("Smith", "Doe", "Branche"),
                 col("|['Doe', 'Smith', 'Branche']->meta::pure::functions"
                         + "::collection::sort(s: String[1]|$s->meta::pure"
                         + "::functions::string::substring(1, 2), "

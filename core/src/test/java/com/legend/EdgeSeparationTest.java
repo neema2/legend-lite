@@ -181,7 +181,9 @@ class EdgeSeparationTest {
             // C4, the engine-text assert's arm (the orchestrator's ruling of 2026-11-17): EngineTestText a bare hook (its
             // records top-level, its gates the edge's), asked only where the style judges engine text
             // (PlanStyle.judgesEngineText, EngineTextGates); EngineTextPlanning the listed facade, forwarding alone
-            Map.entry("com.legend.testplan.AssertVerdicts -> com.legend.testplan.EngineTestText", "C4 HOOK-RULED 2026-11-17"),
+            // (AssertVerdicts -> EngineTestText, C4 HOOK-RULED 2026-11-17: the database arm's asks of the facet
+            // deleted, A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the
+            // user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
             Map.entry("com.legend.testplan.EngineTestText -> (stands in a product package)", "C4 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.EngineTextPlanning -> (stands in a product package)", "C4 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.testplan.EngineTestText", "C4 HOOK-RULED 2026-11-17"),

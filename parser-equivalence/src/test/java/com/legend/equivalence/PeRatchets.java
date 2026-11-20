@@ -126,7 +126,48 @@ public final class PeRatchets {
                     + " the reference grammar, measured by //parser-equivalence:update_ratchets on its tree (D's d-int18 measures"
                     + " 3302); a floor rising, UP)",
             "own_corpus.matched 3309 -> 3310 (2026-11-18, PR #118 fix round: one more own-corpus model, added by the"
-                    + " batch's tests, matches the reference grammar; UP)");
+                    + " batch's tests, matches the reference grammar; UP)",
+            "own_corpus.matched 3310 -> 3309 (2026-11-19, A2 of the compatibility program: PureV1SqlTextTest's model"
+                    + " joins, LegacyTextTest's models leave with the printers; net -1, measured; DOWN -- the line's"
+                    + " '3310 -> 3311 ... UP' corrected on the stage-A batch by census B2's classification, c2269b7b4)",
+            "own_corpus.matched 3310 -> 3312 (2026-11-19, A3 piece 3 (the detector), ruled by the user 2026-11-19 ~20:10"
+                    + " ('Yes', to the owner's question on these three moves): two more own-corpus elements, from"
+                    + " PureMeaningCheckTest's model text, match the reference grammar (a verdict is per element); UP)",
+            "own_corpus.matched 3312 -> 3315 (2026-11-19, A3 piece 3's review fixes (the independent reviewer's record"
+                    + " 88e3def8, M1), under the user's ruling of 2026-11-19 ~20:10 ('Yes' to the parser-equivalence"
+                    + " ratchet regenerated for the detector's test models, the final value regenerated on the merged"
+                    + " tree; applied to this move by the compat owner, ~20:57): PureMeaningCheckTest's new one-line"
+                    + " declarations (an M2M target class, an auth class, a class holding a function value, a function"
+                    + " whose body does not type) are new own-corpus candidates, and the measured count of elements"
+                    + " matching the reference grammar rises by three, 3312 + 3 = 3315; on the merged batch with A2's"
+                    + " move (3310 -> 3311), 3310 + 2 + 3 + 1 = 3316 expected, regenerated on the merged tree; UP)",
+            "own_corpus.matched 3309/3315 -> 3314 (2026-11-19, the stage-A batch's merged tree -- A2, A5, A4, main, the"
+                    + " parser-parity memo and A3's detector -- measured by //parser-equivalence:update_ratchets there,"
+                    + " under the user's ruling of 2026-11-19 ~20:10: 3310 - 1 (A2, census B2's corrected DOWN) + 2 + 3"
+                    + " (A3) = 3314, not the 3316 the line above expected from A2's uncorrected +1; UP)",
+            "own_corpus.matched 3315 -> 3321 (2026-11-19, A3 piece 3's section fix (the judges' fast loop on the batch:"
+                    + " parser_parity found six of PureMeaningCheckTest's model literals without their ###Section"
+                    + " headers), under the user's ruling of 2026-11-19 ~20:10 (the ratchet regenerated for the"
+                    + " detector's test models): each non-Pure element's literal now carries its own header, so the six"
+                    + " elements (a Database, two Mappings, a Connection, two Runtimes) parse on the reference grammar"
+                    + " and match, 3315 + 6 = 3321; the class holding a function value (lite's own dialect, which"
+                    + " the reference grammar refuses) is replaced by a lambda read from a collection; the merged value"
+                    + " is regenerated on the merged tree; UP)",
+            "own_corpus.matched 3314/3321 -> 3325 (2026-11-19, the stage-A batch's merged tree with the detector's section"
+                    + " fix, measured by //parser-equivalence:update_ratchets there: 3314 + 6 (the section fix, under the"
+                    + " user's ruling of 2026-11-19 ~20:10) + 5 (the batch's InCollectionSpliceRefusalTest model, a Class,"
+                    + " a Database, a Mapping, a Connection and a Runtime, which match the reference grammar; 3320 measured"
+                    + " without it; a floor rising, listed for the user's word at the batch PR) = 3325; UP)",
+            "own_corpus.matched 3325 -> 3327 (2026-11-20, the stage-A batch with B1's native and the engine wiring: B1's"
+                    + " EngineSubstitutesTest model literals take their ###Section headers, so its Database and its"
+                    + " Runtime parse on the reference grammar and match; measured by //parser-equivalence:update_ratchets;"
+                    + " a floor rising, listed for the user's word at the batch PR; UP)",
+            "own_corpus.matched 3327 -> 3330 (2026-11-20, A3's follow-up on claude/compat-a3-engine-followup, the"
+                    + " reviewer's should on 67fa4df51: PureMeaningPostgresTest's model, a Database, a Class and a"
+                    + " Mapping, which match the reference grammar (its Connection and Runtime carry the backend's text,"
+                    + " not a literal); measured by //parser-equivalence:update_ratchets; a floor rising, the same kind the"
+                    + " user's word of 2026-11-19 ~20:10 covered for the detector's test models, listed for the user's"
+                    + " word at the PR; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

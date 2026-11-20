@@ -66,6 +66,9 @@ class ObservabilityGuardrailTest {
             "LEGEND_LITE_BIND", "LEGEND_LITE_ALLOWED_ORIGINS",
             // 2026-11-10, the A checkpoint's tenets audit (11) and the user's ruling that day: the folders the server
             // reads file: sources from, its startup setting beside --sources DIR; deployment config, not a debug flag
+            // LEGEND_LITE_PURE_MEANING (2026-11-19, A3 piece 3) left this list 2026-11-20: the user's ruling ~07:55,
+            // "Delete the settings, make engine only mode for engine for everything" (claude/compat-program 25ede64f
+            // §1): legend-engine's door answers legend-engine's meaning with no setting
             "LEGEND_LITE_SOURCE_DIRS");
 
     // 40 compiler sites + 3 server-shell sites that moved in with the

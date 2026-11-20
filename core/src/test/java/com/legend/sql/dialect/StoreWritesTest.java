@@ -3,9 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleComposite;
-import com.legend.edge.EngineStyleDB2;
-import com.legend.edge.EngineStyleH2;
 
 import com.legend.sql.DialectCapability;
 
@@ -200,8 +197,7 @@ class StoreWritesTest {
     @Test
     void everyOtherDialectRefusesEachWrite() {
         for (SqlDialect d : List.<SqlDialect>of(new SQLite(), new MariaDb(), new MySql(), new Trino(), new ClickHouse(),
-                new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(), new EngineStyleDB2(),
-                new EngineStyleComposite())) {
+                new Snowflake(), new Databricks(), new BigQuery())) {
             for (SqlDml dml : List.<SqlDml>of(insert(), update(), delete(), merge())) {
                 DialectCapability refusal = assertThrows(DialectCapability.class, () -> d.render(dml),
                         d.getClass().getSimpleName() + " " + dml.getClass().getSimpleName());

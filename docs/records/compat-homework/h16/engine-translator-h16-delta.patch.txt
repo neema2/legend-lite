@@ -1,0 +1,43 @@
+--- a/spec/src/test/java/com/legend/compatspike/EngineTranslator.java (95ec86746)	2026-11-19 19:14:23.670757244 +0000
++++ b/pct/src/test/java/org/finos/legend/lite/pct/batteries/EngineTranslator.java	2026-11-19 19:20:07.503329265 +0000
+@@ -1,7 +1,7 @@
+ // Copyright 2026 Legend Contributors
+ // SPDX-License-Identifier: Apache-2.0
+ 
+-package com.legend.compatspike;
++package org.finos.legend.lite.pct.batteries;
+ 
+ import com.legend.Compiler;
+ import com.legend.model.ConnectionDefinition;
+@@ -223,6 +223,18 @@
+ 
+     private static final ThreadLocal<Set<com.legend.protocol.SourceInfo>> ONLY_AT = new ThreadLocal<>();
+ 
++    /** H16 (scratch): the query with ONLY the calls at {@code onlyAt} renamed: the typed retarget over a request's
++     *  query, as {@link #translateAt} is over a model. */
++    public static ValueSpecification translateQueryAt(ValueSpecification query, Set<com.legend.protocol.SourceInfo> onlyAt,
++            Report report) {
++        ONLY_AT.set(onlyAt);
++        try {
++            return translateQuery(query, report);
++        } finally {
++            ONLY_AT.remove();
++        }
++    }
++
+     /** A request's query (pure/v1's lambda, a probe's text): all of it is code legend-engine sends to the store. */
+     public static ValueSpecification translateQuery(ValueSpecification query, Report report) {
+         long t0 = System.nanoTime();
+@@ -451,7 +463,11 @@
+                 return af;
+             }
+             report.count(report.rewritten, key);
+-            return new AppliedFunction(COMPAT + simple, af.parameters(), List.of(), af.pos(), af.propertyCall(),
++            // H16: a String literal's substring is folded by DuckDB's constant folder, whose window differs from its
++            // runtime's for a negative start (H3 section 3): its own twin in the target's library
++            String twin = simple.equals("substring") && af.parameters().get(0) instanceof com.legend.protocol.spec.CString
++                    ? "substringConst" : simple;
++            return new AppliedFunction(COMPAT + twin, af.parameters(), List.of(), af.pos(), af.propertyCall(),
+                     af.grouped(), af.infix(), af.island(), af.fControl(), af.ownerClass());
+         }
+     }

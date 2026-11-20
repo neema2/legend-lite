@@ -1,6 +1,6 @@
 #!/bin/bash
 # The render census, one side: build this checkout's core test deploy jar, then lower every case
-# once and render it with DuckDb, H2, EngineStyleH2 and Postgres (RenderCensus.java) into
+# once and render it with every database's dialect (RenderCensus.java) into
 # runs/census/render/<label>.tsv. Run at two commits over the SAME cases, then diff the two files.
 # RenderCensus compiles against the jar of the commit being measured, so it runs at any commit,
 # including ones older than this tool. See README.md.

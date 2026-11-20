@@ -41,7 +41,8 @@ class HostSideOrderTest {
         }
     }
 
-    /** F's case as PCT runs it: isolated BOTH under the compatibility rules on the edge's door, the host's error the
+    /** F's case as PCT runs it: the host judge alone under the compatibility rules on the edge's door (A4 of the
+     *  compatibility program, stage A ratified by the user 2026-11-19: until A4 isolated BOTH), the host's error the
      *  body's answer. */
     @Test
     void theFirstSidesErrorUnderTheCompatibilityRules() throws Exception {
@@ -49,8 +50,8 @@ class HostSideOrderTest {
             try (Connection c = TestBackends.platform().open()) {
                 RuntimeException e = assertThrows(RuntimeException.class, () -> com.legend.testing.EdgeProgram.run(
                         StorelessRuntime.with(MODEL, Databases.PLATFORM), BODY, StorelessRuntime.RUNTIME, c,
-                        com.legend.testing.EdgeProgram.compat(PlanningOptions.JudgeMode.BOTH)));
-                assertFirstSides("compat BOTH run " + run, e);
+                        com.legend.testing.EdgeProgram.compat(PlanningOptions.JudgeMode.HOST)));
+                assertFirstSides("compat HOST run " + run, e);
             }
         }
     }

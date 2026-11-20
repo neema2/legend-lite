@@ -85,6 +85,7 @@ H2	H2	call	MAP_KEYS	spelled	map_keys		4
 H2	H2	call	MAP_VALUES	spelled	map_values		4
 H2	H2	call	MAP_CONCAT	spelled	map_concat		9
 H2	H2	call	SUBSTRING	spelled	substr		140
+H2	H2	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 H2	H2	call	STRPOS	spelled	LOCATE		287
 H2	H2	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)		60
 H2	H2	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)		60
@@ -122,7 +123,7 @@ H2	H2	call	NOW	spelled	now		0
 H2	H2	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 H2	H2	call	MAKE_DATE	spelled	make_date		2
 H2	H2	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which has no make_timestamp()		10
-H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
+H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained: iso_week		0
 H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
 H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
 H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
@@ -314,6 +315,7 @@ Postgres	Postgres	call	MAP_KEYS	emulated	composed in a block	via Postgres.maps	4
 Postgres	Postgres	call	MAP_VALUES	emulated	composed in a block	via Postgres.maps	4
 Postgres	Postgres	call	MAP_CONCAT	emulated	composed in a block	via Postgres.maps	9
 Postgres	Postgres	call	SUBSTRING	spelled	substr		140
+Postgres	Postgres	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 Postgres	Postgres	call	STRPOS	spelled	strpos		287
 Postgres	Postgres	call	STARTS_WITH	spelled	starts_with		60
 Postgres	Postgres	call	ENDS_WITH	emulated	(right(…, length(…)) = …)		60
@@ -543,6 +545,7 @@ Snowflake	Snowflake	call	MAP_KEYS	spelled	object_keys		4
 Snowflake	Snowflake	call	MAP_VALUES	emulated	mapValues		4
 Snowflake	Snowflake	call	MAP_CONCAT	emulated	mapConcat		9
 Snowflake	Snowflake	call	SUBSTRING	spelled	substr		140
+Snowflake	Snowflake	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 Snowflake	Snowflake	call	STRPOS	spelled	CHARINDEX		287
 Snowflake	Snowflake	call	STARTS_WITH	spelled	startswith		60
 Snowflake	Snowflake	call	ENDS_WITH	spelled	endswith		60
@@ -772,6 +775,7 @@ Trino	Trino	call	MAP_KEYS	spelled	map_keys		4
 Trino	Trino	call	MAP_VALUES	spelled	map_values		4
 Trino	Trino	call	MAP_CONCAT	spelled	map_concat		9
 Trino	Trino	call	SUBSTRING	spelled	substr		140
+Trino	Trino	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 Trino	Trino	call	STRPOS	spelled	strpos		287
 Trino	Trino	call	STARTS_WITH	spelled	starts_with		60
 Trino	Trino	call	ENDS_WITH	emulated	(substr(…, greatest(length(…) - length(…) + 1, 1)) = … AND length(…) >= lengt...		60
@@ -1001,6 +1005,7 @@ BigQuery	BigQuery	call	MAP_KEYS	emulated	unlessNull: …ARRAY(SELECT . FROM UNNE
 BigQuery	BigQuery	call	MAP_VALUES	emulated	unlessNull: …ARRAY(SELECT . FROM UNNEST(…) AS WITH OFFSET AS ORDER BY )	via BigQuery.maps	4
 BigQuery	BigQuery	call	MAP_CONCAT	emulated	composed in a block	via BigQuery.maps	9
 BigQuery	BigQuery	call	SUBSTRING	spelled	SUBSTR		140
+BigQuery	BigQuery	call	SUBSTRING_AS_GIVEN	spelled	SUBSTR		0
 BigQuery	BigQuery	call	STRPOS	spelled	STRPOS		287
 BigQuery	BigQuery	call	STARTS_WITH	spelled	STARTS_WITH		60
 BigQuery	BigQuery	call	ENDS_WITH	spelled	ENDS_WITH		60
@@ -1230,6 +1235,7 @@ Databricks	Databricks	call	MAP_KEYS	spelled	map_keys		4
 Databricks	Databricks	call	MAP_VALUES	spelled	map_values		4
 Databricks	Databricks	call	MAP_CONCAT	emulated	mapConcat		9
 Databricks	Databricks	call	SUBSTRING	spelled	substr		140
+Databricks	Databricks	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 Databricks	Databricks	call	STRPOS	spelled	instr		287
 Databricks	Databricks	call	STARTS_WITH	spelled	startswith		60
 Databricks	Databricks	call	ENDS_WITH	spelled	endswith		60
@@ -1459,6 +1465,7 @@ DuckDb	DuckDB	call	MAP_KEYS	spelled	map_keys		4
 DuckDb	DuckDB	call	MAP_VALUES	spelled	map_values		4
 DuckDb	DuckDB	call	MAP_CONCAT	spelled	map_concat		9
 DuckDb	DuckDB	call	SUBSTRING	spelled	substr		140
+DuckDb	DuckDB	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 DuckDb	DuckDB	call	STRPOS	spelled	strpos		287
 DuckDb	DuckDB	call	STARTS_WITH	spelled	starts_with		60
 DuckDb	DuckDB	call	ENDS_WITH	spelled	ends_with		60
@@ -1688,6 +1695,7 @@ ClickHouse	ClickHouse	call	MAP_KEYS	spelled	mapKeys		4
 ClickHouse	ClickHouse	call	MAP_VALUES	spelled	mapValues		4
 ClickHouse	ClickHouse	call	MAP_CONCAT	spelled	mapUpdate		9
 ClickHouse	ClickHouse	call	SUBSTRING	spelled	substringUTF8		140
+ClickHouse	ClickHouse	call	SUBSTRING_AS_GIVEN	spelled	substringUTF8		0
 ClickHouse	ClickHouse	call	STRPOS	emulated	toInt64(positionUTF8(…))		287
 ClickHouse	ClickHouse	call	STARTS_WITH	spelled	startsWith		60
 ClickHouse	ClickHouse	call	ENDS_WITH	spelled	endsWith		60
@@ -1917,6 +1925,7 @@ SQLite	SQLite	call	MAP_KEYS	emulated	unlessNull: …(SELECT json_group_array(key
 SQLite	SQLite	call	MAP_VALUES	emulated	unlessNull, jsonOf, elementRead: …(SELECT json_group_array(… ORDER BY id) FROM json_each(…))	via SQLite.maps	4
 SQLite	SQLite	call	MAP_CONCAT	emulated	jsonOf, elementRead, for: (SELECT json_group_object(__m.__k, …__m.__v ORDER BY __m.__s, __m.__i) FROM (...	via SQLite.maps	9
 SQLite	SQLite	call	SUBSTRING	spelled	substr		140
+SQLite	SQLite	call	SUBSTRING_AS_GIVEN	spelled	substr		0
 SQLite	SQLite	call	STRPOS	spelled	instr		287
 SQLite	SQLite	call	STARTS_WITH	emulated	(substr(…, 1, length(…)) = …)		60
 SQLite	SQLite	call	ENDS_WITH	emulated	(substr(…, length(…) - length(…) + 1) = …)		60
@@ -2146,6 +2155,7 @@ MariaDb	MariaDB	call	MAP_KEYS	emulated	unlessNull: …JSON_KEYS(…)	via MariaDb
 MariaDb	MariaDB	call	MAP_VALUES	emulated	unlessNull: …coalesce(JSON_EXTRACT(…, '$.*'), JSON_ARRAY())	via MariaDb.maps	4
 MariaDb	MariaDB	call	MAP_CONCAT	spelled	JSON_MERGE_PATCH	via MariaDb.maps	9
 MariaDb	MariaDB	call	SUBSTRING	spelled	SUBSTRING		120
+MariaDb	MariaDB	call	SUBSTRING_AS_GIVEN	spelled	SUBSTRING		0
 MariaDb	MariaDB	call	STRPOS	spelled	INSTR		249
 MariaDb	MariaDB	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)		40
 MariaDb	MariaDB	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)		60
@@ -2375,6 +2385,7 @@ MySql	MySQL	call	MAP_KEYS	emulated	unlessNull: …JSON_KEYS(…)	as MariaDb, via
 MySql	MySQL	call	MAP_VALUES	emulated	unlessNull: …coalesce(JSON_EXTRACT(…, '$.*'), JSON_ARRAY())	as MariaDb, via MariaDb.maps	4
 MySql	MySQL	call	MAP_CONCAT	spelled	JSON_MERGE_PATCH	as MariaDb, via MariaDb.maps	9
 MySql	MySQL	call	SUBSTRING	spelled	SUBSTRING	as MariaDb	120
+MySql	MySQL	call	SUBSTRING_AS_GIVEN	spelled	SUBSTRING	as MariaDb	0
 MySql	MySQL	call	STRPOS	spelled	INSTR	as MariaDb	249
 MySql	MySQL	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)	as MariaDb	40
 MySql	MySQL	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)	as MariaDb	60
@@ -2604,6 +2615,7 @@ MongoDb	MongoDB	call	MAP_KEYS	emulated	mapSide: k		0
 MongoDb	MongoDB	call	MAP_VALUES	emulated	mapSide: v		0
 MongoDb	MongoDB	call	MAP_CONCAT	emulated	$mergeObjects		0
 MongoDb	MongoDB	call	SUBSTRING	emulated	substring		0
+MongoDb	MongoDB	call	SUBSTRING_AS_GIVEN	refused	the database's own SUBSTRING over the arguments as given reached MongoDb, which has no SUBSTRING of its own: its $substrCP form is lite's...		0
 MongoDb	MongoDB	call	STRPOS	emulated	guarded: {"$add": [{"$indexOfCP": [, , , ]}, 1]}		0
 MongoDb	MongoDB	call	STARTS_WITH	emulated	guarded: {"$eq": [{"$indexOfCP": [, , , ]}, 0]}		0
 MongoDb	MongoDB	call	ENDS_WITH	emulated	endsWith		0
@@ -2750,690 +2762,3 @@ MongoDb	MongoDB	reducer	LEAD	not_here	is a window function: windowCall writes it
 MongoDb	MongoDB	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
 MongoDb	MongoDB	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
 MongoDb	MongoDB	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
-EngineStyleH2	-	call	AND	spelled	an operator (infix)		-
-EngineStyleH2	-	call	OR	spelled	an operator (infix)		-
-EngineStyleH2	-	call	NOT	spelled	an operator (notPrefix)		-
-EngineStyleH2	-	call	EQUAL	spelled	an operator (infix)		-
-EngineStyleH2	-	call	NOT_EQUAL	spelled	an operator (infix)		-
-EngineStyleH2	-	call	LESS	spelled	an operator (infix)		-
-EngineStyleH2	-	call	LESS_EQUAL	spelled	an operator (infix)		-
-EngineStyleH2	-	call	GREATER	emulated	greater		-
-EngineStyleH2	-	call	GREATER_EQUAL	spelled	an operator (infix)		-
-EngineStyleH2	-	call	PLUS	spelled	an operator (infix)		-
-EngineStyleH2	-	call	MINUS	spelled	an operator (infix)		-
-EngineStyleH2	-	call	TIMES	spelled	an operator (infix)		-
-EngineStyleH2	-	call	DIVIDE	emulated	divideAsDoubles		-
-EngineStyleH2	-	call	MOD	emulated	modFloored		-
-EngineStyleH2	-	call	REM	emulated	modTruncated		-
-EngineStyleH2	-	call	NEGATE	spelled	an operator (negation)		-
-EngineStyleH2	-	call	ABS	spelled	abs		-
-EngineStyleH2	-	call	IS_NULL	spelled	an operator (isNullTest)		-
-EngineStyleH2	-	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		-
-EngineStyleH2	-	call	IN	emulated	inList		-
-EngineStyleH2	-	call	COALESCE	emulated	coalesceArm		-
-EngineStyleH2	-	call	PARSE_INT	emulated	cast(… as integer)		-
-EngineStyleH2	-	call	CONCAT	emulated	concatArm		-
-EngineStyleH2	-	call	LENGTH	spelled	char_length		-
-EngineStyleH2	-	call	UPPER	spelled	upper		-
-EngineStyleH2	-	call	LOWER	spelled	lower		-
-EngineStyleH2	-	call	GREATEST	spelled	greatest		-
-EngineStyleH2	-	call	LEAST	spelled	least		-
-EngineStyleH2	-	call	CONCAT_JOIN	spelled	concat		-
-EngineStyleH2	-	call	CONCAT_WS	spelled	concat_ws		-
-EngineStyleH2	-	call	LIST_FILTER	emulated	listCall		-
-EngineStyleH2	-	call	LIST_TRANSFORM	emulated	listCall		-
-EngineStyleH2	-	call	LIST_CONCAT	emulated	listCall		-
-EngineStyleH2	-	call	LIST_GET	emulated	listCall		-
-EngineStyleH2	-	call	LIST_POSITION	emulated	listCall		-
-EngineStyleH2	-	call	LIST_AT	emulated	listCall		-
-EngineStyleH2	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listExists	-
-EngineStyleH2	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listForAll	-
-EngineStyleH2	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	via AnsiSqlRenderer.structInsert	-
-EngineStyleH2	-	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	via AnsiSqlRenderer.unnestProjection	-
-EngineStyleH2	-	call	LIST_FLATTEN	spelled	flatten		-
-EngineStyleH2	-	call	JSON_MERGE_PATCH	emulated	jsonMergePatch		-
-EngineStyleH2	-	call	SQRT	spelled	sqrt		-
-EngineStyleH2	-	call	CBRT	emulated	power(…, 1.0/3)		-
-EngineStyleH2	-	call	EXP	spelled	exp		-
-EngineStyleH2	-	call	LN	spelled	ln		-
-EngineStyleH2	-	call	LOG10	spelled	log10		-
-EngineStyleH2	-	call	POW	spelled	power		-
-EngineStyleH2	-	call	PI	spelled	pi		-
-EngineStyleH2	-	call	SIN	spelled	sin		-
-EngineStyleH2	-	call	COS	spelled	cos		-
-EngineStyleH2	-	call	TAN	spelled	tan		-
-EngineStyleH2	-	call	ASIN	spelled	asin		-
-EngineStyleH2	-	call	ACOS	spelled	acos		-
-EngineStyleH2	-	call	ATAN	spelled	atan		-
-EngineStyleH2	-	call	ATAN2	spelled	atan2		-
-EngineStyleH2	-	call	SINH	spelled	sinh		-
-EngineStyleH2	-	call	COSH	spelled	cosh		-
-EngineStyleH2	-	call	TANH	spelled	tanh		-
-EngineStyleH2	-	call	CEILING	emulated	bigintOf: ceil		-
-EngineStyleH2	-	call	FLOOR	emulated	bigintOf: floor		-
-EngineStyleH2	-	call	ROUND	emulated	roundHalfEven		-
-EngineStyleH2	-	call	SIGN	emulated	bigintOf: sign		-
-EngineStyleH2	-	call	XOR	emulated	xorAsAndOr		-
-EngineStyleH2	-	call	BIT_AND	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
-EngineStyleH2	-	call	BIT_OR	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
-EngineStyleH2	-	call	BIT_XOR	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
-EngineStyleH2	-	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
-EngineStyleH2	-	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
-EngineStyleH2	-	call	BIT_NOT	emulated	bitNot		-
-EngineStyleH2	-	call	REGEXP_EXTRACT	spelled	regexp_extract		-
-EngineStyleH2	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		-
-EngineStyleH2	-	call	REGEXP_REPLACE	spelled	regexp_replace		-
-EngineStyleH2	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match		-
-EngineStyleH2	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper		-
-EngineStyleH2	-	call	MAP_FROM_LISTS	spelled	map		-
-EngineStyleH2	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries		-
-EngineStyleH2	-	call	MAP_EMPTY	emulated	mapEmpty		-
-EngineStyleH2	-	call	MAP_EXTRACT	spelled	map_extract		-
-EngineStyleH2	-	call	MAP_KEYS	spelled	map_keys		-
-EngineStyleH2	-	call	MAP_VALUES	spelled	map_values		-
-EngineStyleH2	-	call	MAP_CONCAT	spelled	map_concat		-
-EngineStyleH2	-	call	SUBSTRING	spelled	substring		-
-EngineStyleH2	-	call	STRPOS	spelled	locate		-
-EngineStyleH2	-	call	STARTS_WITH	spelled	starts_with		-
-EngineStyleH2	-	call	ENDS_WITH	spelled	ends_with		-
-EngineStyleH2	-	call	MATCHES	spelled	regexp_matches		-
-EngineStyleH2	-	call	LEFT	spelled	left		-
-EngineStyleH2	-	call	RIGHT	spelled	right		-
-EngineStyleH2	-	call	LPAD	emulated	padCall: legend_h2_extension_lpad		-
-EngineStyleH2	-	call	RPAD	emulated	padCall: legend_h2_extension_rpad		-
-EngineStyleH2	-	call	TRIM	emulated	by its operands: trim(both from …) / …trim		-
-EngineStyleH2	-	call	LTRIM	emulated	regexp_replace(…, '^[ ]+', '')		-
-EngineStyleH2	-	call	RTRIM	emulated	regexp_replace(…, '[ ]+$', '')		-
-EngineStyleH2	-	call	REPLACE	spelled	replace		-
-EngineStyleH2	-	call	SPLIT	spelled	string_split		-
-EngineStyleH2	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part		-
-EngineStyleH2	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell		-
-EngineStyleH2	-	call	PURE_SPLIT_PART	emulated	splitPartCall		-
-EngineStyleH2	-	call	REVERSE_STRING	spelled	legend_h2_extension_reverse_string		-
-EngineStyleH2	-	call	ASCII_CODE	spelled	ascii		-
-EngineStyleH2	-	call	CHR	spelled	char		-
-EngineStyleH2	-	call	UC_FIRST	emulated	firstCharCased: upper		-
-EngineStyleH2	-	call	LC_FIRST	emulated	firstCharCased: lower		-
-EngineStyleH2	-	call	BINARY_COLLATE	emulated	composed		-
-EngineStyleH2	-	call	ENCODE_BASE64	emulated	encodeBase64		-
-EngineStyleH2	-	call	LEVENSHTEIN	spelled	levenshtein		-
-EngineStyleH2	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)		-
-EngineStyleH2	-	call	FORMAT	spelled	printf		-
-EngineStyleH2	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	via AnsiSqlRenderer.hashSigned	-
-EngineStyleH2	-	call	MD5	emulated	digest: MD5		-
-EngineStyleH2	-	call	SHA1	emulated	digest: SHA-1		-
-EngineStyleH2	-	call	SHA256	emulated	digest: SHA-256		-
-EngineStyleH2	-	call	RANDOM	spelled	rand		-
-EngineStyleH2	-	call	EXTRACT	emulated	extractArm		-
-EngineStyleH2	-	call	TODAY	emulated	cast(now() as date)		-
-EngineStyleH2	-	call	NOW	spelled	now		-
-EngineStyleH2	-	call	DATE_TRUNC_DAY	emulated	cast(truncate(…) as date)		-
-EngineStyleH2	-	call	MAKE_DATE	spelled	make_date		-
-EngineStyleH2	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp		-
-EngineStyleH2	-	call	DATE_TRUNC	emulated	dateTrunc		-
-EngineStyleH2	-	call	ADD_INTERVAL	emulated	dbUnitOf, part: dateadd(…, …, …)		-
-EngineStyleH2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)		-
-EngineStyleH2	-	call	TIME_BUCKET	emulated	timeBucket		-
-EngineStyleH2	-	call	TIMEZONE	spelled	timezone		-
-EngineStyleH2	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one		-
-EngineStyleH2	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		-
-EngineStyleH2	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		-
-EngineStyleH2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)		-
-EngineStyleH2	-	call	EPOCH_SECONDS	spelled	epoch		-
-EngineStyleH2	-	call	EPOCH_MS	spelled	epoch_ms		-
-EngineStyleH2	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp		-
-EngineStyleH2	-	call	FROM_EPOCH_MS	emulated	fromEpochMs		-
-EngineStyleH2	-	call	DAYNAME	spelled	dayname		-
-EngineStyleH2	-	call	MONTHNAME	spelled	monthname		-
-EngineStyleH2	-	call	COT	spelled	cot		-
-EngineStyleH2	-	call	RADIANS	spelled	radians		-
-EngineStyleH2	-	call	DEGREES	spelled	degrees		-
-EngineStyleH2	-	call	INT_DIVIDE	emulated	intDivide		-
-EngineStyleH2	-	call	REPEAT_STR	spelled	repeat		-
-EngineStyleH2	-	call	JARO_WINKLER	spelled	jaro_winkler_similarity		-
-EngineStyleH2	-	call	DECODE_BASE64	emulated	decodeBase64		-
-EngineStyleH2	-	call	CURRENT_USER_FN	spelled	current_user		-
-EngineStyleH2	-	call	LIST_LENGTH	spelled	len		-
-EngineStyleH2	-	call	LIST_ZIP	emulated	listCall		-
-EngineStyleH2	-	call	LIST_DISTINCT	emulated	listCall		-
-EngineStyleH2	-	call	LIST_APPEND	emulated	listCall		-
-EngineStyleH2	-	call	LIST_SUM	emulated	composed	via EngineStyleH2.listCall	-
-EngineStyleH2	-	call	LIST_MIN	emulated	listCall		-
-EngineStyleH2	-	call	LIST_MAX	emulated	listCall		-
-EngineStyleH2	-	call	LIST_AVG	emulated	listCall		-
-EngineStyleH2	-	call	LIST_MEDIAN	emulated	listCall		-
-EngineStyleH2	-	call	LIST_MODE	emulated	listCall		-
-EngineStyleH2	-	call	LIST_SORT	emulated	listCall		-
-EngineStyleH2	-	call	LIST_SORT_DESC	emulated	listCall		-
-EngineStyleH2	-	call	LIST_TAIL	emulated	listCall		-
-EngineStyleH2	-	call	LIST_INIT	emulated	listCall		-
-EngineStyleH2	-	call	RANGE_FN	emulated	listCall		-
-EngineStyleH2	-	call	LIST_PRODUCT	emulated	composed	via EngineStyleH2.listCall	-
-EngineStyleH2	-	call	LIST_REDUCE	emulated	listCall		-
-EngineStyleH2	-	call	LIST_SLICE	emulated	listCall		-
-EngineStyleH2	-	call	REPEAT_VALUE	emulated	listCall		-
-EngineStyleH2	-	call	LIST_BOOL_AND	emulated	composed	via EngineStyleH2.listCall	-
-EngineStyleH2	-	call	LIST_BOOL_OR	emulated	composed	via EngineStyleH2.listCall	-
-EngineStyleH2	-	call	IS_DISTINCT_FROM	emulated	distinctFrom		-
-EngineStyleH2	-	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	via AnsiSqlRenderer.allDistinct	-
-EngineStyleH2	-	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		-
-EngineStyleH2	-	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		-
-EngineStyleH2	-	call	STRFTIME	emulated	strftimeArm		-
-EngineStyleH2	-	call	STRPTIME	emulated	strptimeArm		-
-EngineStyleH2	-	call	PARSE_DATE	emulated	cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....		-
-EngineStyleH2	-	call	LIST_REVERSE	emulated	listCall		-
-EngineStyleH2	-	call	TYPEOF	emulated	listCall		-
-EngineStyleH2	-	call	ROUND_HALF_UP	spelled	ROUND		-
-EngineStyleH2	-	call	ERROR	emulated	raiseEnvelope: error		-
-EngineStyleH2	-	call	FLOOR_RAW	spelled	floor		-
-EngineStyleH2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	via AnsiSqlRenderer.variantConstruct	-
-EngineStyleH2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)		-
-EngineStyleH2	-	call	DECIMAL_TO_TEXT	emulated	varcharCast		-
-EngineStyleH2	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		-
-EngineStyleH2	-	call	FLOAT_TO_TEXT	emulated	floatToText		-
-EngineStyleH2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
-EngineStyleH2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	-
-EngineStyleH2	-	call	JSON_TYPE	spelled	json_type		-
-EngineStyleH2	-	call	JSON_ARRAY_LENGTH	spelled	json_array_length		-
-EngineStyleH2	-	call	JSON_PRETTY	spelled	json_pretty		-
-EngineStyleH2	-	reducer	SUM	spelled	sum		-
-EngineStyleH2	-	reducer	COUNT	spelled	count		-
-EngineStyleH2	-	reducer	AVG	spelled	avg		-
-EngineStyleH2	-	reducer	MIN	spelled	min		-
-EngineStyleH2	-	reducer	MAX	spelled	max		-
-EngineStyleH2	-	reducer	ANY_VALUE	emulated	by its operands: composed / …any_value		-
-EngineStyleH2	-	reducer	STDDEV_SAMP	spelled	stddev_samp		-
-EngineStyleH2	-	reducer	STDDEV_POP	spelled	stddev_pop		-
-EngineStyleH2	-	reducer	VAR_SAMP	spelled	var_samp		-
-EngineStyleH2	-	reducer	VAR_POP	spelled	var_pop		-
-EngineStyleH2	-	reducer	MEDIAN	spelled	median		-
-EngineStyleH2	-	reducer	MODE	spelled	mode		-
-EngineStyleH2	-	reducer	STRING_AGG	emulated	by its operands: …listagg / composed		-
-EngineStyleH2	-	reducer	LIST	spelled	list		-
-EngineStyleH2	-	reducer	QUANTILE_CONT	emulated	by its operands: …percentile_cont / …quantile_cont		-
-EngineStyleH2	-	reducer	QUANTILE_DISC	emulated	by its operands: …percentile_disc / …quantile_disc		-
-EngineStyleH2	-	reducer	CORR	spelled	corr		-
-EngineStyleH2	-	reducer	COVAR_SAMP	spelled	covar_samp		-
-EngineStyleH2	-	reducer	COVAR_POP	spelled	covar_pop		-
-EngineStyleH2	-	reducer	ARG_MAX	spelled	arg_max		-
-EngineStyleH2	-	reducer	ARG_MIN	spelled	arg_min		-
-EngineStyleH2	-	reducer	WAVG	not_here	lowering marker reached the renderer		-
-EngineStyleH2	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer		-
-EngineStyleH2	-	reducer	BOOL_AND	spelled	bool_and		-
-EngineStyleH2	-	reducer	BOOL_OR	spelled	bool_or		-
-EngineStyleH2	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		-
-EngineStyleH2	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		-
-EngineStyleH2	-	reducer	VARIANCE	spelled	variance		-
-EngineStyleH2	-	reducer	STDDEV	spelled	stddev		-
-EngineStyleH2	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	RANK	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	NTILE	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	LAG	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	LEAD	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		-
-EngineStyleH2	-	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		-
-EngineStyleDB2	-	call	AND	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	OR	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	NOT	spelled	an operator (notPrefix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	EQUAL	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	NOT_EQUAL	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	LESS	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	LESS_EQUAL	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	GREATER	emulated	greater	as EngineStyleH2	-
-EngineStyleDB2	-	call	GREATER_EQUAL	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	PLUS	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	MINUS	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	TIMES	spelled	an operator (infix)	as EngineStyleH2	-
-EngineStyleDB2	-	call	DIVIDE	emulated	divideAsDoubles	as EngineStyleH2	-
-EngineStyleDB2	-	call	MOD	emulated	modFloored	as EngineStyleH2	-
-EngineStyleDB2	-	call	REM	emulated	modTruncated	as EngineStyleH2	-
-EngineStyleDB2	-	call	NEGATE	spelled	an operator (negation)	as EngineStyleH2	-
-EngineStyleDB2	-	call	ABS	spelled	abs	as EngineStyleH2	-
-EngineStyleDB2	-	call	IS_NULL	spelled	an operator (isNullTest)	as EngineStyleH2	-
-EngineStyleDB2	-	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)	as EngineStyleH2	-
-EngineStyleDB2	-	call	IN	emulated	inList	as EngineStyleH2	-
-EngineStyleDB2	-	call	COALESCE	emulated	coalesceArm	as EngineStyleH2	-
-EngineStyleDB2	-	call	PARSE_INT	emulated	cast(… as integer)	as EngineStyleH2	-
-EngineStyleDB2	-	call	CONCAT	emulated	flattenConcat: ( concat )		-
-EngineStyleDB2	-	call	LENGTH	emulated	CHARACTER_LENGTH(…,CODEUNITS32)		-
-EngineStyleDB2	-	call	UPPER	spelled	upper	as EngineStyleH2	-
-EngineStyleDB2	-	call	LOWER	spelled	lower	as EngineStyleH2	-
-EngineStyleDB2	-	call	GREATEST	spelled	greatest	as EngineStyleH2	-
-EngineStyleDB2	-	call	LEAST	spelled	least	as EngineStyleH2	-
-EngineStyleDB2	-	call	CONCAT_JOIN	spelled	concat		-
-EngineStyleDB2	-	call	CONCAT_WS	spelled	concat_ws	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_FILTER	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_GET	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_POSITION	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_AT	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as EngineStyleH2, via AnsiSqlRenderer.listExists	-
-EngineStyleDB2	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as EngineStyleH2, via AnsiSqlRenderer.listForAll	-
-EngineStyleDB2	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as EngineStyleH2, via AnsiSqlRenderer.structInsert	-
-EngineStyleDB2	-	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	as EngineStyleH2, via AnsiSqlRenderer.unnestProjection	-
-EngineStyleDB2	-	call	LIST_FLATTEN	spelled	flatten	as EngineStyleH2	-
-EngineStyleDB2	-	call	JSON_MERGE_PATCH	emulated	jsonMergePatch	as EngineStyleH2	-
-EngineStyleDB2	-	call	SQRT	spelled	sqrt	as EngineStyleH2	-
-EngineStyleDB2	-	call	CBRT	spelled	cbrt		-
-EngineStyleDB2	-	call	EXP	spelled	exp	as EngineStyleH2	-
-EngineStyleDB2	-	call	LN	spelled	ln	as EngineStyleH2	-
-EngineStyleDB2	-	call	LOG10	spelled	log10	as EngineStyleH2	-
-EngineStyleDB2	-	call	POW	spelled	power	as EngineStyleH2	-
-EngineStyleDB2	-	call	PI	spelled	pi	as EngineStyleH2	-
-EngineStyleDB2	-	call	SIN	spelled	sin	as EngineStyleH2	-
-EngineStyleDB2	-	call	COS	spelled	cos	as EngineStyleH2	-
-EngineStyleDB2	-	call	TAN	spelled	tan	as EngineStyleH2	-
-EngineStyleDB2	-	call	ASIN	spelled	asin	as EngineStyleH2	-
-EngineStyleDB2	-	call	ACOS	spelled	acos	as EngineStyleH2	-
-EngineStyleDB2	-	call	ATAN	spelled	atan	as EngineStyleH2	-
-EngineStyleDB2	-	call	ATAN2	spelled	atan2	as EngineStyleH2	-
-EngineStyleDB2	-	call	SINH	spelled	sinh	as EngineStyleH2	-
-EngineStyleDB2	-	call	COSH	spelled	cosh	as EngineStyleH2	-
-EngineStyleDB2	-	call	TANH	spelled	tanh	as EngineStyleH2	-
-EngineStyleDB2	-	call	CEILING	emulated	bigintOf: ceil	as EngineStyleH2	-
-EngineStyleDB2	-	call	FLOOR	emulated	bigintOf: floor	as EngineStyleH2	-
-EngineStyleDB2	-	call	ROUND	emulated	roundHalfEven	as EngineStyleH2	-
-EngineStyleDB2	-	call	SIGN	emulated	bigintOf: sign	as EngineStyleH2	-
-EngineStyleDB2	-	call	XOR	emulated	xorAsAndOr	as EngineStyleH2	-
-EngineStyleDB2	-	call	BIT_AND	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleDB2	-	call	BIT_OR	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleDB2	-	call	BIT_XOR	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleDB2	-	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleDB2	-	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleDB2	-	call	BIT_NOT	emulated	bitNot	as EngineStyleH2	-
-EngineStyleDB2	-	call	REGEXP_EXTRACT	spelled	regexp_extract	as EngineStyleH2	-
-EngineStyleDB2	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as EngineStyleH2	-
-EngineStyleDB2	-	call	REGEXP_REPLACE	spelled	regexp_replace	as EngineStyleH2	-
-EngineStyleDB2	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match	as EngineStyleH2	-
-EngineStyleDB2	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAP_FROM_LISTS	spelled	map	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAP_EMPTY	emulated	mapEmpty	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAP_EXTRACT	spelled	map_extract	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAP_KEYS	spelled	map_keys	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAP_VALUES	spelled	map_values	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAP_CONCAT	spelled	map_concat	as EngineStyleH2	-
-EngineStyleDB2	-	call	SUBSTRING	spelled	substr		-
-EngineStyleDB2	-	call	STRPOS	spelled	position		-
-EngineStyleDB2	-	call	STARTS_WITH	spelled	starts_with	as EngineStyleH2	-
-EngineStyleDB2	-	call	ENDS_WITH	spelled	ends_with	as EngineStyleH2	-
-EngineStyleDB2	-	call	MATCHES	spelled	regexp_matches	as EngineStyleH2	-
-EngineStyleDB2	-	call	LEFT	emulated	trim(left(…, …))		-
-EngineStyleDB2	-	call	RIGHT	emulated	trim(right(…, …))		-
-EngineStyleDB2	-	call	LPAD	spelled	lpad		-
-EngineStyleDB2	-	call	RPAD	spelled	rpad		-
-EngineStyleDB2	-	call	TRIM	emulated	by its operands: trim(both from …) / …trim	as EngineStyleH2	-
-EngineStyleDB2	-	call	LTRIM	spelled	ltrim		-
-EngineStyleDB2	-	call	RTRIM	spelled	rtrim		-
-EngineStyleDB2	-	call	REPLACE	spelled	replace	as EngineStyleH2	-
-EngineStyleDB2	-	call	SPLIT	spelled	string_split	as EngineStyleH2	-
-EngineStyleDB2	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part	as EngineStyleH2	-
-EngineStyleDB2	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell	as EngineStyleH2	-
-EngineStyleDB2	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	REVERSE_STRING	spelled	reverse		-
-EngineStyleDB2	-	call	ASCII_CODE	spelled	ascii	as EngineStyleH2	-
-EngineStyleDB2	-	call	CHR	spelled	char	as EngineStyleH2	-
-EngineStyleDB2	-	call	UC_FIRST	emulated	firstCharCased: upper	as EngineStyleH2	-
-EngineStyleDB2	-	call	LC_FIRST	emulated	firstCharCased: lower	as EngineStyleH2	-
-EngineStyleDB2	-	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured		-
-EngineStyleDB2	-	call	ENCODE_BASE64	emulated	encodeBase64	as EngineStyleH2	-
-EngineStyleDB2	-	call	LEVENSHTEIN	spelled	levenshtein	as EngineStyleH2	-
-EngineStyleDB2	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as EngineStyleH2	-
-EngineStyleDB2	-	call	FORMAT	spelled	printf	as EngineStyleH2	-
-EngineStyleDB2	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	as EngineStyleH2, via AnsiSqlRenderer.hashSigned	-
-EngineStyleDB2	-	call	MD5	emulated	digest: MD5	as EngineStyleH2	-
-EngineStyleDB2	-	call	SHA1	emulated	digest: SHA-1	as EngineStyleH2	-
-EngineStyleDB2	-	call	SHA256	emulated	digest: SHA-256	as EngineStyleH2	-
-EngineStyleDB2	-	call	RANDOM	spelled	rand	as EngineStyleH2	-
-EngineStyleDB2	-	call	EXTRACT	emulated	extract		-
-EngineStyleDB2	-	call	TODAY	emulated	date(current date)		-
-EngineStyleDB2	-	call	NOW	spelled	now	as EngineStyleH2	-
-EngineStyleDB2	-	call	DATE_TRUNC_DAY	emulated	cast(truncate(…) as date)	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAKE_DATE	spelled	make_date	as EngineStyleH2	-
-EngineStyleDB2	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp	as EngineStyleH2	-
-EngineStyleDB2	-	call	DATE_TRUNC	emulated	dateTrunc		-
-EngineStyleDB2	-	call	ADD_INTERVAL	emulated	addInterval		-
-EngineStyleDB2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleH2	-
-EngineStyleDB2	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleH2	-
-EngineStyleDB2	-	call	TIMEZONE	spelled	timezone	as EngineStyleH2	-
-EngineStyleDB2	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one	as EngineStyleH2	-
-EngineStyleDB2	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleH2	-
-EngineStyleDB2	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleH2	-
-EngineStyleDB2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleH2	-
-EngineStyleDB2	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleH2	-
-EngineStyleDB2	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleH2	-
-EngineStyleDB2	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as EngineStyleH2	-
-EngineStyleDB2	-	call	FROM_EPOCH_MS	emulated	fromEpochMs	as EngineStyleH2	-
-EngineStyleDB2	-	call	DAYNAME	spelled	dayname	as EngineStyleH2	-
-EngineStyleDB2	-	call	MONTHNAME	spelled	monthname	as EngineStyleH2	-
-EngineStyleDB2	-	call	COT	spelled	cot	as EngineStyleH2	-
-EngineStyleDB2	-	call	RADIANS	spelled	radians	as EngineStyleH2	-
-EngineStyleDB2	-	call	DEGREES	spelled	degrees	as EngineStyleH2	-
-EngineStyleDB2	-	call	INT_DIVIDE	emulated	intDivide	as EngineStyleH2	-
-EngineStyleDB2	-	call	REPEAT_STR	spelled	repeat	as EngineStyleH2	-
-EngineStyleDB2	-	call	JARO_WINKLER	spelled	jaro_winkler_similarity	as EngineStyleH2	-
-EngineStyleDB2	-	call	DECODE_BASE64	emulated	decodeBase64	as EngineStyleH2	-
-EngineStyleDB2	-	call	CURRENT_USER_FN	spelled	current_user	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_LENGTH	spelled	len	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_ZIP	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_DISTINCT	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_APPEND	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_SUM	emulated	composed	as EngineStyleH2, via EngineStyleH2.listCall	-
-EngineStyleDB2	-	call	LIST_MIN	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_MAX	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_AVG	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_MEDIAN	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_MODE	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_SORT	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_SORT_DESC	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_TAIL	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_INIT	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	RANGE_FN	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_PRODUCT	emulated	composed	as EngineStyleH2, via EngineStyleH2.listCall	-
-EngineStyleDB2	-	call	LIST_REDUCE	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_SLICE	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	REPEAT_VALUE	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_BOOL_AND	emulated	composed	as EngineStyleH2, via EngineStyleH2.listCall	-
-EngineStyleDB2	-	call	LIST_BOOL_OR	emulated	composed	as EngineStyleH2, via EngineStyleH2.listCall	-
-EngineStyleDB2	-	call	IS_DISTINCT_FROM	emulated	distinctFrom	as EngineStyleH2	-
-EngineStyleDB2	-	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	as EngineStyleH2, via AnsiSqlRenderer.allDistinct	-
-EngineStyleDB2	-	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom	as EngineStyleH2	-
-EngineStyleDB2	-	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom	as EngineStyleH2	-
-EngineStyleDB2	-	call	STRFTIME	emulated	strftimeArm	as EngineStyleH2	-
-EngineStyleDB2	-	call	STRPTIME	emulated	strptime		-
-EngineStyleDB2	-	call	PARSE_DATE	emulated	cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....	as EngineStyleH2	-
-EngineStyleDB2	-	call	LIST_REVERSE	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	TYPEOF	emulated	listCall	as EngineStyleH2	-
-EngineStyleDB2	-	call	ROUND_HALF_UP	spelled	ROUND	as EngineStyleH2	-
-EngineStyleDB2	-	call	ERROR	emulated	raiseEnvelope: error	as EngineStyleH2	-
-EngineStyleDB2	-	call	FLOOR_RAW	spelled	floor	as EngineStyleH2	-
-EngineStyleDB2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantConstruct	-
-EngineStyleDB2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleH2	-
-EngineStyleDB2	-	call	DECIMAL_TO_TEXT	emulated	varcharCast	as EngineStyleH2	-
-EngineStyleDB2	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as EngineStyleH2	-
-EngineStyleDB2	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleH2	-
-EngineStyleDB2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
-EngineStyleDB2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
-EngineStyleDB2	-	call	JSON_TYPE	spelled	json_type	as EngineStyleH2	-
-EngineStyleDB2	-	call	JSON_ARRAY_LENGTH	spelled	json_array_length	as EngineStyleH2	-
-EngineStyleDB2	-	call	JSON_PRETTY	spelled	json_pretty	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	SUM	spelled	sum	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	COUNT	spelled	count	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	AVG	spelled	avg	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	MIN	spelled	min	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	MAX	spelled	max	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	ANY_VALUE	emulated	by its operands: composed / …any_value	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	STDDEV_SAMP	spelled	stddev_samp	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	STDDEV_POP	spelled	stddev_pop	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	VAR_SAMP	spelled	var_samp	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	VAR_POP	spelled	var_pop	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	MEDIAN	spelled	median	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	MODE	spelled	mode	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	STRING_AGG	emulated	by its operands: …listagg / composed	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	LIST	spelled	list	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	QUANTILE_CONT	emulated	by its operands: …percentile_cont / …quantile_cont	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	QUANTILE_DISC	emulated	by its operands: …percentile_disc / …quantile_disc	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	CORR	spelled	corr	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	COVAR_SAMP	spelled	covar_samp	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	COVAR_POP	spelled	covar_pop	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	ARG_MAX	spelled	arg_max	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	ARG_MIN	spelled	arg_min	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	WAVG	not_here	lowering marker reached the renderer	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	BOOL_AND	spelled	bool_and	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	BOOL_OR	spelled	bool_or	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	VARIANCE	spelled	variance	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	STDDEV	spelled	stddev	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	RANK	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	CUME_DIST	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	NTILE	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	LAG	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	LEAD	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleDB2	-	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
-EngineStyleComposite	-	call	AND	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	OR	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	NOT	spelled	an operator (notPrefix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	EQUAL	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	NOT_EQUAL	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LESS	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LESS_EQUAL	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	GREATER	emulated	greater	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	GREATER_EQUAL	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	PLUS	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MINUS	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TIMES	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DIVIDE	emulated	divideAsDoubles	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MOD	emulated	modFloored	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REM	emulated	modTruncated	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	NEGATE	spelled	an operator (negation)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ABS	spelled	abs	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	IS_NULL	spelled	an operator (isNullTest)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	IN	emulated	inList	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	COALESCE	emulated	coalesceArm	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	PARSE_INT	emulated	cast(… as integer)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	CONCAT	emulated	flattenConcat: ( concat )	as EngineStyleDB2	-
-EngineStyleComposite	-	call	LENGTH	spelled	char_length		-
-EngineStyleComposite	-	call	UPPER	spelled	upper	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LOWER	spelled	lower	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	GREATEST	spelled	greatest	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LEAST	spelled	least	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	CONCAT_JOIN	spelled	concat	as EngineStyleDB2	-
-EngineStyleComposite	-	call	CONCAT_WS	spelled	concat_ws	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_FILTER	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_GET	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_POSITION	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_AT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listExists	-
-EngineStyleComposite	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listForAll	-
-EngineStyleComposite	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.structInsert	-
-EngineStyleComposite	-	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.unnestProjection	-
-EngineStyleComposite	-	call	LIST_FLATTEN	spelled	flatten	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	JSON_MERGE_PATCH	emulated	jsonMergePatch	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SQRT	spelled	sqrt	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	CBRT	spelled	cbrt	as EngineStyleDB2	-
-EngineStyleComposite	-	call	EXP	spelled	exp	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LN	spelled	ln	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LOG10	spelled	log10	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	POW	spelled	power	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	PI	spelled	pi	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SIN	spelled	sin	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	COS	spelled	cos	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TAN	spelled	tan	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ASIN	spelled	asin	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ACOS	spelled	acos	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ATAN	spelled	atan	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ATAN2	spelled	atan2	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SINH	spelled	sinh	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	COSH	spelled	cosh	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TANH	spelled	tanh	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	CEILING	emulated	bigintOf: ceil	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FLOOR	emulated	bigintOf: floor	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ROUND	emulated	roundHalfEven	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SIGN	emulated	bigintOf: sign	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	XOR	emulated	xorAsAndOr	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	BIT_AND	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleComposite	-	call	BIT_OR	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleComposite	-	call	BIT_XOR	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleComposite	-	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleComposite	-	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
-EngineStyleComposite	-	call	BIT_NOT	emulated	bitNot	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REGEXP_EXTRACT	spelled	regexp_extract	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REGEXP_REPLACE	spelled	regexp_replace	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	IS_NUMERIC	refused	the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAP_FROM_LISTS	spelled	map	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAP_EMPTY	emulated	mapEmpty	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAP_EXTRACT	spelled	map_extract	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAP_KEYS	spelled	map_keys	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAP_VALUES	spelled	map_values	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAP_CONCAT	spelled	map_concat	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SUBSTRING	spelled	substring		-
-EngineStyleComposite	-	call	STRPOS	spelled	position	as EngineStyleDB2	-
-EngineStyleComposite	-	call	STARTS_WITH	spelled	starts_with	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ENDS_WITH	spelled	ends_with	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MATCHES	spelled	regexp_matches	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LEFT	emulated	trim(left(…, …))	as EngineStyleDB2	-
-EngineStyleComposite	-	call	RIGHT	emulated	trim(right(…, …))	as EngineStyleDB2	-
-EngineStyleComposite	-	call	LPAD	spelled	lpad	as EngineStyleDB2	-
-EngineStyleComposite	-	call	RPAD	spelled	rpad	as EngineStyleDB2	-
-EngineStyleComposite	-	call	TRIM	emulated	by its operands: trim(both from …) / …trim	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LTRIM	spelled	ltrim	as EngineStyleDB2	-
-EngineStyleComposite	-	call	RTRIM	spelled	rtrim	as EngineStyleDB2	-
-EngineStyleComposite	-	call	REPLACE	spelled	replace	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SPLIT	spelled	string_split	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REVERSE_STRING	spelled	reverse	as EngineStyleDB2	-
-EngineStyleComposite	-	call	ASCII_CODE	spelled	ascii	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	CHR	spelled	char	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	UC_FIRST	emulated	firstCharCased: upper	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LC_FIRST	emulated	firstCharCased: lower	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	BINARY_COLLATE	refused	a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured	as EngineStyleDB2	-
-EngineStyleComposite	-	call	ENCODE_BASE64	emulated	encodeBase64	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LEVENSHTEIN	spelled	levenshtein	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FORMAT	spelled	printf	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.hashSigned	-
-EngineStyleComposite	-	call	MD5	emulated	digest: MD5	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SHA1	emulated	digest: SHA-1	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	SHA256	emulated	digest: SHA-256	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	RANDOM	spelled	rand	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	EXTRACT	emulated	extract	as EngineStyleDB2	-
-EngineStyleComposite	-	call	TODAY	emulated	date(current date)	as EngineStyleDB2	-
-EngineStyleComposite	-	call	NOW	spelled	now	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DATE_TRUNC_DAY	emulated	cast(truncate(…) as date)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAKE_DATE	spelled	make_date	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DATE_TRUNC	emulated	dateTrunc	as EngineStyleDB2	-
-EngineStyleComposite	-	call	ADD_INTERVAL	emulated	addInterval	as EngineStyleDB2	-
-EngineStyleComposite	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TIMEZONE	spelled	timezone	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FROM_EPOCH_MS	emulated	fromEpochMs	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DAYNAME	spelled	dayname	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	MONTHNAME	spelled	monthname	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	COT	spelled	cot	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	RADIANS	spelled	radians	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DEGREES	spelled	degrees	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	INT_DIVIDE	emulated	intDivide	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REPEAT_STR	spelled	repeat	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	JARO_WINKLER	spelled	jaro_winkler_similarity	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DECODE_BASE64	emulated	decodeBase64	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	CURRENT_USER_FN	spelled	current_user	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_LENGTH	spelled	len	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_ZIP	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_DISTINCT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_APPEND	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_SUM	emulated	composed	as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall	-
-EngineStyleComposite	-	call	LIST_MIN	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_MAX	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_AVG	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_MEDIAN	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_MODE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_SORT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_SORT_DESC	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_TAIL	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_INIT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	RANGE_FN	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_PRODUCT	emulated	composed	as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall	-
-EngineStyleComposite	-	call	LIST_REDUCE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_SLICE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REPEAT_VALUE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_BOOL_AND	emulated	composed	as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall	-
-EngineStyleComposite	-	call	LIST_BOOL_OR	emulated	composed	as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall	-
-EngineStyleComposite	-	call	IS_DISTINCT_FROM	emulated	distinctFrom	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.allDistinct	-
-EngineStyleComposite	-	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	STRFTIME	emulated	strftimeArm	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	STRPTIME	emulated	strptime	as EngineStyleDB2	-
-EngineStyleComposite	-	call	PARSE_DATE	emulated	cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	LIST_REVERSE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TYPEOF	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ROUND_HALF_UP	spelled	ROUND	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	ERROR	emulated	raiseEnvelope: error	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FLOOR_RAW	spelled	floor	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct	-
-EngineStyleComposite	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DECIMAL_TO_TEXT	emulated	varcharCast	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
-EngineStyleComposite	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
-EngineStyleComposite	-	call	JSON_TYPE	spelled	json_type	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	JSON_ARRAY_LENGTH	spelled	json_array_length	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	JSON_PRETTY	spelled	json_pretty	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	SUM	spelled	sum	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	COUNT	spelled	count	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	AVG	spelled	avg	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	MIN	spelled	min	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	MAX	spelled	max	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	ANY_VALUE	emulated	by its operands: composed / …any_value	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	STDDEV_SAMP	spelled	stddev_samp	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	STDDEV_POP	spelled	stddev_pop	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	VAR_SAMP	spelled	var_samp	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	VAR_POP	spelled	var_pop	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	MEDIAN	spelled	median	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	MODE	spelled	mode	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	STRING_AGG	emulated	by its operands: …listagg / composed	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	LIST	spelled	list	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	QUANTILE_CONT	emulated	by its operands: …percentile_cont / …quantile_cont	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	QUANTILE_DISC	emulated	by its operands: …percentile_disc / …quantile_disc	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	CORR	spelled	corr	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	COVAR_SAMP	spelled	covar_samp	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	COVAR_POP	spelled	covar_pop	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	ARG_MAX	spelled	arg_max	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	ARG_MIN	spelled	arg_min	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	WAVG	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	BOOL_AND	spelled	bool_and	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	BOOL_OR	spelled	bool_or	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	VARIANCE	spelled	variance	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	STDDEV	spelled	stddev	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	RANK	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	CUME_DIST	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	NTILE	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	LAG	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	LEAD	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-

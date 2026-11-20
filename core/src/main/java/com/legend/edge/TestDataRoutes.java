@@ -408,12 +408,17 @@ public final class TestDataRoutes {
 
     /** The seed of the request's query, lowered on its runtime through its mapping, whatever mappings the runtime
      *  declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function with the given
-     *  mapping). */
+     *  mapping). The seed's query is the one whose meaning chooses the keys, so each call the detector flags in it is
+     *  rewritten to legend-engine's meaning before it is lowered, or the request is refused by name
+     *  ({@link PureV1Routes#checkMeaning}; the user's ruling of 2026-11-20 ~07:55). The routes' other queries choose no
+     *  row by a call's value: generateTestData_WithSeed's rows are the identifiers'. */
     private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot) {
-        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q ->
-                com.legend.planner.ProductStatements.lowerTestDataSeed(com.legend.Compiler.query(ctx,
-                        TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery)),
-                        r.runtime()));
+        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> {
+            com.legend.TypedQuery typed = com.legend.Compiler.query(ctx,
+                    TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery));
+            return com.legend.planner.ProductStatements.lowerTestDataSeed(
+                    PureV1Routes.checkMeaning(typed, ctx, r.runtime(), r.mapping()), r.runtime());
+        });
     }
 
     /** The request's {@code tableRowIdentifiers}: each table's identifiers, each a row's column-value pairs. */

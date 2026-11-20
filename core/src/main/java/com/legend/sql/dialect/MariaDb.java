@@ -2018,7 +2018,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(")) = ").expr(a.get(1), 5).append(")");
             // DuckDB's trim family: spaces, or any of the given characters
             case TRIM, LTRIM, RTRIM -> writer.piece(trim(c.fn(), a));
-            case SUBSTRING -> writer.append("SUBSTRING(").list(a).append(")");
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.append("SUBSTRING(").list(a).append(")");
             case SPLIT -> writer.piece(split(a.get(0), a.get(1)));
             // DuckDB's split_part: 1-based, negative from the end, out of range ''
             case SPLIT_PART -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL OR ").expr(a.get(1), 4)

@@ -15,10 +15,10 @@ import java.io.IOException;
  * Channel A through THE PRODUCT DOOR (2026-11-03, the user's order of fixes, step 6: one planning door, one execution
  * door): the case's expression and its injected model compiled by the one compiler and run by {@code Execution.run},
  * exactly as a product query runs -- its session the lane's for its plan ({@link PctBackend#executionSource}: as the
- * plan route's sessions chose it), its plan made for that session's server, its declared setup established, under the
- * PCT's feature flag
- * (CORRECT_SQL_SUBSTRING_INDEXING: the user's ruling of 2026-09-12, a written deviation from upstream's PCT adapter,
- * which sets none -- the engine's testable runner sets it for relation tests). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
+ * plan route's sessions chose it), its plan made for that session's server, its declared setup established, with no
+ * feature flag, as upstream's PCT adapter sets none (A3 of the compatibility program, 2026-11-19: substring is Pure's
+ * by default, so the 2026-09-12 written deviation, the adapter setting CORRECT_SQL_SUBSTRING_INDEXING, is reversed;
+ * register S130). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
  * answer the server writes from them ({@code edge.EngineAnswers.engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
  * PCT adapter reads it ({@link ValueBridge#engineTDS}); a value's elements cross as the reference's own instances
  * ({@link ValueBridge}).
@@ -72,6 +72,32 @@ final class PctPlanRoute {
         return "?";
     }
 
+    /** Whom channel A plans a case for, one choice of three (PR #127's review, 2026-11-19: #124's ENGINE lane and the
+     *  LITE-PCT lane chose on the same lines): legend-pure's audience, the PCT's own and the default (the edge's
+     *  UPSTREAM text, under the substring flag: S130); legend-engine's ({@code -Dpct.audience=engine}, the ENGINE lane,
+     *  H7: the pure/v1 route's text, no feature flag, as its own PCT adapters run a case); or lite's own rules
+     *  ({@code -Dpct.channela.rules=LITE}, the LITE-PCT lane's channel A, the compatibility program's A4 gate: the
+     *  product's style and default features, a raise in lite's own words). */
+    enum Audience { LEGEND_PURE, LEGEND_ENGINE, LITE }
+
+    /** The audience the two properties name ({@code audience}: {@code -Dpct.audience}, absent or {@code engine};
+     *  {@code rules}: {@code -Dpct.channela.rules}, COMPAT or LITE): any other value, and legend-engine's audience under
+     *  lite's own rules, refused by name -- the two lanes are two audiences, never one. */
+    static Audience audience(@com.legend.base.Nullable String audience, String rules) {
+        if (audience != null && !audience.equals(ENGINE_AUDIENCE)) {
+            throw new IllegalArgumentException("-Dpct.audience=" + audience + ": absent (legend-pure's) or "
+                    + ENGINE_AUDIENCE);
+        }
+        if (!rules.equals("COMPAT") && !rules.equals("LITE")) {
+            throw new IllegalArgumentException("-Dpct.channela.rules=" + rules + ": COMPAT or LITE");
+        }
+        if (audience != null && rules.equals("LITE")) {
+            throw new IllegalArgumentException("-Dpct.audience=" + audience + " with -Dpct.channela.rules=LITE: one"
+                    + " audience a run -- legend-engine's, or lite's own rules");
+        }
+        return audience != null ? Audience.LEGEND_ENGINE : rules.equals("LITE") ? Audience.LITE : Audience.LEGEND_PURE;
+    }
+
     static Answer execute(String model, String expression) throws IOException {
         // the tests' planning options: as-of joins answer the same row on every database (PlanOption, off by default;
         // the user, 2026-11-07: "our tests should use the option")
@@ -79,21 +105,22 @@ final class PctPlanRoute {
                 .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
-        // THE AUDIENCE (H7, slice 0.3 of docs/records/compat-program-plan-2026-11-19.md): by default legend-pure's,
-        // the PCT's own (the edge's UPSTREAM style, under the substring flag: S130); under -Dpct.audience=engine
-        // legend-engine's, as its own PCT adapters run a case (the pure/v1 route's style, no feature flag: they set
-        // none, S130), for the ENGINE lane that compares each outcome with legend-engine's manifests
-        boolean engineAudience = ENGINE_AUDIENCE.equals(System.getProperty("pct.audience"));
-        java.util.Set<com.legend.platform.Feature> features = engineAudience ? java.util.Set.of()
-                : java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
-        com.legend.database.PlanStyle text = engineAudience ? com.legend.edge.PureText.PURE_V1
-                : com.legend.edge.PureText.UPSTREAM;
+        // THE AUDIENCE, one of three (audience, above): legend-pure's by default, legend-engine's under
+        // -Dpct.audience=engine (the ENGINE lane, H7), lite's own rules under -Dpct.channela.rules=LITE (the LITE-PCT
+        // lane's channel A); a combination refused by name
+        Audience audience = audience(System.getProperty("pct.audience"),
+                System.getProperty("pct.channela.rules", "COMPAT"));
+        // no feature flag for any audience (A3 of the compatibility program, piece 2, 2026-11-19: substring is Pure's by
+        // default; S130), as upstream's own PCT adapters set none. Until then legend-pure's audience set
+        // CORRECT_SQL_SUBSTRING_INDEXING; piece 2's change applied to #124's audience at the stage-A batch's merge,
+        // 2026-11-20
+        java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
         // counted as chosen here, the text and the flags the run is handed, for the ENGINE lane's check (RouteAudience)
-        RouteAudience.planned(text == com.legend.edge.PureText.PURE_V1 && features.isEmpty());
+        RouteAudience.planned(audience == Audience.LEGEND_ENGINE && features.isEmpty());
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
         // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        ExecutionPlan plan = com.legend.edge.RaisedWords.run(text, style ->
+        com.legend.edge.RaisedWords.Run<ExecutionPlan, IOException> runIn = style ->
                 com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)
@@ -101,7 +128,12 @@ final class PctPlanRoute {
                 PctBackend.planSessions(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features,
                 // the PCT compares against legend-pure's texts: the plan is spelled by the edge (phase D's D1.0)
                 style,
-                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY));
+                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY);
+        ExecutionPlan plan = switch (audience) {
+            case LEGEND_PURE -> com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, runIn);
+            case LEGEND_ENGINE -> com.legend.edge.RaisedWords.run(com.legend.edge.PureText.PURE_V1, runIn);
+            case LITE -> runIn.apply(com.legend.database.PlanStyle.PRODUCT);
+        };
         com.legend.result.Collector.Collected c = collector.collected();
         boolean relation = plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION;
         if (relation) {

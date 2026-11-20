@@ -3,9 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleComposite;
-import com.legend.edge.EngineStyleDB2;
-import com.legend.edge.EngineStyleH2;
 
 import com.legend.sql.DialectCapability;
 
@@ -162,8 +159,7 @@ class CatalogGridTest {
     @Test
     void everyOtherDialectRefusesIt() {
         for (SqlDialect d : List.<SqlDialect>of(new Postgres(), new SQLite(), new MariaDb(), new MySql(), new Trino(),
-                new ClickHouse(), new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(),
-                new EngineStyleDB2(), new EngineStyleComposite())) {
+                new ClickHouse(), new Snowflake(), new Databricks(), new BigQuery())) {
             for (SqlSource.Catalog.Grid g : SqlSource.Catalog.Grid.values()) {
                 DialectCapability refusal = assertThrows(DialectCapability.class,
                         () -> d.render(grid(g, null, null, null)), d.getClass().getSimpleName() + " " + g);

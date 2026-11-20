@@ -51,3 +51,17 @@ lit.s15	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->
 lit.s16	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|'Credit'->substring(-8))->from(trades::h2::RT)
 lit.s17	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|'Credit'->substring(2, -1))->from(trades::h2::RT)
 lit.s18	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|'Credit'->substring('Credit'->length() - 7, 3))->from(trades::h2::RT)
+# A value shorter than its end (the compat owner's ruling, 2026-11-20; the reviewer's M-a1): FX (2) past (0, 3) and (1, 3).
+# legend-engine sends substr, and substring under CORRECT_SQL_SUBSTRING_INDEXING, as the database's SUBSTRING over
+# start + 1 and end - start with no range check (processSubstr); its literal-0 substring as written. Out of range it
+# answers the database's cut-short value, where lite raises as legend-pure does (S383) unless rewritten (engine).
+col.s19	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(0, 3))->from(trades::h2::RT)
+lit.s19	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|'FX'->substring(0, 3))->from(trades::h2::RT)
+col.r01	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substr(1, 3))->from(trades::h2::RT)
+lit.r01	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|'FX'->substr(1, 3))->from(trades::h2::RT)
+col.r02	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substr(0, 3))->from(trades::h2::RT)
+lit.r02	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|'FX'->substr(0, 3))->from(trades::h2::RT)
+col.c01	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(1, 3))->from(trades::h2::RT)->meta::pure::executionPlan::featureFlag::withFeatureFlags(meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)
+lit.c01	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|'FX'->substring(1, 3))->from(trades::h2::RT)->meta::pure::executionPlan::featureFlag::withFeatureFlags(meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)
+col.c02	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|$r.desk->toOne()->substring(0, 3))->from(trades::h2::RT)->meta::pure::executionPlan::featureFlag::withFeatureFlags(meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)
+lit.c02	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[desk])->distinct()->sort(~desk->ascending())->extend(~x: r|'FX'->substring(0, 3))->from(trades::h2::RT)->meta::pure::executionPlan::featureFlag::withFeatureFlags(meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)

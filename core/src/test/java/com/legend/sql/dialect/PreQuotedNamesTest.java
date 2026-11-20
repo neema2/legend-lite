@@ -32,8 +32,9 @@ import org.junit.jupiter.api.Test;
  *   <li>a hostile name that starts and ends with the dialect's quote, or with a store declaration's {@code "}, stays
  *   one identifier: the marker inside it is never the statement's code ({@link InjectionFuzzTest#finding});</li>
  *   <li>the audit's H2 statement is carried as data: one column, labelled exactly the name, on a live H2;</li>
- *   <li>an ordinary name is written byte for byte as before the check, on every dialect and engine-text printer too
- *   (the golden {@code pre-quoted-names.tsv}, rendered before the change).</li>
+ *   <li>an ordinary name is written byte for byte as before the check, on every dialect (the golden
+ *   {@code pre-quoted-names.tsv}, rendered before the change; legend-engine's text printers' rows left with them, A2,
+ *   2026-11-19).</li>
  * </ul>
  */
 class PreQuotedNamesTest {
@@ -72,13 +73,6 @@ class PreQuotedNamesTest {
         return out;
     }
 
-    /** The engine-text printers: in the golden (unchanged), not in the hostile fuzz (their spelling is the engine
-     *  text's, decision D's). */
-    static List<SqlDialect> engineText() {
-        return List.of(new com.legend.edge.EngineStyleH2(), new com.legend.edge.EngineStyleDB2(),
-                new com.legend.edge.EngineStyleComposite());
-    }
-
     /** The places a name is written, each one statement around {@code name}. */
     static Map<String, SqlSelect> places(String name) {
         Map<String, SqlSelect> out = new LinkedHashMap<>();
@@ -109,8 +103,9 @@ class PreQuotedNamesTest {
 
     /** One line per dialect, place and ordinary name: what the golden holds. */
     static List<String> ordinaryLines() {
+        // (legend-engine's text printers' rows, 192, went with them: A2 of the compatibility program, 2026-11-19)
+        // (a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
         List<SqlDialect> all = new ArrayList<>(dialects().keySet());
-        all.addAll(engineText());
         List<String> out = new ArrayList<>();
         for (SqlDialect dialect : all) {
             for (String name : ORDINARY) {

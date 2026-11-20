@@ -38,11 +38,6 @@ public final class LiteVerdictWords implements VerdictWords {
     }
 
     @Override
-    public VerdictReads reads() {
-        return VerdictReads.WRITTEN;
-    }
-
-    @Override
     public SqlExpr sizeDiffers(SqlExpr want, SqlExpr count) {
         return sentence(AssertSentence.SIZE, Map.of("expected", want, "actual", count));
     }

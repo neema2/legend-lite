@@ -3,7 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleH2;
 
 import com.legend.sql.SqlDdl;
 import org.junit.jupiter.api.Test;
@@ -20,16 +19,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * wrote the text themselves.
  */
 class SchemaDdlTextTest {
-
-    /** The engine text's spellings are legend-engine's toDDL goldens, byte for byte (testDDL.pure). */
-    @Test
-    void theEngineTextSpellsTheEnginesGoldens() {
-        SqlDialect engineText = new EngineStyleH2();
-        assertEquals("Create Schema if not exists productSchema;",
-                engineText.render(new SqlDdl.CreateSchema("productSchema", false)));
-        assertEquals("Drop schema if exists productSchema cascade;",
-                engineText.render(new SqlDdl.DropSchema("productSchema", false)));
-    }
 
     /** The executed copy is the session's: valid on H2 and DuckDB, and none to run on SQLite, which has no schemas. */
     @Test

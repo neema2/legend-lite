@@ -24,7 +24,7 @@ h2	hasMonth_Date_1__Boolean_1_	1	1	0
 h2	hasSecond_Date_1__Boolean_1_	1	1	0
 h2	hasSubsecondWithAtLeastPrecision_Date_1__Integer_1__Boolean_1_	1	1	0
 h2	hasSubsecond_Date_1__Boolean_1_	1	1	0
-h2	indexOf_String_1__String_1__Integer_1__Integer_1_	1	0	1
+h2	indexOf_String_1__String_1__Integer_1__Integer_1_	1	1	0
 h2	match_Any_MANY__Function_$1_MANY$__P_o__T_m_	2	2	0
 h2	removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	4	1	3
 h2	sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	4	0	4

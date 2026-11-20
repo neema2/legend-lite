@@ -81,6 +81,24 @@ public final class Lean {
         return Result.of(plan.answerShape(), sink.columns, out.toString());
     }
 
+    /** {@link #run(String, String, String, Connection)} for a query the caller typed itself: a body it rewrote
+     *  ({@code TypedQuery.withBody}), as the legend-engine door's {@code engine} rewrite does (A3, 2026-11-19). */
+    public static Result run(com.legend.TypedQuery typed, @com.legend.base.Nullable String runtime, Connection c) {
+        StringWriter out = new StringWriter();
+        Capturing sink = new Capturing(out);
+        ExecutionPlan plan;
+        try {
+            plan = Execution.run(typed.withOptions(TEST_OPTIONS), runtime,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                    PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP,
+                    new com.legend.result.Output.Rows(sink));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Result.of(plan.answerShape(), sink.columns, out.toString());
+    }
+
     /** {@link #run(String, String, String, Connection)} whose live sources may read under {@code admitted}'s
      *  directories (a {@code file:} source, L6: the user's ruling of 2026-11-10). */
     public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c,

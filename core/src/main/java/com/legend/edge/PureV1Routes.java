@@ -70,7 +70,8 @@ public final class PureV1Routes {
     public static final String PREFIX = "/api/pure/v1/";
 
     /** {@code path}'s answer for {@code body}; execute's run is {@code runner}'s; a model given as text compiled by
-     *  {@code models}. A path that is none of upstream's is answered 404, as upstream answers it. */
+     *  {@code models}. A path that is none of upstream's is answered 404, as upstream answers it. The five routes that
+     *  run a query answer legend-engine's meaning ({@link #checkMeaning}). */
     public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner,
             Models models) {
         boolean sourceInformation = rawQuery == null || !rawQuery.contains("returnSourceInformation=false");
@@ -269,6 +270,7 @@ public final class PureV1Routes {
             return model.with(models, ctx -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
                 String runtime = runtimeOf(request, query);
+                query = checkMeaning(query, ctx, runtime, null);
                 // a value the program wrote and folds (a String or Boolean literal, a model's DDL text): upstream's own
                 // constant node (M5, the user's ruling); a diagnostic's (print) stays refused below, as upstream refuses
                 // it (S128); a value the database computes (|1+1) is a statement, below
@@ -309,6 +311,7 @@ public final class PureV1Routes {
             return ModelInput.of(request.getObj("model")).with(models, model -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query);
+                query = checkMeaning(query, model, runtime, null);
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.engine(out, facts(query))));
@@ -318,6 +321,16 @@ public final class PureV1Routes {
                 return out.toString();
             });
         });
+    }
+
+    /** LEGEND-ENGINE'S MEANING AT THIS DOOR (A3; the user's ruling of 2026-11-20 ~07:55, "Delete the settings, make
+     *  engine only mode for engine for everything", claude/compat-program 25ede64f §1): the query the route plans and
+     *  runs, each call the detector flags ({@link PureMeaningCheck}) rewritten to legend-engine's meaning, or refused by
+     *  name where that answer is not checked or not reachable ({@link PureMeaningRewrite}). A query with no flagged call
+     *  is returned as it is. */
+    static com.legend.TypedQuery checkMeaning(com.legend.TypedQuery query, com.legend.compiler.element.ModelContext ctx,
+            @com.legend.base.Nullable String runtime, @com.legend.base.Nullable String mapping) {
+        return PureMeaningRewrite.rewrite(query, ctx, runtime, mapping, PureMeaningRewrite::engine).query();
     }
 
     /**
@@ -340,6 +353,7 @@ public final class PureV1Routes {
             return ModelInput.of(request.getObj("model")).with(models, model -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query);
+                query = checkMeaning(query, model, runtime, null);
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.arrow(out, facts(query))));
                 } catch (java.io.IOException e) {

@@ -6,7 +6,6 @@ package com.legend.edge;
 import com.legend.sql.RaiseKind;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
-import com.legend.sql.SqlSource;
 
 import java.util.Set;
 import java.util.function.Supplier;
@@ -19,9 +18,8 @@ import java.util.function.Supplier;
  *                      PCT and the corpus (legend-pure's guarded words), legend-engine's census class A for the pure/v1
  *                      route (B7, the user's ruling of 2026-11-17: "pure/v1 matches legend-engine")
  *
- * <p>legend-engine's statement shape (the engine SQL's lowering, {@code EnginePlans}) is {@link EngineShape}: the plan
- * style's forms with its own five (J40, 2026-11-18, the orchestrator's ruling (7): until then a LoweringShape the
- * Lowerer held beside the plan style's forms, a second source).
+ * <p>legend-engine's statement shape for its SQL text ({@code EngineShape}, J40) went with that text (A2 of the
+ * compatibility program, 2026-11-19, CP-4): the edge's SQL text is lite's own statement.
  */
 record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.LoweringForms {
 
@@ -152,16 +150,6 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
                 SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER, s));
     }
 
-    /** {@code style} with legend-engine's statement shape: its forms {@link EngineShape} over the style's own. */
-    static com.legend.lowering.Styled engineSql(com.legend.lowering.Styled style) {
-        if (!(style.forms() instanceof EdgeLoweringForms base)) {
-            throw new IllegalStateException("legend-engine's statement shape asked over a style that is not the edge's"
-                    + ": only the edge plans engine SQL");
-        }
-        return new com.legend.lowering.Styled(style.pureOnly(), new EngineShape(base), style.dateTimes(),
-                style.lists());
-    }
-
     /** No union frame outside legend-engine's statement shape (L10, the lens audit's L-A.unionAlias, 2026-11-18): the
      *  product's lean form, as J23's. */
     @Override
@@ -175,99 +163,5 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
     @Override
     public com.legend.lowering.WhereZones whereZones() {
         return new EngineWhereZones();
-    }
-
-    /**
-     * legend-engine's STATEMENT SHAPE (the engine SQL's lowering, {@code EnginePlans}; J40, 2026-11-18, the orchestrator's
-     * ruling (7)): a relation pasted at each read, keyed counts as written, unread computed projections kept (J23), a
-     * view an aliased derived table ({@code ViewSelectSQLQuery}), a wire coercion left to its reader; every other form the plan style's own ({@code base}),
-     * as the Lowerer asked them of the style before -- its raises, wire casts, EXISTS joins and the rest.
-     */
-    record EngineShape(EdgeLoweringForms base) implements com.legend.lowering.LoweringForms {
-
-        @Override
-        public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
-                Supplier<com.legend.sql.SqlQuery> unshared) {
-            return unshared.get();
-        }
-
-        @Override
-        public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
-                java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
-            return q;
-        }
-
-        /** Unread computed projections kept, and a user union's frame keeping every column (legend-engine's
-         *  testUnionWithGroupBy golden lists firstName in both arms; L10). */
-        @Override
-        public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-            return com.legend.lowering.SubselectPrune.prune(q, false, UNION_FRAME);
-        }
-
-        /** legend-engine's union frame name: its SQL names each union frame, a join against one, and a join containing
-         *  one, and reads their columns through it ({@code "unionalias_0"."lastName" as "lastName"}; L10). */
-        static final String UNION_FRAME = "unionAlias";
-
-        @Override
-        public String unionFrame() {
-            return UNION_FRAME;
-        }
-
-
-        @Override
-        public com.legend.lowering.WhereZones whereZones() {
-            return base.whereZones();
-        }
-
-        @Override
-        public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
-            return SqlSelect.starOf(new SqlSource.Subselect(body, alias.get(), view));
-        }
-
-        @Override
-        public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain) {
-            return base.raise(kind, checked, plain);
-        }
-
-        /** legend-engine's SQL leaves a mapping's wire coercion to its reader, which converts on the wire. */
-        @Override
-        public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
-            return value;
-        }
-
-        @Override
-        public SqlSelect executeValues(SqlSelect own) {
-            return base.executeValues(own);
-        }
-
-        @Override
-        public SqlExpr isNumeric(SqlExpr s) {
-            return base.isNumeric(s);
-        }
-
-        @Override
-        public String objectReferenceConnection() {
-            return base.objectReferenceConnection();
-        }
-
-        @Override
-        public String assertFailed() {
-            return base.assertFailed();
-        }
-
-        @Override
-        public SqlExpr parsedDecimal(SqlExpr text) {
-            return base.parsedDecimal(text);
-        }
-
-        @Override
-        public SqlExpr parsedJson(SqlExpr text) {
-            return base.parsedJson(text);
-        }
-
-        @Override
-        public SqlSelect existsJoin(SqlSelect filtered, com.legend.lowering.ExistsSites sites) {
-            return base.existsJoin(filtered, sites);
-        }
     }
 }

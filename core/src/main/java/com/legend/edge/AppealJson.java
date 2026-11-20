@@ -127,8 +127,6 @@ final class AppealJson {
         o.put("kind", x.kind().name());
         o.put("contract", x.contract() == null ? null : x.contract());
         o.put("rows", x.rows() == null ? null : wAppealRows(x.rows()));
-        o.put("batched", x.batched() == null ? null : wAppealBatched(x.batched()));
-        o.put("joins", x.joins());
         return o;
     }
 
@@ -138,9 +136,7 @@ final class AppealJson {
         Appeal.Kind v_kind = Appeal.Kind.valueOf(str(field(o, "kind", "Appeal")));
         @Nullable String v_contract = absent(o, "contract", "Appeal") ? null : str(o.get("contract"));
         Appeal.@Nullable Rows v_rows = absent(o, "rows", "Appeal") ? null : rAppealRows(obj(o.get("rows")));
-        Appeal.@Nullable Batched v_batched = absent(o, "batched", "Appeal") ? null : rAppealBatched(obj(o.get("batched")));
-        int v_joins = Math.toIntExact(num(field(o, "joins", "Appeal")));
-        return new Appeal(v_number, v_name, v_kind, v_contract, v_rows, v_batched, v_joins);
+        return new Appeal(v_number, v_name, v_kind, v_contract, v_rows);
     }
 
     static Map<String, Object> wAppealRows(Appeal.Rows x) {
@@ -255,19 +251,5 @@ final class AppealJson {
         return new Appeal.InListSeed(v_kind, v_values);
     }
 
-    static Map<String, Object> wAppealBatched(Appeal.Batched x) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        o.put("golden", x.golden());
-        o.put("ours", x.ours() == null ? null : x.ours());
-        o.put("textEqual", x.textEqual());
-        return o;
-    }
-
-    static Appeal.Batched rAppealBatched(Json.Obj o) {
-        String v_golden = str(field(o, "golden", "Batched"));
-        @Nullable String v_ours = absent(o, "ours", "Batched") ? null : str(o.get("ours"));
-        boolean v_textEqual = bool(field(o, "textEqual", "Batched"));
-        return new Appeal.Batched(v_golden, v_ours, v_textEqual);
-    }
 
 }

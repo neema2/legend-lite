@@ -40,6 +40,14 @@ import java.util.Map;
  *       rows the subselect's own filter excludes);</li>
  *   <li>the outer reads the subselect through qualified columns alone: no star, no unqualified name, no subquery
  *       (whose reads this pass does not follow);</li>
+ *   <li>a value of the subselect's level (a window's, an aggregate's, an UNNEST's) is never written where the dialect
+ *       writes a query of its own around it ({@link #queried}): SQLite's list operations over {@code json_each}, its
+ *       recursive split, a Float's text, Postgres's list operations over {@code unnest}. A window or an aggregate is
+ *       computed over the rows of the query it is written in, so there it saw one row: a group's names joined by a
+ *       window, then split and sorted per row, answered each row's own name on SQLite and Postgres (the compatibility
+ *       program's H11 record, §8 P1, 2026-11-19), and Postgres refused the chunked form ("window functions are not
+ *       allowed in functions in FROM"). Such a value stays a column of the subselect, read by name: the level the
+ *       lowering made;</li>
  *   <li>no GROUP BY or ORDER BY key becomes a constant (a column's position on some databases).</li>
  * </ul>
  * Not on the engine-text printers: legend-engine's text keeps its levels.
@@ -52,21 +60,93 @@ final class SelectMerge extends SqlRewriter {
      *  (namedAs; PR #81, 2026-11-13). */
     private final java.util.function.UnaryOperator<String> bareLabel;
 
-    SelectMerge(java.util.function.UnaryOperator<String> bareLabel) {
+    /** Whether the dialect writes an expression's operands inside a query of its own (a correlated subquery, a
+     *  recursive one, a table function in a FROM): a value read there is computed in that query. {@link #IN_PLACE}
+     *  where the dialect writes every operation in its own select (DuckDB, H2, ClickHouse, Snowflake: their list
+     *  operations are functions, measured by {@code SelectMergeQueriedOperandsTest}); {@link #queriedBy} for SQLite
+     *  and Postgres, from the operations each declares. */
+    private final java.util.function.Predicate<SqlExpr> queried;
+
+    /** A dialect that writes every operation's operands in its own select. */
+    static final java.util.function.Predicate<SqlExpr> IN_PLACE = e -> false;
+
+    SelectMerge(java.util.function.UnaryOperator<String> bareLabel, java.util.function.Predicate<SqlExpr> queried) {
         this.bareLabel = bareLabel;
+        this.queried = queried;
+    }
+
+    /** The {@link #queried} rule of a dialect that writes {@code fns} as queries of their own: a call of one of them,
+     *  and every expression that is not a leaf, a parenthesis or a CASE (a cast, a list or a struct built, a reduction,
+     *  a fold, a membership, a raise's text, a JSON value), its spelling the dialect's to choose per operand type
+     *  (SQLite's cast of a Float to text is a query of its own, of a whole number a CAST): only a window's, an
+     *  aggregate's or an UNNEST's value is refused under one, so the cost of the wide rule is a level kept, never an
+     *  answer. Exhaustive over the MIR's expressions, so a new one is decided here. */
+    static java.util.function.Predicate<SqlExpr> queriedBy(java.util.Set<SqlFn> fns) {
+        java.util.Set<SqlFn> own = java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(fns));
+        return e -> switch (e) {
+            case SqlExpr.Call c -> own.contains(c.fn());
+            case SqlExpr.Column x -> false;
+            case SqlExpr.Star x -> false;
+            case SqlExpr.StarExcept x -> false;
+            case SqlExpr.StringLit x -> false;
+            case SqlExpr.IntLit x -> false;
+            case SqlExpr.FloatLit x -> false;
+            case SqlExpr.DecimalLit x -> false;
+            case SqlExpr.BoolLit x -> false;
+            case SqlExpr.NullLit x -> false;
+            case SqlExpr.DateLit x -> false;
+            case SqlExpr.TimestampLit x -> false;
+            case SqlExpr.TimeLit x -> false;
+            case SqlExpr.FormatLit x -> false;
+            case SqlExpr.DatePartLit x -> false;
+            case SqlExpr.JsonKindLit x -> false;
+            case SqlExpr.TypeNameLit x -> false;
+            case SqlExpr.PlanParam x -> false;
+            case SqlExpr.KeyCell x -> false;
+            case SqlExpr.RowOrder x -> false;
+            case SqlExpr.Group x -> false;
+            case SqlExpr.Case x -> false;
+            case SqlExpr.ArrayLit x -> true;
+            case SqlExpr.OrderedListAgg x -> true;
+            case SqlExpr.JsonArray x -> true;
+            case SqlExpr.StructLit x -> true;
+            case SqlExpr.StructGet x -> true;
+            case SqlExpr.Exists x -> true;
+            case SqlExpr.ScalarSubquery x -> true;
+            case SqlExpr.CheckedOne x -> true;
+            case SqlExpr.CheckedDefects x -> true;
+            case SqlExpr.CheckedChildValue x -> true;
+            case SqlExpr.InSubquery x -> true;
+            case SqlExpr.Quantified x -> true;
+            case SqlExpr.CompactList x -> true;
+            case SqlExpr.Tagged x -> true;
+            case SqlExpr.TaggedList x -> true;
+            case SqlExpr.RaiseText x -> true;
+            case SqlExpr.WindowCall x -> true;
+            case SqlExpr.Lambda x -> true;
+            case SqlExpr.Cast x -> true;
+            case SqlExpr.FoldCall x -> true;
+            case SqlExpr.JsonObject x -> true;
+            case SqlExpr.JsonArrayAgg x -> true;
+            case SqlExpr.ReduceCollection x -> true;
+            case SqlExpr.Membership x -> true;
+            case SqlExpr.StoredRead x -> true;
+            case SqlAgg.Reducer x -> true;
+        };
     }
 
     @Override
     protected SqlQuery select(SqlSelect s) {
         SqlSelect out = s;
-        for (SqlSelect next = merged(out, bareLabel); next != null; next = merged(out, bareLabel)) {
+        for (SqlSelect next = merged(out, bareLabel, queried); next != null; next = merged(out, bareLabel, queried)) {
             out = next;
         }
         return out;
     }
 
     /** {@code s} merged with its one subselect, or null where the merge could change the answer. */
-    private static @Nullable SqlSelect merged(SqlSelect s, java.util.function.UnaryOperator<String> bareLabel) {
+    private static @Nullable SqlSelect merged(SqlSelect s, java.util.function.UnaryOperator<String> bareLabel,
+            java.util.function.Predicate<SqlExpr> queried) {
         if (!(s.from() instanceof SqlSource.Subselect sub) || !(sub.inner() instanceof SqlSelect in)
                 || in.projections().isEmpty() || in.distinct() || !in.orderBy().isEmpty() || in.limit() != null
                 || in.offset() != null) {
@@ -84,9 +164,14 @@ final class SelectMerge extends SqlRewriter {
                 : in.projections().stream().map(p -> new SqlSelect.Projection(
                         SqlExpr.Column.derived(sub.alias(), java.util.Objects.requireNonNull(p.outputName())), null, p.out()))
                         .toList();
-        Reads reads = new Reads(sub.alias());
+        Reads reads = new Reads(sub.alias(), queried);
         reads.of(s, outer);
         if (reads.refused || !byName.keySet().containsAll(reads.count.keySet())) {
+            return null;
+        }
+        // a value of the subselect's level read where the dialect writes a query of its own would be computed there,
+        // over that query's rows (H11 P1, 2026-11-19): it stays the subselect's column
+        if (reads.queried.stream().anyMatch(n -> levelled(java.util.Objects.requireNonNull(byName.get(n), n)))) {
             return null;
         }
         boolean filters = s.where() != null || !s.groupBy().isEmpty() || s.having() != null || s.qualify() != null;
@@ -214,7 +299,10 @@ final class SelectMerge extends SqlRewriter {
      *  their own, whether it aggregates or has a window, and whether it reads in a way this pass does not follow. */
     private static final class Reads extends SqlRewriter {
         private final String alias;
+        private final java.util.function.Predicate<SqlExpr> queriedBy;
         final Map<String, Integer> count = new HashMap<>();
+        /** The subselect's columns read inside an expression the dialect writes as a query of its own. */
+        final java.util.Set<String> queried = new java.util.HashSet<>();
         final java.util.Set<String> bare = new java.util.HashSet<>();
         boolean refused;
         boolean levelled;
@@ -223,8 +311,9 @@ final class SelectMerge extends SqlRewriter {
         /** The subselect's columns the outer's windows read (their arguments, partitions, orders, offsets). */
         final java.util.Set<String> windowed = new java.util.HashSet<>();
 
-        Reads(String alias) {
+        Reads(String alias, java.util.function.Predicate<SqlExpr> queriedBy) {
             this.alias = alias;
+            this.queriedBy = queriedBy;
         }
 
         void of(SqlSelect s, List<SqlSelect.Projection> projections) {
@@ -250,7 +339,7 @@ final class SelectMerge extends SqlRewriter {
         /** Whether {@code s} orders by a value of the subselect's level (an aggregate, a window). */
         boolean ordersBy(SqlSelect s, Map<String, SqlExpr> byName) {
             for (SqlSelect.SortKey k : s.orderBy()) {
-                Reads keyReads = new Reads(alias);
+                Reads keyReads = new Reads(alias, queriedBy);
                 keyReads.rewriteExpr(k.expr());
                 for (String name : keyReads.count.keySet()) {
                     SqlExpr v = byName.get(name);
@@ -266,13 +355,26 @@ final class SelectMerge extends SqlRewriter {
             levelled |= levelled(e);
             grouping |= grouping(e);
             inWindows(e);
+            inQueries(e);
             rewriteExpr(e);
+        }
+
+        /** Each of the subselect's columns read inside an expression of {@code e} the dialect writes as a query of its
+         *  own, into {@link #queried}: all of that expression's reads, its operands' and theirs. */
+        private void inQueries(SqlExpr e) {
+            if (queriedBy.test(e)) {
+                Reads inside = new Reads(alias, queriedBy);
+                inside.rewriteExpr(e);
+                queried.addAll(inside.count.keySet());
+                return;
+            }
+            e.children().forEach(this::inQueries);
         }
 
         /** Each of the subselect's columns a window in {@code e} reads, into {@link #windowed}. */
         private void inWindows(SqlExpr e) {
             if (e instanceof SqlExpr.WindowCall w) {
-                Reads inside = new Reads(alias);
+                Reads inside = new Reads(alias, queriedBy);
                 inside.rewriteExpr(w);
                 windowed.addAll(inside.count.keySet());
                 return;

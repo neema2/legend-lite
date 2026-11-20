@@ -178,58 +178,9 @@ final class SqlTextVerdicts {
         }
     }
 
-    /** The DATABASE judge's collector while an engine-text assert is planned into its verdict batch (2026-11-04, the
-     *  core program): OUR text, a side the plan reads, is planned as a side of the verdict row -- the database computes
-     *  it and the equality, the row's ACTUAL column carries it back to the appeal ({@link #decide}); the golden is a
-     *  constant of the plan ({@code AssertVerdicts.gateOf} admits no other). Nothing read at planning. */
-    static final class BatchTexts extends Deferring implements com.legend.testplan.BatchTexts {
-        /** The environment the arm is planned under (as {@link Collecting#env}): set once, when that environment is
-         *  made from this collector ({@link #under}). */
-        BodyDriver.@com.legend.base.Nullable ExecEnv env;
-        final String token = new String("\u0000 our text, computed in the verdict row");
-        /** Our text's one-row relation ({@code value}), planned where the arm read it. */
-        com.legend.sql.@com.legend.base.Nullable SqlQuery oursRow;
-        /** True while the arm is planned: the appeal it built runs at the flush in the same environment, and reads what
-         *  it needs then ({@code AssertVerdicts.planDatabase} ends the planning). */
-        boolean planning = true;
-
-        @Override
-        public void endPlanning() {
-            planning = false;
-        }
-
-        /** {@code at} with this collector its engine-text collector: the environment the arm is planned under. */
-        @Override
-        public BodyDriver.ExecEnv under(BodyDriver.ExecEnv at) {
-            env = EngineTextPlanning.withCollector(at, this);
-            return env;
-        }
-
-        @Override
-        public void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal, BodyDriver.ExecEnv env) {
-            throw new IllegalStateException(name + ": the database judge's texts are rows of its batch, never collected");
-        }
-
-        @Override
-        @com.legend.base.Nullable TypedSide deferred(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs) {
-            if (!readingOurs || oursRow != null || !deferrable(side, planned, at, env)) {
-                return null;
-            }
-            com.legend.testplan.DatabaseJudge.SideRows rows = EngineTextPlanning.planSide(side, letPrefix, specs, at, hook);
-            com.legend.sql.SqlQuery row = EngineTextPlanning.why(rows) != null ? null : EngineTextPlanning.scalarRow(rows);
-            if (row == null) {
-                return null;
-            }
-            oursRow = row;
-            return new TypedSide.Scalar(token, side.info().type().typeName());
-        }
-
-        @Override
-        public boolean planning() {
-            return planning;
-        }
-    }
+    // (BatchTexts, the DATABASE judge's collector while an engine-text assert was planned into its verdict batch --
+    // 2026-11-04, the core program -- deleted with the database judge's appeal path, A4 of the compatibility program,
+    // stage A ratified by the user 2026-11-19)
 
     /** Whether {@code fqn} is one of the two ROOT arms' ({@code assertSameSQL}, {@code assertEqualsH2Compatible}; the
      *  generator's {@code assertSqlEquals} root went with the TDG appeal, B2d.2, 2026-11-11: its fetch texts are planning
@@ -346,11 +297,12 @@ final class SqlTextVerdicts {
     /** THE ONE VERDICT SITE of the arms: {@code textEqual} the verdict (the user's ruling of 2026-09-21, option 1: a
      *  text byte-equal to the golden IS the assert's verdict, the engine's own), {@code appeal} what decides a failed
      *  text (the rows leg -- block-compiler rung 2a; a decline's own failure), {@code decline} the reason decided
-     *  before the texts were compared (a foreign dialect, unbindable plan parameters), reported first. Three roads:
+     *  before the texts were compared (a foreign dialect, unbindable plan parameters), reported first. Two roads (a
+     *  third, the database judge's verdict batch, deleted with A4 of the compatibility program, stage A ratified by the
+     *  user 2026-11-19):
      *  under a COLLECTOR (an assert planned for the program road, {@link #plan}) the comparison is handed over and
-     *  judged at its verdict step ({@link #judge}, from the plan's data); under an active verdict BATCH (the database
-     *  judge) the text equality is a row of the body's fused statement, its appeal numbered for the plan and heard at
-     *  the batch's root loop; else decided now -- a failed text under the compatibility rules refused by name (no body's
+     *  judged at its verdict step ({@link #judge}, from the plan's data); else decided now -- a failed text under the
+     *  compatibility rules refused by name (no body's
      *  run hears an appeal at planning). An appeal heard is decided after the body's run (Appeals, step 8b). */
     private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
             boolean textEqual, @com.legend.base.Nullable String decline, Appeal appeal) {
@@ -362,34 +314,11 @@ final class SqlTextVerdicts {
             collecting.collect(name, golden, ours, textEqual, decline, appeal, env);
             return ok();
         }
-        // the decline is the row's data, reported at its turn (hole 5, 2026-11-08: until then it was told to the
-        // listener here, while the assert was planned -- before any verdict, so attributed to none)
+        // (under the DATABASE judge's verdict batch the text equality was a row of the body's fused statement, its
+        // appeal numbered for the plan and heard at the batch's root loop, its decline the row's data: deleted with the
+        // database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19 -- the
+        // host judge is the only judge in compatibility, so no batch plans an engine-text row)
         boolean appeals = appeals(env);
-        com.legend.testplan.VerdictBatch batch = EngineTextPlanning.verdictBatch(env);
-        if (batch != null && EngineTextPlanning.active(batch) && !appeals) {
-            // clean mode: the text equality is the verdict row, and a failed row is the assert's failure
-            EngineTextPlanning.defer(batch, name, true, collector instanceof BatchTexts bt && ours == bt.token
-                    ? EngineTextPlanning.textEquals(golden,
-                            java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row"))
-                    : EngineTextPlanning.textEquals(golden, ours), EngineTextPlanning.target(env),
-                    com.legend.testexecutionplan.RootLoop.NO_APPEAL, decline);
-            return ok();
-        }
-        if (batch != null && EngineTextPlanning.active(batch)) {
-            if (collector instanceof BatchTexts bt && ours == bt.token) {
-                // our text a side the plan reads (2026-11-04, the core program): the database computes it and the
-                // equality in the verdict row, and a failed row hands the text it read to the appeal
-                EngineTextPlanning.defer(batch, name, true, EngineTextPlanning.textEquals(golden,
-                        java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row")), EngineTextPlanning.target(env),
-                        EngineTextPlanning.appeal(env, appeal.batchedOn(new Appeal.Batched(golden, null, false))::numbered),
-                        decline);
-                return ok();
-            }
-            EngineTextPlanning.defer(batch, name, true, EngineTextPlanning.textEquals(golden, ours), EngineTextPlanning.target(env),
-                    EngineTextPlanning.appeal(env, appeal.batchedOn(new Appeal.Batched(golden, ours, textEqual))::numbered),
-                    decline);
-            return ok();
-        }
         if (decline != null) {
             // no collector and no verdict row: nothing of a plan carries the decline to its turn -- refused by name,
             // never told to a listener at planning (hole 5, 2026-11-08)
@@ -591,7 +520,7 @@ final class SqlTextVerdicts {
             final String g = golden;
             return decide(env, name, golden, ours, textEqual, "foreign-dialect:" + dbType,
                     new Appeal(0, name, Appeal.Kind.CONTRACT, name + " (sql-text, " + dbType
-                            + " — text is the contract)", null, null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
+                            + " — text is the contract)", null));
         }
         // a MULTI-STATEMENT lambda (leading lets, then the query — the
         // datePeriods `$fn`): the engine's plan is one statement per
@@ -1189,7 +1118,7 @@ final class SqlTextVerdicts {
             final String g = golden;
             return decide(env, name, golden, ours, textEqual, "plan-params-unbindable",
                     new Appeal(0, name, Appeal.Kind.CONTRACT, name + " (plan-text, params unbindable —"
-                            + " text is the contract)", null, null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
+                            + " text is the contract)", null));
         }
         String filled = golden;
         for (var e : bindings.spellings().entrySet()) {
@@ -1471,8 +1400,7 @@ final class SqlTextVerdicts {
                 EngineTextPlanning.target(java.util.Objects.requireNonNullElse(EngineTextPlanning.appealOn(env), env)),
                 // the enumerations the referee decodes, read from the model now (hole 1, 2026-11-08)
                 Appeal.Enums.of(EngineTextPlanning.enumsOf(EngineTextPlanning.ctx(env), mappingFqn, classFqn, ahead.rows().data().shape())));
-        return decide(env, name, golden, ours, textEqual, null, new Appeal(0, name, Appeal.Kind.ROWS, null, rows,
-                null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
+        return decide(env, name, golden, ours, textEqual, null, new Appeal(0, name, Appeal.Kind.ROWS, null, rows));
     }
 
     /** The appeal's rows for an arm planned under {@code env} under the compatibility rules, whose text may fail --

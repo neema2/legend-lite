@@ -3,9 +3,6 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.edge.EngineStyleComposite;
-import com.legend.edge.EngineStyleDB2;
-import com.legend.edge.EngineStyleH2;
 
 import com.legend.sql.DialectCapability;
 import com.legend.sql.SqlExpr;
@@ -49,7 +46,7 @@ class BinaryCollateTest {
             assertTrue(sql.contains("ORDER BY " + key), dialect.getClass().getSimpleName() + ": " + sql);
         });
         // binary by default: the text as it is
-        for (SqlDialect dialect : List.of(new DuckDb(), new H2(), new EngineStyleH2())) {
+        for (SqlDialect dialect : List.of(new DuckDb(), new H2())) {
             String sql = dialect.render(ordered());
             assertTrue(sql.matches("(?is).*order by 'b'.*") && !sql.toUpperCase(java.util.Locale.ROOT).contains(
                     "COLLATE"), dialect.getClass().getSimpleName() + ": " + sql);
@@ -65,9 +62,7 @@ class BinaryCollateTest {
                 new ClickHouse(), "ClickHouse",
                 new Snowflake(), "Snowflake",
                 new Databricks(), "Databricks",
-                new BigQuery(), "BigQuery",
-                new EngineStyleDB2(), "legend-engine's DB2 text",
-                new EngineStyleComposite(), "legend-engine's DB2 text");
+                new BigQuery(), "BigQuery");
         refused.forEach((dialect, named) -> {
             DialectCapability refusal = assertThrows(DialectCapability.class, () -> dialect.render(ordered()),
                     dialect.getClass().getSimpleName());

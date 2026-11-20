@@ -184,7 +184,9 @@ C, D and E pile on; the user has not ruled. Ask once at B's checkpoint; without 
 - **Deleting files:** a session never deletes a file it did not create. The creator deletes it, or the user gives the
   word.
 - **Upstream fidelity (AGENTS.md):**
-  - Ask "can we do exactly as pure/engine does?" first.
+  - Ask "can we do exactly as pure/engine does?" first. (2026-11-19: amended in AGENTS.md to the goal the user ruled
+    ~13:25 for the compatibility program: lite follows Pure; legend-engine's formats are matched, and its answers
+    where they agree with Pure; the rest is recorded. AGENTS.md's tenet is the one that holds.)
   - Upstream's answer is READ from the pinned sources or ASKED of the engine runner, never recalled.
   - A divergence is POSTED to the user, with the expression, upstream's answer and lite's, before it lands, and
     ledgered as a register row the user rules.
@@ -1359,6 +1361,9 @@ Each lane session runs one database group. A typical split:
 
 - **PCT runs:** each PCT lane runs channel A, channel B under BOTH (the default), and channel B under DATABASE
   (`--jvmopt=-Dpct.channelb.judge=DATABASE`; cloud lanes pass it through `JAVA_TOOL_OPTIONS` via `--test_env`).
+  (2026-11-19) Since A4 of the compatibility program (stage A, ratified by the user 2026-11-19), the compatibility lanes
+  run the host judge alone, and `-Dpct.channelb.judge` set to anything but HOST is refused by name. The database judge
+  runs on the LITE-PCT lane (`-Dpct.channelb.rules=LITE`, `//pct:pct_channel_b_lite_*`).
 - **Fit:** two or three embedded servers fit in one container. Run the PCT group with `--local_test_jobs=1 --jobs=2`.
 - **Setup:** `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` §9 says how to set lane sessions up and message them.
 

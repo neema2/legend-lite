@@ -26,7 +26,8 @@ public final class EdgeServer {
     /** The store's path upstream's clients call (legend-engine's query store). */
     static final String QUERY_STORE = "/api/pure/v1/query";
 
-    /** legend-engine's API, mounted beside lite's own routes. */
+    /** legend-engine's API, mounted beside lite's own routes. Its routes answer legend-engine's meaning, with no setting
+     *  (the user's ruling of 2026-11-20 ~07:55: {@link PureV1Routes#checkMeaning}). */
     public static final LegendHttpServer.Mount UPSTREAM = context -> List.of(
             pureV1(runner(context.sources())),
             engineShaped(LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(),
@@ -60,7 +61,7 @@ public final class EdgeServer {
                 if (!"POST".equals(method)) {
                     return new LiteV1Api.Answer(405, "{\"error\":\"Method not allowed\"}");
                 }
-                return PureV1Routes.route(path, rawQuery, body, runner);
+                return PureV1Routes.route(path, rawQuery, body, runner, LiteV1Api.Models.COMPILED);
             }
         };
     }

@@ -70,6 +70,8 @@ test_suite(
         # the data delivery matrix on the embedded Postgres 16, unprivileged: every door's data kinds and failure cells
         # (A1, 2026-11-10; in no gate suite until the A checkpoint's tenets audit, 12)
         "//core:data_delivery_matrix_postgres_test",
+        # the legend-engine door's test-data route on Postgres (A3, 2026-11-20)
+        "//core:pure_meaning_postgres_test",
         # upstream's Postgres parity corpus (legend-engine 4.145.0's e2e cases) as #SQL{}# islands, on DuckDB and on
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",
@@ -108,6 +110,8 @@ test_suite(
         # the store writes on the embedded Postgres 16 (the writes design's leg 2)
         "//core:store_writes_postgres_test",
         "//core:relation_to_one_postgres_test",
+        # a window's column read through a list operation, on the embedded Postgres 16 (the H11 record's P1)
+        "//core:window_read_through_a_list_postgres_test",
         # the #IQ{...}# island's syntax-case ratchet: the research's derived syntax cases through the island's reader,
         # held by iq-parity/syntax-pins.tsv
         "//core:iq_syntax_cases_test",
@@ -467,6 +471,9 @@ test_suite(
     name = "heavy",
     tags = ["manual"],
     tests = [
+        # the LITE-PCT lane's channel A (the compatibility program's A4, 2026-11-19): manual, its five suites per push
+        # only if CI shows they fit pct_duckdb's lane (the compatibility owner's ruling)
+        "//pct:pct_duckdb_lite",
         "//spec:reference_lane",
         "//spec:update_reference_lane_test",
         "//spec:corpus_warehouse_verdict",
@@ -492,6 +499,9 @@ test_suite(
         # CI's lane guard on #81 (2026-11-09)
         "//core:ts_replay_clickhouse_test",
         "//core:ts_documents_clickhouse_test",
+        # a guarded raise in a lambda on the embedded ClickHouse (2026-11-20, the warm lane's finding): manual as the two
+        # above
+        "//core:clickhouse_lambda_raise_test",
         # every gallery and markets series' Show #TS on the embedded Postgres 16 against DuckDB (item 9): manual until
         # the Sharpe ratio's Postgres plan is fixed -- `sharpe A` and `B` take 53 s and 52 s each here (DuckDB 72 ms), and
         # on CI's Windows runner sharpe A passed the replay's two-minute statement bound (run 42676077309, 2026-11-09);

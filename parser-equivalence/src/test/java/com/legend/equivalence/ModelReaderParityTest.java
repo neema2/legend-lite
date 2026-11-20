@@ -12,10 +12,7 @@ import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.ProtocolUpgrade;
 import com.legend.protocol.SourceInformation;
 import com.legend.testing.TestOutputs;
-import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.finos.legend.engine.language.pure.grammar.from.domain.DomainParser;
-import org.finos.legend.engine.protocol.pure.m3.PackageableElement;
-import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextData;
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 import org.junit.jupiter.api.Test;
 
@@ -86,7 +83,7 @@ class ModelReaderParityTest {
         if (System.getenv("MODEL_READER_DUMP") != null) {
             dump = Files.newBufferedWriter(TestOutputs.file("model-reader-dump.jsonl"));
         }
-        PureGrammarParser referee = PureGrammarParser.newInstance();
+        // the referee's parse of each text, shared with the other parity classes in this run (RefereeParses)
         int liteSources = 0;
         int engineSources = 0;
         for (Corpus.Source src : Corpus.all()) {
@@ -95,25 +92,26 @@ class ModelReaderParityTest {
                 liteSources++;
                 own(src.id(), lite);
             }
-            PureModelContextData parsed;
+            RefereeParses.Parse parsed;
             try {
-                parsed = referee.parseModel(src.text());
+                parsed = RefereeParses.withSourceInformation(src.text());
             } catch (Throwable t) {
                 continue;   // the engine refuses the source: no J2
             }
             engineSources++;
             engine(src.id(), parsed, lite, false);
         }
+        System.out.println("[model-reader] " + RefereeParses.counts());
         int roundtripTexts = 0;
         for (Path file : ModelComposerParityTest.roundtripTestFiles()) {
             for (String run : InlineSnippets.literalRuns(Files.readString(file))) {
-                PureModelContextData parsed;
+                RefereeParses.Parse parsed;
                 try {
-                    parsed = referee.parseModel(run, "", 0, 0, false);
+                    parsed = RefereeParses.withoutSourceInformation(run);
                 } catch (Throwable t) {
                     continue;   // not a model text
                 }
-                if (parsed.getElements().size() <= 1) {
+                if (parsed.elements().size() <= 1) {
                     continue;
                 }
                 roundtripTexts++;
@@ -175,13 +173,13 @@ class ModelReaderParityTest {
     }
 
     /** The engine's model: compared where lite's emit of lite's parse is the same JSON. */
-    private void engine(String id, PureModelContextData parsed, String lite, boolean stripped) throws IOException {
-        String j2 = mapper.writeValueAsString(parsed);
+    /** {@code parsed}: the referee's parse as text, the whole model and each element (RefereeParses). */
+    private void engine(String id, RefereeParses.Parse parsed, String lite, boolean stripped) throws IOException {
+        String j2 = parsed.json();
         boolean liteMatches = lite != null
                 && (stripped ? SourceInformation.stripAll(lite).equals(canonical(j2)) : lite.equals(j2));
         String table = liteMatches ? "engine" : "engine-only";
-        for (PackageableElement e : parsed.getElements()) {
-            String element = mapper.writeValueAsString(e);
+        for (String element : parsed.elements()) {
             String type = typeOf(element);
             record("engine", id, type, element);
             judge(table, id, type, stripped ? canonical(element) : element, stripped);

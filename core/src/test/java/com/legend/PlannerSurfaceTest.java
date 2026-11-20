@@ -1063,10 +1063,12 @@ class PlannerSurfaceTest {
             Map.entry("Compiler#hasStatementEffects(ValueSpecification, ModelContext)", List.of(LAMBDA, MODEL)),
             // Compiler#programFacts(ValueSpecification, ModelContext) went 2026-11-15 (C5-J's last round, A3): no
             // caller was left once the PCT runner read a body's facts off its test plan (TestExecution#facts)
-            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
-                    List.of(LAMBDA, MODEL, NAME, OPTION)),
-            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean, String)",
-                    List.of(LAMBDA, MODEL, NAME, OPTION, NAME)),
+            // 2026-11-19, A2 of the compatibility program (stage A ratified by the user 2026-11-19): the dead
+            // relationalRootForm flag (every caller passed false) left both signatures with legend-engine's SQL text, CP-4
+            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String)",
+                    List.of(LAMBDA, MODEL, NAME)),
+            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, String)",
+                    List.of(LAMBDA, MODEL, NAME, NAME)),
             // TypedQuery: a query typed once; its plans by a runtime's name and options
             Map.entry("TypedQuery#withBody(List<TypedSpec>)", List.of(LAMBDA)),
             // merged main 3a217086a (#81), 2026-11-14: lite's own planning options, a closed set of words
@@ -1195,9 +1197,11 @@ class PlannerSurfaceTest {
             Map.entry("Compiler#hasStatementEffects(ValueSpecification, ModelContext)", QueryRoad.PLANS_NOTHING),
             // Compiler#programFacts went 2026-11-15 (C5-J's last round, A3): no caller was left
             // it types, resolves and lowers on its own: it refuses inside itself (G1)
-            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
+            // 2026-11-19, A2 of the compatibility program (stage A ratified by the user 2026-11-19): the dead
+            // relationalRootForm flag (every caller passed false) left both signatures with legend-engine's SQL text, CP-4
+            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String)",
                     QueryRoad.REFUSES_RAW_SQL),
-            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean, String)",
+            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, String)",
                     QueryRoad.REFUSES_RAW_SQL),
             // TypedQuery: its receiver is the query; its rewrites keep it a TypedQuery, whose plans scan its body
             Map.entry("TypedQuery#withBody(List<TypedSpec>)", QueryRoad.PLANS_NOTHING),
@@ -2376,10 +2380,10 @@ class PlannerSurfaceTest {
                 com.legend.model.ImportScope.empty(), ctx);
         com.legend.exec.ProductRun.Establish declared = com.legend.exec.ProductRun.Establish.DECLARED_SETUP;
         Map<String, org.junit.jupiter.api.function.Executable> drivers = new TreeMap<>(Map.ofEntries(
-                Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
-                        () -> Compiler.lowerResolved(resolved.get(), ctx, runtime, false)),
-                Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean, String)",
-                        () -> Compiler.lowerResolved(resolved.get(), ctx, runtime, false, null)),
+                Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String)",
+                        () -> Compiler.lowerResolved(resolved.get(), ctx, runtime)),
+                Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, String)",
+                        () -> Compiler.lowerResolved(resolved.get(), ctx, runtime, null)),
                 Map.entry("TypedQuery#plan(String)", () -> typed.get().plan(runtime)),
                 Map.entry("TypedQuery#executionPlan(String)", () -> typed.get().executionPlan(runtime)),
                 Map.entry("TypedQuery#executionPlan(String, Set<Feature>)",

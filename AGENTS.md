@@ -91,18 +91,68 @@
 > `meta::pure::functions::` elements
 > (`LibraryPlatformNamespaceGuardTest`).
 >
-> **Upstream-fidelity tenet (the user, 2026-10-29):** wherever possible,
-> lite does EXACTLY what legend-pure and legend-engine do. Every decision
-> -- a spelling, an outcome, an error, a type, a rule -- is settled by one
-> question, asked first: "can we do exactly as pure/engine does?" Where
-> exactness is too expensive, lite does the closest thing, and that
-> divergence is POSTED to the user before it lands (case by case: the
-> expression, upstream's answer, lite's) and LEDGERED as a row of
-> `docs/SEMANTICS_REGISTER.md`. Upstream's answer is READ from the pinned
-> sources or ASKED of the engine runner
-> (`docs/result-boundary-homework/README.md` §7), never recalled or
-> guessed. A divergence that is not a row is a defect; a row the user did
-> not rule is a defect too.
+> **Upstream-fidelity tenet (the user, 2026-10-29; amended 2026-11-19 to the
+> goal the user ruled ~13:25 for the compatibility program, "Okay agree with
+> all"; the goal's sentence is the program's wording: Lite follows Pure.
+> legend-engine's formats are matched, and its answers where they agree with
+> Pure. The rest is recorded.):** lite follows PURE: a Pure program means
+> what legend-pure's definition of it says. legend-engine's and
+> legend-pure's FORMATS (result and error envelopes, printed values) are
+> matched, at the edge. legend-engine's ANSWERS are matched where they agree
+> with Pure. Where legend-engine departs from Pure's own definition (a
+> database's meaning for a Pure function, an older database's behaviour, its
+> SQL text), lite answers Pure's way, and the departure is POSTED to the user
+> before it lands (case by case: the expression, upstream's answer, lite's)
+> and LEDGERED as a row of `docs/SEMANTICS_REGISTER.md`. Both answers, Pure's
+> and legend-engine's, are READ from the pinned sources or ASKED of the engine
+> runner (`docs/result-boundary-homework/README.md` §7), never recalled or
+> guessed. A divergence that is not a row is a defect; a row the user did not
+> rule is a defect too. People bringing a legend-engine project read the
+> recorded differences as one page: `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`.
+>
+> **The six tenets (adopted by the user, 2026-11-19: "Adopt tenets yes";
+> `docs/records/compat-rules-of-record-2026-11-19.md`) `[CONVENTION until B5's
+> guards]`.** Each has a test, so it cannot quietly erode. The tests are
+> questions a reviewer asks; nothing turns red until B5's guards land. Cite
+> them as "tenet N of the six", never as "invariant N": the invariants below
+> and `core/README.md`'s are separate lists.
+> 1. **The database computes.** Every value a program produces is computed by
+>    the database: numbers, `toString()` and `format()` text, an error's
+>    values, product verdicts. *Test:* could this value differ from one row to
+>    the next? Then the database computes it.
+> 2. **Java orchestrates and decides nothing about a value.** It plans, sends
+>    the statements, carries typed results and serializes them; product
+>    presentation never chooses, rounds, reorders or rewords. *Test:* does
+>    this Java change what a value is, or only how it is written on the wire?
+> 3. **Compatibility re-spells, never re-computes.** At the edge, Java may
+>    change how lite's typed output is written to match legend-pure or
+>    legend-engine. If upstream's value differs, that is a meaning difference:
+>    answered Pure's way and recorded. *Test:* would this fix change the answer
+>    for some input, not just its spelling?
+> 4. **Upstream is the spec of the answer, never the design.** *Test:* is the
+>    reason for a design "upstream does it that way"? Then stop. Where a tenet
+>    and upstream fidelity conflict, the tenet wins and the difference is
+>    recorded.
+> 5. **Two judges in the product, one in compatibility.** In the product the
+>    database judge and the host judge implement the same rules independently
+>    and must agree; the host judge is the one Java comparison allowed, because
+>    its independence catches bugs. Compatibility uses the host judge alone.
+> 6. **No modes in the core.** The core never branches on who is asking;
+>    differences between audiences live only at the door (input) and in the
+>    presenters (output).
+>    Made precise by the switch rule (the user, 2026-11-19 ~20:35, "Agree with
+>    the decision 2 and 3"): only door switches, read in one place and turned
+>    into a rewrite or a refusal before the planner; one closed registry; a
+>    ceiling of 5; guarded (`docs/records/compat-rules-of-record-2026-11-19.md`).
+>    The registry is empty: its first entry, `LEGEND_LITE_PURE_MEANING`, was
+>    deleted by the user's ruling of 2026-11-20 ~07:55 ("Delete the settings,
+>    make engine only mode for engine for everything"); legend-engine's door
+>    always answers legend-engine's meaning, with no setting.
+>
+> Two readings were ruled the same minute. **Folds:** the compiler may fold
+> constants and facts fixed by the types, never row data. **Error records:** a
+> raised error's record is lite's typed output, so compatibility may word
+> upstream's sentence in Java from it (tenet 3).
 >
 > **World-map tenet — ratified 2026-09-03 (`docs/WORLD_MAP.md`,
 > `docs/TENET_CHARTER.md` Clause 6):** Pure code is NATIVES (one Java SQL
@@ -319,10 +369,11 @@ statements take a `PlannedSql` and no `String`, minted only where a plan is read
 A run-time parameter's placeholder is typed by its DECLARED Pure type when the plan
 is made, per database, as upstream's database extension writes its template (D1 of docs/GOALS_OF_RECORD_2026_11_07.md;
 `SqlDialect`'s `parameterType`, a date or date-time bound as its text); the type hole that let the runner write a
-value's type into the statement was deleted 2026-11-09 (the total wall's M2, P4). The legacy engine-text printer
-(`EngineStyleH2`, the backwards-compatibility mode) writes legend-engine's own spellings directly — lowercase keywords and
-function names through the `keyword` and `aggregateName` hooks, `listagg ... within group` — and its one text step is
-legend-engine's own: a rendered column quoted into a FreeMarker template argument (each `'` as `\'`).
+value's type into the statement was deleted 2026-11-09 (the total wall's M2, P4). The legacy engine-text printers
+(`EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, which wrote legend-engine's own SQL spellings) were deleted
+2026-11-19 (A2 of the compatibility program, stage A ratified by the user; CP-4: upstream's SQL text is never promised):
+the compatibility routes print lite's own SQL through the edge's dialect (`PureText.dialect`), and a database lite has no
+dialect for is refused by name.
 
 > **If you have read otherwise:** `SQLDialect`, `SqlAggregate`, `SqlRelation`
 > and legend-engine's three-render-method contract on that `SQLDialect` are **engine-only**. They do not exist
@@ -331,9 +382,9 @@ legend-engine's own: a rendered column quoted into a FreeMarker template argumen
 Dialects: `AnsiSqlRenderer` → `DuckDb`, `Postgres`, `SQLite`, `MariaDb` (→ `MySql`), `Trino`,
 `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb` (whose text is an aggregation pipeline, not SQL:
 docs/MONGODB_PLAN_2026_10_16.md); `H2` (lite's one H2, 2.5.252; `H2Modern`, the second dialect a server's version
-chose, went 2026-11-05 with every plan's server versions); `EngineStyleH2` →
-`EngineStyleDB2` → `EngineStyleComposite`. `com.legend.database.Databases` constructs the
-one a declared database type runs on.
+chose, went 2026-11-05 with every plan's server versions). `com.legend.database.Databases` constructs the
+one a declared database type runs on; the compatibility edge's `PureText.dialect` subclasses each with upstream's
+spellings.
 
 Render methods are switch **expressions** with **no `default ->` arm**, so
 javac enforces exhaustiveness. When a dialect genuinely cannot express a

@@ -234,7 +234,19 @@ class CatalogUpstreamDiffTest {
      *  #118 fix round: N2, the in-body assert's default message chosen by the plan's style at lowering; the user's word
      *  "Okay", the same function the user's "raise it" let into Pure.INTERNAL_DESUGAR): meta::legend::lite::
      *  assertFailedText, lite-INTERNAL -- the product's sentence, the compatibility edge's legend-pure "Assert failed". */
-    private static final int NOT_UPSTREAM_MAX = 73;
+    // 73 -> 76 (2026-11-19, A3 of the compatibility program, piece 1; the user's word in the translator session, "Yes to
+    // phases 1 guard move", and in the compat owner's session, "Okay approved", ~20:50): meta::legend::lite::sqlSubstring
+    // (2 overloads) and sqlPosition (1), SQL's SUBSTRING and POSITION by name for the islands and the ###Relational
+    // dynaFunctions -- upstream declares neither
+    // 76 -> 78 (2026-11-19, A3, the user's word ~22:20 "Yes to all three" to the guard moves for the engine opt-in,
+    // relayed by the compat owner): meta::legend::lite::substringAsGiven's two overloads, lite-INTERNAL and the
+    // compiler's own -- the database's own SUBSTRING over the arguments as given, which the legend-engine door's engine
+    // rewrite alone writes; upstream declares no such function
+    // 78 -> 80 (2026-11-20, A3, the user's word ~07:45 "Okay 1", relayed by the compat owner): meta::legend::lite::
+    // substrAsGiven's two overloads, lite-INTERNAL and the compiler's own -- the database's own SUBSTRING over Pure's
+    // indexes corrected as legend-engine's processSubstr corrects them, which the legend-engine door's engine rewrite
+    // alone writes, for substr and the corrected substring; upstream declares no such function
+    private static final int NOT_UPSTREAM_MAX = 80;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 
