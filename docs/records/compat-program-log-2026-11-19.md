@@ -3309,3 +3309,11 @@ who confirms or changes phases 1-3.
   `7fbef539a`). 30 of 30 and 9 of 9 touched lanes. **The batch waits only on the translator's piece-2 review fixes**
   (the user's word in its session).
 - **~05:50 UTC, the user: "wrap up A now please with the engine piece"** (§1's row). Earlier this hour the user rightly objected that this session had described the `engine` rewrite as acting "at the door, at the beginning of the pipeline" when it acts on the compiled query between type-check and planning: this session's misleading account, acknowledged. Stage A closes with `engine` as built; the batch waits only on the translator's piece-2 review fixes, which need the user's word typed in its session. The B3 check (corpus tests that write data after a lifted SQL-text assert) sent to the error-records session.
+- **~06:00 UTC, the user: "How do we know this piece works? Did we run all the subset of heavy/manual tests? And all
+  database warm lanes? And audit of everything?"** Answered plainly: per piece, the fast loop, touched lanes, most pieces'
+  //gates:local, the reviewer's approval; the `engine` piece's tests, plants, routes, batteries and probes; the warm PCT
+  lanes on piece 2's own branch. NOT yet: the full measurement, the heavy and manual subset, the warm lanes on the final
+  batch, CI, the combination audit (all after piece 2 merges); the cloud lanes cannot run here (the credentialed
+  warm-lane sessions are not reachable from this session). A question spotted and sent to B1-R before the PR: after
+  piece 2's review fix guards `substr` and the flagged `substring`, does the detector flag `substr`, and does `engine` give
+  legend-engine's answer for it (read from legend-engine's runner)?
