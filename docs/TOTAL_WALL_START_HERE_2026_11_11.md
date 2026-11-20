@@ -184,7 +184,9 @@ C, D and E pile on; the user has not ruled. Ask once at B's checkpoint; without 
 - **Deleting files:** a session never deletes a file it did not create. The creator deletes it, or the user gives the
   word.
 - **Upstream fidelity (AGENTS.md):**
-  - Ask "can we do exactly as pure/engine does?" first.
+  - Ask "can we do exactly as pure/engine does?" first. (2026-11-19: amended in AGENTS.md to the goal the user ruled
+    ~13:25 for the compatibility program: lite follows Pure; legend-engine's formats are matched, and its answers
+    where they agree with Pure; the rest is recorded. AGENTS.md's tenet is the one that holds.)
   - Upstream's answer is READ from the pinned sources or ASKED of the engine runner, never recalled.
   - A divergence is POSTED to the user, with the expression, upstream's answer and lite's, before it lands, and
     ledgered as a register row the user rules.
