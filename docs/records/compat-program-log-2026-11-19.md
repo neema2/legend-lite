@@ -3190,3 +3190,11 @@ who confirms or changes phases 1-3.
   could be recorded instead). A lean B3 (host judge plus Java fix-ups at the edge, and the fallback's claim; no rewrites;
   no presenter if the probe allows) to be sized by the judges after the batch is assembled. The verdict-wording probe
   sent to the error-records session (PCT, corpus, edge net, the presenter's size).
+- **~02:15 UTC, the user: "The fallback isn't product code so that could be java code at the edge with no planning at
+  all if that makes things better - what do you think? That compatibility test harness code - not even sure it's a
+  great idea to plan it at all?"** This session agreed in principle (option N: lite runs the test as lite; a generic
+  typed per-assert test report; compatibility re-judges in Java at the edge after the run; the fallback entirely in the
+  corpus harness with its own referee JDBC, as test harnesses may), with three things to check: the typed sides as
+  output, the fallback's need for lite's rows of a query the test never ran (the hard part), and assertError and
+  branch asserts as records. A design spike against B3 as planned sent to the error-records session, after its probe,
+  with sizes and a recommendation.
