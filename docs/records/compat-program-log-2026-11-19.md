@@ -3361,3 +3361,9 @@ who confirms or changes phases 1-3.
   - Lite's own doors always answer Pure. The A/B question is moot.
   - B1-R builds it in one pass, docs included, and posts its moves for the word list. The judges send their merged head straight to the siblings, the reviewer and B1-R, and run every non-edge lane once on it. The edge lanes run once after B1-R's pass. #128 is reopened on the final head, and CI runs once.
   - #128's run on `71b7bf55e`: 46 of 54 jobs green on every OS, including `macos/parser_equivalence` (#127's red). The memo fixed it.
+- **~08:12 UTC, B1-R's pass.**
+  - Option (1) is built: `c35e90888`, local, on `317204773`. Its guard moves (INTERNAL_DESUGAR 41→42, NOT_UPSTREAM_MAX 78→80, Intrinsic 740→742, native-claims, a new ClaimRegistryTest pin, engine batteries +10 AGREE per database) are on the PR's word list.
+  - It was built before B1-R read the ~07:55 ruling. Its gate run was stopped and nothing was pushed.
+  - The setting's deletion goes on top. The header and the WARNING log line go with it.
+  - The ETA was 3 hours. It is cut to about 2 hours to the code push plus the judges' single //gates:local: B1-R runs only its fast lanes, and the docs follow as a separate .md-only push during the judges' gate.
+  - The reviewer approved `317204773`.
