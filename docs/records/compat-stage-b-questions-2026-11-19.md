@@ -395,6 +395,10 @@ branches on the H2 version by running `SELECT H2VERSION()` in the query; lite's 
 harness takes legend-engine's upgraded branch, the one lite's H2 2.5 and the referee's golden are written for.
 Recommendation: yes, recorded like the corpus rewrites.
 
+**When the lifted query runs (H13 §28.5):** option N runs a lifted assert's query after the test body, where legend-engine
+evaluates it at the assert's position. Measured: 0 corpus tests (of 1,452 per lane) write data after an assert N2 lifts,
+so the timing changes nothing today. A guard that refuses by name to lift an assert followed by a write keeps it so.
+
 **The half-day follow-up (done):** the probe's six shapes reach 632 of today's 1,146 row matches. The other 514 come
 through helper functions and other shapes. Measuring them is the one number that could make the detection larger
 than estimated.

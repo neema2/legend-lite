@@ -3317,3 +3317,8 @@ who confirms or changes phases 1-3.
   warm-lane sessions are not reachable from this session). A question spotted and sent to B1-R before the PR: after
   piece 2's review fix guards `substr` and the flagged `substring`, does the detector flag `substr`, and does `engine` give
   legend-engine's answer for it (read from legend-engine's runner)?
+- **~07:19 UTC, H13: writes after a lifted SQL-text assert** (record §28.5 at `d8138dca`; inert probe): **0 in both
+  lanes** for the asserts N2 lifts (1,452 of 1,709 tests per lane); the one test that writes after an SQL-text assert
+  (`testConstant_Alloy`, a plan-text golden over a never-executed test-data plan) is not lifted anyway. "Capture in
+  place" is not needed; the guard (refuse by name to lift an assert followed by a write) is a few lines in N2 and keeps
+  the rule for future tests. Q16's design stands, with the guard.
