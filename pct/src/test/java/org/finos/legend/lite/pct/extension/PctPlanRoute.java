@@ -15,10 +15,10 @@ import java.io.IOException;
  * Channel A through THE PRODUCT DOOR (2026-11-03, the user's order of fixes, step 6: one planning door, one execution
  * door): the case's expression and its injected model compiled by the one compiler and run by {@code Execution.run},
  * exactly as a product query runs -- its session the lane's for its plan ({@link PctBackend#executionSource}: as the
- * plan route's sessions chose it), its plan made for that session's server, its declared setup established, under the
- * PCT's feature flag
- * (CORRECT_SQL_SUBSTRING_INDEXING: the user's ruling of 2026-09-12, a written deviation from upstream's PCT adapter,
- * which sets none -- the engine's testable runner sets it for relation tests). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
+ * plan route's sessions chose it), its plan made for that session's server, its declared setup established, with no
+ * feature flag, as upstream's PCT adapter sets none (A3 of the compatibility program, 2026-11-19: substring is Pure's
+ * by default, so the 2026-09-12 written deviation, the adapter setting CORRECT_SQL_SUBSTRING_INDEXING, is reversed;
+ * register S130). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
  * answer the server writes from them ({@code edge.EngineAnswers.engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
  * PCT adapter reads it ({@link ValueBridge#engineTDS}); a value's elements cross as the reference's own instances
  * ({@link ValueBridge}).
@@ -110,8 +110,11 @@ final class PctPlanRoute {
         // lane's channel A); a combination refused by name
         Audience audience = audience(System.getProperty("pct.audience"),
                 System.getProperty("pct.channela.rules", "COMPAT"));
-        java.util.Set<com.legend.platform.Feature> features = audience == Audience.LEGEND_PURE
-                ? java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING) : java.util.Set.of();
+        // no feature flag for any audience (A3 of the compatibility program, piece 2, 2026-11-19: substring is Pure's by
+        // default; S130), as upstream's own PCT adapters set none. Until then legend-pure's audience set
+        // CORRECT_SQL_SUBSTRING_INDEXING; piece 2's change applied to #124's audience at the stage-A batch's merge,
+        // 2026-11-20
+        java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
         // counted as chosen here, the text and the flags the run is handed, for the ENGINE lane's check (RouteAudience)
         RouteAudience.planned(audience == Audience.LEGEND_ENGINE && features.isEmpty());
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):

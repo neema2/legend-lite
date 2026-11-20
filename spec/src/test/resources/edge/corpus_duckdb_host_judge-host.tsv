@@ -20,14 +20,11 @@ meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty1	0	meta:
 meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedDerivedProperty	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedProperty	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	0	meta::pure::functions::asserts::assertEquals	PASS
-meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	1	meta::pure::functions::asserts::assert	PASS
-meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	1	meta::pure::functions::asserts::assert	FAIL
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	0	meta::pure::functions::asserts::assertEquals	PASS
-meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	1	meta::pure::functions::asserts::assert	PASS
-meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	1	meta::pure::functions::asserts::assert	FAIL
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	0	meta::pure::functions::asserts::assertEquals	PASS
-meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	1	meta::pure::functions::asserts::assert	PASS
-meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	2	meta::pure::functions::asserts::assertSameElements	PASS
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	1	meta::pure::functions::asserts::assert	FAIL
 meta::pure::executionPlan::tests::execution::testSQLCommentsInPlan	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::executionPlan::tests::relationalTDSTypeForColumnsAndQuoting	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::pure::executionPlan::tests::relationalTDSTypeForColumnsAndQuoting	1	meta::pure::functions::asserts::assertEquals	PASS
@@ -1103,7 +1100,7 @@ meta::relational::tests::functions::sqlstring::testToSQLStringSplitPart	0	meta::
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes	1	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex	0	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault	0	meta::pure::functions::asserts::assertEquals	FAIL
 meta::relational::tests::functions::sqlstring::testToSQLStringToNumericCasts	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock	0	meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible	PASS
@@ -4595,10 +4592,6 @@ meta::relational::tests::query::function::testFilterUsingMatchesFunction	2	meta:
 meta::relational::tests::query::function::testFilterUsingMatchesFunction	3	meta::pure::functions::asserts::assertSize	PASS
 meta::relational::tests::query::function::testFilterUsingMatchesFunction	4	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::query::function::testFilterUsingMatchesFunction	5	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::query::function::testFilterUsingParseDecimalFunction	0	meta::pure::functions::asserts::assertSameElements	PASS
-meta::relational::tests::query::function::testFilterUsingParseDecimalFunction	1	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::query::function::testFilterUsingParseIntegerFunction	0	meta::pure::functions::asserts::assertSameElements	PASS
-meta::relational::tests::query::function::testFilterUsingParseIntegerFunction	1	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::query::function::testFilterUsingPlusFunction	0	meta::pure::functions::asserts::assertSize	PASS
 meta::relational::tests::query::function::testFilterUsingPlusFunction	1	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::query::function::testFilterUsingPlusFunction	2	meta::pure::functions::asserts::assertEquals	PASS
@@ -4610,9 +4603,6 @@ meta::relational::tests::query::function::testFilterUsingStartsWithFunction	1	me
 meta::relational::tests::query::function::testFilterUsingStartsWithFunction	2	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::query::function::testFilterUsingStartsWithFunction	3	meta::pure::functions::asserts::assertSize	PASS
 meta::relational::tests::query::function::testFilterUsingStartsWithFunction	4	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::query::function::testFilterUsingSubstringFunction	0	meta::pure::functions::asserts::assertSize	PASS
-meta::relational::tests::query::function::testFilterUsingSubstringFunction	1	meta::pure::functions::asserts::assertSameElements	PASS
-meta::relational::tests::query::function::testFilterUsingSubstringFunction	2	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::query::function::testFilterUsingToLowerFunction	0	meta::pure::functions::asserts::assertSize	PASS
 meta::relational::tests::query::function::testFilterUsingToLowerFunction	1	meta::pure::functions::asserts::assertSameElements	PASS
 meta::relational::tests::query::function::testFilterUsingToLowerFunction	2	meta::pure::functions::asserts::assertEquals	PASS

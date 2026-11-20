@@ -264,8 +264,7 @@ public final class ChannelB {
                     : NameResolver.resolveQueryIn(lambda, imports,
                             ctx.resolutionUniverse());
             // ONE universe with channel A (PctExecuteNative): the PCT runs
-            // with CORRECT_SQL_SUBSTRING_INDEXING on, as the engine's own
-            // testable runner does — the flag is the lowering's, so channel
+            // with no feature flag (A3, 2026-11-19; S130) — the flag is the lowering's, so channel
             // B's identity adapter carries it the same way
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
@@ -416,8 +415,8 @@ public final class ChannelB {
                     // the orchestrator's ruling of 2026-11-17), never the product's NoEdge with a style
                     new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                             com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
-            .withFeatures(java.util.Set.of(
-                    com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
+            // no feature flag (A3 of the compatibility program, 2026-11-19: substring is Pure's by default, so the
+            // 2026-09-12 deviation of setting CORRECT_SQL_SUBSTRING_INDEXING is reversed; register S130)
             // the tests' planning options: as-of joins the same row on every database (PlanOption)
             .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
             // the host judge alone (rule 4 of the compatibility program's rules of record: "Host judge is only judge

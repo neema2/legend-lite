@@ -46,6 +46,10 @@ public enum RaiseKind {
     /** A window frame's computed offset that is negative or empty (S170; merged with #81's frame guard,
      *  2026-11-14). */
     WINDOW_FRAME_OFFSET_INVALID,
+    /** A {@code substring} whose start is below 0, whose end is past the text's length, or whose end comes before its
+     *  start (A3 of the compatibility program, 2026-11-19; register S383): legend-pure raises there (Java's
+     *  {@code String.substring}), and so does the product, in the database. Operands: the start, the end, the length. */
+    SUBSTRING_OUT_OF_RANGE,
     /** {@code fail(message)}: the user's own message, the one operand the product writes. */
     USER_FAIL;
 

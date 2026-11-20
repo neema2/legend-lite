@@ -36,12 +36,14 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             one("meta::pure::functions::collection::tests::find::testFindUsingVarForFunction_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
-            // and harness limits, the 0-based indexOf, error positions and messages
+            // and harness limits, error positions and messages
             one("meta::pure::functions::collection::tests::at::testAtError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 37\""),
             // 2026-10-20, plan-route parity (b0d5e435, measured by the step-9 lane session): the folds pass -- the
             // adapter prints a copy with its updated values (CopyWithUpdate); testContainsNonPrimitive passes too
             // (keyed contains compares the key canon)
-            one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
+            // 2026-11-19, A3 of the compatibility program, piece 2 (the user's word, 2026-11-19: "approved: push both A3
+            // branches and make piece 2's moves"): indexOf is Pure's in the core, 0-based, -1 on a miss (S134), so
+            // indexOf::testSimple, testFromIndex and indexof::testIndexOfOneElement pass and leave (measured on this lane)
             one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "Value 12345695772 exceeds MAX_INT for type date\""),
             one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "long overflow\""),
             one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "Magnitude of add amount is too large: 9600000000\""),
@@ -66,8 +68,6 @@ public class Test_LegendLite_Trino_EssentialFunctions_PCT extends PCTReportConfi
             // no longer parsed from its text
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"the database answered NaN for a Float, which has no NaN in Pure\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
-            one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
-            one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             // step 9, 2026-10-19, the plan route: the same refusal, its position in the plan's longer statement
             // (line 9:39 where the legacy route's was 1:33), pinned without the position
             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the

@@ -15,6 +15,9 @@ meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaTab
 meta::pure::alloy::connections::tests::relationalMapper::testRelationalTableMapper
 meta::pure::executionPlan::m2m2r::tests::planGraphFetchWithDerivedProperty
 meta::pure::executionPlan::m2m2r::tests::planGraphFetchWithNestedDerivedProperty
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableNoTimeZone
 meta::pure::executionPlan::tests::datetime::testPlanWithLocalH2ConnectionWithSQL
@@ -289,6 +292,7 @@ meta::relational::tests::functions::sqlstring::testToSQLStringComposite
 meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat
 meta::relational::tests::functions::sqlstring::testToSQLStringNonPrestoSchemaNameShouldNotConvertDollarSign
 meta::relational::tests::functions::sqlstring::testToSQLStringReverse
+meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregation
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregationDB2
@@ -391,6 +395,9 @@ meta::relational::tests::query::filter::exists::testAssociationTwoLevelDeep
 meta::relational::tests::query::filter::exists::testIsNotEmpty
 meta::relational::tests::query::filter::isempty::testIsEmptyOnCollection
 meta::relational::tests::query::function::distinct::testCollectionDistinctFunction
+meta::relational::tests::query::function::testFilterUsingParseDecimalFunction
+meta::relational::tests::query::function::testFilterUsingParseIntegerFunction
+meta::relational::tests::query::function::testFilterUsingSubstringFunction
 meta::relational::tests::query::function::testJoinStringFunction
 meta::relational::tests::query::legacyNullUnsafeEquals::testDefaultOptionalParamIsNullSafe
 meta::relational::tests::query::legacyNullUnsafeEquals::testDefaultProjectionIsNullSafe

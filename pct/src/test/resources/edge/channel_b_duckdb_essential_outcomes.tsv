@@ -47,7 +47,7 @@ meta::pure::functions::collection::tests::head::testHeadOnEmptySet	PASS
 meta::pure::functions::collection::tests::head::testHeadOnOneElement	PASS	
 meta::pure::functions::collection::tests::head::testHeadSimple	PASS	
 meta::pure::functions::collection::tests::indexof::testIndexOf	PASS	
-meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	ERROR	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	PASS	
 meta::pure::functions::collection::tests::init::testInit	PASS	
 meta::pure::functions::collection::tests::init::testInitOnEmptySet	PASS	
 meta::pure::functions::collection::tests::init::testInitOneElement	PASS	
@@ -277,8 +277,8 @@ meta::pure::functions::string::tests::format::testFormatPair	PASS
 meta::pure::functions::string::tests::format::testFormatRepr	PASS	
 meta::pure::functions::string::tests::format::testFormatString	PASS	
 meta::pure::functions::string::tests::format::testSimpleFormatDate	PASS	
-meta::pure::functions::string::tests::indexOf::testFromIndex	ERROR	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
-meta::pure::functions::string::tests::indexOf::testSimple	ERROR	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+meta::pure::functions::string::tests::indexOf::testFromIndex	PASS	
+meta::pure::functions::string::tests::indexOf::testSimple	PASS	
 meta::pure::functions::string::tests::joinStrings::testJoinStrings	PASS	
 meta::pure::functions::string::tests::joinStrings::testJoinStringsNoStrings	PASS	
 meta::pure::functions::string::tests::joinStrings::testJoinStringsSingleString	PASS	
