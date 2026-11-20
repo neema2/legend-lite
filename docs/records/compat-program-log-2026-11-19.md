@@ -3496,3 +3496,8 @@ who confirms or changes phases 1-3.
   - **Kind 2:** the range check's tree is +2,734 bytes; it re-serializes the whole list literal with a type per element. The new raise-site table adds +106.
   - **Kind 3:** the ~50K per step is NOT repeated data. It is each assert's share of what the fused step already held: about 48K per assert, made of expected CTE 13.7K, actual CTE 14K, verdict row 17.6K and SQL 2.8K. What is truly repeated per extra step is target + columns + envelope, about 1.5K. In testSubstrStart, +5.9K = about 2.7K repetition + about 3.2K of the range check's tree.
   - **For the user, a lean-plan question outside this batch:** the plan holds both the text and the full typed tree of each statement.
+- **~12:30 UTC, the user asked why verdict statements are split, and who said so.** The answer is this session: the ~16:20 (beta) and ~16:35 ((b1)) calls of 2026-11-19, in A5 (`f13e73c28`).
+  - **Why:** Postgres rejected a fused verdict statement (testAdjustByMinutesBigNumber's second expected literal). A rejection names no verdict, so it was blamed on the group's first assert, which the host judge held, and the two judges disagreed (G2).
+  - **The fix:** a fused group starts at each verdict that may raise.
+  - **The cost:** judge statements +30% essential, +33% grammar, +8% standard. That is past this session's own ~25% line, and the move was never put to the user. It was missing from #128's word list until now (added to the draft).
+  - **Today's +14 statements** are the same rule meeting A3's range check.

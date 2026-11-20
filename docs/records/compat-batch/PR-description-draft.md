@@ -73,6 +73,7 @@ below.]**
 
 ## For the user's word at this PR
 
+- **MISSED until 2026-11-20 ~12:30:** A5's judge-statement pins (`f13e73c28`, the owner's own (b1) call of 2026-11-19 ~16:35, past the owner's ~25% line, never put to the user): essential 358 → 466 (+30%), grammar 135 → 179 (+33%), standard 207 → 224 (+8%), the fused verdict statement split at each verdict that may raise;
 - the PROPOSED register rows not yet ruled: S130, S134, S380, S382, S384, S385 (the reviewer's M-c3: each one's
   content matches the code), and S381 (DuckDB's `SET threads TO 1` for test plans, written by the judges at `9c4c9f231`);
 - the lean-SQL baseline re-pins: A5's +0.121% plan JSON for `SET threads TO 1`, and A3 piece 2's 59 if not already
