@@ -80,7 +80,17 @@ below.]**
 - A4's four narrowed ruled hooks;
 - TestPlanJson 32 → 33;
 - the `RootLoops.rejected` allowlist entry;
-- own_corpus.matched's +5 from `InCollectionSpliceRefusalTest`.
+- own_corpus.matched's +5 from `InCollectionSpliceRefusalTest`, and +2 from `39956d2b7` (EngineSubstitutesTest's
+  sectioned literals; the reviewer's M-b3);
+- the ENGINE lane re-recorded by `22d53782f` (DuckDB lite.PASS 317 → 324, H2 252 → 257, every row FAIL → PASS from
+  piece 2; M-b1);
+- the WARN battery pins moved by `087ee888e` with piece 2 (H2 AGREE 46 → 11 / DIFFER 2 → 37; DuckDB AGREE 31 → 8 /
+  DIFFER 18 → 41; and the engine files' i04 lite-side rows; M-b2);
+- A2 PR 1's ordered-keys registers (`e66846d4d`: DuckDB +5, H2 +4, an UP move; M-b4) and A2's fail-roster growth
+  itself (H2 +145, DuckDB +149; the six accepted rows were ruled ~20:35, the growth was not);
+- the LiteSqlText entry A2 added to the edge's closed file list;
+- piece 2's review round's moves (corpus +2/−1 per database, edge net, lean SQL +172/−2, census +17 and the 11 print
+  casts −1) were ruled in the translator's session, 2026-11-20 ~07:20.
 
 ## Proof
 

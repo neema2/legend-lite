@@ -3322,3 +3322,18 @@ who confirms or changes phases 1-3.
   (`testConstant_Alloy`, a plan-text golden over a never-executed test-data plan) is not lifted anyway. "Capture in
   place" is not needed; the guard (refuse by name to lift an assert followed by a write) is a few lines in N2 and keeps
   the rule for future tests. Q16's design stands, with the guard.
+- **~07:20–07:30 UTC, the batch's runs re-ordered (the user: "Why would we not wait for piece 2 fixes?").**
+  - I started the full runs on `71b7bf55e` and opened #128 as a draft before piece 2's review fixes were in. That was my error.
+  - The fixes landed minutes later (translator, `97d4c78b2`, the user's word typed there).
+  - #128 is closed. Its queued CI run (44694807016) could not be cancelled from here (403).
+  - Every warm lane was stopped before giving results; BigQuery and Snowflake confirmed.
+  - #127's red was `macos / parser_equivalence` TIMEOUT at 901.3 s, with no assertion failure. The memo fix (`6c4509e0c`) is in the batch but unproven on macOS.
+  - B1-R found the `substr` gap at legend-engine's door: four call forms, out of range only. It is building the fix (about 270 lines, edge only), with the REFUSE policy waiting on the user's A/B; B is recommended.
+  - The reviewer's combination audit:
+    - part (d), the 28 merges: no must-fix;
+    - part (b): four moves lack the word (M-b1 to M-b4), now listed in the PR draft's word list.
+  - Order:
+    1. The judges merge `97d4c78b2`.
+    2. Every run goes once on that head (edge lanes excluded).
+    3. B1-R's fix merges, then the edge lanes run once.
+    4. The PR opens green, and CI runs once.
