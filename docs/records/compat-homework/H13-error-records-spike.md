@@ -1192,13 +1192,14 @@ sentences (`expected ... actual ...` and the assert family's texts) from lite's 
 audience (CP-14 (iii)). If nothing pins that wording, lite's own verdict words can stand and B3 drops the presenter.
 
 **The probe.** A scratch tree from current `main` (`8eea8fa1`), never pushed, with the compatibility verdict wording
-switched off (15 lines in 2 files; the patch is `H13/assert-words-probe.patch.txt`):
+switched off (+13 / -3 lines in 2 files; the patch is `H13/assert-words-probe.patch.txt`):
 - **the host judge:** `CompiledPureHostForms.words()` hands every `HostWords` member to `LiteHostWords`, except
   `caught` (a raise's words: the error family of section 25, left as the edge's so this measures assert words alone);
 - **the database judge:** the `VerdictWords` two-form gives `LiteVerdictWords` instead of `UpstreamVerdictWords`.
   Both must switch together: the plan's words name comes from `VerdictWords` and the run refuses a plan worded
   otherwise than its hook (`TestRunner`'s mixed-words check).
-- Verdicts are not touched. Every `HostWords` member returns words only (all 25 return a `String`).
+- Verdicts are not touched. Every `HostWords` member returns words only (all 26, `name` and `caught` included, return a
+  `String`).
 
 Run: `//pct:edge_net` (every PCT golden, both channels; pure/v1; the edge cases), both corpus lanes with their edge
 ledgers, and the ENGINE lanes, diffed against `main`'s goldens.
