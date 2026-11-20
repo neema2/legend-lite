@@ -86,7 +86,17 @@ below.]**
 - the ENGINE lane re-recorded by `22d53782f` (DuckDB lite.PASS 317 → 324, H2 252 → 257, every row FAIL → PASS from
   piece 2; M-b1);
 - the WARN battery pins moved by `087ee888e` with piece 2 (H2 AGREE 46 → 11 / DIFFER 2 → 37; DuckDB AGREE 31 → 8 /
-  DIFFER 18 → 41; and the engine files' i04 lite-side rows; M-b2);
+  DIFFER 18 → 41; M-b2), now DELETED with the setting (the user, ~07:55; a down move); the engine files' i04 lite-side
+  rows;
+- B1-R's `substr` pass (the user's "Okay 1", ~07:45, and "Delete the settings…", ~07:55):
+  - INTERNAL_DESUGAR 41 → 42;
+  - NOT_UPSTREAM_MAX 78 → 80 and ratchets.tsv Intrinsic 740 → 742 (`substrAsGiven`'s two overloads);
+  - native-claims.tsv: substrAsGiven's two rows, and substr's rows gain EngineSubstitutes and PureMeaningCheck;
+  - a new ClaimRegistryTest pin, `substrAsGivensOneProductClaimerIsScalars`;
+  - the engine batteries: +10 rows per database from the oracle re-run, H2 46 → 56 AGREE and DuckDB 47 → 57 AGREE,
+    all ten new rows agreeing, no existing row moved;
+  - the door's records re-recorded for the deleted setting **[B1-R's list, final]**;
+  - register rows S130, S134, S383, S385, S388 and AGENTS.md's switch-rule entry reworded;
 - A2 PR 1's ordered-keys registers (`e66846d4d`: DuckDB +5, H2 +4, an UP move; M-b4) and A2's fail-roster growth
   itself (H2 +145, DuckDB +149; the six accepted rows were ruled ~20:35, the growth was not);
 - the LiteSqlText entry A2 added to the edge's closed file list;
