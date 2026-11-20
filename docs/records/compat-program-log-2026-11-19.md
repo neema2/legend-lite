@@ -3536,3 +3536,16 @@ who confirms or changes phases 1-3.
     - The run no longer hands each verdict of a rejected group a null row.
     - Same failure, same assert reported, same text.
     - CodeShapeGuardrailTest's mutable-field allowlist loses the entry (a down move).
+  - **3. Result order** (the user's ~13:10, "Yes need to do result order next"), commit `a35ac9bc`.
+    - **The gap:** the referee checks a sorted chain's rows against legend-engine's SQL in order only when its sort
+      keys are columns of the output. A computed `sortBy`, or a key renamed or restricted away, fell back to a multiset
+      compare, counted as `ordered-keys-unmappable`: H2 7 tests, DuckDB 8.
+    - **Built:** such a chain is compared in strict sequence first. An exact match proves the same order, ties
+      included. Only a sequence mismatch keeps the counted multiset compare, since it may come from tied rows.
+    - **Measured:** all 7 and all 8 matched in sequence. The registers are emptied (a down move, its reason in
+      GATES.md), and no other roster moved.
+    - Seven of the eight tests also assert their own values' order. `testRestrictWithPostProcessor` asserts only its
+      SQL text, and is now order-checked here.
+    - **Not built: the database computing the hidden sort key.** It would only distinguish a tie from a wrong order;
+      none of these tests has tied rows that differ.
+  - **The local gate and both corpus lanes** are running on the three commits (`a35ac9bc`).
