@@ -3454,3 +3454,8 @@ who confirms or changes phases 1-3.
     1. the PCT judge-SQL re-pin (↑);
     2. the follow-ups' own_corpus 3327 → 3330 (↑);
     3. A/B on the ClickHouse lambda fix.
+- **~09:43 UTC, the PCT judge-SQL red, bisected** (heavy round 1): the first commit to move it is `2f01b45be` (A3 piece 2).
+  - +9 statements came with piece 2 (merged at `4334efbd4`), and +5 with its review round (merged at `9b9098de2`).
+  - B1-R's pass, the detector and the LITE ledger edit move nothing.
+  - This matches the judges' reading: tests that now pass run their later asserts, and the range checks add their SQL.
+  - The fix is a re-pin, which needs the user's word.
