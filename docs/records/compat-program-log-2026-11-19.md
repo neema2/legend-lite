@@ -3302,3 +3302,8 @@ who confirms or changes phases 1-3.
   624 of 625, the one red parser_parity on B1's `EngineSubstitutesTest.java` (two snippets without section headers),
   sent to the judges to fix. New guard files only the two ruled engine pins. The judges merge it back and the docs; the
   batch then waits on the translator's review fixes.
+- **~05:22 UTC, the judges: batch head `71b7bf55e`** (the engine wiring merged as a true fast-forward; EngineSubstitutesTest's
+  section headers fixed, parser_parity green, own_corpus.matched 3325 → 3327, a floor rising listed for the user's word
+  at the batch PR beside the +5; the batteries and the ENGINE lane match their pins with the wiring in; B2's docs at
+  `7fbef539a`). 30 of 30 and 9 of 9 touched lanes. **The batch waits only on the translator's piece-2 review fixes**
+  (the user's word in its session).
