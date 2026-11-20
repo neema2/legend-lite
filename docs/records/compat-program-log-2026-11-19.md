@@ -3432,3 +3432,12 @@ who confirms or changes phases 1-3.
   - channel_b.essential.judge: statements 463 → 477, chars 7,193,353 → 7,196,463, plan 47,442,679 → 47,512,616, against b1dc377dc's committed pins. It is an UP move and needs the user's word to re-pin.
   - Being bisected from b1dc377dc to 67fa4df5.
   - Plan: a single push after the bisect and the user's word, carrying the re-pin and the approved follow-ups `2e24fb668`, once the judges' gate and heavy round 2's manual targets have reported. It restarts #128's CI once.
+- **~09:18 UTC, sibling 1b's final run on `317204773`** (DuckDB, SQLite, MariaDB, MySQL, ClickHouse, Postgres). **All five warm sessions are now done: 0 lost passes caused by the batch on any database.**
+  - **Channel A:** exact on all six databases (0 stale, moved or lost; 36 of 36 targets).
+  - **Channel B (HOST):** the three `indexOf` tests are gained on every lane.
+  - **MySQL:** still red with exactly the Q3b Decimal-scale rows, as on main.
+  - **MariaDB:** still red with Q3's list rotation. Five runs at each commit show the same spread, so it is noise, not a loss.
+  - **LITE+DATABASE, for stage B:** 2474 relation toString rows (B2), 96 error-text rows (Q3), and 43 value-text rows.
+  - **Also under LITE+DATABASE:**
+    - 22 MariaDB rows hit the server's `--max-session-mem-used` (the environment).
+    - 3 ClickHouse rows raise "substring range is out of the text's bounds" (removeDuplicatesByPrimitive, testSimpleSortWithKey, testSimpleSortWithFunctionVariables). They pass under COMPAT HOST and in channel A. Sibling 1b is finding the SQL shape and cause, measure only: eager evaluation of the guard in ClickHouse, or a batch padding row?
