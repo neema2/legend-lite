@@ -33,6 +33,9 @@ legend-pure raises in each out-of-range case (Java's substring).
   engine answered the same, since neither form was flagged or rewritten.
 
 The lite runs used LiteBatteries with its error text appended to each refused row (a local debug change, never
-pushed). The fix that follows (the detector flags the four forms; `engine` rewrites them to legend-engine's SQL; under
-`engine` a literal-0 `substring` is rewritten too, the reviewer's M-a1) is guarded by `PureMeaningEngineTest` and by the
-batteries' rows on a value shorter than its end (`col.s19`..`lit.c02`).
+pushed). The fix that follows is guarded by `PureMeaningEngineTest`, `EngineSubstitutesTest` and the batteries' rows
+on a value shorter than its end (`col.s19`..`lit.c02`):
+- the detector flags the four forms;
+- `engine` rewrites them to the lite-internal native `substrAsGiven`, the database's SUBSTRING over `start + 1` and
+  `end - start` (the user's word ~07:45, "Okay 1");
+- under `engine` a literal-0 `substring` is rewritten too (the reviewer's M-a1).

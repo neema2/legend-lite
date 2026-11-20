@@ -1511,6 +1511,21 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, args));
         }
+        // THE DATABASE'S OWN SUBSTRING OVER PURE'S INDEXES, CORRECTED AS LEGEND-ENGINE CORRECTS THEM (A3, the engine
+        // rewrite's substitute for substr and the corrected substring, 2026-11-20; the user's word ~07:45, "Okay 1"):
+        // substrAsGiven(s, start[, end]) is SUBSTRING_AS_GIVEN over start + 1 and end - start, legend-engine's
+        // processSubstr, with no range check; the positions are SQL arithmetic the database computes, a literal index
+        // included (no fold here), and no pass rewrites the call
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr start1 = SqlExpr.Call.of(SqlFn.PLUS, args.get(1), new SqlExpr.IntLit(1));
+                if (args.size() == 2) {
+                    return new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, List.of(args.get(0), start1));
+                }
+                return new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, List.of(args.get(0), start1,
+                        SqlExpr.Call.of(SqlFn.MINUS, args.get(2), args.get(1))));
+            });
+        }
         // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
         // engine's RELATIONAL lowering registers it separately and ALWAYS
         // corrects it (processSubstr, "needs no flag"); the platform keeps it

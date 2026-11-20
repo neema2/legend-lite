@@ -341,8 +341,8 @@ legend-pure. Out of range it answers the database's cut-short value, per databas
 |---|---|
 | the detector | four codes, `substr/2`, `substr/3`, `substring(corrected)/2`, `substring(corrected)/3` (`Code.outOfRangeOnly`); the sentence says they differ out of range alone |
 | the walk under `engine` (the reviewer's M-a1) | `PureMeaningCheck.forEngine`: the measured literal-0 exemption is off, so `$r.x->substring(0, n)` is rewritten too ('ab'->substring(0, 3) answers 'ab', legend-engine's; lite raises); `refuse` and `warn` keep the exemption |
-| the substitute | `EngineSubstitutes.substr`: `substringAsGiven` over legend-engine's folded literal indexes. Each folded index is an Integer literal typed as the typer typed the literal it stands for, through a `substitute()` overload that takes the built arguments and `checked()` |
-| a computed index | refused by name under `engine`. Its `start + 1` would be a typed call the door would have to assemble (D-S2). The user's word is pending: (1) a native `substrAsGiven`, or (3') answered as lite answers it, with the header |
+| the native (the user's word ~07:45, "Okay 1", relayed by the compat owner) | `meta::legend::lite::substrAsGiven(str, start[, end])`, lite-internal and the compiler's own. It is the database's own SUBSTRING over Pure's indexes, corrected as legend-engine's processSubstr corrects them. Its one lowering rule writes `SqlFn.SUBSTRING_AS_GIVEN` over `start + 1` and `end - start` as SQL arithmetic, so the database computes the positions, a literal index included: there is no Java fold, no clamp and no range check |
+| the substitute | `EngineSubstitutes.substr`: a callee swap through B1's `substitute()` and `checked()`, as for `substring`. There is no typed arithmetic at the door (D-S2), and a computed index is rewritten like a literal one |
 | the REFUSE policy | pending the user's A or B |
 
 **Measured at build** (the batteries' ten new rows on a value shorter than its end, `col.`/`lit.` `s19`, `r01`, `r02`,
@@ -358,8 +358,21 @@ legend-pure. Out of range it answers the database's cut-short value, per databas
 | s1 the detector skips `substr` | 6: the detector's two, the rewrite's, and the engine test's three `substr` tests |
 | s2 the corrected `substring` quiet again | 3: one each in the detector, rewrite and engine tests |
 | s3 `engine` keeps the literal-0 exemption | 2: M-a1's rewrite and engine tests |
-| s4 the substitute sends Pure's indexes unfolded | 3: the engine test's past-the-end pair and the folded plan |
+| n1 the native's lowering drops the `+ 1` | 5: the engine test's four `substr` and corrected tests, and EngineSubstitutesTest's lowering test |
+| n2 the substitute picks `substringAsGiven` | 6: the same four, and EngineSubstitutesTest's two `substrAsGiven` tests |
 
-The guard moves: `native-claims.tsv` regenerated, `substr`'s two rows naming `EngineSubstitutes` and `PureMeaningCheck`
-beside `Scalars` (ClaimRegistryTest's pin reads `substringAsGiven`'s rows alone, which do not move); the four battery pins
-and legend-engine's two answer files as above; no ceiling, ledger or allowlist.
+The literal-fold path built first (7eeebb9d9: folded literals, a computed index refused) was replaced by the native on
+the user's "Okay 1". B1's point, relayed: a Java fold is arithmetic outside the database.
+
+The guard moves, each with a dated note citing the user's "Okay 1":
+
+| guard | the move |
+|---|---|
+| `NativeCatalogGovernanceTest`'s `INTERNAL_DESUGAR` ceiling | 41 -> 42 (`substrAsGiven`) |
+| `CatalogUpstreamDiffTest`'s `NOT_UPSTREAM_MAX` | 78 -> 80 (its two overloads) |
+| spec `ratchets.tsv` `implementation.kinds.Intrinsic` | 740 -> 742 (measured, `bazel run //spec:update_ratchets`; only this line moved) |
+| `native-claims.tsv` | regenerated: `substrAsGiven`'s two new rows (`EngineSubstitutes;Scalars`); `substr`'s two rows name `EngineSubstitutes` and `PureMeaningCheck` beside `Scalars` |
+| `ClaimRegistryTest` | a new pin, `substrAsGivensOneProductClaimerIsScalars` (substringAsGiven's, for its sibling) |
+| MongoDB's refusal by name | none: `substrAsGiven` lowers to `SqlFn.SUBSTRING_AS_GIVEN`, which MongoDB already refuses by name |
+| `SqlFnSortedTest`, the dialect capability matrix | none: no new `SqlFn` |
+| the batteries | the four pins and legend-engine's two answer files, as above |

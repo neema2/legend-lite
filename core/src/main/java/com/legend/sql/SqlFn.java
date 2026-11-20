@@ -74,7 +74,8 @@ public enum SqlFn {
      *  compatibility program, 2026-11-19, docs/records/compat-homework/A3-engine-rewrite-design.md): every dialect
      *  writes it as its plain SUBSTRING, and no pass rewrites it -- {@code SubstringClamp} raises a start below 1 on
      *  {@link #SUBSTRING} alone -- so a start of 0 or below and a negative length answer as that database reads them,
-     *  which is legend-engine's answer by definition. Lowered from {@code meta::legend::lite::substringAsGiven}, which
+     *  which is legend-engine's answer by definition. Lowered from {@code meta::legend::lite::substringAsGiven}, and
+     *  from {@code meta::legend::lite::substrAsGiven} over {@code start + 1} and {@code end - start} (2026-11-20), which
      *  the legend-engine door's {@code engine} rewrite alone writes. */
     SUBSTRING_AS_GIVEN,
     STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,

@@ -54,7 +54,8 @@ class PureMeaningEngineTest {
         for (com.legend.compiler.spec.typed.TypedSpec s : q.body()) {
             natives(s, ids);
         }
-        assertTrue(ids.stream().anyMatch(com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN::contains), ids.toString());
+        assertTrue(ids.stream().anyMatch(id -> com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN.contains(id)
+                || com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN.contains(id)), ids.toString());
         assertTrue(ids.stream().noneMatch(com.legend.builtin.Pure.AT_STRING_SUBSTRING::contains), ids.toString());
         assertTrue(ids.stream().noneMatch(com.legend.builtin.Pure.AT_STRING_SUBSTR::contains), ids.toString());
         assertTrue(ids.stream().noneMatch(com.legend.model.FunctionId.of(
@@ -398,32 +399,29 @@ class PureMeaningEngineTest {
         }
     }
 
-    /** A computed index is not rewritten: its start + 1 would be a typed call the door would have to assemble (D-S2).
-     *  Refused by name under engine, for now (the compat owner puts (1) or (3') to the user, 2026-11-20). */
+    /** A computed index is legend-engine's too: substrAsGiven's positions are SQL arithmetic the database computes.
+     *  substr(1, length + 1) runs one past every row's end: legend-engine's SUBSTRING(NAME, 2, length) answers the text
+     *  after its first character; lite's own raises. */
     @Test
-    void aComputedSubstrIndexIsRefusedByNameUnderEngine() {
-        LiteV1Api.Runner never = (query, runtime, output) -> {
-            throw new AssertionError("a refused request is never run");
-        };
-        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null,
-                body(cut("substr($r.ID->toOne(), 3)")), never, LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
-        assertEquals(500, a.status(), a.json());
-        assertTrue(a.json().contains("a computed index is not rewritten"), a.json());
+    void aComputedSubstrIndex_legendEnginesAnswerUnderEngine_aRaiseUnderWarn() {
+        bothWays(cut("substr(1, $r.NAME->toOne()->length() + 1)"), "substr/3=1",
+                "{\"values\": [\"bcdef\"]},{\"values\": [\"oxo\"]},{\"values\": [\"bc\"]},{\"values\": [\"b\"]}");
     }
 
-    /** On a database where a start of 0 differs, the plan holds the database's own call over legend-engine's folded
-     *  arguments under engine ('FX'->substr(1, 3) is substring('FX', 2, 2) in legend-engine's SQL), with no range check;
-     *  under warn lite's range check holds it. */
+    /** On a database where a start of 0 differs, the plan holds the database's own call over legend-engine's positions
+     *  under engine ('FX'->substr(1, 3) is substring('FX', 2, 2) in legend-engine's SQL), written as SQL arithmetic the
+     *  database computes, with no range check; under warn lite's range check holds it. */
     @Test
-    void substrPlansLegendEnginesFoldedCall_whereAStartOfZeroDiffers() {
+    void substrPlansTheDatabasesOwnCallOverLegendEnginesPositions_whereAStartOfZeroDiffers() {
         String zeroStart = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
                 "type: DuckDB; specification: DuckDB { }; auth: Test;");
         String engine = planSql(zeroStart, cut("substr(1, 3)"), PureMeaningCheck.Mode.ENGINE)
                 .toLowerCase(java.util.Locale.ROOT);
         String warn = planSql(zeroStart, cut("substr(1, 3)"), PureMeaningCheck.Mode.WARN)
                 .toLowerCase(java.util.Locale.ROOT);
-        // the folded call, unguarded under engine; under warn the same call inside lite's range check (S383)
-        assertTrue(engine.matches("(?s).*substr\\([^,]*name, 2, 2\\).*") && !engine.contains("case"), engine);
+        // the database's call over start + 1 and end - start, unguarded under engine; under warn lite's range check
+        assertTrue(engine.matches("(?s).*substr\\([^,]*name, \\(?1 \\+ 1\\)?, \\(?3 - 1\\)?\\).*")
+                && !engine.contains("case"), engine);
         assertTrue(warn.contains("case"), warn);
     }
 

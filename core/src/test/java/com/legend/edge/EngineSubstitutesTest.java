@@ -387,6 +387,72 @@ class EngineSubstitutesTest {
         assertEquals(2 * 2 * ROWS.size(), compared);
     }
 
+    // ---- substr and the corrected substring: substrAsGiven (A3, 2026-11-20; the user's word ~07:45, "Okay 1") -------
+
+    /** substr's substitute, and the corrected substring's, is substrAsGiven's overload for the arity: the registry's
+     *  function, the call's own arguments, type and position. */
+    @Test
+    void theSubstrSubstituteIsSubstrAsGiven_forEachArity_andForTheCorrectedSubstring() {
+        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
+        TypedQuery q = Compiler.query(ctx, "|" + TABLE + "->extend(~[a: r|" + COLUMN + "->substr(1, 3), b: r|"
+                + COLUMN + "->substr(2), c: r|" + COLUMN + "->substring(1, 3)])->from(t::RT)");
+        List<TypedNativeCall> seen = new ArrayList<>();
+        replace(q.body(), n -> n instanceof TypedNativeCall c && (Pure.AT_STRING_SUBSTR.contains(c.callee().id())
+                || Pure.AT_STRING_SUBSTRING.contains(c.callee().id())), s -> {
+            seen.add((TypedNativeCall) s);
+            return s;
+        });
+        assertEquals(3, seen.size(), seen.toString());
+        for (TypedNativeCall original : seen) {
+            TypedNativeCall sub = EngineSubstitutes.substr(ctx, original);
+            FunctionId expected = FunctionId.of(original.args().size() == 3
+                    ? Pure.SUBSTR_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1
+                    : Pure.SUBSTR_AS_GIVEN__STRING_1__INTEGER_1);
+            assertEquals(expected, sub.callee().id());
+            assertEquals(ctx.findFunctionById(expected.qualified()), List.of(sub.callee()),
+                    "the callee is the registry's function for the id, not a copy");
+            assertEquals(original.args(), sub.args());
+            assertEquals(original.info(), sub.info());
+            assertSame(original.pos(), sub.pos());
+            // the two natives are not one another's: checked() holds each to its own ids
+            IllegalStateException e = assertThrows(IllegalStateException.class,
+                    () -> EngineSubstitutes.checked(ctx, sub, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN));
+            assertTrue(e.getMessage().contains("not the registry's"), e.getMessage());
+        }
+    }
+
+    /** substrAsGiven's one lowering rule: SUBSTRING_AS_GIVEN over start + 1 and end - start as SQL arithmetic the
+     *  database computes, a literal index included (no fold in Java), and no clamp or range check. */
+    @Test
+    void substrAsGivenLowersToTheDatabasesSubstringOverSqlArithmetic_noFoldNoClampNoCheck() {
+        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
+        TypedQuery q = Compiler.query(ctx, "|" + TABLE + "->extend(~a: r|" + COLUMN + "->substr(1, 3))->from(t::RT)");
+        List<TypedSpec> body = replace(q.body(), n -> n instanceof TypedNativeCall c
+                && Pure.AT_STRING_SUBSTR.contains(c.callee().id()), s -> EngineSubstitutes.substr(ctx, (TypedNativeCall) s));
+        String sql = q.withBody(body).plan("t::RT", com.legend.edge.PureText.PURE_V1).sql()
+                .toLowerCase(java.util.Locale.ROOT);
+        assertTrue(sql.matches("(?s).*substr(ing)?\\(\"?[a-z0-9_]*\"?\\.?desk, \\(?1 \\+ 1\\)?, \\(?3 - 1\\)?\\).*"), sql);
+        assertFalse(sql.contains("case"), sql);
+    }
+
+    @Test
+    void substrAsGivenIsInternal_andAUserCannotNameItByAnyName() {
+        assertTrue(Pure.INTERNAL_DESUGAR.contains("substrAsGiven"), Pure.INTERNAL_DESUGAR.toString());
+        assertFalse(Pure.userResolvableFunctionFqns().contains(Pure.Lite.SUBSTR_AS_GIVEN));
+        assertEquals(2, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN.size());
+        assertTrue(Pure.COMPILER_OWN.contains(Pure.Lite.SUBSTR_AS_GIVEN), Pure.COMPILER_OWN.toString());
+        ModelContext ctx = Compiler.compileModel(model("type: H2; specification: LocalH2 { }; auth: DefaultH2;"));
+        for (String query : List.of("|" + Pure.Lite.SUBSTR_AS_GIVEN + "('abc', 1, 2)",
+                "|" + Pure.Lite.SUBSTR_AS_GIVEN + "('abc', 1)",
+                "|" + com.legend.model.SignatureMangle.mangle(Pure.SUBSTR_AS_GIVEN__STRING_1__INTEGER_1) + "('abc', 1)",
+                "|" + Pure.Lite.SUBSTR_AS_GIVEN + "->eval('abc', 1)")) {
+            com.legend.error.LegendCompileException e = assertThrows(com.legend.error.LegendCompileException.class,
+                    () -> Compiler.query(ctx, query), query);
+            assertTrue(e.getMessage().contains("'" + Pure.Lite.SUBSTR_AS_GIVEN + "' is the compiler's own"),
+                    e.getMessage());
+        }
+    }
+
     // ---- the census ------------------------------------------------------------------------------------------------
 
     @Test

@@ -183,7 +183,12 @@ class NativeCatalogGovernanceTest {
         // owner; the reviewer's D-S1 as corrected, ca8ea4a5): substringAsGiven, the database's own SUBSTRING over the
         // arguments as given -- lite-internal, its one producer the legend-engine door's engine rewrite, its one
         // product claimer Scalars (spec's ClaimRegistryTest.substringAsGivensOneProductClaimerIsScalars)
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 41,
+        // 41 -> 42 (2026-11-20, A3, the user's word ~07:45 "Okay 1", relayed by the compat owner): substrAsGiven, the
+        // database's own SUBSTRING over Pure's indexes corrected as legend-engine's processSubstr corrects them (start
+        // + 1 and end - start as SQL arithmetic, no range check) -- lite-internal, its one producer the legend-engine
+        // door's engine rewrite (for substr and the corrected substring), its one product claimer Scalars
+        // (ClaimRegistryTest.substrAsGivensOneProductClaimerIsScalars)
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 42,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

@@ -460,5 +460,7 @@ range lite raises, as legend-pure does, and legend-engine answers the database's
 - Under `engine` the uncorrected `substring`'s literal-0 exemption is off too (the reviewer's M-a1,
   `PureMeaningCheck.forEngine`). `refuse` and `warn` keep it.
 - The engine rewrite of these forms is in A3-engine-rewrite-design.md §9.
+- Under `engine` they become the lite-internal native `substrAsGiven` (the user's word ~07:45, "Okay 1"), its
+  positions computed by the database, a computed index included.
 - Still with the user: what the default `refuse` does with these forms (A: refuse them; B: answer them with the header,
-  since no answer is silently different), and how a computed index is answered under `engine`.
+  since no answer is silently different).

@@ -148,6 +148,30 @@ public class ClaimRegistryTest {
         assertEquals("CypherToPure", strayClaimers("CypherToPure;EngineSubstitutes;Scalars"));
     }
 
+    /**
+     * NO PRODUCT CLAIMER OF {@code substrAsGiven} BUT {@code Scalars} (A3, 2026-11-20; the user's word ~07:45, "Okay 1",
+     * relayed by the compat owner): substringAsGiven's pin, for its sibling. The native is the legend-engine door's
+     * alone (its engine rewrite's substitute for {@code substr} and the corrected {@code substring}), and no user may name
+     * it (Pure.COMPILER_OWN), so its {@code also} column holds the lowering's rule and the door's substitute builder.
+     */
+    @Test
+    @DisplayName("substrAsGiven's one product claimer is Scalars, its producer the door's EngineSubstitutes")
+    void substrAsGivensOneProductClaimerIsScalars() throws IOException {
+        List<String[]> rows = new ArrayList<>();
+        for (String line : Files.readAllLines(RESOURCE, StandardCharsets.UTF_8)) {
+            String[] cells = line.split("\t", -1);
+            if (cells.length >= 6 && cells[0].equals(Pure.Lite.SUBSTR_AS_GIVEN)) {
+                rows.add(cells);
+            }
+        }
+        assertEquals(2, rows.size(), "substrAsGiven's two overloads");
+        for (String[] row : rows) {
+            assertEquals("", strayClaimers(row[5]), row[2]);
+            assertEquals(java.util.Set.of("Scalars", "EngineSubstitutes"), java.util.Set.of(row[5].split(";")),
+                    row[2] + ": its lowering's rule and its producer");
+        }
+    }
+
     /** The claimers in {@code also} that are neither Scalars nor the edge's, joined; empty when there are none. */
     private static String strayClaimers(String also) {
         return String.join(";", java.util.Arrays.stream(also.split(";"))
