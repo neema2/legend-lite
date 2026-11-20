@@ -3572,3 +3572,29 @@ who confirms or changes phases 1-3.
 - **The follow-up pushed as `claude/compat-next` (`bd595b8c`) and opened as PR #129**, on the same word. It carries the
   toOne door fix with its revert, `RootLoops.rejected` removed, and the in-sequence order check. Its moves are listed
   for the user's word. No independent review: no subagents. Its CI runs now.
+
+### 2026-11-20 ~19:30 UTC: B1 built on `claude/compat-stage-b` (three commits on #129's head), the batch gate running
+
+- **`939d6060`, the run-time half:** a raise site carries its facts (kind, where, the literals as `Operand`s, a
+  computed one `Computed`), plan v59, no words; lite's sentence written when the raise is read back, the hosts' from a
+  generated table; the edge words legend-pure's sentence after the run on every route. Deleted: `SiteWords`, its
+  recorder and its plumbing, `PlanStyle.siteWords`, `Raised#statement`. `CheckedOne.statedSize` (a size the type
+  states is a literal). pure/v1's bare code fixed (`Raised: SUBSTRING_OUT_OF_RANGE` -> legend-pure's sentence).
+- **`04e76bcc`, the planning half:** a planned failure carries lite's message and its kinded compile error as data
+  (`Failure.Compile`; the two wrapping sites state their texts, nothing found by position); `PlanStyle.errorWords`
+  deleted; the no-rows refusal raised as a record (`SizeRefusal`, still an `IllegalStateException`: assertError does
+  not move); the size words deleted; test plan v34.
+- **`e0f4d5d6`, docs and goldens:** S389 (ruled D1), S390 PROPOSED (legend-engine's error envelope, pre-existing,
+  measured by the two new pure/v1 requests); the golden net gains `raise.datePartAbsent` and
+  `compile.windowFrameInverted`, the oracle records legend-engine's answers (additions only); lean SQL re-pinned (SQL
+  -0.012%, plan JSON -0.099%; one family +13 characters, within D2).
+- **For the user's word (in the PR):** 9 toOne test cases expect `<computed>` (D1); channel B's SQLite outcomes for 8
+  tests move from lite's sentence to legend-pure's words (channel A's own pinned words).
+- **Caught:** the edge's WebAssembly planner cannot hold exec's exception class (`java.sql`): the formatter reads a
+  raise by `ExecutionPlan.RaisedAtSite`. And a wrong "fix" to lite's own refusals' words, reverted the same hour
+  (channel A pins legend-pure's parts).
+- **The user's question (~19:15), `<computed>` as the column or expression:** answered no for now. A column name only
+  is about half a day but covers few cases; the user's Pure expression needs a typed-tree printer, 1 to 2 days, and
+  reads as a value in legend-pure's sentence. The cheap product option offered for after B1: the raising call's
+  line and column, which every raise already carries.
+- **#129:** CI 55/55 green on `bd595b8c`; waiting for the user's merge word.
