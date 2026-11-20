@@ -49,7 +49,7 @@ meta::pure::functions::collection::tests::head::testHeadOnEmptySet	REFUSES	REFUS
 meta::pure::functions::collection::tests::head::testHeadOnOneElement	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::head::testHeadSimple	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::indexof::testIndexOf	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
-meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::collection::tests::init::testInit	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::init::testInitOnEmptySet	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::collection::tests::init::testInitOneElement	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
@@ -279,8 +279,8 @@ meta::pure::functions::string::tests::format::testFormatPair	DEFECT	RUNTIME_FAUL
 meta::pure::functions::string::tests::format::testFormatRepr	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::format::testFormatString	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::format::testSimpleFormatDate	REFUSES	format_String_1__Any_MANY__String_1_	PASS		LITE_ANSWERS
-meta::pure::functions::string::tests::indexOf::testFromIndex	REFUSES	indexOf_String_1__String_1__Integer_1__Integer_1_	FAIL	WRONG_ANSWER	BOTH_FAIL
-meta::pure::functions::string::tests::indexOf::testSimple	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::indexOf::testFromIndex	REFUSES	indexOf_String_1__String_1__Integer_1__Integer_1_	PASS		LITE_ANSWERS
+meta::pure::functions::string::tests::indexOf::testSimple	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::string::tests::joinStrings::testJoinStrings	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
 meta::pure::functions::string::tests::joinStrings::testJoinStringsNoStrings	REFUSES	REFUSES_OTHER: couldn't find dynafunction	FAIL	REFUSED	BOTH_FAIL
 meta::pure::functions::string::tests::joinStrings::testJoinStringsSingleString	REFUSES	REFUSES_OTHER: couldn't find dynafunction	PASS		LITE_ANSWERS
@@ -319,8 +319,8 @@ meta::pure::functions::string::tests::startswith::testTrueStartsWith	PASS		PASS	
 meta::pure::functions::string::tests::substr::testSubstrEmptyResult	PASS		PASS		SAME
 meta::pure::functions::string::tests::substr::testSubstrStart	PASS		PASS		SAME
 meta::pure::functions::string::tests::substr::testSubstrStartEnd	PASS		PASS		SAME
-meta::pure::functions::string::tests::substring::testStart	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
-meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWER	FAIL	WRONG_ANSWER	BOTH_FAIL
+meta::pure::functions::string::tests::substring::testStart	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
+meta::pure::functions::string::tests::substring::testStartEnd	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testBooleanToString	DEFECT	WRONG_ANSWER	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testClassToString	DEFECT	PLANNER_FAULT	PASS		LITE_FIXES
 meta::pure::functions::string::tests::toString::testComplexClassToString	REFUSES	REFUSES_OTHER: not supported	FAIL	WRONG_ANSWER	BOTH_FAIL
