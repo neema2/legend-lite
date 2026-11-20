@@ -3166,3 +3166,10 @@ who confirms or changes phases 1-3.
   rows, none shrinking, a dated note). The lean pair passes on 1f4b108d; channel B MariaDB/MySQL not A3's; the 18 cloud
   PCT rows measured by the batch's CI. The judges told to assemble (piece 2, the native, the engine wiring, the docs)
   and report the head for the PR.
+- **~02:00 UTC, a review gap found and closed (this session's miss):** A3 pieces 1 and 2 (the translator's code, the
+  core change itself) had no independent code review; the reviewer's A3 records covered piece 4, the detector, the
+  native and the engine rewrite. Sent to the reviewer now (piece 1 `a4c1f2b1`, piece 2 `1f4b108d1`, with their records
+  and the guard's fold claim to check), in parallel with assembly and before the combination review. The user asked
+  about #127 and the audits: answered (#127 is A5, approved after one must-fix, its own CI 54 of 55 with the macOS
+  parser timeout the memo fixes, already merged into the batch; every piece independently reviewed but A3 pieces 1
+  and 2, now in review; the combination review is the batch's final audit).
