@@ -644,6 +644,8 @@ legend_java_library(
             "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
             # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
             "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
+            # the legend-engine door's test-data route on Postgres is :pure_meaning_postgres_test's alone (A3, 2026-11-20)
+            "src/test/java/com/legend/edge/PureMeaningPostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
             # DataCube's timeseries library on every in-process database is :timeseries_library_test's alone: it reads
             # DataCube's Pure file (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B)
@@ -1513,6 +1515,34 @@ junit_test(
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the legend-engine door on a database where legend-engine's answer is not yet checked (A3, the reviewer's should on
+# 67fa4df51, 2026-11-20): generateTestData_WithSeed, whose rows are the identifiers', answers the same CSV with a flagged
+# call as without it, on the embedded Postgres 16, run as an unprivileged user
+junit_test(
+    name = "pure_meaning_postgres_test",
+    tags = ["edge_test"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/edge/PureMeaningPostgresTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.edge.PureMeaningPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        "//json",
+        ":core",
+        ":edge",
+        ":core_edge_tests_lib",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
 )
