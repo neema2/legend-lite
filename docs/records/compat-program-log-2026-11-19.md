@@ -3114,3 +3114,9 @@ who confirms or changes phases 1-3.
   (start, end, length). Unmade literal-only folds (a negative start, end below start, end ≤ 0) occur in no core test.
   A later plan-JSON trim noted (the 1-argument form records LENGTH twice). Put to the user with the recommendation to
   approve the 59-entry re-pin; Q3's option 1 cleanup would shrink the site table's operands later.
+- **~00:10 UTC, the window-in-a-list fix GREEN** (`claude/window-list-lowering` at `1819a544e`, main merged): //gates:local
+  571 of 572 (embedded Postgres as the unprivileged user; the arm64-only classpath test skipped); PCT DuckDB, H2,
+  SQLite, Postgres; channel B lanes; both corpus gates unchanged; no pin, ledger or golden moved; one test per database
+  (DialectLeakRatchetTest). To the judges (merge now) and the reviewer. **Product-track finding:** SelectMerge counts an
+  outer read once, but a dialect may write an operand several times (SQLite's split, 4 times), so a draws-afresh value
+  (random, uuid) merged under such an operation could draw per copy; the same class as P1; its own product item.
