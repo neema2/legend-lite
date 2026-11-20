@@ -3154,3 +3154,9 @@ who confirms or changes phases 1-3.
   product track, put to the user at the stop). B1-R waits on the judges' word that B1's native is in, then lands the
   engine wiring (engine branch now `75e39fa90`).
 - **~01:35 UTC, the user's ~01:35 ruling applied** (§1's row): relayed to the translator (it pushes, or asks for the word typed in its session); the judges keep merging with touched lanes only and hold the one full measurement for piece 2; the reviewer told there is one measurement. The "no check" lean mode and two lean-SQL items (hoist a non-column string operand once; use a database's own error where it matches Pure's) added to the final plan.
+- **~01:55 UTC, the user typed the word in the translator's session; and: "Is this the last piece then we raise PR in
+  parallel with running the subset of heavy / manual gates? And running warm db lanes?"** Yes: the batch PR opens as
+  soon as the head is assembled, CI on every OS in parallel with the judges' local full measurement, the heavy and
+  manual subset CI does not run, and the warm-database lanes (PCT A and B on MariaDB, MySQL, ClickHouse, Trino,
+  Postgres). A fix, if any, goes on the branch and CI re-runs once. The judges told. Then stage B's questions with the
+  user.
