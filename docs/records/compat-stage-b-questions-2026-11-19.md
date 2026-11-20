@@ -402,17 +402,17 @@ half-day follow-up.
 | 1 | Order and builders | **RULED ~21:40** (left to the owner): B1 and B3 side by side, then B2, then B4 and B5 |
 | 2 | How it lands | **RULED ~21:40:** one stage-B batch branch, fast loops per piece, one CI run at the end |
 | 3 | Error messages (and typed raise slots) | **option 1** (measured ~22:11): lite's own message on every route, legend-engine's envelope kept; with the plan-detail cleanup; compile errors, parameter texts and test-data asserts under the same rule; no slots |
-| 4 | "Too many values" catchable by `assertError` | yes |
+| 4 | "Too many values" catchable by `assertError` | **RULED yes ~03:45** |
 | 5 | The window-in-a-list bug | **RULED ~21:40 and DONE** (in stage A's batch) |
 | 6 | The default violation message | lite's own sentence; compatibility writes legend-engine's |
-| 7 | The "defects" cell | in B2 |
+| 7 | The "defects" cell | CORRECTED ~03:45: it gains 0 tests (12 cells planned, 0 answers carry one; H13 §15); to be re-explained |
 | 8 | The plan names the program's own `toString`/`toCSV` | amend done-when 3 |
 | 9 | The legacy null-equality flag | refuse by name; rewrite only if a user asks |
 | 10 | `LEGEND_LITE_PURE_MEANING`'s removal date | 2027-05-19, re-datable |
 | 11 | Comparing different kinds | scoped: Pure code follows Pure, mappings keep SQL; loud at the door; in stage B |
 | 12 | legend-engine's runner, no-database tests | **RULED ~21:40 and DONE** (in stage A's batch) |
-| 13 | `engine` on more databases | on demand |
-| 14 | The corpus in `engine` mode | yes, as part of B3, measured first; PCT stays in Pure's meaning |
+| 13 | `engine` on more databases | **RULED ~03:45:** measured in warm-lane sessions; each database enabled when its battery agrees; cloud ones wait for an account |
+| 14 | The corpus in `engine` mode | **RULED yes ~03:45**, at B3's corpus door, measured first; PCT stays in Pure's meaning |
 | 15 | Assert-failure words | lite's own everywhere (no upstream reader; B3 about 2 days smaller) |
 | 16 | B3's design | option N: no compatibility judging in planning, 3,449 lines out of core main, about the same size; keep the recorder and mirror; the 7 unspellable shapes as recorded declines; a half-day reach check first |
 
