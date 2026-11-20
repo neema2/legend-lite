@@ -81,6 +81,7 @@ below.]**
 - A4's four narrowed ruled hooks;
 - TestPlanJson 32 → 33;
 - the `RootLoops.rejected` allowlist entry;
+- AFTER #128, the follow-up `claude/compat-a3-engine-followup` `2e24fb668` (approved): own_corpus.matched 3327 → 3330, a new core target and the gate's Postgres entry;
 - own_corpus.matched's +5 from `InCollectionSpliceRefusalTest`, and +2 from `39956d2b7` (EngineSubstitutesTest's
   sectioned literals; the reviewer's M-b3);
 - the ENGINE lane re-recorded by `22d53782f` (DuckDB lite.PASS 317 → 324, H2 252 → 257, every row FAIL → PASS from

@@ -3426,3 +3426,4 @@ who confirms or changes phases 1-3.
     - the S130 nit;
     - `//core:pure_meaning_postgres_test`, with a plant.
   - Their moves: a new core target, the gate's Postgres list, and PeRatchets own_corpus 3327 → 3330. They are for the user's word, and land after #128. The reviewer is reviewing them.
+- **~09:09 UTC, the follow-ups APPROVED** by the reviewer (`claude/compat-a3-engine-followup` `2e24fb668`). own_corpus.matched 3327 → 3330 goes on the word list beside M-b3. They land after #128.
