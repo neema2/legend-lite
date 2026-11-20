@@ -24,54 +24,31 @@ you need legend-engine's answer.
   `project`, over names `'abcdef'` and `'abc'`.
 - **legend-engine** (on H2 and DuckDB) answers `'abc'` and `2`: the database's 1-based meaning, and 0 when the text is
   not found. Its corrected-substring option fixes `substring` only, never `indexOf`.
-- **lite answers** `'bc'` and `1`, and `-1` when the text is not found, with or without that option.
+- **At legend-engine's door, lite answers legend-engine's** `'abc'` and `2`, on H2 and DuckDB, with no setting (the
+  user's ruling of 2026-11-20 ~07:55, "Delete the settings, make engine only mode for engine for everything"):
+  - each `substring` and 2-argument `indexOf` in a query sent to the database is sent as the database's own SUBSTRING
+    over the arguments as given, and its own position function;
+  - `substr`, and `substring` under legend-engine's corrected option, are sent as the database's SUBSTRING over
+    `start + 1` and `end - start`, as legend-engine's processSubstr writes them;
+  - so out of range the answer is the database's too, cut short as legend-engine's is (`'FX'->substr(1, 3)` is `'X'`);
+  - on any other database such a request is refused by name until legend-engine's answer is checked there;
+  - a host-side `let`, which legend-engine computes before the query, keeps Pure's meaning;
+  - an M2M chain's transforms, a `~func` mapping and a graph fetch tree's qualified property are refused by name: the
+    door cannot reach them to rewrite them;
+  - legend-engine refuses the 3-argument `indexOf`; lite answers it Pure's way (item 10).
+- **On lite's own route**, lite answers `'bc'` and `1`, and `-1` when the text is not found, with or without that option.
 - **Why:** Pure defines both 0-based, with `substring`'s end excluded (legend-pure
   `essential/string/slice/substring.pure:53`, `essential/string/index/indexOf.pure:39`).
-- **Out of range, lite raises Pure's error** in the database, where legend-engine passes the positions to SQL unchecked
-  (H2 clamps past the end):
+- **Out of range, lite's own route raises Pure's error** in the database, where legend-engine passes the positions to SQL
+  unchecked (H2 clamps past the end):
   - a start below 0;
   - an end past the length;
   - an end before the start.
-- **To get legend-engine's answer**, in range only (a start of 1 or more, and an end within the text):
-  `substring($a - 1, $a - 1 + $b)` for legend-engine's `substring($a, $b)`, and `substring($a - 1)` for its
+- **To get legend-engine's answer on lite's own route**, in range only (a start of 1 or more, and an end within the
+  text): `substring($a - 1, $a - 1 + $b)` for legend-engine's `substring($a, $b)`, and `substring($a - 1)` for its
   `substring($a)`. At a start of 0, H2 reads position 1 while the rewrite starts at -1 and raises Pure's error; past the
   end, H2 clamps while Pure raises. For `indexOf`, `indexOf(...) + 1`, which also turns Pure's -1 into legend-engine's
   0.
-- **Nothing changes silently:**
-  - **The legend-engine door refuses** a query sent to the database that calls `substring` or the 2-argument
-    `indexOf`, in legend-engine's error envelope, naming the call. (legend-engine itself refuses the 3-argument
-    `indexOf`: item 10.)
-  - **An operator may choose to warn instead:** the server setting `LEGEND_LITE_PURE_MEANING=warn` answers Pure's way,
-    with a log line and a response header, `x-legend-lite-pure-meaning`.
-  - **Or keep legend-engine's answer:** an operator may set `LEGEND_LITE_PURE_MEANING=engine` (the user ruled it YES,
-    2026-11-19, built in this batch).
-    - The door then sends each flagged `substring` to the database as its own SUBSTRING over the arguments as
-      given, and each 2-argument `indexOf` as its own position function. That is legend-engine's answer, computed
-      by the database, on H2 and DuckDB.
-    - On any other database such a request is refused by name.
-    - A host-side `let`, which legend-engine computes before the query, keeps Pure's meaning.
-    - An M2M chain's transforms and a `~func` mapping are refused under `engine`: the door cannot reach them to
-      rewrite them.
-  - **The setting is read at the legend-engine door alone**, never in lite's core: the switch rule (the user,
-    2026-11-19 ~20:35; `docs/records/compat-rules-of-record-2026-11-19.md`).
-  - **When the door lets the query through:** for `substring`, when the request sets legend-engine's corrected option.
-    For `indexOf`, never: that option corrects `substring` alone.
-  - **A literal start of 0 is exempt** where it is measured equal to Pure's answer: on H2 both forms, on DuckDB the
-    2-argument form only.
-- **Lite's other languages keep SQL's meaning:** `#Cypher`, `#SQL`, `#IQ` and a `###Relational` mapping's own functions
-  write SQL's `substring` and position by name. Nothing you write there changes.
-- **When:** stage A.
-- **Measured:**
-  - Legend-engine's corpus: each database's fail roster gains the same 7 tests.
-    - Four are answers: `testToSQLStringSubstringIsUncorrectedByDefault` and
-      `testFilterUsing{Substring,ParseInteger,ParseDecimal}Function`. They passed by their rows until now, so each
-      unordered register loses them.
-    - Three are SQL-text tests that the old `indexOf` hid: `testPlanForDateTimeConstantParameter{No,GMT,EST}TimeZone`.
-    - None of the 7 fails without this item, A2's deletion and the rest of the batch included.
-  - PCT's 3 known `indexOf` failures pass.
-  - Lite's own 62 projects have no such call.
-  - Evidence: H12, the combined dry run, and A3's measures on `claude/compat-translator-spike`.
-- **Register:** S130 and S134 (rewritten), S383 (provisional).
 
 ### 2. The SQL you are shown is lite's own
 - **You write:** `toSQLString(...)`, `planToString(...)`, a `toDDL` function, or read an execute result's

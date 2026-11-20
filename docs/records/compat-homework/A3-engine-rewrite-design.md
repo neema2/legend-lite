@@ -1,5 +1,10 @@
 # A3: the `engine` rewrite, the design note (2026-11-19; revision 2, the reviewer's word, built)
 
+> **Superseded in part on 2026-11-20 ~07:55** by the user's ruling "Delete the settings, make engine only mode for
+> engine for everything" (claude/compat-program 25ede64f §1): `LEGEND_LITE_PURE_MEANING` is deleted, and legend-engine's
+> door always rewrites. Sections 1-9 are the record of how the rewrite was built under the setting; §10 is the door as
+> it is now.
+
 B1-R (track O), for the independent reviewer before any build, on the compat owner's brief of ~20:06 UTC.
 
 **The user's rulings this carries:**
@@ -376,3 +381,34 @@ The guard moves, each with a dated note citing the user's "Okay 1":
 | MongoDB's refusal by name | none: `substrAsGiven` lowers to `SqlFn.SUBSTRING_AS_GIVEN`, which MongoDB already refuses by name |
 | `SqlFnSortedTest`, the dialect capability matrix | none: no new `SqlFn` |
 | the batteries | the four pins and legend-engine's two answer files, as above |
+
+## 10. The setting deleted: the door always rewrites (2026-11-20; the user's ruling ~07:55)
+
+The user's word, typed in the compat owner's session at ~07:55: "Delete the settings, make engine only mode for engine
+for everything" (claude/compat-program 25ede64f §1). It supersedes the refuse default of 2026-11-19 ~19:20 and the
+`engine` opt-in of ~20:05. The ~07:45 "Okay 1" (§9's native) stands.
+
+| part | now |
+|---|---|
+| the setting | `LEGEND_LITE_PURE_MEANING` deleted: `PureMeaningCheck.Mode`, `mode()`, `SETTING`, the setting's read in `EdgeServer.UPSTREAM`, `PureV1Routes.checkMeaning`'s switch, the routes' and `TestDataRoutes`' `meaning` parameter, `LiteBatteries`' `--meaning`. The switch registry is empty (the rules of record, AGENTS.md) |
+| the header and the log line | `x-legend-lite-pure-meaning`, its `Access-Control-Expose-Headers` entry and the WARNING line deleted: legend-engine sends neither, and with no setting there is nothing to report. A refusal names its calls in its message (`Result.calls()`, `counts()`) |
+| the door | every route that runs a query answers legend-engine's meaning: `checkMeaning` is the rewrite, always. The test-data routes rewrite the seed, the one query whose meaning chooses rows; `doored` refuses raw SQL alone, as before A3, so no route discards the rewritten query |
+| exemptions | none: no literal start is exempt (M-a1's both halves, H2's 3-argument `substring(x, 0, n)` included); `PureText` keeps the checked databases alone (`CHECKED`: H2, DuckDB), its literal-zero arities gone |
+| refused by name | a database where legend-engine's answer is not yet checked ("legend-engine's answer for <calls> is not yet checked on <database>"); a call the walk could not follow (unverified); a call the rewrite cannot reach (an M2M chain's transforms, a `~func`, a graph fetch tree's qualified property); a rewritten let a host statement also reads |
+| kept | a statement that is not store-bound keeps legend-pure's meaning, S383's raise included (`PureMeaningEngineTest.aStatementThatIsNotStoreBound_keepsLegendPuresMeaning_S383Included`) |
+| the batteries | the engine half alone (`pct/batteries/agreement_engine_{h2,duckdb}.tsv`, unchanged: H2 {AGREE=56, BOTH_FAIL=1, DIFFER=2}, DuckDB {AGREE=57, DIFFER=2}); the warn half and its pins `agreement_{h2,duckdb}.tsv` deleted, a down move |
+
+The tests are one-way: `PureMeaningEngineTest` asserts legend-engine's answer on every route, the refusals by name and
+the not-store-bound statement; `PureMeaningCheckTest`'s route tests assert the refusal on a database not yet checked and
+the answer on a checked one; plants W1 and W2 (the setting's) are replaced by plants on the new path.
+
+| plant (run and reverted at this pass) | the tests it turns red |
+|---|---|
+| s1 the detector skips `substr` | 6 |
+| s2 the corrected `substring` quiet | 3 |
+| s3 a literal-0 start exempt again (M-a1 undone) | 6 |
+| n1 `substrAsGiven`'s lowering drops the `+ 1` | 5 |
+| n2 the substitute picks `substringAsGiven` | 6 |
+| W1' the door plans the query unrewritten | 20 |
+| W2' the seed lowered unrewritten | 4 |
+| R1 every database counted as checked | 4 |

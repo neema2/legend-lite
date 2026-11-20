@@ -144,6 +144,10 @@
 >    the decision 2 and 3"): only door switches, read in one place and turned
 >    into a rewrite or a refusal before the planner; one closed registry; a
 >    ceiling of 5; guarded (`docs/records/compat-rules-of-record-2026-11-19.md`).
+>    The registry is empty: its first entry, `LEGEND_LITE_PURE_MEANING`, was
+>    deleted by the user's ruling of 2026-11-20 ~07:55 ("Delete the settings,
+>    make engine only mode for engine for everything"); legend-engine's door
+>    always answers legend-engine's meaning, with no setting.
 >
 > Two readings were ruled the same minute. **Folds:** the compiler may fold
 > constants and facts fixed by the types, never row data. **Error records:** a

@@ -1,5 +1,10 @@
 # A3 piece 3: the detector, the shape note (2026-11-19)
 
+> **Superseded in part on 2026-11-20 ~07:55** by the user's ruling "Delete the settings, make engine only mode for
+> engine for everything" (claude/compat-program 25ede64f §1): `LEGEND_LITE_PURE_MEANING` (refuse, warn, engine) and the
+> response header are deleted, and no call is exempt. The detector's reach (what it flags, what it follows, what it
+> leaves out) stands; it now finds the calls legend-engine's door always rewrites (A3-engine-rewrite-design.md §10).
+
 **Revision 2 (~19:30): the user changed the ruling at ~19:20 ("I think it has to be refuse then for now"), and the
 compat owner gave the go.**
 - **The default is `refuse`.** A legend-engine request whose answer would differ is refused in legend-engine's error

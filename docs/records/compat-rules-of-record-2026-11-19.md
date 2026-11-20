@@ -64,8 +64,11 @@ flags so doesn't become a mess". Ruled in its strict, door-only form:
   switch is tested in every position; a switch past its removal date fails the build until it is removed or the user
   re-dates it.
 - **No speed-only switches inside the core** until a real need is brought to the user.
-- **The first entry:** `LEGEND_LITE_PURE_MEANING` (`refuse` the default, `warn`, `engine`), read at the legend-engine
-  door.
+- **The first entry, deleted:** `LEGEND_LITE_PURE_MEANING` (`refuse` the default, `warn`, `engine`), read at the
+  legend-engine door, was deleted on 2026-11-20 by the user's ruling ~07:55, "Delete the settings, make engine only mode
+  for engine for everything" (claude/compat-program 25ede64f §1). legend-engine's door now always answers legend-engine's
+  meaning, on the databases where it is checked, and refuses by name elsewhere. The registry stays, empty, with its
+  ceiling and guards.
 - **Today's exception, to be removed:** legend-engine's own feature flags that lite's core still reads (the members of
   `platform.Feature` consumed in the lowering) move to the door or are deleted in B5; the registry and its guards are
   B5's lasting guard.
