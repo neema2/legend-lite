@@ -3220,3 +3220,15 @@ who confirms or changes phases 1-3.
   (389 lines) and the two-form plumbing (about −640 in all) and builds no verdict record or presenter: about 0.5 to 1
   day instead of 2.5, plus re-pins of 41 witness rows, 69 ledger lines, 11 PCT lines. No upstream suite, golden or client
   reads legend-pure's assert words; lite's own corpus register is the only reader. Put to the user as Q15.
+- **~03:15 UTC, the judges: A3 piece 1, B1's native and A3 piece 2 in the batch** (head `ced5708ec`): piece 1 clean
+  (19 of 19 lanes); the native (6 conflicts with its piece-1 copy, piece 1's side kept, its increments on top:
+  INTERNAL_DESUGAR 41, NOT_UPSTREAM_MAX 78, Intrinsic 740; native-claims regenerated as the union; 89 of 89); piece 2
+  (7 conflicts, the batch's side kept; the core lean baseline equals the ruled re-pin; corpus rosters hold +7/−4;
+  SQLite channel B's 3 indexOf now pass); A5's LITE ledgers lose 7 + 4 rows piece 2 now passes (down, ~20:45). **For the
+  user's word at the batch PR:** the spec lean-SQL corpus baseline, family query::function (DuckDB chars 7,921 → 8,667,
+  repeated 64 → 147; H2 8,876 → 9,568, repeated 76 → 92), piece 2's substring guard, which its base never measured.
+  **Red until the engine wiring lands** (rightly not re-recorded): the batteries (DuckDB AGREE 31 → 8, H2 46 → 11, lite
+  now Pure's where legend-engine is SQL's) and #124's ENGINE lane. The heavy gates: corpus_warehouse_verdict's LOST 41
+  is the known pre-existing set (PR #118's heavy round: 41 JDBC PreparedStatement refusals, the Q2 track), to be
+  confirmed equal to main; the judge-SQL ratchet under LITE/BOTH moved, read at the measurement. B1-R can land the
+  wiring now.
