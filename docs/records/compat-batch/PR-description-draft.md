@@ -106,7 +106,8 @@ below.]**
   - register rows S130, S134, S383, S385, S388 and AGENTS.md's switch-rule entry reworded;
 - A2 PR 1's ordered-keys registers (`e66846d4d`: DuckDB +5, H2 +4, an UP move; M-b4) and A2's fail-roster growth
   itself (H2 +145, DuckDB +149; the six accepted rows were ruled ~20:35, the growth was not);
-- the LiteSqlText entry A2 added to the edge's closed file list;
+- (the LiteSqlText entry A2 added to the edge's closed file list left with A2's second PR: a down move, covered ~20:45);
+- A5's ladder goldens (`220c4453`, 8 rows r01-r12: the verdict row's cross join reordered so DuckDB builds the expected side first; the owner's call; found missing from this list 2026-11-20 ~12:50);
 - piece 2's review round's moves (corpus +2/−1 per database, edge net, lean SQL +172/−2, census +17 and the 11 print
   casts −1) were ruled in the translator's session, 2026-11-20 ~07:20.
 
