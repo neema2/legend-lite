@@ -2066,3 +2066,31 @@ Notes:
   into a record.
 - **M-a1 now applies under the flag too, as expected.** Under `engine`, with `CORRECT_SQL_SUBSTRING_INDEXING` set or at
   an exempt literal 0, an out-of-range call raises where legend-engine answers. This is still the user's call.
+
+## The merged head with piece 2's fixes, `origin/claude/compat-a4-host-only` at `317204773` (3 commits on `71b7bf55e`)
+
+**Verdict: APPROVED. The merge is clean, M-c2 is met, the S381 note is met, and the regeneration is consistent.**
+- **`984e3b632` merges `97d4c78b2`.** `--remerge-diff` shows conflicts only in the two corpus edge ledgers, which
+  `317204773` regenerates.
+- **`317204773`** runs all eight generators on the merged tree, and only the two ledgers move. Against `71b7bf55e`, each
+  database moves:
+  - `testToSQLStringSubstrFoldsLiteralIndexes` and `testToSQLStringSubstrWithComputedIndex`, PASS → FAIL;
+  - `testSubstringIndexingCorrectedByFeatureFlag`'s failure words, FAIL either way, because its plan text now carries
+    the guard.
+
+  That is the ruled roster +2. At the head, both tests are on both fail rosters, and `...WithComputedIndex` has left the
+  unordered register. `...FoldsLiteralIndexes` keeps its unordered row: its assert 0 still compares, and assert 1 is the
+  one that fails.
+- **`9c4c9f231`:**
+  - S383 now records the user's ~01:35 ruling (M-c2 met);
+  - S381 (A5's single-threaded DuckDB test plans) is added as PROPOSED, so S382's reference resolves. It needs the
+    user's word at the batch PR, like the other PROPOSED rows.
+- **The judges report** `//core:lean_sql_baseline_test` and `//core:query_capture_test` green on this head. So piece 2's
+  lean pins hold with the window fix in, which settles the proof I asked for in part (a).
+- **Nit:** S383's lite column still says "raises ... on all three" without naming `substr` and the flagged `substring`,
+  which raise since P2-M1. B1-R's pass rewrites S130, S134 and S383 for the deleted setting, so fold it in there.
+- **Still open, for the batch PR or the user:**
+  - M-b1 to M-b4 (the moves without a ruling);
+  - M-c3, now with S381 (PROPOSED rows);
+  - M-a1, superseded by the user's ~07:55 ruling: the door always rewrites, with no literal-0 exemption. It is checked
+    in B1-R's pass.
