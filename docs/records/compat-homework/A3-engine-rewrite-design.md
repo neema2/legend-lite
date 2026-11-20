@@ -124,7 +124,7 @@ String `substring` or `indexOf` left. So nothing downstream re-resolves the nati
 | plant | the tests it turns red |
 |---|---|
 | W1 the engine branch plans the query unrewritten | the execute and Arrow tests, the unmeasured-database test; on the stage-A batch's tree 8 of the 13: also the three H2 class shapes, the DuckDB class-shape plan and the graph fetch's refusal |
-| W2 the seed lowered unrewritten | before piece 2, the DuckDB seed's SQL alone (E-S2's test; on H2 lite's own `substring` was already the database's, so the seed's keys were the same); on the stage-A batch's tree (planted and run 2026-11-20) 3 of the 13: `generateSeedDataChoosesLegendEnginesKeysUnderEngine` and `generateTestDataWithTheDefaultSeedRunsUnderEngine` (the H2 seed), and `theSeedIsRewrittenOnDuckDb_aThreeArgumentStartOfZero` |
+| W2 the seed lowered unrewritten | before piece 2, the DuckDB seed's SQL alone (E-S2's test; on H2 lite's own `substring` was already the database's, so the seed's keys were the same); on the stage-A batch's tree (planted and run 2026-11-20) 3 of the 13: `generateSeedDataChoosesLegendEnginesKeysUnderEngine` and `generateTestDataWithTheDefaultSeedRunsUnderEngine` (the H2 seed), and `theSeedIsRewritten_whereAStartOfZeroDiffers` |
 
 On the stage-A batch's tree the tests run both ways: each route that has an answer to read asserts legend-engine's
 under `engine` and legend-pure's under `warn` (`'abcdef'->substring(1, 3)` is 'abc' and 'bc'; `'xoxo'->indexOf('o')`

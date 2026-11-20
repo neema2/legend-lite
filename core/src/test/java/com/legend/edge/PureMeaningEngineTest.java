@@ -215,15 +215,15 @@ class PureMeaningEngineTest {
      *  DuckDB's own substr over the arguments as given; under warn it does not (lite's own substring, legend-pure's
      *  meaning). The 2-argument indexOf is the database's position function. */
     @Test
-    void onDuckDbTheClassShapesPlanTheDatabasesOwnCalls() {
-        String duckdb = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+    void theClassShapesPlanTheDatabasesOwnCalls_whereAStartOfZeroDiffers() {
+        String zeroStart = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
                 "type: DuckDB; specification: DuckDB { }; auth: Test;");
         String sub0 = "|" + ONE + "->project([p|$p.name->substring(0, 2)], ['d'])->from(t::M, t::RT)";
-        String engine = planSql(duckdb, sub0, PureMeaningCheck.Mode.ENGINE).toLowerCase(java.util.Locale.ROOT);
-        String warn = planSql(duckdb, sub0, PureMeaningCheck.Mode.WARN).toLowerCase(java.util.Locale.ROOT);
+        String engine = planSql(zeroStart, sub0, PureMeaningCheck.Mode.ENGINE).toLowerCase(java.util.Locale.ROOT);
+        String warn = planSql(zeroStart, sub0, PureMeaningCheck.Mode.WARN).toLowerCase(java.util.Locale.ROOT);
         assertTrue(engine.matches("(?s).*substr\\([^,]*name, 0, 2\\).*"), engine);
         assertFalse(warn.matches("(?s).*substr\\([^,]*name, 0, 2\\).*"), warn);
-        String idx = planSql(duckdb, "|" + ONE + "->project([p|$p.name->indexOf('c')], ['i'])->from(t::M, t::RT)",
+        String idx = planSql(zeroStart, "|" + ONE + "->project([p|$p.name->indexOf('c')], ['i'])->from(t::M, t::RT)",
                 PureMeaningCheck.Mode.ENGINE).toLowerCase(java.util.Locale.ROOT);
         assertTrue(idx.contains("strpos(") || idx.contains("instr(") || idx.contains("position("), idx);
     }
@@ -309,13 +309,13 @@ class PureMeaningEngineTest {
      *  it does not (lite's own substring, legend-pure's 'abc'). A seed
      *  lowered unrewritten (plant W2) plans the clamped call under engine too. */
     @Test
-    void theSeedIsRewrittenOnDuckDb_aThreeArgumentStartOfZero() {
-        String duckdb = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+    void theSeedIsRewritten_whereAStartOfZeroDiffers() {
+        String zeroStart = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
                 "type: DuckDB; specification: DuckDB { }; auth: Test;");
         String seeded = "|t::Person.all()->filter(p|$p.name == 'abcdef'->substring(0, 3))->project([p|$p.name], ['n'])";
         String path = "/api/pure/v1/execution/testDataGeneration/generateSeedData";
-        String engine = seedSql(path, testDataBody(duckdb, seeded, false), PureMeaningCheck.Mode.ENGINE);
-        String warn = seedSql(path, testDataBody(duckdb, seeded, false), PureMeaningCheck.Mode.WARN);
+        String engine = seedSql(path, testDataBody(zeroStart, seeded, false), PureMeaningCheck.Mode.ENGINE);
+        String warn = seedSql(path, testDataBody(zeroStart, seeded, false), PureMeaningCheck.Mode.WARN);
         // DuckDB's own SUBSTRING over the arguments as given under engine; under warn, not that call
         assertTrue(engine.toLowerCase(java.util.Locale.ROOT).contains("substr('abcdef', 0, 3)"), engine);
         assertFalse(warn.toLowerCase(java.util.Locale.ROOT).contains("substr('abcdef', 0, 3)"), warn);
