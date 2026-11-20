@@ -3351,3 +3351,10 @@ who confirms or changes phases 1-3.
     - The core already folds the same way today (FeatureRules.CORRECTED_SUBSTRING), and the reviewer holds it allowed as a program constant.
     - Whether it is allowed is the user's call, so the fold path is held.
     - My recommendation moves from (3') to (1): a native whose SQL rule makes the database compute the positions.
+- **~07:55 UTC, the user: "Okay 1" (substr under engine: the substrAsGiven native, the database computing the positions), then "Delete the settings, make engine only mode for engine for everything".** RULED:
+  - `LEGEND_LITE_PURE_MEANING` is deleted. This supersedes ~14:55 (warn), ~19:20 (refuse, for now) and ~20:05 (the engine opt-in).
+  - legend-engine's door always rewrites flagged calls to legend-engine's meaning: on H2 and DuckDB, as measured.
+  - On any other database, a request with a flagged call is refused by name until legend-engine's answer there is checked. That is the fidelity rule; the warm sessions check those databases in stage B (Q13).
+  - Lite's own doors always answer Pure. The A/B question is moot.
+  - B1-R builds it in one pass, docs included, and posts its moves for the word list. The judges send their merged head straight to the siblings, the reviewer and B1-R, and run every non-edge lane once on it. The edge lanes run once after B1-R's pass. #128 is reopened on the final head, and CI runs once.
+  - #128's run on `71b7bf55e`: 46 of 54 jobs green on every OS, including `macos/parser_equivalence` (#127's red). The memo fixed it.
