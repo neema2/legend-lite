@@ -3266,3 +3266,15 @@ who confirms or changes phases 1-3.
   upgraded side (lite's H2 2.5 and the 2.1.214 referee's golden), and with it all 199 MATCH. N2's 2.5 to 3.5 days holds,
   in its lower half. Q16 gains (c), this rule, for the user. The two additions (the 7 shapes via `withBody`,
   `testQualifierQueryWithOr`) still to come.
+- **~04:05 UTC, H13: the 7 shapes and testQualifierQueryWithOr** (record §28.4 at `bdfd37fc`; H2 runs 8-10; nothing
+  landed). **The 3 inline `^Mapping`s STAY** with no change: each is an empty placeholder and the lambda binds its own
+  mapping and runtime; all 3 MATCH. (`from()` refuses a mapping value, FromChecker.java:96-98, and `withBody` cannot get
+  past it; no product change is needed for these.) `testQualifierQueryWithOr` is the probe's shape (the golden's
+  left-outer join repeats Firm X; with the referee's extentSubset fact, as today's arm computes, it MATCHes): N4's
+  facts work. **A PRODUCT FINDING, a silent wrong answer:** `from(q, mapping, runtimeWithTableReplace(pair($old, $new)))`
+  types, but lite's plan reads the ORIGINAL tables (personTable, firmTable) and runs silently (ours 7 rows, legend-engine
+  0): the product query door plans with no renames (PlanMaker.java:121 → ProductStatements.prepare(..., Map.of()),
+  :96; FromChecker's reader sets no `.bind`, :86), where the test road binds the lets (FramePlanner.java:162-168) and
+  merges a from()'s tableReplace (BodyPlanner.java:245-258). Against ContextReading's "recognized-and-applied ... or the
+  query REFUSES" (:105-115) and invariant 4. The 4 post-processor shapes stay under N once the door honours the renames;
+  until then recorded declines. So Q16(b): 3 stay, 1 never was one, 4 wait on the product fix.

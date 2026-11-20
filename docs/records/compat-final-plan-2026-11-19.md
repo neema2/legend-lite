@@ -144,6 +144,10 @@ cell; B4 and B5 a few days each. About 6 weeks of one builder's work; 4 to 5 wit
   the default), designed later; (2) a non-column string operand of a checked `substring` computed once one level down
   (as lite does for `at`), so the check and the call read a column; (3) a database's own error relied on where it
   matches Pure's (e.g. a native divide-by-zero raise), lite's check dropped there; (2) and (3) measured first.
+  **A silent wrong answer, found ~04:05 11-20 (H13 §28.4), PRIORITY:** `from(q, mapping, runtimeWithTableReplace(...))`
+  reads the original tables on the product query door (no renames: PlanMaker.java:121, ProductStatements.prepare with
+  `Map.of()`, FromChecker's reader with no `.bind`), where the test road applies them; it must apply the renames or
+  refuse (ContextReading.java:105-115; invariant 4).
   (The Maven download fix and the judge-parity work are taken into stage A1 by the user's word of ~14:30.)
 - **A later meaning decision, not a gate:** comparing text with a number (`'x' == -1`). It was thought a defect fix
   gating A3; measured (~15:15), it changes answers in 26 H2 and 30 DuckDB corpus tests, where legend-engine lets the
