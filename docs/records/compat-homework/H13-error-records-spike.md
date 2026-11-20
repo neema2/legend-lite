@@ -1637,3 +1637,75 @@ tests:
   - the 32 unaligned bodies get read one by one.
 - The estimate does not grow: the shapes found are few and regular. 199 of the 433 are one helper, and 42 more are a
   second.
+
+### 28.4 The orchestrator's two additions (03:29 UTC): the producer's own runtime and mapping, and `testQualifierQueryWithOr`
+
+The probe is `H13/option-n-probe-v3.patch.txt`: v2, plus variants for the 8 named tests, on the same H2 lane (runs 8
+to 10). Each variant is planned and run through the public door and judged by the referee's policy as before.
+
+| Test | Variant | Policy | Note |
+|---|---|---|---|
+| `fromMapping::testClassMappingsAreCorrectlyIsolated` | the producer's own `from(q, ^Mapping(name = ''), ...)` | refused at typing: `from() argument 1 must be a mapping or runtime reference, got TypedNewInstance` | |
+| | **the lambda as is** (it carries its own `from($mapping1, $runtime)`) | **MATCH** (2 rows) | |
+| `fromMapping::testClassMappingsWithUnions` | the lambda as is | **MATCH** (24 rows) | |
+| `fromMapping::testMappingFromQueriesViaMappingWithAssociationsOnly` | the lambda as is | **MATCH** (7 rows) | |
+| `advanced::structure::testQualifierQueryWithOr` | the lane's runtime, `ReplayFacts(extentSubset = true)` | **MATCH** (1 row) | without the fact: DIVERGED, golden 7 rows |
+| `postProcessor::testReplaceTablePostProcessor` | `from(q, mapping, runtimeWithTableReplace(pair($oldTable, $newTable)))` | DIVERGED: golden 0 rows, ours 7 | lite's plan names `personTable`, not `differentPersonTable` |
+| | the same with the let values substituted into the runtime expression | DIVERGED, the same | the same |
+| `postProcessor::testReplaceTablePostProcessorWithExists` | both runtime variants | DIVERGED: golden 0, ours 1 | the original tables in the plan |
+| `postProcessor::testReplaceTablesPostProcessor` | both runtime variants | DIVERGED: golden 0, ours 7 | the original tables in the plan |
+| `postProcessor::nonExecutable::testReplaceTablePostProcessorWithSubQueries` | both runtime variants | DIVERGED: golden 0, ours 1 | a `Trade` query; its tables were not checked in the plan |
+
+**(1a) The 3 inline `^Mapping`s stay, with no product change.**
+- Each is `^Mapping(name = '')`, an empty placeholder. The lambda binds its own mappings and runtime with
+  `->from($mapping1, $runtime)`.
+- The harness runs the lambda as is (it already carries its `from`). All 3 MATCH.
+- For the record:
+  - `from()` refuses a mapping VALUE (`FromChecker.java:96-98`);
+  - `withBody` cannot get past that, because a `TypedFrom`'s context slots its mapping only as a `TypedPackageableRef`
+    (`FromChecker.java:105-107`, `bound.withMapping(...)`);
+  - so only a product change would take a mapping value. None is needed for these 3.
+
+**(1b) The 4 post-processor runtimes do NOT stay through the public `from()`: a product finding.**
+- `from(q, mapping, <a Runtime value>)` is accepted and typed. `FromChecker.java:58-87` reads "the runtime VALUE
+  argument (a constructed instance, a helper call, a let-bound variable)" through the context reader.
+- But the query lite plans reads the ORIGINAL tables (`personTable`, `firmTable` in the plan's JSON), not the replaced
+  ones. It runs, with nothing refused, and its rows are the unreplaced table's.
+- legend-engine's golden reads `differentPersonTable` (0 rows in the seeds).
+- Substituting the test's let values (`$oldTable`, `$newTable`) into the runtime expression changes nothing.
+
+**Where the test road and the product door differ:**
+- the test road reads an execute frame's runtime with the lets bound, `.bind(v -> Lets.bound(v, letPrefix))`, and
+  installs its renames (`FramePlanner.java:162-168`);
+- the body planner merges a `from()`'s own `context().postProcessors().tableReplace()` (`BodyPlanner.java:245-258`);
+- today's appeal adds the env's table-replace channel (`SqlTextVerdicts.java:557-565`, through
+  `EngineTextPlanning.tableReplace`);
+- the product's query door plans its statements with **no** renames: `PlanMaker.java:121` reaches
+  `ProductStatements.prepare(...)` with `Map.of()` (`ProductStatements.java:96`);
+- the reader `FromChecker` builds sets no `.bind` (`FromChecker.java:86`).
+
+Which of the two loses the renames (the reader's unbound variables, or the door's empty renames) is not settled here.
+Either way, **a product query `Person.all()->from(simpleRelationalMapping, runtimeWithTableReplace(pair($old, $new)))`
+silently reads the original table**. legend-engine reads the replaced one. The reader's own rule is that a hook is
+"recognized-and-applied ... or the query REFUSES" (`ContextReading.java:105-115`), and invariant 4 applies.
+
+**For N:** the harness cannot keep the 4 through public doors until the product door honours a `from()`'s runtime
+renames, as the test road does. With that fix there is no hook: `from(q, mapping, <the producer's runtime
+expression>)`. Until then they are 4 recorded declines. Through `withBody`, the harness would have to build the typed
+`from` and its context by hand, and the door would still plan with no renames. That route was not tried.
+
+**(2) `testQualifierQueryWithOr` is the probe's shape, not a lite difference.**
+- The body is `execute(|Firm.all()->filter(f | $f.employeesByCityOrManagerAndLastName(...).firstName == 'Peter' ||
+  ...), ...)`.
+- The golden SQL left-outer-joins the to-many employees, so on the referee it returns Firm X 7 times with one `pk_0`.
+  legend-engine builds one object from them; the body itself asserts `assertSize($result.values->at(0), 1)` and
+  `'Firm X'`.
+- Lite answers the one Firm X. The referee's graph compare collapses by pk only when the side is a class extent through
+  subset-preserving operations: `ReplayFacts.extentSubset`, which today's arm computes from the typed chain
+  (`ReplayGates`).
+- The probe passed `false` and saw 7 against 1. With `true`, it MATCHes. That is N4's facts work, as in 27.1.
+
+**So of section 27's 8 from-unspellable shapes:**
+- 3 stay (the lambda as is);
+- 1 was never from-unspellable (`testQualifierQueryWithOr`, a referee fact);
+- 4 wait on the product finding above.
