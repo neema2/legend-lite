@@ -118,13 +118,8 @@ final class Coercions {
         // IDENTITY, no guard; SQL null-propagates (the engine's
         // processNoOp / no-guard qualifier behavior). This is the
         // synthesized population the C2 provenance split names.
-        // An operand the typer gives no value ([0]: legend-engine's door's toOne of an empty collection, 2026-11-20)
-        // is SQL's NULL, as legend-engine writes an empty collection (processValue's SQLNull literal,
-        // pureToSQLQuery.pure:714): the empty operand's own lowering is a list, which a dialect with no list encoding
-        // cannot write.
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TRUST_ONE) {
-            rules.put(f, (n, args) -> n.args().get(0).info().multiplicity() instanceof Multiplicity.Bounded z
-                    && z.upper() != null && z.upper() == 0 ? new SqlExpr.NullLit() : args.get(0));
+            rules.put(f, (n, args) -> args.get(0));
         }
         // cellText -- a TDS cell's text (Lite.CELL_TEXT): the product's empty where the cell is, the edge's TDSNull
         // (phase D's D1.3, 2026-11-15)

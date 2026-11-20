@@ -29,8 +29,8 @@ import java.util.List;
  *       {@code meta::legend::lite::substrAsGiven}, the database's own SUBSTRING over {@code start + 1} and
  *       {@code end - start} ({@link Pure.Lite#SUBSTR_AS_GIVEN}; 2026-11-20);</li>
  *   <li>{@code toOne} of an operand that is always empty becomes {@code meta::legend::lite::trustOne}, the core's
- *       {@code toOne} with no check, legend-engine's processNoOp ({@link Pure.Lite#TRUST_ONE}): its empty operand is
- *       SQL's null (2026-11-20; register S384).</li>
+ *       {@code toOne} with no check, legend-engine's processNoOp ({@link Pure.Lite#TRUST_ONE}): its operand alone,
+ *       whose empty value lowers to SQL's null as every empty literal does (2026-11-20; register S384).</li>
  * </ul>
  *
  * <p>A substitute's callee is the registry's function for one of its native's ids, chosen by the typer's own overload
