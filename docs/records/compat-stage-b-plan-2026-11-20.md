@@ -268,7 +268,8 @@ Q10, the switch's removal date, is moot: the switch was deleted at ~07:55.
     - Size: B1 at 6.5 to 7 days, plus 3.5 to 4 for the slots.
     - Pros: legend-pure's exact sentence even for data-dependent values.
     - Cons: nothing upstream tests it today; more SQL per error.
-- **Recommendation: B.** C stays possible later, on top of B, if a client needs it.
+- **RULED B** (the user, 2026-11-20 ~16:40: "we should do B to keep the PCT"). C stays possible later, on top of B, if a client
+  needs it.
 
 ### Q15. Assert-failure words: lite's own on every route (B3)
 
