@@ -3033,6 +3033,41 @@ final class Scalars {
         };
     }
 
+    /** {@link FeatureRules#PURE_SUBSTRING}'s body: Pure's substring, raising out of range (S383). */
+    static SqlExpr pureSubstring(TypedNativeCall n, List<SqlExpr> args, Styled styled) {
+        SqlExpr value = FeatureRules.CORRECTED_SUBSTRING.apply(n, args);
+        SqlExpr start = args.get(1);
+        SqlExpr length = SqlExpr.Call.of(SqlFn.LENGTH, args.get(0));
+        Long s0 = start instanceof SqlExpr.IntLit il ? il.value() : null;
+        List<SqlExpr> out = new java.util.ArrayList<>();
+        if (s0 == null || s0 < 0) {
+            out.add(SqlExpr.Call.of(SqlFn.LESS, start, new SqlExpr.IntLit(0)));
+        }
+        SqlExpr end;
+        if (args.size() == 3) {
+            end = args.get(2);
+            Long e0 = end instanceof SqlExpr.IntLit il ? il.value() : null;
+            out.add(SqlExpr.Call.of(SqlFn.GREATER, end, length));
+            if (s0 == null || e0 == null || e0 < s0) {
+                out.add(SqlExpr.Call.of(SqlFn.LESS, end, start));
+            }
+        } else {
+            end = length;
+            if (s0 == null || s0 > 0) {
+                out.add(SqlExpr.Call.of(SqlFn.GREATER, start, length));
+            }
+        }
+        if (out.isEmpty()) {
+            return value;
+        }
+        SqlExpr cond = out.get(0);
+        for (int i = 1; i < out.size(); i++) {
+            cond = SqlExpr.Call.of(SqlFn.OR, cond, out.get(i));
+        }
+        return guarded(cond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SUBSTRING_OUT_OF_RANGE,
+                List.of(start, end, length)), value, styled);
+    }
+
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
     /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} under the plan style ({@link LoweringForms#raise}, the audit's K5; B7,
      *  2026-11-17): a kind the style writes plain is the operation alone, the database's own error passing through. */

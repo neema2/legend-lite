@@ -54,7 +54,7 @@ final class FeatureRules {
      *  (the engine's correctSubstrIndices: a literal index folds — substr(s, 4, 9)
      *  → substring(s, 5, 5) — a computed one becomes plus / minus on the tree):
      *  the in-range value of {@link #PURE_SUBSTRING}. */
-    private static final Scalars.Rule CORRECTED_SUBSTRING = (n, args) -> {
+    static final Scalars.Rule CORRECTED_SUBSTRING = (n, args) -> {
         SqlExpr str = args.get(0);
         SqlExpr start = args.get(1);
         SqlExpr start1 = start instanceof SqlExpr.IntLit s
@@ -84,40 +84,9 @@ final class FeatureRules {
      *  the flag ("correcting substring unconditionally would change the results
      *  of existing queries") and its processSubstr "is always corrected and
      *  needs no flag" (PR #5045); neither raises -- the legend-engine door marks
-     *  or refuses a store-routed call. */
-    static final Scalars.StyledRule PURE_SUBSTRING = (n, args, styled) -> {
-        SqlExpr value = CORRECTED_SUBSTRING.apply(n, args);
-        SqlExpr start = args.get(1);
-        SqlExpr length = SqlExpr.Call.of(SqlFn.LENGTH, args.get(0));
-        Long s0 = start instanceof SqlExpr.IntLit il ? il.value() : null;
-        List<SqlExpr> out = new java.util.ArrayList<>();
-        if (s0 == null || s0 < 0) {
-            out.add(SqlExpr.Call.of(SqlFn.LESS, start, new SqlExpr.IntLit(0)));
-        }
-        SqlExpr end;
-        if (args.size() == 3) {
-            end = args.get(2);
-            Long e0 = end instanceof SqlExpr.IntLit il ? il.value() : null;
-            out.add(SqlExpr.Call.of(SqlFn.GREATER, end, length));
-            if (s0 == null || e0 == null || e0 < s0) {
-                out.add(SqlExpr.Call.of(SqlFn.LESS, end, start));
-            }
-        } else {
-            end = length;
-            if (s0 == null || s0 > 0) {
-                out.add(SqlExpr.Call.of(SqlFn.GREATER, start, length));
-            }
-        }
-        if (out.isEmpty()) {
-            return value;
-        }
-        SqlExpr cond = out.get(0);
-        for (int i = 1; i < out.size(); i++) {
-            cond = SqlExpr.Call.of(SqlFn.OR, cond, out.get(i));
-        }
-        return Scalars.guarded(cond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SUBSTRING_OUT_OF_RANGE,
-                List.of(start, end, length)), value, styled);
-    };
+     *  or refuses a store-routed call. The rule is {@link Scalars#pureSubstring}, where the
+     *  lowering's other guards are written. */
+    static final Scalars.StyledRule PURE_SUBSTRING = Scalars::pureSubstring;
 
     static {
         for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTRING) {
