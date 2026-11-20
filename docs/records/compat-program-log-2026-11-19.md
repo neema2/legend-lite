@@ -3278,3 +3278,12 @@ who confirms or changes phases 1-3.
   merges a from()'s tableReplace (BodyPlanner.java:245-258). Against ContextReading's "recognized-and-applied ... or the
   query REFUSES" (:105-115) and invariant 4. The 4 post-processor shapes stay under N once the door honours the renames;
   until then recorded declines. So Q16(b): 3 stay, 1 never was one, 4 wait on the product fix.
+- **~04:11 UTC, Q6's count (the window-in-a-list worker, read-only, pinned sources legend-engine 4.145.0 and
+  legend-pure 5.99.0):** the checked graph's default violation sentence ("Constraint :[<id>] violated in the Class
+  <Simple>") is expected by **0** relational-corpus tests, **0** PCT tests (9 legend-pure/legend-engine assertError tests
+  carry it, all `<<test.Test>>` of instance construction under cast or `^Class`, none in a lite lane) and **0** pure/v1
+  goldens. Lite's own readers: 2 asserts in GraphFetchCheckedIntegrationTest, and the stress corpus's 28 checked service
+  tests (expected answers written by lite's oracle script, oracle.py:3695; 15 pass on DuckDB, none failing on the
+  wording); MT_CheckMapping (not run). A legend-engine client sees it in each checked value's `defects[].message`, written
+  by legend-engine's Java platform binding when a constraint has no message (constraints.pure:151-153). Put to the user
+  with Q7, both in depth.
