@@ -3421,3 +3421,8 @@ who confirms or changes phases 1-3.
   - **(B) the date ×13 and parseDate ×3 tests:** `92cf6992e` (G10, merged via `ce8ba2959`). Every side but the last becomes a MATERIALIZED CTE, and a bare NULL inside it is typed INT64 before the UNION sees it.
   - **Fix shape:** type each batch NULL cell by its column's type. Product track, after #128; the owner is the edge program's follow-up line.
   - The SQL and logs are in sibling 4's scratchpad.
+- **~09:08 UTC, #128's CI on `67fa4df5`:** 35 of 54 jobs green, 0 red, 19 running or queued (macOS and Windows the slowest).
+  - The reviewer's two follow-ups are ready on `claude/compat-a3-engine-followup` `2e24fb668`, off the batch:
+    - the S130 nit;
+    - `//core:pure_meaning_postgres_test`, with a plant.
+  - Their moves: a new core target, the gate's Postgres list, and PeRatchets own_corpus 3327 → 3330. They are for the user's word, and land after #128. The reviewer is reviewing them.
