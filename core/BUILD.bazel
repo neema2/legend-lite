@@ -694,6 +694,9 @@ legend_java_library(
             "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
             # a relation's toOne() guard on Postgres is :relation_to_one_postgres_test's (D2, 2026-11-07)
             "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
+            # a guarded raise in a lambda on ClickHouse is :clickhouse_lambda_raise_test's (2026-11-20): it needs the
+            # embedded ClickHouse in its runfiles
+            "src/test/java/com/legend/integration/ClickHouseLambdaRaiseServerTest.java",
             # a window's column read through a list operation on Postgres is :window_read_through_a_list_postgres_test's
             # (the H11 record's P1, 2026-11-19)
             "src/test/java/com/legend/integration/WindowReadThroughAListPostgresTest.java",
@@ -2441,6 +2444,40 @@ junit_test(
         ":core_edge_tests_lib",
         ":test_cases",
         ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# A GUARDED RAISE INSIDE A LAMBDA ON CLICKHOUSE (2026-11-20, the warm lane's finding): ClickHouse evaluates every
+# branch of a CASE inside a lambda, so the dialect writes a raise there with its own guard; on the embedded ClickHouse,
+# valid text in a map's substring answers and a text out of range still raises (ClickHouseLambdaRaiseServerTest; the
+# SQL's form is core_tests_sql's ClickHouseLambdaRaiseTest)
+junit_test(
+    name = "clickhouse_lambda_raise_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/ClickHouseLambdaRaiseServerTest.java",
+    ],
+    data = [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+    ],
+    jvm_flags = ["-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)"],
+    select = ["--select-class=com.legend.integration.ClickHouseLambdaRaiseServerTest"],
+    # manual, as every embedded-ClickHouse target is, until a per-push ClickHouse lane is the user's call
+    tags = ["manual"],
+    runtime_deps = [
+        ":drivers",
+        "@clickhouse_jdbc//jar",
+    ],
+    target_compatible_with = EMBEDDED_CLICKHOUSE_COMPATIBLE,
+    deps = [
+        ":core",
+        ":core_tests_lib",
+        ":test_backends",
+        ":test_cases",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],

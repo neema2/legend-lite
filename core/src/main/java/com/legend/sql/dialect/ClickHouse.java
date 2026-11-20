@@ -97,6 +97,18 @@ public class ClickHouse extends AnsiSqlRenderer {
      *  an EXISTS, IN written as EXISTS, or a quantified comparison. */
     private final boolean[] correlatedExists = {false};
 
+    /** How deep the writer is in a lambda's body ({@link #lambda}): there ClickHouse evaluates every branch of a CASE
+     *  for every element, short-circuit evaluation or not (measured with {@code clickhouse local} 26.3.60.2, the warm
+     *  lane's round of 2026-11-20, with short_circuit_function_evaluation = force_enable), so a branch's raise is
+     *  written with its own guard ({@link #raiseGuards}). */
+    private final int[] lambdas = {0};
+
+    /** Inside a lambda's body, the conditions under which each CASE branch being written is the one taken, innermost
+     *  first: the branch's own condition true, and every earlier condition of its CASE not true ({@link #caseExpr});
+     *  a CASE this dialect writes as text pushes its own ({@link #guardedError}). A raise written there raises only
+     *  where all hold ({@link #error}). */
+    private final java.util.ArrayDeque<SqlWriter.Piece> raiseGuards = new java.util.ArrayDeque<>();
+
     /** ClickHouse (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §19): double quotes (case-sensitive names). The
      *  {@code ClickHouse} dialect quotes every identifier, so this list decides no spelling there. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of(
@@ -833,12 +845,20 @@ public class ClickHouse extends AnsiSqlRenderer {
         }
         ParameterType type = java.util.Objects.requireNonNull(parameterType(declared), "a date's placeholder type");
         RenderedStatement.AsText asText = java.util.Objects.requireNonNull(type.asText(), "a date bound as its text");
-        // a value of a digit past the six kept raises too (S181, A7: never cut)
-        return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN toInt32(substring(")
-                .bind(textBind(p, asText)).append(", 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(")
-                .piece(x -> error(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE))).append(" AS " + type.name() + ") WHEN substring(")
-                .bind(textBind(p, asText)).append(", 27) NOT IN ('', '000') THEN CAST(")
-                .piece(x -> error(x, raised(com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, FRACTION))).append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
+        // a value of a digit past the six kept raises too (S181, A7: never cut). In a lambda each raise carries the
+        // condition its branch is taken on (guardedError: a CASE there evaluates every branch); a NULL parameter makes
+        // both conditions NULL, which raises neither
+        SqlWriter.Piece yearOutside = w -> w.append("toInt32(substring(").bind(textBind(p, asText))
+                .append(", 1, 4)) NOT BETWEEN 1900 AND 2299");
+        SqlWriter.Piece fractionPast = w -> w.append("substring(").bind(textBind(p, asText))
+                .append(", 27) NOT IN ('', '000')");
+        return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN ")
+                .piece(yearOutside).append(" THEN CAST(")
+                .piece(x -> guardedError(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE), yearOutside))
+                .append(" AS " + type.name() + ") WHEN ").piece(fractionPast).append(" THEN CAST(")
+                .piece(x -> guardedError(x, raised(com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, FRACTION),
+                        w -> w.append("NOT coalesce(").piece(yearOutside).append(", false) AND ").piece(fractionPast)))
+                .append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
                 .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
     }
 
@@ -985,13 +1005,72 @@ public class ClickHouse extends AnsiSqlRenderer {
         }
         java.util.function.BiConsumer<SqlWriter, SqlExpr> unify = unified(members);
         writer.append("CASE");
+        // inside a lambda every branch is evaluated (lambdas): each branch is written under the condition it is taken
+        // on, for a raise in it to raise there alone
+        boolean guarded = lambdas[0] > 0;
+        List<SqlExpr> notTaken = new ArrayList<>();
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot, unify));
+            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ");
+            if (guarded) {
+                List<SqlExpr> taken = new ArrayList<>(notTaken);
+                taken.add(w.condition());
+                SqlExpr guard = allOf(taken);
+                raiseGuards.push(x -> x.expr(guard, 0));
+            }
+            try {
+                writer.piece(branch(w.then(), slot, unify));
+            } finally {
+                if (guarded) {
+                    raiseGuards.pop();
+                }
+            }
+            // a CASE takes a later branch where this condition is false or NULL
+            notTaken.add(SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.COALESCE, w.condition(),
+                    new SqlExpr.BoolLit(false))));
         }
         if (c.otherwise() != null) {
-            writer.append(" ELSE ").piece(branch(c.otherwise(), slot, unify));
+            writer.append(" ELSE ");
+            if (guarded) {
+                SqlExpr guard = allOf(notTaken);
+                raiseGuards.push(x -> x.expr(guard, 0));
+            }
+            try {
+                writer.piece(branch(c.otherwise(), slot, unify));
+            } finally {
+                if (guarded) {
+                    raiseGuards.pop();
+                }
+            }
         }
         return writer.append(" END");
+    }
+
+    /** {@code raise} written in a branch this dialect writes as text, taken where {@code taken} holds: inside a lambda
+     *  the raise carries it ({@link #error}), as a CASE of the MIR's branch's raise does. */
+    private SqlWriter guardedError(SqlWriter writer, SqlExpr.Call raise, SqlWriter.Piece taken) {
+        boolean guarded = lambdas[0] > 0;
+        if (guarded) {
+            raiseGuards.push(taken);
+        }
+        try {
+            return error(writer, raise);
+        } finally {
+            if (guarded) {
+                raiseGuards.pop();
+            }
+        }
+    }
+
+    /** The conjunction of {@code conditions}, true where there are none. */
+    private static SqlExpr allOf(List<SqlExpr> conditions) {
+        if (conditions.isEmpty()) {
+            return new SqlExpr.BoolLit(true);
+        }
+        SqlExpr out = conditions.get(0);
+        for (int i = 1; i < conditions.size(); i++) {
+            out = SqlExpr.Call.of(SqlFn.AND, out, conditions.get(i));
+        }
+        return out;
     }
 
     private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot,
@@ -1265,9 +1344,15 @@ public class ClickHouse extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter lambda(SqlWriter writer, SqlExpr.Lambda l) {
-        return writer.append(l.params().size() == 1 ? param(l.params().get(0))
+        writer.append(l.params().size() == 1 ? param(l.params().get(0))
                 : "(" + String.join(", ", l.params().stream().map(this::param).toList()) + ")")
-                .append(" -> ").expr(l.body(), 0);
+                .append(" -> ");
+        lambdas[0]++;
+        try {
+            return writer.expr(l.body(), 0);
+        } finally {
+            lambdas[0]--;
+        }
     }
 
     private String param(String name) {
@@ -2081,15 +2166,33 @@ public class ClickHouse extends AnsiSqlRenderer {
         // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence; D1.1), in
         // main's unfoldable form (each raise its own rand(n), #81; merged 2026-11-14)
         List<SqlExpr> a = raised(c).args();
-        writer.append("toInt64(concat(char(31), ");
+        writer.append("toInt64(");
+        // inside a lambda's CASE every branch is evaluated (lambdas): the raise carries the condition its branch is
+        // taken on, and elsewhere casts '0', which raises nothing (measured: ['o','m','r'] for a guarded substring
+        // over ['Doe','Smith','Branche'], the raise kept for ['Doe','S','Branche'])
+        boolean guarded = lambdas[0] > 0 && !raiseGuards.isEmpty();
+        if (guarded) {
+            List<SqlWriter.Piece> outermostFirst = new ArrayList<>(raiseGuards);
+            java.util.Collections.reverse(outermostFirst);
+            writer.append("if(");
+            if (outermostFirst.size() == 1) {
+                writer.piece(outermostFirst.get(0));
+            } else {
+                // a branch inside another's: each condition its own operand of the AND
+                writer.join(outermostFirst, " AND ", (w, g) -> w.append("(").piece(g).append(")"));
+            }
+            writer.append(", ");
+        }
+        writer.append("concat(char(31), ");
         if (a.size() > 1) {
             writer.expr(a.get(1), 0).append(", char(30), ");
         }
         // the server's error text quotes the message as a string literal, a quote in it escaped (\', measured):
         // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
-        return writer.append("replaceAll(toString(").expr(a.get(0), 0)
+        writer.append("replaceAll(toString(").expr(a.get(0), 0)
                 .append("), '\\'', char(29)), char(31), substring(toString(rand(" + (++raises[0])
-                        + ")), 1, 0)))");
+                        + ")), 1, 0))");
+        return writer.append(guarded ? ", '0'))" : ")");
     }
 
     /** The message a date-time parameter of a digit past the microsecond raises (S181, A7). */
@@ -2363,9 +2466,13 @@ public class ClickHouse extends AnsiSqlRenderer {
                 // as 2299-12-31), a wrong value: the date the arithmetic reaches, in a wider integer, is checked
                 // first and raised outside them (2026-10-20, the parity phase)
                 SqlType slot = typeOf(c);
-                yield writer.append("CASE WHEN ").piece(outsideDates(unit, a.get(2), a.get(1))).append(" THEN ")
-                        .piece(slot == null ? x -> error(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE)) : x -> x.append("CAST(")
-                                .piece(y -> error(y, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE))).append(" AS " + castTypeName(slot) + ")"))
+                // in a lambda the raise carries the range check (guardedError: a CASE there evaluates every branch)
+                SqlWriter.Piece outside = outsideDates(unit, a.get(2), a.get(1));
+                SqlWriter.Piece raise = x -> guardedError(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE),
+                        outside);
+                yield writer.append("CASE WHEN ").piece(outside).append(" THEN ")
+                        .piece(slot == null ? raise : x -> x.append("CAST(").piece(raise)
+                                .append(" AS " + castTypeName(slot) + ")"))
                         .append(" ELSE " + fn + "(").expr(a.get(2), 0).append(", ").expr(a.get(1), 0)
                         .append(") END");
             }
