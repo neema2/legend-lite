@@ -3203,3 +3203,10 @@ who confirms or changes phases 1-3.
   the host judge; option N's compatibility judge is a second host judge fed the same sides. The spike sharpened: confirm
   it briefly and pick the smaller wiring (the run-time hand-off or a post-run report); spend the time on the fallback's
   rows, the rewrites, the sizes, and any compatibility check needing a different side planned (e.g. the printed table).
+- **~02:25 UTC, the user: "How were we going to get the real rows in the original way?"** Read from
+  `edge/SqlTextVerdicts.java`: the appeal finds the producer call (`toSQLString({|q}, mapping, dialect)`, the plan text
+  of `executionPlan(...)`, and the rest) by typed node and exact callee FQN, wraps the producer's own query lambda in
+  `from(mapping)` with the env's runtime and plans it as a side (lite's rows), the golden rows from `SqlReplayReferee`;
+  text byte-equal holds, else MATCH holds and DIVERGED or FAULT fail; a referee decline keeps the text. So under option N
+  the harness has the query in hand; the spike's question narrows to running it with the same test data through public
+  doors (e.g. a synthesized tiny test body), sent to the spike.
