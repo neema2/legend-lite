@@ -2169,3 +2169,22 @@ The new `ClaimRegistryTest` pin is a tightening.
   reads true.
 
 S383 should also name `substr` and the flagged `substring`, which raise on lite's own doors.
+
+**The docs commit, `67fa4df51` (on `aacb49b96`; the batch is fast-forwarded to it): APPROVED.**
+- **The setting is gone everywhere outside the records,** except as history: AGENTS.md's tenet 6 ("The registry is
+  empty: its first entry ... was deleted"), ObservabilityGuardrailTest's dated note, and the test constant `OLD_HEADER`.
+- **The rules of record:** the switch registry stays, empty, with its ceiling and guards, and its first entry is marked
+  deleted with the ~07:55 ruling.
+- **The register:**
+  - S130, S134, S385 and S388 describe the door with no setting: rewritten on H2 and DuckDB, refused by name
+    elsewhere, a host-side statement Pure's, M-a1's no-exemption, the 56/57 battery counts;
+  - S383's lite column names `substr` and the flagged `substring` (my nit) and the door's `substrAsGiven`, with
+    `'FX'->substr(1, 3)` answering `'X'`.
+- **The differences page's item 1:** the door's meaning, lite's own route, the raise out of range, and the in-range
+  translation.
+- **Nit:** S130's lite column still opens "... with or without it, on every road", while its next sentences describe
+  the door's rewrite. "On lite's own roads", as S134 says, would be exact.
+- **Still for the user's word at the PR:**
+  - S130, S134, S385, and S380, S381, S382 and S384 (PROPOSED);
+  - the up moves listed above;
+  - M-b1 to M-b4.
