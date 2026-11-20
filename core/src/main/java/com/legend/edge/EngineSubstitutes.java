@@ -27,7 +27,10 @@ import java.util.List;
  *       find function ({@link Pure.Lite#SQL_POSITION});</li>
  *   <li>{@code substr}, and {@code substring} under {@code CORRECT_SQL_SUBSTRING_INDEXING}, become
  *       {@code meta::legend::lite::substrAsGiven}, the database's own SUBSTRING over {@code start + 1} and
- *       {@code end - start} ({@link Pure.Lite#SUBSTR_AS_GIVEN}; 2026-11-20).</li>
+ *       {@code end - start} ({@link Pure.Lite#SUBSTR_AS_GIVEN}; 2026-11-20);</li>
+ *   <li>{@code toOne} of an operand that is always empty becomes {@code meta::legend::lite::trustOne}, the core's
+ *       {@code toOne} with no check, legend-engine's processNoOp ({@link Pure.Lite#TRUST_ONE}): its empty operand is
+ *       SQL's null (2026-11-20; register S384).</li>
  * </ul>
  *
  * <p>A substitute's callee is the registry's function for one of its native's ids, chosen by the typer's own overload
@@ -65,6 +68,14 @@ final class EngineSubstitutes {
         List<FunctionId> replaces = new ArrayList<>(Pure.AT_STRING_SUBSTR);
         replaces.addAll(Pure.AT_STRING_SUBSTRING);
         return substitute(ctx, call, replaces, Pure.AT_LEGEND_LITE_SUBSTR_AS_GIVEN);
+    }
+
+    /** The substitute for Pure's one-argument {@code toOne} of an operand that is always empty: the same typed
+     *  argument and source position, {@code trustOne}, its type the typer's (2026-11-20; the user's word ~13:10, "toOne
+     *  yes needs to be fixed for engine"). That native is legend-engine's processNoOp: the operand's SQL with no check,
+     *  so the database answers the empty operand's null. */
+    static TypedNativeCall toOne(ModelContext ctx, TypedNativeCall call) {
+        return substitute(ctx, call, List.of(FunctionId.of(Pure.TO_ONE__T_MANY)), Pure.AT_LEGEND_LITE_TRUST_ONE);
     }
 
     /** {@code call} as given, or refused: its callee must be the registry's function, for one of {@code nativeIds},

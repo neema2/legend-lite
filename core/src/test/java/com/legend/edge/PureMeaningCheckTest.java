@@ -91,6 +91,27 @@ class PureMeaningCheckTest {
         assertEquals("substr/2=1, substr/3=1", r.counts());
     }
 
+    /** toOne of an operand that is always empty (register S384): legend-engine's processNoOp writes the empty literal's
+     *  SQL null, so it answers null where lite raises legend-pure's size error; flagged. A toOne of a row's value that
+     *  may be empty (lite already lets it through unchecked, as processNoOp does), of a value that is exactly one, of a
+     *  literal list of two (legend-engine refuses it at planning with legend-pure's sentence), and the message overload
+     *  (which legend-engine has no SQL for) are not. */
+    @Test
+    void aStoreBoundToOneOfAnEmptyOperandIsFlagged_andNoOtherToOne() {
+        PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[a: r|[]->cast(@Integer)->toOne(),"
+                + " b: r|$r.NAME->toOne(), c: r|$r.ID->toOne(), d: r|[1, 2]->toOne(),"
+                + " e: r|[]->cast(@Integer)->toOne('none')])->from(t::RT)");
+        assertEquals("toOne(empty)=1", r.counts());
+    }
+
+    /** A store-free let's toOne of empty is computed on the host, with legend-pure's raise: not flagged. */
+    @Test
+    void aHostSideToOneOfEmptyIsNotFlagged() {
+        PureMeaningCheck.Result host = check("{|let x = []->cast(@Integer)->toOne(); " + TABLE
+                + "->filter(r|$r.ID == $x)->from(t::RT);}");
+        assertTrue(host.clean(), host.counts());
+    }
+
     /** A store-free let's substr is computed on the host, as legend-engine computes any store-free let: not flagged. */
     @Test
     void aHostSideSubstrIsNotFlagged() {
@@ -501,10 +522,12 @@ class PureMeaningCheckTest {
         List<String> flagged = List.of(
                 "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->indexOf('o'))->from(t::RT)",
                 "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->substr(1, 3))->from(t::RT)",
-                "|" + TABLE + "->extend(~a: r|t::firstThree($r.NAME->toOne()))->from(t::RT)");
+                "|" + TABLE + "->extend(~a: r|t::firstThree($r.NAME->toOne()))->from(t::RT)",
+                "|" + TABLE + "->extend(~a: r|[]->cast(@String)->toOne())->from(t::RT)");
         List<String> quiet = List.of(
                 "{|let x = 'abc'->indexOf('b'); " + TABLE + "->filter(r|$r.ID == $x)->from(t::RT);}",
-                "|" + TABLE + "->extend(~a: r|['a', 'b']->indexOf('b'))->from(t::RT)");
+                "|" + TABLE + "->extend(~a: r|['a', 'b']->indexOf('b'))->from(t::RT)",
+                "|" + TABLE + "->extend(~a: r|$r.NAME->toOne())->from(t::RT)");
         for (String q : flagged) {
             assertFalse(check(q).clean(), q);
         }

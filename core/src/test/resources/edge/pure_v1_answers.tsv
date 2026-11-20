@@ -5,7 +5,7 @@ raise.atOutOfBounds	500	{"code":-1,"errorType":"COMPILATION","message":"LIST_FIL
 raise.toOneOverMany	500	{"code":-1,"errorType":"COMPILATION","message":"LIST_FILTER reached a dialect without a list encoding","status":"error"}
 raise.sqrtOfNegative	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"s","type":"Float","relationalType":"FLOAT"}]},"result":{"columns":["s"],"rows":[{"values":[null]}]}}
 raise.parseInteger	500	{"code":-1,"message":"JdbcSQLDataException: Data conversion error converting \\"abc\\"; SQL statement:\\nSELECT CAST('abc' AS BIGINT) AS \\"p\\"\\nFROM (\\n  SELECT *\\n  FROM TRADES_SCHEMA.TRADES AS \\"t0\\"\\n  LIMIT 1\\n) AS \\"t1\\" [22018-252]","status":"error"}
-raise.toOneOfEmpty	500	{"code":-1,"message":"Raised: SIZE_NOT_MULTIPLICITY","status":"error"}
+raise.toOneOfEmpty	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"o","type":"Integer","relationalType":"INTEGER"}]},"result":{"columns":["o"],"rows":[{"values":[null]}]}}
 cell.dateTimeCoarse	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"t","type":"DateTime","relationalType":"TIMESTAMP"}]},"result":{"columns":["t"],"rows":[{"values":["2024-01-02T10:30:00.000000000+0000"]}]}}
 cell.dateTimeSubMicro	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"t","type":"DateTime","relationalType":"TIMESTAMP"}]},"result":{"columns":["t"],"rows":[{"values":["2024-01-02T10:30:00.123456789+0000"]}]}}
 cell.float	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"result":{"columns":["f"],"rows":[{"values":[0.3333333333333333]}]}}
