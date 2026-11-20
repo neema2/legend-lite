@@ -3393,3 +3393,7 @@ who confirms or changes phases 1-3.
     - BigQuery: channel A 3, channel B 3;
     - Snowflake: channel A 3, channel B 3;
     - Databricks pending.
+- **~08:30 UTC, BigQuery under LITE rules (judge BOTH)**, measured for stage B and not gated: essential 298/47, relation 100/369.
+  - The differences from COMPAT are error wording: 19 tests where lite's own raise text ≠ legend-pure's. This is stage B's Q3, error records.
+  - And relation `toString`: 353 tests, stage B's B2. There are no value differences.
+  - The bisect of main's BigQuery UNION ALL regression is running: 8 first-parent merges.
