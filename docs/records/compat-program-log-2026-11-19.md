@@ -3256,3 +3256,13 @@ who confirms or changes phases 1-3.
   `from()` should accept mapping values as a product feature. The follow-up also asked to explain
   `testQualifierQueryWithOr` (golden 7 rows, ours 1), possibly a real lite difference.
 - **~03:45 UTC, the user's ~03:45 rulings** (§1's row). **A correction of this session's Q7:** the "defects" cell is the message of an UNEVALUABLE constraint (a property absent on the wire) in a checked graph; H13 §15 measured 12 such cells planned in the DuckDB corpus, 0 answers carrying one, and 1 test whose expected answer holds the sentence (failing today for another reason). Q7 gains 0 tests, not 12 as this session said. A count for Q6 (the default violation message) sent to the window-in-a-list worker (read-only).
+- **~03:49 UTC, H13: option N's reach** (record §28 at `17f1b69f`, H2 runs 4-7; nothing landed). The base corrected: today's
+  appeal on H2 hears 1,053 row MATCHes per verdict (§27's 1,146 counted verify calls); the six shapes reach 620; with
+  helper inlining over the harness's own parse (no planner entry) **986 of 1,053 (93.6%)**, 958 policy MATCH. Of the
+  433 beyond the six shapes: a let or constant golden 122; a helper 244 (199 `assertEqualsH2Compatible`, 42
+  `meta::relational::mapping::sql(result)`); plan text 15 (the referee's verifyPlan, N4); other shapes 20 (the 3 inline
+  `^Mapping`s among them); unaligned 32. **A named harness rule needed:** `assertEqualsH2Compatible` branches on
+  legend-engine's H2 version through `executeInDb('SELECT H2VERSION()')`, which lite's door refuses; the rule takes the
+  upgraded side (lite's H2 2.5 and the 2.1.214 referee's golden), and with it all 199 MATCH. N2's 2.5 to 3.5 days holds,
+  in its lower half. Q16 gains (c), this rule, for the user. The two additions (the 7 shapes via `withBody`,
+  `testQualifierQueryWithOr`) still to come.

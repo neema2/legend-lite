@@ -388,7 +388,14 @@ with no planning (~02:15).
   - The choices are a harness query shape, or recording them as declines.
   - **Recommendation: recorded declines**, 7 tests.
 
-**A half-day follow-up first:** the probe's six shapes reach 632 of today's 1,146 row matches. The other 514 come
+**Reach, measured (H13 §28):** with helper inlining over the harness's own parse, option N reaches 986 of today's 1,053
+row matches on H2 (93.6%); 67 remain (15 plan text, routed to the referee's plan check; 20 other shapes; 32 to read one
+by one). **(c) A named harness rule:** 199 of the matches go through legend-engine's `assertEqualsH2Compatible`, which
+branches on the H2 version by running `SELECT H2VERSION()` in the query; lite's door refuses raw SQL in a query, so the
+harness takes legend-engine's upgraded branch, the one lite's H2 2.5 and the referee's golden are written for.
+Recommendation: yes, recorded like the corpus rewrites.
+
+**The half-day follow-up (done):** the probe's six shapes reach 632 of today's 1,146 row matches. The other 514 come
 through helper functions and other shapes. Measuring them is the one number that could make the detection larger
 than estimated.
 
