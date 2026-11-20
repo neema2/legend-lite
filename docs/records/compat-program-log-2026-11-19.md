@@ -3466,3 +3466,7 @@ who confirms or changes phases 1-3.
     2. own_corpus 3327 → 3330;
     3. A/B on the ClickHouse fix, with its 2 lean-SQL rows (+96 and +192 chars).
   - The judges run the PCT/corpus measurement on `d634926a4`.
+- **~10:08 UTC, heavy round 2 on `67fa4df5` (measure only):**
+  - **Six manual targets:** all pass except `//spec:corpus_warehouse_verdict`, which LOSES the same 41 as main `8eea8fa1`. The set difference is empty. The cause is the warehouse client refusing PreparedStatement binds, as on 4dfbb5b76.
+  - **Build sweep, per package after a clean:** everything builds: core 339, spec 63, pct 222, parser-equivalence 42, tools 282.
+  - **All heavy and manual results are in.** The only red the batch introduces is the PCT judge-SQL re-pin, held for the word.
