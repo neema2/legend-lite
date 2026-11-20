@@ -161,7 +161,13 @@ public final class PeRatchets {
             "own_corpus.matched 3325 -> 3327 (2026-11-20, the stage-A batch with B1's native and the engine wiring: B1's"
                     + " EngineSubstitutesTest model literals take their ###Section headers, so its Database and its"
                     + " Runtime parse on the reference grammar and match; measured by //parser-equivalence:update_ratchets;"
-                    + " a floor rising, listed for the user's word at the batch PR; UP)");
+                    + " a floor rising, listed for the user's word at the batch PR; UP)",
+            "own_corpus.matched 3327 -> 3330 (2026-11-20, A3's follow-up on claude/compat-a3-engine-followup, the"
+                    + " reviewer's should on 67fa4df51: PureMeaningPostgresTest's model, a Database, a Class and a"
+                    + " Mapping, which match the reference grammar (its Connection and Runtime carry the backend's text,"
+                    + " not a literal); measured by //parser-equivalence:update_ratchets; a floor rising, the same kind the"
+                    + " user's word of 2026-11-19 ~20:10 covered for the detector's test models, listed for the user's"
+                    + " word at the PR; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
