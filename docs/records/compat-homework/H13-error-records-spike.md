@@ -1709,3 +1709,57 @@ expression>)`. Until then they are 4 recorded declines. Through `withBody`, the 
 - 3 stay (the lambda as is);
 - 1 was never from-unspellable (`testQualifierQueryWithOr`, a referee fact);
 - 4 wait on the product finding above.
+
+### 28.5 Does any corpus body write after a lifted SQL-text assert? (the orchestrator, 07:02 UTC)
+
+**Why it matters.** Option N runs a lifted assert's query AFTER the whole body, while legend-engine evaluates it at the
+assert's place. A body that writes to the database after the assert would make the two read different data. The
+question: count and name the corpus tests (H2 and DuckDB) whose body writes after a lifted SQL-text assert.
+
+**The probe:** `H13/option-n-probe-v4.patch.txt`, on `//spec:corpus_h2` and `//spec:corpus_duckdb` (run 11). It makes
+no referee calls and so is inert: every roster test PASSED, `update_rcorpus_h2_2` included.
+- **When it runs.** At each test's `testStarted`, section 28's walk (helper inlining over the parsed model) goes over
+  the body in evaluation order.
+- **What it records:**
+  - an **A** event for each SQL-text assert candidate (the classes SIX, LET and HELPER that N2 reaches, and PLAN_TEXT
+    and OTHER_SHAPE, which it does not);
+  - a **W** event for each database write anywhere in a statement, lambdas included, following the helpers it calls to
+    depth 4.
+- **What counts as a write.** The writes are lite's own effect catalogue (`NativeFn.Effect`, `NativeFn.java:938-963`)
+  less its non-writes (print, println, connectionByElement):
+  - `executeInDb` whose text is not a read: a literal, or a let or `+` run of literals, not starting with
+    `select`/`with`/`show`; one whose text the walk cannot resolve counts as a write;
+  - `dropAndCreateTableInDb`, `dropAndCreateSchemaInDb`, `loadCsvToDbTable`, `createTempTable`, `dropTempTable`,
+    `setUpDataSQLs` and `setUpDataSQLsV2`.
+
+**Result: the same in both lanes.**
+
+| | H2 | DuckDB |
+|---|---|---|
+| tests with an SQL-text assert | 1,709 | 1,709 |
+| - whose first one N2 lifts (SIX, LET or HELPER) | 1,452 | 1,452 |
+| - **of those, writing after it** | **0** | **0** |
+| - whose first one is PLAN_TEXT or OTHER_SHAPE | 257 | 257 |
+| - of those, writing after it | 1 | 1 |
+
+**The one test:** `meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy`
+(`core_relational/relational/testDataGeneration/tests/testDataGeneration.pure`).
+- Its SQL-text assert is a plan-text golden: `assertEquals('MultiResultSequence ( ... sql = select top 20 ... )',
+  $plan->planToString(...))`, over a test-data-generation plan that is never executed. N2 does not lift it.
+- Its later statement `mayExecuteAlloyTest({... assertTestData(..., $db)})` writes through `setUpDataSQLs` (twice).
+
+**Coverage notes:**
+- 8 tests carry an assert inside a lambda that the walk does not classify. The write scan still covers their every
+  statement, and none writes after its first assert (7 of them; the eighth is `testConstant_Alloy`).
+- 45 `executeInDb` texts could not be resolved and were counted as writes. All 45 come before the first SQL-text
+  assert of their test.
+- The engine's own in-list temp tables (`TEMPTABLEFORIN_n`) belong to the asserted query's own plan, not to the body.
+  Under N the referee's per-verify temps make them (section 27.1).
+- A cross-check against lite's own `BodyFacts.shape` was not usable: the shape indexes the resolved body, which splices
+  setup helpers into it, and its `E` letters also cover prints and `select` reads.
+
+**For the design:**
+- **No body in either lane writes after an assert N2 lifts**, so no guard is needed for today's corpus, and "capture in
+  place" is not called for.
+- A guard that refuses, by name, to lift an assert followed by a write (the same walk, W after A) costs a few lines in
+  N2 and keeps the rule for any future test. Today it would name only `testConstant_Alloy`, which N2 does not lift.
