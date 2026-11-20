@@ -3147,3 +3147,8 @@ who confirms or changes phases 1-3.
   wiring, then the docs, then the FULL measurement on that head, with the reviewer's combination review starting on it.
   Piece 2 joins last, with its touched lanes and a delta measurement only. In parallel this session drafts the batch PR
   and continues the stage B questions with the user.
+- **~01:25 UTC, the reviewer will hold the combination review to two things:** channel B MariaDB and MySQL's failing
+  sets on the assembled head shown equal to A2's base or explained; and MariaDB's run-to-run variance named as a G10
+  (determinism) finding with an owner and a ledger row. Recorded on the final plan's product-track list (owner: the
+  product track, put to the user at the stop). B1-R waits on the judges' word that B1's native is in, then lands the
+  engine wiring (engine branch now `75e39fa90`).

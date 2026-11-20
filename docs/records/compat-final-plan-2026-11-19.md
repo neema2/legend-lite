@@ -134,6 +134,10 @@ cell; B4 and B5 a few days each. About 6 weeks of one builder's work; 4 to 5 wit
   **SelectMerge and draws-afresh values** (found by the window-in-a-list fix, ~00:10 11-20): a dialect may write an
   operand several times (SQLite's split, 4), so a random or uuid value merged under it could draw per copy; refuse by
   adding draws-afresh values to the merge rule, measured first.
+  **Channel B on MariaDB and MySQL, red on `main` (Q3, Q3b), measured again ~00:22 11-20:** MySQL's 9 decimal-scale
+  disagreements; MariaDB's list-order disagreements that change from run to run (9 at A2's base, 15 at A3's head),
+  a determinism finding (G10) that needs a named owner and a ledger row (the reviewer, ~01:25); owner: the product
+  track, put to the user at the stop.
   (The Maven download fix and the judge-parity work are taken into stage A1 by the user's word of ~14:30.)
 - **A later meaning decision, not a gate:** comparing text with a number (`'x' == -1`). It was thought a defect fix
   gating A3; measured (~15:15), it changes answers in 26 H2 and 30 DuckDB corpus tests, where legend-engine lets the
