@@ -3337,3 +3337,10 @@ who confirms or changes phases 1-3.
     2. Every run goes once on that head (edge lanes excluded).
     3. B1-R's fix merges, then the edge lanes run once.
     4. The PR opens green, and CI runs once.
+- **~07:32 UTC, the combination audit, parts (a), (c), and the register fixes.**
+  - (a), the interactions: clean, with one finding, M-a1. Under `engine`, the literal-0 exemption leaves `substring(0, n)` unrewritten, and it now raises past the length where legend-engine answers.
+    - Folded into B1-R's `substr` fix as the reviewer's option (1): under `engine` only, rewrite every store-bound substring. This keeps S130's ruled promise. It is not a new rule.
+    - Battery rows are added for values shorter than their end; the pin moves go to the user's word at the PR.
+  - (c), the register rows: RULED and matching, S128, S316, S386, S387, S388. Stale: S383, fixed by the judges at `12a2c3bb1`. Missing: S381, written by the judges at `12a2c3bb1`.
+  - PROPOSED, for the word at the PR: S130, S134, S380, S381, S382, S384, S385.
+  - The user declined the dialog for A/B and (1)/(3'). Both are asked again in chat; B and (3') are recommended.
