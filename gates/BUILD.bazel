@@ -499,6 +499,9 @@ test_suite(
         # CI's lane guard on #81 (2026-11-09)
         "//core:ts_replay_clickhouse_test",
         "//core:ts_documents_clickhouse_test",
+        # a guarded raise in a lambda on the embedded ClickHouse (2026-11-20, the warm lane's finding): manual as the two
+        # above
+        "//core:clickhouse_lambda_raise_test",
         # every gallery and markets series' Show #TS on the embedded Postgres 16 against DuckDB (item 9): manual until
         # the Sharpe ratio's Postgres plan is fixed -- `sharpe A` and `B` take 53 s and 52 s each here (DuckDB 72 ms), and
         # on CI's Windows runner sharpe A passed the replay's two-minute statement bound (run 42676077309, 2026-11-09);
