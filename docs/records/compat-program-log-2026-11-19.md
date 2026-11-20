@@ -3375,3 +3375,10 @@ who confirms or changes phases 1-3.
     - Sibling 4 is bisecting it on main, measure only. It goes to the product track.
   - **LITE+DATABASE:** not a gated lane, so no ledger. LITE+BOTH is requested on BigQuery.
   - **The raise probe:** 4 wrong, byte-identical to main (Q1 Float, numbers-q1 not merged).
+- **~08:26 UTC, sibling 1a's final run on `317204773`** (Trino, ClickHouse, MongoDB channel A; Trino and Postgres channel B; the probe), measured against main `8eea8fa1` and cf763c815:
+  - **Lost passes:** 0.
+  - **Gained:** 3 in channel B on both Trino and Postgres, the three `indexOf` tests.
+  - **Channel A:** all 15 suites have 0 stale, moved or lost. The edge's printed engine plans and their SQL are byte-identical to main's.
+  - **One moved message:** Postgres channel B, `testAdjustByMinutesBigNumber`, an ERROR at both commits. The database's own error now surfaces directly instead of as a judge disagreement (A4/A5's host-only verdict under COMPAT).
+  - **The probe:** identical to main (Q1).
+  - **Channel B wall times:** down 30–55%.
