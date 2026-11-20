@@ -3136,3 +3136,8 @@ who confirms or changes phases 1-3.
   list-order disagreements varying run to run, 9 at the base, 15 at A3's head, different tests). That matches A5's
   earlier finding (MariaDB and MySQL channel-B lanes red on main already, Q3 and Q3b): pre-existing, not A3's; the
   batch's CI run judges them on CI's servers. Its README's "only the 3 indexOf rows" corrected for those two lanes.
+- **~00:36 UTC, the judges: the window-in-a-list fix merged** (batch head `b1c7e7f57`; `2ec9b9983` merged its actual
+  head `1819a5446`, then `bf2e9c4c3`; clean, the A2 overlap needed nothing). 56 of 61 plus 6 of 6 as ubuntu pass; the
+  5 not run are the Snowflake channel-B cloud lanes, which need an account this container lacks (environmental, CI's
+  run covers them); rosters, lean-SQL baselines and the dialect capability matrix unchanged. Waiting on the
+  translator's piece 2 (the user's word on its lean-SQL re-pin).
