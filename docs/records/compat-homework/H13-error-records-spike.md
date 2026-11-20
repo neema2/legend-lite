@@ -1265,3 +1265,269 @@ edge cases carry none (0 moved): these routes run queries, not asserts.
   still wanted for the SQL-text appeal; only its `present(VerdictRecord)` half goes.
 - **What still needs a word:** the 41 witness rows are the only reader of the wording, and they are lite's own
   register. No upstream suite, golden or client reads legend-pure's assert-failure words.
+
+## 27. B3 option N: lite runs the body, the compatibility checks are Java at the edge (measured, 2026-11-20)
+
+The orchestrator's spike of 2026-11-20, 02:23 to 02:29 UTC, after the user's idea (~02:15): *"The fallback isn't
+product code so that could be java code at the edge with no planning at all ... not even sure it's a great idea to
+plan it at all?"* This is homework only: nothing lands and no pin moves. The probe is
+`H13/option-n-probe.patch.txt`: a scratch `CorpusObserver` in `MinimalCorpus.java` on `origin/main` `8eea8fa1`, run on
+`//spec:corpus_h2` three times. All evidence lines are on `8eea8fa1`.
+
+### 27.1 The counts first: the fallback through public doors, no hook (H2 lane)
+
+**What the probe does.**
+- **Finding the asserts.** After each body, the probe walks the parsed body for an SQL-text assert in six AST
+  shapes:
+  - `assertEquals` or `assertSameSQL` with a `CString` golden;
+  - reading a `toSQLString(...)` or `execute(...)` directly, or through a `let`, optionally under
+    `sqlRemoveFormatting`.
+- **Our rows.** It builds the asserted query as `from(<the producer lambda's last statement>, <its mapping>,
+  <the lane's runtime>)`, with the body's other lets. It plans the query with `Compiler.resolveQuery` and
+  `Compiler.queryResolved`, then runs it through the product door: `Execution.run(..., SessionSource.given(conn),
+  PlanSessions.of(conn), Establish.AS_GIVEN, Set.of(), PureText.UPSTREAM, Output.Rows(collector), 1024)`
+  (`Execution.java:75-82`). It runs on the test's own session, with the same data.
+- **The golden rows, two ways:**
+  - **rough:** plain JDBC on that same session, with a rough cell normalization;
+  - **policy:** the harness's own referee, `ReplayReferee.verify(...)` (`ReplayReferee.java:533`), on its legend-engine
+    H2 2.1.214 mirror with the recorded seeds, under the harness's comparison policy. The probe built our side as a
+    `TypedSide.Tabular` or `TypedSide.Graph` from the collected rows. It passed `Enums.NONE` and
+    `ReplayFacts(false, false, null)`, and no temp tables.
+
+**Results (run 3; runs 1 and 2 differ only in the probe fixes noted):**
+
+| | Asserts |
+|---|---|
+| SQL-text asserts the six shapes find | **1,075** in 1,013 tests |
+| Our rows read through the public door, no hook | **1,060** (15 failed: 9 are lite's own query failures, 6 are probe shapes refused at typing) |
+| **Policy: MATCH on the referee's mirror** | **995** |
+| Policy: DIVERGED | 27 (7 of them diverge today as well) |
+| Policy: DECLINED | 26 (18 paged chains given no population, 8 `datediff`-to-now goldens) |
+| ERROR before a verdict | 27 |
+| Rough (golden on lite's own H2 2.5 session, LEGACY mode) | MATCH 745, DIFF 303, ERROR 27 |
+
+Against today's appeal, assert by assert:
+- **634** of the 1,075 asserts carry a MATCH from today's appeal. The cross is by test: each assert is counted
+  against the first of its test's appeal outcomes today. The probe's policy verdict reproduces **603** of them
+  (95.1%).
+- Of the 31 others, 23 are probe artifacts with a known harness fix:
+
+  | Cause | Asserts | What the harness under N supplies |
+  |---|---|---|
+  | the paged chain's population not passed | 10 DECLINED | our rows for the chain without its tail page: a second door run (today `EngineTextPlanning.unpagedRead`) |
+  | enumeration decodes not passed | 6 DIVERGED | the model's enumeration mappings as `Appeal.Enums` (today planned, `EnumFacts`, census C2) |
+  | the engine's in-list temp tables not passed | 5 ERROR (`TEMPTABLEFORIN_n` not found) | the 8-argument `verify` with temps (`ReplayReferee.java:565`), as today's arm passes them |
+  | a Float compared without its column facts | 1 DIVERGED (`testSubAggregationMultiLevel`) | the side's column types (today `ReplayGates`) |
+  | a let in a nested scope (`$type`) | 1 ERROR | let collection by scope |
+
+- **8 need a query shape that the public `from` cannot spell:**
+  - 4 post-processor runtimes: `execute(..., runtimeWithTableReplace(...))`, while the probe used the lane's runtime
+    (today: `SqlTextVerdicts.java:557,607`, the producer's bound context);
+  - 3 inline `^Mapping`: `from() argument 1 must be a mapping or runtime reference, got TypedNewInstance`;
+  - 1 unexplained (`testQualifierQueryWithOr`: golden 7 rows, ours 1).
+
+  Each of the 8 needs a harness query in another shape, or is recorded as declined.
+
+**The probe's six shapes reach about half of today's appeal.**
+- The lane's own counters for run 2 (`host.log`, `referee-outcome`) show today's appeal on H2 heard **1,146** row
+  MATCHes, 10 DIVERGED and 6 DECLINED, plus 7 plan-text MATCHes. That is `verify8` less the probe's own calls.
+- The probe saw **632** of those MATCHes. The other **514** come from producers the six shapes miss: helper functions
+  today's arm reaches by inlining ("a plan producer found by INLINING the side's helper calls", `SqlTextVerdicts`),
+  plan-text goldens, and other assert shapes. They are not classified in this spike.
+
+**The probe is not inert once it asks the referee.** Its extra `verify` calls changed the referee's unordered-chain
+register (`//spec:update_rcorpus_h2_2_test` failed on lines `unordered-chain ...sqlstring::...`). `corpus_h2_verdict`
+PASSED in all three runs. Run 1 (no referee calls) moved nothing.
+
+**The ERRORs (27):**
+- 9 are lite's own refusals or failures of the query: `DialectCapability` 3, a tagged value 1, `DataError` 5. The
+  body fails these anyway.
+- 7 are foreign-dialect goldens that do not run on H2: `DATE`, `TO_DATE`, `CHARACTER_LENGTH(... CODEUNITS32)`, the
+  `concat` operator. Today these are text-decided: `text-decided-tests foreign-dialect:DB2=31, Composite=8`.
+- 5 are the temp tables above, and 6 are probe shapes (5 `TypedNewInstance` and 1 `$type`).
+- Run 1 also had 103 `unbound variable '$result'` errors. The probe had carried a let that reads the producer's own
+  result (`let values = $result.values`); run 3 drops such lets.
+
+### 27.2 Question 1: does the run already hand out each assert's typed sides? Yes, at run time. A report after the run cannot reproduce today's outcomes
+
+- **The host judge is handed each verdict's typed rows at its step.**
+  - `TestRun.Judges.sides(verdict, List<PlanRunner.Rows>)` passes the rows, and `sidesFailed(verdict, RuntimeException)`
+    passes the error a side raised (`TestRun.java:48-52`).
+  - `TestRunner` implements them (`TestRunner.java:298-303`): `HostSideShapes.shapedBase`, then `judged`, then
+    `AssertRuns.judgedAtItsStep`.
+- **The edge's ruled run hook already receives typed sides and supplies run-time rules.**
+  - `EdgeHearing.judged(EdgeJudged, List<TypedSide>, messaged)` (`EdgeHearing.java:31`) receives the sides of an
+    edge-judged comparison.
+  - It supplies the host judge's rules at run time: `json()` for S144 (`:44`), `renderedTexts()` for S131 and S132
+    (`:48`), and `hostForms()` for S15 (`:52`).
+  - It holds an appeal and decides it after the run: `decide` and `afterFailure` (`:59-67`).
+- **The listener carries verdicts only**: `verdict`, `declined`, `unjudged`, `refereed` (`AssertListener.java:17-45`).
+- **The run-time hand-off is the smaller wiring, and the only faithful one.** A failed assert reports `verdict(false)`
+  and rethrows `AssertFailed` (`AssertRuns.java:90-98`), so the body stops at lite's first failure. A report read after
+  the run has nothing after that point. For a report to match today, lite's run would need a "do not stop" mode,
+  which is a new hook. **Under N no report is needed at all:**
+  - the harness removes the SQL-text asserts before planning (27.5), so the body never stops on them;
+  - their rows come from separate door runs after the body (27.1);
+  - the leniency rules are the hearing's existing run-time rule objects.
+
+### 27.3 Question 2: the fallback through public doors. Confirmed; no blocker, given one choice
+
+- **Our rows: confirmed, with no hook.** The probe read them 1,060 times (27.1).
+  - The observer is handed the body's own session after the body (`bodyPassed` and `bodyFailed` with `conn`;
+    `PureTestRunner.java:327-420`).
+  - The query goes through `Compiler.resolveQuery`, `Compiler.queryResolved` and `Execution.run` (public).
+  - It runs outside the body's run scope, so `RunScope` refused nothing.
+  - The door must use the lane's style: lite's REGULAR target refuses the corpus's LEGACY-mode session ("the session's
+    database does not have the settings the plan's target declares", in an earlier attempt of the probe). `Execution.run`'s style
+    overload with `PureText.UPSTREAM` runs it.
+- **Golden rows: no blocker.** I had first named a blocker here; it is withdrawn.
+  - The mirror's seeds come from the Edge's **recording** members alone: `effect`, `seed`, `seeded`, `effectRan`
+    (`Edge.java:21-38`).
+  - The test door plans the recorded texts only `if (edge.records())` (`TestDoor.java:141-148`), and the run records
+    them (`TestRunner.java:428, 460`).
+  - They judge nothing, and they are separate from the style: `ExecuteOptions.recording(edge, stores)`
+    (`ExecuteOptions.java:82-85`) takes no style, and `CompatEdge` holds no rule or style member.
+  - **The one choice:** under N the harness keeps passing its recorder (`new CompatEdge(recorder, stores)`), and the
+    referee replays the recorded seeds as it does today.
+  - The alternative needs the user's ruling, because it changes the referee's independence (decisions of 2026-09-08 and
+    2026-11-05): replay the golden on lite's own session. That is run 3's rough column: 745 MATCH, plus 7 foreign
+    goldens that do not run there.
+
+### 27.4 Question 3: assertError, the planned `if`'s asserts, and the size refusal
+
+- **assertError: typed at run time.**
+  - The expected message, line and column are plan data: `HostJudgment.AssertError(expected, line, column, caught,
+    inner)` (`HostJudgment.java:237`).
+  - The error the body raises reaches the host judge typed, through `judges.sidesFailed(each, raised)`
+    (`TestRun.java:229-253`). A raised site carries its record (`RaisedErrors.Raised`) and its position
+    (`RaisedErrors.Positioned`, `TestRun.java:264`).
+  - Under the compatibility rules the words are the hearing's `raisedWords(statement, n)` (`EdgeHearing.java:40`):
+    B1's records.
+  - A post-run judge would have them only if a report carried them. The run-time hand-off has them now.
+- **Asserts in a planned `if`: no different.** Only the taken side's statements are sent (`TestRun.java:125-140`), and
+  its asserts are verdict steps like any other. The untaken side's asserts never run, as in legend-pure.
+- **The size refusal: an exception today, not a typed record.**
+  - It is raised by the host side's shaping inside the judge's callback (`SideShapes.java:162, 262, 291`), with words
+    planned at planning (`SideShape.sizeWords`).
+  - Section 16's change makes it a typed raise, `SIZE_NOT_MULTIPLICITY` with the bound. Reach today: 0.
+
+### 27.5 Question 4: the four rewrites under N
+
+| Rewrite | What it is today | Under N |
+|---|---|---|
+| **S15**, Floats within 2 ULP | the host judge's rule from the hearing (`hostForms()`, `Equality.java:204`) | **at the harness, no planning**: the same run-time rule object |
+| **S144**, the json-simple grammar | the host judge's rule from the hearing (`json()`, `HostJudgments.java:850`) | **at the harness, no planning**: the same |
+| **S131's typed half**, an unsorted side as a multiset | the host judge's rule from the hearing (`renderedTexts()`, `HostJudgments.java:885`); the sortedness is lite's own plan data (the host judgment's pairing) | **at the harness, no planning**: the rule reads a fact lite already plans for its own judge |
+| **S137**, a relation in `assertSize`/`assertEmpty`/`assertNotEmpty` as ONE value | a typed rewrite of the body before planning (`TestPlanner.java:225-228`, the two-form `RelationCounting`); lite refuses the body at planning, so nothing runs | **a harness prepare rewrite**: the body handed to `TestExecution.planBody` rewritten, through `TypedQuery.withBody` (public, `TypedQuery.java:43`) or on the parsed AST before typing. No core hook, but it is a different side planned (27.6) |
+
+None of the four needs dropping. Only S137 needs a prepare door, the same one that removes the SQL-text asserts (H10's
+prepare/run split of `PureTestRunner`, `Prepared.withBody`).
+
+### 27.6 The added question: does any compatibility check need a DIFFERENT side planned than lite's own?
+
+Yes. Two kinds, plus the style:
+
+1. **A second query, planned by the harness through the product door after the body (the probe's way):**
+   - the SQL-text fallback's rows: the producer's query in `from(mapping, runtime)`, which the body never ran;
+   - a paged chain's population (the chain without its tail page);
+   - the 8 shapes that `from` cannot spell (27.1): a runtime with post-processors, or an inline mapping. They need
+     another query shape, or a recorded decline.
+2. **The body itself rewritten before planning (the prepare door):**
+   - S137's relation-as-one-value;
+   - the removal of each SQL-text assert the harness judges after the run;
+   - the prints, if their judging moved too: PCT channel B's 423 relation-print tests, 7 value prints, and the corpus's
+     41 `toCSV` joins. A print's argument would have to come out as data, through a rewrite returning it or a product
+     `Printed` kind. Today the `RelationTexts` facet prints it in upstream's form.
+3. **The edge's style, which is not judging and which N keeps (`withStyle(PureText.UPSTREAM)`).**
+   - The values the body computes in upstream's form are the plan style's facets and two-form kinds
+     (`PlanStyleFacets.java:19-77`). Among them: a DateTime's text, a list's text, the test-data timestamp, a
+     serialized root's envelope, `TDSNull`, the routed and activity texts, the lowering's raise, view and cast forms,
+     upstream's plan text, and the H2 session's settings.
+   - These are differently planned sides today, and N does not touch them.
+   - If "lite runs the body as lite" were read as lite's style too, each would need a different side, Java over a
+     value that reaches a side whole, or a dropped test. That reading was not measured here.
+   - The database judge's forms (`VerdictNumbers`, `VerdictWords`, `DateLiteralTexts`, the database half of
+     `RenderedTextRule`) go under rule 4 whatever B3 decides.
+
+### 27.7 Question 5: sizes, what each option deletes, and what G4's proofs need
+
+**What N deletes from core's main sources:**
+
+| File | Lines |
+|---|---|
+| `edge/SqlTextVerdicts` | 1,675 |
+| `edge/Appeals` | 401 |
+| `edge/AppealJson` | 273 |
+| `testplan/EngineTextPlanning` | 234 |
+| `edge/SqlTextReferee` | 231 |
+| `edge/Appeal` | 191 |
+| `edge/SqlReplayReferee` (the SPI; it moves into the harness) | 173 |
+| `edge/ReplayGates` (its facts move into the harness) | 121 |
+| `testplan/EngineTextGates` (minus its `siteWords` and `sizeWords`, B1's) | 110 |
+| `edge/AppealRun` | 40 |
+| **Total** | **3,449** |
+
+Also deleted:
+- `AssertVerdicts`' 15 calls into `EngineTextPlanning`/`EngineTextGates`, and the other callers (`BodyDriver` 2,
+  `TestDoor` 1, `PlanningOptions` 1, `JudgePlans` 1, `DatabaseAsserts` 1, `EdgeEngineTestText` 4);
+- the `EngineTestText` facet;
+- `HostJudgment.EdgeJudged`, and the appeal fields in the test plan (`RootLoop.Row.appeal`, the plan's appeal records);
+- `EdgeHearing`'s `judged`, `rowAppealed`, `writing`, `decide` and `afterFailure`.
+
+**The compatibility hooks that remain under N:**
+- the hearing's three host-rule objects: `json`, `renderedTexts`, `hostForms`;
+- `raisedWords` and the Edge's `siteWords` (B1);
+- the Edge's four recording members.
+
+The test plan then holds no compatibility judging.
+
+**N's work, my estimate (against B3 as planned: about 8 days, 2.2a 3.5 and 2.2b 4.5):**
+
+| Step | Days |
+|---|---|
+| N1 the prepare door (H10's `prepare`/`run` split of `PureTestRunner`) | 0.5 |
+| N2 the harness's detector and the removal of the asserts it judges (let-aware, helper-inlining over the parsed model, plan-text goldens, every assert shape today's arm takes); the probe's six shapes reach 632 of 1,146 | 2.5 to 3.5 |
+| N3 the post-run fallback: lite's text through a door, then rows (the probe's code, completed) | 0.5 |
+| N4 the referee's facts in the harness (enums from the model, the unpaged chain, temps, order and sort keys) and the 8 shapes | 1.5 |
+| N5 the product deletions and their guards (`HookRulingTest`, `PlanStyleFacetsTest`, `JavaEvalLedgerTest`, the ArchUnit entry lists, the register rows): each guard edit is the slice's to make with its dated reason | 1.5 to 2 |
+| N6 both corpus lanes and PCT re-run, the rosters re-pinned with dated reasons | 1 |
+| **Total** | **about 7.5 to 9** |
+
+**What G4's proofs need under N: nothing new.**
+- **RunScope.** The fallback's queries are door calls after the body's run: one planning call and one run call each
+  (`theDoorsOnlyCompose`). The probe made 1,069 of them from `bodyPassed`/`bodyFailed` (the 6 others were refused at typing first), and
+  `RunScope` refused none. A door call
+  *inside* the body's run would be refused (planning inside a run), and that is why the fallback is post-run.
+- **ArchUnit.**
+  - The golden's JDBC is the harness's own. The census registers core's main sources, and "the test harnesses send
+    their own".
+  - A detector on the parsed AST touches no planner package.
+  - One on the typed body is reached through `TypedQuery` alone.
+  - The platform's inliner (G½) would be a new listed entry under `PLANNER_ENTRIES_ONLY`, so N2 should inline over the
+    parsed model in the harness instead.
+
+### 27.8 The recommendation
+
+**Adopt N for B3's SQL-text half (the appeal and its referee).**
+- It is feasible through the public doors with **no new hook in core**:
+  - our rows through `Execution.run`;
+  - the golden through the harness's existing referee;
+  - the seeds through the existing recorder;
+  - the leniencies through the hearing's existing run-time rules.
+- It reproduces 95.1% of today's matched asserts in this probe, and 23 of the remaining 31 have a known harness fix.
+- It is about the same work as B3 as planned (7.5 to 9 days against 8), but the product ends with **no compatibility
+  judging in planning**: about 3,450 lines out of core's main sources, the appeal records out of the test plan, and
+  the `EngineTestText` facet gone.
+
+**Keep:**
+- the hearing's `json`/`renderedTexts`/`hostForms` (S144, S131, S15 at run time);
+- B1's raise words;
+- the Edge's recording members;
+- the edge's style for values.
+
+**Two decisions before ratifying:**
+- **(a)** the user's word that the corpus keeps its recorder and its legend-engine mirror under N (27.3);
+- **(b)** whether the 8 shapes `from` cannot spell are worth a harness query shape or a recorded decline.
+
+**One half-day follow-up first:** measure N2's reach on the 514 MATCHes the six shapes miss, with helper inlining over
+the parsed model. It is the one number that could make the harness's detector larger than estimated.

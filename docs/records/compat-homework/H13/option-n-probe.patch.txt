@@ -1,0 +1,225 @@
+diff --git a/spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java b/spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java
+index 26e85ddb..3f090bc1 100644
+--- a/spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java
++++ b/spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java
+@@ -540,8 +540,204 @@ public final class MinimalCorpus {
+         private com.legend.edge.RawLedger.Recorder.@com.legend.base.Nullable Mark mark;
+         private @com.legend.base.Nullable String currentTest;
+ 
++        // ---- B3 OPTION-N PROBE (scratch, never for merge): lite's rows for a toSQLString assert's own query, run
++        // through the product's public door on the test's own session after its body, against the golden SQL replayed
++        // on that same session (the H2 lane, where the session is the referee's engine) by the harness's own JDBC
++        private PureTests.@com.legend.base.Nullable TestCase h13Test;
++        private final List<String> h13Today = new ArrayList<>();
++
++        @Override
++        public void refereed(String name, String outcome) {
++            h13Today.add(outcome);
++        }
++
++        private void h13Probe(com.legend.exec.Sessions.Session conn) {
++            PureTests.TestCase t = h13Test;
++            if (t == null) {
++                return;
++            }
++            try {
++                if (!com.legend.testbackend.TestSessions.connectionOf(conn).getMetaData().getDatabaseProductName()
++                        .contains("H2")) {
++                    return;   // the H2 lane alone: the golden replays on lite's own H2 session (same data, H2 2.5)
++                }
++            } catch (SQLException e) {
++                return;
++            }
++            List<ValueSpecification> body = t.fn().body();
++            List<ValueSpecification> lets = new ArrayList<>();
++            Map<String, AppliedFunction> producers = new LinkedHashMap<>();
++            int n = 0;
++            for (ValueSpecification stmt : body) {
++                if (stmt instanceof AppliedFunction let && let.function().endsWith("letFunction")
++                        && let.parameters().size() == 2
++                        && let.parameters().get(0) instanceof com.legend.protocol.spec.CString name) {
++                    if (let.parameters().get(1) instanceof AppliedFunction prod
++                            && (prod.function().endsWith("toSQLString") || prod.function().endsWith("execute"))
++                            && prod.parameters().size() >= 2
++                            && prod.parameters().get(0) instanceof com.legend.protocol.spec.LambdaFunction) {
++                        producers.put(name.value(), prod);
++                    } else {
++                        lets.add(stmt);
++                    }
++                    continue;
++                }
++                if (!(stmt instanceof AppliedFunction a && a.parameters().size() >= 2
++                        && (a.function().endsWith("assertEquals") || a.function().endsWith("assertSameSQL"))
++                        && a.parameters().get(0) instanceof com.legend.protocol.spec.CString golden)) {
++                    continue;
++                }
++                ValueSpecification read = a.parameters().get(a.parameters().size() - 1);
++                if (read instanceof AppliedFunction f && f.function().endsWith("sqlRemoveFormatting")
++                        && f.parameters().size() == 1) {
++                    read = f.parameters().get(0);
++                }
++                AppliedFunction producer = read instanceof AppliedFunction direct && direct.function().endsWith("toSQLString")
++                        && direct.parameters().get(0) instanceof com.legend.protocol.spec.LambdaFunction ? direct
++                        : read instanceof com.legend.protocol.spec.Variable v ? producers.get(v.name()) : null;
++                if (producer == null) {
++                    continue;
++                }
++                com.legend.protocol.spec.LambdaFunction q = (com.legend.protocol.spec.LambdaFunction) producer.parameters().get(0);
++                if (q.body().isEmpty()) {
++                    continue;
++                }
++                n++;
++                String outcome;
++                try {
++                    // only the lets that do not read a producer's result (directly or through another such let)
++                    java.util.Set<String> out = new java.util.HashSet<>(producers.keySet());
++                    List<ValueSpecification> stmts = new ArrayList<>();
++                    for (ValueSpecification l : lets) {
++                        String text = l.toString();
++                        AppliedFunction lf = (AppliedFunction) l;
++                        String own = ((com.legend.protocol.spec.CString) lf.parameters().get(0)).value();
++                        if (out.stream().anyMatch(x -> text.contains("Variable[name=" + x + ","))) {
++                            out.add(own);
++                        } else {
++                            stmts.add(l);
++                        }
++                    }
++                    stmts.add(new AppliedFunction("from", List.of(q.body().get(q.body().size() - 1),
++                            producer.parameters().get(1), new com.legend.protocol.spec.PackageableElementPtr(RUNTIME)),
++                            List.of(), null, false, false, false));
++                    com.legend.TypedQuery typed = Compiler.queryResolved(ctx,
++                            Compiler.resolveQuery(stmts, t.imports(), ctx));
++                    com.legend.result.Collector ours = new com.legend.result.Collector();
++                    com.legend.Execution.run(typed, RUNTIME, com.legend.exec.SessionSource.given(conn),
++                            com.legend.exec.PlanSessions.of(conn), com.legend.exec.ProductRun.Establish.AS_GIVEN,
++                            java.util.Set.of(), com.legend.edge.PureText.UPSTREAM,
++                            new com.legend.result.Output.Rows(ours), 1024);
++                    List<String> oursRows = h13Rows(ours.collected().rows());
++                    List<String> goldenRows = new ArrayList<>();
++                    try (java.sql.Statement st = com.legend.testbackend.TestSessions.connectionOf(conn).createStatement();
++                            java.sql.ResultSet rs = st.executeQuery(golden.value())) {
++                        int cols = rs.getMetaData().getColumnCount();
++                        List<List<Object>> raw = new ArrayList<>();
++                        while (rs.next()) {
++                            List<Object> row = new ArrayList<>();
++                            for (int c = 1; c <= cols; c++) {
++                                row.add(rs.getObject(c));
++                            }
++                            raw.add(row);
++                        }
++                        goldenRows = h13Rows(raw);
++                    }
++                    outcome = oursRows.equals(goldenRows) ? "N_MATCH" : "N_DIFF ours=" + oursRows.size() + " golden="
++                            + goldenRows.size();
++                    // the harness's own policy (the referee's verify, on its mirror with today's recorded seeds)
++                    com.legend.result.Collector.Collected c = ours.collected();
++                    String rootFqn = typed.resultType().type() instanceof com.legend.compiler.element.type.Type.ClassType ct
++                            ? ct.fqn() : null;
++                    com.legend.testexecutionplan.TypedSide side;
++                    List<com.legend.testexecutionplan.Column> cols = new ArrayList<>();
++                    for (var col : c.columns()) {
++                        cols.add(new com.legend.testexecutionplan.Column(col.name(), col.type(), col.multiplicity()));
++                    }
++                    if (rootFqn != null && c.columns().size() == 1 && c.rows().stream().allMatch(
++                            r -> r.size() == 1 && r.get(0) instanceof String js && (js.startsWith("{") || js.startsWith("[")))) {
++                        String json = c.rows().size() == 1 && ((String) c.rows().get(0).get(0)).startsWith("[")
++                                ? (String) c.rows().get(0).get(0)
++                                : "[" + String.join(",", c.rows().stream().map(r -> (String) r.get(0)).toList()) + "]";
++                        side = new com.legend.testexecutionplan.TypedSide.Graph(json, rootFqn);
++                    } else {
++                        side = new com.legend.testexecutionplan.TypedSide.Tabular(cols, c.rows().stream()
++                                .map(com.legend.testexecutionplan.Row::new).toList(),
++                                rootFqn != null ? rootFqn : "TabularDataSet", false);
++                    }
++                    String mapFqn = producer.parameters().get(1) instanceof com.legend.protocol.spec.PackageableElementPtr mp
++                            ? mp.fullPath() : null;
++                    String pol;
++                    try {
++                        var v = java.util.Objects.requireNonNull(referee).verify(conn, golden.value(), side, mapFqn,
++                                rootFqn, new com.legend.edge.SqlReplayReferee.ReplayFacts(false, false, null),
++                                com.legend.edge.Appeal.Enums.NONE);
++                        pol = "P_" + v.outcome() + (v.detail() == null ? "" : " " + v.detail());
++                    } catch (RuntimeException ve) {
++                        pol = "P_THROW " + ve.getClass().getSimpleName() + ": " + ve.getMessage();
++                    }
++                    pol = pol.replace('\n', ' ').replace('\t', ' ');
++                    outcome += "\t" + (pol.length() > 260 ? pol.substring(0, 260) : pol) + "\tside="
++                            + (side instanceof com.legend.testexecutionplan.TypedSide.Graph ? "graph" : "tab:"
++                            + c.columns().stream().map(x -> x.name() + ":" + x.type()).toList());
++                    if (!oursRows.equals(goldenRows)) {
++                        String d = "";
++                        for (int i = 0; i < Math.min(oursRows.size(), goldenRows.size()); i++) {
++                            if (!oursRows.get(i).equals(goldenRows.get(i))) {
++                                d = oursRows.get(i) + " <> " + goldenRows.get(i);
++                                break;
++                            }
++                        }
++                        d = d.replace('\n', ' ').replace('\t', ' ');
++                        outcome += "\tfirst=" + (d.length() > 300 ? d.substring(0, 300) : d);
++                    }
++                } catch (Exception e) {
++                    outcome = "N_ERROR " + e.getClass().getSimpleName() + ": "
++                            + String.valueOf(e.getMessage()).replace('\n', ' ').replace('\t', ' ');
++                    if (outcome.length() > 200) {
++                        outcome = outcome.substring(0, 200);
++                    }
++                }
++                h13Log(t.fqn() + "\t" + n + "\t" + outcome + "\ttoday=" + h13Today);
++            }
++        }
++
++        private List<String> h13Rows(List<List<Object>> rows) {
++            List<String> out = new ArrayList<>();
++            for (List<Object> r : rows) {
++                StringBuilder b = new StringBuilder();
++                for (Object c : r) {
++                    Object v = c;
++                    if (v instanceof Number num && !(v instanceof Integer || v instanceof Long)) {
++                        v = new java.math.BigDecimal(num.toString()).stripTrailingZeros().toPlainString();
++                    } else if (v instanceof Integer || v instanceof Long) {
++                        v = v.toString();
++                    }
++                    b.append(v).append('|');
++                }
++                out.add(b.toString());
++            }
++            java.util.Collections.sort(out);
++            return out;
++        }
++
++        private void h13Log(String line) {
++            java.nio.file.Path dir = java.nio.file.Path.of("/home/user/h13log");
++            if (!java.nio.file.Files.isDirectory(dir)) {
++                return;
++            }
++            try {
++                java.nio.file.Files.writeString(dir.resolve("n_probe.tsv"), line + "\n",
++                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
++            } catch (IOException e) {
++                throw new java.io.UncheckedIOException(e);
++            }
++        }
++
+         @Override
+         public void testStarted(PureTests.TestCase t) {
++            h13Test = t;
++            h13Today.clear();
+             // the referee's declines and verdict roster name the test they
+             // belong to (display attribution only, no verdict flows through it)
+             currentTest = t.fqn();
+@@ -625,6 +821,7 @@ public final class MinimalCorpus {
+ 
+         @Override
+         public void bodyPassed(com.legend.exec.Sessions.Session conn, boolean effectful) {
++            h13Probe(conn);
+             // the session state the body produced is what the engine's run
+             // leaves too — kept whether or not the body adjudicated anything
+             if (effectful) {
+@@ -639,6 +836,7 @@ public final class MinimalCorpus {
+ 
+         @Override
+         public void bodyFailed(com.legend.exec.Sessions.Session conn, boolean effectful) {
++            h13Probe(conn);
+             if (effectful && mark != null) {
+                 try {
+                     java.util.Objects.requireNonNull(referee).rollbackAttempt(com.legend.testbackend.TestSessions.connectionOf(conn), mark);
