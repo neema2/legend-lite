@@ -53,8 +53,11 @@ In all: 142 places of upstream-specific code in the core.
 
 ## 3. The steps
 
-**Order and parallelism:** B1 and B3 run side by side, then B2 and B4 side by side, then B5. B6 runs throughout, in the
-warm-database sessions.
+**Order (the user, 2026-11-20 ~23:55: "we need to do the 'one error' work first"):** B1 (PR #130), then **BE, the
+one error model**, stacked on B1, then B3, then B2 and B4 side by side, then B5. B6 runs throughout, in the
+warm-database sessions. This session builds each step alone; tests and audits run in subagents and in the warm
+sessions, the server and cloud databases among them (~17:00, ~23:40).
+- *Until 2026-11-20 ~23:55 the order was B1 and B3 side by side; superseded.*
 - The prototypes size the whole at 4 to 5 weeks with B1 and B3 in parallel.
 - Running B2 and B4 in parallel too saves about a week. B4 touches number handling and quirks; B2 touches printing.
 
@@ -73,30 +76,94 @@ warm-database sessions.
 - **Proven by:** the H13 prototype. Every pinned message is identical on every lane, the corpus rosters are unchanged,
   plan JSON grows +0.03%, and lite's SQL gets smaller.
 - **Decision needed:** Q3.
+- **Status (2026-11-20 ~23:55):** built and twice independently reviewed; PR #130, its gates running in warm sessions.
+  The bullets above are the plan as of ~16:40; B1 as built follows the ruling of ~17:00: the plan carries the error's
+  facts and no words, lite's sentence included, and `PureMessages` stays at the edge as legend-pure's wording.
+  What B1 leaves for BE: a planned failure with no kind still carries lite's sentence in the test plan
+  (`Failure.message`), and a kinded one lite's wrapper text ("in function 'a::f': ").
 
-### B3. Test checking moves out of the planner ("option N", about 7.5 to 9 days)
+### BE. One error model (stacked on B1, before B3; about 2 to 3 days)
 
+The user's question of ~21:00 ("what is the expert way to deal with errors holistically"), the model proposed then, its
+place ruled ~23:55 ("we need to do the 'one error' work first").
+- **What changes:**
+  - **One record for every error:** a code (its kind), its typed values, where it happened, and the context it passed
+    through (the function, the inlining: today lite's wrapper text) as frames. No record holds prose: not the plan, not
+    the test plan, not an exception's fields.
+  - **Words only at the last step, from a catalog per audience:** lite's sentences (`ErrorKind`, `CompileKind`) and
+    legend-pure's/legend-engine's (`edge/PureMessages`). The hosts' tables are generated from the catalogs.
+  - **Errors render themselves** (the ~20:30 (d)): the run passes the facts; the error type words itself through the
+    catalog.
+- **What it folds in:**
+  - about 540 compiler sites that raise a plain English string get a kind and typed values (measured 2026-11-20:
+    543 string sites, against about 30 kinded ones over 20 `CompileKind`s);
+  - the 13 refusal-fragment sites the B1 audit named (MariaDb, SQLite, ClickHouse, AnsiSqlRenderer, DateCtorRule,
+    MixedEncoding) (~20:30 (a));
+  - `Failure.message` and the wrapper text in the test plan become the record;
+  - the six shapes `PureMessages.compile` walks become one; the marked-message residue (a raise's carriage off its
+    record, answered with the kind's name, pinned by `PureMessagesWordedTest`) goes;
+  - `RaisedErrors.dataError`'s product sentence.
+- **Upstream's words:** each new kind's legend-pure/legend-engine sentence read from the pinned sources. A kind with no
+  upstream sentence maps explicitly to lite's sentence in the compatibility catalog, as a ledgered row (no fallback).
+  S391 (a query accessor over a missing store) is a candidate fix here: the reference's origin becomes a frame.
+- **Proven by:** every pinned message unchanged unless listed by name for the user; a guard that the plan's and the
+  test plan's JSON hold no prose.
+
+### B3. Test checking moves out of the planner ("option N", about 7.5 to 9 days; after BE)
+
+Written down in full 2026-11-20 ~23:55 at the user's ask ("write all the B3 stuff down so we dont forget"). Every
+decision below is a ruling of the program log (`compat-program-log-2026-11-19.md`), its time given.
 - **What changes:**
   - **Lite runs every test body as lite.** The test planner plans nothing for compatibility.
+  - **The judge has ONE rulebook, lite's** (E1 withdrawn, ~21:00). No compatibility code runs during the run:
+    compatibility changes the program only at the door, before planning (E0 = A, ~19:45), and formats output after the
+    run. The verdict is lite's judge's, as for lite's own tests.
   - **The SQL-text fallback becomes harness code.** When a legend-engine SQL-text assert fails, the harness runs the
-    assert's query through lite's public `from()` door, after the body, on its own session. It then compares the rows
-    with legend-engine's golden rows from the referee, legend-engine's own H2 2.1.214.
-  - **Lite's test runner is split into two public halves**, prepare and run. The corpus harness then composes: prepare
-    → the four legend-engine test-body rewrites (S15, S131, S137, and the door's call swaps, so the corpus runs at
-    legend-engine's meaning, Q14) → run.
-  - **Compatibility's judge receives each assert's two sides as typed values at run time** and decides the verdict:
-    host judge only, rule 4.
-  - **A "too many values" error becomes catchable by `assertError`** (ruled ~03:45).
+    assert's query through lite's public `from()` door, after the body, on its own session, and compares the rows with
+    legend-engine's golden rows from the referee (legend-engine's own H2 2.1.214). The corpus keeps its recorder and
+    the referee's mirror (Q16(a), ~03:45).
+  - **Lite's test runner is split into two public halves**, prepare and run. The corpus harness composes: prepare →
+    the door's input rewrites → run. The corpus runs at legend-engine's meaning (`engine` mode, Q14, ~03:45); PCT stays
+    in Pure's meaning.
+  - **The input rewrites, before planning** (the rule, ~21:00: never put an upstream bug into lite as a function):
+    - **S137**: a call swap to plain Pure. legend-engine counts a relation as ONE value in `assertSize`, `assertEmpty`
+      and `assertNotEmpty`, so the door rewrites them to the plain-Pure form of that meaning (`assertSize($rel, n)` to
+      `assertEquals($n, 1)`, and so on); lite's own runs keep refusing the three over a relation by name.
+    - **S144**: lite stays strict JSON. The compatibility door cleans the two goldens' expected JSON literals (a stray
+      trailing quote that json-simple 1.1.1 tolerates) before planning. No test lost.
+  - **The leniencies lite added are removed: S15 (Floats within 2 ULP), S132 (its widening to every judge and to
+    rendered text) and S131 (an unsorted actual compared as a multiset).** Upstream compares Floats exactly and lists in
+    order (`EqualityUtilities.java:70-71, 165-174`). Ruled ~20:30 on the condition that no test is lost, and ~21:00
+    that each test they carried is placed against legend-engine's own answer on that database first:
+    1. switch each off on both corpus lanes (H6 measured: 0 PCT verdicts move; the corpus moves DuckDB 69 tests --
+       S131 38 decisions, S137 21, S132 14, S15 2, S144 2 -- and H2 29 -- S137 21, S131 4, S132 3, S144 2);
+    2. ask the oracle (the engine runner, legend-engine 4.145.0) for legend-engine's own answer to each moved test on
+       that database;
+    3. class each: agrees with lite / float printing (B2 may fix it) / a real difference;
+    4. bring the counts and the names to the user before anything is deleted.
+  - **Q15 = A** (~19:45): lite's own assert-failure words on every route, provided no test's verdict moves; any
+    verdict that moves comes back by name.
+  - **Q16b** (~19:45): reclaim all 7 shapes the public `from()` cannot spell today, and report if and why any cannot:
+    - the 4 post-processor runtimes by **R1** (~17:00): `runtimeWithTableReplace`, legend-engine's post-processor
+      runtime, applied on the product door, built inside B3;
+    - the 3 inline mappings through the public door.
+  - **Q16c = A** (~19:45): a named harness rule takes `assertEqualsH2Compatible`'s upgraded-H2 branch (the one lite's
+    H2 2.5 and the referee's goldens are written for); if that does not work, the helper as a native.
+  - **`assertError` catches the run's size refusals:** "too many values" (Q4, ~03:45) and "no rows" (~20:30 (c)).
 - **What it deletes from the core:** 3,449 lines (`SqlTextVerdicts`, `Appeals`, `EngineTextPlanning`, the referee
-  ledger and seed copies in `CompatEdge`, the S137 two-form), plus the appeal plumbing.
+  ledger and seed copies in `CompatEdge`, the S137 two-form), the appeal plumbing, and the S15/S131/S132 judging rules
+  once their tests are placed.
 - **Reach, measured on H2 (H13 §27–28):** the public door rebuilds 986 of today's 1,053 row matches (93.6%). Of the 67
   left:
   - 15 are plan-text asserts, routed to the referee's plan check;
-  - 7 are shapes `from()` can't spell (Q16b);
+  - 7 are shapes `from()` can't spell (Q16b: all 7 to be reclaimed);
   - 20 are other shapes, to read;
   - 32 are to read one by one.
   - Nothing ships until each is placed.
-- **Decisions needed:** E1, Q15, Q16b, Q16c.
+- **Decisions:** all ruled (E0, E1, Q15, Q16b, Q16c, R1, Q4, Q14, the leniencies). What comes back to the user: the
+  leniencies' placed counts before deletion; any verdict Q15 moves; any of the 7 that cannot be reclaimed.
+- *Superseded (kept so the history reads): until ~21:00 B3 had compatibility's judge receive each assert's two sides at
+  run time (E1), and four test-body rewrites (S15, S131, S137, the door's swaps).*
 
 ### B2. Upstream's printed text in Java (about 6 to 8 days)
 
@@ -222,6 +289,7 @@ Q10, the switch's removal date, is moot: the switch was deleted at ~07:55.
     - Cons: the confusion of ~05:00 returns. No guard can enforce what isn't written.
 - **Cost:** none to ratify. B5's guard writes it as an ArchUnit rule: the edge reaches the core through public types and
   doors only.
+- **RULED A** (the user, 2026-11-20 ~19:45: "E0 - yes").
 
 ### E1. Compatibility's judge at run time: an exception to E0 (NEW; part of B3)
 
@@ -240,6 +308,9 @@ Q10, the switch's removal date, is moot: the switch was deleted at ~07:55.
     - Cons: legend-pure stops a test at its first failed assert. Judging afterwards can't stop it, so the statements
       after a failed assert would still run, including any writes. More plumbing, about 1 to 2 days more.
 - **Cost of A:** none beyond B3, which already designs it.
+- **WITHDRAWN** (2026-11-20 ~21:00, after the user's "we want to bend the rule to not put this at the edges? ... what is
+  the expert way to do this?"): no compatibility code runs during the run; the judge has one rulebook, lite's. Neither
+  A nor B is taken: the leniencies that needed a compatibility judge are removed instead (B3).
 
 ### Q3. Error sentences on legend-pure's and legend-engine's routes (B1)
 
@@ -284,6 +355,8 @@ Q10, the switch's removal date, is moot: the switch was deleted at ~07:55.
     - Cons: words nothing reads.
 - **The principle that makes Q3-B and Q15-A consistent:** write upstream's exact words exactly where an upstream test or
   client reads them, and nowhere else.
+- **RULED A on its condition** (the user, 2026-11-20 ~19:45: "Q15 if it really does not change any tests then I am
+  fine"): any verdict that moves comes back.
 
 ### Q16b. The 7 shapes the public `from()` can't express (B3)
 
@@ -309,6 +382,9 @@ Q10, the switch's removal date, is moot: the switch was deleted at ~07:55.
     - Cons: 7 corpus tests lost.
 - **Recommendation:** spend half a day sizing A for the 3 inline mappings, which lite's model may already express
   publicly. Take C for the 4 post-processor runtimes, unless a user needs post-processors.
+- **RULED: reclaim all 7** (the user, 2026-11-20 ~19:45: "we really should make sure we can reclaim those 7, let me know
+  if/why we cant when we get there"); the 4 post-processor runtimes by R1 (~17:00: "R1 yes do the post processor in
+  product"), built inside B3.
 
 ### Q16c. legend-engine's `assertEqualsH2Compatible` (B3)
 
@@ -326,6 +402,8 @@ Q10, the switch's removal date, is moot: the switch was deleted at ~07:55.
     - Cons: punches a hole in "no raw SQL in a query" for a test helper.
   - **C. Lose them:** 199 matches fail.
 - **Recommendation: A.**
+- **RULED A, else a native** (the user, 2026-11-20 ~19:45: "Q16c - yes or overwrite as native if that does not
+  work").
 
 ### Q6. A checked graph's default violation message (B2)
 
