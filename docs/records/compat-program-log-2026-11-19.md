@@ -3125,3 +3125,5 @@ who confirms or changes phases 1-3.
   the census checks each declared set against its renderer both ways (its limit: detection from the text). Notes to
   the worker: N1, a planted two-level window chain with a list read on SQLite, red if SelectLayers lifts it; N2, a
   stale javadoc. The draws-afresh item agreed as the product track's.
+- **~00:17 UTC, the window fix's notes in** (`claude/window-list-lowering` at `bf2e9c4c3`: N1's planted SelectLayers
+  test with a non-vacuity precondition; N2's javadoc); touched lanes green. To the judges and the reviewer.
