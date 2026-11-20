@@ -20,6 +20,9 @@ you need legend-engine's answer.
 ## Where your answers can change
 
 ### 1. `substring` and `indexOf` count from 0, as Pure does
+- **Which meaning you get depends on the door your request comes through, never on a setting:** lite's own route
+  always answers Pure's; legend-engine's door answers legend-engine's, reading legend-engine's corrected-substring
+  option exactly as legend-engine does.
 - **You write**, in a query sent to the database: `$p.name->substring(1, 3)` and `$p.name->indexOf('b')` inside a
   `project`, over names `'abcdef'` and `'abc'`.
 - **legend-engine** (on H2 and DuckDB) answers `'abc'` and `2`: the database's 1-based meaning, and 0 when the text is
@@ -149,8 +152,9 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 - **Register:** S368.
 
 ### 8. legend-engine's feature flags
-- **The corrected-substring flag** changes no answer, because item 1 makes Pure's meaning the only one. It only lets the
-  door pass a `substring` call that it would otherwise refuse. **When:** stage A.
+- **The corrected-substring flag** is read at legend-engine's door only, as legend-engine reads it: without it,
+  `substring` is sent with its positions as given; with it, as legend-engine's corrected form (item 1). Lite's own
+  route ignores it: `substring` is Pure's there. **When:** stage A.
 - **The legacy null-equality flag** is refused by name. **When:** stage B.
 - **The enum push-down flag** is accepted and changes nothing, since lite always transforms enums in SQL. **When:**
   stage B.
