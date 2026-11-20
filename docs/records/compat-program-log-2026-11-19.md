@@ -3182,3 +3182,11 @@ who confirms or changes phases 1-3.
   Notes: shape note §5.6's stale cross-kind gate; PureMessages' JDK 21 comment. The fold claim, indexOf and the lean
   diff checked out. To the translator, moves to come to the user in one go before they are made; the batch PR waits for
   P2-M1, while the judges keep assembling.
+- **~02:10 UTC, the user: "I do want to run the probe / But also are we sure we need all of this at all? I thought we
+  could just run the host judge off the back of some java code that fixes up some stuff from lites typed results?"**
+  Answered: that is B3's run side and most of it; two things exceed it: (1) the fallback's planning claim, needed,
+  because about 430 corpus tests per database pass by the appeal (A2's unordered-register growth) and the referee's
+  statement must be planned (G4); (2) the corpus door and its four test-body rewrites, optional (about 25 tests; they
+  could be recorded instead). A lean B3 (host judge plus Java fix-ups at the edge, and the fallback's claim; no rewrites;
+  no presenter if the probe allows) to be sized by the judges after the batch is assembled. The verdict-wording probe
+  sent to the error-records session (PCT, corpus, edge net, the presenter's size).
