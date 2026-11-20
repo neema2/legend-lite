@@ -37,7 +37,8 @@ final class ChannelBLane {
     }
 
     /** E-5d, the PCT half: {@code suite}'s judge SQL held to its pins by the product's rule (growth fails, a shrink past
-     *  1% re-pins: bazel run //pct:update_ratchets), on the reference lane under BOTH, the pins' own mode; each suite's
+     *  1% re-pins: bazel run //pct:update_ratchets), on the reference lane under lite's own rules and BOTH, the pins' own
+     *  mode (the LITE-PCT lane's since A4 of the compatibility program, stage A ratified by the user 2026-11-19); each suite's
      *  reference test calls it after its ledger. */
     static void judgeSqlHeld(String suite) {
         if (ChannelB.measuresJudgeSql()) {
@@ -62,7 +63,9 @@ final class ChannelBLane {
 
     /** Judge {@code suite}'s outcomes on this lane against its channel A ledger and engine manifest. */
     static void judge(String suite, String tag, List<ChannelB.Outcome> out) throws IOException {
-        String lane = PctBackend.name();
+        // the LITE-PCT lane (-Dpct.channelb.rules=LITE, 2026-11-19): lite's own rules on this database, its own rows
+        // (the reference lane's pins are the compatibility rules')
+        String lane = PctBackend.name() + (ChannelB.lite() ? "-lite" : "");
         String tagged = tag + "@" + lane;
         // the universe is the same on every lane: discovery is compilation, before any database
         assertEquals(PctRatchets.measured("channel_b." + suite.toLowerCase(java.util.Locale.ROOT) + ".discovered"),

@@ -139,7 +139,10 @@ class DialectBoundaryTest {
             // 0 -> 13 (2026-11-12, phase D's D1.0): the edge's dialect registry, one arm per type as Databases has
             // 13 -> 20 (2026-11-13, phase D's O3): legend-engine's text printers, which EngineText chose per type until
             // they moved to the edge (engineText's and enginePlanText's arms)
-            "PureText.java", 20);
+            // 20 -> 13 (2026-11-19, A2 of the compatibility program, stage A ratified by the user 2026-11-19): those
+            // two switches left with the printers (legend-engine's SQL text deleted, CP-4); the registry's arms stay (a
+            // guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
+            "PureText.java", 13);
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
@@ -189,7 +192,11 @@ class DialectBoundaryTest {
             // registry, one subclass of each product dialect, the dialect source PCT, the corpus and pure/v1 plan with
             // 12 -> 17 (2026-11-13, phase D's O3): and legend-engine's text printers (EngineStyleH2, DB2, Composite),
             // which the edge's plan style hands the planner
-            "PureText.java", 17);
+            // 17 -> 12 (2026-11-19, A2 of the compatibility program, stage A ratified by the user 2026-11-19): the five
+            // printer constructions left with the printers (legend-engine's SQL text deleted, CP-4); the edge's dialect
+            // registry stays
+            // (a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
+            "PureText.java", 12);
 
     /** Lines spelling a JDBC URL, by file: only a database's connector opens it (C3b; connectors since 2026-10-16). */
     // Sessions.java 9 -> 10 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): a MariaDB connection's

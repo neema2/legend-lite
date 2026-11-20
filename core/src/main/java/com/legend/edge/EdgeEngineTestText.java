@@ -5,9 +5,6 @@ package com.legend.edge;
 
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.testexecutionplan.TypedSide;
-import com.legend.testplan.AssertVerdicts;
-import com.legend.testplan.BodyDriver;
 import com.legend.testplan.EngineTestText;
 import com.legend.testplan.EngineTextPlanning;
 
@@ -31,31 +28,9 @@ final class EdgeEngineTestText implements EngineTestText {
                 ? null : SqlTextVerdicts.plan(ask);
     }
 
-    @Override
-    public @com.legend.base.Nullable TypedSide tryArm(String name, boolean wantEqual, List<TypedSpec> args,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        return SqlTextVerdicts.tryArm(name, wantEqual, args, letPrefix, specs, env, hook);
-    }
-
-    @Override
-    public @com.legend.base.Nullable TypedSide tryArmSameSql(com.legend.compiler.spec.typed.TypedUserCall root,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        return SqlTextVerdicts.tryArmSameSql(root, letPrefix, specs, env, hook);
-    }
-
-    @Override
-    public @com.legend.base.Nullable TypedSide tryArmDualGolden(com.legend.compiler.spec.typed.TypedUserCall root,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        return SqlTextVerdicts.tryArmDualGolden(root, letPrefix, specs, env, hook);
-    }
-
-    @Override
-    public com.legend.testplan.BatchTexts batchTexts() {
-        return new SqlTextVerdicts.BatchTexts();
-    }
+    // (tryArm, tryArmSameSql, tryArmDualGolden and batchTexts, the DATABASE judge's asks of this facet: deleted with
+    // the database judge's appeal path, A4 of the compatibility program, stage A ratified by the user 2026-11-19; plan
+    // above reaches the same arms for the host judge, SqlTextVerdicts.plan)
 
     // ---- the routing gates (census C4, 2026-11-17: moved from EngineTestText's statics -- the hook bare) ----
 
@@ -159,29 +134,8 @@ final class EdgeEngineTestText implements EngineTestText {
         return what.startsWith(NotAConstant.LABEL) ? what.substring(NotAConstant.LABEL.length()) : what;
     }
 
-    /** The database judge's gate for the comparison {@code judgment}, from how the plan holds its two texts, the
-     *  edge's own record (census C3; J41, 2026-11-18: the gate itself the edge's, its two engine-text constants gone
-     *  from the product):
-     *  <ul>
-     *  <li>a golden a side the step reads: not planned -- the arm processes its golden at planning;</li>
-     *  <li>our text a side the step reads: planned under the style's text collector, the verdict row computing our
-     *  text and the equality, its actual column the appeal's text;</li>
-     *  <li>both texts constants of the plan: planned; appealed only where they differ (an appeal is heard on a failed
-     *  text alone), so two equal texts read no store.</li>
-     *  </ul> */
-    @Override
-    public com.legend.testplan.DatabaseGate gate(com.legend.testexecutionplan.Extension judgment,
-            java.util.function.Supplier<String> shape) {
-        EngineTextJudgment e = (EngineTextJudgment) judgment;
-        if (e.golden() == null) {
-            com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: " + shape.get());
-            return com.legend.testplan.DatabaseGate.UNPLANNED;
-        }
-        if (e.ours() == null) {
-            return com.legend.testplan.DatabaseGate.appealed(true);
-        }
-        return e.textEqual() ? com.legend.testplan.DatabaseGate.PLANS : com.legend.testplan.DatabaseGate.appealed(false);
-    }
+    // (gate, the database judge's gate for the comparison, J41 of 2026-11-18: deleted with the same path, A4 of the
+    // compatibility program, stage A ratified by the user 2026-11-19)
 
     /** Whether the arm claims {@code bare}: a root arm's helper ({@code assertSameSQL}, the dual golden) or an
      *  equality whose sides a producer of upstream's text feeds -- the shape's own facts, read from the typed tree;

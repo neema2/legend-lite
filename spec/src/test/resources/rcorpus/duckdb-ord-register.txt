@@ -1,3 +1,8 @@
+ordered-keys-unmappable meta::relational::tests::query::sort::testSortByLambdaColumnAddition
+ordered-keys-unmappable meta::relational::tests::query::sort::testSortByLambdaDeepOptional
+ordered-keys-unmappable meta::relational::tests::query::sort::testSortByLambdaWIthIfElseColumn
 ordered-keys-unmappable meta::relational::tests::query::sort::testSortByLambdaWithComplexExpr
+ordered-keys-unmappable meta::relational::tests::query::sort::testSortByLambdaWithIfElseValue
+ordered-keys-unmappable meta::relational::tests::tds::tdsRename::testRenameColumnsAfterGroupBy
 ordered-keys-unmappable meta::relational::tests::tds::tdsRestrict::testLowerProjectColsNotEliminatedWithSort
 ordered-keys-unmappable meta::relational::tests::tds::tdsRestrict::testRestrictWithPostProcessor

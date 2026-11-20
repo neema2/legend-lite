@@ -37,257 +37,255 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 81 | 80 | 50 | 18 | 29 |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 128 | 8 | 18 | 36 |
-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 111 | 6 | 18 | 39 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 83 | 123 | 5 | 18 | 39 |
-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 129 | 12 | 18 | 36 |
-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 108 | 7 | 18 | 37 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 146 | 65 | 0 | 18 | 45 |
-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 140 | 7 | 18 | 37 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 57 | 147 | 7 | 18 | 39 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 53 | 150 | 8 | 18 | 38 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 53 | 150 | 8 | 18 | 38 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 200 | 11 | 18 | 200 |
-| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 106 | 86 | 19 | 18 | — |
-| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 108 | 83 | 20 | 18 | — |
-| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 109 | 82 | 20 | 18 | — |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 82 | 80 | 50 | 18 | 30 |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 76 | 128 | 8 | 18 | 37 |
+| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 95 | 111 | 6 | 18 | 40 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 84 | 123 | 5 | 18 | 40 |
+| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 71 | 129 | 12 | 18 | 37 |
+| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 97 | 108 | 7 | 18 | 38 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 147 | 65 | 0 | 18 | 46 |
+| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 65 | 140 | 7 | 18 | 38 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 58 | 147 | 7 | 18 | 40 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 54 | 150 | 8 | 18 | 39 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 54 | 150 | 8 | 18 | 39 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 200 | 12 | 18 | 200 |
 
 ## Functions
 
-| function | H2 | Postgres | Snowflake | Trino | BigQuery | Databricks | DuckDb | ClickHouse | SQLite | MariaDb | MySql | MongoDb | EngineStyleH2 | EngineStyleDB2 | EngineStyleComposite |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| `AND` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `OR` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `NOT` | S | S | S | S | S | S | S | E | S | S | S | E· | S | S | S |
-| `EQUAL` | E | S | S | E | E | S | S | E | E | E | E | E· | S | S | S |
-| `NOT_EQUAL` | S | S | S | E | E | S | S | E | E | E | E | E· | S | S | S |
-| `LESS` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `LESS_EQUAL` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `GREATER` | S | S | S | S | S | S | S | S | S | S | S | E· | E | E | E |
-| `GREATER_EQUAL` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `PLUS` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `MINUS` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `TIMES` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `DIVIDE` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `MOD` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `REM` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `NEGATE` | S· | S· | S· | S· | E· | S· | S | S· | E· | E· | E· | E· | S | S | S |
-| `ABS` | S | S | S | S | S | S | S | E | S | S | S | E· | S | S | S |
-| `IS_NULL` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `IS_NOT_NULL` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `IN` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `COALESCE` | S | E | E | E | E | S | S | S | E | E | E | E· | E | E | E |
-| `PARSE_INT` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `CONCAT` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `LENGTH` | S | E | S | S | E | S | E | E | E | E | E | E· | S | E | S |
-| `UPPER` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `LOWER` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `GREATEST` | S | S | S | S | E | S | S | E | E | E | E | E· | S | S | S |
-| `LEAST` | S | S | S | S | E | S | S | E | E | E | E | E· | S | S | S |
-| `CONCAT_JOIN` | S· | S· | E· | E· | E· | E· | S· | S· | E· | E· | E· | E· | S | S | S |
-| `CONCAT_WS` | S· | S· | E· | S· | E· | S· | S· | E· | S· | S· | S· | E· | S | S | S |
-| `LIST_FILTER` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_TRANSFORM` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_CONCAT` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_GET` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_POSITION` | R | S | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_AT` | R | E· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | E | E | E |
-| `LIST_EXISTS` | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
-| `LIST_FOR_ALL` | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
-| `STRUCT_INSERT` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | R | R |
-| `UNNEST` | R | E | R | E | R | E | E | E | R | R | R | R | R | R | R |
-| `LIST_FLATTEN` | S· | R | E· | S· | R | S· | S· | S· | E· | E· | E· | E· | S | S | S |
-| `JSON_MERGE_PATCH` | R | R | E· | R | R | R | E· | R | S· | S· | S· | E· | E | E | E |
-| `SQRT` | S | E | S | S | E | S | S | S | S | S | S | E· | S | S | S |
-| `CBRT` | S | S | S | S | S | S | S | S | E | E | E | E· | E | S | S |
-| `EXP` | S | E | S | S | E | S | S | E | S | S | S | E· | S | S | S |
-| `LN` | S | E | S | S | E | S | S | E | S | S | S | E· | S | S | S |
-| `LOG10` | S | E | E | S | E | S | S | S | S | S | S | E· | S | S | S |
-| `POW` | S | E | S | S | E | S | S | S | S | S | S | E· | S | S | S |
-| `PI` | S | S | S | S | E | S | S | S | S | E | E | E· | S | S | S |
-| `SIN` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `COS` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `TAN` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `ASIN` | E | E | E | S | S | S | E | S | E | E | E | E· | S | S | S |
-| `ACOS` | E | E | E | S | S | S | E | S | E | E | E | E· | S | S | S |
-| `ATAN` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `ATAN2` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `SINH` | S | S | S | S | S | S | S | S | S | E | E | E· | S | S | S |
-| `COSH` | S | S | S | S | S | S | S | S | S | E | E | E· | S | S | S |
-| `TANH` | S | S | S | S | S | S | S | E | S | E | E | E· | S | S | S |
-| `CEILING` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `FLOOR` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `ROUND` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `SIGN` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `XOR` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `BIT_AND` | R | E | S | S | S | E | S | S | S | E | E | E· | R | R | R |
-| `BIT_OR` | R | E | S | S | S | E | S | S | S | E | E | E· | R | R | R |
-| `BIT_XOR` | R | E | S | S | S | E | S | S | E | E | E | E· | R | R | R |
-| `BIT_SHIFT_LEFT` | R | E | S | S | S | E | S | S | S | E | E | E· | R | R | R |
-| `BIT_SHIFT_RIGHT` | R | E | S | S | E | E | S | S | S | E | E | E· | R | R | R |
-| `BIT_NOT` | R | E | S | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `REGEXP_EXTRACT` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `REGEXP_EXTRACT_ALL` | S | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `REGEXP_REPLACE` | S | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `REGEXP_FULL_MATCH` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `IS_NUMERIC` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | R | R |
-| `MAP_FROM_LISTS` | S | E | E | S | E | S | S | S | E | E | E | E· | S | S | S |
-| `MAP_FROM_ENTRIES` | S | E | E | S | E | S | S | E | E | E | E | E· | S | S | S |
-| `MAP_EMPTY` | R | E | S | S | E | S | E | S | S | S | S | E· | E | E | E |
-| `MAP_EXTRACT` | S | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `MAP_KEYS` | S | E | S | S | E | S | S | S | E | E | E | E· | S | S | S |
-| `MAP_VALUES` | S | E | E | S | E | S | S | S | E | E | E | E· | S | S | S |
-| `MAP_CONCAT` | S | E | E | S | E | E | S | S | E | S | S | E· | S | S | S |
-| `SUBSTRING` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `STRPOS` | S | S | S | S | S | S | S | E | S | S | S | E· | S | S | S |
-| `STARTS_WITH` | E | S | S | S | S | S | S | S | E | E | E | E· | S | S | S |
-| `ENDS_WITH` | E | E | S | E | S | S | S | S | E | E | E | E· | S | S | S |
-| `MATCHES` | S | E | E | S | S | S | S | S | E | E | E | E· | S | S | S |
-| `LEFT` | S | S | S | E | E | S | S | S | E | E | E | E· | S | E | E |
-| `RIGHT` | S | S | S | E | E | S | S | S | E | E | E | E· | S | E | E |
-| `LPAD` | E | E | E | E | E | E | E | E | E | E | E | E· | E | S | S |
-| `RPAD` | E | E | E | E | E | E | E | E | E | E | E | E· | E | S | S |
-| `TRIM` | S | S | S | E | S | E | S | E | S | E | E | E· | E | E | E |
-| `LTRIM` | S | S | S | E | S | E | S | E | S | E | E | E· | E | S | S |
-| `RTRIM` | S | S | S | E | S | E | S | E | S | E | E | E· | E | S | S |
-| `REPLACE` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `SPLIT` | S | E | E | S | S | E | S | E | E | E | E | E· | S | S | S |
-| `SPLIT_PART` | E | S | S | E | E | S | S | E | E | E | E | E· | S | S | S |
-| `TRANSLATE` | E· | S· | S· | S· | S· | S· | S· | S· | R | R | R | R | R | R | R |
-| `PURE_SPLIT_PART` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `REVERSE_STRING` | S | S | S | S | S | S | S | S | S | S | S | E· | S | S | S |
-| `ASCII_CODE` | S | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
-| `CHR` | S | E | S | S | S | S | E | S | S | E | E | E· | S | S | S |
-| `UC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `LC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `BINARY_COLLATE` | E· | E· | R | R | R | R | E· | R | E· | R | R | R | E | R | R |
-| `ENCODE_BASE64` | R | E | S | E | E | E | E | S | E | E | E | E· | E | E | E |
-| `LEVENSHTEIN` | S | E | S | S | S | S | S | E | E | E | E | E· | S | S | S |
-| `GUID` | E | E | S | E | S | S | E | E | E | E | E | E· | E | E | E |
-| `FORMAT` | E | E | E | S | E | E | S | E | E | E | E | E· | S | S | S |
-| `HASH` | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
-| `MD5` | E | S | S | E | E | S | S | E | E | S | S | R | E | E | E |
-| `SHA1` | E | E | S | E | E | S | S | E | E | S | S | R | E | E | E |
-| `SHA256` | E | E | E | E | E | E | S | E | E | E | E | R | E | E | E |
-| `RANDOM` | S· | S· | E· | S· | S· | S· | S· | S· | E· | S· | S· | E· | S | S | S |
-| `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `TODAY` | S· | S· | S· | S· | S· | S· | S· | R | E· | S· | S· | E· | E | E | E |
-| `NOW` | S· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | E· | S | S | S |
-| `DATE_TRUNC_DAY` | E | E | E | E | E | E | E | S | S | S | S | E· | E | E | E |
-| `MAKE_DATE` | S | E | S | E | E | S | S | S | E | E | E | E· | S | S | S |
-| `MAKE_TIMESTAMP` | R | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `DATE_TRUNC` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `ADD_INTERVAL` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `DATE_DIFF` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `TIME_BUCKET` | R | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `TIMEZONE` | E | S | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `DATE_AT_TIME` | S· | S· | S· | E· | S· | R | S· | R | E· | S· | S· | R | R | R | R |
-| `EPOCH_NS` | R | R | R | R | R | R | S· | R | R | R | R | R | R | R | R |
-| `FROM_EPOCH_NS` | R | R | R | R | R | R | S· | R | R | R | R | R | R | R | R |
-| `ADD_INTERVAL_TEMPORAL` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `EPOCH_SECONDS` | E· | E· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | S | S | S |
-| `EPOCH_MS` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `FROM_EPOCH_SECONDS` | S· | E· | E· | E· | E· | S· | S· | E· | E· | E· | E· | E· | S | S | S |
-| `FROM_EPOCH_MS` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `DAYNAME` | S· | E· | E· | E· | E· | E· | S· | E· | E· | S· | S· | E· | S | S | S |
-| `MONTHNAME` | S· | E· | E· | E· | E· | E· | S· | E· | E· | S· | S· | E· | S | S | S |
-| `COT` | S | S | S | E | S | S | S | E | S | S | S | E· | S | S | S |
-| `RADIANS` | S | S | S | S | E | S | S | S | S | S | S | E· | S | S | S |
-| `DEGREES` | S | S | S | S | E | S | S | S | S | S | S | E· | S | S | S |
-| `INT_DIVIDE` | E | E | E | E | E | S | E | E | E | E | E | E· | E | E | E |
-| `REPEAT_STR` | S | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
-| `JARO_WINKLER` | S | E | E | E | R | E | S | S | E | E | E | E· | S | S | S |
-| `DECODE_BASE64` | R | E | S | E | E | E | E | S | E | E | E | E· | E | E | E |
-| `CURRENT_USER_FN` | S | S | S | S | S | S | S | S | R | E | E | R | S | S | S |
-| `LIST_LENGTH` | E | E | S | E | S | E | S | E | S | S | S | E· | S | S | S |
-| `LIST_ZIP` | R | R | R | E· | R | R | S· | E· | E· | E· | E· | E· | E | E | E |
-| `LIST_DISTINCT` | R | E· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | E | E | E |
-| `LIST_APPEND` | R | E | S | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_SUM` | R | E· | E | E | E· | E | S | E | E· | E· | E· | E· | E | E | E |
-| `LIST_MIN` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_MAX` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_AVG` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_MEDIAN` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_MODE` | R | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `LIST_SORT` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_SORT_DESC` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_TAIL` | R | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `LIST_INIT` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `RANGE_FN` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_PRODUCT` | R | R | E· | E· | R | E· | E· | E· | E· | R | R | E· | E | E | E |
-| `LIST_REDUCE` | R | E | E | E | R | E | S | E | E | E | E | E· | E | E | E |
-| `LIST_SLICE` | R | E | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `REPEAT_VALUE` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `LIST_BOOL_AND` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `LIST_BOOL_OR` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `IS_DISTINCT_FROM` | E· | E | E· | E· | E· | E· | E· | E· | E | E· | E· | E· | E | E | E |
-| `ALL_DISTINCT` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | R | R | R |
-| `NULL_SAFE_EQUAL` | E | E | E | E | E | E | E | E | E | S | S | E· | E | E | E |
-| `NULL_SAFE_NOT_EQUAL` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `STRFTIME` | S | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `STRPTIME` | S· | R | E· | E· | E· | E· | S· | E· | R | R | R | E· | E | E | E |
-| `PARSE_DATE` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `LIST_REVERSE` | R | E | S | S | S | S | S | S | E | E | E | E· | E | E | E |
-| `TYPEOF` | R | R | E· | S· | R | S· | S· | E· | R | R | R | E· | E | E | E |
-| `ROUND_HALF_UP` | S | E | E | E | E | S | S | E | E | E | E | E· | S | S | S |
-| `ERROR` | E | E | E | E | E | E | E | E | E | E | E | E· | E | E | E |
-| `FLOOR_RAW` | S | S | S | S | S | E | S | S | S | S | S | E· | S | S | S |
-| `TO_VARIANT` | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
-| `BOOL_TO_TEXT` | E | E | E | E | E | E | E | S | E | E | E | E· | E | E | E |
-| `DECIMAL_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `FLOAT_SHORTEST_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `FLOAT_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `DATETIME_TO_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `DATETIME_CANON_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `CELL_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `VARIANT_ELEMENTS` | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
-| `VARIANT_GET` | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
-| `JSON_TYPE` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `JSON_ARRAY_LENGTH` | S· | S· | S· | S· | E· | E· | S· | S· | S· | S· | S· | E· | S | S | S |
-| `JSON_PRETTY` | S· | S· | R | R | R | R | S· | R | S· | S· | S· | R | S | S | S |
+| function | H2 | Postgres | Snowflake | Trino | BigQuery | Databricks | DuckDb | ClickHouse | SQLite | MariaDb | MySql | MongoDb |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `AND` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `OR` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `NOT` | S | S | S | S | S | S | S | E | S | S | S | E· |
+| `EQUAL` | E | S | S | E | E | S | S | E | E | E | E | E· |
+| `NOT_EQUAL` | S | S | S | E | E | S | S | E | E | E | E | E· |
+| `LESS` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `LESS_EQUAL` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `GREATER` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `GREATER_EQUAL` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `PLUS` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `MINUS` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `TIMES` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `DIVIDE` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `MOD` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `REM` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `NEGATE` | S· | S· | S· | S· | E· | S· | S | S· | E· | E· | E· | E· |
+| `ABS` | S | S | S | S | S | S | S | E | S | S | S | E· |
+| `IS_NULL` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `IS_NOT_NULL` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `IN` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `COALESCE` | S | E | E | E | E | S | S | S | E | E | E | E· |
+| `PARSE_INT` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `CONCAT` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `LENGTH` | S | E | S | S | E | S | E | E | E | E | E | E· |
+| `UPPER` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `LOWER` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `GREATEST` | S | S | S | S | E | S | S | E | E | E | E | E· |
+| `LEAST` | S | S | S | S | E | S | S | E | E | E | E | E· |
+| `CONCAT_JOIN` | S· | S· | E· | E· | E· | E· | S· | S· | E· | E· | E· | E· |
+| `CONCAT_WS` | S· | S· | E· | S· | E· | S· | S· | E· | S· | S· | S· | E· |
+| `LIST_FILTER` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_TRANSFORM` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_CONCAT` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_GET` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_POSITION` | R | S | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_AT` | R | E· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· |
+| `LIST_EXISTS` | R | E | E | E | E | E | E | E | E | E | E | E· |
+| `LIST_FOR_ALL` | R | E | E | E | E | E | E | E | E | E | E | E· |
+| `STRUCT_INSERT` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `UNNEST` | R | E | R | E | R | E | E | E | R | R | R | R |
+| `LIST_FLATTEN` | S· | R | E· | S· | R | S· | S· | S· | E· | E· | E· | E· |
+| `JSON_MERGE_PATCH` | R | R | E· | R | R | R | E· | R | S· | S· | S· | E· |
+| `SQRT` | S | E | S | S | E | S | S | S | S | S | S | E· |
+| `CBRT` | S | S | S | S | S | S | S | S | E | E | E | E· |
+| `EXP` | S | E | S | S | E | S | S | E | S | S | S | E· |
+| `LN` | S | E | S | S | E | S | S | E | S | S | S | E· |
+| `LOG10` | S | E | E | S | E | S | S | S | S | S | S | E· |
+| `POW` | S | E | S | S | E | S | S | S | S | S | S | E· |
+| `PI` | S | S | S | S | E | S | S | S | S | E | E | E· |
+| `SIN` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `COS` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `TAN` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `ASIN` | E | E | E | S | S | S | E | S | E | E | E | E· |
+| `ACOS` | E | E | E | S | S | S | E | S | E | E | E | E· |
+| `ATAN` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `ATAN2` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `SINH` | S | S | S | S | S | S | S | S | S | E | E | E· |
+| `COSH` | S | S | S | S | S | S | S | S | S | E | E | E· |
+| `TANH` | S | S | S | S | S | S | S | E | S | E | E | E· |
+| `CEILING` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `FLOOR` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `ROUND` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `SIGN` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `XOR` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `BIT_AND` | R | E | S | S | S | E | S | S | S | E | E | E· |
+| `BIT_OR` | R | E | S | S | S | E | S | S | S | E | E | E· |
+| `BIT_XOR` | R | E | S | S | S | E | S | S | E | E | E | E· |
+| `BIT_SHIFT_LEFT` | R | E | S | S | S | E | S | S | S | E | E | E· |
+| `BIT_SHIFT_RIGHT` | R | E | S | S | E | E | S | S | S | E | E | E· |
+| `BIT_NOT` | R | E | S | E | E | E | E | E | E | E | E | E· |
+| `REGEXP_EXTRACT` | E | E | E | E | E | E | S | E | E | E | E | E· |
+| `REGEXP_EXTRACT_ALL` | S | E | E | E | E | E | S | E | E | E | E | E· |
+| `REGEXP_REPLACE` | S | E | E | E | E | E | S | E | E | E | E | E· |
+| `REGEXP_FULL_MATCH` | E | E | E | E | E | E | S | E | E | E | E | E· |
+| `IS_NUMERIC` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `MAP_FROM_LISTS` | S | E | E | S | E | S | S | S | E | E | E | E· |
+| `MAP_FROM_ENTRIES` | S | E | E | S | E | S | S | E | E | E | E | E· |
+| `MAP_EMPTY` | R | E | S | S | E | S | E | S | S | S | S | E· |
+| `MAP_EXTRACT` | S | E | E | E | E | E | S | E | E | E | E | E· |
+| `MAP_KEYS` | S | E | S | S | E | S | S | S | E | E | E | E· |
+| `MAP_VALUES` | S | E | E | S | E | S | S | S | E | E | E | E· |
+| `MAP_CONCAT` | S | E | E | S | E | E | S | S | E | S | S | E· |
+| `SUBSTRING` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `SUBSTRING_AS_GIVEN` | S· | S· | S· | S· | S· | S· | S· | S· | S· | S· | S· | R |
+| `STRPOS` | S | S | S | S | S | S | S | E | S | S | S | E· |
+| `STARTS_WITH` | E | S | S | S | S | S | S | S | E | E | E | E· |
+| `ENDS_WITH` | E | E | S | E | S | S | S | S | E | E | E | E· |
+| `MATCHES` | S | E | E | S | S | S | S | S | E | E | E | E· |
+| `LEFT` | S | S | S | E | E | S | S | S | E | E | E | E· |
+| `RIGHT` | S | S | S | E | E | S | S | S | E | E | E | E· |
+| `LPAD` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `RPAD` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `TRIM` | S | S | S | E | S | E | S | E | S | E | E | E· |
+| `LTRIM` | S | S | S | E | S | E | S | E | S | E | E | E· |
+| `RTRIM` | S | S | S | E | S | E | S | E | S | E | E | E· |
+| `REPLACE` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `SPLIT` | S | E | E | S | S | E | S | E | E | E | E | E· |
+| `SPLIT_PART` | E | S | S | E | E | S | S | E | E | E | E | E· |
+| `TRANSLATE` | E· | S· | S· | S· | S· | S· | S· | S· | R | R | R | R |
+| `PURE_SPLIT_PART` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `REVERSE_STRING` | S | S | S | S | S | S | S | S | S | S | S | E· |
+| `ASCII_CODE` | S | S | S | E | S | S | S | E | E | E | E | E· |
+| `CHR` | S | E | S | S | S | S | E | S | S | E | E | E· |
+| `UC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `LC_FIRST` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `BINARY_COLLATE` | E· | E· | R | R | R | R | E· | R | E· | R | R | R |
+| `ENCODE_BASE64` | R | E | S | E | E | E | E | S | E | E | E | E· |
+| `LEVENSHTEIN` | S | E | S | S | S | S | S | E | E | E | E | E· |
+| `GUID` | E | E | S | E | S | S | E | E | E | E | E | E· |
+| `FORMAT` | E | E | E | S | E | E | S | E | E | E | E | E· |
+| `HASH` | R | E | E | E | E | E | E | E | E | E | E | E· |
+| `MD5` | E | S | S | E | E | S | S | E | E | S | S | R |
+| `SHA1` | E | E | S | E | E | S | S | E | E | S | S | R |
+| `SHA256` | E | E | E | E | E | E | S | E | E | E | E | R |
+| `RANDOM` | S· | S· | E· | S· | S· | S· | S· | S· | E· | S· | S· | E· |
+| `EXTRACT` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `TODAY` | S· | S· | S· | S· | S· | S· | S· | R | E· | S· | S· | E· |
+| `NOW` | S· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· | E· |
+| `DATE_TRUNC_DAY` | E | E | E | E | E | E | E | S | S | S | S | E· |
+| `MAKE_DATE` | S | E | S | E | E | S | S | S | E | E | E | E· |
+| `MAKE_TIMESTAMP` | R | E | E | E | E | E | E | E | E | E | E | E· |
+| `DATE_TRUNC` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `ADD_INTERVAL` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `DATE_DIFF` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `TIME_BUCKET` | R | E | E | E | E | E | E | E | E | E | E | E· |
+| `TIMEZONE` | E | S | E | E | E | E | S | E | E | E | E | E· |
+| `DATE_AT_TIME` | S· | S· | S· | E· | S· | R | S· | R | E· | S· | S· | R |
+| `EPOCH_NS` | R | R | R | R | R | R | S· | R | R | R | R | R |
+| `FROM_EPOCH_NS` | R | R | R | R | R | R | S· | R | R | R | R | R |
+| `ADD_INTERVAL_TEMPORAL` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `EPOCH_SECONDS` | E· | E· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· |
+| `EPOCH_MS` | E | E | E | E | E | E | S | E | E | E | E | E· |
+| `FROM_EPOCH_SECONDS` | S· | E· | E· | E· | E· | S· | S· | E· | E· | E· | E· | E· |
+| `FROM_EPOCH_MS` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `DAYNAME` | S· | E· | E· | E· | E· | E· | S· | E· | E· | S· | S· | E· |
+| `MONTHNAME` | S· | E· | E· | E· | E· | E· | S· | E· | E· | S· | S· | E· |
+| `COT` | S | S | S | E | S | S | S | E | S | S | S | E· |
+| `RADIANS` | S | S | S | S | E | S | S | S | S | S | S | E· |
+| `DEGREES` | S | S | S | S | E | S | S | S | S | S | S | E· |
+| `INT_DIVIDE` | E | E | E | E | E | S | E | E | E | E | E | E· |
+| `REPEAT_STR` | S | S | S | E | S | S | S | E | E | E | E | E· |
+| `JARO_WINKLER` | S | E | E | E | R | E | S | S | E | E | E | E· |
+| `DECODE_BASE64` | R | E | S | E | E | E | E | S | E | E | E | E· |
+| `CURRENT_USER_FN` | S | S | S | S | S | S | S | S | R | E | E | R |
+| `LIST_LENGTH` | E | E | S | E | S | E | S | E | S | S | S | E· |
+| `LIST_ZIP` | R | R | R | E· | R | R | S· | E· | E· | E· | E· | E· |
+| `LIST_DISTINCT` | R | E· | E· | E· | E· | E· | S· | E· | E· | E· | E· | E· |
+| `LIST_APPEND` | R | E | S | E | E | E | S | E | E | E | E | E· |
+| `LIST_SUM` | R | E· | E | E | E· | E | S | E | E· | E· | E· | E· |
+| `LIST_MIN` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_MAX` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_AVG` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_MEDIAN` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_MODE` | R | E | E | E | E | E | E | E | E | E | E | E· |
+| `LIST_SORT` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_SORT_DESC` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_TAIL` | R | E | E | E | E | E | E | E | E | E | E | E· |
+| `LIST_INIT` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `RANGE_FN` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `LIST_PRODUCT` | R | R | E· | E· | R | E· | E· | E· | E· | R | R | E· |
+| `LIST_REDUCE` | R | E | E | E | R | E | S | E | E | E | E | E· |
+| `LIST_SLICE` | R | E | E | E | E | E | S | E | E | E | E | E· |
+| `REPEAT_VALUE` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `LIST_BOOL_AND` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `LIST_BOOL_OR` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `IS_DISTINCT_FROM` | E· | E | E· | E· | E· | E· | E· | E· | E | E· | E· | E· |
+| `ALL_DISTINCT` | R | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `NULL_SAFE_EQUAL` | E | E | E | E | E | E | E | E | E | S | S | E· |
+| `NULL_SAFE_NOT_EQUAL` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `STRFTIME` | S | E | E | E | E | E | E | E | E | E | E | E· |
+| `STRPTIME` | S· | R | E· | E· | E· | E· | S· | E· | R | R | R | E· |
+| `PARSE_DATE` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `LIST_REVERSE` | R | E | S | S | S | S | S | S | E | E | E | E· |
+| `TYPEOF` | R | R | E· | S· | R | S· | S· | E· | R | R | R | E· |
+| `ROUND_HALF_UP` | S | E | E | E | E | S | S | E | E | E | E | E· |
+| `ERROR` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `FLOOR_RAW` | S | S | S | S | S | E | S | S | S | S | S | E· |
+| `TO_VARIANT` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `BOOL_TO_TEXT` | E | E | E | E | E | E | E | S | E | E | E | E· |
+| `DECIMAL_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `FLOAT_SHORTEST_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `FLOAT_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· |
+| `DATETIME_TO_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `DATETIME_CANON_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `CELL_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `VARIANT_ELEMENTS` | R | E | E | E | E | E | E | E | E | E | E | E· |
+| `VARIANT_GET` | E | E | E | E | E | E | E | E | E | E | E | E· |
+| `JSON_TYPE` | E | E | E | E | E | E | S | E | E | E | E | E· |
+| `JSON_ARRAY_LENGTH` | S· | S· | S· | S· | E· | E· | S· | S· | S· | S· | S· | E· |
+| `JSON_PRETTY` | S· | S· | R | R | R | R | S· | R | S· | S· | S· | R |
 
 ## Aggregates
 
-| aggregate | H2 | Postgres | Snowflake | Trino | BigQuery | Databricks | DuckDb | ClickHouse | SQLite | MariaDb | MySql | MongoDb | EngineStyleH2 | EngineStyleDB2 | EngineStyleComposite |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| `SUM` | E | S | S | S | S | S | S | E | S | S | S | E· | S | S | S |
-| `COUNT` | E | S | S | S | S | S | S | E | S | S | S | E· | S | S | S |
-| `AVG` | E | S | E | S | S | S | S | E | S | E | E | E· | S | S | S |
-| `MIN` | E | E | S | S | S | S | S | E | S | S | S | E· | S | S | S |
-| `MAX` | E | E | S | S | S | S | S | E | S | S | S | E· | S | S | S |
-| `ANY_VALUE` | E· | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· | E | E | E |
-| `STDDEV_SAMP` | E | S | S | S | S | S | S | E | E | E | E | E· | S | S | S |
-| `STDDEV_POP` | E | S | S | S | S | S | S | E | E | E | E | E· | S | S | S |
-| `VAR_SAMP` | E | S | S | S | S | S | S | E | E | E | E | E· | S | S | S |
-| `VAR_POP` | E | S | S | S | S | S | S | E | E | E | E | E· | S | S | S |
-| `MEDIAN` | E | E | E | E | E | S | S | E | E | E | E | E· | S | S | S |
-| `MODE` | E | E | S | E | E | S | S | E | E | E | E | E· | S | S | S |
-| `STRING_AGG` | E | S | E | E | E | E | S | E | E | E | E | E· | E | E | E |
-| `LIST` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `QUANTILE_CONT` | E | E | E | E | E | E | S· | E | E | E | E | E· | E | E | E |
-| `QUANTILE_DISC` | E | E | E | E | E | E | S· | E | E | E | E | E· | E | E | E |
-| `CORR` | E | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
-| `COVAR_SAMP` | E | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
-| `COVAR_POP` | E | S | S | E | S | S | S | E | E | E | E | E· | S | S | S |
-| `ARG_MAX` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `ARG_MIN` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
-| `WAVG` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `HASH_LIST` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `BOOL_AND` | E· | S· | S· | S· | E· | S· | S· | E· | E· | E· | E· | E· | S | S | S |
-| `BOOL_OR` | E· | S· | S· | S· | E· | S· | S· | E· | E· | E· | E· | E· | S | S | S |
-| `IS_DISTINCT_MARK` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `UNIQUE_VALUE_ONLY` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `VARIANCE` | E· | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· | S | S | S |
-| `STDDEV` | E· | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· | S | S | S |
-| `ROW_NUMBER` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `RANK` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `DENSE_RANK` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `PERCENT_RANK` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `CUME_DIST` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `NTILE` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `LAG` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `LEAD` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `FIRST_VALUE` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `LAST_VALUE` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `NTH_VALUE` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
+| aggregate | H2 | Postgres | Snowflake | Trino | BigQuery | Databricks | DuckDb | ClickHouse | SQLite | MariaDb | MySql | MongoDb |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `SUM` | E | S | S | S | S | S | S | E | S | S | S | E· |
+| `COUNT` | E | S | S | S | S | S | S | E | S | S | S | E· |
+| `AVG` | E | S | E | S | S | S | S | E | S | E | E | E· |
+| `MIN` | E | E | S | S | S | S | S | E | S | S | S | E· |
+| `MAX` | E | E | S | S | S | S | S | E | S | S | S | E· |
+| `ANY_VALUE` | E· | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· |
+| `STDDEV_SAMP` | E | S | S | S | S | S | S | E | E | E | E | E· |
+| `STDDEV_POP` | E | S | S | S | S | S | S | E | E | E | E | E· |
+| `VAR_SAMP` | E | S | S | S | S | S | S | E | E | E | E | E· |
+| `VAR_POP` | E | S | S | S | S | S | S | E | E | E | E | E· |
+| `MEDIAN` | E | E | E | E | E | S | S | E | E | E | E | E· |
+| `MODE` | E | E | S | E | E | S | S | E | E | E | E | E· |
+| `STRING_AGG` | E | S | E | E | E | E | S | E | E | E | E | E· |
+| `LIST` | E | E | E | E | E | E | S | E | E | E | E | E· |
+| `QUANTILE_CONT` | E | E | E | E | E | E | S· | E | E | E | E | E· |
+| `QUANTILE_DISC` | E | E | E | E | E | E | S· | E | E | E | E | E· |
+| `CORR` | E | S | S | E | S | S | S | E | E | E | E | E· |
+| `COVAR_SAMP` | E | S | S | E | S | S | S | E | E | E | E | E· |
+| `COVAR_POP` | E | S | S | E | S | S | S | E | E | E | E | E· |
+| `ARG_MAX` | E | E | E | E | E | E | S | E | E | E | E | E· |
+| `ARG_MIN` | E | E | E | E | E | E | S | E | E | E | E | E· |
+| `WAVG` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `HASH_LIST` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `BOOL_AND` | E· | S· | S· | S· | E· | S· | S· | E· | E· | E· | E· | E· |
+| `BOOL_OR` | E· | S· | S· | S· | E· | S· | S· | E· | E· | E· | E· | E· |
+| `IS_DISTINCT_MARK` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `UNIQUE_VALUE_ONLY` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `VARIANCE` | E· | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· |
+| `STDDEV` | E· | S· | S· | S· | S· | S· | S· | E· | E· | E· | E· | E· |
+| `ROW_NUMBER` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `RANK` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `DENSE_RANK` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `PERCENT_RANK` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `CUME_DIST` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `NTILE` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `LAG` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `LEAD` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `FIRST_VALUE` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `LAST_VALUE` | – | – | – | – | – | – | – | – | – | – | – | – |
+| `NTH_VALUE` | – | – | – | – | – | – | – | – | – | – | – | – |

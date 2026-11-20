@@ -55,7 +55,7 @@ public final class TestRunner {
         // both judges isolated: each plan its own run, then compared (IsolatedRun)
         if (plan.steps().size() == 1 && plan.steps().get(0) instanceof com.legend.testexecutionplan.TestPlan.Isolated pair) {
             IsolatedRun.run(pair, sessions, (p, s, l, a) -> run(p, s, stores, edge, l, edgeRun, a,
-                    com.legend.exec.StatementOrigin.OTHER, execution), callers, answer, edgeRun.wordsAlike());
+                    com.legend.exec.StatementOrigin.OTHER, execution), callers, answer);
             return;
         }
         // the caller's session source is called back before the plan's run opens: it plans nothing
@@ -85,7 +85,7 @@ public final class TestRunner {
             // both judges isolated on the caller's own session: read-only plans alone (IsolatedRun's refusal)
             lites(answer);
             IsolatedRun.run(pair, com.legend.exec.SessionSource.given(session), (p, s, l, a) -> run(p, s, stores, edge,
-                    l, edgeRun, a, origin, execution), callers, answer, edgeRun.wordsAlike());
+                    l, edgeRun, a, origin, execution), callers, answer);
             return;
         }
         lites(answer);
@@ -164,8 +164,6 @@ public final class TestRunner {
         private final @Nullable ResultSink early;
         /** The database judge's segments, read from the plan (step 5, 2026-11-08), or null under another judge. */
         private final com.legend.testexec.RootLoops.@Nullable Runs databaseRuns;
-        /** A database root's failed row's appeal, by its number in the plan (step 8b, 2026-11-08). */
-        private final java.util.function.IntFunction<com.legend.testexec.RootLoops.RowAppeal> rowAppeals;
         /** The verdict steps whose engine-text check reads OUR text as a side the step runs, by the origin the walk's
          *  arm marked for it (M10c item 8). */
         private final java.util.Map<Integer, com.legend.exec.StatementOrigin> deferredTextOrigins;
@@ -203,8 +201,8 @@ public final class TestRunner {
             TestPlan.Judge judge = planned.judge();
             this.databaseRuns = judge == TestPlan.Judge.DATABASE
                     ? new com.legend.testexec.RootLoops.Runs(planned.steps()) : null;
-            // a database row's appeal heard by its number, the plan's data (step 8b): the texts its row compared recorded
-            this.rowAppeals = n -> row -> run.hearing().rowAppealed(n, row, run.judgingMessaged());
+            // (a database row's appeal heard by its number, step 8b: deleted with the database judge's appeal path,
+            // A4 of the compatibility program, stage A ratified by the user 2026-11-19)
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<TestPlan.TestStep> steps = planned.steps();
             for (int i = 0; i < steps.size(); i++) {
@@ -275,8 +273,17 @@ public final class TestRunner {
             // the program's run: a row the loop planned ahead is read through the program's reader, THE WALL)
             com.legend.testexec.RootLoops.Run run = runs.of(verdict);
             run.received(verdict, row);
-            if (runs.closes(verdict)) {
-                run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing().hostForms().words()), rowAppeals, this.run);
+            // judged at the segment's last verdict -- or at once where one of its fused statements was rejected: its
+            // later groups are never sent, the roots with rows are judged and the first without one raises the
+            // rejection (the compatibility owner's (b1), 2026-11-19)
+            if (runs.closes(verdict) || run.rejected()) {
+                run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing().hostForms().words()));
+                // where the judged segment raised none, the held rejection fails the body with the database's error (PR
+                // #127's review, 2026-11-19, the owner's ruling) -- not reached by any plan: judge walks every root and
+                // every step of each, a failure thrown at its root's end, so it returns only where every Row read its
+                // row; a rejected group's verdicts are members (received refuses any other), and a member read with no
+                // row raises the held rejection first
+                run.raiseRejection();
             }
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }

@@ -7,7 +7,6 @@ import com.legend.base.Nullable;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.Extension;
 import com.legend.testexecutionplan.Failure;
-import com.legend.testexecutionplan.RootLoop;
 import com.legend.testexecutionplan.SideShape;
 import com.legend.testexecutionplan.TestPlan;
 
@@ -29,13 +28,14 @@ import java.util.Objects;
  * @param kind     what decides a failed text
  * @param contract a {@link Kind#CONTRACT} appeal's failure words, before the two texts
  * @param rows     a {@link Kind#ROWS} appeal's planned rows leg; null where the rows were not planned with the assert
- * @param batched  the database judge's row: the texts its verdict row compares (null where the host judges the text)
- * @param joins    the number of the appeal this one is a second hearing of -- the agreement judge's database half
- *                 hearing the assert its host half holds an appeal for: joined, never decided twice (A1, 2026-11-08) --
- *                 or {@link RootLoop#NO_APPEAL}
+ *
+ * <p>(Two fields went with the database judge's appeal path, A4 of the compatibility program, stage A ratified by the
+ * user 2026-11-19: {@code batched}, the database judge's verdict row's texts, and {@code joins}, the agreement judge's
+ * database half's second hearing of an appeal its host half held (A1, 2026-11-08). The host judge is the only judge in
+ * compatibility, so only the host hears an appeal.)
  */
-public record Appeal(int number, String name, Kind kind, @Nullable String contract, @Nullable Rows rows,
-        @Nullable Batched batched, int joins) implements Extension {
+public record Appeal(int number, String name, Kind kind, @Nullable String contract, @Nullable Rows rows)
+        implements Extension {
 
     public Appeal {
         Objects.requireNonNull(name, "name");
@@ -57,17 +57,7 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
 
     /** The same appeal numbered {@code n} in its body. */
     public Appeal numbered(int n) {
-        return new Appeal(n, name, kind, contract, rows, batched, joins);
-    }
-
-    /** The same appeal heard on the database judge's verdict row comparing {@code b}'s texts. */
-    public Appeal batchedOn(Batched b) {
-        return new Appeal(number, name, kind, contract, rows, b, joins);
-    }
-
-    /** The same appeal as a second hearing of appeal {@code n} (the agreement judge's database half, A1). */
-    public Appeal joining(int n) {
-        return new Appeal(number, name, kind, contract, rows, batched, n);
+        return new Appeal(n, name, kind, contract, rows);
     }
 
     /**
@@ -178,14 +168,6 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
     public record InListSeed(String kind, List<String> values) {
         public InListSeed {
             values = List.copyOf(values);
-        }
-    }
-
-    /** The database judge's verdict row's texts: the golden, ours (null: read from the row's actual cell), their
-     *  equality as planned. */
-    public record Batched(String golden, @Nullable String ours, boolean textEqual) {
-        public Batched {
-            Objects.requireNonNull(golden, "golden");
         }
     }
 }

@@ -796,9 +796,6 @@ final class HostJson {
         o.put("name", x.name());
         o.put("verdict", x.verdict());
         o.put("refusal", x.refusal() == null ? null : wFailure(x.refusal()));
-        o.put("orElse", x.orElse() == null ? null : wFailure(x.orElse()));
-        o.put("appeal", x.appeal());
-        o.put("decline", x.decline());
         return o;
     }
 
@@ -806,10 +803,7 @@ final class HostJson {
         String v_name = str(field(o, "name", "Row"));
         int v_verdict = Math.toIntExact(num(field(o, "verdict", "Row")));
         @Nullable Failure v_refusal = absent(o, "refusal", "Row") ? null : rFailure(obj(o.get("refusal")));
-        @Nullable Failure v_orElse = absent(o, "orElse", "Row") ? null : rFailure(obj(o.get("orElse")));
-        int v_appeal = Math.toIntExact(num(field(o, "appeal", "Row")));
-        @Nullable String v_decline = absent(o, "decline", "Row") ? null : str(o.get("decline"));
-        return new RootLoop.Row(v_name, v_verdict, v_refusal, v_orElse, v_appeal, v_decline);
+        return new RootLoop.Row(v_name, v_verdict, v_refusal);
     }
 
     static Map<String, Object> wRsDecided(RootLoop.Decided x) {

@@ -83,11 +83,16 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/EngineParamsTest.java",
     # a dynamic pivot's text refused where the edge would compose it (J40, 2026-11-18)
     "src/test/java/com/legend/edge/DynamicPivotTextRefusalTest.java",
+    # a String[*] parameter's in(...) on the plan-text route, refused by name (A2's reviewer, merged into the stage-A batch
+    # 2026-11-19: nothing pinned InProtocol's conditional refusal once its FreeMarker splice was deleted)
+    "src/test/java/com/legend/edge/InCollectionSpliceRefusalTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureMeaningCheckTest.java",
     "src/test/java/com/legend/edge/PureMeaningRewriteTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/edge/SiteWordsRecorderTest.java",
+    # the engine rewrite's substitute, typed as the typer types it, and the native it calls (A3, 2026-11-19)
+    "src/test/java/com/legend/edge/EngineSubstitutesTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",
     "src/test/java/com/legend/exec/ExecutionTraceTest.java",
     "src/test/java/com/legend/exec/InterimEdgeSitesTest.java",
@@ -176,6 +181,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/server/LegendHttpServerIntegrationTest.java",
     "src/test/java/com/legend/server/PureV1ApiTest.java",
     "src/test/java/com/legend/server/PureV1EdgeGoldenTest.java",
+    # the SQL text a legend-engine request asks for, after A2 (the compatibility program's stage A, 2026-11-19)
+    "src/test/java/com/legend/server/PureV1SqlTextTest.java",
     "src/test/java/com/legend/server/PureV1HttpTest.java",
     "src/test/java/com/legend/server/SavedQueriesTest.java",
     "src/test/java/com/legend/server/TestDataRoutesTest.java",
@@ -189,7 +196,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/sql/dialect/DialectVocabularyTest.java",
     "src/test/java/com/legend/sql/dialect/EngineSeedRowTest.java",
     "src/test/java/com/legend/sql/dialect/IdentifierEscapingTest.java",
-    "src/test/java/com/legend/sql/dialect/LegacyTextTest.java",
+    # LegacyTextTest.java (legend-engine's legacy text of windows and aggregates) went 2026-11-19 with the printers (A2)
     "src/test/java/com/legend/sql/dialect/PreQuotedNamesTest.java",
     "src/test/java/com/legend/sql/dialect/RaiseTextTest.java",
     "src/test/java/com/legend/sql/dialect/SchemaDdlTextTest.java",

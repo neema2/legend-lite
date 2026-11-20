@@ -48,7 +48,9 @@ class HookRulingTest {
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), false),
-                    () -> productHearing().rowAppealed(0, List.of(), false),
+                    // (rowAppealed, the database judge's row appeal: the member deleted with its path, NARROWS A HOOK
+                    // THE USER RULED -- A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved
+                    // down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
                     // K10b, 2026-11-17 (the orchestrator's ruling (A)): legend-pure's words of a planned raise site, looked
                     // up in the plan's edge records -- the hearing's member, refused by the product's by name
                     () -> productHearing().raisedWords("SELECT 1", 1))),
@@ -78,13 +80,14 @@ class HookRulingTest {
             // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
             Map.entry(com.legend.lowering.RelationTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class))),
-            // census C4, 2026-11-17: the engine-text assert's arm, and the two hooks only its answers hand out (the
-            // collector and the database judge's batch): each reached through the facet the product refuses
+            // census C4, 2026-11-17: the engine-text assert's arm, and the hook only its answers hand out (the
+            // collector): each reached through the facet the product refuses. (The database judge's batch, BatchTexts,
+            // the second such hook: deleted, NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A
+            // ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move
+            // guards down"))
             Map.entry(com.legend.testplan.EngineTestText.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
             Map.entry(com.legend.testplan.TextCollector.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
-            Map.entry(com.legend.testplan.BatchTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))));
 
     /** C4's CAPABILITY (the orchestrator's ruling of 2026-11-17): the product's style does not judge legend-engine's
@@ -361,25 +364,16 @@ class HookRulingTest {
         // RelationCounting (census C1, 2026-11-17, register S137: the product refuses a relation counted as one, the
         // edge counts it as upstream does)
         assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class,
-                com.legend.testexecutionplan.JsonGrammar.class, com.legend.compiler.spec.RelationCounting.class,
+                // A4 of the compatibility program (stage A ratified by the user 2026-11-19; moved down by the user's
+                // ruling of 2026-11-19 ~20:45 ("Approved to move guards down"); rule 4 of the rules of record):
+                // JsonGrammar, CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts and GoldenNullWord
+                // left with the database judge's compatibility arms (each was asked by the database judge alone)
+                com.legend.compiler.spec.RelationCounting.class,
                 // TestDataPlanner.Printing (census C1, 2026-11-17, L9: a test-data timestamp's text)
                 com.legend.testdatagen.TestDataPlanner.Printing.class,
-                // CrossKindNumbers (census C1, 2026-11-17, register S127: the product never equals two number kinds,
-                // the edge equals an Integer and a Decimal by their texts, as compiled legend-pure does)
-                com.legend.testplan.CrossKindNumbers.class,
-                // VerdictNumbers (train 17, the orchestrator's item 4 of 2026-11-18, registers S15/S132, S139: two Floats
-                // or two Decimals -- lite's exact rule in the product, compiled legend-pure's at the edge)
-                com.legend.lowering.VerdictNumbers.class,
                 // ExecutedValues (train 17 item 2, 2026-11-18: a serialized root's string-entry value -- refused in the
                 // product, legend-engine's json-builder envelope at the edge)
                 com.legend.planner.ExecutedValues.class,
-                // RenderedTextRule (census C1, 2026-11-17, registers S131, S132: the product's two strings, the edge's
-                // ruled comparison where they differ)
-                com.legend.testplan.RenderedTextRule.class,
-                // DateLiteralTexts (census C1, 2026-11-17: a date literal's message text, lite's or legend-pure's)
-                com.legend.testplan.DateLiteralTexts.class,
-                // GoldenNullWord (census C1, 2026-11-17: legend-engine's TDSNull read as a golden's null cell, the edge's)
-                com.legend.compiler.spec.GoldenNullWord.class,
                 // RoutedQueries (J5 of the edge audit, 2026-11-17: an execute's routing activity, none in the product,
                 // legend-engine's AggregationAwareActivity at the edge)
                 com.legend.planner.RoutedQueries.class,
@@ -415,41 +409,12 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.ListTexts.class,
                 com.legend.lowering.ProductListTexts.INSTANCE) != com.legend.lowering.ProductListTexts.INSTANCE,
                 "the edge answers legend-pure's list text");
-        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testexecutionplan.JsonGrammar.class,
-                com.legend.testexecutionplan.JudgeJson.STRICT) == com.legend.testexecutionplan.JudgeJson.STRICT,
-                "the product reads strict JSON");
-        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testexecutionplan.JsonGrammar.class,
-                com.legend.testexecutionplan.JudgeJson.STRICT) == com.legend.edge.JsonSimpleGrammar.INSTANCE,
-                "the edge reads upstream's json-simple grammar");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.compiler.spec.RelationCounting.class,
                 com.legend.compiler.spec.RelationCountAsserts.REFUSED)
                 == com.legend.compiler.spec.RelationCountAsserts.REFUSED, "the product refuses a relation counted as one");
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.compiler.spec.RelationCounting.class,
                 com.legend.compiler.spec.RelationCountAsserts.REFUSED) == com.legend.edge.UpstreamRelationCounting.INSTANCE,
                 "the edge counts a relation as upstream does");
-        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testplan.CrossKindNumbers.class,
-                com.legend.testplan.LiteCrossKindNumbers.NEVER) == com.legend.testplan.LiteCrossKindNumbers.NEVER,
-                "the product never equals two number kinds");
-        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.CrossKindNumbers.class,
-                com.legend.testplan.LiteCrossKindNumbers.NEVER) == com.legend.edge.CompiledPureNumbers.INSTANCE,
-                "the edge equals an Integer and a Decimal as compiled legend-pure does");
-        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testplan.RenderedTextRule.class,
-                com.legend.testplan.LiteRenderedTextRule.STRINGS)
-                == com.legend.testplan.LiteRenderedTextRule.STRINGS, "the product's two strings are the verdict");
-        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.RenderedTextRule.class,
-                com.legend.testplan.LiteRenderedTextRule.STRINGS)
-                == com.legend.edge.UpstreamRenderedTextRule.INSTANCE,
-                "the edge plans upstream's ruled comparison where the strings differ");
-        assertEquals("2020-01-02", PlanStyle.PRODUCT.twoForm(com.legend.testplan.DateLiteralTexts.class,
-                com.legend.testplan.LiteDateLiteralTexts.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
-                "the product writes lite's date text");
-        assertEquals("%2020-01-02", com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.DateLiteralTexts.class,
-                com.legend.testplan.LiteDateLiteralTexts.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
-                "the edge writes legend-pure's");
-        assertFalse(PlanStyle.PRODUCT.twoForm(com.legend.compiler.spec.GoldenNullWord.class,
-                com.legend.compiler.spec.LiteGoldenNullWord.NONE).isNullWord("TDSNull"), "the product reads no TDSNull");
-        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.compiler.spec.GoldenNullWord.class,
-                com.legend.compiler.spec.LiteGoldenNullWord.NONE).isNullWord("TDSNull"), "the edge reads upstream's");
         // Printing's members (J7/K12 of the edge audit, 2026-11-17): the product answers lite's form; the edge its own,
         // the server routes' rules a third form of the edge's (edge.TestDataRoutes.ROUTE), never a boolean in the product
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testdatagen.TestDataPlanner.Printing.class,
@@ -489,13 +454,9 @@ class HookRulingTest {
                 "the edge plans legend-pure's words: " + edgeWords.getClass());
         assertEquals(com.legend.edge.EdgeHostWords.NAME, ((com.legend.lowering.VerdictWords) edgeWords).name(),
                 "the planning and run words of the edge carry one name");
-        // census J29's reads() (the orchestrator's rule of 2026-11-18): a two-form FACT, not edge-only code -- both
-        // forms' verdicts decide on the same canons (VerdictSql's statement compares each side's __c canon in both);
-        // lite's sentences add each side's WRITTEN text beside them, legend-pure's frame writes from the canons
-        assertEquals(com.legend.lowering.VerdictReads.WRITTEN,
-                com.legend.lowering.LiteVerdictWords.INSTANCE.reads(), "lite's sentences read the written sides");
-        assertEquals(com.legend.lowering.VerdictReads.CANONS,
-                ((com.legend.lowering.VerdictWords) edgeWords).reads(), "legend-pure's frame reads the canons");
+        // census J29's reads() went with A4 of the compatibility program (stage A ratified by the user 2026-11-19;
+        // moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down")): the database judge
+        // plans for the product alone, so it reads each side WRITTEN, as lite's sentences do
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
@@ -507,19 +468,20 @@ class HookRulingTest {
     }
 
     /** The hooks' capabilities decide, never a null or the rules (census C1, the orchestrator's ruling of 2026-11-17):
-     *  the product's edge hook records no ledger and the edge's does; the product's run hook compares both isolated
-     *  judges' words (lite's sentences), the edge's the verdicts alone (the words upstream's, the host's). */
+     *  the product's edge hook records no ledger and the edge's does. */
     @Test
     void theHooksCapabilitiesAreTheProductsAndTheEdges() {
         assertFalse(com.legend.testexecutionplan.NoEdge.NONE.records(), "the product records no ledger");
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
-        assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");
+        // (EdgeRun.wordsAlike, whose two answers -- lite's judges alike, the edge's words the host's alone -- were
+        // asserted here: deleted, NARROWS A HOOK THE USER RULED, A4 of the compatibility program, stage A ratified by
+        // the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"):
+        // the host judge is the only judge in compatibility, so no compatibility body runs both judges isolated)
         assertTrue(productHearing().renderedTexts() == com.legend.testexec.LiteRenderedTexts.STRINGS,
                 "lite's runs hold two differing strings as differing");
         assertTrue(productHearing().hostForms() == com.legend.testexec.LiteHostForms.STRICT,
                 "lite's runs never equal two number kinds");
-        assertFalse(com.legend.edge.AppealRun.with(null).wordsAlike(), "the edge's words are the host's alone");
         assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
                 "the product's options carry the product's edge hook, never a null");
     }
@@ -620,8 +582,9 @@ class HookRulingTest {
                 "EngineTestText <- com.legend.edge.EdgeEngineTestText",
                 "TextCollector <- com.legend.edge.SqlTextVerdicts$Deferring",
                 "TextCollector <- com.legend.edge.SqlTextVerdicts$Collecting",
-                "TextCollector <- com.legend.edge.SqlTextVerdicts$BatchTexts",
-                "BatchTexts <- com.legend.edge.SqlTextVerdicts$BatchTexts",
+                // (SqlTextVerdicts' database-judge collector, a TextCollector and a BatchTexts: deleted with the hook,
+                // NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A ratified by the user
+                // 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
                 // K2's server half, 2026-11-18: legend-engine's opt-in module of the shipped server
                 "MountProvider <- com.legend.edge.EngineMount")), implementers);
         assertFalse(implementers.isEmpty());

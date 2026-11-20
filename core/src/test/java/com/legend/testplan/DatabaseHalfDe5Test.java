@@ -54,6 +54,11 @@ class DatabaseHalfDe5Test {
      *  legend-engine's, so a body that reads one runs on the edge's style (D's hook fold, a4ac096b5, 2026-11-16). */
     private static final ExecuteOptions EDGE = ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM);
 
+    /** The judges a body on the edge runs under: the host's alone (rule 4 of the compatibility program's rules of
+     *  record; A4 of the compatibility program, stage A ratified by the user 2026-11-19: until A4 every judge, the
+     *  database half's planning of these shapes on the edge the point; the product's database half keeps it, below). */
+    private static final PlanningOptions.JudgeMode[] EDGE_JUDGES = {PlanningOptions.JudgeMode.HOST};
+
     private static String run(String model, String body, PlanningOptions.JudgeMode mode) {
         return run(model, body, mode, ExecuteOptions.NONE);
     }
@@ -80,7 +85,7 @@ class DatabaseHalfDe5Test {
     void aDualGoldenRootIsJudgedByTheDatabaseHalf() {
         String passing = "{| meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible('a', 'b', 'b');}";
         String failing = "{| meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible('a', 'b', 'c');}";
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : EDGE_JUDGES) {
             // a dual golden is upstream's engine-text root: the edge's facet plans it (W9's judge half, S2b)
             assertEquals("PASS", onTheEdge(DUAL, passing, mode), mode + ": the upgraded golden equals ours");
             String failed = onTheEdge(DUAL, failing, mode);
@@ -96,7 +101,7 @@ class DatabaseHalfDe5Test {
                 + " p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
         String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : EDGE_JUDGES) {
             String got = onTheEdge(UNMAPPED, body, mode);
             assertTrue(got.startsWith("MappingResolutionException"), mode + ": " + got);
             assertEquals(host, got, mode + ": the host's own error");
@@ -112,7 +117,7 @@ class DatabaseHalfDe5Test {
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
         String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
         assertTrue(host.startsWith("AssertFailed"), "HOST: " + host);
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : EDGE_JUDGES) {
             assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode + ": the earlier assert's failure first");
         }
     }
@@ -125,7 +130,7 @@ class DatabaseHalfDe5Test {
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
         String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
         assertTrue(host.startsWith("MappingResolutionException"), "HOST: " + host);
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : EDGE_JUDGES) {
             assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode.toString());
         }
     }

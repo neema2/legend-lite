@@ -142,6 +142,30 @@ _SUITES = [
     ],
 ) for s in _SUITES]
 
+# THE LITE-PCT LANE'S CHANNEL A (the compatibility program's stage A, step A4, 2026-11-19): the five suites on DuckDB
+# under lite's own rules (-Dpct.channela.rules=LITE, PctPlanRoute: the product's style and default features, a raise in
+# lite's own words), legend-pure's interpreter judging lite's answers by value, each by its LITE ledger
+# (Test_LegendLite_LiteRules_<Suite>Functions_PCT: its COMPAT rows with lite's own in their place, LiteRulesLedger).
+# Manual, in //gates:heavy (the compatibility owner's ruling of 2026-11-19: per push only if the PR's CI shows it fits
+# pct_duckdb's lane).
+[junit_test(
+    name = "pct_duckdb_lite_" + s.lower(),
+    memory_mb = 4096,
+    jvm_flags = ["-Dpct.channela.rules=LITE"],
+    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_LiteRules_%sFunctions_PCT" % s],
+    tags = ["manual"],
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+) for s in _SUITES]
+
+test_suite(
+    name = "pct_duckdb_lite",
+    tags = ["manual"],
+    tests = [":pct_duckdb_lite_" + s.lower() for s in _SUITES],
+)
+
 # the module's discipline guard (no comparison machinery in Java), in gate 6 (G-02)
 # its own library, so the light //gates:local does not build the PCT adapter's 4 GB PAR to run a source scan
 # the module's files, as the discipline scan reads them: a declared list (SourceFiles; Bazel workplan P3-27b)
@@ -472,14 +496,42 @@ _ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legen
     ],
 ) for s in _SUITES]
 
+# THE LITE-PCT LANE (the compatibility program's stage A, step A4's gate, 2026-11-19: "lite's two judges agree on the
+# PCT"): channel B on DuckDB under LITE's own rules (-Dpct.channelb.rules=LITE: the product's options, no edge, no
+# referee) with both of lite's judges, isolated (BOTH, the default), messages compared; judged by its own exact rows of
+# channelb/ledger.tsv (lane duckdb-lite). From the compatibility judges homework's prototype (H6-judges.md 3.5, 5.1).
+[junit_test(
+    name = "pct_channel_b_lite_" + s.lower(),
+    memory_mb = 768,
+    data = [
+        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
+        _ENGINE_MANIFEST % s,
+    ],
+    jvm_flags = [
+        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
+        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
+        "-Dpct.channelb.rules=LITE",
+    ],
+    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
+    upstream = True,
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+) for s in _SUITES]
+
 test_suite(
     name = "pct_channel_b",
-    # with the HOST channel-B pass (O5, E-5c): DuckDB's suites and H2's relation suite under the host judge alone
-    tests = [":pct_channel_b_" + s.lower() for s in _SUITES] + [":pct_channel_b_host_" + s.lower() for s in _SUITES] +
-            [":pct_channel_b_host_h2_relation"] +
+    # the HOST channel-B pass (O5, E-5c) left with A4 of the compatibility program (stage A ratified by the user
+    # 2026-11-19): every compatibility lane is judged by the host alone now (rule 4), so the pass was these lanes twice
+    tests = [":pct_channel_b_" + s.lower() for s in _SUITES] +
+            # the LITE-PCT lane (2026-11-19): lite's own rules under both judges
+            [":pct_channel_b_lite_" + s.lower() for s in _SUITES] +
             # the runner's own unit tests: the ledger matched on full text, the twice guard's planted violators
             # (2026-11-15, PR1's review: found in no lane)
-            [":pct_channel_b_ledger_test", ":pct_channel_b_twice_guard_test"],
+            [":pct_channel_b_ledger_test", ":pct_channel_b_twice_guard_test"] +
+            # channel A's one audience a run, its refusal planted (PR #127's review, 2026-11-19)
+            [":pct_route_audience_test"],
 )
 
 # CHANNEL B ON EVERY LANE (2026-10-11, the user's ask): the same runner on each database a channel A lane runs on
@@ -655,43 +707,10 @@ _LANE_LEDGER = "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%s_%sFun
     runtime_deps = [":pct_tests_lib"] + deps,
 ) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items() if lane == "h2" for s in suites]
 
-# THE HOST CHANNEL-B PASS (O5's term, the user's ruling of 2026-11-13): BOTH plans the database judge's fused program
-# (E-5c), so a side planned as its OWN statement -- the host judge's road -- would go unexercised on PCT. These lanes run
-# channel B under the HOST judge alone (-Dpct.channelb.judge=HOST) on the in-process databases: DuckDB, every suite, and
-# H2, the relation suite (the twice lanes' two), each judged against its ledger as usual.
-[junit_test(
-    name = "pct_channel_b_host_" + s.lower(),
-    memory_mb = 768,
-    data = [
-        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
-        _ENGINE_MANIFEST % s,
-    ],
-    jvm_flags = [
-        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
-        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
-        "-Dpct.channelb.judge=HOST",
-    ],
-    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
-    upstream = True,
-    runtime_deps = [
-        ":pct_tests_lib",
-        "//core:drivers",
-    ],
-) for s in _SUITES]
-
-[junit_test(
-    name = "pct_channel_b_host_h2_%s" % s.lower(),
-    memory_mb = 2048,
-    data = [_LANE_LEDGER % (cls, s)] + [_LANE_MANIFEST % (d, d, d, s) for d in ([] if db == None else [db])] + data,
-    env = {"LEGENDLITE_PCT_BACKEND": "h2"},
-    jvm_flags = [
-        "-Dpct.suite.%s=$(rlocationpath %s)" % (s, _LANE_LEDGER % (cls, s)),
-        "-Dpct.channelb.judge=HOST",
-    ] + ["-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _LANE_MANIFEST % (d, d, d, s)) for d in ([] if db == None else [db])] + flags,
-    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
-    upstream = True,
-    runtime_deps = [":pct_tests_lib"] + deps,
-) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items() if lane == "h2" for s in suites if s == "Relation"]
+# THE HOST CHANNEL-B PASS (O5's term, the user's ruling of 2026-11-13) is deleted (A4 of the compatibility program,
+# stage A ratified by the user 2026-11-19): it ran channel B under -Dpct.channelb.judge=HOST because the lanes above ran
+# BOTH; under rule 4 of the rules of record every compatibility lane is judged by the host alone, so its targets were the
+# lanes above run twice.
 
 # the ledger matches a failure's full text, never its clipped display (ChannelBLedgerTest, 2026-11-15)
 junit_test(
@@ -699,6 +718,16 @@ junit_test(
     memory_mb = 512,
     size = "small",
     select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelBLedgerTest"],
+    runtime_deps = [":pct_tests_lib"],
+)
+
+# channel A's one audience a run (PR #127's review, 2026-11-19): legend-pure's, legend-engine's (-Dpct.audience=engine)
+# or lite's own rules (-Dpct.channela.rules=LITE), the two together refused by name (PctPlanRoute.audience)
+junit_test(
+    name = "pct_route_audience_test",
+    memory_mb = 512,
+    size = "small",
+    select = ["--select-class=org.finos.legend.lite.pct.extension.PctPlanRouteAudienceTest"],
     runtime_deps = [":pct_tests_lib"],
 )
 

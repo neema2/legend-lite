@@ -1486,16 +1486,67 @@ final class Scalars {
                         : new SqlExpr.Call(SqlFn.LIST_GET, List.of(args.get(0), new SqlExpr.IntLit(-1)));
             });
         }
-        // RELATIONAL substring = VERBATIM SQL substring(start, length)
-        // passthrough (engine goldens pass args unshifted; diverges from
-        // platform pure's 0-based). ONE verbatim emission (Phase 1
-        // audit): the DuckDB start-clamp is SubstringClamp, that
-        // dialect's own rewrite pass.
+        // (the DuckDB start-clamp stays SubstringClamp, that dialect's own rewrite pass over SqlFn.SUBSTRING)
+        // A3 of the compatibility program (piece 2, 2026-11-19; the user's D1, "Pure's way, LOUD, no translator";
+        // register S130): substring is PURE's meaning on every road -- 0-based, end-exclusive, the corrected rule --
+        // with or without CORRECT_SQL_SUBSTRING_INDEXING; the islands and the ###Relational dynaFunctions say SQL's
+        // SUBSTRING by name (sqlSubstring, above), and the legend-engine door marks or refuses a store-routed call
+        // Out of range it RAISES as legend-pure does (register S383): Java's String.substring refuses a start below 0,
+        // an end past the length and an end before the start (the 1-argument form's end is the length). Each
+        // condition is the database's, over the row's text; a condition the literal indexes alone decide is folded
+        // away (a fact fixed by the program's constants, never row data), so substring(s, 0) carries no guard
         for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTRING) {
-            RULES.put(f, (n, args) ->
-                    new SqlExpr.Call(SqlFn.SUBSTRING, args));
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
+                SqlExpr value = FeatureRules.CORRECTED_SUBSTRING.apply(n, args);
+                SqlExpr start = args.get(1);
+                SqlExpr length = SqlExpr.Call.of(SqlFn.LENGTH, args.get(0));
+                Long s0 = start instanceof SqlExpr.IntLit il ? il.value() : null;
+                List<SqlExpr> out = new java.util.ArrayList<>();
+                if (s0 == null || s0 < 0) {
+                    out.add(SqlExpr.Call.of(SqlFn.LESS, start, new SqlExpr.IntLit(0)));
+                }
+                SqlExpr end;
+                if (args.size() == 3) {
+                    end = args.get(2);
+                    Long e0 = end instanceof SqlExpr.IntLit il ? il.value() : null;
+                    out.add(SqlExpr.Call.of(SqlFn.GREATER, end, length));
+                    if (s0 == null || e0 == null || e0 < s0) {
+                        out.add(SqlExpr.Call.of(SqlFn.LESS, end, start));
+                    }
+                } else {
+                    end = length;
+                    if (s0 == null || s0 > 0) {
+                        out.add(SqlExpr.Call.of(SqlFn.GREATER, start, length));
+                    }
+                }
+                if (out.isEmpty()) {
+                    return value;
+                }
+                SqlExpr cond = out.get(0);
+                for (int i = 1; i < out.size(); i++) {
+                    cond = SqlExpr.Call.of(SqlFn.OR, cond, out.get(i));
+                }
+                return guarded(cond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SUBSTRING_OUT_OF_RANGE,
+                        List.of(start, end, length)), value, styled);
+            });
         }
         // (the same call under CORRECT_SQL_SUBSTRING_INDEXING: FeatureRules)
+        // SQL's SUBSTRING and POSITION BY NAME (A3 of the compatibility program, PR1, 2026-11-19): the islands and the
+        // ###Relational dynaFunctions write the database's meaning through these two lite-internal natives, each the
+        // database's function verbatim -- the same calls the plain substring and String indexOf rules emit today, so
+        // no SQL moves; Pure's own substring and indexOf are then free to take Pure's meaning (A3's PR2)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SQL_SUBSTRING) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.SUBSTRING, args));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SQL_POSITION) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.STRPOS, args));
+        }
+        // THE DATABASE'S OWN SUBSTRING, OVER THE ARGUMENTS AS GIVEN (A3, the engine rewrite's operation, 2026-11-19):
+        // substringAsGiven is the one call no pass rewrites (SqlFn.SUBSTRING_AS_GIVEN; SubstringClamp matches SUBSTRING
+        // alone), so the database's SUBSTRING answers the arguments as they are -- legend-engine's answer by definition
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, args));
+        }
         // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
         // engine's RELATIONAL lowering registers it separately and ALWAYS
         // corrects it (processSubstr, "needs no flag"); so does the platform:
@@ -1532,33 +1583,29 @@ final class Scalars {
                             new SqlExpr.IntLit(1)));
                 }
                 if (args.size() == 3) {
-                    // indexOf(s, sub, from): H2 LOCATE(sub, s, from)
-                    // semantics — 1-BASED from and result, miss 0 (the
-                    // engine has NO translation for this overload; the
-                    // convention follows the 2-arg golden). Search the
-                    // suffix, re-base hits.
-                    SqlExpr from1 = args.get(2) instanceof SqlExpr.IntLit il
-                            ? new SqlExpr.IntLit(Math.max(il.value(), 1))
-                            : SqlExpr.Call.of(SqlFn.GREATEST, args.get(2),
-                                    new SqlExpr.IntLit(1));
-                    SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(
-                            args.get(0), from1));
-                    SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS,
-                            List.of(suffix, args.get(1)));
+                    // PURE's indexOf(s, sub, from) (A3, piece 2; register S134): Java's String.indexOf(sub, from) --
+                    // a 0-based from (below 0 searches from 0), a 0-based hit, -1 on a miss. Search the suffix that
+                    // starts at from, re-base a hit
+                    SqlExpr from0 = args.get(2) instanceof SqlExpr.IntLit il
+                            ? new SqlExpr.IntLit(Math.max(il.value(), 0))
+                            : SqlExpr.Call.of(SqlFn.GREATEST, args.get(2), new SqlExpr.IntLit(0));
+                    SqlExpr from1 = from0 instanceof SqlExpr.IntLit il0
+                            ? new SqlExpr.IntLit(il0.value() + 1)
+                            : SqlExpr.Call.of(SqlFn.PLUS, from0, new SqlExpr.IntLit(1));
+                    SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(args.get(0), from1));
+                    SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS, List.of(suffix, args.get(1)));
                     return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.GREATER, k, new SqlExpr.IntLit(0)),
-                            SqlExpr.Call.of(SqlFn.MINUS,
-                                    SqlExpr.Call.of(SqlFn.PLUS, k, from1),
+                            SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.PLUS, k, from0),
                                     new SqlExpr.IntLit(1)))),
-                            new SqlExpr.IntLit(0), SqlExpr.Reason.OPERATOR);
+                            new SqlExpr.IntLit(-1), SqlExpr.Reason.OPERATOR);
                 }
-                // 1-BASED, raw strpos: the engine translates indexOf to
-                // locate() verbatim (testSqlFunctionsInMapping golden
-                // 'select locate(...)' with rows [12,12] — C1.5c; the
-                // reference DuckDB PCT adapter ledgers the same platform
-                // divergence, "expected: 4 actual: 5"). Composes with the
-                // 1-based verbatim substring above. Miss = 0.
-                return new SqlExpr.Call(SqlFn.STRPOS, args);
+                // PURE's indexOf(s, sub) (A3 of the compatibility program, piece 2, 2026-11-19; the user's D1; register
+                // S134): Java's String.indexOf -- 0-based, -1 on a miss. STRPOS is 1-based with 0 on a miss, so minus
+                // one is exact for both. legend-engine's 1-based locate is what the islands and the ###Relational
+                // dynaFunctions say by name (sqlPosition, above); the legend-engine door marks or refuses a store-routed
+                // call
+                return SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1));
             });
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_AT) {

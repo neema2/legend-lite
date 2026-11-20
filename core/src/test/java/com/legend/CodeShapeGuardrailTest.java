@@ -106,6 +106,11 @@ class CodeShapeGuardrailTest {
             // batch planned and left for the walk -- since 2026-11-08 (the plan-as-data design's step 5) the latch of
             // one segment's run, RootLoops.Run, the planned batch being data
             "RootLoops.counted",
+            // 2026-11-19 (track A5, the compatibility owner's option 2 and (b1), for the user's word): one segment's
+            // run holds the database's rejection of one of its fused statements, set once by the runner's word on it
+            // and read by the root loop -- the first root without a row raises it, and a held rejection judges the
+            // segment at once; one instance per segment's run, as its counted latch
+            "RootLoops.rejected",
             // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run): one body's
             // held appeals, one instance per body -- deciding, latched when the run is over, sends the appeals' own
             // reports straight to the caller's listener
@@ -199,10 +204,10 @@ class CodeShapeGuardrailTest {
             // lifecycle as the session's connection (SessionState lives in a weak map keyed by it). The body
             // driver's nested Established.dirty before, moved to the seam
             "SessionState.dirty",
-            "EngineStyleH2.frameDepth",
-            // anonymous-subselect nesting cursor (bare DISTINCT-key
-            // spelling scope) — same lifecycle as frameDepth
-            "EngineStyleH2.anonDistinctDepth",
+            // EngineStyleH2.frameDepth and EngineStyleH2.anonDistinctDepth (the printer's frame and anonymous-subselect
+            // nesting cursors) left 2026-11-19 with their class: A2 of the compatibility program (stage A ratified by
+            // the user 2026-11-19) deleted legend-engine's SQL text printers, CP-4 (a guard moving down only: approved
+            // by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             // mapping-section context for AggregationAware span-shift
             // emulation: set once at parse entry / per ~modelOperation
             // view — same lifecycle as a parser cursor

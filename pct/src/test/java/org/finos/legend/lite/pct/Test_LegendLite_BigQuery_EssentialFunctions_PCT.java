@@ -38,9 +38,12 @@ public class Test_LegendLite_BigQuery_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::collection::tests::find::testFindUsingVarForFunction_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
-            // and harness limits, the 0-based indexOf, error positions and messages
+            // and harness limits, error positions and messages
             one("meta::pure::functions::collection::tests::at::testAtError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 37\""),
-            one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
+            // 2026-11-19, A3 of the compatibility program, piece 2 (the user's word, 2026-11-19: "approved: push both A3
+            // branches and make piece 2's moves"): indexOf is Pure's in the core, 0-based, -1 on a miss (S134), so
+            // indexOf::testSimple, testFromIndex and indexof::testIndexOfOneElement pass and leave (predicted from the
+            // core change, as measured on every lane run here; measured on this lane by the batch's CI run)
             one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInterval field days '12345678912' is out of range -3660000 to 3660000; error in INTERVAL expression\""),
             one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInterval field nanoseconds '44444444083200000000000' is out of range -316224000000000000000 to 316224000000000000000; error in INTERVAL expression\""),
             one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInterval field months '9600000000' is out of range -120000 to 120000; error in INTERVAL expression\""),
@@ -57,8 +60,6 @@ public class Test_LegendLite_BigQuery_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"BigQueryException during runQuery\nFloating point error in function: ACOS(2)\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"BigQueryException during runQuery\nFloating point error in function: ASIN(2)\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
-            one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
-            one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
             // BIGQUERY'S OWN LIMIT: no list of lists (measured: "nested arrays are not supported"): removeDuplicates
             // reduces into one (its closed fold is hoisted, its accumulator is not representable)

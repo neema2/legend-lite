@@ -37,12 +37,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new UnguardedParses());
     }
 
-    /** {@link #passes(FloatLiteral)} for legend-engine's TEXT printers ({@code EngineStyleH2} and its family), which
-     *  spell a parse as the engine prints it themselves ({@code cast(x as integer)}): no {@link UnguardedParses}. */
-    static java.util.List<com.legend.sql.SqlRewriter> enginePasses(FloatLiteral floatLiteral) {
-        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
-    }
-
     /**
      * F31 (approved by the orchestrator, 2026-11-17): in an edge plan a parse is upstream's -- the plain CAST, its
      * refusal the database's own conversion error (DATABASE_ERROR, the database's text), as legend-engine's SQL casts:
@@ -91,10 +85,7 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
          *  {@code CAST(%s AS FLOAT)}): legend-pure's print cast to H2's FLOAT, a double, which H2's cast prints
          *  {@code 1.3421E-8} (legend-engine's H2 manifest expects that failure of
          *  {@code testFloatToStringWithNegativeExponent}). */
-        PRINT_AS_FLOAT,
-        /** A dialect that spells a Float literal as legend-engine's processor already ({@code EngineStyleH2}'s
-         *  {@code cast(x as float)}): the literal as it is. */
-        AS_SPELLED;
+        PRINT_AS_FLOAT;
 
         SqlExpr of(SqlExpr.FloatLit f) {
             if (!Double.isFinite(f.value())) {
@@ -104,7 +95,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
                 case PRINT_BARE -> print(f);
                 case PRINT_AS_FLOAT -> new SqlExpr.Cast(print(f), com.legend.sql.SqlType.Scalar.DOUBLE,
                         SqlExpr.Reason.DECLARED);
-                case AS_SPELLED -> f;
             };
         }
 

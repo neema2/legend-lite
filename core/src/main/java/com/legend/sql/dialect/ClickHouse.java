@@ -231,7 +231,7 @@ public class ClickHouse extends AnsiSqlRenderer {
                 // laid out again, each value once (W9, 2026-11-06, as on the other dialects: the timeseries documents'
                 // 26 runnable examples the same answers, most 2-8x faster -- guide-14 22.8 -> 3.6 s, spec-14 23.0 ->
                 // 3.9 s -- with the filter push-down off, SETTINGS)
-                new SelectMerge(java.util.function.UnaryOperator.identity()), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(), new RootNumericTypes());
+                new SelectMerge(java.util.function.UnaryOperator.identity(), SelectMerge.IN_PLACE), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
     /**
@@ -1954,7 +1954,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on ClickHouse, so refused by name
             case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
                     + " code points) reached ClickHouse, whose binary collation is not measured");
-            case SUBSTRING -> writer.append("substringUTF8(").list(a).append(")");
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.append("substringUTF8(").list(a).append(")");
             case LEFT -> writer.append("leftUTF8(").list(a).append(")");
             case RIGHT -> writer.append("rightUTF8(").list(a).append(")");
             case STRPOS -> writer.append("toInt64(positionUTF8(").list(a).append("))");

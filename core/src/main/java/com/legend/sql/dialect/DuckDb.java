@@ -228,6 +228,17 @@ public class DuckDb extends AnsiSqlRenderer {
         return java.util.List.of("SET TimeZone='UTC'");
     }
 
+    /** A test plan's session runs single-threaded (G10, the compatibility owner's ruling of 2026-11-19): with its
+     *  threads DuckDB raises whichever of two failing expressions one reaches first, and a join's build side is not an
+     *  order it keeps (measured: testAdjustByDaysBigNumber's fused verdict statement, 30 runs, three different errors;
+     *  single-threaded, the expected side's range error 30 times in 30). {@code threads} is the database's own
+     *  setting: a test plan's target, whose session statements are not a product plan's, never shares an in-memory
+     *  database with one. */
+    @Override
+    public java.util.List<String> testSessionSetup() {
+        return java.util.List.of("SET threads TO 1");
+    }
+
     /** An effect segment runs as one transaction: DuckDB's DDL is transactional, so a
      *  failing statement applies nothing and the referee's ledger records nothing
      *  (homework §19). */
@@ -655,7 +666,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case MAP_KEYS -> writer.function("map_keys", c.args());
             case MAP_VALUES -> writer.function("map_values", c.args());
             case MAP_CONCAT -> writer.function("map_concat", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case STRPOS -> writer.function("strpos", c.args());
             case STARTS_WITH -> writer.function("starts_with", c.args());
             case ENDS_WITH -> writer.function("ends_with", c.args());
@@ -765,7 +776,8 @@ public class DuckDb extends AnsiSqlRenderer {
                         // which DuckDB cannot plan, filters that side before the join
                         new OuterJoinSubqueryFilters()));
         // a select over one subselect merged into it where the answer is kept: DuckDB plans every level (SelectMerge)
-        ps.add(new SelectMerge(java.util.function.UnaryOperator.identity()));   // a bare name labelled as written
+        // a bare name labelled as written; every list operation a function, written in place
+        ps.add(new SelectMerge(java.util.function.UnaryOperator.identity(), SelectMerge.IN_PLACE));
         // a chain of levels laid out again, each value once at its lowest level: two words' identical windows one
         // (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers(java.util.function.UnaryOperator.identity()));

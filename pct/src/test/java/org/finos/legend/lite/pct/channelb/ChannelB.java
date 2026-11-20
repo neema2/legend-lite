@@ -264,8 +264,7 @@ public final class ChannelB {
                     : NameResolver.resolveQueryIn(lambda, imports,
                             ctx.resolutionUniverse());
             // ONE universe with channel A (PctExecuteNative): the PCT runs
-            // with CORRECT_SQL_SUBSTRING_INDEXING on, as the engine's own
-            // testable runner does — the flag is the lowering's, so channel
+            // with no feature flag (A3, 2026-11-19; S130) — the flag is the lowering's, so channel
             // B's identity adapter carries it the same way
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
@@ -279,7 +278,7 @@ public final class ChannelB {
                 judgeSql(ctx, resolved);
             }
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, com.legend.edge.AppealRun.with(null),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, referee(),
                     OPTIONS);
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
@@ -307,9 +306,14 @@ public final class ChannelB {
     }
 
     /** Whether this run sums its judge SQL: asked ({@code -Dpct.channelb.judgeSql}, the ratchet's generator), or the
-     *  reference lane under BOTH, the pin's own mode, outside the G10 twice lanes. */
+     *  reference lane under lite's own rules and BOTH, the pin's own mode, outside the G10 twice lanes. The pins moved
+     *  to the LITE-PCT lane with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host
+     *  judge is the only judge in compatibility, so the compatibility lanes plan no database-judge statement and the
+     *  measure would read none -- the database judge's SQL is the product's alone, and lite's rules under both judges
+     *  are where it is planned (the user's ruling of 2026-11-19 ~20:05, "Keep judge yes and rebase": kept, re-based at
+     *  the merged batch's numbers, shrink-only from here). */
     static boolean measuresJudgeSql() {
-        return Boolean.getBoolean("pct.channelb.judgeSql") || ChannelBLane.isReference()
+        return Boolean.getBoolean("pct.channelb.judgeSql") || ChannelBLane.isReference() && lite()
                 && OPTIONS.planning().judgeMode() == com.legend.testplan.PlanningOptions.JudgeMode.BOTH
                 && !Boolean.getBoolean("pct.channelb.twice");
     }
@@ -382,23 +386,71 @@ public final class ChannelB {
         JUDGE_SQL[1] += statement.length();
     }
 
-    /** Channel B's options: the corpus's runtime features, the judge {@code -Dpct.channelb.judge} names, compatibility
-     *  mode and upstream's spellings. */
-    private static final com.legend.ExecuteOptions OPTIONS = com.legend.ExecuteOptions.recording(
+    /** The rules the bodies run under ({@code -Dpct.channelb.rules}): COMPAT, the compatibility edge's (the lanes'
+     *  default), or LITE, lite's own (the LITE-PCT lane, the compatibility program's A4 gate: "lite's two judges agree
+     *  on the PCT", 2026-11-19). Any other value is refused by name. */
+    private static final String RULES = rules(System.getProperty("pct.channelb.rules", "COMPAT"));
+
+    private static String rules(String named) {
+        if (!named.equals("COMPAT") && !named.equals("LITE")) {
+            throw new IllegalArgumentException("-Dpct.channelb.rules=" + named + ": COMPAT or LITE");
+        }
+        return named;
+    }
+
+    /** Whether this run judges the bodies under lite's own rules ({@code -Dpct.channelb.rules=LITE}). */
+    static boolean lite() {
+        return RULES.equals("LITE");
+    }
+
+    /** The run hook: the compatibility edge's appeals (COMPAT), or none -- lite's own runs hear no appeal (LITE). */
+    private static com.legend.testexec.EdgeRun referee() {
+        return lite() ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(null);
+    }
+
+    /** Channel B's options under the compatibility rules: the corpus's runtime features, the judge
+     *  {@code -Dpct.channelb.judge} names, compatibility mode and upstream's spellings. */
+    private static final com.legend.ExecuteOptions COMPAT_OPTIONS = com.legend.ExecuteOptions.recording(
                     // the compatibility rules' runs carry the compatibility edge, which names its rules (census C1,
                     // the orchestrator's ruling of 2026-11-17), never the product's NoEdge with a style
                     new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                             com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
-            .withFeatures(java.util.Set.of(
-                    com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
+            // no feature flag (A3 of the compatibility program, 2026-11-19: substring is Pure's by default, so the
+            // 2026-09-12 deviation of setting CORRECT_SQL_SUBSTRING_INDEXING is reversed; register S130)
             // the tests' planning options: as-of joins the same row on every database (PlanOption)
             .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
-            // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
-            // bodies under one judge, to read which shapes the program road plans for it
-            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
-                    System.getProperty("pct.channelb.judge", "BOTH")))
+            // the host judge alone (rule 4 of the compatibility program's rules of record: "Host judge is only judge
+            // in compatibility"; A4 of the compatibility program, stage A ratified by the user 2026-11-19): until A4
+            // these runs took -Dpct.channelb.judge, BOTH by default; the test planner now refuses a database-judge
+            // verdict for a compatibility audience by name (TestPlanner.refuseTheDatabaseJudgeInCompatibility)
+            .withJudgeMode(compatJudge())
             // legend-pure's texts, spelled by the edge (phase D's D1.0)
             .withStyle(com.legend.edge.PureText.UPSTREAM);
+
+    /** The judge a run under the compatibility rules is planned for: the host's alone (rule 4; A4 of the compatibility program, stage A ratified by the user 2026-11-19).
+     *  {@code -Dpct.channelb.judge} was this runner's judge switch until A4. Set to anything but HOST under these
+     *  rules, it is refused by name rather than ignored, so a run asked for the database judge never reports a host
+     *  run in its place (invariant 4; the reviewer's S2, 2026-11-19; the corpus's MinimalCorpus refuses its 'both' the
+     *  same way). Lite's own rules ({@code -Dpct.channelb.rules=LITE}) still read it ({@link #LITE_OPTIONS}). */
+    private static com.legend.testplan.PlanningOptions.JudgeMode compatJudge() {
+        String asked = System.getProperty("pct.channelb.judge");
+        if (!lite() && asked != null && !asked.equals("HOST")) {
+            throw new IllegalArgumentException("-Dpct.channelb.judge=" + asked + ": under the compatibility rules the"
+                    + " host judge is the only judge (rule 4 of the compatibility program's rules of record); the"
+                    + " database judge runs under lite's own rules, -Dpct.channelb.rules=LITE");
+        }
+        return com.legend.testplan.PlanningOptions.JudgeMode.HOST;
+    }
+
+    /** Channel B's options under lite's own rules (the compatibility judges homework's prototype, H6-judges.md 5.1):
+     *  the product's (no edge, the product's style and default features), as-of joins the same row on every database,
+     *  and the judge {@code -Dpct.channelb.judge} names, BOTH by default. */
+    private static final com.legend.ExecuteOptions LITE_OPTIONS = com.legend.ExecuteOptions.NONE
+            .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
+            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
+                    System.getProperty("pct.channelb.judge", "BOTH")));
+
+    private static final com.legend.ExecuteOptions OPTIONS = lite() ? LITE_OPTIONS : COMPAT_OPTIONS;
 
     /**
      * G10'S GUARD FOR A TEST BODY (O5's term, the user's ruling of 2026-11-13: "a body planned and run twice answers the
@@ -443,7 +495,7 @@ public final class ChannelB {
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME,
-                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, com.legend.edge.AppealRun.with(null),
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, referee(),
                     OPTIONS);
             told.add("ended: pass");
         } catch (java.sql.SQLException | RuntimeException e) {

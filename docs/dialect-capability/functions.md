@@ -17,9 +17,6 @@ What each dialect does with each function of the SQL IR. The legend, the method 
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
 - [MongoDb](#mongodb)
-- [EngineStyleH2](#enginestyleh2)
-- [EngineStyleDB2](#enginestyledb2)
-- [EngineStyleComposite](#enginestylecomposite)
 
 ## H2
 
@@ -110,6 +107,7 @@ Database types planned with it: H2.
 | `MAP_VALUES` | spelled | `map_values` |  | 4 |
 | `MAP_CONCAT` | spelled | `map_concat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `LOCATE` |  | 287 |
 | `STARTS_WITH` | emulated | `(LEFT(…, CHAR_LENGTH(…)) = …)` |  | 60 |
 | `ENDS_WITH` | emulated | `(RIGHT(…, CHAR_LENGTH(…)) = …)` |  | 60 |
@@ -147,7 +145,7 @@ Database types planned with it: H2.
 | `DATE_TRUNC_DAY` | emulated | `castAs: DATE` |  | 4 |
 | `MAKE_DATE` | spelled | `make_date` |  | 2 |
 | `MAKE_TIMESTAMP` | refused | `a date-time constructor reached H2, which has no make_timestamp()` |  | 10 |
-| `DATE_TRUNC` | emulated | `dateTruncDateGrained` |  | 0 |
+| `DATE_TRUNC` | emulated | `dateTruncDateGrained: iso_week` |  | 0 |
 | `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiffArm` |  | 53 |
 | `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` |  | 109 |
@@ -306,6 +304,7 @@ Database types planned with it: Postgres.
 | `MAP_VALUES` | emulated | `composed in a block` | `via Postgres.maps` | 4 |
 | `MAP_CONCAT` | emulated | `composed in a block` | `via Postgres.maps` | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `strpos` |  | 287 |
 | `STARTS_WITH` | spelled | `starts_with` |  | 60 |
 | `ENDS_WITH` | emulated | `(right(…, length(…)) = …)` |  | 60 |
@@ -502,6 +501,7 @@ Database types planned with it: Snowflake.
 | `MAP_VALUES` | emulated | `mapValues` |  | 4 |
 | `MAP_CONCAT` | emulated | `mapConcat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `CHARINDEX` |  | 287 |
 | `STARTS_WITH` | spelled | `startswith` |  | 60 |
 | `ENDS_WITH` | spelled | `endswith` |  | 60 |
@@ -698,6 +698,7 @@ Database types planned with it: Trino.
 | `MAP_VALUES` | spelled | `map_values` |  | 4 |
 | `MAP_CONCAT` | spelled | `map_concat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `strpos` |  | 287 |
 | `STARTS_WITH` | spelled | `starts_with` |  | 60 |
 | `ENDS_WITH` | emulated | `(substr(…, greatest(length(…) - length(…) + 1, 1)) = … AND length(…) >= lengt...` |  | 60 |
@@ -894,6 +895,7 @@ Database types planned with it: BigQuery.
 | `MAP_VALUES` | emulated | `unlessNull: …ARRAY(SELECT . FROM UNNEST(…) AS WITH OFFSET AS ORDER BY )` | `via BigQuery.maps` | 4 |
 | `MAP_CONCAT` | emulated | `composed in a block` | `via BigQuery.maps` | 9 |
 | `SUBSTRING` | spelled | `SUBSTR` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `SUBSTR` |  | 0 |
 | `STRPOS` | spelled | `STRPOS` |  | 287 |
 | `STARTS_WITH` | spelled | `STARTS_WITH` |  | 60 |
 | `ENDS_WITH` | spelled | `ENDS_WITH` |  | 60 |
@@ -1090,6 +1092,7 @@ Database types planned with it: Databricks.
 | `MAP_VALUES` | spelled | `map_values` |  | 4 |
 | `MAP_CONCAT` | emulated | `mapConcat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `instr` |  | 287 |
 | `STARTS_WITH` | spelled | `startswith` |  | 60 |
 | `ENDS_WITH` | spelled | `endswith` |  | 60 |
@@ -1286,6 +1289,7 @@ Database types planned with it: DuckDB.
 | `MAP_VALUES` | spelled | `map_values` |  | 4 |
 | `MAP_CONCAT` | spelled | `map_concat` |  | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `strpos` |  | 287 |
 | `STARTS_WITH` | spelled | `starts_with` |  | 60 |
 | `ENDS_WITH` | spelled | `ends_with` |  | 60 |
@@ -1482,6 +1486,7 @@ Database types planned with it: ClickHouse.
 | `MAP_VALUES` | spelled | `mapValues` |  | 4 |
 | `MAP_CONCAT` | spelled | `mapUpdate` |  | 9 |
 | `SUBSTRING` | spelled | `substringUTF8` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substringUTF8` |  | 0 |
 | `STRPOS` | emulated | `toInt64(positionUTF8(…))` |  | 287 |
 | `STARTS_WITH` | spelled | `startsWith` |  | 60 |
 | `ENDS_WITH` | spelled | `endsWith` |  | 60 |
@@ -1678,6 +1683,7 @@ Database types planned with it: SQLite.
 | `MAP_VALUES` | emulated | `unlessNull, jsonOf, elementRead: …(SELECT json_group_array(… ORDER BY id) FROM json_each(…))` | `via SQLite.maps` | 4 |
 | `MAP_CONCAT` | emulated | `jsonOf, elementRead, for: (SELECT json_group_object(__m.__k, …__m.__v ORDER BY __m.__s, __m.__i) FROM (...` | `via SQLite.maps` | 9 |
 | `SUBSTRING` | spelled | `substr` |  | 140 |
+| `SUBSTRING_AS_GIVEN` | spelled | `substr` |  | 0 |
 | `STRPOS` | spelled | `instr` |  | 287 |
 | `STARTS_WITH` | emulated | `(substr(…, 1, length(…)) = …)` |  | 60 |
 | `ENDS_WITH` | emulated | `(substr(…, length(…) - length(…) + 1) = …)` |  | 60 |
@@ -1874,6 +1880,7 @@ Database types planned with it: MariaDB.
 | `MAP_VALUES` | emulated | `unlessNull: …coalesce(JSON_EXTRACT(…, '$.*'), JSON_ARRAY())` | `via MariaDb.maps` | 4 |
 | `MAP_CONCAT` | spelled | `JSON_MERGE_PATCH` | `via MariaDb.maps` | 9 |
 | `SUBSTRING` | spelled | `SUBSTRING` |  | 120 |
+| `SUBSTRING_AS_GIVEN` | spelled | `SUBSTRING` |  | 0 |
 | `STRPOS` | spelled | `INSTR` |  | 249 |
 | `STARTS_WITH` | emulated | `(LEFT(…, CHAR_LENGTH(…)) = …)` |  | 40 |
 | `ENDS_WITH` | emulated | `(RIGHT(…, CHAR_LENGTH(…)) = …)` |  | 60 |
@@ -2070,6 +2077,7 @@ Database types planned with it: MySQL.
 | `MAP_VALUES` | emulated | `unlessNull: …coalesce(JSON_EXTRACT(…, '$.*'), JSON_ARRAY())` | `as MariaDb, via MariaDb.maps` | 4 |
 | `MAP_CONCAT` | spelled | `JSON_MERGE_PATCH` | `as MariaDb, via MariaDb.maps` | 9 |
 | `SUBSTRING` | spelled | `SUBSTRING` | `as MariaDb` | 120 |
+| `SUBSTRING_AS_GIVEN` | spelled | `SUBSTRING` | `as MariaDb` | 0 |
 | `STRPOS` | spelled | `INSTR` | `as MariaDb` | 249 |
 | `STARTS_WITH` | emulated | `(LEFT(…, CHAR_LENGTH(…)) = …)` | `as MariaDb` | 40 |
 | `ENDS_WITH` | emulated | `(RIGHT(…, CHAR_LENGTH(…)) = …)` | `as MariaDb` | 60 |
@@ -2266,6 +2274,7 @@ Database types planned with it: MongoDB.
 | `MAP_VALUES` | emulated | `mapSide: v` |  | 0 |
 | `MAP_CONCAT` | emulated | `$mergeObjects` |  | 0 |
 | `SUBSTRING` | emulated | `substring` |  | 0 |
+| `SUBSTRING_AS_GIVEN` | refused | `the database's own SUBSTRING over the arguments as given reached MongoDb, which has no SUBSTRING of its own: its $substrCP form is lite's...` |  | 0 |
 | `STRPOS` | emulated | `guarded: {"$add": [{"$indexOfCP": [, , , ]}, 1]}` |  | 0 |
 | `STARTS_WITH` | emulated | `guarded: {"$eq": [{"$indexOfCP": [, , , ]}, 0]}` |  | 0 |
 | `ENDS_WITH` | emulated | `endsWith` |  | 0 |
@@ -2372,591 +2381,3 @@ Database types planned with it: MongoDB.
 | `JSON_TYPE` | emulated | `jsonType` |  | 0 |
 | `JSON_ARRAY_LENGTH` | emulated | `guardedOp: $size` |  | 0 |
 | `JSON_PRETTY` | refused | `a pretty-printed JSON text reached MongoDb, which has no JSON text operator` |  | 0 |
-
-## EngineStyleH2
-
-Database types planned with it: no database type's own (it extends `AnsiSqlRenderer`). No PCT lane runs it, so its arms have no measured reach.
-
-| function | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `AND` | spelled | `an operator (infix)` |  | — |
-| `OR` | spelled | `an operator (infix)` |  | — |
-| `NOT` | spelled | `an operator (notPrefix)` |  | — |
-| `EQUAL` | spelled | `an operator (infix)` |  | — |
-| `NOT_EQUAL` | spelled | `an operator (infix)` |  | — |
-| `LESS` | spelled | `an operator (infix)` |  | — |
-| `LESS_EQUAL` | spelled | `an operator (infix)` |  | — |
-| `GREATER` | emulated | `greater` |  | — |
-| `GREATER_EQUAL` | spelled | `an operator (infix)` |  | — |
-| `PLUS` | spelled | `an operator (infix)` |  | — |
-| `MINUS` | spelled | `an operator (infix)` |  | — |
-| `TIMES` | spelled | `an operator (infix)` |  | — |
-| `DIVIDE` | emulated | `divideAsDoubles` |  | — |
-| `MOD` | emulated | `modFloored` |  | — |
-| `REM` | emulated | `modTruncated` |  | — |
-| `NEGATE` | spelled | `an operator (negation)` |  | — |
-| `ABS` | spelled | `abs` |  | — |
-| `IS_NULL` | spelled | `an operator (isNullTest)` |  | — |
-| `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | — |
-| `IN` | emulated | `inList` |  | — |
-| `COALESCE` | emulated | `coalesceArm` |  | — |
-| `PARSE_INT` | emulated | `cast(… as integer)` |  | — |
-| `CONCAT` | emulated | `concatArm` |  | — |
-| `LENGTH` | spelled | `char_length` |  | — |
-| `UPPER` | spelled | `upper` |  | — |
-| `LOWER` | spelled | `lower` |  | — |
-| `GREATEST` | spelled | `greatest` |  | — |
-| `LEAST` | spelled | `least` |  | — |
-| `CONCAT_JOIN` | spelled | `concat` |  | — |
-| `CONCAT_WS` | spelled | `concat_ws` |  | — |
-| `LIST_FILTER` | emulated | `listCall` |  | — |
-| `LIST_TRANSFORM` | emulated | `listCall` |  | — |
-| `LIST_CONCAT` | emulated | `listCall` |  | — |
-| `LIST_GET` | emulated | `listCall` |  | — |
-| `LIST_POSITION` | emulated | `listCall` |  | — |
-| `LIST_AT` | emulated | `listCall` |  | — |
-| `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listExists` | — |
-| `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listForAll` | — |
-| `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `via AnsiSqlRenderer.structInsert` | — |
-| `UNNEST` | refused | `UNNEST reached a dialect without an unnest placement` | `via AnsiSqlRenderer.unnestProjection` | — |
-| `LIST_FLATTEN` | spelled | `flatten` |  | — |
-| `JSON_MERGE_PATCH` | emulated | `jsonMergePatch` |  | — |
-| `SQRT` | spelled | `sqrt` |  | — |
-| `CBRT` | emulated | `power(…, 1.0/3)` |  | — |
-| `EXP` | spelled | `exp` |  | — |
-| `LN` | spelled | `ln` |  | — |
-| `LOG10` | spelled | `log10` |  | — |
-| `POW` | spelled | `power` |  | — |
-| `PI` | spelled | `pi` |  | — |
-| `SIN` | spelled | `sin` |  | — |
-| `COS` | spelled | `cos` |  | — |
-| `TAN` | spelled | `tan` |  | — |
-| `ASIN` | spelled | `asin` |  | — |
-| `ACOS` | spelled | `acos` |  | — |
-| `ATAN` | spelled | `atan` |  | — |
-| `ATAN2` | spelled | `atan2` |  | — |
-| `SINH` | spelled | `sinh` |  | — |
-| `COSH` | spelled | `cosh` |  | — |
-| `TANH` | spelled | `tanh` |  | — |
-| `CEILING` | emulated | `bigintOf: ceil` |  | — |
-| `FLOOR` | emulated | `bigintOf: floor` |  | — |
-| `ROUND` | emulated | `roundHalfEven` |  | — |
-| `SIGN` | emulated | `bigintOf: sign` |  | — |
-| `XOR` | emulated | `xorAsAndOr` |  | — |
-| `BIT_AND` | refused | `reached a dialect without bit-op support` | `via AnsiSqlRenderer.bitOp` | — |
-| `BIT_OR` | refused | `reached a dialect without bit-op support` | `via AnsiSqlRenderer.bitOp` | — |
-| `BIT_XOR` | refused | `reached a dialect without bit-op support` | `via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_LEFT` | refused | `reached a dialect without bit-op support` | `via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_RIGHT` | refused | `reached a dialect without bit-op support` | `via AnsiSqlRenderer.bitOp` | — |
-| `BIT_NOT` | emulated | `bitNot` |  | — |
-| `REGEXP_EXTRACT` | spelled | `regexp_extract` |  | — |
-| `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` |  | — |
-| `REGEXP_REPLACE` | spelled | `regexp_replace` |  | — |
-| `REGEXP_FULL_MATCH` | spelled | `regexp_full_match` |  | — |
-| `IS_NUMERIC` | refused | `the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper` |  | — |
-| `MAP_FROM_LISTS` | spelled | `map` |  | — |
-| `MAP_FROM_ENTRIES` | spelled | `map_from_entries` |  | — |
-| `MAP_EMPTY` | emulated | `mapEmpty` |  | — |
-| `MAP_EXTRACT` | spelled | `map_extract` |  | — |
-| `MAP_KEYS` | spelled | `map_keys` |  | — |
-| `MAP_VALUES` | spelled | `map_values` |  | — |
-| `MAP_CONCAT` | spelled | `map_concat` |  | — |
-| `SUBSTRING` | spelled | `substring` |  | — |
-| `STRPOS` | spelled | `locate` |  | — |
-| `STARTS_WITH` | spelled | `starts_with` |  | — |
-| `ENDS_WITH` | spelled | `ends_with` |  | — |
-| `MATCHES` | spelled | `regexp_matches` |  | — |
-| `LEFT` | spelled | `left` |  | — |
-| `RIGHT` | spelled | `right` |  | — |
-| `LPAD` | emulated | `padCall: legend_h2_extension_lpad` |  | — |
-| `RPAD` | emulated | `padCall: legend_h2_extension_rpad` |  | — |
-| `TRIM` | emulated | `by its operands: trim(both from …) / …trim` |  | — |
-| `LTRIM` | emulated | `regexp_replace(…, '^[ ]+', '')` |  | — |
-| `RTRIM` | emulated | `regexp_replace(…, '[ ]+$', '')` |  | — |
-| `REPLACE` | spelled | `replace` |  | — |
-| `SPLIT` | spelled | `string_split` |  | — |
-| `SPLIT_PART` | spelled | `legend_h2_extension_split_part` |  | — |
-| `TRANSLATE` | refused | `translate reached the engine text: legend-engine has no translate dynaFunction to spell` |  | — |
-| `PURE_SPLIT_PART` | emulated | `splitPartCall` |  | — |
-| `REVERSE_STRING` | spelled | `legend_h2_extension_reverse_string` |  | — |
-| `ASCII_CODE` | spelled | `ascii` |  | — |
-| `CHR` | spelled | `char` |  | — |
-| `UC_FIRST` | emulated | `firstCharCased: upper` |  | — |
-| `LC_FIRST` | emulated | `firstCharCased: lower` |  | — |
-| `BINARY_COLLATE` | emulated | `composed` |  | — |
-| `ENCODE_BASE64` | emulated | `encodeBase64` |  | — |
-| `LEVENSHTEIN` | spelled | `levenshtein` |  | — |
-| `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | — |
-| `FORMAT` | spelled | `printf` |  | — |
-| `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `via AnsiSqlRenderer.hashSigned` | — |
-| `MD5` | emulated | `digest: MD5` |  | — |
-| `SHA1` | emulated | `digest: SHA-1` |  | — |
-| `SHA256` | emulated | `digest: SHA-256` |  | — |
-| `RANDOM` | spelled | `rand` |  | — |
-| `EXTRACT` | emulated | `extractArm` |  | — |
-| `TODAY` | emulated | `cast(now() as date)` |  | — |
-| `NOW` | spelled | `now` |  | — |
-| `DATE_TRUNC_DAY` | emulated | `cast(truncate(…) as date)` |  | — |
-| `MAKE_DATE` | spelled | `make_date` |  | — |
-| `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | — |
-| `DATE_TRUNC` | emulated | `dateTrunc` |  | — |
-| `ADD_INTERVAL` | emulated | `dbUnitOf, part: dateadd(…, …, …)` |  | — |
-| `DATE_DIFF` | emulated | `enginePart, part: datediff(…, …, …)` |  | — |
-| `TIME_BUCKET` | emulated | `timeBucket` |  | — |
-| `TIMEZONE` | spelled | `timezone` |  | — |
-| `DATE_AT_TIME` | refused | `a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one` |  | — |
-| `EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | — |
-| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf, part: dateadd(…, …, …)` |  | — |
-| `EPOCH_SECONDS` | spelled | `epoch` |  | — |
-| `EPOCH_MS` | spelled | `epoch_ms` |  | — |
-| `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` |  | — |
-| `FROM_EPOCH_MS` | emulated | `fromEpochMs` |  | — |
-| `DAYNAME` | spelled | `dayname` |  | — |
-| `MONTHNAME` | spelled | `monthname` |  | — |
-| `COT` | spelled | `cot` |  | — |
-| `RADIANS` | spelled | `radians` |  | — |
-| `DEGREES` | spelled | `degrees` |  | — |
-| `INT_DIVIDE` | emulated | `intDivide` |  | — |
-| `REPEAT_STR` | spelled | `repeat` |  | — |
-| `JARO_WINKLER` | spelled | `jaro_winkler_similarity` |  | — |
-| `DECODE_BASE64` | emulated | `decodeBase64` |  | — |
-| `CURRENT_USER_FN` | spelled | `current_user` |  | — |
-| `LIST_LENGTH` | spelled | `len` |  | — |
-| `LIST_ZIP` | emulated | `listCall` |  | — |
-| `LIST_DISTINCT` | emulated | `listCall` |  | — |
-| `LIST_APPEND` | emulated | `listCall` |  | — |
-| `LIST_SUM` | emulated | `composed` | `via EngineStyleH2.listCall` | — |
-| `LIST_MIN` | emulated | `listCall` |  | — |
-| `LIST_MAX` | emulated | `listCall` |  | — |
-| `LIST_AVG` | emulated | `listCall` |  | — |
-| `LIST_MEDIAN` | emulated | `listCall` |  | — |
-| `LIST_MODE` | emulated | `listCall` |  | — |
-| `LIST_SORT` | emulated | `listCall` |  | — |
-| `LIST_SORT_DESC` | emulated | `listCall` |  | — |
-| `LIST_TAIL` | emulated | `listCall` |  | — |
-| `LIST_INIT` | emulated | `listCall` |  | — |
-| `RANGE_FN` | emulated | `listCall` |  | — |
-| `LIST_PRODUCT` | emulated | `composed` | `via EngineStyleH2.listCall` | — |
-| `LIST_REDUCE` | emulated | `listCall` |  | — |
-| `LIST_SLICE` | emulated | `listCall` |  | — |
-| `REPEAT_VALUE` | emulated | `listCall` |  | — |
-| `LIST_BOOL_AND` | emulated | `composed` | `via EngineStyleH2.listCall` | — |
-| `LIST_BOOL_OR` | emulated | `composed` | `via EngineStyleH2.listCall` | — |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` |  | — |
-| `ALL_DISTINCT` | refused | `collection isDistinct reached a dialect without a list encoding` | `via AnsiSqlRenderer.allDistinct` | — |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | — |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | — |
-| `STRFTIME` | emulated | `strftimeArm` |  | — |
-| `STRPTIME` | emulated | `strptimeArm` |  | — |
-| `PARSE_DATE` | emulated | `cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....` |  | — |
-| `LIST_REVERSE` | emulated | `listCall` |  | — |
-| `TYPEOF` | emulated | `listCall` |  | — |
-| `ROUND_HALF_UP` | spelled | `ROUND` |  | — |
-| `ERROR` | emulated | `raiseEnvelope: error` |  | — |
-| `FLOOR_RAW` | spelled | `floor` |  | — |
-| `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `via AnsiSqlRenderer.variantConstruct` | — |
-| `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` |  | — |
-| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | — |
-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | — |
-| `FLOAT_TO_TEXT` | emulated | `floatToText` |  | — |
-| `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
-| `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | — |
-| `JSON_TYPE` | spelled | `json_type` |  | — |
-| `JSON_ARRAY_LENGTH` | spelled | `json_array_length` |  | — |
-| `JSON_PRETTY` | spelled | `json_pretty` |  | — |
-
-## EngineStyleDB2
-
-Database types planned with it: no database type's own (it extends `EngineStyleH2`). No PCT lane runs it, so its arms have no measured reach.
-
-| function | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `AND` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `OR` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `NOT` | spelled | `an operator (notPrefix)` | `as EngineStyleH2` | — |
-| `EQUAL` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `NOT_EQUAL` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `LESS` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `LESS_EQUAL` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `GREATER` | emulated | `greater` | `as EngineStyleH2` | — |
-| `GREATER_EQUAL` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `PLUS` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `MINUS` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `TIMES` | spelled | `an operator (infix)` | `as EngineStyleH2` | — |
-| `DIVIDE` | emulated | `divideAsDoubles` | `as EngineStyleH2` | — |
-| `MOD` | emulated | `modFloored` | `as EngineStyleH2` | — |
-| `REM` | emulated | `modTruncated` | `as EngineStyleH2` | — |
-| `NEGATE` | spelled | `an operator (negation)` | `as EngineStyleH2` | — |
-| `ABS` | spelled | `abs` | `as EngineStyleH2` | — |
-| `IS_NULL` | spelled | `an operator (isNullTest)` | `as EngineStyleH2` | — |
-| `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` | `as EngineStyleH2` | — |
-| `IN` | emulated | `inList` | `as EngineStyleH2` | — |
-| `COALESCE` | emulated | `coalesceArm` | `as EngineStyleH2` | — |
-| `PARSE_INT` | emulated | `cast(… as integer)` | `as EngineStyleH2` | — |
-| `CONCAT` | emulated | `flattenConcat: ( concat )` |  | — |
-| `LENGTH` | emulated | `CHARACTER_LENGTH(…,CODEUNITS32)` |  | — |
-| `UPPER` | spelled | `upper` | `as EngineStyleH2` | — |
-| `LOWER` | spelled | `lower` | `as EngineStyleH2` | — |
-| `GREATEST` | spelled | `greatest` | `as EngineStyleH2` | — |
-| `LEAST` | spelled | `least` | `as EngineStyleH2` | — |
-| `CONCAT_JOIN` | spelled | `concat` |  | — |
-| `CONCAT_WS` | spelled | `concat_ws` | `as EngineStyleH2` | — |
-| `LIST_FILTER` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_TRANSFORM` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_CONCAT` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_GET` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_POSITION` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_AT` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as EngineStyleH2, via AnsiSqlRenderer.listExists` | — |
-| `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as EngineStyleH2, via AnsiSqlRenderer.listForAll` | — |
-| `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as EngineStyleH2, via AnsiSqlRenderer.structInsert` | — |
-| `UNNEST` | refused | `UNNEST reached a dialect without an unnest placement` | `as EngineStyleH2, via AnsiSqlRenderer.unnestProjection` | — |
-| `LIST_FLATTEN` | spelled | `flatten` | `as EngineStyleH2` | — |
-| `JSON_MERGE_PATCH` | emulated | `jsonMergePatch` | `as EngineStyleH2` | — |
-| `SQRT` | spelled | `sqrt` | `as EngineStyleH2` | — |
-| `CBRT` | spelled | `cbrt` |  | — |
-| `EXP` | spelled | `exp` | `as EngineStyleH2` | — |
-| `LN` | spelled | `ln` | `as EngineStyleH2` | — |
-| `LOG10` | spelled | `log10` | `as EngineStyleH2` | — |
-| `POW` | spelled | `power` | `as EngineStyleH2` | — |
-| `PI` | spelled | `pi` | `as EngineStyleH2` | — |
-| `SIN` | spelled | `sin` | `as EngineStyleH2` | — |
-| `COS` | spelled | `cos` | `as EngineStyleH2` | — |
-| `TAN` | spelled | `tan` | `as EngineStyleH2` | — |
-| `ASIN` | spelled | `asin` | `as EngineStyleH2` | — |
-| `ACOS` | spelled | `acos` | `as EngineStyleH2` | — |
-| `ATAN` | spelled | `atan` | `as EngineStyleH2` | — |
-| `ATAN2` | spelled | `atan2` | `as EngineStyleH2` | — |
-| `SINH` | spelled | `sinh` | `as EngineStyleH2` | — |
-| `COSH` | spelled | `cosh` | `as EngineStyleH2` | — |
-| `TANH` | spelled | `tanh` | `as EngineStyleH2` | — |
-| `CEILING` | emulated | `bigintOf: ceil` | `as EngineStyleH2` | — |
-| `FLOOR` | emulated | `bigintOf: floor` | `as EngineStyleH2` | — |
-| `ROUND` | emulated | `roundHalfEven` | `as EngineStyleH2` | — |
-| `SIGN` | emulated | `bigintOf: sign` | `as EngineStyleH2` | — |
-| `XOR` | emulated | `xorAsAndOr` | `as EngineStyleH2` | — |
-| `BIT_AND` | refused | `reached a dialect without bit-op support` | `as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_OR` | refused | `reached a dialect without bit-op support` | `as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_XOR` | refused | `reached a dialect without bit-op support` | `as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_LEFT` | refused | `reached a dialect without bit-op support` | `as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_RIGHT` | refused | `reached a dialect without bit-op support` | `as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_NOT` | emulated | `bitNot` | `as EngineStyleH2` | — |
-| `REGEXP_EXTRACT` | spelled | `regexp_extract` | `as EngineStyleH2` | — |
-| `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` | `as EngineStyleH2` | — |
-| `REGEXP_REPLACE` | spelled | `regexp_replace` | `as EngineStyleH2` | — |
-| `REGEXP_FULL_MATCH` | spelled | `regexp_full_match` | `as EngineStyleH2` | — |
-| `IS_NUMERIC` | refused | `the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper` | `as EngineStyleH2` | — |
-| `MAP_FROM_LISTS` | spelled | `map` | `as EngineStyleH2` | — |
-| `MAP_FROM_ENTRIES` | spelled | `map_from_entries` | `as EngineStyleH2` | — |
-| `MAP_EMPTY` | emulated | `mapEmpty` | `as EngineStyleH2` | — |
-| `MAP_EXTRACT` | spelled | `map_extract` | `as EngineStyleH2` | — |
-| `MAP_KEYS` | spelled | `map_keys` | `as EngineStyleH2` | — |
-| `MAP_VALUES` | spelled | `map_values` | `as EngineStyleH2` | — |
-| `MAP_CONCAT` | spelled | `map_concat` | `as EngineStyleH2` | — |
-| `SUBSTRING` | spelled | `substr` |  | — |
-| `STRPOS` | spelled | `position` |  | — |
-| `STARTS_WITH` | spelled | `starts_with` | `as EngineStyleH2` | — |
-| `ENDS_WITH` | spelled | `ends_with` | `as EngineStyleH2` | — |
-| `MATCHES` | spelled | `regexp_matches` | `as EngineStyleH2` | — |
-| `LEFT` | emulated | `trim(left(…, …))` |  | — |
-| `RIGHT` | emulated | `trim(right(…, …))` |  | — |
-| `LPAD` | spelled | `lpad` |  | — |
-| `RPAD` | spelled | `rpad` |  | — |
-| `TRIM` | emulated | `by its operands: trim(both from …) / …trim` | `as EngineStyleH2` | — |
-| `LTRIM` | spelled | `ltrim` |  | — |
-| `RTRIM` | spelled | `rtrim` |  | — |
-| `REPLACE` | spelled | `replace` | `as EngineStyleH2` | — |
-| `SPLIT` | spelled | `string_split` | `as EngineStyleH2` | — |
-| `SPLIT_PART` | spelled | `legend_h2_extension_split_part` | `as EngineStyleH2` | — |
-| `TRANSLATE` | refused | `translate reached the engine text: legend-engine has no translate dynaFunction to spell` | `as EngineStyleH2` | — |
-| `PURE_SPLIT_PART` | emulated | `splitPartCall` | `as EngineStyleH2` | — |
-| `REVERSE_STRING` | spelled | `reverse` |  | — |
-| `ASCII_CODE` | spelled | `ascii` | `as EngineStyleH2` | — |
-| `CHR` | spelled | `char` | `as EngineStyleH2` | — |
-| `UC_FIRST` | emulated | `firstCharCased: upper` | `as EngineStyleH2` | — |
-| `LC_FIRST` | emulated | `firstCharCased: lower` | `as EngineStyleH2` | — |
-| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured` |  | — |
-| `ENCODE_BASE64` | emulated | `encodeBase64` | `as EngineStyleH2` | — |
-| `LEVENSHTEIN` | spelled | `levenshtein` | `as EngineStyleH2` | — |
-| `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as EngineStyleH2` | — |
-| `FORMAT` | spelled | `printf` | `as EngineStyleH2` | — |
-| `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `as EngineStyleH2, via AnsiSqlRenderer.hashSigned` | — |
-| `MD5` | emulated | `digest: MD5` | `as EngineStyleH2` | — |
-| `SHA1` | emulated | `digest: SHA-1` | `as EngineStyleH2` | — |
-| `SHA256` | emulated | `digest: SHA-256` | `as EngineStyleH2` | — |
-| `RANDOM` | spelled | `rand` | `as EngineStyleH2` | — |
-| `EXTRACT` | emulated | `extract` |  | — |
-| `TODAY` | emulated | `date(current date)` |  | — |
-| `NOW` | spelled | `now` | `as EngineStyleH2` | — |
-| `DATE_TRUNC_DAY` | emulated | `cast(truncate(…) as date)` | `as EngineStyleH2` | — |
-| `MAKE_DATE` | spelled | `make_date` | `as EngineStyleH2` | — |
-| `MAKE_TIMESTAMP` | emulated | `makeTimestamp` | `as EngineStyleH2` | — |
-| `DATE_TRUNC` | emulated | `dateTrunc` |  | — |
-| `ADD_INTERVAL` | emulated | `addInterval` |  | — |
-| `DATE_DIFF` | emulated | `enginePart, part: datediff(…, …, …)` | `as EngineStyleH2` | — |
-| `TIME_BUCKET` | emulated | `timeBucket` | `as EngineStyleH2` | — |
-| `TIMEZONE` | spelled | `timezone` | `as EngineStyleH2` | — |
-| `DATE_AT_TIME` | refused | `a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one` | `as EngineStyleH2` | — |
-| `EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as EngineStyleH2` | — |
-| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as EngineStyleH2` | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf, part: dateadd(…, …, …)` | `as EngineStyleH2` | — |
-| `EPOCH_SECONDS` | spelled | `epoch` | `as EngineStyleH2` | — |
-| `EPOCH_MS` | spelled | `epoch_ms` | `as EngineStyleH2` | — |
-| `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` | `as EngineStyleH2` | — |
-| `FROM_EPOCH_MS` | emulated | `fromEpochMs` | `as EngineStyleH2` | — |
-| `DAYNAME` | spelled | `dayname` | `as EngineStyleH2` | — |
-| `MONTHNAME` | spelled | `monthname` | `as EngineStyleH2` | — |
-| `COT` | spelled | `cot` | `as EngineStyleH2` | — |
-| `RADIANS` | spelled | `radians` | `as EngineStyleH2` | — |
-| `DEGREES` | spelled | `degrees` | `as EngineStyleH2` | — |
-| `INT_DIVIDE` | emulated | `intDivide` | `as EngineStyleH2` | — |
-| `REPEAT_STR` | spelled | `repeat` | `as EngineStyleH2` | — |
-| `JARO_WINKLER` | spelled | `jaro_winkler_similarity` | `as EngineStyleH2` | — |
-| `DECODE_BASE64` | emulated | `decodeBase64` | `as EngineStyleH2` | — |
-| `CURRENT_USER_FN` | spelled | `current_user` | `as EngineStyleH2` | — |
-| `LIST_LENGTH` | spelled | `len` | `as EngineStyleH2` | — |
-| `LIST_ZIP` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_DISTINCT` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_APPEND` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_SUM` | emulated | `composed` | `as EngineStyleH2, via EngineStyleH2.listCall` | — |
-| `LIST_MIN` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_MAX` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_AVG` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_MEDIAN` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_MODE` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_SORT` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_SORT_DESC` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_TAIL` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_INIT` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `RANGE_FN` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_PRODUCT` | emulated | `composed` | `as EngineStyleH2, via EngineStyleH2.listCall` | — |
-| `LIST_REDUCE` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_SLICE` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `REPEAT_VALUE` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `LIST_BOOL_AND` | emulated | `composed` | `as EngineStyleH2, via EngineStyleH2.listCall` | — |
-| `LIST_BOOL_OR` | emulated | `composed` | `as EngineStyleH2, via EngineStyleH2.listCall` | — |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` | `as EngineStyleH2` | — |
-| `ALL_DISTINCT` | refused | `collection isDistinct reached a dialect without a list encoding` | `as EngineStyleH2, via AnsiSqlRenderer.allDistinct` | — |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` | `as EngineStyleH2` | — |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` | `as EngineStyleH2` | — |
-| `STRFTIME` | emulated | `strftimeArm` | `as EngineStyleH2` | — |
-| `STRPTIME` | emulated | `strptime` |  | — |
-| `PARSE_DATE` | emulated | `cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....` | `as EngineStyleH2` | — |
-| `LIST_REVERSE` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `TYPEOF` | emulated | `listCall` | `as EngineStyleH2` | — |
-| `ROUND_HALF_UP` | spelled | `ROUND` | `as EngineStyleH2` | — |
-| `ERROR` | emulated | `raiseEnvelope: error` | `as EngineStyleH2` | — |
-| `FLOOR_RAW` | spelled | `floor` | `as EngineStyleH2` | — |
-| `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
-| `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleH2` | — |
-| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleH2` | — |
-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as EngineStyleH2` | — |
-| `FLOAT_TO_TEXT` | emulated | `floatToText` | `as EngineStyleH2` | — |
-| `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
-| `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
-| `JSON_TYPE` | spelled | `json_type` | `as EngineStyleH2` | — |
-| `JSON_ARRAY_LENGTH` | spelled | `json_array_length` | `as EngineStyleH2` | — |
-| `JSON_PRETTY` | spelled | `json_pretty` | `as EngineStyleH2` | — |
-
-## EngineStyleComposite
-
-Database types planned with it: no database type's own (it extends `EngineStyleDB2`). No PCT lane runs it, so its arms have no measured reach.
-
-| function | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `AND` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `OR` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `NOT` | spelled | `an operator (notPrefix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `EQUAL` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `NOT_EQUAL` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LESS` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LESS_EQUAL` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `GREATER` | emulated | `greater` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `GREATER_EQUAL` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `PLUS` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MINUS` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TIMES` | spelled | `an operator (infix)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DIVIDE` | emulated | `divideAsDoubles` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MOD` | emulated | `modFloored` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REM` | emulated | `modTruncated` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `NEGATE` | spelled | `an operator (negation)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ABS` | spelled | `abs` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `IS_NULL` | spelled | `an operator (isNullTest)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `IN` | emulated | `inList` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `COALESCE` | emulated | `coalesceArm` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `PARSE_INT` | emulated | `cast(… as integer)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `CONCAT` | emulated | `flattenConcat: ( concat )` | `as EngineStyleDB2` | — |
-| `LENGTH` | spelled | `char_length` |  | — |
-| `UPPER` | spelled | `upper` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LOWER` | spelled | `lower` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `GREATEST` | spelled | `greatest` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LEAST` | spelled | `least` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `CONCAT_JOIN` | spelled | `concat` | `as EngineStyleDB2` | — |
-| `CONCAT_WS` | spelled | `concat_ws` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_FILTER` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_TRANSFORM` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_CONCAT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_GET` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_POSITION` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_AT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listExists` | — |
-| `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listForAll` | — |
-| `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.structInsert` | — |
-| `UNNEST` | refused | `UNNEST reached a dialect without an unnest placement` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.unnestProjection` | — |
-| `LIST_FLATTEN` | spelled | `flatten` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `JSON_MERGE_PATCH` | emulated | `jsonMergePatch` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SQRT` | spelled | `sqrt` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `CBRT` | spelled | `cbrt` | `as EngineStyleDB2` | — |
-| `EXP` | spelled | `exp` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LN` | spelled | `ln` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LOG10` | spelled | `log10` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `POW` | spelled | `power` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `PI` | spelled | `pi` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SIN` | spelled | `sin` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `COS` | spelled | `cos` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TAN` | spelled | `tan` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ASIN` | spelled | `asin` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ACOS` | spelled | `acos` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ATAN` | spelled | `atan` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ATAN2` | spelled | `atan2` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SINH` | spelled | `sinh` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `COSH` | spelled | `cosh` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TANH` | spelled | `tanh` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `CEILING` | emulated | `bigintOf: ceil` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FLOOR` | emulated | `bigintOf: floor` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ROUND` | emulated | `roundHalfEven` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SIGN` | emulated | `bigintOf: sign` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `XOR` | emulated | `xorAsAndOr` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `BIT_AND` | refused | `reached a dialect without bit-op support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_OR` | refused | `reached a dialect without bit-op support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_XOR` | refused | `reached a dialect without bit-op support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_LEFT` | refused | `reached a dialect without bit-op support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_RIGHT` | refused | `reached a dialect without bit-op support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_NOT` | emulated | `bitNot` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REGEXP_EXTRACT` | spelled | `regexp_extract` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REGEXP_REPLACE` | spelled | `regexp_replace` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REGEXP_FULL_MATCH` | spelled | `regexp_full_match` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `IS_NUMERIC` | refused | `the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAP_FROM_LISTS` | spelled | `map` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAP_FROM_ENTRIES` | spelled | `map_from_entries` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAP_EMPTY` | emulated | `mapEmpty` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAP_EXTRACT` | spelled | `map_extract` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAP_KEYS` | spelled | `map_keys` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAP_VALUES` | spelled | `map_values` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAP_CONCAT` | spelled | `map_concat` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SUBSTRING` | spelled | `substring` |  | — |
-| `STRPOS` | spelled | `position` | `as EngineStyleDB2` | — |
-| `STARTS_WITH` | spelled | `starts_with` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ENDS_WITH` | spelled | `ends_with` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MATCHES` | spelled | `regexp_matches` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LEFT` | emulated | `trim(left(…, …))` | `as EngineStyleDB2` | — |
-| `RIGHT` | emulated | `trim(right(…, …))` | `as EngineStyleDB2` | — |
-| `LPAD` | spelled | `lpad` | `as EngineStyleDB2` | — |
-| `RPAD` | spelled | `rpad` | `as EngineStyleDB2` | — |
-| `TRIM` | emulated | `by its operands: trim(both from …) / …trim` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LTRIM` | spelled | `ltrim` | `as EngineStyleDB2` | — |
-| `RTRIM` | spelled | `rtrim` | `as EngineStyleDB2` | — |
-| `REPLACE` | spelled | `replace` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SPLIT` | spelled | `string_split` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SPLIT_PART` | spelled | `legend_h2_extension_split_part` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TRANSLATE` | refused | `translate reached the engine text: legend-engine has no translate dynaFunction to spell` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `PURE_SPLIT_PART` | emulated | `splitPartCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REVERSE_STRING` | spelled | `reverse` | `as EngineStyleDB2` | — |
-| `ASCII_CODE` | spelled | `ascii` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `CHR` | spelled | `char` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `UC_FIRST` | emulated | `firstCharCased: upper` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LC_FIRST` | emulated | `firstCharCased: lower` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured` | `as EngineStyleDB2` | — |
-| `ENCODE_BASE64` | emulated | `encodeBase64` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LEVENSHTEIN` | spelled | `levenshtein` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FORMAT` | spelled | `printf` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.hashSigned` | — |
-| `MD5` | emulated | `digest: MD5` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SHA1` | emulated | `digest: SHA-1` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `SHA256` | emulated | `digest: SHA-256` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `RANDOM` | spelled | `rand` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `EXTRACT` | emulated | `extract` | `as EngineStyleDB2` | — |
-| `TODAY` | emulated | `date(current date)` | `as EngineStyleDB2` | — |
-| `NOW` | spelled | `now` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DATE_TRUNC_DAY` | emulated | `cast(truncate(…) as date)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAKE_DATE` | spelled | `make_date` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MAKE_TIMESTAMP` | emulated | `makeTimestamp` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DATE_TRUNC` | emulated | `dateTrunc` | `as EngineStyleDB2` | — |
-| `ADD_INTERVAL` | emulated | `addInterval` | `as EngineStyleDB2` | — |
-| `DATE_DIFF` | emulated | `enginePart, part: datediff(…, …, …)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TIME_BUCKET` | emulated | `timeBucket` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TIMEZONE` | spelled | `timezone` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DATE_AT_TIME` | refused | `a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dbUnitOf, part: dateadd(…, …, …)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `EPOCH_SECONDS` | spelled | `epoch` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `EPOCH_MS` | spelled | `epoch_ms` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FROM_EPOCH_MS` | emulated | `fromEpochMs` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DAYNAME` | spelled | `dayname` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `MONTHNAME` | spelled | `monthname` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `COT` | spelled | `cot` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `RADIANS` | spelled | `radians` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DEGREES` | spelled | `degrees` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `INT_DIVIDE` | emulated | `intDivide` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REPEAT_STR` | spelled | `repeat` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `JARO_WINKLER` | spelled | `jaro_winkler_similarity` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DECODE_BASE64` | emulated | `decodeBase64` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `CURRENT_USER_FN` | spelled | `current_user` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_LENGTH` | spelled | `len` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_ZIP` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_DISTINCT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_APPEND` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_SUM` | emulated | `composed` | `as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall` | — |
-| `LIST_MIN` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_MAX` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_AVG` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_MEDIAN` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_MODE` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_SORT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_SORT_DESC` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_TAIL` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_INIT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `RANGE_FN` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_PRODUCT` | emulated | `composed` | `as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall` | — |
-| `LIST_REDUCE` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_SLICE` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REPEAT_VALUE` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_BOOL_AND` | emulated | `composed` | `as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall` | — |
-| `LIST_BOOL_OR` | emulated | `composed` | `as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall` | — |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ALL_DISTINCT` | refused | `collection isDistinct reached a dialect without a list encoding` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.allDistinct` | — |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `STRFTIME` | emulated | `strftimeArm` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `STRPTIME` | emulated | `strptime` | `as EngineStyleDB2` | — |
-| `PARSE_DATE` | emulated | `cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `LIST_REVERSE` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TYPEOF` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ROUND_HALF_UP` | spelled | `ROUND` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `ERROR` | emulated | `raiseEnvelope: error` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FLOOR_RAW` | spelled | `floor` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
-| `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FLOAT_TO_TEXT` | emulated | `floatToText` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
-| `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
-| `JSON_TYPE` | spelled | `json_type` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `JSON_ARRAY_LENGTH` | spelled | `json_array_length` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `JSON_PRETTY` | spelled | `json_pretty` | `as EngineStyleDB2, as EngineStyleH2` | — |

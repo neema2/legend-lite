@@ -220,8 +220,8 @@ public class CorpusSweepTest {
             String refereeJson = null;
             Throwable refereeRoot = null;
             try {
-                refereeJson = mapper.writeValueAsString(
-                        referee.parseModel(src.text()));
+                // the referee's parse of each text, shared with the other parity classes in this run
+                refereeJson = RefereeParses.withSourceInformation(src.text()).json();
             } catch (Throwable t) {
                 refereeRoot = rootOf(t);
             }
@@ -438,6 +438,7 @@ public class CorpusSweepTest {
                 }
             }
         }
+        System.out.println("[sweep] " + RefereeParses.counts());
 
         // stale allowlist rows — parity fixed, lines to REMOVE
         List<String> stale = refusalAllow.keySet().stream()
@@ -619,7 +620,6 @@ public class CorpusSweepTest {
         for (Corpus.Source s : sources) {
             byId.put(s.id(), s.text());
         }
-        PureGrammarParser referee = PureGrammarParser.newInstance();
         List<String> stale = new java.util.ArrayList<>();
         for (String claim : new java.util.TreeSet<>(SKEW_CLAIMS)) {
             String text = byId.get(claim);
@@ -629,7 +629,7 @@ public class CorpusSweepTest {
             }
             boolean refereeRefuses;
             try {
-                referee.parseModel(text);
+                RefereeParses.withSourceInformation(text);
                 refereeRefuses = false;
             } catch (Throwable t) {
                 refereeRefuses = true;

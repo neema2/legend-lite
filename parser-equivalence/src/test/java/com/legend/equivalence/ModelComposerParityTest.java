@@ -291,32 +291,33 @@ class ModelComposerParityTest {
         if (System.getenv("MODEL_COMPOSER_DUMP") != null) {
             dump = Files.newBufferedWriter(TestOutputs.file("model-composer-dump.jsonl"));
         }
-        PureGrammarParser referee = PureGrammarParser.newInstance();
+        // the referee's parse of each text, shared with the other parity classes in this run (RefereeParses)
         int sources = 0;
         for (Corpus.Source src : Corpus.all()) {
-            PureModelContextData parsed;
+            RefereeParses.Parse parsed;
             try {
-                parsed = referee.parseModel(src.text());
+                parsed = RefereeParses.withSourceInformation(src.text());
             } catch (Throwable t) {
                 continue;   // the referee refuses the source: nothing to print
             }
             sources++;
-            compare(src.id(), mapper.writeValueAsString(parsed));
+            compare(src.id(), parsed.json());
         }
+        System.out.println("[model-composer] " + RefereeParses.counts());
         int roundtripTexts = 0;
         for (Path file : roundtripTestFiles()) {
             for (String run : InlineSnippets.literalRuns(Files.readString(file))) {
-                PureModelContextData parsed;
+                RefereeParses.Parse parsed;
                 try {
-                    parsed = referee.parseModel(run, "", 0, 0, false);
+                    parsed = RefereeParses.withoutSourceInformation(run);
                 } catch (Throwable t) {
                     continue;   // not a model text (an expected message, a JSON resource name)
                 }
-                if (parsed.getElements().size() <= 1) {
+                if (parsed.elements().size() <= 1) {
                     continue;   // only the section index: nothing to print
                 }
                 roundtripTexts++;
-                compare("roundtrip:" + file.getFileName(), mapper.writeValueAsString(parsed));
+                compare("roundtrip:" + file.getFileName(), parsed.json());
             }
         }
 

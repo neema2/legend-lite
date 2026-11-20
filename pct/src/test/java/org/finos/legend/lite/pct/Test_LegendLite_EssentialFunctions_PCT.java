@@ -83,26 +83,13 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // own toString() qualifier is still not in the model the adapter hands over (ModelPacker rebuilds classes
             // property by property)
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
-            // C1.5c extends the SAME divergence to indexOf: the engine's
-            // relational runtime translates indexOf to 1-BASED locate()
-            // verbatim (testSqlFunctionsInMapping golden + rows [12,12]);
-            // platform pure is 0-based. The reference DuckDB adapter
-            // ledgers the IDENTICAL diffs (testSimple "expected: 4
-            // actual: 5"; testIndexOfOneElement "expected: 0 actual: 1")
-            // and excludes testFromIndex outright (no translation — ours
-            // runs 1-based). One pipeline cannot be both bases; corpus
-            // (engine-relational parity) is the acceptance surface.
-            // (substring + sort-by-key: NOT here since the feature-flag leg,
-            // 2026-09-12 — the adapter sets CORRECT_SQL_SUBSTRING_INDEXING, a
-            // written deviation from the reference adapters, and substring's
-            // corrected lowering is selected by that flag. substr: NOT here on
-            // its own merits — the engine's relational lowering ALWAYS corrects
-            // substr, "needs no flag" (PR #5045), and so does the platform
-            // (SubstrIndexingTest). indexOf has no such flag upstream: still the
-            // 1-based emission.)
-            one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
-            one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
-            one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
+            // 2026-11-19, A3 of the compatibility program, piece 2 (the user's word, 2026-11-19: "approved: push both A3
+            // branches and make piece 2's moves"): indexOf is Pure's in the core, 0-based, -1 on a miss (S134), so
+            // indexOf::testSimple, testFromIndex and indexof::testIndexOfOneElement pass and leave (measured on this lane).
+            // They were here since C1.5c, which gave indexOf legend-engine's 1-based locate(); that meaning is the
+            // compatibility edge's now. substring and sort-by-key: Pure's in the core too (S130), so the adapter sets no
+            // CORRECT_SQL_SUBSTRING_INDEXING (the 2026-09-12 deviation from the reference adapters, reversed); substr was
+            // always corrected (SubstrIndexingTest).
 
             // INSTANCE IDENTITY through the wire (assertIs against the original
             // instance — addresses are nondeterministic, so the STABLE fragment

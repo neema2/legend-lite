@@ -36,14 +36,16 @@ public class Test_LegendLite_MariaDB_EssentialFunctions_PCT extends PCTReportCon
             one("meta::pure::functions::collection::tests::find::testFindUsingVarForFunction_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             // THE PLATFORM'S OWN (each pinned on the DuckDB lane too, by the same cause): name resolution, lowering
-            // and harness limits, the 0-based indexOf, error positions and messages
+            // and harness limits, error positions and messages
             one("meta::pure::functions::collection::tests::at::testAtError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 37\""),
             // NOTE 2026-10-20: testFoldFiltering and testFoldToMany unpinned -- a lambda parameter's list field is read
             // as the list it is (MariaDb.structFields types the read; JSON_VALUE read it as a scalar, NULL, and the
             // accumulator kept its last name alone)
             // NOTE 2026-10-20, plan-route parity (b0d5e435, measured by the step-9 lane session): testFold unpinned -- the
             // adapter prints a copy with its updated values (CopyWithUpdate)
-            one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
+            // 2026-11-19, A3 of the compatibility program, piece 2 (the user's word, 2026-11-19: "approved: push both A3
+            // branches and make piece 2's moves"): indexOf is Pure's in the core, 0-based, -1 on a miss (S134), so
+            // indexOf::testSimple, testFromIndex and indexof::testIndexOfOneElement pass and leave (measured on this lane)
             one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "\"a date past the year 9999 has no MariaDB value\""),
             one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "\"a date past the year 9999 has no MariaDB value\""),
             one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "\"a date past the year 9999 has no MariaDB value\""),
@@ -62,8 +64,6 @@ public class Test_LegendLite_MariaDB_EssentialFunctions_PCT extends PCTReportCon
             one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"acos of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"asin of a value outside [-1, 1] is NaN, which this database cannot hold\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
-            one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
-            one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),

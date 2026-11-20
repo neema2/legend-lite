@@ -126,7 +126,8 @@ class GeneratedTestDataProgramTest {
     static final String SLICE = "default\nPERSON\nID,NAME\n2,ann\n3,\"o'neil, jr\"\n-----\n"
             + "default\nBICYCLE\nID,PERSONID\n10,2\n11,3\n12,3\n-----\n";
 
-    /** Every in-process backend under every judge: the host's, the database's, both. */
+    /** Every in-process backend under every judge: the host's, the database's, both (the product's judges: the
+     *  printing test's product half). */
     static List<org.junit.jupiter.params.provider.Arguments> backendsAndJudges() {
         List<org.junit.jupiter.params.provider.Arguments> out = new ArrayList<>();
         for (TestBackend b : TestBackends.inProcess()) {
@@ -137,8 +138,20 @@ class GeneratedTestDataProgramTest {
         return out;
     }
 
+    /** Every in-process backend under the host judge: this class's bodies plan in the edge's style alone (the
+     *  generator binds legend-engine's plan handle, which only the edge plans), and the host judge is the only judge in
+     *  compatibility (rule 4 of the compatibility program's rules of record; A4 of the compatibility program, stage A
+     *  ratified by the user 2026-11-19: until A4 they ran under every judge). */
+    static List<org.junit.jupiter.params.provider.Arguments> backendsUnderTheHost() {
+        List<org.junit.jupiter.params.provider.Arguments> out = new ArrayList<>();
+        for (TestBackend b : TestBackends.inProcess()) {
+            out.add(org.junit.jupiter.params.provider.Arguments.of(b, PlanningOptions.JudgeMode.HOST));
+        }
+        return out;
+    }
+
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void theGeneratorsResultIsPlannedAndJudged(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
         List<String> texts = new ArrayList<>();
@@ -191,7 +204,7 @@ class GeneratedTestDataProgramTest {
      * the texts' own faults fail at planning, upstream's lookups with upstream's own words.
      */
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void theGeneratedTextIsComparedAsUpstreamDecides(TestBackend backend, PlanningOptions.JudgeMode judge)
             throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
@@ -268,7 +281,7 @@ class GeneratedTestDataProgramTest {
      * same.
      */
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void aBitCellIsComparedAsUpstreamWritesIt(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
         String what = backend.name() + " " + judge;
@@ -323,7 +336,7 @@ class GeneratedTestDataProgramTest {
      * statements the run sends hold no write); a direct read of the database after the reload is refused by name.
      */
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void theQueryRunsOverTheSlice(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
         String what = backend.name() + " " + judge;
@@ -376,7 +389,7 @@ class GeneratedTestDataProgramTest {
      * ({@code name} read as {@code NAME}) and miss the label {@code "name"}.
      */
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void theReloadReadsALowerCaseColumnByItsOwnLabel(TestBackend backend, PlanningOptions.JudgeMode judge)
             throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
@@ -410,7 +423,7 @@ class GeneratedTestDataProgramTest {
      * generator's runtime argument must be the body's runtime (M5).
      */
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void whatTheReloadCannotAnswerIsRefusedByName(TestBackend backend, PlanningOptions.JudgeMode judge)
             throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
@@ -475,7 +488,7 @@ class GeneratedTestDataProgramTest {
      * its let, or none, is not refused by this guard.
      */
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void aSeedStringReadAcrossAnEffectIsRefusedByName(TestBackend backend, PlanningOptions.JudgeMode judge)
             throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
@@ -522,7 +535,7 @@ class GeneratedTestDataProgramTest {
      * order -- a failing assert before it is the body's outcome, as upstream's.
      */
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void theLastStatementRunsAfterTheAsserts(TestBackend backend, PlanningOptions.JudgeMode judge) throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend));
         String what = backend.name() + " " + judge;
@@ -550,7 +563,7 @@ class GeneratedTestDataProgramTest {
     /** A test-data generator's body planned whole (its comparison, its reload, the query over the slice) round-trips as
      *  JSON: the plan is data (B2d.2's audit, L5). */
     @ParameterizedTest
-    @MethodSource("backendsAndJudges")
+    @MethodSource("backendsUnderTheHost")
     void theGeneratorsPlanRoundTripsAsJson(TestBackend backend, PlanningOptions.JudgeMode judge) {
         ModelContext ctx = Compiler.compileModel(model(backend));
         com.legend.testexecutionplan.TestPlan plan = TestExecution.planBody(typed(ctx, "{|" + LETS

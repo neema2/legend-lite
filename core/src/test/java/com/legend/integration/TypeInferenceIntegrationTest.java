@@ -1113,16 +1113,13 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testIndexOfOneElement() throws SQLException {
                 // CORRECTED (stamp C1): ['a'] is String[1] — resolution
                 // picks string::indexOf over collection::indexOf<T[*]>
-                // (concrete beats generic; real pure resolves the same),
-                // and the platform's string indexOf follows the ENGINE's
-                // 1-based locate() convention (the ledgered relational
-                // divergence from pure's 0-based interpreted answer —
-                // "expected: 4 actual: 5" in the reference DuckDB PCT
-                // adapter). The old 0 expectation rode the ArrayLit shape
-                // sniff: the SAME resolved function answered 0 for ['a']
-                // and 1 for 'a'. One callee, one convention: 1.
+                // (concrete beats generic; real pure resolves the same).
+                // One callee, one convention. Re-pinned by A3 of the compatibility program, piece 2, 2026-11-19 (the user's word: "approved: push both A3 branches and make piece 2's moves"):
+                // string indexOf is Pure's, 0-based (S134), so 0, as PCT's
+                // indexof::testIndexOfOneElement expects; legend-engine's
+                // 1-based locate() is the compatibility edge's.
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|['a']->indexOf('a')", "test::TestRuntime", connection);
-                assertEquals(1, ((Number) result.rows().get(0).get(0)).intValue());
+                assertEquals(0, ((Number) result.rows().get(0).get(0)).intValue());
         }
 
         // --- PCT: DateTime toString format ---
@@ -1565,33 +1562,30 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         // ==================== String indexOf / substring / joinStrings / sort tests
         // ====================
 
-        // Relational indexOf is ONE-based: every engine dialect emits its
-        // position function verbatim (h2Extension2_1_214.pure LOCATE,
-        // duckdbExtension.pure instr — no -1), and the engine's own DuckDB
-        // PCT ledgers pure's 0-based indexOf::testSimple as an EXPECTED
-        // failure ("expected: 4 actual: 5"). These pins hold the engine
-        // semantics, not pure's (C1.5c).
+        // indexOf and substring are PURE's: 0-based, -1 on a miss, end-exclusive
+        // (S130, S134). Re-pinned by A3 of the compatibility program, piece 2, 2026-11-19 (the user's word: "approved: push both A3 branches and make piece 2's moves"); they
+        // held legend-engine's 1-based relational emission since C1.5c, which is
+        // the compatibility edge's meaning now.
 
         @Test
         void testStringIndexOf() throws SQLException {
-                // engine relational: |'c'->indexOf('c') = 1 (1-based LOCATE)
+                // Pure: |'c'->indexOf('c') = 0
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|'c'->meta::pure::functions::string::indexOf('c')", "test::TestRuntime", connection);
-                assertScalarInteger(result, 1);
+                assertScalarInteger(result, 0);
         }
 
         @Test
         void testStringIndexOfSimple() throws SQLException {
-                // engine relational: indexOf('quick') = 5 (1-based; pure's
-                // 0-based 4 is the ledgered PCT divergence)
+                // Pure: indexOf('quick') = 4 (PCT's indexOf::testSimple)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|'the quick brown fox jumps over the lazy dog'->meta::pure::functions::string::indexOf('quick')", "test::TestRuntime", connection);
-                assertScalarInteger(result, 5);
+                assertScalarInteger(result, 4);
         }
 
         @Test
         void testStringIndexOfFromIndex() throws SQLException {
-                // engine relational: |'the the'->indexOf('h', 0) = 2 (1-based)
+                // Pure: |'the the'->indexOf('h', 0) = 1 (Java's String.indexOf)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|'the the'->meta::pure::functions::string::indexOf('h', 0)", "test::TestRuntime", connection);
-                assertScalarInteger(result, 2);
+                assertScalarInteger(result, 1);
         }
 
         @Test
@@ -1603,13 +1597,13 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testSubstringStart() throws SQLException {
-                // RELATIONAL substring is a VERBATIM SQL passthrough
-                // (1-based start; engine corpus goldens, e.g.
-                // testFilterUsingParseIntegerFunction) — diverging from
-                // platform pure's 0-based PCT semantics BY THE ENGINE'S
-                // OWN DESIGN. substr(s, 1) is the identity.
+                // Pure's substring: 0-based start (S130), so substring(s, 1)
+                // drops the first character. Re-pinned by A3 piece 2,
+                // 2026-11-19 (see the note above testStringIndexOf); it held
+                // legend-engine's verbatim 1-based SQL substring, where
+                // substring(s, 1) is the identity (the compatibility edge's).
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|'the quick brown fox jumps over the lazy dog'->meta::pure::functions::string::substring(1)", "test::TestRuntime", connection);
-                assertEquals("the quick brown fox jumps over the lazy dog", result.rows().get(0).get(0));
+                assertEquals("he quick brown fox jumps over the lazy dog", result.rows().get(0).get(0));
         }
 
         @Test
@@ -2043,11 +2037,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testSortWithKeyFunction() throws SQLException {
-                // RELATIONAL substring passthrough (see testSubstringStart):
-                // substr(s, 1, 2) keys — Doe->'Do', Smith->'Sm',
-                // Branche->'Br' → Br<Do<Sm → [Branche, Doe, Smith]
+                // Pure's substring (see testSubstringStart; re-pinned by A3
+                // piece 2, 2026-11-19): substring(s, 1, 2) keys — Doe->'o',
+                // Smith->'m', Branche->'r' → m<o<r → [Smith, Doe, Branche],
+                // PCT's sort::testSimpleSortWithKey answer (sort.pure:108)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|['Doe', 'Smith', 'Branche']->meta::pure::functions::collection::sort({s: String[1]|$s->meta::pure::functions::string::substring(1, 2)}, {x: String[1], y: String[1]|$x->meta::pure::functions::lang::compare($y)})", "test::TestRuntime", connection);
-                assertEquals(List.of("Branche", "Doe", "Smith"), result.values());
+                assertEquals(List.of("Smith", "Doe", "Branche"), result.values());
         }
 
         @Test

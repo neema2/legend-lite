@@ -26,11 +26,6 @@ final class EngineTextGates {
         return style.judgesEngineText() ? style.facet(EngineTestText.class) : null;
     }
 
-    /** The database judge's text collector (asked only where the gate read an engine-text side: the style judges it). */
-    static BatchTexts batchTexts(BodyDriver.ExecEnv env) {
-        return java.util.Objects.requireNonNull(facet(env), "an engine-text read with no engine-text facet").batchTexts();
-    }
-
     /** Whether {@code fqn} is an engine-text ROOT arm's helper, on this style. */
     static boolean isRoot(BodyDriver.ExecEnv env, @com.legend.base.Nullable String fqn) {
         EngineTestText f = facet(env);
@@ -62,14 +57,6 @@ final class EngineTextGates {
     static String why(BodyDriver.ExecEnv env, HostSides.@com.legend.base.Nullable Check check) {
         return java.util.Objects.requireNonNull(facet(env), "a not-a-constant answer with no engine-text facet")
                 .why(check);
-    }
-
-    /** The database judge's gate for an edge-judged comparison, the edge's answer (asked only of a judgment the edge
-     *  planned: the style judges it; J41, 2026-11-18). */
-    static DatabaseGate gate(BodyDriver.ExecEnv env, com.legend.testexecutionplan.HostJudgment.EdgeJudged j,
-            java.util.function.Supplier<String> shape) {
-        return java.util.Objects.requireNonNull(facet(env), "an edge-judged comparison with no engine-text facet")
-                .gate(j.judgment(), shape);
     }
 
     /** The statement origin put in force on {@code env}'s text collector: what was in force before, to restore; none

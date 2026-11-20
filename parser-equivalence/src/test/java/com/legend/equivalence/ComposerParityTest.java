@@ -64,6 +64,8 @@ class ComposerParityTest {
     @Test
     void litePrintsEveryLambdaAsUpstreamDoes() throws Exception {
         ObjectMapper mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+        // upstream's lambda reader, for which prints read alike (keepsBracesUpstreamDrops); its parse of each corpus
+        // text is shared with the other parity classes in this run (RefereeParses)
         PureGrammarParser referee = PureGrammarParser.newInstance();
 
         List<Json.Obj> lambdas = new ArrayList<>();
@@ -71,13 +73,14 @@ class ComposerParityTest {
         for (Corpus.Source src : Corpus.all()) {
             String json;
             try {
-                json = mapper.writeValueAsString(referee.parseModel(src.text()));
+                json = RefereeParses.withSourceInformation(src.text()).json();
             } catch (Throwable t) {
                 continue;
             }
             sources++;
             collectLambdas(Json.parse(json, DEEP), lambdas);
         }
+        System.out.println("[composer] " + RefereeParses.counts());
         int corpusLambdas = lambdas.size();
         for (String rel : ROUNDTRIP_TESTS) {
             for (String run : InlineSnippets.literalRuns(Files.readString(Corpus.engineRoot().resolve(rel)))) {

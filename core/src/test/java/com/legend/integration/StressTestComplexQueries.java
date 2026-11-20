@@ -313,7 +313,7 @@ class StressTestComplexQueries {
                 parseUs = (System.nanoTime() - t) / 1000;
                 phase = "typeCheck";
                 t = System.nanoTime();
-                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);
+                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT");
                 typeUs = (System.nanoTime() - t) / 1000;
                 phase = "resolve";
                 t = System.nanoTime();
@@ -347,7 +347,7 @@ class StressTestComplexQueries {
                         com.legend.testing.Own.spec(query));
                 parseNs += System.nanoTime() - t;
                 t = System.nanoTime();
-                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT", false);
+                var sqlq = com.legend.Compiler.lowerResolved(vs, ctx, "test::RT");
                 typeNs += System.nanoTime() - t;
                 t = System.nanoTime();
                 // resolve is folded into the lowering above

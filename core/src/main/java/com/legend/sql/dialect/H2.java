@@ -13,9 +13,9 @@ import java.util.Set;
 
 /**
  * The H2 EXECUTION dialect (H2_BACKEND.md §12 step 8) — a sibling of
- * {@link DuckDb} extending {@link AnsiSqlRenderer}, NEVER
- * {@link EngineStyleH2} (whose output is byte-pinned to the engine's
- * golden TEXT and stays quarantined). This dialect's contract is
+ * {@link DuckDb} extending {@link AnsiSqlRenderer} (legend-engine's
+ * golden-text printer, which extended it, went with that text: A2 of the
+ * compatibility program, 2026-11-19, CP-4). This dialect's contract is
  * EXECUTABLE SQL for lite's ONE H2, 2.5.252 (the user, 2026-11-05: "I want latest version of H2"; until then core
  * and the corpus ran 2.1.214, legend-engine's own and patched, and PCT's lane 2.4.240 through a second dialect,
  * {@code H2Modern}, chosen by the connected server's version; register S141): every spelling here was probed against
@@ -149,7 +149,7 @@ public class H2 extends AnsiSqlRenderer {
         // every level above it (ProjectionWrapsFold)
         ps.add(new ProjectionWrapsFold(n -> n.toUpperCase(java.util.Locale.ROOT)));   // a bare name labelled in upper case
         // and a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04)
-        ps.add(new SelectMerge(n -> n.toUpperCase(java.util.Locale.ROOT)));
+        ps.add(new SelectMerge(n -> n.toUpperCase(java.util.Locale.ROOT), SelectMerge.IN_PLACE));
         // and a chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers(n -> n.toUpperCase(java.util.Locale.ROOT)));
         // (SharedRelationsInPlace.bindingAValue went 2026-11-06, with main's H2 2.5.252: a shared relation that binds a
@@ -186,7 +186,7 @@ public class H2 extends AnsiSqlRenderer {
      * words the STOCK parser rejects in alias position (witnessed:
      * {@code AS right} &rarr; syntax error) that the engine's laxer
      * FORK omits. Execution-dialect-only — golden text channels use
-     * {@link #ENGINE_LEXICON} or {@link EngineStyleH2#LEXICON}. */
+     * {@link #ENGINE_LEXICON}. */
     public static final Lexicon LEXICON = new Lexicon('"',
             java.util.stream.Stream.concat(
                     ENGINE_LEXICON.reservedWords().stream(),
@@ -680,8 +680,12 @@ public class H2 extends AnsiSqlRenderer {
             case TODAY -> writer.append("current_date");
             case NOW -> writer.append("now()");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
-            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(),
-                    stringLit(datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
+            // a week starts on Monday, Pure's (firstDayOfWeek is mostRecentDayOfWeek(Monday), legend-engine's
+            // dateExtension.pure): H2's 'week' starts on the session locale's first day, Sunday under en_US (measured,
+            // track A5, 2026-11-19: firstDayOfWeek(%2014-12-04) answered 2014-11-30 where every other database answers
+            // 2014-12-01); its 'iso_week' starts on Monday
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(part(a.get(0)) == com.legend.sql.DatePart.WEEK
+                    ? "iso_week" : datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
             case CURRENT_USER_FN -> writer.append("current_user");
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
@@ -745,7 +749,7 @@ public class H2 extends AnsiSqlRenderer {
             case MAP_KEYS -> writer.function("map_keys", c.args());
             case MAP_VALUES -> writer.function("map_values", c.args());
             case MAP_CONCAT -> writer.function("map_concat", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case MATCHES -> writer.function("regexp_like", c.args());
             case LEFT -> writer.function("left", c.args());
             case RIGHT -> writer.function("right", c.args());
@@ -958,8 +962,8 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     /** A DurationUnit's part -> H2 dateadd unit keyword (the
-     * engine's extensionDefaults mapToDBUnitType; duplicated from the
-     * QUARANTINED EngineStyleH2 deliberately — semantic unit data, not
+     * engine's extensionDefaults mapToDBUnitType; once duplicated in
+     * legend-engine's SQL-text printer, deleted with A2, 2026-11-19 — semantic unit data, not
      * golden formatting). */
     private static String dateUnit(com.legend.sql.DatePart unit) {
         return switch (unit) {
@@ -1481,7 +1485,7 @@ public class H2 extends AnsiSqlRenderer {
      *  {@code \x{h…}}, so no character is special inside the class. It used to call
      *  {@code legend_h2_extension_split_part}, a function only the engine's H2 (and our test
      *  harness) installs, so product SQL failed on a plain H2 (execution plan W0.2(a)); that
-     *  spelling stays where it belongs, in {@link EngineStyleH2}'s golden text. A separator that
+     *  spelling was legend-engine's golden text's alone (gone with it, A2, 2026-11-19). A separator that
      *  is not a literal has no spelling here and is refused. */
     @Override
     protected SqlWriter splitPartCall(SqlWriter writer, java.util.List<SqlExpr> a) {

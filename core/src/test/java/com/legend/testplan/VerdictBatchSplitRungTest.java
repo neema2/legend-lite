@@ -78,7 +78,7 @@ class VerdictBatchSplitRungTest {
 
     @Test
     void membersTheDialectSpellsAloneAreEachPlannedTheirOwnStatement() {
-        VerdictBatch batch = new VerdictBatch((members, frames) -> members.get(0), (generic, ruled) -> generic,
+        VerdictBatch batch = new VerdictBatch((members, frames) -> members.get(0),
                 (row, name, wantEqual) -> row, RUNNER, new VerdictIds(),
                 com.legend.lowering.LiteVerdictWords.INSTANCE);
         batch.open("a");

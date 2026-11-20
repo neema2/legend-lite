@@ -34,9 +34,11 @@ public final class EdgeProgram {
                 .withJudgeMode(mode).withStyle(com.legend.edge.PureText.UPSTREAM);
     }
 
-    /** {@link #compat(com.legend.testplan.PlanningOptions.JudgeMode)} under the lane's judge. */
+    /** {@link #compat(com.legend.testplan.PlanningOptions.JudgeMode)} under the host judge, the only judge in
+     *  compatibility (rule 4 of the compatibility program's rules of record; A4 of the compatibility program, stage A
+     *  ratified by the user 2026-11-19: until A4 the lane's judge, and the edge's tests ran under each). */
     public static ExecuteOptions compat() {
-        return compat(Program.laneJudge());
+        return compat(com.legend.testplan.PlanningOptions.JudgeMode.HOST);
     }
 
     /** {@code body} run on the edge's door: the compatibility rules' {@code options}, heard by the edge's run. */

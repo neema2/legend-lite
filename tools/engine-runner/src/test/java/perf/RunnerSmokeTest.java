@@ -74,6 +74,30 @@ class RunnerSmokeTest {
     }
 
     @Test
+    void testableRunsFunctionsThatReadNoStore() throws Exception {
+        // legend-engine compiles a storeless test's plan to Java, with javac over the class path ClassGraph reads, and
+        // this launch names every external jar `../...`, which ClassGraph drops (perf.AbsoluteClassPath): the engine
+        // judges a test that passes and one that fails, and its raise is written whole by --dump
+        Path dir = java.nio.file.Files.createTempDirectory("testable-storeless");
+        Path report = dir.resolve("report.tsv");
+        Path dump = dir.resolve("dump");
+        Run r = run("runner.testable", Runfile.property("runner.smoke.storeless").toString(),
+                "--testable=smoke::middle__String_1_", "--testable=smoke::pastTheEnd__String_1_",
+                "--report=" + report, "--dump=" + dump);
+        assertEquals(0, r.exit(), r.out());
+        List<String> lines = java.nio.file.Files.readAllLines(report).stream()
+                .map(line -> line.replaceFirst("\t\\d+\t", "\t"))
+                .sorted().toList();
+        assertEquals(3, lines.size(), r.out());
+        assertTrue(lines.get(0).startsWith("ERROR\tsmoke::pastTheEnd__String_1_\tdefault\traised\t"), r.out());
+        assertEquals(List.of("FAIL\tsmoke::middle__String_1_\tdefault\twrong\t",
+                "PASS\tsmoke::middle__String_1_\tdefault\tright\t"), lines.subList(1, 3), r.out());
+        String error = java.nio.file.Files.readString(
+                dump.resolve("smoke__pastTheEnd__String_1_.default___raised.error.txt"));
+        assertTrue(error.contains("StringIndexOutOfBoundsException: Range [7, 6) out of bounds for length 6"), error);
+    }
+
+    @Test
     void anEmptyRunIsRefusedNotGreen() throws Exception {
         // a directory holding no .pure file: zero fixtures is not a green run
         Path empty = java.nio.file.Files.createTempDirectory("no-fixtures");

@@ -31,6 +31,8 @@ public class TestableMain
 {
     public static void main(String[] args) throws Exception
     {
+        // before any engine class reads it: a storeless test's plan is Java, compiled against this class path
+        AbsoluteClassPath.install();
         StringBuilder src = new StringBuilder();
         List<String> testables = new ArrayList<>();
         // --dump=<dir> writes the FULL expected/actual payloads per failing assertion.
@@ -228,6 +230,14 @@ public class TestableMain
             counts[2]++;
             System.out.println("ERROR " + id + "\n      " + oneLine(te.error, 400));
             write(out, "ERROR" + row + oneLine(te.error, 300).replace('\t', ' '));
+            // the whole error too, the testable in its name (testables' suites share ids): an error's own text, the
+            // engine's raise, comes after its first 400 characters of stack (the S383 probe, 2026-11-19)
+            if (dumpDir != null)
+            {
+                String base = (r.testable + "." + id).replaceAll("[^A-Za-z0-9_.-]", "_");
+                Files.writeString(Cwd.of(dumpDir, base + ".error.txt"), te.error == null ? "null" : te.error);
+                System.out.println("      dumped  : " + base + ".error.txt");
+            }
             return;
         }
         TestExecuted te = (TestExecuted) r;

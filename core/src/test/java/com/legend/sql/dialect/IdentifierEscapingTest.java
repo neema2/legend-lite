@@ -85,24 +85,6 @@ class IdentifierEscapingTest {
         return out;
     }
 
-    /** The legacy engine-text printers write legend-engine's own text, BYTE-IDENTICAL TO MAIN'S (the user's ruling M5,
-     *  2026-11-13: C4's identifier escaping taken out of EngineStyleH2 and its subclasses; the backwards-compatibility
-     *  printer is not the escaping ruling's). Said plainly, as main writes it: an alias holding a quote is written as
-     *  given, so on H2 its quote ends the identifier ({@code as "a"b\c"} is left open) -- main's behaviour, named here so
-     *  that a change to it is a decision, and listed for the follow-up stream (C5). The golden pre-quoted-names.tsv
-     *  holds every ordinary name's engine text the same way. */
-    @Test
-    void theEngineTextPrintersAreMainsByteForByte() {
-        var table = new SqlSource.Table("T", "t0", List.of(ID), false, Map.of(), com.legend.sql.NameQuoting.BARE);
-        var select = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("t0", ID), NAME, null)), false,
-                table, null, List.of(), null, null, List.of(), null, null, List.of(ID));
-        for (SqlDialect engine : List.<SqlDialect>of(new com.legend.edge.EngineStyleH2(), new com.legend.edge.EngineStyleDB2(),
-                new com.legend.edge.EngineStyleComposite())) {
-            assertEquals("select \"root\".ID as \"a\"b\\c\" from T as \"root\"", engine.render(select),
-                    engine.getClass().getSimpleName());
-        }
-    }
-
     @Test
     void anAliasHoldingAQuoteAndABackslashIsOneIdentifierSpelledExactlyOnEveryDialect() {
         List<String> wrong = new ArrayList<>();

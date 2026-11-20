@@ -391,7 +391,8 @@ testFormatRepr	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1
 testFormatRepr	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy %2014-01-01T00:00:00.000+0000;
 testFormatString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy dog;
 testFormatString	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy box;
-testFromIndex	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:2;
+testFromIndex	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:1;
+testFromIndex	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:5;
 testGet	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=0, upper=1]] values=null;
 testGet	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=0, upper=1]] values=Long:1;
 testHasDay	001	VALUE	type=ExprType[type=BOOLEAN, multiplicity=Bounded[lower=1, upper=1]] values=Boolean:true;
@@ -462,7 +463,8 @@ testIfWithEvaluate	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[low
 testIfWithFunctionCall	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:truesentence;
 testIfWithFunctionCall	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:falsesentence;
 testIndexOf	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:2;
-testIndexOfOneElement	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:1;
+testIndexOfOneElement	001	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:0;
+testIndexOfOneElement	002	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:-1;
 testInit	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=0, upper=null]] values=String:a;String:b;
 testInitOnEmptySet	001	VALUE	type=ExprType[type=ClassType[fqn=meta::pure::metamodel::type::Nil], multiplicity=Bounded[lower=0, upper=null]] values=
 testInitOneElement	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=0, upper=null]] values=
@@ -730,7 +732,9 @@ testSimple	003	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upp
 testSimple	004	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:4.0;
 testSimple	005	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:4.0;
 testSimple	006	VALUE	type=ExprType[type=FLOAT, multiplicity=Bounded[lower=1, upper=1]] values=Double:1.0;
-testSimple	007	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:5;
+testSimple	007	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:4;
+testSimple	008	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:16;
+testSimple	009	VALUE	type=ExprType[type=INTEGER, multiplicity=Bounded[lower=1, upper=1]] values=Long:-1;
 testSimpleDateToString	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:2014-01-02T01:54:27.352+0000;
 testSimpleFormatDate	001	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000+0000;
 testSimpleFormatDate	002	VALUE	type=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]] values=String:the quick brown fox jumps over the lazy 2014-01-01T00:00:00.000+0000;

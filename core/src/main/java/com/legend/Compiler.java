@@ -926,18 +926,13 @@ public final class Compiler {
      * caller renders with a dialect of its choosing and compares text).
      */
     /**
-     * {@code relationalRootForm}: a BARE class root renders as the engine's
-     * flat relational SELECT — primary-key columns ({@code pk_0}..) plus
-     * the property leaves — instead of the platform's JSON envelope. The
-     * engine assembles objects HOST-side from that flat select, so its
-     * {@code toSQLString} goldens pin this form; execution paths never use
-     * it (Java orchestrates, the database executes — the envelope stays).
+     * (Its {@code relationalRootForm} flag, legend-engine's flat relational SELECT of a bare class root, which every
+     * caller passed false, went with legend-engine's SQL text: A2 of the compatibility program, 2026-11-19, CP-4.)
      */
     public static com.legend.sql.SqlQuery lowerResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            String runtimeFqn, boolean relationalRootForm) {
-        return lowerResolved(resolved, ctx, runtimeFqn, relationalRootForm,
-                null);
+            String runtimeFqn) {
+        return lowerResolved(resolved, ctx, runtimeFqn, null);
     }
 
     /** {@code explicitMappingFqn}: class fetches resolve against THIS
@@ -946,7 +941,7 @@ public final class Compiler {
      * the ambient runtime candidates). */
     public static com.legend.sql.SqlQuery lowerResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            String runtimeFqn, boolean relationalRootForm,
+            String runtimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
@@ -959,9 +954,6 @@ public final class Compiler {
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn, explicitMappingFqn);
         CrossStoreGuard.check(body, ctx, runtimeFqn);
-        if (relationalRootForm) {
-            body = com.legend.resolver.RelationalRootForm.apply(body, ctx);
-        }
         // D91: equal() over keyed instances is the key relation on every lane
         // every object carries its identity and its class (docs/OBJECT_IDENTITY_2026_10_20.md §3.1)
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(

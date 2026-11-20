@@ -694,6 +694,9 @@ legend_java_library(
             "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
             # a relation's toOne() guard on Postgres is :relation_to_one_postgres_test's (D2, 2026-11-07)
             "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
+            # a window's column read through a list operation on Postgres is :window_read_through_a_list_postgres_test's
+            # (the H11 record's P1, 2026-11-19)
+            "src/test/java/com/legend/integration/WindowReadThroughAListPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's, and so is the LEAN twin's reader (track T, 2026-10-29): every
             # per-lane target reads its lane's answers through it
@@ -1079,25 +1082,15 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 ) for lane, (data, flags, tags, compatible) in _CORE_LANES.items()]
 
-[junit_test(
-    name = "core_edge_tests_judge_" + judge.lower(),
-    memory_mb = 1024,
-    jvm_flags = ["-Dlegend.test.judge=" + judge],
-    size = "large",
-    select = edge_test_classes(_JUDGED_PACKAGES, root_besides = _CORE_TEST_PACKAGES) + ["--exclude-classname=.*CorpusDifferentialTest"] +
-             ["--exclude-classname=" + c for p in _CORE_MANUAL_PROBES for c in _CORE_MANUAL_PROBES[p]],
-    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
-    tags = ["ci-linux-only", "edge_test"],
-    runtime_deps = [
-        ":core_edge_tests_lib",
-        ":drivers",
-    ],
-) for judge in ["DATABASE", "BOTH"]]
+# core_edge_tests_judge_{database,both}, the edge's tests under the database judge and under both, are deleted (A4 of
+# the compatibility program, stage A ratified by the user 2026-11-19): rule 4 of the rules of record, "Host judge is only
+# judge in compatibility", and the test planner refuses a database-judge verdict for a compatibility audience by name
+# (TestPlanner.refuseTheDatabaseJudgeInCompatibility); the edge's tests run under the host judge (core_edge_tests).
 
 test_suite(
     name = "core_tests_judges",
     tests = [":core_tests_" + p + "_judge_" + judge.lower() for p in _JUDGED_PACKAGES + ["root"]
-             for judge in ["DATABASE", "BOTH"]] + [":core_edge_tests_judge_" + j for j in ["database", "both"]],
+             for judge in ["DATABASE", "BOTH"]],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -2453,6 +2446,34 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# A WINDOW'S COLUMN READ THROUGH A LIST OPERATION (the compatibility program's H11 record, §8 P1, 2026-11-19): on the
+# embedded Postgres 16, where a list operation is a query over unnest, each window computed over its partition before
+# the list operation reads it -- PCT's rows; the same shapes run on DuckDB, H2 and SQLite by the integration tests named
+# for each (WindowReadThroughAListDuckDbTest, ...SQLiteTest, ...H2Test)
+junit_test(
+    name = "window_read_through_a_list_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/WindowReadThroughAListPostgresTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.WindowReadThroughAListPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":core_tests_lib",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # THE #IQ{...}# ISLAND'S SYNTAX-CASE RATCHET (docs/IQ_SQL_STUDY_2026_10_13.md §6.4): the research's derived syntax cases
 # (iq-parity/syntax-cases.jsonl: probe, options, policy, SQL Anywhere's outcome), each read by the island's reader and
 # given a verdict, the counts and the known wrong verdicts held by iq-parity/syntax-pins.tsv, which only improves.
@@ -3440,13 +3461,13 @@ write_source_files(
 # diff-tests the data (no test reads Markdown: G17).
 _DIALECT_SOURCES = glob(["src/main/java/com/legend/sql/dialect/*.java"])
 
-# the edge's own dialects, legend-engine's text printers (2026-11-13, phase D's O3: moved from sql/dialect)
-_EDGE_DIALECT_SOURCES = glob(["src/main/java/com/legend/edge/EngineStyle*.java"])
+# (the edge's own dialects, legend-engine's text printers, read here since 2026-11-13, went with that text: A2 of the
+# compatibility program, 2026-11-19, CP-4)
 
 java_run(
     name = "capability_matrix",
     testonly = True,
-    srcs = _DIALECT_SOURCES + _EDGE_DIALECT_SOURCES + ["//docs:dialect-capability/reach.tsv"],
+    srcs = _DIALECT_SOURCES + ["//docs:dialect-capability/reach.tsv"],
     outs = ["dialect-capability/matrix.tsv"] + ["dialect-capability/%s.md" % f for f in [
         "README",
         "functions",
@@ -3456,16 +3477,14 @@ java_run(
         "{OUT_DIR}",
         "$(location //docs:dialect-capability/reach.tsv)",
         "{DIALECTS}",
-        "{EDGE_DIALECTS}",
     ],
     main_class = "com.legend.sql.dialect.CapabilityMatrix",
     mnemonic = "Generate",
     roots = {
         "src/main/java/com/legend/sql/dialect/SqlDialect.java": "{DIALECTS}",
-        "src/main/java/com/legend/edge/EngineStyleH2.java": "{EDGE_DIALECTS}",
     },
     visibility = ["//docs:__pkg__"],
-    # the edge's test library (p7's split, 2026-11-17): the matrix reads the edge's EngineStyle dialects too
+    # the edge's test library (p7's split, 2026-11-17)
     deps = [":core_edge_tests_lib"],
 )
 
