@@ -39,7 +39,7 @@ class PureMeaningRewriteTest {
         final List<PureMeaningCheck.Code> codes = new ArrayList<>();
 
         @Override
-        public TypedNativeCall of(PureMeaningCheck.Code code, TypedNativeCall flagged) {
+        public TypedNativeCall of(ModelContext ctx, PureMeaningCheck.Code code, TypedNativeCall flagged) {
             TypedNativeCall copy = new TypedNativeCall(flagged.callee(), flagged.args(), flagged.info(), flagged.pos());
             built.add(copy);
             codes.add(code);
@@ -265,11 +265,13 @@ class PureMeaningRewriteTest {
     @Test
     void aDatabaseNotMeasuredUnderEngineIsRefused() {
         String unmeasured = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
-                "type: DuckDB; specification: DuckDB { }; auth: Test;");
+                "type: Postgres; specification: Static { name: 'x'; host: 'h'; port: 5432; };"
+                        + " auth: UserNamePassword { baseVaultReference: 'v'; userNameVaultReference: 'u';"
+                        + " passwordVaultReference: 'p'; };");
         Recording r = new Recording();
         NotImplementedException e = assertThrows(NotImplementedException.class,
                 () -> rewrite(unmeasured, PureMeaningCheckTest.PLANTED, r));
-        assertTrue(e.getMessage().contains("not measured on DuckDB"), e.getMessage());
+        assertTrue(e.getMessage().contains("not measured on Postgres"), e.getMessage());
         assertEquals(0, r.built.size());
     }
 }

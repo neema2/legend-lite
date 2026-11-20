@@ -18,7 +18,9 @@ import java.util.Map;
  * path ({@code --database-file}, its token in the model {@code --file-token}), seeded by the oracle's package
  * ({@code //tools/engine-runner:lite_battery_seed}).
  *
- * <p>{@code run --model=<pure> --requests=<tsv> --out=<tsv> [--database-file=<file> --file-token=<text>]}.
+ * <p>{@code run --model=<pure> --requests=<tsv> --out=<tsv> [--database-file=<file> --file-token=<text>]
+ * [--meaning=warn|engine]}: the pure-meaning setting the route answers under, {@code warn} unless given (the batteries'
+ * {@code engine} half measures {@code LEGEND_LITE_PURE_MEANING=engine}, A3's engine rewrite).
  */
 public final class LiteBatteries {
 
@@ -31,7 +33,8 @@ public final class LiteBatteries {
             o.put(args[i].substring(2, args[i].indexOf('=')), args[i].substring(args[i].indexOf('=') + 1));
         }
         if (args.length == 0 || !"run".equals(args[0])) {
-            throw new IllegalArgumentException("run --model= --requests= --out= [--database-file= --file-token=]");
+            throw new IllegalArgumentException("run --model= --requests= --out= [--database-file= --file-token="
+                    + " --meaning=]");
         }
         run(o);
         // the edge's server leaves non-daemon threads (its connection pools) behind
@@ -54,6 +57,8 @@ public final class LiteBatteries {
             model = model.replace(o.get("file-token"), copy.toAbsolutePath().toString().replace('\\', '/'));
         }
         String modelJson = com.legend.tools.enginelane.Batteries.textModel(model);
+        com.legend.edge.PureMeaningCheck.Mode meaning = com.legend.edge.PureMeaningCheck.mode(
+                o.getOrDefault("meaning", "warn"));
         StringBuilder out = new StringBuilder("# lite's answers to the battery, as legend-engine's audience (pure/v1's"
                 + " execute route)\n");
         for (String line : Files.readAllLines(Path.of(o.get("requests")), StandardCharsets.UTF_8)) {
@@ -65,12 +70,12 @@ public final class LiteBatteries {
             String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(line.substring(t + 1), false).json();
             String body = "{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":" + modelJson
                     + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-            // under LEGEND_LITE_PURE_MEANING=warn, an operator's choice (A3 piece 3): the batteries measure lite's
-            // ANSWERS against legend-engine's, and by default the edge refuses each request whose answer would differ
-            // (the user, 2026-11-19 ~19:20), which the detector's own tests prove (PureMeaningCheckTest)
+            // under LEGEND_LITE_PURE_MEANING=warn (or engine, the engine half), an operator's choice (A3 piece 3): the
+            // batteries measure lite's ANSWERS against legend-engine's, and by default the edge refuses each request
+            // whose answer would differ (the user, 2026-11-19 ~19:20), which the detector's own tests prove
+            // (PureMeaningCheckTest)
             com.legend.server.LiteV1Api.Answer a = com.legend.edge.PureV1Routes.execute(body,
-                    com.legend.edge.EdgeServer.runner(null), com.legend.server.LiteV1Api.Models.COMPILED,
-                    com.legend.edge.PureMeaningCheck.Mode.WARN);
+                    com.legend.edge.EdgeServer.runner(null), com.legend.server.LiteV1Api.Models.COMPILED, meaning);
             out.append(com.legend.tools.enginelane.Batteries.answer(name, a.status(), a.json())).append('\n');
         }
         Files.writeString(Path.of(o.get("out")), out, StandardCharsets.UTF_8);

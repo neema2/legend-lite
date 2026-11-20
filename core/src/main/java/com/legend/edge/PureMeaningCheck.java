@@ -112,21 +112,27 @@ public final class PureMeaningCheck {
         /** The default (the user, ~19:20): the request is refused, naming each call. */
         REFUSE,
         /** An operator's choice: the request is answered, with the header and a log line. */
-        WARN
+        WARN,
+        /** An operator's choice (the user, ~20:05 2026-11-19): the request is answered with legend-engine's meaning,
+         *  each flagged call sent to the database as its own function ({@link PureMeaningRewrite}), where that answer
+         *  is measured; refused by name elsewhere. The header and a log line say so. */
+        ENGINE
     }
 
-    /** The setting's value: unset, or {@code refuse}, is {@link Mode#REFUSE}; {@code warn} is {@link Mode#WARN}; any
-     *  other value stops the server's start (no fallback). A further value (the engine-answer opt-in, H16) joins this
-     *  switch only by the user's ruling. */
+    /** The setting's value: unset, or {@code refuse}, is {@link Mode#REFUSE}; {@code warn} is {@link Mode#WARN};
+     *  {@code engine} is {@link Mode#ENGINE} (the user, ~20:05); any other value stops the server's start (no
+     *  fallback). */
     public static Mode mode(@com.legend.base.Nullable String value) {
-        if (value == null) {
+        if (value == null || value.isEmpty()) {
             return Mode.REFUSE;
         }
-        return switch (value) {
-            case "", "refuse" -> Mode.REFUSE;
-            case "warn" -> Mode.WARN;
-            default -> throw new IllegalStateException(SETTING + "=" + value + " is neither refuse nor warn");
-        };
+        // a value is a mode's own name, in lower case
+        for (Mode m : Mode.values()) {
+            if (m.name().toLowerCase(java.util.Locale.ROOT).equals(value)) {
+                return m;
+            }
+        }
+        throw new IllegalStateException(SETTING + "=" + value + " is none of refuse, warn and engine");
     }
 
     /** A flagged call's kind, at most four, in the header's order. */
@@ -204,9 +210,13 @@ public final class PureMeaningCheck {
                     + " legend-engine sends this code to the database with SQL's (1-based; 0 on a miss), so the answer"
                     + " would differ (register S130, S134); a call marked unverified could not be followed and is not"
                     + " counted clean. ");
-            b.append(mode == Mode.REFUSE
-                    ? "Refused; " + SETTING + "=warn answers such a query with legend-pure's meaning"
-                    : "Answered with legend-pure's meaning (" + SETTING + "=warn)");
+            b.append(switch (mode) {
+                case REFUSE -> "Refused; " + SETTING + "=warn answers such a query with legend-pure's meaning, and "
+                        + SETTING + "=engine with legend-engine's where it is measured";
+                case WARN -> "Answered with legend-pure's meaning (" + SETTING + "=warn)";
+                case ENGINE -> "Answered with legend-engine's meaning (" + SETTING + "=engine): each call is sent to the"
+                        + " database as its own function";
+            });
             return b.toString();
         }
     }

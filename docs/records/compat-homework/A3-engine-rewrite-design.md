@@ -92,6 +92,48 @@ conclusion does not change: it is the raw call with the arguments as given, and 
 | R5 an unverified call let through | `anUnverifiedCallIsRefused` |
 | R6 a call outside the query's tree let through | `anM2MChainsTransformsAreRefused_theStoreResolverReachesThem` |
 
+**Measured at build** (2026-11-19, on a local merge of the detector branch with B1's `claude/compat-a3-raw-substring`
+897db4bbe; the batteries' `engine` half, `//pct:battery_compare_engine_{h2,duckdb}`, pinned at
+`pct/batteries/agreement_engine_{h2,duckdb}.tsv`):
+
+| database | under `engine` | the rest |
+|---|---|---|
+| H2 | AGREE 46: every legend-engine answer | 2 DIFFER, the 3-argument `indexOf` (legend-engine refuses, lite answers: E-R2); 1 BOTH_FAIL |
+| DuckDB | AGREE 47: every legend-engine answer, as section 2 predicted | 2 DIFFER, the 3-argument `indexOf` |
+
+So DuckDB is enabled (`PureText.MEASURED`), by the design's own rule. The `warn` pins did not move.
+
+**On the stage-A batch's tree** (2026-11-20, `claude/compat-a4-host-only` ced5708ec merged into
+`claude/compat-a3-engine`, piece 2 under it, both halves regenerated there):
+
+| database | `warn` (legend-pure's meaning, piece 2's) | `engine` (the wiring) |
+|---|---|---|
+| H2 | AGREE 11, BOTH_FAIL 1, DIFFER 37 (was AGREE 46: piece 2 moved it) | AGREE 46, BOTH_FAIL 1, DIFFER 2: the same counts as before piece 2 |
+| DuckDB | AGREE 8, DIFFER 41 (was AGREE 31, DIFFER 18) | AGREE 47, DIFFER 2 |
+
+The `engine` half's counts did not move with piece 2. Its two DIFFER rows (the 3-argument `indexOf`, `col.i04` and
+`lit.i04`) changed only lite's side: the detector does not flag the 3-argument form, so it answers legend-pure's
+meaning there now (`["Credit",2]` where it answered 3); legend-engine refuses it either way (E-R2).
+
+**The wiring, through every route the detector covers** (`PureMeaningEngineTest`, run on H2 with the connection's
+declared rows): execute, execute as Arrow, generatePlan, generateSeedData, generateTestData_WithDefaultSeed and
+generateTestData_WithSeed each answer 200 under `engine`, with the header `engine <codes>`. A recording runner shows
+that execute and Arrow are handed the rewritten query: `substringAsGiven` and `sqlPosition` by FunctionId, and no
+String `substring` or `indexOf` left. So nothing downstream re-resolves the native by name.
+
+| plant | the tests it turns red |
+|---|---|
+| W1 the engine branch plans the query unrewritten | the execute and Arrow tests, the unmeasured-database test |
+| W2 the seed lowered unrewritten | none before piece 2 (lite's own `substring` on H2 was already the database's, so the seed's keys were the same); on the stage-A batch's tree, `generateSeedDataChoosesLegendEnginesKeysUnderEngine` and `generateTestDataWithTheDefaultSeedRunsUnderEngine` (the H2 seed), and `theSeedIsRewrittenOnDuckDb_aThreeArgumentStartOfZero` |
+
+On the stage-A batch's tree the tests run both ways: each route that has an answer to read asserts legend-engine's
+under `engine` and legend-pure's under `warn` (`'abcdef'->substring(1, 3)` is 'abc' and 'bc'; `'xoxo'->indexOf('o')`
+is 2 and 1; the seed's row 3 is chosen, and is not).
+
+**A gap found:** the test-data scan (`ScanRelations`) cannot serve a function applied to a class's property inside a
+filter, on any setting. It reads `$p.name->substring(...)` as a property hop ("scalar 'name' in MID position"),
+because only its `OPERATORS` end a chain. The engine test seeds on a literal's `substring` for that reason.
+
 **The notes for the build:**
 - register rows S130, S134 and S383 name the `engine` value and what it does;
 - the differences page's item 1 names the operator's option beside the hand rewrite;

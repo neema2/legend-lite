@@ -226,7 +226,7 @@ public final class TestDataRoutes {
             // doored first, before the seed scans the query's relations (the final audit of 9af16fbe58's J8)
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(
                     doored(ctx, r, "generateSeedData", meaning, found),
-                    seedJson(TestDataPlanner.seedFacts(ctx, seed(ctx, r, true)), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
+                    seedJson(TestDataPlanner.seedFacts(ctx, seed(ctx, r, true, meaning)), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
         }));
     }
 
@@ -294,7 +294,7 @@ public final class TestDataRoutes {
                 doored(ctx, r, route, meaning, found);
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
                 // a view root's main table admitted, so a view is refused by the route's own rule (ROUTE.checkTree)
-                TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;
+                TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true, meaning) : null;
                 // a root no identifier names and no seed starts: upstream's error node, answered by unseeded below; a
                 // view is refused before it is fetched (ROUTE.checkTree), so its own fetch is never planned here
                 TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, r.query(), r.mapping(), ids, null,
@@ -423,12 +423,20 @@ public final class TestDataRoutes {
 
     /** The seed of the request's query, lowered on its runtime through its mapping, whatever mappings the runtime
      *  declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function with the given
-     *  mapping). */
-    private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot) {
-        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q ->
-                com.legend.planner.ProductStatements.lowerTestDataSeed(com.legend.Compiler.query(ctx,
-                        TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery)),
-                        r.runtime()));
+     *  mapping). Under {@code engine} the seed's query is the one whose meaning chooses the keys, so it is rewritten
+     *  to legend-engine's meaning before it is lowered ({@link PureMeaningRewrite}); a refusal was made at the door
+     *  ({@link #doored}). */
+    private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot,
+            PureMeaningCheck.Mode meaning) {
+        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> {
+            com.legend.TypedQuery typed = com.legend.Compiler.query(ctx,
+                    TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery));
+            if (meaning == PureMeaningCheck.Mode.ENGINE) {
+                typed = PureMeaningRewrite.rewrite(typed, ctx, r.runtime(), r.mapping(), PureMeaningRewrite::engine)
+                        .query();
+            }
+            return com.legend.planner.ProductStatements.lowerTestDataSeed(typed, r.runtime());
+        });
     }
 
     /** The request's {@code tableRowIdentifiers}: each table's identifiers, each a row's column-value pairs. */

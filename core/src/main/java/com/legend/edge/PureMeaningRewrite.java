@@ -59,7 +59,17 @@ final class PureMeaningRewrite {
     /** How one flagged call becomes legend-engine's: the database's own function over the same arguments, typed as the
      *  typer types it (the reviewer's D-S2: the callee is the registry's function, never hand-assembled). */
     interface Substitute {
-        TypedNativeCall of(PureMeaningCheck.Code code, TypedNativeCall flagged);
+        TypedNativeCall of(ModelContext ctx, PureMeaningCheck.Code code, TypedNativeCall flagged);
+    }
+
+    /** The door's substitute: the core's natives for the database's own functions, built by {@link EngineSubstitutes}
+     *  (the typer's overload, checked against the registry). */
+    static TypedNativeCall engine(ModelContext ctx, PureMeaningCheck.Code code, TypedNativeCall flagged) {
+        return switch (code) {
+            case SUBSTRING_2, SUBSTRING_3 -> EngineSubstitutes.substring(ctx, flagged);
+            case INDEX_OF_2 -> EngineSubstitutes.indexOf(ctx, flagged);
+            case UNVERIFIED -> throw new IllegalStateException("an unverified call is refused before it is rewritten");
+        };
     }
 
     /** The rewritten query, and the calls it rewrote (the header's codes and counts). */
@@ -125,7 +135,7 @@ final class PureMeaningRewrite {
                     return rebuilt;
                 }
                 replaced.add(n);
-                return substitute.of(code, (TypedNativeCall) rebuilt);
+                return substitute.of(ctx, code, (TypedNativeCall) rebuilt);
             }
         };
         List<TypedSpec> out = new ArrayList<>();
