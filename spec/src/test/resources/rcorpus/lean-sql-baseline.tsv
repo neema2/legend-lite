@@ -252,7 +252,7 @@ corpus	DuckDB	meta::relational::tests::query::filter::lessThanEqual	2	778	13495	
 corpus	DuckDB	meta::relational::tests::query::filter::multipleFilters	3	1474	29233	3	0	0
 corpus	DuckDB	meta::relational::tests::query::filter::notEqual	2	528	8601	0	0	0
 corpus	DuckDB	meta::relational::tests::query::filter::or	1	468	10512	1	0	0
-corpus	DuckDB	meta::relational::tests::query::function	27	7921	164647	6	64	0
+corpus	DuckDB	meta::relational::tests::query::function	27	8667	170635	6	147	0
 corpus	DuckDB	meta::relational::tests::query::function::acos	1	696	9925	1	46	0
 corpus	DuckDB	meta::relational::tests::query::function::asin	1	696	9925	1	46	0
 corpus	DuckDB	meta::relational::tests::query::function::atan	1	551	9521	1	0	0
@@ -565,7 +565,7 @@ corpus	H2	meta::relational::tests::query::filter::lessThanEqual	2	895	14690	1	0	
 corpus	H2	meta::relational::tests::query::filter::multipleFilters	3	1666	31080	3	0	0
 corpus	H2	meta::relational::tests::query::filter::notEqual	2	556	9669	0	0	0
 corpus	H2	meta::relational::tests::query::filter::or	1	517	11116	1	0	0
-corpus	H2	meta::relational::tests::query::function	27	8876	179959	6	76	0
+corpus	H2	meta::relational::tests::query::function	27	9568	185905	6	92	0
 corpus	H2	meta::relational::tests::query::function::acos	1	904	10690	1	48	0
 corpus	H2	meta::relational::tests::query::function::asin	1	904	10690	1	48	0
 corpus	H2	meta::relational::tests::query::function::atan	1	649	10172	1	0	0
