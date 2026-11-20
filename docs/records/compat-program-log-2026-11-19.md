@@ -3173,3 +3173,12 @@ who confirms or changes phases 1-3.
   about #127 and the audits: answered (#127 is A5, approved after one must-fix, its own CI 54 of 55 with the macOS
   parser timeout the memo fixes, already merged into the batch; every piece independently reviewed but A3 pieces 1
   and 2, now in review; the combination review is the batch's final audit).
+- **~02:04 UTC, the reviewer on A3 pieces 1 and 2** (record `e289aa95b`): **piece 1 APPROVED**; **piece 2 APPROVED with
+  one must-fix**, P2-M1: S383's raise is missing on two roads that answer Pure's substring: (a) under
+  CORRECT_SQL_SUBSTRING_INDEXING, FeatureRules selects the unguarded CORRECTED_SUBSTRING (clamping where Pure raises);
+  (b) `substr`, legend-pure's synonym, is always unguarded. Fix: one guarded rule for all three, with tests; the flag is
+  always on in effect after A3, so Pure's meaning, raise included (no separate row). Shoulds: P2-S1 a computed bound in
+  SubstringRangeTest; P2-S2 `indexOf(s, '', from)` past the length (Java answers the length; read legend-pure at the pin).
+  Notes: shape note §5.6's stale cross-kind gate; PureMessages' JDK 21 comment. The fold claim, indexOf and the lean
+  diff checked out. To the translator, moves to come to the user in one go before they are made; the batch PR waits for
+  P2-M1, while the judges keep assembling.
