@@ -1184,3 +1184,83 @@ message mismatch": each asserts legend-pure's sentence). A5's 16 is confirmed, a
   source position on these routes today either);
 - **an answer, not an error:** a checked graph's defect cell becomes lite's text inside a JSON answer (0 answers carry
   one today, section 15).
+
+## 26. Does anything read legend-pure's assert-failure wording? (measured, 2026-11-20)
+
+**The question** (the user, ~02:10 UTC, relayed): stage B's B3 plans a presenter that words legend-pure's verdict
+sentences (`expected ... actual ...` and the assert family's texts) from lite's verdict records for the compatibility
+audience (CP-14 (iii)). If nothing pins that wording, lite's own verdict words can stand and B3 drops the presenter.
+
+**The probe.** A scratch tree from current `main` (`8eea8fa1`), never pushed, with the compatibility verdict wording
+switched off (15 lines in 2 files; the patch is `H13/assert-words-probe.patch.txt`):
+- **the host judge:** `CompiledPureHostForms.words()` hands every `HostWords` member to `LiteHostWords`, except
+  `caught` (a raise's words: the error family of section 25, left as the edge's so this measures assert words alone);
+- **the database judge:** the `VerdictWords` two-form gives `LiteVerdictWords` instead of `UpstreamVerdictWords`.
+  Both must switch together: the plan's words name comes from `VerdictWords` and the run refuses a plan worded
+  otherwise than its hook (`TestRunner`'s mixed-words check).
+- Verdicts are not touched. Every `HostWords` member returns words only (all 25 return a `String`).
+
+Run: `//pct:edge_net` (every PCT golden, both channels; pure/v1; the edge cases), both corpus lanes with their edge
+ledgers, and the ENGINE lanes, diffed against `main`'s goldens.
+
+**1. PCT: no PCT test expects legend-pure's assert-failure text.**
+- **Channel A, every lane: 0 lines move.** Legend-pure's own interpreter runs channel A and words its own asserts;
+  lite's words never reach it. The ENGINE lanes (channel A as legend-engine's audience): 0.
+- **Channel B: 12 lines move, in essential only (DuckDB 6, SQLite 6); every other suite and H2's relation: 0.**
+  - **11 are tests that FAIL before and after; only their message changes** (they are the only 11 channel B lines
+    whose pinned message holds legend-pure's assert words): `indexof::testIndexOfOneElement`,
+    `indexOf::testFromIndex`, `indexOf::testSimple` (legend-pure's `\nexpected: 0\nactual:   1` becomes lite's
+    `expected 0, got 1`) on both databases; `testArcCosineError` and `testArcSineError` on both (`No error was thrown`
+    becomes `expected the error "...", got none`, and the error-mismatch words likewise); SQLite's
+    `testDateDiffWithDifferentTimeZones`.
+  - **1 verdict moves:** DuckDB's `testDateFromHour`, PASS to `JudgesDisagree` ("the database rejected the verdict
+    statement"). This is not words. `VerdictWords.reads()` also chooses which columns the database judge's verdict
+    statement reads (lite's words read each side as WRITTEN, legend-pure's the CANONS), and lite's form meets the
+    known judge-parity bug (the database judge casts `"2015-04-16T14"` AS TIMESTAMP and DuckDB refuses it; found by the
+    judges session's LITE-BOTH run, with A5 for fixing). Under rule 4, compatibility runs the host judge alone, so this
+    move is moot for compatibility; in the product it is that bug.
+- Read at the pins: no PCT `assertError` wraps an inner assert (section 25), so no passing PCT test compares an
+  assert's words.
+
+**2. The corpus, H2 and DuckDB: 0 verdicts move, but two things pin legend-pure's assert words.**
+- **The per-assert ledgers record each failing assert's message**, beside its verdict: 32 lines move on DuckDB and 37
+  on H2. Each stays FAIL and only its message changes (for example `testDataGeneration::tests::testConstant`:
+  `AssertFailed: expected: 'select top 20 ...' | actual:   'WITH tdg_0 ...'` becomes `AssertFailed: expected "select top
+  20 ...", got "WITH tdg_0 ..."`).
+- **The accepted-divergence registers (`spec/src/test/resources/rcorpus/{duckdb,h2}-accepted-roster.txt`) READ the
+  wording.** A row is `fqn ||| bucket ||| witness`, and a failing test is accepted only if its failure message
+  contains the witness (`MinimalCorpusTest`: `r.reason().contains(acc[1])`). Under lite's words **21 of DuckDB's 46
+  rows and 20 of H2's 41 lose their acceptance** (the roster check fails: "GAINED 21" and "GAINED 20"):
+
+  | Bucket | Rows | The witness (legend-pure's words) |
+  |---|---|---|
+  | `by-design:test-data-generator-fetch-text(S193)` | 19 per lane | `expected: 'select top 20` (assertEquals) |
+  | `engine-golden-defect:h2-literal-coercion` | 1 per lane | `(2 rows) \| is not equivalent to: \| [settlementDateTime] (1 rows)` (assertTdsEquivalent) |
+  | `engine-golden-defect:isDistinct-in-checked-constraint(upstream-toFix)` | 1, DuckDB | `FIRST DIFF at $ (root array as a multiset) expected 4 element(s), got 4; missing` (the JSON differ) |
+
+  These are LITE's own test-harness data, not upstream's: each witness re-pins to lite's words (a ledger edit with
+  its dated reason; no code, no verdict).
+
+**3. The edge net and the server routes.** The recordings that carry legend-pure's assert words today: the 11 channel B
+lines above, and the corpus ledgers' 32 and 37 failing-assert lines. pure/v1 (15 answers), its plan texts and the
+edge cases carry none (0 moved): these routes run queries, not asserts.
+
+**4. The size: what B3 would drop.**
+- **The edge's presenter today:** `EdgeHostWords` (235 lines) and `EdgePureWords` (154, used only by it) for the host
+  judge: 389 lines. `UpstreamVerdictWords` (198) for the database judge goes with the compatibility database judge
+  under rule 4 (A4 / 2.2a) whatever B3 decides.
+- **B3's planned presenter (CP-14 (iii), as H10 prototyped it):** a `VerdictRecord` (128 lines, 25 kinds), the host
+  judge's 29 wording sites rebuilt to build records, and both word classes reworked as presenters of records (H10's
+  `EdgeHostWords` +/-78, `LiteHostWords` +/-69): about +300 lines. H6 §6.5 sized the words at 2.5 days for (iii)
+  (1.5 days if B1's error records were reused) against 1 day for a plain typed parameter (ii).
+- **The two-form plumbing that exists only for the choice:** the `HostWords` interface (110) and the `VerdictWords`
+  interface (104) with `VerdictReads` (14), the hook's `words()` and the style's two-form arm, `TestPlan.words` with the
+  run's mixed-words check, and the `words` parameter threaded through `VerdictSql` (62 references), `VerdictBatch`,
+  `AssertVerdicts`, `DatabaseJudge` and the host judge's 36 `words(...)` calls. With one form these collapse into
+  direct calls of `LiteHostWords` and `LiteVerdictWords` (about -250 lines, mostly signatures).
+- **So with lite's words standing:** B3 deletes the edge's 389 lines and the plumbing (about -640 lines in all), builds
+  no record or presenter (saving about +300), and re-pins 41 corpus witness rows and the 69 ledger message lines and
+  11 PCT channel B lines. About 0.5 to 1 day instead of (iii)'s 2.5. H10's `JudgeRun` (the appeal's run seams) is
+  still wanted for the SQL-text appeal; only its `present(VerdictRecord)` half goes.
+- **What still needs a word:** the 41 witness rows are the only reader of the wording, and they are lite's own
+  register. No upstream suite, golden or client reads legend-pure's assert-failure words.

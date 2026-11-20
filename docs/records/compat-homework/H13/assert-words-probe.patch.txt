@@ -1,0 +1,37 @@
+diff --git a/core/src/main/java/com/legend/edge/CompiledPureHostForms.java b/core/src/main/java/com/legend/edge/CompiledPureHostForms.java
+index a1048c6a..954e261a 100644
+--- a/core/src/main/java/com/legend/edge/CompiledPureHostForms.java
++++ b/core/src/main/java/com/legend/edge/CompiledPureHostForms.java
+@@ -62,7 +62,17 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
+ 
+     @Override
+     public com.legend.testexec.HostWords words() {
+-        // the compatibility rules: legend-pure's words
+-        return EdgeHostWords.INSTANCE;
++        // ASSERT-WORDS PROBE: lite's own assert-failure words; a caught error's words (the error family) stay the edge's
++        return (com.legend.testexec.HostWords) java.lang.reflect.Proxy.newProxyInstance(
++                com.legend.testexec.HostWords.class.getClassLoader(), new Class<?>[] {com.legend.testexec.HostWords.class},
++                (proxy, method, args) -> {
++                    Object target = method.getName().equals("caught") ? EdgeHostWords.INSTANCE
++                            : com.legend.testexec.LiteHostWords.INSTANCE;
++                    try {
++                        return method.invoke(target, args);
++                    } catch (java.lang.reflect.InvocationTargetException e) {
++                        throw e.getCause();
++                    }
++                });
+     }
+ }
+diff --git a/core/src/main/java/com/legend/edge/PureText.java b/core/src/main/java/com/legend/edge/PureText.java
+index 165b978f..381d3fc3 100644
+--- a/core/src/main/java/com/legend/edge/PureText.java
++++ b/core/src/main/java/com/legend/edge/PureText.java
+@@ -125,7 +125,7 @@ public final class PureText {
+             }
+             if (kind == com.legend.lowering.VerdictWords.class) {
+                 // legend-pure's words of a failed assert, the database judge's (census J29; C1's FailureWords before)
+-                return kind.cast(UpstreamVerdictWords.INSTANCE);
++                return kind.cast(com.legend.lowering.LiteVerdictWords.INSTANCE);   // ASSERT-WORDS PROBE
+             }
+             if (kind == com.legend.compiler.spec.GoldenNullWord.class) {
+                 // legend-engine's TDSNull read as a golden's null cell (census C1)
