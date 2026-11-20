@@ -1852,3 +1852,14 @@ moves.
 - **N2:** `Postgres.passes()`'s javadoc is back above its method and names the merge's rule. The field keeps its own
   javadoc.
 - `core_tests_sql`, guardrails and `lean_sql_baseline_test` are green, as reported.
+
+**The plan changed (the compat owner, ~01:50 on 2026-11-20):** one full measurement only, on the final head WITH A3
+piece 2. There is no separate pre-piece-2 measurement and no delta review. Piece 2's lean-SQL re-pin, 59 entries, is
+approved by the user (~01:35, "Okay let's raise the lean sql", read in the owner's log at `0b0ed6a17`). The user also
+asked for a possible later "no check" lean mode, a follow-up for power users.
+
+The combination review will check, on that one measurement:
+- the channel-B MariaDB and MySQL failing sets against A2's base;
+- each lean-SQL growth matched to its cause in piece 2's `lean-sql-growth.txt`, with none shrinking unexplained;
+- `own_corpus.matched` regenerated on the merged tree;
+- the accepted rosters restored, and S388 marked ruled.
