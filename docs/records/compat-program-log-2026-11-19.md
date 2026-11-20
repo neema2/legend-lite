@@ -3247,3 +3247,10 @@ who confirms or changes phases 1-3.
   **about 7.5 to 9 days against B3's 8**; G4 needs nothing new (1,069 post-run door calls, RunScope refused none).
   Recommendation: adopt N for B3's SQL-text half. Decisions: (a) the corpus keeps its recorder and mirror; (b) the 7
   unspellable shapes: a harness query shape or a recorded decline. Follow-up first: N2's reach on the 514 (half a day).
+- **~03:35 UTC, the user asked how the 7 unspellable shapes pass today.** Answered from §27 and SqlTextVerdicts: the
+  planned appeal reuses the producer's own bound context (the test-built runtime with a table-replace post-processor;
+  the inline `^Mapping` value); the public `from()` takes only a named mapping or runtime ("must be a mapping or runtime
+  reference, got TypedNewInstance"), and the probe used the lane's runtime. Updated recommendation: the 4 runtimes likely
+  stay by passing the producer's runtime expression (to check); the 3 inline mappings recorded as declines unless
+  `from()` should accept mapping values as a product feature. The follow-up also asked to explain
+  `testQualifierQueryWithOr` (golden 7 rows, ours 1), possibly a real lite difference.
