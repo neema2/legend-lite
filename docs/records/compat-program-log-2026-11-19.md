@@ -3481,3 +3481,12 @@ who confirms or changes phases 1-3.
   - MySQL: 17 decimal-scale rows (Q3b).
   - MariaDB: list-order flips, 10 and then 28 across the two runs (Q3, a determinism finding for the product track).
   - **All measurements are in.** The single push waits only on the user's three answers.
+- **~12:14 UTC, the PCT judge-SQL growth broken down test by test** (the judges; local dump, never committed; the totals equal the pins exactly). 11 of 345 essential tests changed; the other 334 are byte-identical. No new verdicts; no newly planned tests.
+  - **Kind 1, `indexOf`'s `- 1`:** 3 tests; +22 chars, +1,234 plan, 0 statements.
+  - **Kind 2, `substring`'s range check text:** 2 sort-key tests; +282 chars, +5,972 plan, 0 statements.
+  - **Kind 3, ALL +14 statements, 90% of the growth:**
+    - The range check's `error()` makes an assert "may raise", and the existing `VerdictBatch.raisingRuns` rule (f13e73c28, 2026-11-19) splits a fused verdict statement at each such assert.
+    - Each split repeats the verdict head (about 2.7K chars) and its own plan step (about 50K).
+    - 6 tests: substr ×3, substring ×2, removeDuplicatesBy; +2,806 chars, +62,731 plan.
+  - **CORRECTION** of this session's earlier explanation to the user ("+9 because tests now pass and run their later asserts"): wrong. The growth is kinds 1 to 3 above.
+  - **A follow-up worth putting to the user:** in kind 3 the checks are over a literal string with literal positions (e.g. `1 > length('the quick…')`). Folding such a check at compile time, a constant-String fact under the fold ruling, would remove kind 3. That is a compiler-fold decision for the user, and not in this push.
