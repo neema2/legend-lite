@@ -26,11 +26,10 @@ public final class EdgeServer {
     /** The store's path upstream's clients call (legend-engine's query store). */
     static final String QUERY_STORE = "/api/pure/v1/query";
 
-    /** legend-engine's API, mounted beside lite's own routes. The pure-meaning setting is read once, as the API is
-     *  mounted ({@code LEGEND_LITE_PURE_MEANING}: unset or {@code refuse}, the default, or {@code warn}; any other value
-     *  stops the server's start: {@link PureMeaningCheck#mode}). */
+    /** legend-engine's API, mounted beside lite's own routes. Its routes answer legend-engine's meaning, with no setting
+     *  (the user's ruling of 2026-11-20 ~07:55: {@link PureV1Routes#checkMeaning}). */
     public static final LegendHttpServer.Mount UPSTREAM = context -> List.of(
-            pureV1(runner(context.sources()), PureMeaningCheck.mode(System.getenv("LEGEND_LITE_PURE_MEANING"))),
+            pureV1(runner(context.sources())),
             engineShaped(LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(),
                     EdgeServer::storeWords)),
             currentUser());
@@ -48,8 +47,8 @@ public final class EdgeServer {
     public interface Shipped extends LiteV1Api.Runner {
     }
 
-    /** {@code /api/pure/v1/...}: POST only, as upstream serves it; the pure-meaning detector under {@code meaning}. */
-    static LegendHttpServer.Routes pureV1(LiteV1Api.Runner runner, PureMeaningCheck.Mode meaning) {
+    /** {@code /api/pure/v1/...}: POST only, as upstream serves it. */
+    static LegendHttpServer.Routes pureV1(LiteV1Api.Runner runner) {
         return new LegendHttpServer.Routes() {
             @Override
             public String prefix() {
@@ -62,7 +61,7 @@ public final class EdgeServer {
                 if (!"POST".equals(method)) {
                     return new LiteV1Api.Answer(405, "{\"error\":\"Method not allowed\"}");
                 }
-                return PureV1Routes.route(path, rawQuery, body, runner, LiteV1Api.Models.COMPILED, meaning);
+                return PureV1Routes.route(path, rawQuery, body, runner, LiteV1Api.Models.COMPILED);
             }
         };
     }

@@ -77,7 +77,7 @@ class PureMeaningCheckTest {
     void aStoreBoundSubstringAndIndexOfAreFlagged() {
         PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(1, 3),"
                 + " b: r|$r.NAME->toOne()->substring(2), c: r|$r.NAME->toOne()->indexOf('o')])->from(t::RT)");
-        assertEquals("substring/2=1, substring/3=1, indexOf/2=1", r.header());
+        assertEquals("substring/2=1, substring/3=1, indexOf/2=1", r.counts());
     }
 
     /** substr means legend-pure's in both, apart from out of range: legend-engine's processSubstr sends the database's
@@ -88,8 +88,7 @@ class PureMeaningCheckTest {
     void aStoreBoundSubstrIsFlaggedInBothForms() {
         PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substr(1, 3),"
                 + " b: r|$r.NAME->toOne()->substr(2)])->from(t::RT)");
-        assertEquals("substr/2=1, substr/3=1", r.header());
-        assertTrue(r.sentence("execute", PureMeaningCheck.Mode.REFUSE).contains("differ out of range alone"));
+        assertEquals("substr/2=1, substr/3=1", r.counts());
     }
 
     /** A store-free let's substr is computed on the host, as legend-engine computes any store-free let: not flagged. */
@@ -97,7 +96,7 @@ class PureMeaningCheckTest {
     void aHostSideSubstrIsNotFlagged() {
         PureMeaningCheck.Result host = check("{|let x = 'abcdef'->substr(1, 3); " + TABLE
                 + "->filter(r|$r.NAME == $x)->from(t::RT);}");
-        assertTrue(host.clean(), host.header());
+        assertTrue(host.clean(), host.counts());
     }
 
     @Test
@@ -105,7 +104,7 @@ class PureMeaningCheckTest {
         // legend-engine 4.145.0 planned `select substring('abcdef', 1, 3)` for this (H16's host-side probe)
         PureMeaningCheck.Result r = check("|" + TABLE + "->limit(1)->extend(~s: r|'abcdef'->substring(1, 3))"
                 + "->from(t::RT)");
-        assertEquals("substring/3=1", r.header());
+        assertEquals("substring/3=1", r.counts());
     }
 
     @Test
@@ -113,10 +112,10 @@ class PureMeaningCheckTest {
         // legend-engine computes a store-free let before the query, Pure's meaning (`where region = 'bc'`, H16)
         PureMeaningCheck.Result host = check("{|let x = 'abcdef'->substring(1, 3); " + TABLE
                 + "->filter(r|$r.NAME == $x)->from(t::RT);}");
-        assertTrue(host.clean(), host.header());
+        assertTrue(host.clean(), host.counts());
         PureMeaningCheck.Result routed = check("|" + TABLE
                 + "->filter(r|$r.NAME == 'abcdef'->substring(1, 3))->from(t::RT)");
-        assertEquals("substring/3=1", routed.header());
+        assertEquals("substring/3=1", routed.counts());
     }
 
     /** A let whose value is computed with a lambda (not a lambda itself) is a store-free value legend-engine computes on
@@ -130,7 +129,7 @@ class PureMeaningCheckTest {
     void aCallOnAStoreReadLetInAStatementOfItsOwnIsHostSide_andInTheOneStatementIsFlagged() {
         String one = "t::Person.all()->filter(p|$p.name == 'abcdef')->from(t::M, t::RT)->toOne().name";
         assertTrue(check("{|let d = " + one + "; $d->substring(1, 3);}").clean());
-        assertEquals("substring/3=1", check("|" + one + "->substring(1, 3)").header());
+        assertEquals("substring/3=1", check("|" + one + "->substring(1, 3)").counts());
     }
 
     /** A let whose value is a function computed some other way (here read out of a collection), evaluated by
@@ -141,7 +140,7 @@ class PureMeaningCheckTest {
     void anEvaluatedLetWhoseValueIsNotALiteralLambdaIsUnverified() {
         PureMeaningCheck.Result r = check("{|let f = [{s: String[1]|$s->indexOf('x')}]->toOne(); " + TABLE
                 + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}");
-        assertEquals("unverified=1", r.header());
+        assertEquals("unverified=1", r.counts());
     }
 
     /** A class collection a let reads, then a call over it in a statement of its own: legend-engine runs the let's query
@@ -153,7 +152,7 @@ class PureMeaningCheckTest {
     void aCallOverAStoreReadCollectionLetIsHostSide_andInTheOneStatementIsFlagged() {
         String people = "t::Person.all()->filter(p|$p.name == 'abcdef')->from(t::M, t::RT)";
         assertTrue(check("{|let ps = " + people + "; $ps->map(p|$p.name->substring(1, 3));}").clean());
-        assertEquals("substring/3=1", check("|" + people + "->map(p|$p.name->substring(1, 3))").header());
+        assertEquals("substring/3=1", check("|" + people + "->map(p|$p.name->substring(1, 3))").counts());
     }
 
     /** A let whose own value holds the call, then read by a statement of its own: legend-engine computes the let's call
@@ -162,28 +161,28 @@ class PureMeaningCheckTest {
     @Test
     void aStoreBoundValueLetsOwnCallIsFlagged() {
         assertEquals("substring/3=1", check("{|let d = t::Person.all()->filter(p|$p.name == 'abcdef')"
-                + "->from(t::M, t::RT)->toOne().name->substring(1, 3); $d->toUpper();}").header());
+                + "->from(t::M, t::RT)->toOne().name->substring(1, 3); $d->toUpper();}").counts());
     }
 
     @Test
     void aLetComputedWithALambdaIsHostSide_notStoreBound() {
         PureMeaningCheck.Result r = check("{|let n = ['ax', 'bx']->map(s|$s->indexOf('x')); " + TABLE
                 + "->filter(r|$r.ID->in($n))->from(t::RT);}");
-        assertTrue(r.clean(), r.header());
+        assertTrue(r.clean(), r.counts());
     }
 
     @Test
     void aLetBoundLambdaTheQueryNamesIsStoreBound() {
         PureMeaningCheck.Result r = check("{|let f = {s: String[1]|$s->indexOf('x')}; " + TABLE
                 + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}");
-        assertEquals("indexOf/2=1", r.header());
+        assertEquals("indexOf/2=1", r.counts());
     }
 
     @Test
     void theListIndexOfAndTheThreeArgumentIndexOfAreNotFlagged() {
         PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[a: r|[1, 2, 3]->indexOf(2),"
                 + " b: r|$r.NAME->toOne()->indexOf('o', 1)])->from(t::RT)");
-        assertTrue(r.clean(), r.header());
+        assertTrue(r.clean(), r.counts());
     }
 
     // ---- the reach -------------------------------------------------------------------------------------------------
@@ -192,14 +191,14 @@ class PureMeaningCheckTest {
     void aUserFunctionTheQueryCallsIsFollowed() {
         PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[a: r|t::firstThree($r.NAME->toOne()),"
                 + " b: r|t::position($r.NAME->toOne())])->from(t::RT)");
-        assertEquals("substring/3=1, indexOf/2=1", r.header());
+        assertEquals("substring/3=1, indexOf/2=1", r.counts());
         assertTrue(r.sites().stream().anyMatch(s -> s.where().equals("t::firstThree")), r.sites().toString());
     }
 
     @Test
     void aQualifiedPropertyTheQueryReadsIsFollowed() {
         PureMeaningCheck.Result r = check("|t::Person.all()->project(~[i: p|$p.initials()])->from(t::M, t::RT)");
-        assertEquals("substring/3=1", r.header());
+        assertEquals("substring/3=1", r.counts());
     }
 
     /** A graph fetch's tree reads properties that are not the node's children: a qualified property in it is followed,
@@ -209,7 +208,7 @@ class PureMeaningCheckTest {
     void aQualifiedPropertyAGraphFetchReadsIsFollowed() {
         PureMeaningCheck.Result r = check("|t::Person.all()->graphFetch(#{t::Person{name,initials,firstC}}#)"
                 + "->serialize(#{t::Person{name,initials,firstC}}#)->from(t::M, t::RT)");
-        assertEquals("substring/3=1, indexOf/2=1", r.header());
+        assertEquals("substring/3=1, indexOf/2=1", r.counts());
         assertTrue(check("|t::Person.all()->graphFetch(#{t::Person{name}}#)->serialize(#{t::Person{name}}#)"
                 + "->from(t::M, t::RT)").clean());
     }
@@ -218,7 +217,7 @@ class PureMeaningCheckTest {
     void aConstraintIsNotFollowed_legendEngineChecksItInJava() {
         // the class's constraint calls substring; a query reading the class does not reach it
         PureMeaningCheck.Result r = check("|t::Person.all()->project(~[n: p|$p.name])->from(t::M, t::RT)");
-        assertTrue(r.clean(), r.header());
+        assertTrue(r.clean(), r.counts());
     }
 
     /** validate's constraints become the query's filter before typing (ValidateDesugar, through the query front
@@ -240,9 +239,9 @@ class PureMeaningCheckTest {
         TypedQuery q = Compiler.queryResolved(c, Compiler.resolveQuery(lambda.body(),
                 new com.legend.model.ImportScope(List.of()), c));
         PureMeaningCheck.Result r = PureMeaningCheck.of(q, c, "t::RT", null);
-        assertEquals("substring/3=1", r.header());
+        assertEquals("substring/3=1", r.counts());
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(validate), NO_RUN,
-                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.WARN);
+                LiteV1Api.Models.COMPILED);
         assertEquals(500, a.status(), a.json());
         assertTrue(a.json().contains("validate"), a.json());
     }
@@ -253,7 +252,7 @@ class PureMeaningCheckTest {
     void anM2MTransformInATdsQueryOverAChainIsFlagged() {
         PureMeaningCheck.Result r = check("|t::Out.all()->project(~[s: o|$o.short])"
                 + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
-        assertEquals("substring/3=1", r.header());
+        assertEquals("substring/3=1", r.counts());
         assertTrue(r.sites().stream().anyMatch(s -> s.where().contains("t::M2")
                 || s.where().contains("t::Out")), r.sites().toString());
     }
@@ -264,7 +263,7 @@ class PureMeaningCheckTest {
     void anM2MTransformUnderAGraphFetchIsNotFlagged() {
         PureMeaningCheck.Result r = check("|t::Out.all()->graphFetch(#{t::Out{short}}#)->serialize(#{t::Out{short}}#)"
                 + "->meta::pure::mapping::withChainedMappings([t::M])->from(t::M2, t::RT)");
-        assertTrue(r.clean(), r.header());
+        assertTrue(r.clean(), r.counts());
     }
 
     /** An M2M mapping over a model connection, with no chain to a store: legend-engine runs it in Java. */
@@ -273,7 +272,7 @@ class PureMeaningCheckTest {
         ModelContext c = ctx(MODEL);
         TypedQuery q = Compiler.query(c, "|t::Out.all()->project(~[s: o|$o.short])->from(t::M2, t::JsonRT)");
         PureMeaningCheck.Result r = PureMeaningCheck.of(q, c, "t::JsonRT", null);
-        assertTrue(r.clean(), r.header());
+        assertTrue(r.clean(), r.counts());
     }
 
     // ---- unverified ----------------------------------------------------------------------------------------------
@@ -287,17 +286,16 @@ class PureMeaningCheckTest {
 
     /** A function value the check does not hold (a lambda read out of a collection, which legend-engine's grammar
      *  writes; a class property of a function type is lite's own dialect, which no legend-engine client sends):
-     *  reported unverified, never clean, and refused under refuse. */
+     *  reported unverified, never clean, and refused by name at the door (it cannot be given legend-engine's meaning). */
     @Test
     void aFunctionValueTheCheckDoesNotHoldIsUnverified_andRefused() {
         String query = "|" + TABLE + "->extend(~i: r|[{s: String[1]|$s->length()}]->at(0)->eval($r.NAME->toOne()))"
                 + "->from(t::RT)";
         PureMeaningCheck.Result r = check(query);
-        assertEquals("unverified=1", r.header());
+        assertEquals("unverified=1", r.counts());
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(query), NO_RUN);
         assertEquals(500, a.status(), a.json());
-        assertTrue(a.json().contains("unverified"), a.json());
-        assertEquals("unverified=1", a.headers().get(PureMeaningCheck.HEADER));
+        assertTrue(a.json().contains("unverified") && a.json().contains("could not follow"), a.json());
         // the partner: the same lambda let-bound and named is followed, so its body is read, and it is clean
         assertTrue(check("{|let f = {s: String[1]|$s->length()}; " + TABLE
                 + "->extend(~i: r|$f->eval($r.NAME->toOne()))->from(t::RT);}").clean());
@@ -308,7 +306,7 @@ class PureMeaningCheckTest {
     void aFunctionWhoseBodyDoesNotTypeIsUnverified() {
         PureMeaningCheck.Result r = check(UNFOLLOWABLE, "|" + TABLE
                 + "->extend(~i: r|t::untyped($r.NAME->toOne()))->from(t::RT)");
-        assertEquals("unverified=1", r.header());
+        assertEquals("unverified=1", r.counts());
         assertTrue(r.sites().get(0).where().startsWith("t::untyped"), r.sites().toString());
     }
 
@@ -319,16 +317,15 @@ class PureMeaningCheckTest {
         ModelContext c = ctx(MODEL);
         TypedQuery q = Compiler.query(c, "|t::Person.all()->project(~[n: p|$p.name])->from(t::M, t::RT)");
         PureMeaningCheck.Result r = PureMeaningCheck.of(q, c, "t::RT", "t::NotInTheModel");
-        assertEquals("unverified=1", r.header());
+        assertEquals("unverified=1", r.counts());
         assertTrue(PureMeaningCheck.of(q, c, "t::RT", "t::M").clean());
     }
 
-    // ---- quiet --------------------------------------------------------------------------------------------------
+    // ---- no exemption ---------------------------------------------------------------------------------------------
 
     /** Under CORRECT_SQL_SUBSTRING_INDEXING legend-engine's processSubstring is its processSubstr (pureToSQLQuery.pure:4662),
      *  so a corrected substring agrees with lite in range and differs out of range alone, as substr does: flagged as
-     *  corrected, its literal-0 start included (the uncorrected form's measured exemption is not this form's). indexOf
-     *  has no such option (:10644), so it is flagged as before. */
+     *  corrected, its literal-0 start included. indexOf has no such option (:10644), so it is flagged as before. */
     @Test
     void theCorrectedOptionFlagsSubstringAsCorrected_andIndexOfAsBefore() {
         String calls = "->extend(~[a: r|$r.NAME->toOne()->substring(1, 3), b: r|$r.NAME->toOne()->indexOf('o'),"
@@ -336,80 +333,52 @@ class PureMeaningCheckTest {
         PureMeaningCheck.Result r = check("|" + TABLE + calls + "->from(t::RT)"
                 + "->meta::pure::executionPlan::featureFlag::withFeatureFlags("
                 + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)");
-        assertEquals("substring(corrected)/2=1, substring(corrected)/3=1, indexOf/2=1", r.header());
-        assertTrue(r.sentence("execute", PureMeaningCheck.Mode.REFUSE).contains("differ out of range alone"));
+        assertEquals("substring(corrected)/2=1, substring(corrected)/3=1, indexOf/2=1", r.counts());
         PureMeaningCheck.Result plain = check("|" + TABLE + calls + "->from(t::RT)");
-        assertEquals("substring/3=1, indexOf/2=1", plain.header());
-        assertFalse(plain.sentence("execute", PureMeaningCheck.Mode.REFUSE).contains("differ out of range alone"));
+        assertEquals("substring/2=1, substring/3=1, indexOf/2=1", plain.counts());
     }
 
+    /** A literal start of 0 is flagged like any other start, in both forms, on every database (the reviewer's M-a1):
+     *  in range it gives Pure's answer, but out of range lite raises (S383) where legend-engine answers the database's
+     *  SUBSTRING ('abcdef'->substring(0, 9) is 'abcdef'), so the door rewrites it too. */
     @Test
-    void aLiteralZeroStartIsExemptInBothForms_whereMeasuredEqualSo() {
-        PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
-                + " b: r|$r.NAME->toOne()->substring(0)])->from(t::RT)");
-        assertTrue(r.clean(), r.header());
-        PureMeaningCheck.Result one = check("|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->substring(1, 3))"
-                + "->from(t::RT)");
-        assertEquals("substring/3=1", one.header());
-    }
-
-    @Test
-    void aLiteralZeroStartIsExemptInTheTwoArgumentFormAlone_whereMeasuredSo() {
-        String twoArgumentOnly = MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+    void aLiteralZeroStartIsFlagged_noCallIsExempt() {
+        String zeroStarts = "|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
+                + " b: r|$r.NAME->toOne()->substring(0)])->from(t::RT)";
+        assertEquals("substring/2=1, substring/3=1", check(zeroStarts).counts());
+        String zeroStart = MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
                 "type: DuckDB; specification: DuckDB { }; auth: Test;");
-        PureMeaningCheck.Result r = check(twoArgumentOnly, "|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
-                + " b: r|$r.NAME->toOne()->substring(0)])->from(t::RT)");
-        assertEquals("substring/3=1", r.header());
+        assertEquals("substring/2=1, substring/3=1", check(zeroStart, zeroStarts).counts());
     }
 
-    @Test
-    void aLiteralZeroStartIsFlaggedOnATargetNotMeasured() {
-        String unmeasured = MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
-                "type: Postgres; specification: Static { name: 'x'; host: 'h'; port: 5432; };"
-                        + " auth: UserNamePassword { baseVaultReference: 'v'; userNameVaultReference: 'u';"
-                        + " passwordVaultReference: 'p'; };");
-        PureMeaningCheck.Result r = check(unmeasured, "|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
-                + " b: r|$r.NAME->toOne()->substring(0)])->from(t::RT)");
-        assertEquals("substring/2=1, substring/3=1", r.header());
-    }
-
-    // ---- the header and the sentence -------------------------------------------------------------------------------
+    // ---- what a refusal names --------------------------------------------------------------------------------------
 
     @Test
-    void theHeaderIsBounded_codesAndCountsOnly() {
+    void theRefusalsCallListIsBounded_codesAndCountsOnly() {
         StringBuilder cols = new StringBuilder();
         for (int i = 0; i < 50; i++) {
             cols.append(i == 0 ? "" : ", ").append("c").append(i).append(": r|$r.NAME->toOne()->substring(")
                     .append(i + 1).append(", ").append(i + 3).append(")");
         }
         PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[" + cols + "])->from(t::RT)");
-        assertEquals("substring/3=50", r.header());
-        String sentence = r.sentence("execute", PureMeaningCheck.Mode.REFUSE);
-        assertTrue(sentence.contains("and 30 more"), sentence);
-        assertFalse(sentence.contains("NAME"), "the sentence names calls, never the query's text: " + sentence);
-    }
-
-    // ---- the setting ----------------------------------------------------------------------------------------------
-
-    @Test
-    void theSettingIsRefuseByDefault_warnOrEngineByChoice_andNothingElse() {
-        assertEquals(PureMeaningCheck.Mode.REFUSE, PureMeaningCheck.mode(null));
-        assertEquals(PureMeaningCheck.Mode.REFUSE, PureMeaningCheck.mode(""));
-        assertEquals(PureMeaningCheck.Mode.REFUSE, PureMeaningCheck.mode("refuse"));
-        assertEquals(PureMeaningCheck.Mode.WARN, PureMeaningCheck.mode("warn"));
-        assertEquals(PureMeaningCheck.Mode.ENGINE, PureMeaningCheck.mode("engine"));
-        IllegalStateException e = assertThrows(IllegalStateException.class, () -> PureMeaningCheck.mode("Engine"));
-        assertTrue(e.getMessage().contains("LEGEND_LITE_PURE_MEANING=Engine"), e.getMessage());
+        assertEquals("substring/3=50", r.counts());
+        String calls = r.calls();
+        assertTrue(calls.contains("and 30 more"), calls);
+        assertFalse(calls.contains("NAME"), "a refusal names calls, never the query's text: " + calls);
     }
 
     // ---- the routes ------------------------------------------------------------------------------------------------
+
+    /** The header the detector once answered with (2026-11-19), gone with the setting (the user's ruling of 2026-11-20
+     *  ~07:55): legend-engine sends no such header. */
+    private static final String OLD_HEADER = "x-legend-lite-pure-meaning";
 
     /** A runner that must not run: a refusal happens before the query is planned or run. */
     private static final LiteV1Api.Runner NO_RUN = (query, runtime, output) -> {
         throw new AssertionError("a refused query is never run");
     };
 
-    /** A runner that runs nothing and answers no rows: the route's header is what these tests read. */
+    /** A runner that runs nothing and answers no rows: what these tests read is the route's answer around it. */
     private static final LiteV1Api.Runner NOTHING = (query, runtime, output) -> {
     };
 
@@ -429,96 +398,90 @@ class PureMeaningCheckTest {
     static final String PLANTED = "|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(1, 3),"
             + " b: r|$r.NAME->toOne()->indexOf('o')])->from(t::RT)";
 
+    /** The model on a database where legend-engine's answer is not yet checked. */
+    static final String UNCHECKED = MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+            "type: Postgres; specification: Static { name: 'x'; host: 'h'; port: 5432; };"
+                    + " auth: UserNamePassword { baseVaultReference: 'v'; userNameVaultReference: 'u';"
+                    + " passwordVaultReference: 'p'; };");
+
+    /** On a database where legend-engine's answer is not yet checked, a flagged query is refused by name, in
+     *  legend-engine's envelope, never answered with a guess (the user's ruling of 2026-11-20 ~07:55). */
     @Test
-    void executeRefusesAFlaggedQueryByDefault_inLegendEnginesEnvelope_withTheHeader() {
-        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(PLANTED), NO_RUN);
+    void aFlaggedQueryOnADatabaseNotYetCheckedIsRefusedByName_inLegendEnginesEnvelope() {
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(UNCHECKED, PLANTED),
+                NO_RUN, LiteV1Api.Models.COMPILED);
         assertEquals(500, a.status(), a.json());
         Json.Obj o = Json.parseObject(a.json());
         assertEquals("COMPILATION", o.getString("errorType"));
         String message = o.getString("message");
-        assertTrue(message.contains("substring/3 at 1:") && message.contains("indexOf/2 at 1:"), message);
-        assertTrue(message.contains("LEGEND_LITE_PURE_MEANING=warn"), message);
-        assertEquals("substring/3=1, indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
+        assertTrue(message.contains("legend-engine's answer for substring/3 at 1:") && message.contains("indexOf/2 at 1:")
+                && message.contains("is not yet checked on Postgres"), message);
+        assertNull(a.headers().get(OLD_HEADER));
     }
 
-    /** A refused request sends nothing to the database: the check runs right after the request is typed, before it
-     *  is planned or run, on every route that runs a query (the compat owner's order of ~19:52). The runner is the
-     *  routes' one way to a session, and a refused request never reaches it. */
+    /** A refused request sends nothing to the database: the door's check runs right after the request is typed, before
+     *  it is planned or run, on every route whose answer a flagged call chooses (the compat owner's order of ~19:52,
+     *  2026-11-19). The runner is the routes' one way to a session, and a refused request never reaches it. */
     @Test
-    void aRefusedRequestRunsNoStatement_onEveryRouteThatRunsAQuery() {
+    void aRefusedRequestRunsNoStatement_onEveryRouteWhoseAnswerTheCallChooses() {
         java.util.concurrent.atomic.AtomicInteger runs = new java.util.concurrent.atomic.AtomicInteger();
         LiteV1Api.Runner counting = (query, runtime, output) -> runs.incrementAndGet();
-        String testData = testDataBody("|t::Person.all()->project(~[i: p|$p.name->substring(1, 2)])");
+        String testData = testDataBody(UNCHECKED, "|t::Person.all()->filter(p|$p.name == 'abcdef'->substring(1, 3))"
+                + "->project([p|$p.name], ['n'])");
         Map<String, String> routes = new java.util.LinkedHashMap<>();
-        routes.put("/api/pure/v1/execution/execute", body(PLANTED));
-        routes.put("/api/pure/v1/execution/generatePlan", body(PLANTED));
+        routes.put("/api/pure/v1/execution/execute", body(UNCHECKED, PLANTED));
+        routes.put("/api/pure/v1/execution/generatePlan", body(UNCHECKED, PLANTED));
         routes.put("/api/pure/v1/execution/testDataGeneration/generateSeedData", testData);
-        routes.put("/api/pure/v1/execution/testDataGeneration/generateTestData_WithSeed", testData);
         routes.put("/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed", testData);
         for (Map.Entry<String, String> route : routes.entrySet()) {
             for (String format : java.util.Arrays.asList(null, "serializationFormat=ARROW_IPC")) {
                 LiteV1Api.Answer a = PureV1Routes.route(route.getKey(), format, route.getValue(), counting);
                 assertEquals(500, a.status(), route.getKey() + " " + a.json());
-                assertTrue(a.json().contains("LEGEND_LITE_PURE_MEANING=warn"), route.getKey() + " " + a.json());
-                assertTrue(a.headers().get(PureMeaningCheck.HEADER) != null, route.getKey());
+                assertTrue(a.json().contains("is not yet checked on Postgres"), route.getKey() + " " + a.json());
             }
         }
         assertEquals(0, runs.get(), "a refused request reached the runner");
         // the partner: the same counting runner IS reached by a clean request, so the zero above is the refusal's
         PureV1Routes.route("/api/pure/v1/execution/execute", null,
-                body("|" + TABLE + "->select(~[NAME])->from(t::RT)"), counting);
+                body(UNCHECKED, "|" + TABLE + "->select(~[NAME])->from(t::RT)"), counting);
         assertEquals(1, runs.get(), "a clean request runs");
     }
 
-    private static String testDataBody(String lambdaText) {
+    private static String testDataBody(String modelText, String lambdaText) {
         String function = PureV1Routes.grammarToJsonLambda(lambdaText, true).json();
         Map<String, Object> model = new java.util.LinkedHashMap<>();
         model.put("_type", "text");
-        model.put("code", MODEL);
+        model.put("code", modelText);
         return "{\"function\":" + function + ",\"mapping\":\"t::M\",\"runtime\":{\"_type\":\"runtimePointer\","
                 + "\"runtime\":\"t::RT\"},\"model\":" + Json.toCompact(model) + ",\"tableRowIdentifiers\":[]}";
     }
 
+    /** On a checked database a flagged query is answered (rewritten: PureMeaningEngineTest reads the answers), and no
+     *  answer carries a header of the detector's. */
     @Test
-    void executeUnderWarnAnswers_withTheHeaderAndTheBrowsersLeaveToReadIt() {
-        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(PLANTED), NOTHING,
-                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.WARN);
+    void aFlaggedQueryOnACheckedDatabaseIsAnswered_withNoHeader() {
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(PLANTED), NOTHING);
         assertEquals(200, a.status(), a.json());
-        assertEquals("substring/3=1, indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
-        assertEquals(PureMeaningCheck.HEADER, a.headers().get("Access-Control-Expose-Headers"));
+        assertNull(a.headers().get(OLD_HEADER));
+        assertNull(a.headers().get("Access-Control-Expose-Headers"));
     }
 
     @Test
-    void aCleanQueryAnswersAsItDidWithNoHeader() {
+    void aCleanQueryAnswersAsItDid() {
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null,
                 body("|" + TABLE + "->select(~[NAME])->from(t::RT)"), NOTHING);
         assertEquals(200, a.status(), a.json());
-        assertNull(a.headers().get(PureMeaningCheck.HEADER));
+        assertNull(a.headers().get(OLD_HEADER));
     }
 
+    /** generatePlan plans the rewritten query: its SQL is not the core's plan of the query as written. */
     @Test
-    void generatePlanUnderWarnPlansTheQueryUnchanged_withTheHeader_andRefusesItByDefault() {
-        String b = body(PLANTED);
-        LiteV1Api.Answer warned = PureV1Routes.route("/api/pure/v1/execution/generatePlan", null, b, NO_RUN,
-                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.WARN);
-        assertEquals(200, warned.status(), warned.json());
-        assertEquals("substring/3=1, indexOf/2=1", warned.headers().get(PureMeaningCheck.HEADER));
-        // the query is never changed: the plan's SQL is the core's own plan of the same typed query
-        String sql = Json.parseObject(warned.json()).getObj("rootExecutionNode").getArr("executionNodes").items()
-                .stream().map(n -> ((Json.Obj) n).getString("sqlQuery")).findFirst().orElseThrow();
-        assertEquals(Compiler.query(ctx(MODEL), PLANTED).plan("t::RT", PureText.PURE_V1).sql(), sql);
-        LiteV1Api.Answer refused = PureV1Routes.route("/api/pure/v1/execution/generatePlan", null, b, NO_RUN);
-        assertEquals(500, refused.status(), refused.json());
-        assertEquals("substring/3=1, indexOf/2=1", refused.headers().get(PureMeaningCheck.HEADER));
-    }
-
-    @Test
-    void theArrowAnswerCarriesTheHeaderBesideItsFormat() {
-        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
-                body(PLANTED), NOTHING, LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.WARN);
+    void generatePlanPlansTheRewrittenQuery() {
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/generatePlan", null, body(PLANTED), NO_RUN);
         assertEquals(200, a.status(), a.json());
-        assertEquals("FormatNotSet", a.headers().get("x-legend-response-format"));
-        assertEquals("substring/3=1, indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
+        String sql = Json.parseObject(a.json()).getObj("rootExecutionNode").getArr("executionNodes").items()
+                .stream().map(n -> ((Json.Obj) n).getString("sqlQuery")).findFirst().orElseThrow();
+        assertFalse(Compiler.query(ctx(MODEL), PLANTED).plan("t::RT", PureText.PURE_V1).sql().equals(sql), sql);
     }
 
     @Test
@@ -526,11 +489,10 @@ class PureMeaningCheckTest {
         // compile types every body (the constraint and the functions call substring) and is answered as before
         Map<String, Object> model = new java.util.LinkedHashMap<>();
         model.put("_type", "text");
-        model.put("code", MODEL);
+        model.put("code", UNCHECKED);
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/compilation/compile", null, Json.toCompact(model),
                 NO_RUN);
         assertEquals(200, a.status(), a.json());
-        assertNull(a.headers().get(PureMeaningCheck.HEADER));
     }
 
     /** A check that misses what it must flag fails the first; one that flags what it must not fails the second. */
@@ -542,12 +504,12 @@ class PureMeaningCheckTest {
                 "|" + TABLE + "->extend(~a: r|t::firstThree($r.NAME->toOne()))->from(t::RT)");
         List<String> quiet = List.of(
                 "{|let x = 'abc'->indexOf('b'); " + TABLE + "->filter(r|$r.ID == $x)->from(t::RT);}",
-                "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->substring(0))->from(t::RT)");
+                "|" + TABLE + "->extend(~a: r|['a', 'b']->indexOf('b'))->from(t::RT)");
         for (String q : flagged) {
             assertFalse(check(q).clean(), q);
         }
         for (String q : quiet) {
-            assertTrue(check(q).clean(), q + " -> " + check(q).header());
+            assertTrue(check(q).clean(), q + " -> " + check(q).counts());
         }
     }
 }

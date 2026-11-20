@@ -72,7 +72,7 @@ class PureMeaningRewriteTest {
         PureMeaningRewrite.Rewritten w = rewrite(PureMeaningCheckTest.PLANTED, r);
         assertEquals(List.of(PureMeaningCheck.Code.SUBSTRING_3, PureMeaningCheck.Code.INDEX_OF_2), r.codes);
         assertEquals(2, r.in(w.query().body().get(0)));
-        assertEquals("substring/3=1, indexOf/2=1", w.rewrote().header());
+        assertEquals("substring/3=1, indexOf/2=1", w.rewrote().counts());
         // the substitutes here are copies of the calls, so the plan is the query's own: inlining a root on its own and
         // planning withBody changes nothing else
         ModelContext c = Compiler.compileModel(PureMeaningCheckTest.MODEL);
@@ -255,17 +255,15 @@ class PureMeaningRewriteTest {
         assertEquals(2, r.in(w.query().body().get(0)));
     }
 
-    /** Under engine a literal-0 start is rewritten too (the reviewer's M-a1): out of range lite raises and legend-engine
-     *  answers the database's SUBSTRING, so the measured exemption, which refuse and warn keep, is not engine's. */
+    /** A literal-0 start is rewritten too, in both forms (the reviewer's M-a1): out of range lite raises and
+     *  legend-engine answers the database's SUBSTRING, so no start is exempt. */
     @Test
-    void aLiteralZeroStartIsRewrittenUnderEngine_whereRefuseAndWarnExemptIt() {
-        String query = "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->substring(0, 3))->from(t::RT)";
-        ModelContext c = Compiler.compileModel(PureMeaningCheckTest.MODEL);
-        assertTrue(PureMeaningCheck.of(Compiler.query(c, query), c, "t::RT", null).clean());
+    void aLiteralZeroStartIsRewritten_inBothForms() {
         Recording r = new Recording();
-        PureMeaningRewrite.Rewritten w = rewrite(query, r);
-        assertEquals(List.of(PureMeaningCheck.Code.SUBSTRING_3), r.codes);
-        assertEquals("substring/3=1", w.rewrote().header());
+        PureMeaningRewrite.Rewritten w = rewrite("|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(0, 3),"
+                + " b: r|$r.NAME->toOne()->substring(0)])->from(t::RT)", r);
+        assertEquals(List.of(PureMeaningCheck.Code.SUBSTRING_3, PureMeaningCheck.Code.SUBSTRING_2), r.codes);
+        assertEquals("substring/2=1, substring/3=1", w.rewrote().counts());
     }
 
     // ---- refused by name -------------------------------------------------------------------------------------------
@@ -295,7 +293,7 @@ class PureMeaningRewriteTest {
         Recording r = new Recording();
         NotImplementedException e = assertThrows(NotImplementedException.class,
                 () -> rewrite(unmeasured, PureMeaningCheckTest.PLANTED, r));
-        assertTrue(e.getMessage().contains("not measured on Postgres"), e.getMessage());
+        assertTrue(e.getMessage().contains("is not yet checked on Postgres"), e.getMessage());
         assertEquals(0, r.built.size());
     }
 }

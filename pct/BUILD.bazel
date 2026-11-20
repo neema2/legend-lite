@@ -1143,11 +1143,12 @@ legend_java_library(
     ],
 )
 
-# the halves (A3's engine rewrite, 2026-11-19): "" answers under LEGEND_LITE_PURE_MEANING=warn, Pure's meaning, as the
-# batteries always have; "engine_" under =engine, each flagged call sent as the database's own function, pinned beside
-# (pct/batteries/agreement_engine_<db>.tsv; the two pin files are new with the user's word of 2026-11-19 ~22:20, "Yes to
-# all three", relayed by the compatibility program's owner, and were regenerated on the stage-A batch's merged tree)
-_BATTERY_HALVES = ["", "engine_"]
+# the engine half alone (pct/batteries/agreement_engine_<db>.tsv; the two pin files new with the user's word of
+# 2026-11-19 ~22:20, "Yes to all three", relayed by the compatibility program's owner): pure/v1's execute answers
+# legend-engine's meaning with no setting since the user's ruling of 2026-11-20 ~07:55 ("Delete the settings, make engine
+# only mode for engine for everything", claude/compat-program 25ede64f §1), so the warn half and its pins
+# (agreement_<db>.tsv) went that day, a down move
+_BATTERY_HALVES = ["engine_"]
 
 [java_run(
     name = "battery_lite_" + half + db,
@@ -1162,7 +1163,7 @@ _BATTERY_HALVES = ["", "engine_"]
         "--model=$(execpath %s)" % _BATTERY_MODEL[db],
         "--requests=$(execpath %s)" % _BATTERY_REQUESTS,
         "--out={OUT}",
-    ] + (["--meaning=engine"] if half else []) + ([
+    ] + ([
         "--database-file=$(execpath //tools/engine-runner:batteries/lite/trades.duckdb)",
         "--file-token=${DUCKDB_PATH}",
     ] if db == "duckdb" else []),

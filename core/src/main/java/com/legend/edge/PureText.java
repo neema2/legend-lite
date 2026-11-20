@@ -29,37 +29,19 @@ public final class PureText {
      *  judges' engine-test methods, W9's judge half, 2026-11-16). */
     private static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
 
-    /** LEGEND-ENGINE'S {@code substring} AND {@code indexOf}, MEASURED PER DATABASE (A3: the pure-meaning detector,
-     *  {@link PureMeaningCheck}, ruled by the user 2026-11-19 ~20:10; the {@code engine} rewrite, {@link
-     *  PureMeaningRewrite}, ruled ~20:05). legend-engine sends {@code substring} and {@code indexOf} to the database as
-     *  written, and the database's own functions decide. Two facts per database, each measured, so the detector and
-     *  the rewrite name no database:
-     *  <ul>
-     *    <li>{@code zeroStartAsPure}: the arities whose literal start of 0 answers legend-pure's answer
-     *        (docs/records/compat-homework/a3/h2-literal-zero.tsv and duckdb-literal-zero.tsv on
-     *        claude/compat-translator-spike). H2 2.1.214 and 2.5.252 read start 0 as position 1, in both arities;
-     *        DuckDB 1.5.6 answers the whole string for the 2-argument form only, and drops a character in the
-     *        3-argument one.</li>
-     *    <li>{@code engineAnswers}: whether {@code LEGEND_LITE_PURE_MEANING=engine} answers legend-engine's meaning
-     *        there, measured by the batteries under {@code engine} (pct/batteries/agreement_engine_*.tsv, 2026-11-19,
-     *        with the core's native): H2, all of legend-engine's 46 answers; DuckDB, all 47. The two requests left
-     *        are the 3-argument {@code indexOf}, which legend-engine refuses (E-R2).</li>
-     *  </ul>
-     *  Any other database is not measured: no exemption, and refused under {@code engine}. Each database's two facts
-     *  are a pair, {@code zeroStartAsPure} then {@code engineAnswers} (no nested type: this class's nested types are
-     *  its dialects). */
-    private static final java.util.Map<DatabaseType, java.util.Map.Entry<java.util.Set<Integer>, Boolean>> MEASURED = java.util.Map.of(DatabaseType.H2, java.util.Map.entry(java.util.Set.of(2, 3), true), DatabaseType.DuckDB, java.util.Map.entry(java.util.Set.of(2), true));
+    /** THE DATABASES ON WHICH LEGEND-ENGINE'S {@code substring}, {@code indexOf} AND {@code substr} ARE CHECKED (A3: the
+     *  door's rewrite, {@link PureMeaningRewrite}; the user's ruling of 2026-11-20 ~07:55, "Delete the settings, make
+     *  engine only mode for engine for everything", claude/compat-program 25ede64f §1). legend-engine sends those calls
+     *  to the database as written, and the database's own functions decide, so its answer is checked per database:
+     *  H2 and DuckDB, by the batteries (pct/batteries/agreement_engine_*.tsv, each answer legend-engine's but the
+     *  3-argument {@code indexOf}, which legend-engine refuses: E-R2). On any other database a query holding such a
+     *  call is refused by name until it is checked (stage B's warm sessions); the rewrite names no database. */
+    private static final java.util.Set<DatabaseType> CHECKED = java.util.Set.of(DatabaseType.H2, DatabaseType.DuckDB);
 
-    /** Whether legend-engine's {@code substring} of {@code arity} arguments at a literal start of 0 answers legend-pure's
-     *  answer on {@code target} ({@link #MEASURED}); false for a target not measured, or none. */
-    static boolean zeroStartAnswersAsPure(@com.legend.base.Nullable DatabaseType target, int arity) {
-        return target != null && MEASURED.containsKey(target) && MEASURED.get(target).getKey().contains(arity);
-    }
-
-    /** Whether the {@code engine} rewrite answers legend-engine's meaning on {@code target} ({@link #MEASURED}); false
-     *  for a target not measured, or none. */
+    /** Whether legend-engine's answer for the door's rewritten calls is checked on {@code target} ({@link #CHECKED});
+     *  false for any other target, or none. */
     static boolean engineAnswers(@com.legend.base.Nullable DatabaseType target) {
-        return target != null && MEASURED.containsKey(target) && MEASURED.get(target).getValue();
+        return target != null && CHECKED.contains(target);
     }
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */

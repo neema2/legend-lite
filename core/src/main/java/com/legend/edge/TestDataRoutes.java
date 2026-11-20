@@ -217,17 +217,13 @@ public final class TestDataRoutes {
     }
 
     /** {@code pure/v1/execution/testDataGeneration/generateSeedData}: the seed's keys as upstream's JSON. */
-    static LiteV1Api.Answer seedData(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
-            PureMeaningCheck.Mode meaning) {
-        java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found =
-                new java.util.concurrent.atomic.AtomicReference<>();
-        return PureV1Routes.withMeaning("generateSeedData", meaning, found, answer(500, "COMPILATION", () -> {
+    static LiteV1Api.Answer seedData(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
+        return answer(500, "COMPILATION", () -> {
             Request r = Request.of(LiteV1Api.request(body));
             // doored first, before the seed scans the query's relations (the final audit of 9af16fbe58's J8)
-            return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(
-                    doored(ctx, r, "generateSeedData", meaning, found),
-                    seedJson(TestDataPlanner.seedFacts(ctx, seed(ctx, r, true, meaning)), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
-        }));
+            return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(doored(ctx, r),
+                    seedJson(TestDataPlanner.seedFacts(ctx, seed(ctx, r, true)), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
+        });
     }
 
     /**
@@ -268,33 +264,28 @@ public final class TestDataRoutes {
 
     /** {@code pure/v1/execution/testDataGeneration/generateTestData_WithSeed}: the test data from the given
      *  identifiers. */
-    static LiteV1Api.Answer withSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
-            PureMeaningCheck.Mode meaning) {
-        return testData(body, runner, models, false, meaning);
+    static LiteV1Api.Answer withSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
+        return testData(body, runner, models, false);
     }
 
     /** {@code pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed}: the test data from the default
      *  seed. */
-    static LiteV1Api.Answer withDefaultSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
-            PureMeaningCheck.Mode meaning) {
-        return testData(body, runner, models, true, meaning);
+    static LiteV1Api.Answer withDefaultSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
+        return testData(body, runner, models, true);
     }
 
     private static LiteV1Api.Answer testData(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
-            boolean defaultSeed, PureMeaningCheck.Mode meaning) {
-        String route = defaultSeed ? "generateTestData_WithDefaultSeed" : "generateTestData_WithSeed";
-        java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found =
-                new java.util.concurrent.atomic.AtomicReference<>();
+            boolean defaultSeed) {
         LiteV1Api.Answer a = answer(500, "COMPILATION", () -> {
             Request r = Request.of(LiteV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
                 // every route doored first, before its query's relations are scanned (ScanRelations.relTree: a raw
                 // read's query with no root, or several, was answered by the scan's words until the final audit of
                 // 9af16fbe58's J8, 2026-11-14); the seed's entry refuses raw SQL inside itself too
-                doored(ctx, r, route, meaning, found);
+                doored(ctx, r);
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
                 // a view root's main table admitted, so a view is refused by the route's own rule (ROUTE.checkTree)
-                TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true, meaning) : null;
+                TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;
                 // a root no identifier names and no seed starts: upstream's error node, answered by unseeded below; a
                 // view is refused before it is fetched (ROUTE.checkTree), so its own fetch is never planned here
                 TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, r.query(), r.mapping(), ids, null,
@@ -305,8 +296,7 @@ public final class TestDataRoutes {
                 return run(ctx, planned.csv(), r.runtime(), runner);
             });
         });
-        return PureV1Routes.withMeaning(route, meaning, found,
-                a.status() == 200 ? new LiteV1Api.Answer(200, a.json(), "text/plain") : a);
+        return a.status() == 200 ? new LiteV1Api.Answer(200, a.json(), "text/plain") : a;
     }
 
     /** A timestamp key as upstream's seed route writes it ({@code ValueTransformer}, SeedDataGeneration.java:192:
@@ -401,13 +391,8 @@ public final class TestDataRoutes {
      *  text ({@code executeInDb}'s read) is refused by name, as every product door refuses it (2026-11-13, the
      *  orchestrator's completion A of item 5: these routes scan the query's relations and lower its seed, apart from
      *  the door every execute passes, PlanMaker.plan's QueryDoor.refuseTestOnly). */
-    private static ModelContext doored(ModelContext ctx, Request r, String route, PureMeaningCheck.Mode meaning,
-            java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found) {
-        com.legend.TypedQuery query = com.legend.Compiler.query(ctx, r.query());
-        com.legend.planner.QueryDoor.refuseRawSql(query);
-        // the pure-meaning detector (A3 piece 3): the route's query runs through its runtime and mapping, so a call
-        // whose answer would differ from legend-engine's is refused here, before the seed or the data is planned
-        PureV1Routes.checkMeaning(route, query, ctx, r.runtime(), r.mapping(), meaning, found);
+    private static ModelContext doored(ModelContext ctx, Request r) {
+        com.legend.planner.QueryDoor.refuseRawSql(com.legend.Compiler.query(ctx, r.query()));
         return ctx;
     }
 
@@ -423,19 +408,16 @@ public final class TestDataRoutes {
 
     /** The seed of the request's query, lowered on its runtime through its mapping, whatever mappings the runtime
      *  declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function with the given
-     *  mapping). Under {@code engine} the seed's query is the one whose meaning chooses the keys, so it is rewritten
-     *  to legend-engine's meaning before it is lowered ({@link PureMeaningRewrite}); a refusal was made at the door
-     *  ({@link #doored}). */
-    private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot,
-            PureMeaningCheck.Mode meaning) {
+     *  mapping). The seed's query is the one whose meaning chooses the keys, so each call the detector flags in it is
+     *  rewritten to legend-engine's meaning before it is lowered, or the request is refused by name
+     *  ({@link PureV1Routes#checkMeaning}; the user's ruling of 2026-11-20 ~07:55). The routes' other queries choose no
+     *  row by a call's value: generateTestData_WithSeed's rows are the identifiers'. */
+    private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot) {
         return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> {
             com.legend.TypedQuery typed = com.legend.Compiler.query(ctx,
                     TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery));
-            if (meaning == PureMeaningCheck.Mode.ENGINE) {
-                typed = PureMeaningRewrite.rewrite(typed, ctx, r.runtime(), r.mapping(), PureMeaningRewrite::engine)
-                        .query();
-            }
-            return com.legend.planner.ProductStatements.lowerTestDataSeed(typed, r.runtime());
+            return com.legend.planner.ProductStatements.lowerTestDataSeed(
+                    PureV1Routes.checkMeaning(typed, ctx, r.runtime(), r.mapping()), r.runtime());
         });
     }
 

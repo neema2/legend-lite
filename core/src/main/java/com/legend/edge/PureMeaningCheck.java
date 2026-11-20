@@ -8,7 +8,6 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.ExecutionContext;
-import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedEval;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedGetAll;
@@ -43,7 +42,9 @@ import java.util.Set;
 /**
  * THE PURE-MEANING DETECTOR at legend-engine's door (A3 piece 3; the final plan's section 4a,
  * docs/records/compat-final-plan-2026-11-19.md on claude/compat-program; D1, ruled by the user 2026-11-19 ~13:25
- * ("Okay agree with all"), and the default, ruled ~19:20 ("I think it has to be refuse then for now")).
+ * ("Okay agree with all")). It finds the calls the door rewrites to legend-engine's meaning: the user's ruling of
+ * 2026-11-20 ~07:55, "Delete the settings, make engine only mode for engine for everything" (claude/compat-program
+ * 25ede64f §1), which supersedes the refuse default of 2026-11-19 ~19:20 and the opt-in of ~20:05.
  *
  * <p>Since A3, lite's {@code substring} and {@code indexOf} mean legend-pure's: 0-based, end-exclusive, -1 on a miss.
  * legend-engine gives them SQL's meaning (1-based, 0 on a miss) in the code it sends to the database, and legend-pure's
@@ -58,8 +59,8 @@ import java.util.Set;
  * short and per database (asked of legend-engine 4.145.0 on H2 and DuckDB, 2026-11-20:
  * docs/records/compat-homework/a3-engine-probes/substr/). Those four forms are flagged too.
  *
- * <p>This check finds each such call and the route says so: it refuses the request by default, or under
- * {@code LEGEND_LITE_PURE_MEANING=warn} answers it with a header and a log line.
+ * <p>This check finds each such call; the door rewrites it ({@link PureMeaningRewrite}), or refuses the request by
+ * name where legend-engine's answer is not checked or the call cannot be reached.
  *
  * <p>It is a reading of the typed tree, and nothing else:
  * <ul>
@@ -91,12 +92,9 @@ import java.util.Set;
  *       SQL's meaning through lite-internal natives (A3 piece 1).</li>
  * </ul>
  *
- * <p>Quiet:
- * <ul>
- *   <li>A literal start of 0 on the uncorrected {@code substring} where it is measured equal to Pure's answer
- *       ({@code docs/records/compat-homework/a3/*-literal-zero.tsv}): on H2 both forms, on DuckDB the 2-argument form
- *       alone.</li>
- * </ul>
+ * <p>No call is exempt. A literal start of 0 on the uncorrected {@code substring} gives Pure's answer in range, but out
+ * of range lite raises (S383) where legend-engine answers the database's SUBSTRING ({@code 'abcdef'->substring(0, 9)}
+ * is 'abcdef'), so it is flagged and rewritten like any other (the reviewer's M-a1).
  *
  * <p>A call it cannot follow (a function value it does not hold, a body that does not type) is reported as
  * {@code unverified}, never as clean.
@@ -106,41 +104,7 @@ public final class PureMeaningCheck {
     private PureMeaningCheck() {
     }
 
-    /** The server setting, read once at the edge's composition root ({@code EdgeServer.UPSTREAM}). */
-    static final String SETTING = "LEGEND_LITE_PURE_MEANING";
-
-    /** The answer's header: each code and its count, never the query's text. */
-    static final String HEADER = "x-legend-lite-pure-meaning";
-
-    /** What the route does with a request the check flags. */
-    public enum Mode {
-        /** The default (the user, ~19:20): the request is refused, naming each call. */
-        REFUSE,
-        /** An operator's choice: the request is answered, with the header and a log line. */
-        WARN,
-        /** An operator's choice (the user, ~20:05 2026-11-19): the request is answered with legend-engine's meaning,
-         *  each flagged call sent to the database as its own function ({@link PureMeaningRewrite}), where that answer
-         *  is measured; refused by name elsewhere. The header and a log line say so. */
-        ENGINE
-    }
-
-    /** The setting's value: unset, or {@code refuse}, is {@link Mode#REFUSE}; {@code warn} is {@link Mode#WARN};
-     *  {@code engine} is {@link Mode#ENGINE} (the user, ~20:05); any other value stops the server's start (no
-     *  fallback). */
-    public static Mode mode(@com.legend.base.Nullable String value) {
-        if (value == null || value.isEmpty()) {
-            return Mode.REFUSE;
-        }
-        // a value is a mode's own name, in lower case
-        for (Mode m : Mode.values()) {
-            if (m.name().toLowerCase(java.util.Locale.ROOT).equals(value)) {
-                return m;
-            }
-        }
-        throw new IllegalStateException(SETTING + "=" + value + " is none of refuse, warn and engine");
-    }
-
-    /** A flagged call's kind, at most eight, in the header's order. */
+    /** A flagged call's kind, at most eight, in the order a refusal names them. */
     enum Code {
         SUBSTRING_2("substring/2"),
         SUBSTRING_3("substring/3"),
@@ -158,11 +122,6 @@ public final class PureMeaningCheck {
 
         Code(String text) {
             this.text = text;
-        }
-
-        /** A form whose answer agrees with legend-engine's in range and differs out of range alone (lite raises). */
-        boolean outOfRangeOnly() {
-            return this == CORRECTED_SUBSTRING_2 || this == CORRECTED_SUBSTRING_3 || this == SUBSTR_2 || this == SUBSTR_3;
         }
     }
 
@@ -199,9 +158,9 @@ public final class PureMeaningCheck {
             return sites.isEmpty();
         }
 
-        /** The header's value: each code present and its count, in {@link Code}'s order, e.g.
-         *  {@code substring/3=2, indexOf/2=1, unverified=1}. At most eight codes, so bounded by construction. */
-        String header() {
+        /** Each code present and its count, in {@link Code}'s order, e.g. {@code substring/3=2, indexOf/2=1,
+         *  unverified=1}: what a refusal names beside its calls. At most eight codes, so bounded by construction. */
+        String counts() {
             Map<Code, Integer> counts = new EnumMap<>(Code.class);
             for (Site s : sites) {
                 counts.merge(s.code(), 1, Integer::sum);
@@ -211,10 +170,10 @@ public final class PureMeaningCheck {
             return String.join(", ", parts);
         }
 
-        /** The refusal's and the log line's sentence: each call by kind, position and place (at most 20, then a count),
-         *  never the query's text. */
-        String sentence(String route, Mode mode) {
-            StringBuilder b = new StringBuilder("pure/v1 ").append(route).append(": ");
+        /** The flagged calls, each by kind, position and place (at most 20, then a count), never the query's text: what
+         *  a refusal names. */
+        String calls() {
+            StringBuilder b = new StringBuilder();
             int shown = Math.min(sites.size(), MAX_SITES_SHOWN);
             for (int i = 0; i < shown; i++) {
                 b.append(i == 0 ? "" : ", ").append(sites.get(i).described());
@@ -222,22 +181,6 @@ public final class PureMeaningCheck {
             if (sites.size() > shown) {
                 b.append(", and ").append(sites.size() - shown).append(" more");
             }
-            b.append(". Lite answers substring and indexOf with legend-pure's meaning (0-based; -1 on a miss), where"
-                    + " legend-engine sends this code to the database with SQL's (1-based; 0 on a miss), so the answer"
-                    + " would differ (register S130, S134); ");
-            if (sites.stream().anyMatch(st -> st.code().outOfRangeOnly())) {
-                b.append("substr, and substring under CORRECT_SQL_SUBSTRING_INDEXING, differ out of range alone: lite"
-                        + " raises, as legend-pure does, where legend-engine answers the database's own SUBSTRING (register"
-                        + " S383); ");
-            }
-            b.append("a call marked unverified could not be followed and is not counted clean. ");
-            b.append(switch (mode) {
-                case REFUSE -> "Refused; " + SETTING + "=warn answers such a query with legend-pure's meaning, and "
-                        + SETTING + "=engine with legend-engine's where it is measured";
-                case WARN -> "Answered with legend-pure's meaning (" + SETTING + "=warn)";
-                case ENGINE -> "Answered with legend-engine's meaning (" + SETTING + "=engine): each call is sent to the"
-                        + " database as its own function";
-            });
             return b.toString();
         }
     }
@@ -252,22 +195,7 @@ public final class PureMeaningCheck {
      *  be null. */
     static Result of(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable String runtime,
             @com.legend.base.Nullable String requestMapping) {
-        return of(query, ctx, runtime, requestMapping, true);
-    }
-
-    /** The query's flagged calls as {@code engine} rewrites them: every store-bound Pure {@code substring}, a literal
-     *  start of 0 included. The measured exemption says a literal-0 start gives Pure's answer where it is in range; out of
-     *  range lite raises (S383) and legend-engine answers the database's SUBSTRING ({@code 'abcdef'->substring(0, 9)}
-     *  is 'abcdef'), so {@code engine}, which promises legend-engine's answer, rewrites those calls too (the
-     *  reviewer's M-a1, the compat owner's ruling of 2026-11-20). {@code refuse} and {@code warn} keep the exemption. */
-    static Result forEngine(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable String runtime,
-            @com.legend.base.Nullable String requestMapping) {
-        return of(query, ctx, runtime, requestMapping, false);
-    }
-
-    private static Result of(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable String runtime,
-            @com.legend.base.Nullable String requestMapping, boolean zeroStartExemption) {
-        Walk w = new Walk(query, ctx, target(ctx, runtime), zeroStartExemption);
+        Walk w = new Walk(query, ctx);
         Set<Feature> features = ExecutionContext.treeFeatures(query.body());
         if (requestMapping != null) {
             w.mappings.add(requestMapping);
@@ -351,7 +279,6 @@ public final class PureMeaningCheck {
     private static final class Walk {
         final TypedQuery query;
         final ModelContext ctx;
-        final @com.legend.base.Nullable DatabaseType target;
         final List<Site> sites = new ArrayList<>();
         /** the functions followed, with whether the corrected option held for them */
         final Set<String> followed = new HashSet<>();
@@ -368,15 +295,9 @@ public final class PureMeaningCheck {
         final Set<String> evaluated = new LinkedHashSet<>();
         final Map<FunctionId, Boolean> storeMemo = new HashMap<>();
 
-        /** whether a measured literal-0 start is quiet ({@code refuse} and {@code warn}) or flagged ({@code engine}) */
-        final boolean zeroStartExemption;
-
-        Walk(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable DatabaseType target,
-                boolean zeroStartExemption) {
+        Walk(TypedQuery query, ModelContext ctx) {
             this.query = query;
             this.ctx = ctx;
-            this.target = target;
-            this.zeroStartExemption = zeroStartExemption;
         }
 
         /** Whether a statement reads a store, directly or through the functions it calls. */
@@ -477,8 +398,7 @@ public final class PureMeaningCheck {
             }
         }
 
-        /** A native call: the String substring (corrected or not; uncorrected, a measured literal-0 start is quiet),
-         *  substr, the 2-argument String indexOf (always). */
+        /** A native call: the String substring (corrected or not), substr, the 2-argument String indexOf. */
         void call(TypedNativeCall nc, Set<Feature> features, String where) {
             FunctionId id = nc.callee().id();
             if (com.legend.builtin.Pure.AT_STRING_SUBSTRING.contains(id)) {
@@ -486,9 +406,6 @@ public final class PureMeaningCheck {
                 if (features.contains(Feature.CORRECT_SQL_SUBSTRING_INDEXING)) {
                     sites.add(new Site(arity == 2 ? Code.CORRECTED_SUBSTRING_2 : Code.CORRECTED_SUBSTRING_3, where,
                             nc.pos(), own(nc)));
-                    return;
-                }
-                if (zeroStartExempt(nc, arity)) {
                     return;
                 }
                 sites.add(new Site(arity == 2 ? Code.SUBSTRING_2 : Code.SUBSTRING_3, where, nc.pos(), own(nc)));
@@ -502,16 +419,6 @@ public final class PureMeaningCheck {
         /** The call itself when the walk is in the query's own tree; null in a body it followed. */
         private @com.legend.base.Nullable TypedNativeCall own(TypedNativeCall nc) {
             return following == 0 ? nc : null;
-        }
-
-        /** A literal start of 0, where legend-engine's answer is measured equal to Pure's on the target: the edge's
-         *  registry holds the measured table, per database and arity ({@link PureText#zeroStartAnswersAsPure}). */
-        boolean zeroStartExempt(TypedNativeCall nc, int arity) {
-            if (!zeroStartExemption || !(nc.args().get(1) instanceof TypedCInteger start)
-                    || start.value().longValue() != 0) {
-                return false;
-            }
-            return PureText.zeroStartAnswersAsPure(target, arity);
         }
 
         /** A user function's body (or a lifted one: a qualified property, a class mapping), once per corrected

@@ -19,13 +19,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * THE ENGINE REWRITE at legend-engine's door, {@code LEGEND_LITE_PURE_MEANING=engine} (A3; the user's ruling of
- * 2026-11-19 ~20:05, "let's do the right design for the rewrite part"; the design note,
+ * THE ENGINE REWRITE at legend-engine's door (A3; the user's rulings of 2026-11-19 ~20:05, "let's do the right design for
+ * the rewrite part", and of 2026-11-20 ~07:55, "Delete the settings, make engine only mode for engine for everything",
+ * claude/compat-program 25ede64f §1: the door always answers legend-engine's meaning, with no setting; the design note,
  * docs/records/compat-homework/A3-engine-rewrite-design.md, approved to build by the independent reviewer).
  *
  * <p>legend-engine sends store-bound {@code substring} and {@code indexOf} to the database as written, so its answer
- * is the database's own function over legend-pure's arguments. Under {@code engine} the door gives the query that
- * answer: each call the detector flags becomes a call of the database's own function, built by {@link Substitute}
+ * is the database's own function over legend-pure's arguments. The door gives the query that answer: each call the detector flags becomes a call of the database's own function, built by {@link Substitute}
  * (the core's native, typed as the typer types it). The database computes it; nothing here computes a value.
  *
  * <p>One walk decides both what is flagged and what is rewritten (the reviewer's D-M1):
@@ -44,7 +44,8 @@ import java.util.Set;
  *
  * <p>Refused by name, never approximated:
  * <ul>
- *   <li>a database whose answer under {@code engine} is not measured ({@link PureText#engineAnswers});</li>
+ *   <li>a database on which legend-engine's answer is not yet checked ({@link PureText#engineAnswers}: H2 and DuckDB
+ *       are);</li>
  *   <li>a call the walk could not follow ({@code unverified});</li>
  *   <li>a flagged call outside the query's own tree after inlining: in a mapping (an M2M chain's transforms, a
  *       {@code ~func}, which the store resolver reaches after the body exists) or in a function the inliner left as a
@@ -81,7 +82,7 @@ final class PureMeaningRewrite {
      *  detector does not flag is returned as it is. */
     static Rewritten rewrite(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable String runtime,
             @com.legend.base.Nullable String requestMapping, Substitute substitute) {
-        PureMeaningCheck.Result first = PureMeaningCheck.forEngine(query, ctx, runtime, requestMapping);
+        PureMeaningCheck.Result first = PureMeaningCheck.of(query, ctx, runtime, requestMapping);
         if (first.clean()) {
             return new Rewritten(query, first);
         }
@@ -92,14 +93,15 @@ final class PureMeaningRewrite {
             }
         }
         if (!unverified.isEmpty()) {
-            throw new NotImplementedException(PureMeaningCheck.SETTING + "=engine: " + String.join(", ", unverified)
+            throw new NotImplementedException("legend-engine's door: " + String.join(", ", unverified)
                     + ": a call the check could not follow cannot be rewritten, so this query is refused");
         }
         DatabaseType target = PureMeaningCheck.target(ctx, runtime);
         if (!PureText.engineAnswers(target)) {
-            throw new NotImplementedException(PureMeaningCheck.SETTING + "=engine: legend-engine's answer is not"
-                    + " measured on " + (target == null ? "a runtime with no single database" : target.name())
-                    + ", so this query is refused (" + first.header() + ")");
+            // never guessed: legend-engine's answer on another database is checked first (stage B's warm sessions)
+            throw new NotImplementedException("legend-engine's answer for " + first.calls() + " is not yet checked on "
+                    + (target == null ? "a runtime with no single database" : target.name())
+                    + ", so this query is refused (" + first.counts() + ")");
         }
         // 2: each store-bound root inlined on its own; every other statement as written
         UserCallInliner inliner = new UserCallInliner(query.specs());
@@ -109,7 +111,7 @@ final class PureMeaningRewrite {
         }
         TypedQuery inlinedQuery = query.withBody(body);
         // 3: the one walk that decides what is rewritten
-        PureMeaningCheck.Result flagged = PureMeaningCheck.forEngine(inlinedQuery, ctx, runtime, requestMapping);
+        PureMeaningCheck.Result flagged = PureMeaningCheck.of(inlinedQuery, ctx, runtime, requestMapping);
         List<String> unreachable = new ArrayList<>();
         Map<TypedSpec, PureMeaningCheck.Code> nodes = new IdentityHashMap<>();
         for (PureMeaningCheck.Site s : flagged.sites()) {
@@ -120,7 +122,7 @@ final class PureMeaningRewrite {
             }
         }
         if (!unreachable.isEmpty()) {
-            throw new NotImplementedException(PureMeaningCheck.SETTING + "=engine: " + String.join(", ", unreachable)
+            throw new NotImplementedException("legend-engine's door: " + String.join(", ", unreachable)
                     + " cannot be rewritten at this door (a call the check could not follow, or one reached in a"
                     + " mapping or a function the inliner keeps as a call), so this query is refused");
         }
@@ -150,7 +152,7 @@ final class PureMeaningRewrite {
             }
         }
         if (replaced.size() != nodes.size()) {
-            throw new NotImplementedException(PureMeaningCheck.SETTING + "=engine: " + replaced.size() + " of "
+            throw new NotImplementedException("legend-engine's door: " + replaced.size() + " of "
                     + nodes.size() + " flagged calls were rewritten, so this query is refused");
         }
         return new Rewritten(inlinedQuery.withBody(out), flagged);
@@ -178,7 +180,7 @@ final class PureMeaningRewrite {
             }
             for (TypedSpec stmt : body) {
                 if (!isRoot(flagged, stmt) && reads(stmt, let.name())) {
-                    throw new NotImplementedException(PureMeaningCheck.SETTING + "=engine: the let '" + let.name()
+                    throw new NotImplementedException("legend-engine's door: the let '" + let.name()
                             + "' is sent to the database and also read by a statement computed on the host, so its"
                             + " calls cannot be given the database's meaning for one and not the other; refused");
                 }

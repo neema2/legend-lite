@@ -70,18 +70,10 @@ public final class PureV1Routes {
     public static final String PREFIX = "/api/pure/v1/";
 
     /** {@code path}'s answer for {@code body}; execute's run is {@code runner}'s; a model given as text compiled by
-     *  {@code models}. A path that is none of upstream's is answered 404, as upstream answers it. The pure-meaning
-     *  detector refuses, the setting's default ({@link PureMeaningCheck}). */
+     *  {@code models}. A path that is none of upstream's is answered 404, as upstream answers it. The five routes that
+     *  run a query answer legend-engine's meaning ({@link #checkMeaning}). */
     public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner,
             Models models) {
-        return route(path, rawQuery, body, runner, models, PureMeaningCheck.Mode.REFUSE);
-    }
-
-    /** {@link #route(String, String, String, Runner, Models)} under the server's pure-meaning setting
-     *  ({@code LEGEND_LITE_PURE_MEANING}, read once by the edge's composition root, {@code EdgeServer.UPSTREAM}): what
-     *  the five routes that run a query do with one whose answer would differ from legend-engine's. */
-    public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner,
-            Models models, PureMeaningCheck.Mode meaning) {
         boolean sourceInformation = rawQuery == null || !rawQuery.contains("returnSourceInformation=false");
         return switch (path) {
             case "/api/pure/v1/grammar/grammarToJson/lambda" -> grammarToJsonLambda(body, sourceInformation);
@@ -94,15 +86,15 @@ public final class PureV1Routes {
             case "/api/pure/v1/compilation/lambdaRelationType" -> lambdaRelationType(body, models);
             case "/api/pure/v1/compilation/compile" -> compile(body);
             case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body, models);
-            case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models, meaning);
+            case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models);
             case "/api/pure/v1/execution/execute" -> "ARROW_IPC".equals(queryParam(rawQuery, "serializationFormat"))
-                    ? executeArrow(body, runner, models, meaning) : execute(body, runner, models, meaning);
+                    ? executeArrow(body, runner, models) : execute(body, runner, models);
             case "/api/pure/v1/execution/testDataGeneration/generateSeedData" ->
-                    TestDataRoutes.seedData(body, runner, models, meaning);
+                    TestDataRoutes.seedData(body, runner, models);
             case "/api/pure/v1/execution/testDataGeneration/generateTestData_WithSeed" ->
-                    TestDataRoutes.withSeed(body, runner, models, meaning);
+                    TestDataRoutes.withSeed(body, runner, models);
             case "/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed" ->
-                    TestDataRoutes.withDefaultSeed(body, runner, models, meaning);
+                    TestDataRoutes.withDefaultSeed(body, runner, models);
             case "/api/pure/v1/testData/generation/DONOTUSE_generateTestData" -> TestDataRoutes.census(body, models);
             default -> error(404, null, "no such legend-engine API in legend-lite: " + path);
         };
@@ -269,15 +261,8 @@ public final class PureV1Routes {
 
     /** {@link #generatePlan(String)}, a model given as text compiled by {@code models}. */
     public static Answer generatePlan(String body, Models models) {
-        return generatePlan(body, models, PureMeaningCheck.Mode.REFUSE);
-    }
-
-    /** {@link #generatePlan(String, Models)} under the pure-meaning setting {@code meaning}. */
-    public static Answer generatePlan(String body, Models models, PureMeaningCheck.Mode meaning) {
-        java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found =
-                new java.util.concurrent.atomic.AtomicReference<>();
         // the engine answers generatePlan's and execute's compile errors 500 (measured)
-        return withMeaning("generatePlan", meaning, found, answer(500, "COMPILATION", () -> {
+        return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("function"));
@@ -285,7 +270,7 @@ public final class PureV1Routes {
             return model.with(models, ctx -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
                 String runtime = runtimeOf(request, query);
-                query = checkMeaning("generatePlan", query, ctx, runtime, null, meaning, found);
+                query = checkMeaning(query, ctx, runtime, null);
                 // a value the program wrote and folds (a String or Boolean literal, a model's DDL text): upstream's own
                 // constant node (M5, the user's ruling); a diagnostic's (print) stays refused below, as upstream refuses
                 // it (S128); a value the database computes (|1+1) is a statement, below
@@ -302,7 +287,7 @@ public final class PureV1Routes {
                 // protocol's executionPlan)
                 return Json.toCompact(executionPlan(plan, connectionOf(EngineGrammar.records(model), runtime, target.store())));
             });
-        }));
+        });
     }
 
     /**
@@ -317,15 +302,7 @@ public final class PureV1Routes {
 
     /** {@link #execute(String, Runner)}, a model given as text compiled by {@code models}. */
     public static Answer execute(String body, Runner runner, Models models) {
-        return execute(body, runner, models, PureMeaningCheck.Mode.REFUSE);
-    }
-
-    /** {@link #execute(String, Runner, Models)} under the pure-meaning setting {@code meaning}: under
-     *  {@code REFUSE} a query the detector flags is refused before it is planned or run. */
-    public static Answer execute(String body, Runner runner, Models models, PureMeaningCheck.Mode meaning) {
-        java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found =
-                new java.util.concurrent.atomic.AtomicReference<>();
-        return withMeaning("execute", meaning, found, answer(500, "COMPILATION", () -> {
+        return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
             LambdaFunction lambda = ProtocolReader.lambda(
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
@@ -334,7 +311,7 @@ public final class PureV1Routes {
             return ModelInput.of(request.getObj("model")).with(models, model -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query);
-                query = checkMeaning("execute", query, model, runtime, null, meaning, found);
+                query = checkMeaning(query, model, runtime, null);
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.engine(out, facts(query))));
@@ -343,49 +320,17 @@ public final class PureV1Routes {
                 }
                 return out.toString();
             });
-        }));
+        });
     }
 
-    /** THE PURE-MEANING DETECTOR at this door (A3 piece 3; {@link PureMeaningCheck}): the typed query's flagged calls
-     *  into {@code found}, and the query the route plans and runs. A clean query is returned as it is. A flagged one:
-     *  under {@code REFUSE} refused here, by name, before it is planned or run (legend-engine's error envelope, 500
-     *  COMPILATION); under {@code WARN} returned as it is; under {@code ENGINE} returned rewritten to legend-engine's
-     *  meaning, or refused by name where that answer is not measured or not reachable ({@link PureMeaningRewrite}). */
-    static com.legend.TypedQuery checkMeaning(String route, com.legend.TypedQuery query,
-            com.legend.compiler.element.ModelContext ctx,
-            @com.legend.base.Nullable String runtime, @com.legend.base.Nullable String mapping,
-            PureMeaningCheck.Mode meaning,
-            java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found) {
-        // under engine the calls engine rewrites, a literal-0 start included (M-a1); refuse and warn keep its exemption
-        PureMeaningCheck.Result r = meaning == PureMeaningCheck.Mode.ENGINE
-                ? PureMeaningCheck.forEngine(query, ctx, runtime, mapping)
-                : PureMeaningCheck.of(query, ctx, runtime, mapping);
-        found.set(r);
-        if (r.clean()) {
-            return query;
-        }
-        return switch (meaning) {
-            case REFUSE -> throw new com.legend.error.NotImplementedException(r.sentence(route, meaning));
-            case WARN -> query;
-            case ENGINE -> PureMeaningRewrite.rewrite(query, ctx, runtime, mapping, PureMeaningRewrite::engine).query();
-        };
-    }
-
-    /** {@code a} with the detector's header when it flagged the query (a refusal's answer too), and its one log line:
-     *  each code and its count, and the browser's leave to read it; the answer's body unchanged. */
-    static Answer withMeaning(String route, PureMeaningCheck.Mode meaning,
-            java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found, Answer a) {
-        PureMeaningCheck.Result r = found.get();
-        if (r == null || r.clean()) {
-            return a;
-        }
-        System.err.println("WARNING: " + r.sentence(route, meaning));
-        Map<String, String> headers = new LinkedHashMap<>(a.headers());
-        // under engine an answered request says so: the calls were sent as the database's own functions
-        headers.put(PureMeaningCheck.HEADER, (meaning == PureMeaningCheck.Mode.ENGINE && a.status() == 200
-                ? "engine " : "") + r.header());
-        headers.put("Access-Control-Expose-Headers", PureMeaningCheck.HEADER);
-        return new Answer(a.status(), a.json(), a.contentType(), a.bytes(), headers);
+    /** LEGEND-ENGINE'S MEANING AT THIS DOOR (A3; the user's ruling of 2026-11-20 ~07:55, "Delete the settings, make
+     *  engine only mode for engine for everything", claude/compat-program 25ede64f §1): the query the route plans and
+     *  runs, each call the detector flags ({@link PureMeaningCheck}) rewritten to legend-engine's meaning, or refused by
+     *  name where that answer is not checked or not reachable ({@link PureMeaningRewrite}). A query with no flagged call
+     *  is returned as it is. */
+    static com.legend.TypedQuery checkMeaning(com.legend.TypedQuery query, com.legend.compiler.element.ModelContext ctx,
+            @com.legend.base.Nullable String runtime, @com.legend.base.Nullable String mapping) {
+        return PureMeaningRewrite.rewrite(query, ctx, runtime, mapping, PureMeaningRewrite::engine).query();
     }
 
     /**
@@ -400,13 +345,6 @@ public final class PureV1Routes {
      * upstream's JDBC-driven ones (register S125, pending the user's ruling).
      */
     public static Answer executeArrow(String body, Runner runner, Models models) {
-        return executeArrow(body, runner, models, PureMeaningCheck.Mode.REFUSE);
-    }
-
-    /** {@link #executeArrow(String, Runner, Models)} under the pure-meaning setting {@code meaning}. */
-    public static Answer executeArrow(String body, Runner runner, Models models, PureMeaningCheck.Mode meaning) {
-        java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found =
-                new java.util.concurrent.atomic.AtomicReference<>();
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         Answer run = answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
@@ -415,7 +353,7 @@ public final class PureV1Routes {
             return ModelInput.of(request.getObj("model")).with(models, model -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query);
-                query = checkMeaning("execute", query, model, runtime, null, meaning, found);
+                query = checkMeaning(query, model, runtime, null);
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.arrow(out, facts(query))));
                 } catch (java.io.IOException e) {
@@ -425,11 +363,10 @@ public final class PureV1Routes {
             });
         });
         if (run.status() != 200) {
-            return withMeaning("execute", meaning, found, run);
+            return run;
         }
-        return withMeaning("execute", meaning, found, Answer.bytes(200,
-                com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
-                Map.of("x-legend-response-format", "FormatNotSet")));
+        return Answer.bytes(200, com.legend.arrowipc.ZstdFrame.of(out.toByteArray()), "application/json",
+                Map.of("x-legend-response-format", "FormatNotSet"));
     }
 
     /**

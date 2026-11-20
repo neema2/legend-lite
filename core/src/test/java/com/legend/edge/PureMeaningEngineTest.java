@@ -14,22 +14,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@code LEGEND_LITE_PURE_MEANING=engine} THROUGH EACH ROUTE THE DETECTOR COVERS, RUN (A3's engine rewrite; the user's
- * ruling of ~20:05; the compat owner's ask of ~21:10: a flagged request runs on each route, so nothing downstream
- * re-resolves the rewritten native by name). Each request is planned and run by the edge's own runner on the
- * connection's declared test data (H2): the answer is legend-engine's (the database's own SUBSTRING and position over
- * the arguments as given), and the runner is handed the rewritten query (the natives found by FunctionId, the String
- * {@code substring} and {@code indexOf} gone from it).
- *
- * <p>Both ways (the stage-A batch's tree, with the core switch, A3 piece 2, under it): lite's own {@code substring} and
- * {@code indexOf} mean legend-pure's, so the same request under {@code warn} answers Pure's, and each test asserts both
- * answers where the route has one to read.
+ * LEGEND-ENGINE'S MEANING THROUGH EACH ROUTE THAT RUNS A QUERY, RUN (A3's engine rewrite; the user's ruling of
+ * 2026-11-20 ~07:55, "Delete the settings, make engine only mode for engine for everything", claude/compat-program
+ * 25ede64f §1: the door always rewrites, with no setting). Each request is planned and run by the edge's own runner on
+ * the connection's declared test data (H2): the answer is legend-engine's (the database's own SUBSTRING and position
+ * over the arguments as given, or over legend-engine's corrected positions for {@code substr}), and the runner is handed
+ * the rewritten query (the natives found by FunctionId, no Pure {@code substring}, {@code substr} or 2-argument
+ * {@code indexOf} left in it). On a database where legend-engine's answer is not yet checked, the request is refused by
+ * name; a statement that is not store-bound keeps legend-pure's meaning, as legend-engine computes it on the host.
  */
 class PureMeaningEngineTest {
 
     /** {@link PureMeaningCheckTest#MODEL} with four rows declared on its H2 connection: 'abcdef' (SQL's
      *  {@code substring(1, 3)} is 'abc', Pure's 'bc'), 'xoxo' (SQL's {@code indexOf('o')} is 2, Pure's 1), 'abc' and
-     *  'ab'. */
+     *  'ab' (past the end of (1, 3) and (0, 3)). */
     static final String MODEL = PureMeaningCheckTest.MODEL.replace("specification: LocalH2 { };",
             "specification: LocalH2 { testDataSetupCSV: 'default\\nPERSON\\nID,NAME,CODE\\n1,abcdef,a\\n2,xoxo,b\\n3,abc,c\\n4,ab,d\\n'; };");
 
@@ -88,150 +86,122 @@ class PureMeaningEngineTest {
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
     }
 
-    private static LiteV1Api.Answer route(String path, String rawQuery, String body, PureMeaningCheck.Mode mode) {
-        return PureV1Routes.route(path, rawQuery, body, EDGE, LiteV1Api.Models.COMPILED, mode);
+    private static LiteV1Api.Answer route(String path, String rawQuery, String body) {
+        return PureV1Routes.route(path, rawQuery, body, EDGE, LiteV1Api.Models.COMPILED);
+    }
+
+    private static LiteV1Api.Answer execute(String query, Recording run) {
+        return PureV1Routes.route("/api/pure/v1/execution/execute", null, body(query), run, LiteV1Api.Models.COMPILED);
+    }
+
+    /** The model on a database where a start of 0 differs (its plan read, never run here). */
+    private static final String ZERO_START = PureMeaningCheckTest.MODEL.replace(
+            "type: H2; specification: LocalH2 { }; auth: DefaultH2;", "type: DuckDB; specification: DuckDB { }; auth: Test;");
+
+    /** Lite's own plan of {@code query} as written, legend-pure's meaning: what the door's rewrite is not. */
+    private static String puresPlan(String model, String query) {
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query)
+                .plan("t::RT", PureText.PURE_V1).sql().toLowerCase(java.util.Locale.ROOT);
     }
 
     @Test
     void executeAnswersLegendEnginesMeaning_runningTheRewrittenQuery() {
         Recording run = new Recording();
-        LiteV1Api.Answer engine = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(QUERY), run,
-                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
-        assertEquals(200, engine.status(), engine.json());
-        assertEquals("engine substring/3=1, indexOf/2=1", engine.headers().get(PureMeaningCheck.HEADER));
-        assertTrue(engine.json().contains("[\"abc\",0]") && engine.json().contains("[\"xox\",2]"), engine.json());
+        LiteV1Api.Answer a = execute(QUERY, run);
+        assertEquals(200, a.status(), a.json());
+        assertTrue(a.json().contains("[\"abc\",0]") && a.json().contains("[\"xox\",2]"), a.json());
         assertEquals(1, run.handed.size());
         assertRewritten(run.handed.get(0));
-        // the other way, legend-pure's meaning: 'ab'->substring(1, 3) runs past the string's end, so the whole table
-        // raises, as legend-pure's substring does there
-        LiteV1Api.Answer raised = route("/api/pure/v1/execution/execute", null, body(QUERY), PureMeaningCheck.Mode.WARN);
-        assertEquals(500, raised.status(), raised.json());
-        assertEquals("substring/3=1, indexOf/2=1", raised.headers().get(PureMeaningCheck.HEADER));
-        assertTrue(raised.json().contains("out of bounds"), raised.json());
-        // and without that row: 'bc' and -1 for 'abcdef', 'ox' and 1 for 'xoxo'
-        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null,
-                body(QUERY.replace("->sort(", "->filter(r|$r.ID != 4)->sort(")), PureMeaningCheck.Mode.WARN);
-        assertEquals(200, warn.status(), warn.json());
-        assertTrue(warn.json().contains("[\"bc\",-1]") && warn.json().contains("[\"ox\",1]"), warn.json());
     }
 
     @Test
-    void executeAsArrowAnswersUnderEngine_runningTheRewrittenQuery() {
+    void executeAsArrowAnswersLegendEnginesMeaning_runningTheRewrittenQuery() {
         Recording run = new Recording();
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
-                body(QUERY), run, LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
+                body(QUERY), run, LiteV1Api.Models.COMPILED);
         assertEquals(200, a.status(), a.json());
-        assertEquals("engine substring/3=1, indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
         assertEquals("FormatNotSet", a.headers().get("x-legend-response-format"));
         assertEquals(1, run.handed.size());
         assertRewritten(run.handed.get(0));
     }
 
     @Test
-    void generatePlanPlansTheRewrittenQueryUnderEngine() {
-        LiteV1Api.Answer engine = route("/api/pure/v1/execution/generatePlan", null, body(QUERY),
-                PureMeaningCheck.Mode.ENGINE);
-        assertEquals(200, engine.status(), engine.json());
-        assertEquals("engine substring/3=1, indexOf/2=1", engine.headers().get(PureMeaningCheck.HEADER));
-        assertTrue(engine.json().contains("rootExecutionNode"), engine.json());
+    void generatePlanPlansTheRewrittenQuery() {
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/generatePlan", null, body(QUERY));
+        assertEquals(200, a.status(), a.json());
+        assertTrue(a.json().contains("rootExecutionNode"), a.json());
     }
 
     /** A graph fetch's qualified property: legend-engine computes it in the database (asked of legend-engine 4.145.0,
      *  E-M1: {@code deskPart()} answers SQL's 'Cre' on H2 and DuckDB), and the detector flags it. The store resolver
-     *  reaches a graph tree's properties after the body exists (the inliner does not), so under engine it is refused
-     *  by name, as an M2M chain's transforms are, never answered with another meaning. */
+     *  reaches a graph tree's properties after the body exists (the inliner does not), so it is refused by name, as an
+     *  M2M chain's transforms are, never answered with another meaning. */
     @Test
-    void aGraphFetchsQualifiedPropertyIsRefusedByNameUnderEngine() {
+    void aGraphFetchsQualifiedPropertyIsRefusedByName() {
         String graph = "|t::Person.all()->filter(p|$p.name == 'abcdef')->graphFetch(#{t::Person{name,initials,firstC}}#)"
                 + "->serialize(#{t::Person{name,initials,firstC}}#)->from(t::M, t::RT)";
         LiteV1Api.Runner never = (query, runtime, output) -> {
             throw new AssertionError("a refused request is never run");
         };
         LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(graph), never,
-                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
+                LiteV1Api.Models.COMPILED);
         assertEquals(500, a.status(), a.json());
         assertTrue(a.json().contains("t::Person$prop$initials") && a.json().contains("cannot be rewritten at this door"),
                 a.json());
-        assertEquals("substring/3=1, indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
     }
 
     // ---- the class shapes lite serves (the compat owner's ~22:37, the reviewer's a9e827e2e): each asserts
-    // legend-engine's probed answer (docs/records/compat-homework/a3-engine-probes/, legend-engine 4.145.0) under
-    // engine, run on H2; on DuckDB the plan's SQL, the database's own call over the arguments as given. Each asserts
-    // legend-pure's answer under warn beside it.
+    // legend-engine's probed answer (docs/records/compat-homework/a3-engine-probes/, legend-engine 4.145.0), run on H2;
+    // on the second database the plan's SQL, the database's own call over the arguments as given.
 
     private static final String ONE = "t::Person.all()->filter(p|$p.name == 'abcdef')";
 
-    /** cls.project.sub3: legend-engine's SQL is substring(desk, 1, 3), 'Cre'; here 'abc', and legend-pure's 'bc'. */
+    /** cls.project.sub3: legend-engine's SQL is substring(desk, 1, 3), 'Cre'; here 'abc' (legend-pure's 'bc'). */
     @Test
-    void aClassProjectsSubstring_legendEnginesAnswerUnderEngine() {
+    void aClassProjectsSubstring_legendEnginesAnswer() {
         LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null,
-                body("|" + ONE + "->project([p|$p.name->substring(1, 3)], ['d'])->from(t::M, t::RT)"),
-                PureMeaningCheck.Mode.ENGINE);
+                body("|" + ONE + "->project([p|$p.name->substring(1, 3)], ['d'])->from(t::M, t::RT)"));
         assertEquals(200, a.status(), a.json());
-        assertEquals("engine substring/3=1", a.headers().get(PureMeaningCheck.HEADER));
         assertTrue(a.json().contains("[\"abc\"]"), a.json());
-        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null,
-                body("|" + ONE + "->project([p|$p.name->substring(1, 3)], ['d'])->from(t::M, t::RT)"),
-                PureMeaningCheck.Mode.WARN);
-        assertEquals(200, warn.status(), warn.json());
-        assertEquals("substring/3=1", warn.headers().get(PureMeaningCheck.HEADER));
-        assertTrue(warn.json().contains("[\"bc\"]") && !warn.json().contains("[\"abc\"]"), warn.json());
     }
 
-    /** cls.filter.sub3: legend-engine filters in SQL with substring(desk, 1, 3) = 'Cre'; here 'abcdef' and 'abc' under
-     *  engine. Under warn, legend-pure's meaning: 'ab'->substring(1, 3) runs past the string's end, so the filter
-     *  raises, as legend-pure's substring does there. */
+    /** cls.filter.sub3: legend-engine filters in SQL with substring(desk, 1, 3) = 'Cre'; here 'abcdef' and 'abc'. */
     @Test
-    void aClassFiltersSubstring_legendEnginesRowsUnderEngine() {
-        String filtered = "|t::Person.all()->filter(p|$p.name->substring(1, 3) == 'abc')->sortBy(p|$p.name)"
-                + "->project([p|$p.name], ['n'])->from(t::M, t::RT)";
-        LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body(filtered), PureMeaningCheck.Mode.ENGINE);
+    void aClassFiltersSubstring_legendEnginesRows() {
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null,
+                body("|t::Person.all()->filter(p|$p.name->substring(1, 3) == 'abc')->sortBy(p|$p.name)"
+                        + "->project([p|$p.name], ['n'])->from(t::M, t::RT)"));
         assertEquals(200, a.status(), a.json());
-        assertEquals("engine substring/3=1", a.headers().get(PureMeaningCheck.HEADER));
         assertTrue(a.json().contains("[\"abc\"]") && a.json().contains("[\"abcdef\"]")
                 && !a.json().contains("[\"ab\"]"), a.json());
-        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null, body(filtered), PureMeaningCheck.Mode.WARN);
-        assertEquals(500, warn.status(), warn.json());
-        assertTrue(warn.json().contains("out of bounds"), warn.json());
     }
 
-    /** cls.toOne.idx and deskAt(): legend-engine's position is 1-based, 3 for 'Credit'; here 3 for 'abcdef', and
-     *  legend-pure's 2. */
+    /** cls.toOne.idx and deskAt(): legend-engine's position is 1-based, 3 for 'Credit'; here 3 for 'abcdef' (legend-pure's
+     *  2). */
     @Test
-    void aClassProjectsIndexOf_legendEnginesAnswerUnderEngine() {
+    void aClassProjectsIndexOf_legendEnginesAnswer() {
         LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null,
-                body("|" + ONE + "->project([p|$p.name->indexOf('c')], ['i'])->from(t::M, t::RT)"),
-                PureMeaningCheck.Mode.ENGINE);
+                body("|" + ONE + "->project([p|$p.name->indexOf('c')], ['i'])->from(t::M, t::RT)"));
         assertEquals(200, a.status(), a.json());
-        assertEquals("engine indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
         assertTrue(a.json().contains("[3]"), a.json());
-        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null,
-                body("|" + ONE + "->project([p|$p.name->indexOf('c')], ['i'])->from(t::M, t::RT)"),
-                PureMeaningCheck.Mode.WARN);
-        assertEquals(200, warn.status(), warn.json());
-        assertTrue(warn.json().contains("[2]"), warn.json());
     }
 
-    /** On DuckDB (cls.toOne.sub0: legend-engine's substring(desk, 0, 2) is 'C' there): under engine the plan holds
-     *  DuckDB's own substr over the arguments as given; under warn it does not (lite's own substring, legend-pure's
+    /** On the second database (cls.toOne.sub0: legend-engine's substring(desk, 0, 2) is 'C' there) the plan holds its own
+     *  substr over the arguments as given, which lite's own plan of the query as written does not (legend-pure's
      *  meaning). The 2-argument indexOf is the database's position function. */
     @Test
     void theClassShapesPlanTheDatabasesOwnCalls_whereAStartOfZeroDiffers() {
-        String zeroStart = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
-                "type: DuckDB; specification: DuckDB { }; auth: Test;");
         String sub0 = "|" + ONE + "->project([p|$p.name->substring(0, 2)], ['d'])->from(t::M, t::RT)";
-        String engine = planSql(zeroStart, sub0, PureMeaningCheck.Mode.ENGINE).toLowerCase(java.util.Locale.ROOT);
-        String warn = planSql(zeroStart, sub0, PureMeaningCheck.Mode.WARN).toLowerCase(java.util.Locale.ROOT);
+        String engine = planSql(ZERO_START, sub0).toLowerCase(java.util.Locale.ROOT);
         assertTrue(engine.matches("(?s).*substr\\([^,]*name, 0, 2\\).*"), engine);
-        assertFalse(warn.matches("(?s).*substr\\([^,]*name, 0, 2\\).*"), warn);
-        String idx = planSql(zeroStart, "|" + ONE + "->project([p|$p.name->indexOf('c')], ['i'])->from(t::M, t::RT)",
-                PureMeaningCheck.Mode.ENGINE).toLowerCase(java.util.Locale.ROOT);
+        assertFalse(puresPlan(ZERO_START, sub0).matches("(?s).*substr\\([^,]*name, 0, 2\\).*"));
+        String idx = planSql(ZERO_START, "|" + ONE + "->project([p|$p.name->indexOf('c')], ['i'])->from(t::M, t::RT)")
+                .toLowerCase(java.util.Locale.ROOT);
         assertTrue(idx.contains("strpos(") || idx.contains("instr(") || idx.contains("position("), idx);
     }
 
-    private static String planSql(String model, String query, PureMeaningCheck.Mode mode) {
-        LiteV1Api.Answer a = route("/api/pure/v1/execution/generatePlan", null, body(model, query), mode);
+    private static String planSql(String model, String query) {
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/generatePlan", null, body(model, query));
         assertEquals(200, a.status(), a.json());
         return Json.parseObject(a.json()).getObj("rootExecutionNode").getArr("executionNodes").items().stream()
                 .map(n -> ((Json.Obj) n).getString("sqlQuery")).findFirst().orElseThrow();
@@ -239,10 +209,10 @@ class PureMeaningEngineTest {
 
     // ---- the three test-data routes: the seed's query is the one whose meaning chooses the keys ------------------
 
-    /** Under SQL's meaning {@code 'abcdef'->substring(1, 3)} is 'abc', so the row with ID 3 is the seed; under Pure's
-     *  it is 'bc', and no row is. On a literal: the test-data scan reads a function
-     *  applied to a class's property as a property hop ("scalar 'name' in MID position"), on every setting, a gap of its
-     *  own (ScanRelations' OPERATORS end a chain; substring is not one). */
+    /** Under SQL's meaning {@code 'abcdef'->substring(1, 3)} is 'abc', so the row with ID 3 is the seed (under Pure's it
+     *  is 'bc', and no row is). On a literal: the test-data scan reads a function applied to a class's property as a
+     *  property hop ("scalar 'name' in MID position"), a gap of its own (ScanRelations' OPERATORS end a chain; substring
+     *  is not one). */
     private static final String SEEDED = "|t::Person.all()->filter(p|$p.name == 'abcdef'->substring(1, 3))"
             + "->project([p|$p.name], ['n'])";
 
@@ -264,80 +234,53 @@ class PureMeaningEngineTest {
     }
 
     @Test
-    void generateSeedDataChoosesLegendEnginesKeysUnderEngine() {
-        String path = "/api/pure/v1/execution/testDataGeneration/generateSeedData";
-        LiteV1Api.Answer engine = route(path, null, testDataBody(false), PureMeaningCheck.Mode.ENGINE);
-        assertEquals(200, engine.status(), engine.json());
-        assertEquals("engine substring/3=1", engine.headers().get(PureMeaningCheck.HEADER));
-        assertTrue(engine.json().contains("\"value\":3"), engine.json());
-        // the other way: legend-pure's 'bc' names no row, so ID 3 is not the seed (plant W2, the seed lowered
-        // unrewritten, answers this under engine too)
-        LiteV1Api.Answer warn = route(path, null, testDataBody(false), PureMeaningCheck.Mode.WARN);
-        assertEquals(200, warn.status(), warn.json());
-        assertEquals("substring/3=1", warn.headers().get(PureMeaningCheck.HEADER));
-        assertFalse(warn.json().contains("\"value\":3"), warn.json());
+    void generateSeedDataChoosesLegendEnginesKeys() {
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/testDataGeneration/generateSeedData", null,
+                testDataBody(false));
+        assertEquals(200, a.status(), a.json());
+        assertTrue(a.json().contains("\"value\":3"), a.json());
     }
 
     @Test
-    void generateTestDataWithTheDefaultSeedRunsUnderEngine() {
-        String path = "/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed";
-        LiteV1Api.Answer engine = route(path, null, testDataBody(false), PureMeaningCheck.Mode.ENGINE);
-        assertEquals(200, engine.status(), engine.json());
-        assertEquals("engine substring/3=1", engine.headers().get(PureMeaningCheck.HEADER));
+    void generateTestDataWithTheDefaultSeedAnswersLegendEnginesRows() {
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed", null,
+                testDataBody(false));
+        assertEquals(200, a.status(), a.json());
         // the seeded row alone: 'abcdef'->substring(1, 3) is 'abc' in the database's own SUBSTRING
-        assertTrue(engine.json().contains("3,abc\n") && !engine.json().contains("abcdef"), engine.json());
-        // the other way: legend-pure's 'bc' seeds no row, and an empty seed is no filter (upstream's orFilters([]),
-        // TestDataPlanner), so every row (plant W2, the seed lowered unrewritten, answers this under engine too)
-        LiteV1Api.Answer warn = route(path, null, testDataBody(false), PureMeaningCheck.Mode.WARN);
-        assertEquals(200, warn.status(), warn.json());
-        assertTrue(warn.json().contains("1,abcdef\n") && warn.json().contains("3,abc\n")
-                && warn.json().contains("4,ab\n"), warn.json());
+        assertTrue(a.json().contains("3,abc\n") && !a.json().contains("abcdef"), a.json());
     }
 
     @Test
-    void generateTestDataWithASeedRunsUnderEngine() {
-        // the identifiers are given, so the rows do not depend on the query's meaning; the route runs and says engine
-        String path = "/api/pure/v1/execution/testDataGeneration/generateTestData_WithSeed";
-        LiteV1Api.Answer engine = route(path, null, testDataBody(true), PureMeaningCheck.Mode.ENGINE);
-        assertEquals(200, engine.status(), engine.json());
-        assertEquals("engine substring/3=1", engine.headers().get(PureMeaningCheck.HEADER));
-        assertTrue(engine.json().contains("abcdef"), engine.json());
+    void generateTestDataWithASeedAnswersTheIdentifiersRows() {
+        // the identifiers are given, so the rows do not depend on the query's calls
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/testDataGeneration/generateTestData_WithSeed", null,
+                testDataBody(true));
+        assertEquals(200, a.status(), a.json());
+        assertTrue(a.json().contains("abcdef"), a.json());
     }
 
-    /** The seed rewritten on DuckDB, both ways on any tree (the reviewer's E-S2): a 3-argument {@code substring} with a
-     *  literal start of 0, which DuckDB's literal-0 exemption does not cover (the 2-argument form alone). The test
-     *  asserts the SQL of the seed statement the route hands its runner, planned on DuckDB, never run: under engine it
-     *  holds DuckDB's own {@code substr('abcdef', 0, 3)} (whose answer is 'ab', as legend-engine's would be); under warn
-     *  it does not (lite's own substring, legend-pure's 'abc'). A seed
-     *  lowered unrewritten (plant W2) plans the clamped call under engine too. */
+    /** The seed rewritten on the second database (the reviewer's E-S2): a 3-argument {@code substring} with a literal
+     *  start of 0, which that database's literal-0 exemption never covered. The test asserts the SQL of the seed
+     *  statement the route hands its runner, planned there, never run: it holds the database's own
+     *  {@code substr('abcdef', 0, 3)} (whose answer is 'ab', as legend-engine's would be). A seed lowered unrewritten
+     *  (plant W2') plans lite's own range-checked call instead. */
     @Test
     void theSeedIsRewritten_whereAStartOfZeroDiffers() {
-        String zeroStart = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
-                "type: DuckDB; specification: DuckDB { }; auth: Test;");
         String seeded = "|t::Person.all()->filter(p|$p.name == 'abcdef'->substring(0, 3))->project([p|$p.name], ['n'])";
-        String path = "/api/pure/v1/execution/testDataGeneration/generateSeedData";
-        String engine = seedSql(path, testDataBody(zeroStart, seeded, false), PureMeaningCheck.Mode.ENGINE);
-        String warn = seedSql(path, testDataBody(zeroStart, seeded, false), PureMeaningCheck.Mode.WARN);
-        // DuckDB's own SUBSTRING over the arguments as given under engine; under warn, not that call
-        assertTrue(engine.toLowerCase(java.util.Locale.ROOT).contains("substr('abcdef', 0, 3)"), engine);
-        assertFalse(warn.toLowerCase(java.util.Locale.ROOT).contains("substr('abcdef', 0, 3)"), warn);
-    }
-
-    /** The seed statement a test-data route hands its runner, planned (DuckDB's text), never run. */
-    private static String seedSql(String path, String body, PureMeaningCheck.Mode mode) {
         java.util.List<String> sql = new java.util.ArrayList<>();
         LiteV1Api.Runner planOnly = (query, runtime, output) -> sql.add(query.plan(runtime, PureText.PURE_V1).sql());
-        LiteV1Api.Answer a = PureV1Routes.route(path, null, body, planOnly, LiteV1Api.Models.COMPILED, mode);
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/testDataGeneration/generateSeedData", null,
+                testDataBody(ZERO_START, seeded, false), planOnly, LiteV1Api.Models.COMPILED);
         assertEquals(1, sql.size(), a.json());
-        return sql.get(0);
+        assertTrue(sql.get(0).toLowerCase(java.util.Locale.ROOT).contains("substr('abcdef', 0, 3)"), sql.get(0));
     }
 
-    // ---- substr, the corrected substring and a literal-0 start (the compat owner's go, 2026-11-20) -------------------
-    // legend-engine sends each as the database's SUBSTRING over start + 1 and end - start with no range check
-    // (processSubstr), so in range it agrees with lite and out of range it answers the database's cut-short value
-    // ('FX'->substr(1, 3) is 'X' on H2 and DuckDB, asked of legend-engine 4.145.0:
-    // docs/records/compat-homework/a3-engine-probes/substr/), where lite raises as legend-pure does (S383). Here 'ab'
-    // is the row past the end of (1, 3) and (0, 3).
+    // ---- substr, the corrected substring and a literal-0 start (2026-11-20) ----------------------------------------
+    // legend-engine sends substr, and substring under CORRECT_SQL_SUBSTRING_INDEXING, as the database's SUBSTRING over
+    // start + 1 and end - start with no range check (processSubstr), so in range it agrees with legend-pure and out of
+    // range it answers the database's cut-short value ('FX'->substr(1, 3) is 'X' on H2 and DuckDB, asked of
+    // legend-engine 4.145.0: docs/records/compat-homework/a3-engine-probes/substr/); its literal-0 substring is the
+    // database's call as given. Lite's own raises out of range (S383). Here 'ab' is past the end of (1, 3) and (0, 3).
 
     private static final String CORRECTED = "->meta::pure::executionPlan::featureFlag::withFeatureFlags("
             + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)";
@@ -351,95 +294,82 @@ class PureMeaningEngineTest {
                 + ")->select(~[a])->from(t::RT)";
     }
 
-    /** Under engine legend-engine's answer for every row ('b' for 'ab', cut short), run with the rewritten query; under
-     *  warn legend-pure's, which raises on 'ab'. */
-    private static void bothWays(String query, String header, String rows) {
+    /** legend-engine's answer for every row, run with the rewritten query. */
+    private static void legendEngines(String query, String rows) {
         Recording run = new Recording();
-        LiteV1Api.Answer engine = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(query), run,
-                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
-        assertEquals(200, engine.status(), engine.json());
-        assertEquals("engine " + header, engine.headers().get(PureMeaningCheck.HEADER));
-        assertTrue(engine.json().contains(rows), engine.json());
+        LiteV1Api.Answer a = execute(query, run);
+        assertEquals(200, a.status(), a.json());
+        assertTrue(a.json().contains(rows), a.json());
         assertRewritten(run.handed.get(0));
-        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null, body(query), PureMeaningCheck.Mode.WARN);
-        assertEquals(500, warn.status(), warn.json());
-        assertTrue(warn.json().contains("out of bounds"), warn.json());
-        assertEquals(header, warn.headers().get(PureMeaningCheck.HEADER));
     }
 
     @Test
-    void substrPastTheEnd_legendEnginesCutShortValueUnderEngine_aRaiseUnderWarn() {
-        bothWays(cut("substr(1, 3)"), "substr/3=1", PAST_THE_END);
+    void substrPastTheEnd_legendEnginesCutShortValue() {
+        legendEngines(cut("substr(1, 3)"), PAST_THE_END);
     }
 
     @Test
-    void aCorrectedSubstringPastTheEnd_legendEnginesCutShortValueUnderEngine_aRaiseUnderWarn() {
-        bothWays(cut("substring(1, 3)") + CORRECTED, "substring(corrected)/3=1", PAST_THE_END);
+    void aCorrectedSubstringPastTheEnd_legendEnginesCutShortValue() {
+        legendEngines(cut("substring(1, 3)") + CORRECTED, PAST_THE_END);
     }
 
-    /** The reviewer's M-a1: a literal-0 start is exempt under refuse and warn (measured equal to Pure's in range), and
-     *  past the end lite raises there, with no header; under engine it is rewritten, and 'ab'->substring(0, 3) is 'ab',
-     *  legend-engine's answer ('abcdef'->substring(0, 9) is 'abcdef' in legend-engine's SQL). */
+    /** The reviewer's M-a1: a literal-0 start is rewritten too, in both forms; 'ab'->substring(0, 3) is 'ab', legend-engine's
+     *  answer ('abcdef'->substring(0, 9) is 'abcdef' in legend-engine's SQL), where lite's own raises. */
     @Test
-    void aLiteralZeroStartPastTheEnd_isRewrittenUnderEngine_andExemptUnderRefuseAndWarn() {
-        Recording run = new Recording();
-        LiteV1Api.Answer engine = PureV1Routes.route("/api/pure/v1/execution/execute", null,
-                body(cut("substring(0, 3)")), run, LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
-        assertEquals(200, engine.status(), engine.json());
-        assertEquals("engine substring/3=1", engine.headers().get(PureMeaningCheck.HEADER));
-        assertTrue(engine.json().contains("{\"values\": [\"abc\"]},{\"values\": [\"xox\"]},"
-                + "{\"values\": [\"abc\"]},{\"values\": [\"ab\"]}"), engine.json());
-        assertRewritten(run.handed.get(0));
-        for (PureMeaningCheck.Mode exempt : new PureMeaningCheck.Mode[] {PureMeaningCheck.Mode.REFUSE,
-                PureMeaningCheck.Mode.WARN}) {
-            LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body(cut("substring(0, 3)")), exempt);
-            assertEquals(500, a.status(), a.json());
-            assertTrue(a.json().contains("out of bounds"), a.json());
-            assertEquals(null, a.headers().get(PureMeaningCheck.HEADER), exempt.name());
-        }
+    void aLiteralZeroStartPastTheEnd_isRewritten() {
+        legendEngines(cut("substring(0, 3)"), "{\"values\": [\"abc\"]},{\"values\": [\"xox\"]},"
+                + "{\"values\": [\"abc\"]},{\"values\": [\"ab\"]}");
+        legendEngines(cut("substring(0)"), "{\"values\": [\"abcdef\"]},{\"values\": [\"xoxo\"]},"
+                + "{\"values\": [\"abc\"]},{\"values\": [\"ab\"]}");
     }
 
     /** A computed index is legend-engine's too: substrAsGiven's positions are SQL arithmetic the database computes.
      *  substr(1, length + 1) runs one past every row's end: legend-engine's SUBSTRING(NAME, 2, length) answers the text
-     *  after its first character; lite's own raises. */
+     *  after its first character. */
     @Test
-    void aComputedSubstrIndex_legendEnginesAnswerUnderEngine_aRaiseUnderWarn() {
-        bothWays(cut("substr(1, $r.NAME->toOne()->length() + 1)"), "substr/3=1",
+    void aComputedSubstrIndex_legendEnginesAnswer() {
+        legendEngines(cut("substr(1, $r.NAME->toOne()->length() + 1)"),
                 "{\"values\": [\"bcdef\"]},{\"values\": [\"oxo\"]},{\"values\": [\"bc\"]},{\"values\": [\"b\"]}");
     }
 
-    /** On a database where a start of 0 differs, the plan holds the database's own call over legend-engine's positions
-     *  under engine ('FX'->substr(1, 3) is substring('FX', 2, 2) in legend-engine's SQL), written as SQL arithmetic the
-     *  database computes, with no range check; under warn lite's range check holds it. */
+    /** On the second database, the plan holds its own call over legend-engine's positions ('FX'->substr(1, 3) is
+     *  substring('FX', 2, 2) in legend-engine's SQL), written as SQL arithmetic the database computes, with no range
+     *  check; lite's own plan of the query as written holds its range check (S383). */
     @Test
     void substrPlansTheDatabasesOwnCallOverLegendEnginesPositions_whereAStartOfZeroDiffers() {
-        String zeroStart = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
-                "type: DuckDB; specification: DuckDB { }; auth: Test;");
-        String engine = planSql(zeroStart, cut("substr(1, 3)"), PureMeaningCheck.Mode.ENGINE)
-                .toLowerCase(java.util.Locale.ROOT);
-        String warn = planSql(zeroStart, cut("substr(1, 3)"), PureMeaningCheck.Mode.WARN)
-                .toLowerCase(java.util.Locale.ROOT);
-        // the database's call over start + 1 and end - start, unguarded under engine; under warn lite's range check
+        String engine = planSql(ZERO_START, cut("substr(1, 3)")).toLowerCase(java.util.Locale.ROOT);
         assertTrue(engine.matches("(?s).*substr\\([^,]*name, \\(?1 \\+ 1\\)?, \\(?3 - 1\\)?\\).*")
                 && !engine.contains("case"), engine);
-        assertTrue(warn.contains("case"), warn);
+        assertTrue(puresPlan(ZERO_START, cut("substr(1, 3)")).contains("case"));
+    }
+
+    // ---- a statement that is not store-bound keeps legend-pure's meaning ---------------------------------------------
+
+    /** legend-engine computes a store-free let on the host, before the query, with legend-pure's meaning (H16's probe),
+     *  so the door rewrites nothing in it: 'xabc'->substring(1, 4) is legend-pure's 'abc' (SQL's would be 'xab'), and
+     *  'ab'->substring(1, 3) raises, as legend-pure's does (S383). */
+    @Test
+    void aStatementThatIsNotStoreBound_keepsLegendPuresMeaning_S383Included() {
+        LiteV1Api.Answer pure = route("/api/pure/v1/execution/execute", null, body("{|let x = 'xabc'->substring(1, 4); "
+                + PureMeaningCheckTest.TABLE + "->filter(r|$r.NAME == $x)->select(~[NAME])->from(t::RT);}"));
+        assertEquals(200, pure.status(), pure.json());
+        assertTrue(pure.json().contains("\"rows\" : [{\"values\": [\"abc\"]}]"), pure.json());
+        LiteV1Api.Answer raised = route("/api/pure/v1/execution/execute", null, body("{|let x = 'ab'->substring(1, 3); "
+                + PureMeaningCheckTest.TABLE + "->filter(r|$r.NAME == $x)->select(~[NAME])->from(t::RT);}"));
+        assertEquals(500, raised.status(), raised.json());
+        assertTrue(raised.json().contains("out of bounds"), raised.json());
     }
 
     // ---- refused by name -------------------------------------------------------------------------------------------
 
     @Test
-    void aDatabaseNotMeasuredIsRefusedByNameUnderEngine_beforeItRuns() {
-        String unmeasured = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
-                "type: Postgres; specification: Static { name: 'x'; host: 'h'; port: 5432; };"
-                        + " auth: UserNamePassword { baseVaultReference: 'v'; userNameVaultReference: 'u';"
-                        + " passwordVaultReference: 'p'; };");
+    void aDatabaseNotYetCheckedIsRefusedByName_beforeItRuns() {
         LiteV1Api.Runner never = (query, runtime, output) -> {
             throw new AssertionError("a refused request is never run");
         };
-        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(unmeasured, QUERY), never,
-                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null,
+                body(PureMeaningCheckTest.UNCHECKED, QUERY), never, LiteV1Api.Models.COMPILED);
         assertEquals(500, a.status(), a.json());
-        assertTrue(a.json().contains("not measured on Postgres"), a.json());
-        assertEquals("substring/3=1, indexOf/2=1", a.headers().get(PureMeaningCheck.HEADER));
+        assertTrue(a.json().contains("is not yet checked on Postgres"), a.json());
     }
 }
