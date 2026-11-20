@@ -3459,3 +3459,10 @@ who confirms or changes phases 1-3.
   - B1-R's pass, the detector and the LITE ledger edit move nothing.
   - This matches the judges' reading: tests that now pass run their later asserts, and the range checks add their SQL.
   - The fix is a re-pin, which needs the user's word.
+- **~09:54 UTC, staging for #128's single push:** `claude/compat-a4-batch-fixes` is at `d634926a4`, carrying `b4be20ec2` (generated Pure.java order) and the approved follow-ups. Fast loops are 20/20 and 16/16; pure_meaning_postgres_test passes 1/1 as the unprivileged user.
+  - The ClickHouse lambda-raise fix is pushed on `claude/window-list-lowering` (`852a9737`), lanes 17/17, and is under the reviewer's eye.
+  - Held for the user:
+    1. the PCT judge-SQL re-pin (bisected to A3 piece 2);
+    2. own_corpus 3327 → 3330;
+    3. A/B on the ClickHouse fix, with its 2 lean-SQL rows (+96 and +192 chars).
+  - The judges run the PCT/corpus measurement on `d634926a4`.
