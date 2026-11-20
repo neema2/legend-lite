@@ -96,6 +96,38 @@ def raised_words(message: str, statement: str) -> str | None:
     return sentence(site['kind'], site.get('where'))
 
 
+def raised_site(message: str) -> int | None:
+    """The number of the site whose token a database's ``message`` raises, read as :func:`raised_words` reads it; None
+    where it raises none (a database's own error, a user's ``fail`` text)."""
+    first = message.find(RAISE_SENTINEL)
+    last = -1 if first < 0 else message.find(RAISE_SENTINEL, first + 1)
+    if first < 0 or last <= first:
+        return None
+    inner = message[first + 1:last].replace(RAISE_QUOTE_MARK, "'")
+    sep = inner.find(RAISE_POSITION_SEP)
+    if sep >= 0:
+        inner = inner[sep + 1:]
+    token = _TOKEN.fullmatch(inner)
+    return None if token is None or int(token.group(1)) < 1 else int(token.group(1))
+
+
+def engine_words(failure: BaseException, site_words: object) -> str | None:
+    """legend-pure's words of the raise ``failure`` is, at legend-engine's door: its site (the number :func:`worded`
+    kept on it, or a token still in its words), worded by the edge's table beside the plan (``siteWords``: each site's
+    ``n`` and ``words``, worded in Java from the site's record -- stage B's B1, 2026-11-20, the plan carrying no words).
+    None where it is no raise of a site (a database's own error, a user's ``fail`` text). A site the table words none
+    for is refused by name (no default)."""
+    n = getattr(failure, 'raise_site', None)
+    if n is None:
+        n = raised_site(str(failure))
+    if n is None:
+        return None
+    for entry in site_words if isinstance(site_words, list) else []:
+        if isinstance(entry, dict) and entry.get('n') == n and isinstance(entry.get('words'), str):
+            return entry['words']
+    raise ValueError(f'the database raised {RAISE_TOKEN}{n}, which the answer words no site for')
+
+
 def sentence(kind: str, where: str | None) -> str:
     """Lite's sentence of a site of ``kind`` placed by ``where``: its kind's, then ': ' and the where, as Java's runner
     words it (ExecutionPlan.Site#sentence). A kind this host has no sentence for is refused by name."""
@@ -135,4 +167,8 @@ def worded(failure: BaseException, statement: str) -> BaseException | None:
     out = copy.copy(failure)
     out.__dict__.clear()
     out.args = (words,)
+    # the site it raised, kept for legend-engine's door, which words it its own way (engine_words; stage B's B1)
+    site = raised_site(str(failure))
+    if site is not None:
+        out.raise_site = site
     return out

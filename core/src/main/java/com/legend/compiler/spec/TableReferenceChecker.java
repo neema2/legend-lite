@@ -114,7 +114,7 @@ final class TableReferenceChecker {
                 // table reference so (HelperRelationalBuilder.getDatabase: "Can't find database"), but a query's
                 // accessor #>{db.T}# as a missing STORE (PureModel.getStore, PureModel.java:1241; its REPL's
                 // TestCompleter.java:77). Both reach this one checker, which cannot tell them apart: the accessor's
-                // words stay a known difference (stage B's B1 audit, 2026-11-20; H13 section 17), to fix where the
+                // words stay a known difference (stage B's B1 audit, 2026-11-20; register S391, PROPOSED), to fix where the
                 // reference's origin is known
                 throw new TypeInferenceException(com.legend.error.CompileKind.MISSING, java.util.List.of("database", dbRef.fullPath()));
             }

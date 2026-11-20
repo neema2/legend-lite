@@ -128,8 +128,12 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     # of its type, as raised, by a copy: no traceback, cause or context of the original's, its attributes cleared, its
     # words the redacted ones (2026-11-12, the re-audit's S4: no value's own type is called outside _planned.py)
     redacted = copy.copy(failure)
+    site = getattr(failure, 'raise_site', None)
     redacted.__dict__.clear()
     redacted.args = (out,)
+    if site is not None:
+        # the raise's site, kept (_raised.worded; stage B's B1, 2026-11-20): a number, no value of the engine's
+        redacted.raise_site = site
     return redacted
 
 

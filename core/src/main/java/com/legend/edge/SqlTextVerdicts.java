@@ -1455,7 +1455,8 @@ final class SqlTextVerdicts {
             // 2026-11-08): the body's planning goes on, as when the failure was kept until the appeal was heard
             return com.legend.testexecutionplan.Failure.Kind.named(f.getClass().getName()) == null
                     ? new Appeal.Read(null, null, null,
-                            new Appeal.Unlisted(f.getClass().getSimpleName(), f.getMessage()))
+                            // legend-pure's words, from the error's record (stage B's B1, 2026-11-20)
+                            new Appeal.Unlisted(f.getClass().getSimpleName(), PureMessages.compile(f)))
                     : new Appeal.Read(null, null, com.legend.testexecutionplan.Failures.of(f, "SqlTextVerdicts.sideAhead: an appeal's side"));
         }
     }

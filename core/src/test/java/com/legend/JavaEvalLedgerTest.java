@@ -1930,7 +1930,8 @@ class JavaEvalLedgerTest {
                             // protocol.SourceInformation; cuts spans from text, decides nothing
                             "EngineSpans.java",
                             // legend-pure's words of a raise where the edge runs the product's door (K10 of the edge
-                            // audit, 2026-11-18): a recorder's words looked up by statement and site; decides nothing
+                            // audit, 2026-11-18): a raise's site worded from its record (stage B's B1, 2026-11-20;
+                            // a recorder's words until then); decides nothing
                             "RaisedWords.java",
                             // legend-engine's grammar where the edge reads its protocol (J21 of the edge audit,
                             // 2026-11-17, the user's "yes to the rule"): three delegations to the parse door's engine

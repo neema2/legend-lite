@@ -175,18 +175,23 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 9. Error messages
 - **legend-engine's message** is often its database's own error over legend-engine's SQL.
-- **lite gives,** in legend-engine's error envelope and with the same status:
+- **lite gives,** in legend-engine's error envelope and with the same status, wherever lite answers legend-engine's
+  API (lite's server, and the Python host's `pure/v1` execute):
   - for an error lite raises at run (division by zero, `toOne` on the wrong size, a bad date, ...) and for a kinded
     compile error, legend-pure's sentence, worded from the error's record after the run (stage B's B1, 2026-11-20). A
     value only the database held prints `<computed>` ("Cannot divide <computed> by zero" where the dividend is a
     column; register S389);
   - for any other compile error, lite's own sentence; for a database's own error, the database's words.
   - Neither side points into your code (legend-engine's can carry a position in legend-engine's own Pure).
+  - lite's own screens (the browser tab, lite's own API, the Python library) give lite's own sentence, as they do for
+    every error, including where the tab runs a plan it asked a legend-engine server for.
+  - A query's accessor over a database the model does not hold reads "Can't find database", legend-engine's words for
+    a mapping's reference, where legend-engine says "The store … can't be found." (register S391, proposed).
 - **When:** stage B's B1.
 - **Measured:** the pure/v1 net (for example divide by zero: 500 on both, different words); legend-engine wraps a
   check its Pure plans fail as a `PureAssertFailException` with the assert's location, and refuses some at planning in
   its own words (`%2017->hour()`: "Ensure the target system understands Year or Year-month semantic.").
-- **Register:** S390 (proposed), S389 (`<computed>`).
+- **Register:** S390 (proposed), S389 (`<computed>`), S391 (proposed).
 
 ### 10. lite answers where legend-engine refuses
 - **legend-engine** refuses some functions at planning ("No SQL translation exists ..." and the like).

@@ -252,7 +252,8 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
         for (int i = told; i < verdictAt; i++) {
             tell(kept.get(i));
         }
-        listener.verdict(kept.get(verdictAt).name(), false, e.getMessage());
+        // in legend-pure's words, worded from the error's record (stage B's B1, 2026-11-20: a raise's message is lite's)
+        listener.verdict(kept.get(verdictAt).name(), false, PureMessages.compile(e));
     }
 
     private void tell(Report r) {

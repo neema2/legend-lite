@@ -76,6 +76,15 @@ class PureMessagesWordedTest {
         }
     }
 
+    /** A raise's carriage copied off its record (no site to word) reads its kind's name, as on main: pinned, a residue
+     *  the one error model removes (B1's fixes' review, 2026-11-20). */
+    @Test
+    void aMarkedMessageOffItsRecordReadsItsKindsName_asOnMain() {
+        assertEquals("DIVIDE_BY_ZERO", PureMessages.compile(new IllegalStateException(RaiseKind.MARK + "DIVIDE_BY_ZERO"
+                + RaiseKind.MARK + "the where")));
+        assertEquals("DIVIDE_BY_ZERO", PureMessages.compile(new IllegalStateException(RaiseKind.MARK + "DIVIDE_BY_ZERO")));
+    }
+
     /** The plan carries a site's facts, no words: legend-pure's sentence is the same function of the record wherever
      *  the edge words it (a caught error, pure/v1's answer, PCT's harness). */
     @Test

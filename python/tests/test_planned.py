@@ -1149,6 +1149,22 @@ class ARaiseIsWorded(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'LG#1, which the statement does not declare'):
             raised_words('\x1f\x1cLG#1\x1f', 'SELECT a statement no plan declared')
 
+    def test_at_legend_engines_door_a_token_reads_the_edges_words_of_its_site(self):
+        # stage B's B1 (2026-11-20): the plan carries no words; the edge words each site beside it (siteWords)
+        from legend_lite._raised import declare_statement_sites, engine_words, worded
+        words = [{'n': 1, 'words': 'Cannot divide <computed> by zero'}]
+        token = RuntimeError('Invalid Input Error: \x1f\x1cLG#1\x1f')
+        self.assertEqual(engine_words(token, words), 'Cannot divide <computed> by zero')
+        # the run words a raise in lite's sentence and keeps its site: the door words that site its own way
+        declare_statement_sites('SELECT 7 / 0', [{'n': 1, 'kind': 'DIVIDE_BY_ZERO', 'where': None}], 'a plan')
+        lite = worded(token, 'SELECT 7 / 0')
+        self.assertNotIn('LG#', str(lite))
+        self.assertEqual(engine_words(lite, words), 'Cannot divide <computed> by zero')
+        self.assertIsNone(engine_words(RuntimeError('Binder Error: no such column'), words), "a database's own error")
+        self.assertIsNone(engine_words(RuntimeError('\x1fmy own failure\x1f'), words), "a user's fail text")
+        with self.assertRaisesRegex(ValueError, 'LG#2, which the answer words no site for'):
+            engine_words(RuntimeError('\x1f\x1cLG#2\x1f'), words)
+
     def test_a_raise_fired_at_a_fetch_is_worded(self):
         from legend_lite._planned import Result
         from legend_lite._raised import declare_statement_sites

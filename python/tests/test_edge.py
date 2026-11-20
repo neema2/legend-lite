@@ -308,6 +308,17 @@ class Refusals(EdgeServed):
         self.assertNotIn('errorType', body)
         self.assertIn('Conversion', body['message'])
 
+    def test_a_raise_is_answered_in_legend_pures_words_as_the_server_answers_it(self):
+        # stage B's B1 (2026-11-20, the fixes' review): the statement raises its site's token; legend-engine's door
+        # answers `Raised:` and legend-pure's sentence of that site, the edge's words beside the plan, in both formats
+        for path in ('/api/pure/v1/execution/execute', '/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC'):
+            with self.subTest(path):
+                status, body = self.error(path, self.execute_input(self.query('->extend(~[h: x|%2017->hour()])')))
+                self.assertEqual((status, body['code'], body['status']), (500, -1, 'error'), body)
+                self.assertNotIn('errorType', body)
+                # the pure/v1 net's raise.datePartAbsent, as lite's server answers it
+                self.assertEqual(body['message'], 'Raised: Cannot get hour for 2017')
+
     def test_a_path_the_api_does_not_serve_is_404_in_the_engines_shape(self):
         status, body = self.error('/api/pure/v1/nope', '{}')
         self.assertEqual((status, body['message']), (404, 'no such legend-engine API in legend-lite: /api/pure/v1/nope'))

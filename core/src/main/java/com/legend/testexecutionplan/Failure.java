@@ -27,6 +27,12 @@ import com.legend.error.LegendCompileException;
 public record Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
         @Nullable String element, @Nullable String unjudgedReason, String where, @Nullable Fact fact) {
 
+    /** The kinds of failure a compile error's facts ride ({@link Compile}): the compile exceptions' (stage B's B1,
+     *  2026-11-20; one list for the record's check and {@link Failures#of}'s reading of them). */
+    static final java.util.Set<Kind> COMPILE_FACTS = java.util.Set.of(Kind.MODEL, Kind.TYPE_INFERENCE, Kind.RESOLUTION,
+            Kind.MAPPING_RESOLUTION, Kind.SCHEMA_INVARIANT, Kind.ISLAND_SYNTAX);
+
+
     /** THE FACTS A PLANNED FAILURE CARRIES FOR ITS WORDS (stage B's B1, 2026-11-20, errors as records): what another audience words the error
      *  from after the run, where lite's message alone would lose it. */
     public sealed interface Fact permits Compile, FileTooLarge {
@@ -80,8 +86,7 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
             throw new IllegalArgumentException("an unjudged reason is a failed assert's alone: " + kind);
         }
         if (fact instanceof Compile c) {
-            if (kind != Kind.MODEL && kind != Kind.TYPE_INFERENCE && kind != Kind.RESOLUTION
-                    && kind != Kind.MAPPING_RESOLUTION && kind != Kind.SCHEMA_INVARIANT && kind != Kind.ISLAND_SYNTAX) {
+            if (!COMPILE_FACTS.contains(kind)) {
                 throw new IllegalArgumentException("a failure's compile facts are a compile error's alone: " + kind);
             }
             if (!(c.prefix() + c.own() + c.suffix()).equals(message)) {

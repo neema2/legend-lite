@@ -40,15 +40,18 @@ public final class Failures {
         String element = e instanceof LegendCompileException c
                 && (kind == Failure.Kind.MODEL || kind == Failure.Kind.MAPPING_RESOLUTION) ? c.element() : null;
         String unjudged = e instanceof AssertFailed f ? f.unjudgedReason() : null;
-        return new Failure(kind, message, phase, element, unjudged, where, factOf(e));
+        return new Failure(kind, message, phase, element, unjudged, where, factOf(e, kind));
     }
 
-    /** {@code e}'s facts for its words: its kinded compile error ({@link #compileOf}), or a load's file larger than its
-     *  limit in its chain; null where it holds neither (stage B's B1, 2026-11-20, errors as records). */
-    static Failure.@Nullable Fact factOf(Throwable e) {
-        Failure.Compile compile = compileOf(e);
-        if (compile != null) {
-            return compile;
+    /** {@code e}'s facts for its words, read only where a failure of {@code kind} carries them: a compile error's kinded
+     *  part ({@link #compileOf}), or a data error's load file larger than its limit, in its chain; null where it holds
+     *  neither (stage B's B1, 2026-11-20, errors as records; the fixes' review: never a fact the record refuses). */
+    static Failure.@Nullable Fact factOf(Throwable e, Failure.Kind kind) {
+        if (Failure.COMPILE_FACTS.contains(kind)) {
+            return compileOf(e);
+        }
+        if (kind != Failure.Kind.DATA) {
+            return null;
         }
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof com.legend.base.DataSize.TooLarge big) {

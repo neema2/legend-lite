@@ -71,8 +71,9 @@ class EdgeSeparationTest {
     static final Set<String> EDGE_ONLY_SQLFN = Set.of();   // DATETIME_PRINT gone 2026-11-17 (census B12), the last
 
     // (UPSTREAM_WORDED, the records whose upstream component held legend-pure's words of a raise site: gone 2026-11-17,
-    // K10b -- ExecutionPlan.Site and RaiseSite carry no upstream, the words the edge's records (edge.SiteWords), so no
-    // product read of them can return)
+    // K10b -- ExecutionPlan.Site and RaiseSite carry no upstream, the words the edge's records (edge.SiteWords until
+    // stage B's B1, 2026-11-20: since then the site's facts, worded by edge.PureMessages.worded), so no product read of
+    // them can return)
 
     /** The referee and the appeals in the product packages they stood in (census C2, closed 2026-11-17: moved to
      *  com.legend.edge, whose classes the CODE guard already keeps out of the product): a tripwire, should one return. */
@@ -347,7 +348,8 @@ class EdgeSeparationTest {
             // data, the compatibility preset the edge's CompatRules
             // C5 closed 2026-11-17 (its last line, CanonicalForm's +0000, E-Java's); B12 closed by train 7
             // K10 (E-P5, 2026-11-18): a raise site's legend-pure words never entered this count on train 8's base --
-            // ExecutionPlan.Site and RaiseSite carry no upstream, the words the edge's records (edge.SiteWords)
+            // ExecutionPlan.Site and RaiseSite carry no upstream, the words the edge's records (edge.SiteWords; since
+            // stage B's B1, 2026-11-20, the site's facts, worded by edge.PureMessages.worded)
             );
 
     private static Set<String> linesOf(Map<String, String> m) {
