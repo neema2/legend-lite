@@ -3412,3 +3412,12 @@ who confirms or changes phases 1-3.
     - the two PR #118 heavy-round sessions: D's 41 targets (`session_0195rQEkoSZaSZPXqt8GgGHs`), and the build sweep, six manual targets and the warehouse verdict (`session_0195rQEkwPHouTKiaM325UY5`);
     - the reviewer: B1-R's pass.
   - The warm-database lanes run on `317204773`, which B1-R's pass does not touch for PCT. BigQuery, Snowflake and sibling 1a are done with 0 lost passes; 1b and Databricks are still running.
+- **~08:44 UTC, Databricks' final run on `317204773`:**
+  - Lost passes: 0. Gained: the three `indexOf` tests in channel A and channel B.
+  - No substring test moved. The probe is identical to main (3 known Q1).
+  - **The 18-row prediction is MEASURED:** BigQuery, Snowflake and Databricks each gained 3 tests in each of the two channels.
+- **~08:44 UTC, main's BigQuery UNION ALL regression, bisected** (sibling 4): it came in with PR #118 (`b75d6c73a`), from two first-bad commits.
+  - **(A) coalesce ×3:** `82e5eab4a` ("WIP (1): batch one assert's sides too"). A lone assert's two sides now meet in one UNION ALL. The expected side is `CAST(NULL AS STRING)`; the actual `COALESCE(NULL, NULL)` is typed INT64.
+  - **(B) the date ×13 and parseDate ×3 tests:** `92cf6992e` (G10, merged via `ce8ba2959`). Every side but the last becomes a MATERIALIZED CTE, and a bare NULL inside it is typed INT64 before the UNION sees it.
+  - **Fix shape:** type each batch NULL cell by its column's type. Product track, after #128; the owner is the edge program's follow-up line.
+  - The SQL and logs are in sibling 4's scratchpad.

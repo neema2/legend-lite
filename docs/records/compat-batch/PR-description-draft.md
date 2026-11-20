@@ -137,4 +137,4 @@ approved with its records on `claude/compat-review`; the combination review is o
   - H2's `weekOfYear` following the JVM locale;
   - a draws-afresh value under a multiply-written operand;
   - the nine dead `AnsiSqlRenderer` hooks;
-  - a BigQuery channel-B regression already on `main` (19 tests, UNION ALL INT64/STRING), being bisected.
+  - a BigQuery channel-B regression already on `main` (19 tests, UNION ALL INT64/STRING), bisected to PR #118's `82e5eab4a` (coalesce) and `92cf6992e` (G10, the date tests): an untyped NULL in a host side batch; fix: type each NULL cell by its column.
