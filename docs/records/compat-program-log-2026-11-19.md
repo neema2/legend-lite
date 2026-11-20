@@ -3210,3 +3210,13 @@ who confirms or changes phases 1-3.
   text byte-equal holds, else MATCH holds and DIVERGED or FAULT fail; a referee decline keeps the text. So under option N
   the harness has the query in hand; the spike's question narrows to running it with the same test data through public
   doors (e.g. a synthesized tiny test body), sent to the spike.
+- **~02:38 UTC, H13: assert-failure words measured** (record §26 at `7e6b7bed`; probe patch never pushed): with lite's
+  own verdict words on every route (verdicts untouched), **PCT: no test expects legend-pure's assert-failure text**
+  (channel A 0, the ENGINE lanes 0; channel B 12 essential lines on DuckDB and SQLite: 11 already failing whose pinned
+  message changes, 1 verdict, DuckDB testDateFromHour, moving because VerdictWords also picks the database judge's
+  columns, the known parity bug, moot in compatibility under rule 4). **Corpus: 0 verdicts move**; the per-assert ledgers'
+  message lines (32 DuckDB, 37 H2, FAIL → FAIL) and the accepted-divergence witnesses (21 DuckDB, 20 H2 rows read the
+  wording) re-pin; lite's own harness data. Edge net and pure/v1: nothing else. **Size:** B3 deletes the edge presenter
+  (389 lines) and the two-form plumbing (about −640 in all) and builds no verdict record or presenter: about 0.5 to 1
+  day instead of 2.5, plus re-pins of 41 witness rows, 69 ledger lines, 11 PCT lines. No upstream suite, golden or client
+  reads legend-pure's assert words; lite's own corpus register is the only reader. Put to the user as Q15.

@@ -337,6 +337,27 @@ corpus's own door its prepare and run halves, and this rewrite sits there beside
 
 **Recommendation: A, in B3, measured first** (the tests that move, by name, before the lanes switch).
 
+### Q15. Assert-failure words: lite's own on every route? (added ~02:40, from the user's B3 question; measured)
+
+**Context.** When an assert fails, the verdict carries a sentence, such as legend-pure's "expected: 0 / actual: 1" or
+lite's "expected 0, got 1". B3 planned a presenter that writes legend-pure's assert sentences for the compatibility
+audience.
+
+**Measured** (H13 §26, `7e6b7bed`):
+- No PCT test expects legend-pure's assert-failure text (channel A 0, the ENGINE lanes 0).
+- On channel B, 11 already-failing lines change their message, and 1 verdict moves (DuckDB `testDateFromHour`, the
+  known judge-parity bug, moot in compatibility).
+- The corpus moves 0 verdicts. Only lite's own harness data reads the words: 69 ledger message lines and 41
+  accepted-divergence witnesses re-pin.
+- No upstream suite, golden or client reads them.
+
+| Choice | Pros | Cons |
+|---|---|---|
+| **A. Lite's own assert words everywhere** | B3 deletes the presenter and the two-form plumbing (about −640 lines) and builds none (about 0.5 to 1 day instead of 2.5); one set of words; consistent with Q3's option 1 | re-pins of lite's own harness data (41 witness rows, 69 ledger lines, 11 PCT lines) |
+| B. legend-pure's assert words for compatibility, as planned | nothing re-pinned | about +300 lines and 2.5 days for words nothing upstream reads |
+
+**Recommendation: A.**
+
 ## The questions at a glance
 
 | # | Question | Recommendation |
@@ -355,6 +376,7 @@ corpus's own door its prepare and run halves, and this rewrite sits there beside
 | 12 | legend-engine's runner, no-database tests | a small PR right after stage A |
 | 13 | `engine` on more databases | on demand |
 | 14 | The corpus in `engine` mode | yes, as part of B3, measured first; PCT stays in Pure's meaning |
+| 15 | Assert-failure words | lite's own everywhere (no upstream reader; B3 about 2 days smaller) |
 
 Q5 and Q12 can start before stage B is ratified. Q5 is a product bug fix, and your 14:30 word covers taking it over.
 Q12 is tooling, right after stage A. The rest take effect when you ratify stage B.
