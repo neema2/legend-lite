@@ -3470,3 +3470,9 @@ who confirms or changes phases 1-3.
   - **Six manual targets:** all pass except `//spec:corpus_warehouse_verdict`, which LOSES the same 41 as main `8eea8fa1`. The set difference is empty. The cause is the warehouse client refusing PreparedStatement binds, as on 4dfbb5b76.
   - **Build sweep, per package after a clean:** everything builds: core 339, spec 63, pct 222, parser-equivalence 42, tools 282.
   - **All heavy and manual results are in.** The only red the batch introduces is the PCT judge-SQL re-pin, held for the word.
+- **~10:12 UTC, the judges' in-process measurement on `d634926a4`: 57 of 57 green.**
+  - Rosters as committed: H2 428, DuckDB 264. Accepted divergences: H2 44, DuckDB 49.
+  - PCT under lite's own rules (DuckDB) is recorded in #128.
+  - The PR description is updated with every measured number; no [final] is left.
+  - Still to report: MySQL ×1 and MariaDB ×2.
+  - The single push waits on the user's three answers.
