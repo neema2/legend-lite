@@ -123,12 +123,15 @@ String `substring` or `indexOf` left. So nothing downstream re-resolves the nati
 
 | plant | the tests it turns red |
 |---|---|
-| W1 the engine branch plans the query unrewritten | the execute and Arrow tests, the unmeasured-database test |
-| W2 the seed lowered unrewritten | none before piece 2 (lite's own `substring` on H2 was already the database's, so the seed's keys were the same); on the stage-A batch's tree, `generateSeedDataChoosesLegendEnginesKeysUnderEngine` and `generateTestDataWithTheDefaultSeedRunsUnderEngine` (the H2 seed), and `theSeedIsRewrittenOnDuckDb_aThreeArgumentStartOfZero` |
+| W1 the engine branch plans the query unrewritten | the execute and Arrow tests, the unmeasured-database test; on the stage-A batch's tree 8 of the 13: also the three H2 class shapes, the DuckDB class-shape plan and the graph fetch's refusal |
+| W2 the seed lowered unrewritten | none before piece 2 (lite's own `substring` on H2 was already the database's, so the seed's keys were the same); on the stage-A batch's tree (planted and run 2026-11-20) 3 of the 13: `generateSeedDataChoosesLegendEnginesKeysUnderEngine` and `generateTestDataWithTheDefaultSeedRunsUnderEngine` (the H2 seed), and `theSeedIsRewrittenOnDuckDb_aThreeArgumentStartOfZero` |
 
 On the stage-A batch's tree the tests run both ways: each route that has an answer to read asserts legend-engine's
 under `engine` and legend-pure's under `warn` (`'abcdef'->substring(1, 3)` is 'abc' and 'bc'; `'xoxo'->indexOf('o')`
-is 2 and 1; the seed's row 3 is chosen, and is not).
+is 2 and 1; the seed's row 3 is chosen, and is not). Two warn answers are failures, as legend-pure's are:
+`'ab'->substring(1, 3)` runs past the string's end, so a query over the whole table raises under `warn` and answers
+under `engine`; and a seed of no row is no filter (upstream's `orFilters([])`), so the default-seed route answers every
+row under `warn` and row 3 alone under `engine`.
 
 **A gap found:** the test-data scan (`ScanRelations`) cannot serve a function applied to a class's property inside a
 filter, on any setting. It reads `$p.name->substring(...)` as a property hop ("scalar 'name' in MID position"),

@@ -100,10 +100,16 @@ class PureMeaningEngineTest {
         assertTrue(engine.json().contains("[\"abc\",0]") && engine.json().contains("[\"xox\",2]"), engine.json());
         assertEquals(1, run.handed.size());
         assertRewritten(run.handed.get(0));
-        // the other way: legend-pure's 'bc' and -1 for 'abcdef', 'ox' and 1 for 'xoxo'
-        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null, body(QUERY), PureMeaningCheck.Mode.WARN);
+        // the other way, legend-pure's meaning: 'ab'->substring(1, 3) runs past the string's end, so the whole table
+        // raises, as legend-pure's substring does there
+        LiteV1Api.Answer raised = route("/api/pure/v1/execution/execute", null, body(QUERY), PureMeaningCheck.Mode.WARN);
+        assertEquals(500, raised.status(), raised.json());
+        assertEquals("substring/3=1, indexOf/2=1", raised.headers().get(PureMeaningCheck.HEADER));
+        assertTrue(raised.json().contains("out of bounds"), raised.json());
+        // and without that row: 'bc' and -1 for 'abcdef', 'ox' and 1 for 'xoxo'
+        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null,
+                body(QUERY.replace("->sort(", "->filter(r|$r.ID != 4)->sort(")), PureMeaningCheck.Mode.WARN);
         assertEquals(200, warn.status(), warn.json());
-        assertEquals("substring/3=1, indexOf/2=1", warn.headers().get(PureMeaningCheck.HEADER));
         assertTrue(warn.json().contains("[\"bc\",-1]") && warn.json().contains("[\"ox\",1]"), warn.json());
     }
 
@@ -172,30 +178,20 @@ class PureMeaningEngineTest {
     }
 
     /** cls.filter.sub3: legend-engine filters in SQL with substring(desk, 1, 3) = 'Cre'; here 'abcdef' and 'abc' under
-     *  engine. Under warn, legend-pure's meaning: no row's substring(1, 3) is 'abc' ('bc', 'ox', 'bc', 'b'), and
-     *  'abcdef' and 'abc' are the rows whose substring(1, 3) is 'bc'. */
+     *  engine. Under warn, legend-pure's meaning: 'ab'->substring(1, 3) runs past the string's end, so the filter
+     *  raises, as legend-pure's substring does there. */
     @Test
     void aClassFiltersSubstring_legendEnginesRowsUnderEngine() {
-        LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body(filtered("abc")),
-                PureMeaningCheck.Mode.ENGINE);
+        String filtered = "|t::Person.all()->filter(p|$p.name->substring(1, 3) == 'abc')->sortBy(p|$p.name)"
+                + "->project([p|$p.name], ['n'])->from(t::M, t::RT)";
+        LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body(filtered), PureMeaningCheck.Mode.ENGINE);
         assertEquals(200, a.status(), a.json());
         assertEquals("engine substring/3=1", a.headers().get(PureMeaningCheck.HEADER));
         assertTrue(a.json().contains("[\"abc\"]") && a.json().contains("[\"abcdef\"]")
                 && !a.json().contains("[\"ab\"]"), a.json());
-        LiteV1Api.Answer none = route("/api/pure/v1/execution/execute", null, body(filtered("abc")),
-                PureMeaningCheck.Mode.WARN);
-        assertEquals(200, none.status(), none.json());
-        assertFalse(none.json().contains("[\"abc\"]") || none.json().contains("[\"abcdef\"]"), none.json());
-        LiteV1Api.Answer bc = route("/api/pure/v1/execution/execute", null, body(filtered("bc")),
-                PureMeaningCheck.Mode.WARN);
-        assertEquals(200, bc.status(), bc.json());
-        assertTrue(bc.json().contains("[\"abc\"]") && bc.json().contains("[\"abcdef\"]")
-                && !bc.json().contains("[\"ab\"]"), bc.json());
-    }
-
-    private static String filtered(String key) {
-        return "|t::Person.all()->filter(p|$p.name->substring(1, 3) == '" + key + "')->sortBy(p|$p.name)"
-                + "->project([p|$p.name], ['n'])->from(t::M, t::RT)";
+        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null, body(filtered), PureMeaningCheck.Mode.WARN);
+        assertEquals(500, warn.status(), warn.json());
+        assertTrue(warn.json().contains("out of bounds"), warn.json());
     }
 
     /** cls.toOne.idx and deskAt(): legend-engine's position is 1-based, 3 for 'Credit'; here 3 for 'abcdef', and
@@ -288,9 +284,12 @@ class PureMeaningEngineTest {
         assertEquals("engine substring/3=1", engine.headers().get(PureMeaningCheck.HEADER));
         // the seeded row alone: 'abcdef'->substring(1, 3) is 'abc' in the database's own SUBSTRING
         assertTrue(engine.json().contains("3,abc\n") && !engine.json().contains("abcdef"), engine.json());
+        // the other way: legend-pure's 'bc' seeds no row, and an empty seed is no filter (upstream's orFilters([]),
+        // TestDataPlanner), so every row (plant W2, the seed lowered unrewritten, answers this under engine too)
         LiteV1Api.Answer warn = route(path, null, testDataBody(false), PureMeaningCheck.Mode.WARN);
         assertEquals(200, warn.status(), warn.json());
-        assertFalse(warn.json().contains("3,abc\n"), warn.json());
+        assertTrue(warn.json().contains("1,abcdef\n") && warn.json().contains("3,abc\n")
+                && warn.json().contains("4,ab\n"), warn.json());
     }
 
     @Test
