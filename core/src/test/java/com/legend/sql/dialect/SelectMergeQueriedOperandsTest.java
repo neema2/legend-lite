@@ -187,6 +187,100 @@ class SelectMergeQueriedOperandsTest {
                 new SqlSelect.Projection(joined, "n", null)));
     }
 
+    /** A read of {@code alias}'s column {@code name}: a derived one above the table. */
+    private static SqlExpr read(String alias, String name, SqlType t) {
+        return SqlExpr.Column.of(alias, name, t, true, "t0".equals(alias) ? OutputCol.Origin.PHYSICAL
+                : OutputCol.Origin.DERIVED);
+    }
+
+    /** Three levels over {@code T}: a group's names joined by a window ({@code w1}); a count over the same partition,
+     *  reading no window ({@code w2}, a window of the first level's rows); and the joined names split, sorted and
+     *  reversed per row ({@code n}, a list read of {@code w1}). */
+    private static SqlSelect windowChainWithAListRead() {
+        SqlSelect l1 = SqlSelect.starOf(T).withProjections(List.of(
+                new SqlSelect.Projection(read("t0", "grp", SqlType.Scalar.BIGINT), "grp", null),
+                new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(read("t0", "name", SqlType.Scalar.VARCHAR), new SqlExpr.StringLit(":")), false,
+                        List.of()), List.of(read("t0", "grp", SqlType.Scalar.BIGINT)), List.of(), null), "w1", null)));
+        SqlSelect l2 = SqlSelect.starOf(new SqlSource.Subselect(l1, "t1", null)).withProjections(List.of(
+                new SqlSelect.Projection(read("t1", "grp", SqlType.Scalar.BIGINT), "grp", null),
+                new SqlSelect.Projection(read("t1", "w1", SqlType.Scalar.VARCHAR), "w1", null),
+                new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
+                        List.of(read("t1", "grp", SqlType.Scalar.BIGINT)), false, List.of()),
+                        List.of(read("t1", "grp", SqlType.Scalar.BIGINT)), List.of(), null), "w2", null)));
+        SqlExpr listRead = SqlExpr.Call.of(SqlFn.LENGTH, SqlExpr.Call.of(SqlFn.LIST_REVERSE, SqlExpr.Call.of(
+                SqlFn.LIST_SORT, SqlExpr.Call.of(SqlFn.SPLIT, read("t2", "w1", SqlType.Scalar.VARCHAR),
+                        new SqlExpr.StringLit(":")))));
+        return SqlSelect.starOf(new SqlSource.Subselect(l2, "t2", null)).withProjections(List.of(
+                new SqlSelect.Projection(read("t2", "grp", SqlType.Scalar.BIGINT), "grp", null),
+                new SqlSelect.Projection(listRead, "n", null),
+                new SqlSelect.Projection(read("t2", "w2", SqlType.Scalar.BIGINT), "w2", null)));
+    }
+
+    /** The levels of {@code q}, top down. */
+    private static List<SqlSelect> levels(SqlQuery q) {
+        List<SqlSelect> out = new ArrayList<>();
+        for (SqlSelect s = assertInstanceOf(SqlSelect.class, q); ; s = assertInstanceOf(SqlSelect.class,
+                ((SqlSource.Subselect) s.from()).inner())) {
+            out.add(s);
+            if (!(s.from() instanceof SqlSource.Subselect)) {
+                return out;
+            }
+        }
+    }
+
+    /** Each operation of {@code q}'s levels that SQLite writes as a query of its own and holds a window call: where
+     *  the window would be computed over that query's rows. */
+    private static List<SqlExpr> windowsUnderSQLiteQueries(SqlQuery q) {
+        List<SqlExpr> out = new ArrayList<>();
+        for (SqlSelect s : levels(q)) {
+            for (SqlSelect.Projection p : s.projections()) {
+                underQueries(p.expr(), false, out);
+            }
+        }
+        return out;
+    }
+
+    private static void underQueries(SqlExpr e, boolean inQuery, List<SqlExpr> out) {
+        if (inQuery && e instanceof SqlExpr.WindowCall) {
+            out.add(e);
+            return;
+        }
+        boolean query = inQuery || e instanceof SqlExpr.Call c && SQLite.OPERANDS_IN_A_QUERY.contains(c.fn());
+        e.children().forEach(ch -> underQueries(ch, query, out));
+    }
+
+    /** N1 of the review (2026-11-20): SelectLayers runs after SelectMerge and has no queried rule of its own. It never
+     *  writes a window call into its reader (a window is a level's value of its own, read as a column), so it never
+     *  lifts one under a list read: pinned here, alone and after SQLite's merge. The planted lifted shape proves the
+     *  check bites. */
+    @Test
+    void selectLayersNeverLiftsAWindowUnderAListRead() {
+        SqlSelect chain = windowChainWithAListRead();
+        // the check bites: the list read written over the window itself, as a lift would write it
+        SqlSelect l1 = (SqlSelect) ((SqlSource.Subselect) ((SqlSelect) ((SqlSource.Subselect) chain.from()).inner())
+                .from()).inner();
+        SqlExpr window = l1.projections().get(1).expr();
+        SqlSelect lifted = SqlSelect.starOf(T).withProjections(List.of(new SqlSelect.Projection(SqlExpr.Call.of(
+                SqlFn.LIST_SORT, SqlExpr.Call.of(SqlFn.SPLIT, window, new SqlExpr.StringLit(":"))), "n", null)));
+        assertEquals(1, windowsUnderSQLiteQueries(lifted).size(), "the planted lift is seen");
+        assertEquals(List.of(), windowsUnderSQLiteQueries(chain), "the chain as the lowering makes it");
+
+        // SelectLayers alone: the two windows of the same rows laid out at one level, the list read a level above,
+        // reading the joined names as a column -- three levels to two, nothing lifted
+        SqlQuery laid = new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(chain);
+        assertEquals(2, levels(laid).size(), "SelectLayers laid the chain out again: " + laid);
+        assertEquals(List.of(), windowsUnderSQLiteQueries(laid), "SelectLayers lifted a window under a list read: "
+                + laid);
+
+        // SQLite's two passes in its order: the merge keeps the window below the list read, the layout keeps it there
+        SqlQuery merged = new SelectMerge(java.util.function.UnaryOperator.identity(),
+                SelectMerge.queriedBy(SQLite.OPERANDS_IN_A_QUERY)).rewriteRoot(chain);
+        SqlQuery both = new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(merged);
+        assertEquals(2, levels(both).size(), "the windows' level and the list read's: " + both);
+        assertEquals(List.of(), windowsUnderSQLiteQueries(both), "a window under a list read: " + both);
+    }
+
     @Test
     void aWindowReadThroughAListOperationStaysALevelWhereTheListIsAQuery() {
         SqlSelect q = windowReadThroughAList();
