@@ -1803,3 +1803,40 @@ is open from my rounds on the engine rewrite.**
   - DuckDB's `substr(name, 0, 2)` in the plan under engine and not under warn;
   - the graph tree's refusal.
 - **The merge** keeps one `following` field in `PureMeaningCheck`, both branches having added it.
+
+## The window-in-a-list fix (Q5, the user's ~21:40), `origin/claude/window-list-lowering` at `1819a5446` (on `main` `8eea8fa13`)
+
+**Verdict: APPROVED.** This is a product fix that rides the batch. The answer comes out right where it was silently
+wrong (SQLite, Postgres), and the SQL is unchanged where it was right (DuckDB, H2, ClickHouse, Snowflake). No pin
+moves.
+- **The rule:** `SelectMerge` takes each dialect's rule of the expressions it writes as queries of their own.
+  - `Reads.inQueries` collects each of the subselect's columns read inside such an expression.
+  - A merge is refused when one of those columns is of the subselect's level (`levelled`: a window, an aggregate, an
+    UNNEST). The subselect then stays the level the lowering made, so no statement is added and nothing is computed
+    on the host.
+  - The rule is wide by design (`queriedBy`: every non-leaf expression but a parenthesis and a CASE, plus the
+    dialect's declared calls). It is an exhaustive switch over the MIR's expressions with no default, so a new
+    expression must be decided there. Its cost is a level kept, never an answer: the merge is only ever refused.
+- **Every dialect that runs `SelectMerge` declares a rule** (six, by grep): SQLite and Postgres
+  `queriedBy(OPERANDS_IN_A_QUERY)`; DuckDB, H2, ClickHouse and Snowflake `IN_PLACE`. The constructor change makes the
+  compiler hold every caller to it.
+- **The census, `SelectMergeQueriedOperandsTest`:**
+  - it holds each declared set to the renderer in both directions: the set must equal the measured set, less a named
+    list of operations the census cannot build (lambdas, entry lists, maps, format);
+  - it checks the in-place dialects write every operation and cast in place;
+  - it shows the rule at work on SQLite, Postgres and DuckDB.
+  - **Its limit:** "writes a query" is measured from the text (a second SELECT, WITH RECURSIVE, `json_each`,
+    `jsonb_each`, `unnest(`, `generate_series(`). A future form using another table function would not be counted.
+    Because the check runs both ways, a declared operation that stops nesting still fails it.
+- **`WindowReadThroughAList`:** it is database-blind, with one test per database (the census's naming rule). DuckDB,
+  SQLite and Postgres give PCT's rows. SQLite refuses the chunked form by name, as ruled, and H2 refuses as before.
+  The local gate is green, as reported.
+- **Notes:**
+  - **N1, `SelectLayers`:** it runs after `SelectMerge` without the rule. It lays each value out at its lowest level,
+    so it should never lift a window under a queried operand, and the PCT shapes pass. Nothing pins that, though. One
+    planted chain (two windowed levels and a list read, on SQLite) would.
+  - **N2, `Postgres.java`:** the new field's javadoc now sits between `passes()` and its old javadoc, which hangs over
+    the field.
+  - **The worker's open observation:** a value drawn afresh (`random`, `uuid`), merged under an operand a dialect
+    writes several times, could draw once per copy. It applies to merges generally and predates this fix, so the
+    product track is the right home.
