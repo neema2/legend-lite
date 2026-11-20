@@ -273,28 +273,33 @@ public final class TestRunner {
             // the program's run: a row the loop planned ahead is read through the program's reader, THE WALL)
             com.legend.testexec.RootLoops.Run run = runs.of(verdict);
             run.received(verdict, row);
-            // judged at the segment's last verdict -- or at once where one of its fused statements was rejected: its
-            // later groups are never sent, the roots with rows are judged and the first without one raises the
-            // rejection (the compatibility owner's (b1), 2026-11-19)
-            if (runs.closes(verdict) || run.rejected()) {
-                run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing().hostForms().words()));
-                // where the judged segment raised none, the held rejection fails the body with the database's error (PR
-                // #127's review, 2026-11-19, the owner's ruling) -- not reached by any plan: judge walks every root and
-                // every step of each, a failure thrown at its root's end, so it returns only where every Row read its
-                // row; a rejected group's verdicts are members (received refuses any other), and a member read with no
-                // row raises the held rejection first
-                run.raiseRejection();
+            // judged at the segment's last verdict (a rejected fused statement's segment is judged at once, in fused)
+            if (runs.closes(verdict)) {
+                run.judge(listener, reader, true, this::databaseVerdict);
             }
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }
 
+        /** The database judge's verdict arm over one root's row. */
+        private void databaseVerdict(String name, List<Object> row) {
+            com.legend.testexec.DatabaseVerdicts.verdictOf(name, row, this.run.hearing().hostForms().words());
+        }
+
+        /** A fused statement's word, counted; a rejected one's segment judged at once on the rejection, handed to the
+         *  judging step (the user, 2026-11-20 ~13:10, "Yes remove mutable next": until then held in the segment's run
+         *  and read at its next verdict): its later groups are never sent, the roots with rows are judged and the first
+         *  without one raises the rejection (the compatibility owner's (b1), 2026-11-19). */
         @Override
         public void fused(TestPlan.Verdicts group, @Nullable DataError rejected) {
             com.legend.testexec.RootLoops.Runs runs = databaseRuns;
             if (runs == null) {
                 throw new IllegalStateException("a fused verdict group in a body the host judge planned");
             }
-            runs.of(group.verdicts().get(0)).fused(rejected);
+            com.legend.testexec.RootLoops.Run run = runs.of(group.verdicts().get(0));
+            run.fused(rejected);
+            if (rejected != null) {
+                run.judgeRejected(rejected, listener, reader, true, this::databaseVerdict);
+            }
         }
 
         /** The assert {@code verdict} planned, judged over the rows the runner read for it -- counted and reported

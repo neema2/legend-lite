@@ -106,11 +106,9 @@ class CodeShapeGuardrailTest {
             // batch planned and left for the walk -- since 2026-11-08 (the plan-as-data design's step 5) the latch of
             // one segment's run, RootLoops.Run, the planned batch being data
             "RootLoops.counted",
-            // 2026-11-19 (track A5, the compatibility owner's option 2 and (b1), for the user's word): one segment's
-            // run holds the database's rejection of one of its fused statements, set once by the runner's word on it
-            // and read by the root loop -- the first root without a row raises it, and a held rejection judges the
-            // segment at once; one instance per segment's run, as its counted latch
-            "RootLoops.rejected",
+            // (RootLoops.rejected, a segment's run holding the database's rejection of one of its fused statements,
+            // 2026-11-19: removed 2026-11-20, the user's "Yes remove mutable next" -- the rejection is handed to the
+            // judging step as its argument, RootLoops.Run.judgeRejected; a down move)
             // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run): one body's
             // held appeals, one instance per body -- deciding, latched when the run is over, sends the appeals' own
             // reports straight to the caller's listener
