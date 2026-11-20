@@ -43,4 +43,10 @@ const answer = planner.exports.pureV1OrError('/api/pure/v1/execution/generatePla
 bazel build //wasm:engine_planner_package
 ```
 
-The package is the directory `bazel-bin/wasm/engine_planner_package`. It is not published.
+The package is the directory `bazel-bin/wasm/engine_planner_package`. This repository does not publish it.
+
+## In Legend DataCube
+
+[`wasm/data-cube-extension`](../data-cube-extension/README.md) is a DataCube plugin that uses this package as a
+planner for cached sources, local files and cached Iceberg tables. Its README is the guide to publishing both
+packages to a private registry and registering the plugin in a DataCube deployment.
