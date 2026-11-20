@@ -666,7 +666,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case MAP_KEYS -> writer.function("map_keys", c.args());
             case MAP_VALUES -> writer.function("map_values", c.args());
             case MAP_CONCAT -> writer.function("map_concat", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case STRPOS -> writer.function("strpos", c.args());
             case STARTS_WITH -> writer.function("starts_with", c.args());
             case ENDS_WITH -> writer.function("ends_with", c.args());

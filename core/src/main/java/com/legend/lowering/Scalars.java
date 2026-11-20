@@ -1506,6 +1506,12 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SQL_POSITION) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.STRPOS, args));
         }
+        // THE DATABASE'S OWN SUBSTRING, OVER THE ARGUMENTS AS GIVEN (A3, the engine rewrite's operation, 2026-11-19):
+        // substringAsGiven is the one call no pass rewrites (SqlFn.SUBSTRING_AS_GIVEN; SubstringClamp matches SUBSTRING
+        // alone), so the database's SUBSTRING answers the arguments as they are -- legend-engine's answer by definition
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.SUBSTRING_AS_GIVEN, args));
+        }
         // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
         // engine's RELATIONAL lowering registers it separately and ALWAYS
         // corrects it (processSubstr, "needs no flag"); so does the platform:

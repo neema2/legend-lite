@@ -867,7 +867,7 @@ public class Postgres extends AnsiSqlRenderer {
             case SPLIT_PART -> writer.function("split_part", c.args());
             case STARTS_WITH -> writer.function("starts_with", c.args());
             case STRPOS -> writer.function("strpos", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case TAN -> writer.function("tan", c.args());
             case TANH -> writer.function("tanh", c.args());
             case TIMEZONE -> writer.function("timezone", c.args());

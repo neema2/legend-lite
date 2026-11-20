@@ -238,7 +238,11 @@ class CatalogUpstreamDiffTest {
     // phases 1 guard move", and in the compat owner's session, "Okay approved", ~20:50): meta::legend::lite::sqlSubstring
     // (2 overloads) and sqlPosition (1), SQL's SUBSTRING and POSITION by name for the islands and the ###Relational
     // dynaFunctions -- upstream declares neither
-    private static final int NOT_UPSTREAM_MAX = 76;
+    // 76 -> 78 (2026-11-19, A3, the user's word ~22:20 "Yes to all three" to the guard moves for the engine opt-in,
+    // relayed by the compat owner): meta::legend::lite::substringAsGiven's two overloads, lite-INTERNAL and the
+    // compiler's own -- the database's own SUBSTRING over the arguments as given, which the legend-engine door's engine
+    // rewrite alone writes; upstream declares no such function
+    private static final int NOT_UPSTREAM_MAX = 78;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

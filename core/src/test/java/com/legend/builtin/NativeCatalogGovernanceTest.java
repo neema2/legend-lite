@@ -179,7 +179,11 @@ class NativeCatalogGovernanceTest {
         // sqlPosition, SQL's SUBSTRING and POSITION by name, which the #Cypher, #SQL and #IQ islands and the
         // ###Relational dynaFunctions write so that Pure's substring and indexOf can take Pure's meaning (register
         // S130, S134); each the database's function verbatim, no SQL moved
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 40,
+        // 40 -> 41 (2026-11-19, A3, the user's ruling ~21:10 "Yes to all three for substring", relayed by the compat
+        // owner; the reviewer's D-S1 as corrected, ca8ea4a5): substringAsGiven, the database's own SUBSTRING over the
+        // arguments as given -- lite-internal, its one producer the legend-engine door's engine rewrite, its one
+        // product claimer Scalars (spec's ClaimRegistryTest.substringAsGivensOneProductClaimerIsScalars)
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 41,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -283,4 +287,5 @@ class NativeCatalogGovernanceTest {
         u.addAll(b);
         return u;
     }
+
 }

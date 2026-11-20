@@ -1954,7 +1954,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on ClickHouse, so refused by name
             case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
                     + " code points) reached ClickHouse, whose binary collation is not measured");
-            case SUBSTRING -> writer.append("substringUTF8(").list(a).append(")");
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.append("substringUTF8(").list(a).append(")");
             case LEFT -> writer.append("leftUTF8(").list(a).append(")");
             case RIGHT -> writer.append("rightUTF8(").list(a).append(")");
             case STRPOS -> writer.append("toInt64(positionUTF8(").list(a).append("))");

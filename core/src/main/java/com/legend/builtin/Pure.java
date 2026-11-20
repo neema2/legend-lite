@@ -386,7 +386,10 @@ public final class Pure {
 
         // -- INTERNAL DESUGAR IR (invention audit 2026-08-14, per-name
         // verified against both upstream repos): emitted by lite's
-        // normalizer/lowering, no upstream counterpart — legacy-mapping
+        // normalizer/lowering -- or, for substringAsGiven alone, by the
+        // legend-engine door's engine rewrite (A3, 2026-11-19, its one
+        // producer: native-claims.tsv's row names it) -- no upstream
+        // counterpart — legacy-mapping
         // semantics, declared-type shims, and arity-disambiguating
         // renames of engine dynaFns (parseDate etc. with a format
         // arg -> *Format). NOT user-reachable: bare-name resolution
@@ -451,8 +454,23 @@ public final class Pure {
          *  length])} is the database's SUBSTRING verbatim -- a 1-based start and a length, the meaning lite's SQL,
          *  Cypher and IQ islands and the {@code ###Relational} {@code substring} dynaFunction write. Pure's own
          *  {@code substring} is 0-based and end-exclusive; the frontends say SQL's meaning by this name, so Pure's
-         *  function can take Pure's meaning (docs/records/compat-homework/A3-shape-note.md, PR1, option (a)). */
+         *  function can take Pure's meaning (docs/records/compat-homework/A3-shape-note.md, PR1, option (a)). It is
+         *  lite's one SQL meaning on every database ({@code SqlFn.SUBSTRING}: a start below 1 is raised to 1 where a
+         *  database reads it otherwise, {@code SubstringClamp}), NOT the database's own reading of any start, which
+         *  is {@link #SUBSTRING_AS_GIVEN} (2026-11-19). */
         public static final String SQL_SUBSTRING = PKG + "sqlSubstring";
+        /** THE DATABASE'S OWN SUBSTRING, OVER THE ARGUMENTS AS GIVEN (A3 of the compatibility program, the reviewed
+         *  design's operation, 2026-11-19): {@code substringAsGiven(s, start[, length])} is whatever the target
+         *  database's SUBSTRING answers for these arguments, unchanged -- a start of 0 or below, a negative length, as
+         *  that database reads them. It is NOT {@link #SQL_SUBSTRING}: that one is lite's uniform SQL meaning
+         *  ({@code SqlFn.SUBSTRING}, which {@code SubstringClamp} writes with a start below 1 raised to 1 on the
+         *  databases that read it otherwise); this one is {@code SqlFn.SUBSTRING_AS_GIVEN}, which every dialect
+         *  writes as its plain SUBSTRING and no pass rewrites. It is legend-engine's answer by definition (its
+         *  {@code processSubstring} writes the dynaFunction with Pure's arguments as given, uncorrected), so the
+         *  legend-engine door's {@code engine} rewrite is its one producer: no frontend writes it, and a user cannot
+         *  name it (a user-callable function whose answer is each database's own reading would make lite's programs
+         *  answer differently per database). docs/records/compat-homework/A3-engine-rewrite-design.md. */
+        public static final String SUBSTRING_AS_GIVEN = PKG + "substringAsGiven";
         /** SQL's POSITION, by name (A3, as {@link #SQL_SUBSTRING}): {@code sqlPosition(s, t)} is where {@code t}
          *  first occurs in {@code s}, 1-based, 0 when it does not -- the database's STRPOS verbatim, which the islands
          *  and the {@code indexOf} and {@code position} dynaFunctions write. Pure's {@code indexOf} is 0-based, -1
@@ -642,9 +660,12 @@ public final class Pure {
     /** The compiler's own natives, which only the compiler writes (PR #118 fix round, 2026-11-18, N1; the edge
      *  follow-ups' F32): a call born with its record after the name resolver ({@code compiler.spec.Calls}) -- the type
      *  check's raise, a TDS cell's text and an in-body assert's default message. A user's call to any of the three, by
-     *  any name, is refused where the user's names are resolved ({@code compiler.NameResolver}). */
+     *  any name, is refused where the user's names are resolved ({@code compiler.NameResolver}). And
+     *  {@link Lite#SUBSTRING_AS_GIVEN} (A3, 2026-11-19): the legend-engine door's {@code engine} rewrite writes it, born
+     *  resolved on the typed tree after the name resolver as these are, and a user may not name it -- an answer that is
+     *  each database's own reading would make one program answer differently per database. */
     public static final java.util.Set<String> COMPILER_OWN = java.util.Set.of(Lite.TYPE_RAISE, Lite.CELL_TEXT,
-            Lite.ASSERT_FAILED_TEXT);
+            Lite.ASSERT_FAILED_TEXT, Lite.SUBSTRING_AS_GIVEN);
 
     private static String liteLocalName(String fqn) {
         return fqn.substring(Lite.PKG.length());
@@ -666,7 +687,7 @@ public final class Pure {
                     Lite.INSTANT_IN,
                     Lite.LOCAL_IN,
                     Lite.ELEMENT_ID, Lite.IS_KIND, Lite.MIN_BY, Lite.MAX_BY, Lite.DATE_TIME_OF_TEXT, Lite.TIME_OF_TEXT,
-                    Lite.QUOTIENT, Lite.SQL_SUBSTRING, Lite.SQL_POSITION)
+                    Lite.QUOTIENT, Lite.SQL_SUBSTRING, Lite.SQL_POSITION, Lite.SUBSTRING_AS_GIVEN)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
@@ -994,6 +1015,11 @@ public final class Pure {
     public static final NativeFunctionDefinition ASSERT_FAILED_TEXT = signature("native function meta::legend::lite::assertFailedText():meta::pure::metamodel::type::String[1];");
     /** A run-time type check's failure (see {@link Lite#TYPE_RAISE}): its kind's name and the two types' paths. */
     public static final NativeFunctionDefinition TYPE_RAISE__STRING_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::typeRaise(kind:meta::pure::metamodel::type::String[1], from:meta::pure::metamodel::type::String[1], to:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    /** The database's own SUBSTRING over the arguments as given ({@link Lite#SUBSTRING_AS_GIVEN}): A3, the
+     *  legend-engine door's {@code engine} rewrite's substitute for Pure's {@code substring}, 2026-11-19. Declared before
+     *  {@link #COMPILER_OWN_IDS}, which reads them. */
+    public static final NativeFunctionDefinition SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1 = signature("native function meta::legend::lite::substringAsGiven(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::substringAsGiven(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], length:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     /** The engine id of every overload of the compiler's own natives ({@link #COMPILER_OWN}), each to its function's
      *  name -- a lookup table only, beside the declarations it is read off ({@code SignatureMangle.mangle}): the name
      *  resolver refuses a call or a reference by a signature id by it, never by cutting the user's name
@@ -1001,7 +1027,10 @@ public final class Pure {
     public static final java.util.Map<String, String> COMPILER_OWN_IDS = java.util.Map.of(
             com.legend.model.SignatureMangle.mangle(TYPE_RAISE__STRING_1__STRING_1__STRING_1), Lite.TYPE_RAISE,
             com.legend.model.SignatureMangle.mangle(CELL_TEXT__STRING_0_1), Lite.CELL_TEXT,
-            com.legend.model.SignatureMangle.mangle(ASSERT_FAILED_TEXT), Lite.ASSERT_FAILED_TEXT);
+            com.legend.model.SignatureMangle.mangle(ASSERT_FAILED_TEXT), Lite.ASSERT_FAILED_TEXT,
+            com.legend.model.SignatureMangle.mangle(SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1), Lite.SUBSTRING_AS_GIVEN,
+            com.legend.model.SignatureMangle.mangle(SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1),
+            Lite.SUBSTRING_AS_GIVEN);
     /** A SQL island's inline view (see {@link Lite#INLINE_VIEW}): types as its relation, its windows a boundary. */
     public static final NativeFunctionDefinition INLINE_VIEW__RELATION_1 = signature("native function meta::legend::lite::inlineView<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     /** A recursion over a relation ({@link Lite#RECURSE}): the base's rows and, repeatedly, the step's over the previous
@@ -2646,6 +2675,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_POSITION = com.legend.model.FunctionId.ofAll(SQL_POSITION__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_SUBSTRING = com.legend.model.FunctionId.ofAll(SQL_SUBSTRING__STRING_1__INTEGER_1, SQL_SUBSTRING__STRING_1__INTEGER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_STAGE = com.legend.model.FunctionId.ofAll(STAGE__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SUBSTRING_AS_GIVEN = com.legend.model.FunctionId.ofAll(SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1, SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(TIME_OF_TEXT__STRING_0_1);
