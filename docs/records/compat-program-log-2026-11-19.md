@@ -3367,3 +3367,11 @@ who confirms or changes phases 1-3.
   - The setting's deletion goes on top. The header and the WARNING log line go with it.
   - The ETA was 3 hours. It is cut to about 2 hours to the code push plus the judges' single //gates:local: B1-R runs only its fast lanes, and the docs follow as a separate .md-only push during the judges' gate.
   - The reviewer approved `317204773`.
+- **~08:25 UTC, BigQuery's final run on `317204773`** (sibling 4, measure only):
+  - **Channel A:** all five suites pass. 0 per-testcase differences against db77ca88. 3 gained: the three BigQuery `indexOf` rows, BigQuery's share of the predicted 18. 0 lost. No substring test newly fails.
+  - **Channel B BOTH:** essential and unclassified fail on 19 tests, the same 19 that fail on main `8eea8fa1` (measured).
+    - It is a NEW main regression, not the batch's: BigQuery "Column 4 in UNION ALL has incompatible types: INT64, STRING". The tests are 13 date, 3 parseDate and 3 coalesce.
+    - It landed between `981a24b87` (11-13, all passed) and `8eea8fa1`.
+    - Sibling 4 is bisecting it on main, measure only. It goes to the product track.
+  - **LITE+DATABASE:** not a gated lane, so no ledger. LITE+BOTH is requested on BigQuery.
+  - **The raise probe:** 4 wrong, byte-identical to main (Q1 Float, numbers-q1 not merged).

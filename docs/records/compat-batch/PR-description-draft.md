@@ -131,4 +131,5 @@ approved with its records on `claude/compat-review`; the combination review is o
   - a packaged ModelChainConnection not reaching the typed context;
   - H2's `weekOfYear` following the JVM locale;
   - a draws-afresh value under a multiply-written operand;
-  - the nine dead `AnsiSqlRenderer` hooks.
+  - the nine dead `AnsiSqlRenderer` hooks;
+  - a BigQuery channel-B regression already on `main` (19 tests, UNION ALL INT64/STRING), being bisected.
