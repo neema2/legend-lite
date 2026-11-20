@@ -5,7 +5,7 @@ raise.atOutOfBounds	differs	-$.errorType, $.message, +$.trace
 raise.toOneOverMany	differs	-$.errorType, $.message, +$.trace
 raise.sqrtOfNegative	same	
 raise.parseInteger	differs	$.message, +$.trace
-raise.toOneOfEmpty	differs	status 500/200, -$.code, -$.message, -$.status, +$.builder, +$.result
+raise.toOneOfEmpty	differs	$.builder.columns[0].relationalType
 cell.dateTimeCoarse	same	
 cell.dateTimeSubMicro	same	
 cell.float	differs	$.result.rows[0].values[0]
@@ -22,6 +22,7 @@ plan.raise.toOneOverMany	differs	-$.errorType, $.message, +$.trace
 activities.raise.sqrtOfNegative	differs	$[0].sql
 plan.raise.sqrtOfNegative	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
 plan.raise.parseInteger	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
+activities.raise.toOneOfEmpty	differs	$[0].sql
 plan.raise.toOneOfEmpty	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
 activities.cell.dateTimeCoarse	differs	$[0].sql
 plan.cell.dateTimeCoarse	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
@@ -37,4 +38,3 @@ plan.cell.emptyIf	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.root
 activities.cell.strictDate	differs	$[0].sql
 plan.cell.strictDate	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
 activities.value	extra	no golden of this name
-activities.raise.toOneOfEmpty	extra	no golden of this name

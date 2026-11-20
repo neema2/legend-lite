@@ -70,6 +70,7 @@ final class PureMeaningRewrite {
             case SUBSTRING_2, SUBSTRING_3 -> EngineSubstitutes.substring(ctx, flagged);
             case INDEX_OF_2 -> EngineSubstitutes.indexOf(ctx, flagged);
             case CORRECTED_SUBSTRING_2, CORRECTED_SUBSTRING_3, SUBSTR_2, SUBSTR_3 -> EngineSubstitutes.substr(ctx, flagged);
+            case TO_ONE_OF_EMPTY -> EngineSubstitutes.toOne(ctx, flagged);
             case UNVERIFIED -> throw new IllegalStateException("an unverified call is refused before it is rewritten");
         };
     }

@@ -59,6 +59,17 @@ import java.util.Set;
  * short and per database (asked of legend-engine 4.145.0 on H2 and DuckDB, 2026-11-20:
  * docs/records/compat-homework/a3-engine-probes/substr/). Those four forms are flagged too.
  *
+ * <p>{@code toOne} of an operand that is always empty is flagged too (the user's ruling of 2026-11-20 ~13:10, "toOne yes
+ * needs to be fixed for engine"; register S384). legend-pure raises "Cannot cast a collection of size 0 to multiplicity
+ * [1]", and so does lite. legend-engine sends a store-bound {@code toOne} to the database as processNoOp, which ignores
+ * the function and writes its operand alone ({@code pureToSQLQuery.pure:3133-3137}, registered at {@code :10793}), and
+ * it writes an empty collection as the SQL null literal ({@code processValue}, {@code :714}), so the database answers
+ * null (asked of legend-engine 4.145.0 on H2 and DuckDB: {@code select null as "o"}, the oracle's
+ * {@code raise.toOneOfEmpty}). A {@code toOne} of a value that may be empty or many is not flagged: lite already lets a
+ * value read from a row through unchecked, as processNoOp does, and a literal list of two or more is refused by
+ * legend-engine at planning with legend-pure's sentence (the oracle's {@code raise.toOneOverMany}), where lite raises
+ * in the database.
+ *
  * <p>This check finds each such call; the door rewrites it ({@link PureMeaningRewrite}), or refuses the request by
  * name where legend-engine's answer is not checked or the call cannot be reached.
  *
@@ -104,7 +115,7 @@ public final class PureMeaningCheck {
     private PureMeaningCheck() {
     }
 
-    /** A flagged call's kind, at most eight, in the order a refusal names them. */
+    /** A flagged call's kind, at most nine, in the order a refusal names them. */
     enum Code {
         SUBSTRING_2("substring/2"),
         SUBSTRING_3("substring/3"),
@@ -115,6 +126,9 @@ public final class PureMeaningCheck {
         SUBSTR_2("substr/2"),
         SUBSTR_3("substr/3"),
         INDEX_OF_2("indexOf/2"),
+        /** {@code toOne} of an operand that is always empty: legend-engine's processNoOp writes the empty literal's
+         *  SQL null, where lite raises legend-pure's size error (register S384) */
+        TO_ONE_OF_EMPTY("toOne(empty)"),
         /** a call the check could not follow, never counted clean */
         UNVERIFIED("unverified");
 
@@ -159,7 +173,7 @@ public final class PureMeaningCheck {
         }
 
         /** Each code present and its count, in {@link Code}'s order, e.g. {@code substring/3=2, indexOf/2=1,
-         *  unverified=1}: what a refusal names beside its calls. At most eight codes, so bounded by construction. */
+         *  unverified=1}: what a refusal names beside its calls. At most nine codes, so bounded by construction. */
         String counts() {
             Map<Code, Integer> counts = new EnumMap<>(Code.class);
             for (Site s : sites) {
@@ -189,6 +203,10 @@ public final class PureMeaningCheck {
 
     private static final FunctionId STRING_INDEX_OF_2 =
             FunctionId.of(com.legend.builtin.Pure.INDEX_OF__STRING_1__STRING_1);
+
+    /** {@code toOne}'s one-argument overload, the one legend-engine sends to the database as processNoOp
+     *  ({@code pureToSQLQuery.pure:10793}); its message overload has no SQL there and is not flagged. */
+    private static final FunctionId TO_ONE_1 = FunctionId.of(com.legend.builtin.Pure.TO_ONE__T_MANY);
 
     /** The query's flagged calls. {@code runtime} is the runtime the route runs it on (the request's or the query's
      *  own), {@code requestMapping} a mapping the request names beside the query (the test-data routes'); either may
@@ -398,7 +416,8 @@ public final class PureMeaningCheck {
             }
         }
 
-        /** A native call: the String substring (corrected or not), substr, the 2-argument String indexOf. */
+        /** A native call: the String substring (corrected or not), substr, the 2-argument String indexOf, and
+         *  {@code toOne} of an operand that is always empty. */
         void call(TypedNativeCall nc, Set<Feature> features, String where) {
             FunctionId id = nc.callee().id();
             if (com.legend.builtin.Pure.AT_STRING_SUBSTRING.contains(id)) {
@@ -413,7 +432,15 @@ public final class PureMeaningCheck {
                 sites.add(new Site(nc.args().size() == 2 ? Code.SUBSTR_2 : Code.SUBSTR_3, where, nc.pos(), own(nc)));
             } else if (STRING_INDEX_OF_2.equals(id)) {
                 sites.add(new Site(Code.INDEX_OF_2, where, nc.pos(), own(nc)));
+            } else if (TO_ONE_1.equals(id) && alwaysEmpty(nc.args().get(0))) {
+                sites.add(new Site(Code.TO_ONE_OF_EMPTY, where, nc.pos(), own(nc)));
             }
+        }
+
+        /** Whether the typer gives {@code operand} no value at all ({@code [0]}: {@code []}, {@code []->cast(@T)}). */
+        private static boolean alwaysEmpty(TypedSpec operand) {
+            return operand.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                    && b.upper() != null && b.upper() == 0;
         }
 
         /** The call itself when the walk is in the query's own tree; null in a body it followed. */

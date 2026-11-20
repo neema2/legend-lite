@@ -164,6 +164,29 @@ seven-family "regression" that does not exist. It cost an hour and a false
 check the flag before reading the scoreboard. Prefer `tools/allgates.sh`,
 which cannot make this mistake.
 
+## The ord registers emptied, 2026-11-20 -- a sorted chain with unmappable keys compared in sequence (the compat program's next item 3)
+
+The user, 2026-11-20 ~13:10: "Yes need to do result order next" (after "Result order can't match why").
+
+**What changed:** the referee (`spec/.../harness/RefereeVerify`) compares a sorted chain whose sort keys the compared
+output does not carry IN SEQUENCE before anything else. Equal rows in equal order prove legend-engine's SQL and lite's
+answer the same order, a tie's included; the test is tagged `ordered-in-sequence` (printed, not pinned). Only a sorted
+chain whose two sides DIFFER in sequence keeps the multiset compare, tagged `ordered-keys-unmappable` and pinned by these
+registers: a difference there may be a tie's, which no visible key tells from a wrong order.
+
+**The ord registers:**
+- H2 7 -> 0, DuckDB 8 -> 0 (a down move): every line was a test whose two sides are equal in sequence -- A2's four on
+  both lanes and DuckDB's `testSortByLambdaDeepOptional`, and the three older lines on both
+  (`testSortByLambdaWithComplexExpr`, `testLowerProjectColsNotEliminatedWithSort`, `testRestrictWithPostProcessor`).
+- Measured by `//spec:corpus_h2` and `//spec:corpus_duckdb` on the change: the census printed `ordered-in-sequence` for
+  those 7 and 8 tests, and the ord pin reported them GAINED and nothing LOST; no other roster or register moved.
+- Why this is enough for these tests: in each, the sort keys are distinct, or the rows that tie are identical in the
+  output (`John`, `John`), so a correct order on both sides is one sequence. Seven of the eight also assert the order
+  of their own values (the ordered lists of `testSortBy*`, `testLowerProjectColsNotEliminatedWithSort`'s string);
+  `testRestrictWithPostProcessor` asserts only its SQL text, and its row order is now checked here.
+- Not built: the database computing the hidden sort key beside our rows (the earlier proposal). It would tell a tie's
+  difference from a wrong order, and no test in the corpus needs that today; a future one shows up in these registers.
+
 ## A2 of the compatibility program, 2026-11-19 -- the corpus rosters' and registers' written reasons (branch `claude/compat-a2-printers`)
 
 Stage A ratified by the user 2026-11-19. A2 deletes legend-engine's SQL text printers (`EngineStyleH2`, `EngineStyleDB2`,

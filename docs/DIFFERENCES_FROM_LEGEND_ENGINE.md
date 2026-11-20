@@ -123,13 +123,22 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   printed `52` where the expected answer is `52.0`. Evidence: H8 (j), (j.4).
 - **Register:** S20, S9.
 
-### 5. `toOne()` of an empty collection raises
-- **legend-engine** answers `null`: it writes no check.
-- **lite raises an error**, as Pure defines ("Cannot cast a collection of size 0 to multiplicity [1]"). Today it is
-  worded `Raised: SIZE_NOT_MULTIPLICITY`; Pure's words come with stage B's error formatter.
-- **To get legend-engine's answer:** `$x->first()`.
+### 5. `toOne()` of an empty collection raises on lite's own doors
+- **legend-engine** answers `null`: it writes no check (its `processNoOp`), and an empty collection is SQL's `null`.
+- **lite raises an error** on its own doors, as Pure defines ("Cannot cast a collection of size 0 to multiplicity
+  [1]"). Today it is worded `Raised: SIZE_NOT_MULTIPLICITY`; Pure's words come with stage B's error formatter.
+- **At legend-engine's door** (the user, 2026-11-20 ~13:10, "toOne yes needs to be fixed for engine"), a database-side
+  `toOne()` of a value that is always empty (`[]`, `[]->cast(@Integer)`) answers legend-engine's `null` on H2 and
+  DuckDB; on a database where legend-engine's answer is not yet checked, the request is refused by name. A `toOne()` of
+  a value read from a row already answers `null` on both doors (lite lets a row's value through unchecked, as
+  legend-engine does). Two cases keep lite's raise at that door:
+  - a literal list of two or more, which legend-engine refuses at planning with Pure's sentence;
+  - a value computed in the query that is empty at run time but not always empty. legend-engine's answer for it is not
+    yet asked.
+- **To get legend-engine's answer on lite's own doors:** `$x->first()`.
 - **When:** today.
-- **Measured:** the pure/v1 net's `raise.toOneOfEmpty`, against legend-engine's own answer (B1-R's oracle).
+- **Measured:** the pure/v1 net's `raise.toOneOfEmpty`, against legend-engine's own answer (B1-R's oracle): at
+  legend-engine's door both answer `null`.
 - **Register:** S384 (provisional).
 
 ### 6. `isNumeric`, `parseDecimal`, `parseJson` on unusual input

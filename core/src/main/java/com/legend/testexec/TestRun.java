@@ -41,8 +41,9 @@ final class TestRun {
          *  removed); null where the verdict has no wrapper. In the group's order. */
         void verdict(TestPlan.Verdict verdict, @Nullable List<Object> row) throws IOException;
 
-        /** The group's fused statement ran ({@code rejected} null) or the database rejected it (the run then fails by
-         *  name, nothing retried). Once per group that has one, before its verdicts. */
+        /** The group's fused statement ran ({@code rejected} null) or the database rejected it: the judges then judge
+         *  its segment on the rejection, and the run fails with it, nothing retried, no verdict of the group handed a
+         *  row. Once per group that has one, before its verdicts. */
         void fused(TestPlan.Verdicts group, @Nullable DataError rejected) throws IOException;
 
         /** The HOST judge's sides for {@code verdict}: each base side's typed rows in the base's order. */
@@ -301,16 +302,15 @@ final class TestRun {
                     }
                     judges.fused(group, null);
                 } catch (DataError e) {
-                    judges.fused(group, e);
                     // the rejection is its group's first verdict's failure, as the host's side batch's is (the
-                    // compatibility program's A4 gate, 2026-11-19, G2): each verdict told it has no row, so its root
-                    // loop raises the database's error at the first root that reads one -- reported as that assert's
-                    // failure -- and the body ends with the database's own text, as the host's does (until then the
-                    // run failed here with the verdicts' names after it, and no assert was reported: under lite's
-                    // rules the judges disagreed, PCT's testAdjustBy*BigNumber); nothing is run in its place
-                    for (TestPlan.Verdict each : group.verdicts()) {
-                        judges.verdict(each, null);
-                    }
+                    // compatibility program's A4 gate, 2026-11-19, G2): handed to the judges, which judge its segment at
+                    // once -- its root loop raises the database's error at the first root that reads a row, reported as
+                    // that assert's failure -- and the body ends with the database's own text, as the host's does (until
+                    // then the run failed here with the verdicts' names after it, and no assert was reported: under
+                    // lite's rules the judges disagreed, PCT's testAdjustBy*BigNumber); nothing is run in its place.
+                    // Since 2026-11-20 (the user's "Yes remove mutable next") the judges get it as an argument, where
+                    // each verdict was handed no row and the segment's run held the rejection until the next one.
+                    judges.fused(group, e);
                     throw e;
                 }
             }

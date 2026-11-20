@@ -90,40 +90,33 @@ public final class RootLoops {
             }
         }
 
-        /** The runner's word on one of the segment's fused statements: sent, or rejected -- counted here, and a
-         *  rejection held as the failure of the first root that reads a row (the host's side batch's rule, 2026-11-19);
-         *  nothing retried another way (P1.2, G7, 2026-11-07). */
+        /** The runner's word on one of the segment's fused statements: sent, or rejected -- counted here; nothing
+         *  retried another way (P1.2, G7, 2026-11-07). A rejection is not held: the caller hands it to
+         *  {@link #judgeRejected} at once (the user, 2026-11-20 ~13:10, "Yes remove mutable next"). */
         public void fused(com.legend.error.@com.legend.base.Nullable DataError rejected) {
             counted();
             if (rejected == null) {
                 Census.inc(Census.Key.VERDICT_FUSED);
             } else {
                 Census.verdictFallback(rejected, loop.fragments());
-                if (this.rejected == null) {
-                    this.rejected = rejected;
-                }
             }
         }
 
-        /** The database's rejection of one of the segment's fused statements, or null: the first root that reads a row
-         *  raises it at its turn. */
-        private com.legend.error.@com.legend.base.Nullable DataError rejected;
-
-        /** Whether one of the segment's fused statements was rejected: the segment is judged at once, its later groups
+        /** The segment judged at once on the database's rejection of one of its fused statements: its later groups are
          *  never sent (a fused group starts at each verdict that may raise, VerdictBatch: the compatibility owner's
-         *  (b1), 2026-11-19), so the roots with rows are judged and the first that reads none raises the rejection. */
-        public boolean rejected() {
-            return rejected != null;
-        }
-
-        /** The held rejection raised, where one was held: where the judged segment raised none, the body fails with the
-         *  database's error, a rejected fused statement's rule (PR #127's review, 2026-11-19, the owner's ruling) -- not
-         *  reached by any plan: judge reads every member's row, and a member read with no row raises it first. */
-        public void raiseRejection() {
-            com.legend.error.DataError held = rejected;
-            if (held != null) {
-                throw held;
+         *  (b1), 2026-11-19), so the roots with rows are judged in body order and the first that reads none raises
+         *  {@code rejected}, as the host's side batch raises it at its first verdict's (2026-11-19). Never returns:
+         *  where every root held, {@code rejected} is raised whole, the body failing with the database's error (PR
+         *  #127's review, 2026-11-19, the owner's ruling) -- not reached by any plan, since a rejected group's verdicts
+         *  are members and a member read with no row raises it first. The rejection is this call's argument, never
+         *  the run's state (until 2026-11-20 a field set by {@link #fused} and read here). */
+        public void judgeRejected(com.legend.error.DataError rejected, @com.legend.base.Nullable AssertListener l,
+                @com.legend.base.Nullable SideReader reader, boolean messages, Judge judge) {
+            counted();
+            for (RootLoop.Root r : loop.roots()) {
+                root(r, l, reader, messages, judge, rejected);
             }
+            throw rejected;
         }
 
         /** The row the runner read for {@code verdict} (null where none: a verdict with no statement); the root loop
@@ -153,7 +146,7 @@ public final class RootLoops {
                 boolean messages, Judge judge) {
             counted();
             for (RootLoop.Root r : loop.roots()) {
-                root(r, l, reader, messages, judge);
+                root(r, l, reader, messages, judge, null);
             }
         }
 
@@ -167,12 +160,14 @@ public final class RootLoops {
                         + " roots");
             }
             counted();
-            root(loop.roots().get(root), l, reader, messages, judge);
+            root(loop.roots().get(root), l, reader, messages, judge, null);
         }
 
-        /** One root judged at its turn: its verdict to the listener, its failure raised. */
+        /** One root judged at its turn: its verdict to the listener, its failure raised; {@code rejected} the database's
+         *  rejection of one of the segment's fused statements where the segment is judged on it, else null. */
         private void root(RootLoop.Root r, @com.legend.base.Nullable AssertListener l,
-                @com.legend.base.Nullable SideReader reader, boolean messages, Judge judge) {
+                @com.legend.base.Nullable SideReader reader, boolean messages, Judge judge,
+                com.legend.error.@com.legend.base.Nullable DataError rejected) {
             RuntimeException failure = null;
             boolean reported = true;
             // whether a row of this root was judged (or its refusal counted): the verdict census's own fact for
@@ -189,7 +184,7 @@ public final class RootLoops {
                             // the row's turn since hole 5 of 2026-11-08: deleted with the row's field, A4 of the
                             // compatibility program, stage A ratified by the user 2026-11-19)
                             spoke = true;
-                            row(p, judge);
+                            row(p, judge, rejected);
                         }
                         case RootLoop.Judged j -> {
                             // a verdict decided at planning, counted at its turn as a row is at its judgment
@@ -243,13 +238,12 @@ public final class RootLoops {
         /** {@code p} judged: its row (a member the dialect refused at planning raises its refusal, nothing sent).
          *  (A row's ruled comparison decided at planning raised here where the generic row failed until A4 of the
          *  compatibility program, stage A ratified by the user 2026-11-19.) */
-        private void row(RootLoop.Row p, Judge judge) {
+        private void row(RootLoop.Row p, Judge judge, com.legend.error.@com.legend.base.Nullable DataError rejected) {
             List<Object> row = p.verdict() == RootLoop.NO_VERDICT ? null : rows.get(p.verdict());
-            com.legend.error.DataError fusedRejected = rejected;
-            if (row == null && fusedRejected != null && p.verdict() != RootLoop.NO_VERDICT) {
+            if (row == null && rejected != null && p.verdict() != RootLoop.NO_VERDICT) {
                 // the segment's fused statement was rejected: its database error is this root's failure, raised at its
                 // turn as the host's side batch raises it at its first verdict's
-                throw fusedRejected;
+                throw rejected;
             }
             if (row == null) {
                 // a member the dialect cannot spell, refused at planning: raised at its place, nothing sent; any other

@@ -343,6 +343,43 @@ class PureMeaningEngineTest {
         assertTrue(puresPlan(ZERO_START, cut("substr(1, 3)")).contains("case"));
     }
 
+    // ---- toOne of an operand that is always empty (register S384) ---------------------------------------------------
+
+    private static final String TO_ONE_OF_EMPTY = "|" + PureMeaningCheckTest.TABLE + "->sort(~ID->ascending())->limit(1)"
+            + "->extend(~o: r|[]->cast(@Integer)->toOne())->select(~[o])->from(t::RT)";
+
+    /** legend-engine's null (asked of legend-engine 4.145.0 on H2 and DuckDB: {@code select null as "o"}, the oracle's
+     *  {@code raise.toOneOfEmpty}), run with the rewritten query: trustOne, the core's toOne with no check, in toOne's
+     *  place. Lite's own plan of the query as written raises legend-pure's size error. */
+    @Test
+    void aToOneOfEmpty_legendEnginesNull() {
+        Recording run = new Recording();
+        LiteV1Api.Answer a = execute(TO_ONE_OF_EMPTY, run);
+        assertEquals(200, a.status(), a.json());
+        assertTrue(a.json().contains("\"rows\" : [{\"values\": [null]}]"), a.json());
+        java.util.List<com.legend.model.FunctionId> ids = new java.util.ArrayList<>();
+        for (com.legend.compiler.spec.typed.TypedSpec s : run.handed.get(0).body()) {
+            natives(s, ids);
+        }
+        assertTrue(ids.stream().anyMatch(com.legend.builtin.Pure.AT_LEGEND_LITE_TRUST_ONE::contains), ids.toString());
+        assertTrue(ids.stream().noneMatch(com.legend.model.FunctionId.of(com.legend.builtin.Pure.TO_ONE__T_MANY)::equals),
+                ids.toString());
+        // lite's own plan raises at a planned site (its marker, LG#n)
+        assertTrue(puresPlan(MODEL, TO_ONE_OF_EMPTY).contains("lg#"), puresPlan(MODEL, TO_ONE_OF_EMPTY));
+    }
+
+    /** On a database where legend-engine's answer is not yet checked, refused by name, as every flagged call is. */
+    @Test
+    void aToOneOfEmpty_onADatabaseNotYetChecked_isRefusedByName() {
+        LiteV1Api.Runner never = (query, runtime, output) -> {
+            throw new AssertionError("a refused request is never run");
+        };
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null,
+                body(PureMeaningCheckTest.UNCHECKED, TO_ONE_OF_EMPTY), never, LiteV1Api.Models.COMPILED);
+        assertEquals(500, a.status(), a.json());
+        assertTrue(a.json().contains("toOne(empty)") && a.json().contains("is not yet checked on Postgres"), a.json());
+    }
+
     // ---- a statement that is not store-bound keeps legend-pure's meaning ---------------------------------------------
 
     /** legend-engine computes a store-free let on the host, before the query, with legend-pure's meaning (H16's probe),

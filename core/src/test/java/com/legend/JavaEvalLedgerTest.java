@@ -1904,7 +1904,9 @@ class JavaEvalLedgerTest {
                             // pure-meaning detector at those routes -- a reading of the typed tree (which calls of the
                             // String substring and indexOf legend-engine would send to the database); it computes no
                             // value and changes no query; the door rewrites what it finds, with no setting since the
-                            // user's ruling of 2026-11-20 ~07:55 (claude/compat-program 25ede64f §1)
+                            // user's ruling of 2026-11-20 ~07:55 (claude/compat-program 25ede64f §1); since 2026-11-20
+                            // (the user's ~13:10, "toOne yes needs to be fixed for engine") it also reads which toOne
+                            // calls have an operand the typer gives no value, a multiplicity read, no value met
                             "PureMeaningCheck.java",
                             // 2026-11-19, A3's engine rewrite (the user's ruling of ~20:05, then an opt-in, the door's
                             // one answer since 2026-11-20 ~07:55; the design approved to build by the independent reviewer; this row ruled by the
