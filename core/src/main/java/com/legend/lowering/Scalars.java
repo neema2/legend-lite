@@ -1488,49 +1488,13 @@ final class Scalars {
         }
         // (the DuckDB start-clamp stays SubstringClamp, that dialect's own rewrite pass over SqlFn.SUBSTRING)
         // A3 of the compatibility program (piece 2, 2026-11-19; the user's D1, "Pure's way, LOUD, no translator";
-        // register S130): substring is PURE's meaning on every road -- 0-based, end-exclusive, the corrected rule --
-        // with or without CORRECT_SQL_SUBSTRING_INDEXING; the islands and the ###Relational dynaFunctions say SQL's
-        // SUBSTRING by name (sqlSubstring, above), and the legend-engine door marks or refuses a store-routed call
-        // Out of range it RAISES as legend-pure does (register S383): Java's String.substring refuses a start below 0,
-        // an end past the length and an end before the start (the 1-argument form's end is the length). Each
-        // condition is the database's, over the row's text; a condition the literal indexes alone decide is folded
-        // away (a fact fixed by the program's constants, never row data), so substring(s, 0) carries no guard
+        // register S130, S383): substring is PURE's meaning on every road -- 0-based, end-exclusive, raising out of
+        // range -- one rule, FeatureRules.PURE_SUBSTRING, with or without CORRECT_SQL_SUBSTRING_INDEXING (the flag
+        // selects the same rule) and for substr, its synonym; the islands and the ###Relational dynaFunctions say SQL's
+        // SUBSTRING by name (sqlSubstring, below), and the legend-engine door marks or refuses a store-routed call
         for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTRING) {
-            RULES.put(f, (StyledRule) (n, args, styled) -> {
-                SqlExpr value = FeatureRules.CORRECTED_SUBSTRING.apply(n, args);
-                SqlExpr start = args.get(1);
-                SqlExpr length = SqlExpr.Call.of(SqlFn.LENGTH, args.get(0));
-                Long s0 = start instanceof SqlExpr.IntLit il ? il.value() : null;
-                List<SqlExpr> out = new java.util.ArrayList<>();
-                if (s0 == null || s0 < 0) {
-                    out.add(SqlExpr.Call.of(SqlFn.LESS, start, new SqlExpr.IntLit(0)));
-                }
-                SqlExpr end;
-                if (args.size() == 3) {
-                    end = args.get(2);
-                    Long e0 = end instanceof SqlExpr.IntLit il ? il.value() : null;
-                    out.add(SqlExpr.Call.of(SqlFn.GREATER, end, length));
-                    if (s0 == null || e0 == null || e0 < s0) {
-                        out.add(SqlExpr.Call.of(SqlFn.LESS, end, start));
-                    }
-                } else {
-                    end = length;
-                    if (s0 == null || s0 > 0) {
-                        out.add(SqlExpr.Call.of(SqlFn.GREATER, start, length));
-                    }
-                }
-                if (out.isEmpty()) {
-                    return value;
-                }
-                SqlExpr cond = out.get(0);
-                for (int i = 1; i < out.size(); i++) {
-                    cond = SqlExpr.Call.of(SqlFn.OR, cond, out.get(i));
-                }
-                return guarded(cond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SUBSTRING_OUT_OF_RANGE,
-                        List.of(start, end, length)), value, styled);
-            });
+            RULES.put(f, FeatureRules.PURE_SUBSTRING);
         }
-        // (the same call under CORRECT_SQL_SUBSTRING_INDEXING: FeatureRules)
         // SQL's SUBSTRING and POSITION BY NAME (A3 of the compatibility program, PR1, 2026-11-19): the islands and the
         // ###Relational dynaFunctions write the database's meaning through these two lite-internal natives, each the
         // database's function verbatim -- the same calls the plain substring and String indexOf rules emit today, so
@@ -1543,11 +1507,12 @@ final class Scalars {
         }
         // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
         // engine's RELATIONAL lowering registers it separately and ALWAYS
-        // corrects it (processSubstr, "needs no flag"); so does the platform:
-        // a native with the corrected rule, never the prelude's body (which
-        // would inline to substring and lose the name before lowering).
+        // corrects it (processSubstr, "needs no flag"); the platform keeps it
+        // a native, never the prelude's body (which would inline to substring
+        // and lose the name before lowering), with substring's one rule: Pure's
+        // meaning, raising out of range (S383; the A3 review's P2-M1, 2026-11-20)
         for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTR) {
-            RULES.put(f, FeatureRules.CORRECTED_SUBSTRING);
+            RULES.put(f, FeatureRules.PURE_SUBSTRING);
         }
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_STRING_INDEX_OF, Pure.AT_COLLECTION_INDEX_OF)) {
             RULES.put(f, (n, args) -> {
@@ -1578,11 +1543,21 @@ final class Scalars {
                 }
                 if (args.size() == 3) {
                     // PURE's indexOf(s, sub, from) (A3, piece 2; register S134): Java's String.indexOf(sub, from) --
-                    // a 0-based from (below 0 searches from 0), a 0-based hit, -1 on a miss. Search the suffix that
-                    // starts at from, re-base a hit
-                    SqlExpr from0 = args.get(2) instanceof SqlExpr.IntLit il
-                            ? new SqlExpr.IntLit(Math.max(il.value(), 0))
-                            : SqlExpr.Call.of(SqlFn.GREATEST, args.get(2), new SqlExpr.IntLit(0));
+                    // a 0-based from clamped to [0, the length] (a from past the end finds the empty text at the
+                    // length, and nothing else), a 0-based hit, -1 on a miss. Search the suffix that starts at from,
+                    // re-base a hit. The upper clamp is the database's (the text's length) and only an empty search
+                    // can tell it: it is folded away for a from no literal above 0 and for a non-empty literal search
+                    // (facts of the program's constants; the A3 review's P2-S2, 2026-11-20)
+                    SqlExpr from = args.get(2);
+                    Long f0 = from instanceof SqlExpr.IntLit il ? il.value() : null;
+                    boolean clampAtLength = (f0 == null || f0 > 0)
+                            && !(args.get(1) instanceof SqlExpr.StringLit sl && !sl.value().isEmpty());
+                    SqlExpr from0 = f0 != null
+                            ? new SqlExpr.IntLit(Math.max(f0, 0))
+                            : SqlExpr.Call.of(SqlFn.GREATEST, from, new SqlExpr.IntLit(0));
+                    if (clampAtLength) {
+                        from0 = SqlExpr.Call.of(SqlFn.LEAST, from0, SqlExpr.Call.of(SqlFn.LENGTH, args.get(0)));
+                    }
                     SqlExpr from1 = from0 instanceof SqlExpr.IntLit il0
                             ? new SqlExpr.IntLit(il0.value() + 1)
                             : SqlExpr.Call.of(SqlFn.PLUS, from0, new SqlExpr.IntLit(1));

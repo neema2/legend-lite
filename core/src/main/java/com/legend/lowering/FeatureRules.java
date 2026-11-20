@@ -22,9 +22,10 @@ import java.util.Set;
  * typed tree. Consumers by flag:
  * <ul>
  *   <li>CORRECT_SQL_SUBSTRING_INDEXING — a DOCUMENTED NO-OP since A3 of the
- *       compatibility program (2026-11-19; register S130): {@code substring}'s
- *       plain rule is Pure's corrected one with or without the flag (Scalars),
- *       so the rule the flag selects here is the same; the registration stands
+ *       compatibility program (2026-11-19; register S130, S383): the flag
+ *       selects {@link #PURE_SUBSTRING}, the very rule {@code substring} and
+ *       {@code substr} have without it (Scalars), its out-of-range raise
+ *       included (the A3 review's P2-M1, 2026-11-20); the registration stands
  *       only so a request that sets the flag is accepted, until B5 deletes this
  *       machinery;</li>
  *   <li>LEGACY_SQL_NULL_UNSAFE_EQUALS — the Lowerer's equality form
@@ -51,14 +52,9 @@ final class FeatureRules {
 
     /** Pure's 0-based, end-exclusive indexes → SQL's 1-based start and length
      *  (the engine's correctSubstrIndices: a literal index folds — substr(s, 4, 9)
-     *  → substring(s, 5, 5) — a computed one becomes plus / minus on the tree).
-     *  ALWAYS the rule for {@code substr} (Scalars; the engine's processSubstr
-     *  "is always corrected and needs no flag" — PR #5045) and, since A3 of the
-     *  compatibility program (2026-11-19), for {@code substring} too, with or
-     *  without CORRECT_SQL_SUBSTRING_INDEXING (legend-engine's processSubstring
-     *  keeps the flag, "correcting substring unconditionally would change the
-     *  results of existing queries"; lite answers Pure's meaning, S130). */
-    static final Scalars.Rule CORRECTED_SUBSTRING = (n, args) -> {
+     *  → substring(s, 5, 5) — a computed one becomes plus / minus on the tree):
+     *  the in-range value of {@link #PURE_SUBSTRING}. */
+    private static final Scalars.Rule CORRECTED_SUBSTRING = (n, args) -> {
         SqlExpr str = args.get(0);
         SqlExpr start = args.get(1);
         SqlExpr start1 = start instanceof SqlExpr.IntLit s
@@ -74,9 +70,58 @@ final class FeatureRules {
         return new SqlExpr.Call(SqlFn.SUBSTRING, List.of(str, start1, length));
     };
 
+    /** PURE'S substring, the one rule for {@code substring} (with or without
+     *  CORRECT_SQL_SUBSTRING_INDEXING) and {@code substr}, its synonym in Pure
+     *  (A3 of the compatibility program, 2026-11-19; the user's D1, "Pure's way,
+     *  LOUD, no translator"; register S130): 0-based and end-exclusive
+     *  ({@link #CORRECTED_SUBSTRING}), and out of range it RAISES as legend-pure
+     *  does (register S383) -- Java's String.substring refuses a start below 0,
+     *  an end past the length and an end before the start (the 1-argument
+     *  form's end is the length). Each condition is the database's, over the
+     *  row's text; a condition the literal indexes alone decide is folded away
+     *  (a fact fixed by the program's constants, never row data), so
+     *  substring(s, 0) carries no guard. legend-engine's processSubstring keeps
+     *  the flag ("correcting substring unconditionally would change the results
+     *  of existing queries") and its processSubstr "is always corrected and
+     *  needs no flag" (PR #5045); neither raises -- the legend-engine door marks
+     *  or refuses a store-routed call. */
+    static final Scalars.StyledRule PURE_SUBSTRING = (n, args, styled) -> {
+        SqlExpr value = CORRECTED_SUBSTRING.apply(n, args);
+        SqlExpr start = args.get(1);
+        SqlExpr length = SqlExpr.Call.of(SqlFn.LENGTH, args.get(0));
+        Long s0 = start instanceof SqlExpr.IntLit il ? il.value() : null;
+        List<SqlExpr> out = new java.util.ArrayList<>();
+        if (s0 == null || s0 < 0) {
+            out.add(SqlExpr.Call.of(SqlFn.LESS, start, new SqlExpr.IntLit(0)));
+        }
+        SqlExpr end;
+        if (args.size() == 3) {
+            end = args.get(2);
+            Long e0 = end instanceof SqlExpr.IntLit il ? il.value() : null;
+            out.add(SqlExpr.Call.of(SqlFn.GREATER, end, length));
+            if (s0 == null || e0 == null || e0 < s0) {
+                out.add(SqlExpr.Call.of(SqlFn.LESS, end, start));
+            }
+        } else {
+            end = length;
+            if (s0 == null || s0 > 0) {
+                out.add(SqlExpr.Call.of(SqlFn.GREATER, start, length));
+            }
+        }
+        if (out.isEmpty()) {
+            return value;
+        }
+        SqlExpr cond = out.get(0);
+        for (int i = 1; i < out.size(); i++) {
+            cond = SqlExpr.Call.of(SqlFn.OR, cond, out.get(i));
+        }
+        return Scalars.guarded(cond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SUBSTRING_OUT_OF_RANGE,
+                List.of(start, end, length)), value, styled);
+    };
+
     static {
         for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTRING) {
-            under(Feature.CORRECT_SQL_SUBSTRING_INDEXING, f, CORRECTED_SUBSTRING);
+            under(Feature.CORRECT_SQL_SUBSTRING_INDEXING, f, PURE_SUBSTRING);
         }
     }
 
