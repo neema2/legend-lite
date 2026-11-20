@@ -80,6 +80,26 @@ class PureMeaningCheckTest {
         assertEquals("substring/2=1, substring/3=1, indexOf/2=1", r.header());
     }
 
+    /** substr means legend-pure's in both, apart from out of range: legend-engine's processSubstr sends the database's
+     *  SUBSTRING over start + 1 and end - start with no range check, so out of range it answers the database's cut-short
+     *  value ('FX'->substr(1, 3) is 'X' on H2 and DuckDB, asked of legend-engine 4.145.0, 2026-11-20), where lite
+     *  raises as legend-pure does (S383). Both forms are flagged. */
+    @Test
+    void aStoreBoundSubstrIsFlaggedInBothForms() {
+        PureMeaningCheck.Result r = check("|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substr(1, 3),"
+                + " b: r|$r.NAME->toOne()->substr(2)])->from(t::RT)");
+        assertEquals("substr/2=1, substr/3=1", r.header());
+        assertTrue(r.sentence("execute", PureMeaningCheck.Mode.REFUSE).contains("differ out of range alone"));
+    }
+
+    /** A store-free let's substr is computed on the host, as legend-engine computes any store-free let: not flagged. */
+    @Test
+    void aHostSideSubstrIsNotFlagged() {
+        PureMeaningCheck.Result host = check("{|let x = 'abcdef'->substr(1, 3); " + TABLE
+                + "->filter(r|$r.NAME == $x)->from(t::RT);}");
+        assertTrue(host.clean(), host.header());
+    }
+
     @Test
     void aLiteralSubstringInsideTheRoutedQueryIsFlagged_asLegendEngineSendsItToSql() {
         // legend-engine 4.145.0 planned `select substring('abcdef', 1, 3)` for this (H16's host-side probe)
@@ -305,13 +325,22 @@ class PureMeaningCheckTest {
 
     // ---- quiet --------------------------------------------------------------------------------------------------
 
+    /** Under CORRECT_SQL_SUBSTRING_INDEXING legend-engine's processSubstring is its processSubstr (pureToSQLQuery.pure:4662),
+     *  so a corrected substring agrees with lite in range and differs out of range alone, as substr does: flagged as
+     *  corrected, its literal-0 start included (the uncorrected form's measured exemption is not this form's). indexOf
+     *  has no such option (:10644), so it is flagged as before. */
     @Test
-    void theCorrectedOptionQuietsSubstring_andNotIndexOf() {
-        String calls = "->extend(~[a: r|$r.NAME->toOne()->substring(1, 3), b: r|$r.NAME->toOne()->indexOf('o')])";
+    void theCorrectedOptionFlagsSubstringAsCorrected_andIndexOfAsBefore() {
+        String calls = "->extend(~[a: r|$r.NAME->toOne()->substring(1, 3), b: r|$r.NAME->toOne()->indexOf('o'),"
+                + " c: r|$r.NAME->toOne()->substring(0)])";
         PureMeaningCheck.Result r = check("|" + TABLE + calls + "->from(t::RT)"
                 + "->meta::pure::executionPlan::featureFlag::withFeatureFlags("
                 + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)");
-        assertEquals("indexOf/2=1", r.header());
+        assertEquals("substring(corrected)/2=1, substring(corrected)/3=1, indexOf/2=1", r.header());
+        assertTrue(r.sentence("execute", PureMeaningCheck.Mode.REFUSE).contains("differ out of range alone"));
+        PureMeaningCheck.Result plain = check("|" + TABLE + calls + "->from(t::RT)");
+        assertEquals("substring/3=1, indexOf/2=1", plain.header());
+        assertFalse(plain.sentence("execute", PureMeaningCheck.Mode.REFUSE).contains("differ out of range alone"));
     }
 
     @Test
@@ -509,6 +538,7 @@ class PureMeaningCheckTest {
     void theCheckBites_bothWays() {
         List<String> flagged = List.of(
                 "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->indexOf('o'))->from(t::RT)",
+                "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->substr(1, 3))->from(t::RT)",
                 "|" + TABLE + "->extend(~a: r|t::firstThree($r.NAME->toOne()))->from(t::RT)");
         List<String> quiet = List.of(
                 "{|let x = 'abc'->indexOf('b'); " + TABLE + "->filter(r|$r.ID == $x)->from(t::RT);}",

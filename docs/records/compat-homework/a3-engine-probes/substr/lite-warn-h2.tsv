@@ -1,0 +1,18 @@
+# lite's answers to the battery, as legend-engine's audience (pure/v1's execute route)
+col.sr3a	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [1, 3) out of bounds for length 2","status":"error"}
+col.sr2a	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [5, 2) out of bounds for length 2","status":"error"}
+col.sr3b	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [4, 6) out of bounds for length 2","status":"error"}
+col.sr3c	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [2, 1) out of bounds for length 6","status":"error"}
+col.sr3d	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [-1, 2) out of bounds for length 6","status":"error"}
+col.sr3e	ROWS	[["Credit","Cr"],["Equity","Eq"],["FX","FX"],["Rates","Ra"]]
+lit.sr3a	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [1, 3) out of bounds for length 2","status":"error"}
+lit.sr2a	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [5, 2) out of bounds for length 2","status":"error"}
+lit.sr3c	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [2, 1) out of bounds for length 6","status":"error"}
+lit.sr3d	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [-1, 2) out of bounds for length 6","status":"error"}
+lit.sr3e	ROWS	[["Credit","re"],["Equity","re"],["FX","re"],["Rates","re"]]
+col.sg3a	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [1, 3) out of bounds for length 2","status":"error"}
+col.sg2a	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [5, 2) out of bounds for length 2","status":"error"}
+col.sg3c	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [2, 1) out of bounds for length 6","status":"error"}
+col.sg3e	ROWS	[["Credit","Cr"],["Equity","Eq"],["FX","FX"],["Rates","Ra"]]
+lit.sg3a	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [1, 3) out of bounds for length 2","status":"error"}
+lit.sg2a	ERROR	OTHER	# {"code":-1,"message":"Raised: Range [5, 2) out of bounds for length 2","status":"error"}

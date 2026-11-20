@@ -235,13 +235,37 @@ class PureMeaningRewriteTest {
         return null;
     }
 
+    /** Under CORRECT_SQL_SUBSTRING_INDEXING a substring is legend-engine's processSubstr, like substr: rewritten as a
+     *  corrected substring, beside the indexOf. */
     @Test
-    void theCorrectedOptionKeepsSubstringPures_andIndexOfIsRewritten() {
+    void theCorrectedOptionsSubstringIsRewrittenAsCorrected_andIndexOfAsBefore() {
         Recording r = new Recording();
         rewrite("|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substring(1, 3), b: r|$r.NAME->toOne()->indexOf('o')])"
                 + "->from(t::RT)->meta::pure::executionPlan::featureFlag::withFeatureFlags("
                 + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)", r);
-        assertEquals(List.of(PureMeaningCheck.Code.INDEX_OF_2), r.codes);
+        assertEquals(List.of(PureMeaningCheck.Code.CORRECTED_SUBSTRING_3, PureMeaningCheck.Code.INDEX_OF_2), r.codes);
+    }
+
+    @Test
+    void aStoreBoundSubstrIsRewritten_inBothForms() {
+        Recording r = new Recording();
+        PureMeaningRewrite.Rewritten w = rewrite("|" + TABLE + "->extend(~[a: r|$r.NAME->toOne()->substr(1, 3),"
+                + " b: r|$r.NAME->toOne()->substr(2)])->from(t::RT)", r);
+        assertEquals(List.of(PureMeaningCheck.Code.SUBSTR_3, PureMeaningCheck.Code.SUBSTR_2), r.codes);
+        assertEquals(2, r.in(w.query().body().get(0)));
+    }
+
+    /** Under engine a literal-0 start is rewritten too (the reviewer's M-a1): out of range lite raises and legend-engine
+     *  answers the database's SUBSTRING, so the measured exemption, which refuse and warn keep, is not engine's. */
+    @Test
+    void aLiteralZeroStartIsRewrittenUnderEngine_whereRefuseAndWarnExemptIt() {
+        String query = "|" + TABLE + "->extend(~a: r|$r.NAME->toOne()->substring(0, 3))->from(t::RT)";
+        ModelContext c = Compiler.compileModel(PureMeaningCheckTest.MODEL);
+        assertTrue(PureMeaningCheck.of(Compiler.query(c, query), c, "t::RT", null).clean());
+        Recording r = new Recording();
+        PureMeaningRewrite.Rewritten w = rewrite(query, r);
+        assertEquals(List.of(PureMeaningCheck.Code.SUBSTRING_3), r.codes);
+        assertEquals("substring/3=1", w.rewrote().header());
     }
 
     // ---- refused by name -------------------------------------------------------------------------------------------

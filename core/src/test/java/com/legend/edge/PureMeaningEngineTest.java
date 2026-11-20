@@ -56,6 +56,7 @@ class PureMeaningEngineTest {
         }
         assertTrue(ids.stream().anyMatch(com.legend.builtin.Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN::contains), ids.toString());
         assertTrue(ids.stream().noneMatch(com.legend.builtin.Pure.AT_STRING_SUBSTRING::contains), ids.toString());
+        assertTrue(ids.stream().noneMatch(com.legend.builtin.Pure.AT_STRING_SUBSTR::contains), ids.toString());
         assertTrue(ids.stream().noneMatch(com.legend.model.FunctionId.of(
                 com.legend.builtin.Pure.INDEX_OF__STRING_1__STRING_1)::equals), ids.toString());
     }
@@ -328,6 +329,102 @@ class PureMeaningEngineTest {
         LiteV1Api.Answer a = PureV1Routes.route(path, null, body, planOnly, LiteV1Api.Models.COMPILED, mode);
         assertEquals(1, sql.size(), a.json());
         return sql.get(0);
+    }
+
+    // ---- substr, the corrected substring and a literal-0 start (the compat owner's go, 2026-11-20) -------------------
+    // legend-engine sends each as the database's SUBSTRING over start + 1 and end - start with no range check
+    // (processSubstr), so in range it agrees with lite and out of range it answers the database's cut-short value
+    // ('FX'->substr(1, 3) is 'X' on H2 and DuckDB, asked of legend-engine 4.145.0:
+    // docs/records/compat-homework/a3-engine-probes/substr/), where lite raises as legend-pure does (S383). Here 'ab'
+    // is the row past the end of (1, 3) and (0, 3).
+
+    private static final String CORRECTED = "->meta::pure::executionPlan::featureFlag::withFeatureFlags("
+            + "meta::pure::executionPlan::features::Feature.CORRECT_SQL_SUBSTRING_INDEXING)";
+
+    /** (1, 3) over 'abcdef', 'xoxo', 'abc' and 'ab' in legend-engine's SQL: 'ab' is cut short to 'b'. */
+    private static final String PAST_THE_END = "{\"values\": [\"bc\"]},{\"values\": [\"ox\"]},"
+            + "{\"values\": [\"bc\"]},{\"values\": [\"b\"]}";
+
+    private static String cut(String call) {
+        return "|" + PureMeaningCheckTest.TABLE + "->sort(~ID->ascending())->extend(~a: r|$r.NAME->toOne()->" + call
+                + ")->select(~[a])->from(t::RT)";
+    }
+
+    /** Under engine legend-engine's answer for every row ('b' for 'ab', cut short), run with the rewritten query; under
+     *  warn legend-pure's, which raises on 'ab'. */
+    private static void bothWays(String query, String header, String rows) {
+        Recording run = new Recording();
+        LiteV1Api.Answer engine = PureV1Routes.route("/api/pure/v1/execution/execute", null, body(query), run,
+                LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
+        assertEquals(200, engine.status(), engine.json());
+        assertEquals("engine " + header, engine.headers().get(PureMeaningCheck.HEADER));
+        assertTrue(engine.json().contains(rows), engine.json());
+        assertRewritten(run.handed.get(0));
+        LiteV1Api.Answer warn = route("/api/pure/v1/execution/execute", null, body(query), PureMeaningCheck.Mode.WARN);
+        assertEquals(500, warn.status(), warn.json());
+        assertTrue(warn.json().contains("out of bounds"), warn.json());
+        assertEquals(header, warn.headers().get(PureMeaningCheck.HEADER));
+    }
+
+    @Test
+    void substrPastTheEnd_legendEnginesCutShortValueUnderEngine_aRaiseUnderWarn() {
+        bothWays(cut("substr(1, 3)"), "substr/3=1", PAST_THE_END);
+    }
+
+    @Test
+    void aCorrectedSubstringPastTheEnd_legendEnginesCutShortValueUnderEngine_aRaiseUnderWarn() {
+        bothWays(cut("substring(1, 3)") + CORRECTED, "substring(corrected)/3=1", PAST_THE_END);
+    }
+
+    /** The reviewer's M-a1: a literal-0 start is exempt under refuse and warn (measured equal to Pure's in range), and
+     *  past the end lite raises there, with no header; under engine it is rewritten, and 'ab'->substring(0, 3) is 'ab',
+     *  legend-engine's answer ('abcdef'->substring(0, 9) is 'abcdef' in legend-engine's SQL). */
+    @Test
+    void aLiteralZeroStartPastTheEnd_isRewrittenUnderEngine_andExemptUnderRefuseAndWarn() {
+        Recording run = new Recording();
+        LiteV1Api.Answer engine = PureV1Routes.route("/api/pure/v1/execution/execute", null,
+                body(cut("substring(0, 3)")), run, LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
+        assertEquals(200, engine.status(), engine.json());
+        assertEquals("engine substring/3=1", engine.headers().get(PureMeaningCheck.HEADER));
+        assertTrue(engine.json().contains("{\"values\": [\"abc\"]},{\"values\": [\"xox\"]},"
+                + "{\"values\": [\"abc\"]},{\"values\": [\"ab\"]}"), engine.json());
+        assertRewritten(run.handed.get(0));
+        for (PureMeaningCheck.Mode exempt : new PureMeaningCheck.Mode[] {PureMeaningCheck.Mode.REFUSE,
+                PureMeaningCheck.Mode.WARN}) {
+            LiteV1Api.Answer a = route("/api/pure/v1/execution/execute", null, body(cut("substring(0, 3)")), exempt);
+            assertEquals(500, a.status(), a.json());
+            assertTrue(a.json().contains("out of bounds"), a.json());
+            assertEquals(null, a.headers().get(PureMeaningCheck.HEADER), exempt.name());
+        }
+    }
+
+    /** A computed index is not rewritten: its start + 1 would be a typed call the door would have to assemble (D-S2).
+     *  Refused by name under engine, for now (the compat owner puts (1) or (3') to the user, 2026-11-20). */
+    @Test
+    void aComputedSubstrIndexIsRefusedByNameUnderEngine() {
+        LiteV1Api.Runner never = (query, runtime, output) -> {
+            throw new AssertionError("a refused request is never run");
+        };
+        LiteV1Api.Answer a = PureV1Routes.route("/api/pure/v1/execution/execute", null,
+                body(cut("substr($r.ID->toOne(), 3)")), never, LiteV1Api.Models.COMPILED, PureMeaningCheck.Mode.ENGINE);
+        assertEquals(500, a.status(), a.json());
+        assertTrue(a.json().contains("a computed index is not rewritten"), a.json());
+    }
+
+    /** On a database where a start of 0 differs, the plan holds the database's own call over legend-engine's folded
+     *  arguments under engine ('FX'->substr(1, 3) is substring('FX', 2, 2) in legend-engine's SQL), with no range check;
+     *  under warn lite's range check holds it. */
+    @Test
+    void substrPlansLegendEnginesFoldedCall_whereAStartOfZeroDiffers() {
+        String zeroStart = PureMeaningCheckTest.MODEL.replace("type: H2; specification: LocalH2 { }; auth: DefaultH2;",
+                "type: DuckDB; specification: DuckDB { }; auth: Test;");
+        String engine = planSql(zeroStart, cut("substr(1, 3)"), PureMeaningCheck.Mode.ENGINE)
+                .toLowerCase(java.util.Locale.ROOT);
+        String warn = planSql(zeroStart, cut("substr(1, 3)"), PureMeaningCheck.Mode.WARN)
+                .toLowerCase(java.util.Locale.ROOT);
+        // the folded call, unguarded under engine; under warn the same call inside lite's range check (S383)
+        assertTrue(engine.matches("(?s).*substr\\([^,]*name, 2, 2\\).*") && !engine.contains("case"), engine);
+        assertTrue(warn.contains("case"), warn);
     }
 
     // ---- refused by name -------------------------------------------------------------------------------------------

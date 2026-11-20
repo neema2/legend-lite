@@ -356,7 +356,10 @@ public final class PureV1Routes {
             @com.legend.base.Nullable String runtime, @com.legend.base.Nullable String mapping,
             PureMeaningCheck.Mode meaning,
             java.util.concurrent.atomic.AtomicReference<PureMeaningCheck.Result> found) {
-        PureMeaningCheck.Result r = PureMeaningCheck.of(query, ctx, runtime, mapping);
+        // under engine the calls engine rewrites, a literal-0 start included (M-a1); refuse and warn keep its exemption
+        PureMeaningCheck.Result r = meaning == PureMeaningCheck.Mode.ENGINE
+                ? PureMeaningCheck.forEngine(query, ctx, runtime, mapping)
+                : PureMeaningCheck.of(query, ctx, runtime, mapping);
         found.set(r);
         if (r.clean()) {
             return query;

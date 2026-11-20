@@ -1,5 +1,7 @@
-# the battery on duckdb, lite as legend-engine's audience against legend-engine's pinned answers (bazel run //pct:update_batteries): {AGREE=47, DIFFER=2}
+# the battery on duckdb, lite as legend-engine's audience against legend-engine's pinned answers (bazel run //pct:update_batteries): {AGREE=57, DIFFER=2}
 request	legend-engine	lite	verdict
+col.c01	ROWS:	ROWS:	AGREE
+col.c02	ROWS:	ROWS:	AGREE
 col.i01	ROWS:	ROWS:	AGREE
 col.i02	ROWS:	ROWS:	AGREE
 col.i03	ROWS:	ROWS:	AGREE
@@ -7,6 +9,8 @@ col.i04	REFUSES:indexOf_String_1__String_1__Integer_1__Integer_1_	ROWS:[["Credit
 col.i05	ROWS:	ROWS:	AGREE
 col.i06	ROWS:	ROWS:	AGREE
 col.i07	ROWS:	ROWS:	AGREE
+col.r01	ROWS:	ROWS:	AGREE
+col.r02	ROWS:	ROWS:	AGREE
 col.s01	ROWS:	ROWS:	AGREE
 col.s02	ROWS:	ROWS:	AGREE
 col.s03	ROWS:	ROWS:	AGREE
@@ -25,12 +29,17 @@ col.s15	ROWS:	ROWS:	AGREE
 col.s16	ROWS:	ROWS:	AGREE
 col.s17	ROWS:	ROWS:	AGREE
 col.s18	ROWS:	ROWS:	AGREE
+col.s19	ROWS:	ROWS:	AGREE
+lit.c01	ROWS:	ROWS:	AGREE
+lit.c02	ROWS:	ROWS:	AGREE
 lit.i01	ROWS:	ROWS:	AGREE
 lit.i02	ROWS:	ROWS:	AGREE
 lit.i03	ROWS:	ROWS:	AGREE
 lit.i04	REFUSES:indexOf_String_1__String_1__Integer_1__Integer_1_	ROWS:[["Credit",2],["Equity",2],["FX",2],["Rates",2]]	DIFFER
 lit.i06	ROWS:	ROWS:	AGREE
 lit.i07	ROWS:	ROWS:	AGREE
+lit.r01	ROWS:	ROWS:	AGREE
+lit.r02	ROWS:	ROWS:	AGREE
 lit.s01	ROWS:	ROWS:	AGREE
 lit.s02	ROWS:	ROWS:	AGREE
 lit.s03	ROWS:	ROWS:	AGREE
@@ -49,3 +58,4 @@ lit.s15	ROWS:	ROWS:	AGREE
 lit.s16	ROWS:	ROWS:	AGREE
 lit.s17	ROWS:	ROWS:	AGREE
 lit.s18	ROWS:	ROWS:	AGREE
+lit.s19	ROWS:	ROWS:	AGREE

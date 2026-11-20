@@ -68,6 +68,7 @@ final class PureMeaningRewrite {
         return switch (code) {
             case SUBSTRING_2, SUBSTRING_3 -> EngineSubstitutes.substring(ctx, flagged);
             case INDEX_OF_2 -> EngineSubstitutes.indexOf(ctx, flagged);
+            case CORRECTED_SUBSTRING_2, CORRECTED_SUBSTRING_3, SUBSTR_2, SUBSTR_3 -> EngineSubstitutes.substr(ctx, flagged);
             case UNVERIFIED -> throw new IllegalStateException("an unverified call is refused before it is rewritten");
         };
     }
@@ -80,7 +81,7 @@ final class PureMeaningRewrite {
      *  detector does not flag is returned as it is. */
     static Rewritten rewrite(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable String runtime,
             @com.legend.base.Nullable String requestMapping, Substitute substitute) {
-        PureMeaningCheck.Result first = PureMeaningCheck.of(query, ctx, runtime, requestMapping);
+        PureMeaningCheck.Result first = PureMeaningCheck.forEngine(query, ctx, runtime, requestMapping);
         if (first.clean()) {
             return new Rewritten(query, first);
         }
@@ -108,7 +109,7 @@ final class PureMeaningRewrite {
         }
         TypedQuery inlinedQuery = query.withBody(body);
         // 3: the one walk that decides what is rewritten
-        PureMeaningCheck.Result flagged = PureMeaningCheck.of(inlinedQuery, ctx, runtime, requestMapping);
+        PureMeaningCheck.Result flagged = PureMeaningCheck.forEngine(inlinedQuery, ctx, runtime, requestMapping);
         List<String> unreachable = new ArrayList<>();
         Map<TypedSpec, PureMeaningCheck.Code> nodes = new IdentityHashMap<>();
         for (PureMeaningCheck.Site s : flagged.sites()) {

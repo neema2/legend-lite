@@ -49,8 +49,16 @@ import java.util.Set;
  * legend-engine gives them SQL's meaning (1-based, 0 on a miss) in the code it sends to the database, and legend-pure's
  * everywhere else (H5's F1; asked of legend-engine 4.145.0: a store-free {@code let} is computed before the query,
  * docs/records/compat-homework/H16-engine-answer-opt-in.md). So a legend-engine request whose store-bound code calls the
- * String {@code substring} or the 2-argument String {@code indexOf} would get a different answer here. This check
- * finds each such call and the route says so: it refuses the request by default, or under
+ * String {@code substring} or the 2-argument String {@code indexOf} would get a different answer here.
+ *
+ * <p>{@code substr}, and {@code substring} under {@code CORRECT_SQL_SUBSTRING_INDEXING}, mean legend-pure's in both
+ * (legend-engine's processSubstr sends the database's SUBSTRING over {@code start + 1} and {@code end - start},
+ * {@code pureToSQLQuery.pure:4654-4690}), so in range the answers agree. Out of range they do not: lite raises, as
+ * legend-pure does (register S383), where legend-engine answers the database's own SUBSTRING over those arguments, cut
+ * short and per database (asked of legend-engine 4.145.0 on H2 and DuckDB, 2026-11-20:
+ * docs/records/compat-homework/a3-engine-probes/substr/). Those four forms are flagged too.
+ *
+ * <p>This check finds each such call and the route says so: it refuses the request by default, or under
  * {@code LEGEND_LITE_PURE_MEANING=warn} answers it with a header and a log line.
  *
  * <p>It is a reading of the typed tree, and nothing else:
@@ -85,10 +93,7 @@ import java.util.Set;
  *
  * <p>Quiet:
  * <ul>
- *   <li>{@code substring} under {@code CORRECT_SQL_SUBSTRING_INDEXING}, which legend-engine's processSubstring honours
- *       ({@code pureToSQLQuery.pure:4662}). {@code indexOf} has no such option ({@code :10644}), so it is always
- *       flagged.</li>
- *   <li>A literal start of 0 where it is measured equal to Pure's answer
+ *   <li>A literal start of 0 on the uncorrected {@code substring} where it is measured equal to Pure's answer
  *       ({@code docs/records/compat-homework/a3/*-literal-zero.tsv}): on H2 both forms, on DuckDB the 2-argument form
  *       alone.</li>
  * </ul>
@@ -135,10 +140,16 @@ public final class PureMeaningCheck {
         throw new IllegalStateException(SETTING + "=" + value + " is none of refuse, warn and engine");
     }
 
-    /** A flagged call's kind, at most four, in the header's order. */
+    /** A flagged call's kind, at most eight, in the header's order. */
     enum Code {
         SUBSTRING_2("substring/2"),
         SUBSTRING_3("substring/3"),
+        /** {@code substring} under {@code CORRECT_SQL_SUBSTRING_INDEXING}: Pure's meaning in both, except out of range */
+        CORRECTED_SUBSTRING_2("substring(corrected)/2"),
+        CORRECTED_SUBSTRING_3("substring(corrected)/3"),
+        /** {@code substr}: Pure's meaning in both, except out of range */
+        SUBSTR_2("substr/2"),
+        SUBSTR_3("substr/3"),
         INDEX_OF_2("indexOf/2"),
         /** a call the check could not follow, never counted clean */
         UNVERIFIED("unverified");
@@ -147,6 +158,11 @@ public final class PureMeaningCheck {
 
         Code(String text) {
             this.text = text;
+        }
+
+        /** A form whose answer agrees with legend-engine's in range and differs out of range alone (lite raises). */
+        boolean outOfRangeOnly() {
+            return this == CORRECTED_SUBSTRING_2 || this == CORRECTED_SUBSTRING_3 || this == SUBSTR_2 || this == SUBSTR_3;
         }
     }
 
@@ -184,7 +200,7 @@ public final class PureMeaningCheck {
         }
 
         /** The header's value: each code present and its count, in {@link Code}'s order, e.g.
-         *  {@code substring/3=2, indexOf/2=1, unverified=1}. At most four codes, so bounded by construction. */
+         *  {@code substring/3=2, indexOf/2=1, unverified=1}. At most eight codes, so bounded by construction. */
         String header() {
             Map<Code, Integer> counts = new EnumMap<>(Code.class);
             for (Site s : sites) {
@@ -208,8 +224,13 @@ public final class PureMeaningCheck {
             }
             b.append(". Lite answers substring and indexOf with legend-pure's meaning (0-based; -1 on a miss), where"
                     + " legend-engine sends this code to the database with SQL's (1-based; 0 on a miss), so the answer"
-                    + " would differ (register S130, S134); a call marked unverified could not be followed and is not"
-                    + " counted clean. ");
+                    + " would differ (register S130, S134); ");
+            if (sites.stream().anyMatch(st -> st.code().outOfRangeOnly())) {
+                b.append("substr, and substring under CORRECT_SQL_SUBSTRING_INDEXING, differ out of range alone: lite"
+                        + " raises, as legend-pure does, where legend-engine answers the database's own SUBSTRING (register"
+                        + " S383); ");
+            }
+            b.append("a call marked unverified could not be followed and is not counted clean. ");
             b.append(switch (mode) {
                 case REFUSE -> "Refused; " + SETTING + "=warn answers such a query with legend-pure's meaning, and "
                         + SETTING + "=engine with legend-engine's where it is measured";
@@ -231,7 +252,22 @@ public final class PureMeaningCheck {
      *  be null. */
     static Result of(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable String runtime,
             @com.legend.base.Nullable String requestMapping) {
-        Walk w = new Walk(query, ctx, target(ctx, runtime));
+        return of(query, ctx, runtime, requestMapping, true);
+    }
+
+    /** The query's flagged calls as {@code engine} rewrites them: every store-bound Pure {@code substring}, a literal
+     *  start of 0 included. The measured exemption says a literal-0 start gives Pure's answer where it is in range; out of
+     *  range lite raises (S383) and legend-engine answers the database's SUBSTRING ({@code 'abcdef'->substring(0, 9)}
+     *  is 'abcdef'), so {@code engine}, which promises legend-engine's answer, rewrites those calls too (the
+     *  reviewer's M-a1, the compat owner's ruling of 2026-11-20). {@code refuse} and {@code warn} keep the exemption. */
+    static Result forEngine(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable String runtime,
+            @com.legend.base.Nullable String requestMapping) {
+        return of(query, ctx, runtime, requestMapping, false);
+    }
+
+    private static Result of(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable String runtime,
+            @com.legend.base.Nullable String requestMapping, boolean zeroStartExemption) {
+        Walk w = new Walk(query, ctx, target(ctx, runtime), zeroStartExemption);
         Set<Feature> features = ExecutionContext.treeFeatures(query.body());
         if (requestMapping != null) {
             w.mappings.add(requestMapping);
@@ -332,10 +368,15 @@ public final class PureMeaningCheck {
         final Set<String> evaluated = new LinkedHashSet<>();
         final Map<FunctionId, Boolean> storeMemo = new HashMap<>();
 
-        Walk(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable DatabaseType target) {
+        /** whether a measured literal-0 start is quiet ({@code refuse} and {@code warn}) or flagged ({@code engine}) */
+        final boolean zeroStartExemption;
+
+        Walk(TypedQuery query, ModelContext ctx, @com.legend.base.Nullable DatabaseType target,
+                boolean zeroStartExemption) {
             this.query = query;
             this.ctx = ctx;
             this.target = target;
+            this.zeroStartExemption = zeroStartExemption;
         }
 
         /** Whether a statement reads a store, directly or through the functions it calls. */
@@ -436,16 +477,23 @@ public final class PureMeaningCheck {
             }
         }
 
-        /** A native call: the String substring (unless corrected, or a measured literal-0 start), the 2-argument
-         *  String indexOf (always). */
+        /** A native call: the String substring (corrected or not; uncorrected, a measured literal-0 start is quiet),
+         *  substr, the 2-argument String indexOf (always). */
         void call(TypedNativeCall nc, Set<Feature> features, String where) {
             FunctionId id = nc.callee().id();
             if (com.legend.builtin.Pure.AT_STRING_SUBSTRING.contains(id)) {
                 int arity = nc.args().size();
-                if (features.contains(Feature.CORRECT_SQL_SUBSTRING_INDEXING) || zeroStartExempt(nc, arity)) {
+                if (features.contains(Feature.CORRECT_SQL_SUBSTRING_INDEXING)) {
+                    sites.add(new Site(arity == 2 ? Code.CORRECTED_SUBSTRING_2 : Code.CORRECTED_SUBSTRING_3, where,
+                            nc.pos(), own(nc)));
+                    return;
+                }
+                if (zeroStartExempt(nc, arity)) {
                     return;
                 }
                 sites.add(new Site(arity == 2 ? Code.SUBSTRING_2 : Code.SUBSTRING_3, where, nc.pos(), own(nc)));
+            } else if (com.legend.builtin.Pure.AT_STRING_SUBSTR.contains(id)) {
+                sites.add(new Site(nc.args().size() == 2 ? Code.SUBSTR_2 : Code.SUBSTR_3, where, nc.pos(), own(nc)));
             } else if (STRING_INDEX_OF_2.equals(id)) {
                 sites.add(new Site(Code.INDEX_OF_2, where, nc.pos(), own(nc)));
             }
@@ -459,7 +507,8 @@ public final class PureMeaningCheck {
         /** A literal start of 0, where legend-engine's answer is measured equal to Pure's on the target: the edge's
          *  registry holds the measured table, per database and arity ({@link PureText#zeroStartAnswersAsPure}). */
         boolean zeroStartExempt(TypedNativeCall nc, int arity) {
-            if (!(nc.args().get(1) instanceof TypedCInteger start) || start.value().longValue() != 0) {
+            if (!zeroStartExemption || !(nc.args().get(1) instanceof TypedCInteger start)
+                    || start.value().longValue() != 0) {
                 return false;
             }
             return PureText.zeroStartAnswersAsPure(target, arity);

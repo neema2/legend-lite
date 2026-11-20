@@ -7,6 +7,7 @@ import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.spec.InferenceKernel;
+import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.model.FunctionId;
@@ -52,6 +53,37 @@ final class EngineSubstitutes {
                 Pure.AT_LEGEND_LITE_SQL_POSITION);
     }
 
+    /** The substitute for Pure's {@code substr}, and for {@code substring} under {@code CORRECT_SQL_SUBSTRING_INDEXING}
+     *  (2 or 3 arguments): legend-engine's processSubstr, the database's own SUBSTRING over {@code start + 1} and
+     *  {@code end - start}, with no range check ({@code pureToSQLQuery.pure:4654-4690}), as {@code substringAsGiven}
+     *  (the compat owner's go, 2026-11-20). Literal indexes fold as legend-engine's correctSubstrIndices folds them, so
+     *  the database is sent legend-engine's SQL ({@code 'FX'->substr(1, 3)} is {@code substring('FX', 2, 2)}): each
+     *  folded index is an Integer literal typed as the typer typed the literal it stands for. A computed index is
+     *  refused by name: its {@code start + 1} would be a typed call this class would have to assemble (D-S2). */
+    static TypedNativeCall substr(ModelContext ctx, TypedNativeCall call) {
+        List<TypedSpec> given = call.args();
+        if (!(given.get(1) instanceof TypedCInteger start)
+                || (given.size() == 3 && !(given.get(2) instanceof TypedCInteger))) {
+            throw new com.legend.error.NotImplementedException("the engine rewrite sends a substr, or a corrected"
+                    + " substring, as legend-engine's SQL for literal indexes alone; a computed index is not rewritten");
+        }
+        List<TypedSpec> args = new ArrayList<>();
+        args.add(given.get(0));
+        args.add(new TypedCInteger(exact(start.big().add(java.math.BigInteger.ONE)), start.info()));
+        if (given.size() == 3) {
+            TypedCInteger end = (TypedCInteger) given.get(2);
+            args.add(new TypedCInteger(exact(end.big().subtract(start.big())), end.info()));
+        }
+        List<FunctionId> replaces = new ArrayList<>(Pure.AT_STRING_SUBSTR);
+        replaces.addAll(Pure.AT_STRING_SUBSTRING);
+        return substitute(ctx, call, replaces, args, Pure.AT_LEGEND_LITE_SUBSTRING_AS_GIVEN);
+    }
+
+    /** A folded index as the parser keeps an integer literal: a long where it fits, else the exact value. */
+    private static Number exact(java.math.BigInteger v) {
+        return v.bitLength() < 64 ? (Number) v.longValue() : v;
+    }
+
     /** {@code call} as given, or refused: its callee must be the registry's function, for one of {@code nativeIds},
      *  that the typer picks for its arguments, and its type that function's output. */
     static TypedNativeCall checked(ModelContext ctx, TypedNativeCall call, List<FunctionId> nativeIds) {
@@ -69,12 +101,19 @@ final class EngineSubstitutes {
 
     private static TypedNativeCall substitute(ModelContext ctx, TypedNativeCall call, List<FunctionId> replaces,
             List<FunctionId> nativeIds) {
+        return substitute(ctx, call, replaces, call.args(), nativeIds);
+    }
+
+    /** {@code call} replaced by the registry's function for one of {@code nativeIds} over {@code args} (the call's own,
+     *  or built from them), at the call's source position, its type the typer's. */
+    private static TypedNativeCall substitute(ModelContext ctx, TypedNativeCall call, List<FunctionId> replaces,
+            List<TypedSpec> args, List<FunctionId> nativeIds) {
         if (!replaces.contains(call.callee().id())) {
             throw new IllegalStateException("the engine rewrite substitutes " + replaces + " alone, not "
                     + describe(call.callee()));
         }
-        InferenceKernel.Resolution r = resolve(ctx, call.args(), nativeIds);
-        return checked(ctx, new TypedNativeCall(r.chosen(), call.args(), r.output(), call.pos()), nativeIds);
+        InferenceKernel.Resolution r = resolve(ctx, args, nativeIds);
+        return checked(ctx, new TypedNativeCall(r.chosen(), args, r.output(), call.pos()), nativeIds);
     }
 
     /** The typer's choice among the registry's functions for {@code nativeIds}, over {@code args}' types. */
