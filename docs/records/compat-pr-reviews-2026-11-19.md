@@ -2242,3 +2242,23 @@ S383 should also name `substr` and the flagged `substring`, which raise on lite'
   - `sort` with a substring key: +192 and +198.
 
   Statements and subselects are unchanged.
+
+### Closed: the NULL-condition should is met (`4d5199577`, 2026-11-20)
+
+**Verdict: met.** `4d5199577` sits on top of the held re-pin `852a9737c` on `claude/window-list-lowering`.
+- **What it changes:** one test file (+44 lines). No product code, pin, ledger, golden or roster moves.
+- **What it adds:** `ClickHouseLambdaRaiseServerTest.aNullConditionNeitherRaisesFalselyNorHidesALaterRaise`. It runs on
+  the embedded ClickHouse, in the existing manual target in `//gates:heavy`.
+- **How it is built:** the dialect's own SQL for `arrayMap(x -> CASE …)` over `['a', NULL, 'abcdef']`. A Pure list
+  literal holds no NULL, so the CASE is built as the MIR and rendered by the backend's dialect.
+- **Case 1:** `WHEN length(x) > 9 THEN error('boom') ELSE x`. Every element's condition is false or NULL, so the guard
+  `coalesce(c, false)` is false and nothing raises. The answer `[a, NULL, abcdef]` keeps the NULL.
+- **Case 2:** `WHEN length(x) > 9 THEN 'long' WHEN x IS NULL THEN error('boom') ELSE x`. For the NULL element the first
+  condition is NULL and the second is true. The second raise's guard is `NOT coalesce(c₁, false) AND
+  coalesce(c₂, false)`, which is true there, so it raises `boom`.
+- **The plant:** a guard written as plain `NOT c₁` reads NULL there, so `if()` takes its `'0'` side and the raise is
+  hidden. That would turn case 2 red, as reported; I did not run it (no Bazel here).
+
+The re-pin `852a9737c` still waits for the user's word. Its two ClickHouse channel-A rows move up:
+- `removeDuplicatesBy`: +96 characters and +100 plan JSON;
+- `sort` with a substring key: +192 and +198.
