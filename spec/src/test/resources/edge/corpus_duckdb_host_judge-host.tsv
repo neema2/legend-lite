@@ -1098,8 +1098,8 @@ meta::relational::tests::functions::sqlstring::testToSQLStringNonPrestoSchemaNam
 meta::relational::tests::functions::sqlstring::testToSQLStringReverse	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringSplitPart	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes	0	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes	1	meta::pure::functions::asserts::assertEquals	PASS
-meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex	0	meta::pure::functions::asserts::assertEquals	PASS
+meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes	1	meta::pure::functions::asserts::assertEquals	FAIL
+meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex	0	meta::pure::functions::asserts::assertEquals	FAIL
 meta::relational::tests::functions::sqlstring::testToSQLStringSubstringIsUncorrectedByDefault	0	meta::pure::functions::asserts::assertEquals	FAIL
 meta::relational::tests::functions::sqlstring::testToSQLStringToNumericCasts	0	meta::pure::functions::asserts::assertEquals	PASS
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs	0	meta::pure::functions::asserts::assertEquals	PASS

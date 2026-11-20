@@ -137,7 +137,6 @@ unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringJo
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSplitPart
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes
-unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringToNumericCasts
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock
