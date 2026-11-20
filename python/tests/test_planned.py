@@ -113,7 +113,7 @@ class OneSendTest(unittest.TestCase):
     def test_a_loads_steps_are_the_plans(self):
         # run_load types each step as it reads it from the plan: what reaches the database is a PlannedSql
         seen: list[object] = []
-        plan = {'format': 'legend-lite-plan', 'version': projects.PLAN_VERSION, 'raises': {},
+        plan = {'format': 'legend-lite-plan', 'version': projects.PLAN_VERSION, 'raises': [],
                 'root': {'_type': 'load', 'identity': 'L', 'cadence': 'ONCE', 'connection': 'c',
                          'steps': [{'_type': 'statement', 'sql': 'CREATE TABLE a (x INT)'}]}}
         try:
@@ -998,10 +998,10 @@ class TheBridgeTest(unittest.TestCase):
         """The C checkpoint's code audit, SHOULD-FIX 6 (2026-11-12): an answer's statements alone are kept, read by its
         kind -- a column's label, a constant in the typed tree, a value a slot binds and an HTTP body are not."""
         answered = Answered()
-        answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'format': 'legend-lite-plan', 'raises': {}, 'root': {
+        answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'format': 'legend-lite-plan', 'raises': [], 'root': {
             '_type': 'tdsResult', 'columns': [{'name': 'DROP TABLE t', 'type': 'String'}],
             'sql': {'statement': 'SELECT a AS "DROP TABLE t" FROM x', 'slots': []}}}}))
-        answered.record('queryPlanHeld', 'OK\n' + json.dumps({'plan': {'format': 'legend-lite-plan', 'raises': {}, 'root': {
+        answered.record('queryPlanHeld', 'OK\n' + json.dumps({'plan': {'format': 'legend-lite-plan', 'raises': [], 'root': {
             '_type': 'tds', 'sql': {'statement': 'SELECT ? AS v', 'slots': [], 'tree': {'value': 'DELETE FROM t'},
                                     'content': {'abc': 'TRUNCATE t'}, 'target': {'session': ['SET threads = 1']}}}}}))
         answered.record('pureV1', 'OK\n500\napplication/json\n{"sql": "DROP TABLE u"}')
@@ -1023,7 +1023,7 @@ class TheBridgeTest(unittest.TestCase):
         self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
         for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
             self.assertIn(local, answered, local)
-        answered.record('queryPlanHeld', 'OK\n' + json.dumps({'plan': {'raises': {}, 'root': {'_type': 'sequence', 'steps': [
+        answered.record('queryPlanHeld', 'OK\n' + json.dumps({'plan': {'raises': [], 'root': {'_type': 'sequence', 'steps': [
             {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}}))
         self.assertIn('INSERT INTO t SELECT 1', answered)
         self.assertNotIn('written', answered, "an update's count names a value, never a statement")
@@ -1056,7 +1056,7 @@ class TheBridgeTest(unittest.TestCase):
         answered): a host operation takes no SQL -- a source query, a select list, a replacement -- whatever it is."""
         answered = Answered()
         ops = lambda op: {'kind': 'hostOperations', 'databaseType': 'DuckDB', 'operations': json.dumps([op])}
-        answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'raises': {}, 'root': {
+        answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'raises': [], 'root': {
             '_type': 'tdsResult', 'columns': [], 'sql': {'statement': 'SELECT * FROM t', 'slots': []}}}}))
         for op, key in (({'op': 'count', 'from': {'query': 'SELECT * FROM t'}}, 'query'),
                         ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*',

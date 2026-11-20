@@ -272,8 +272,7 @@ public abstract class SqlRewriter {
             // and the CheckedOne original had the same latent hole.
             case SqlExpr.CheckedOne co -> {
                 SqlExpr in = rewriteExpr(co.list());
-                yield in == co.list() ? co : new SqlExpr.CheckedOne(in,
-                        co.scalarCarrier(), co.atLeastOnly());
+                yield in == co.list() ? co : co.withList(in);
             }
             case SqlExpr.CompactList cl -> {
                 SqlExpr in = rewriteExpr(cl.list());

@@ -46,11 +46,6 @@ final class PlantedUpstreamStyle implements PlanStyle {
     }
 
     @Override
-    public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
-        throw new UnsupportedOperationException("planted");
-    }
-
-    @Override
     public boolean judgesEngineText() {
         throw new UnsupportedOperationException("planted");
     }

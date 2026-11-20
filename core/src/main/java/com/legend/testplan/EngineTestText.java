@@ -45,16 +45,8 @@ import java.util.List;
     // (gate, the database judge's gate for the edge's comparison, J41 of 2026-11-18: deleted with the same path, A4 of
     // the compatibility program, stage A ratified by the user 2026-11-19)
 
-    /** A FRESH RECORDER of one test body's planning call over {@code template} (K10b of the edge audit, the
-     *  orchestrator's ruling (A) of 2026-11-17): the style that body is planned in, recording legend-pure's words of
-     *  each statement's raise sites ({@code PlanStyle#siteWords}); read once by the test door ({@link #siteWords}). */
-    com.legend.database.PlanStyle recording(com.legend.database.PlanStyle template);
-
-    /** The test door's ONE READ of {@code recording} ({@link #recording}'s), after its planning: each statement text's
-     *  sites' words by number (the hearing's data, filed by the door at the step that sends the
-     *  text), the recorder sealed. */
-    java.util.Map<String, java.util.Map<Integer, String>> siteWords(
-            com.legend.database.PlanStyle recording);
+    // (recording and siteWords, a test body's recorder of its raise sites' words and the door's one read of it (K10b):
+    // deleted 2026-11-20 with stage B's B1 -- a raise is worded after the run from its site's record)
 
     /** A required side's refusal of no rows as legend-pure words it ({@code multiplicity} the bound; C5's step E,
      *  2026-11-17; moved behind this facet with K10b: a site's words are no member of the product's style). */

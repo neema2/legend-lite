@@ -833,20 +833,27 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     /**
      * ONE RAISE SITE OF A STATEMENT, PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16;
      * docs/records/d-phase2-raise-marker-2026-11-16.md): the statement raises the bare token {@code LG#<n>}
-     * ({@link com.legend.sql.dialect.RaiseSite#token}) and this says what it means -- its kind, its where (a fixed text known at
-     * planning, or none), and its words RENDERED AT PLANNING: {@code message}, the product's sentence
-     * ({@code error.ErrorKind}'s, then {@code ": "} and the where). Run time is a lookup: nothing is worded there, and
-     * exec says {@code message} alone (K10a of the edge audit, 2026-11-17). Legend-pure's words of a site are no
-     * component of it: they are the compatibility edge's records, keyed by the statement's text and {@code n}, held by a
-     * test plan's edge data (K10b, 2026-11-17).
+     * ({@link com.legend.sql.dialect.RaiseSite#token}) and this says what it means -- its kind, its where (a fixed text
+     * known at planning, or none) and its operands ({@link Operand}: the literals the statement holds, a computed value
+     * as its position alone). FACTS, NO WORDS (stage B's B1, the user's rulings of 2026-11-20 ~16:40 and ~17:00): the
+     * product's sentence ({@link #sentence}) and the compatibility edge's are written in Java after the run, from these
+     * facts; until v59 the plan carried the product's sentence as {@code message}, and the edge recorded legend-pure's
+     * beside it.
      */
-    public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where, String message) {
+    public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where,
+            List<Operand> operands) {
         public Site {
             if (n < 1) {
                 throw new IllegalArgumentException("a raise site is numbered from 1: " + n);
             }
             Objects.requireNonNull(kind, "a raise site's kind");
-            Objects.requireNonNull(message, "a raise site's message");
+            operands = List.copyOf(operands);
+        }
+
+        /** The product's sentence of this site: its kind's and its where ({@link #sentence}), written when the raise is
+         *  read back, never planned. */
+        public String productSentence() {
+            return sentence(kind, where);
         }
 
         /** The product's sentence of a site of {@code kind} placed by {@code where}: the error layer's
@@ -867,6 +874,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
             return out;
         }
+    }
+
+    /** AN ERROR RAISED AT A PLANNED SITE, as the run reports it (stage B's B1, 2026-11-20): what a reader of a failure
+     *  asks for the site's record, by this type -- never by the run's exception class, which a planner-only build (the
+     *  edge's WebAssembly) does not hold. {@code exec.RaisedErrors.Raised} is the one implementer. */
+    public interface RaisedAtSite {
+        /** The site the raise named, null where its text named none (a user's {@code fail}). */
+        @com.legend.base.Nullable
+        Site site();
     }
 
     /**

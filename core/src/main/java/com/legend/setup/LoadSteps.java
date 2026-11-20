@@ -52,18 +52,12 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
     }
 
     /** A CSV file's reading as the plan carries it: {@code load}'s statements, its undoing statements and its raise
-     *  sites, planned -- each one's product sentence its kind's and its where (phase D's Phase 2, raises as SITES,
-     *  2026-11-16). Each reading statement and the sites it declares are offered to {@code offer}, the plan style's
-     *  ({@code database.PlanStyle#siteWords}, handed by the planner, which holds the style: this layer names none; K10b
-     *  of the edge audit, 2026-11-17). */
-    public static ExecutionPlan.LoadStep.Delivery.Reads reads(com.legend.sql.dialect.SqlDialect.CsvLoad load,
-            java.util.function.BiConsumer<String, List<com.legend.sql.dialect.RaiseSite>> offer) {
-        for (String statement : load.statements()) {
-            offer.accept(statement, load.sites());
-        }
+     *  sites, planned -- each one's kind, where and operands, no words (phase D's Phase 2, raises as SITES,
+     *  2026-11-16; stage B's B1, 2026-11-20). */
+    public static ExecutionPlan.LoadStep.Delivery.Reads reads(com.legend.sql.dialect.SqlDialect.CsvLoad load) {
         return new ExecutionPlan.LoadStep.Delivery.Reads(load.statements(), load.after(), load.sites().stream()
-                .map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(), ExecutionPlan.Site.sentence(w.kind(),
-                        w.where()))).toList());
+                .map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
+                        w.operands().stream().map(com.legend.executionplan.Operand::of).toList())).toList());
     }
 
     /**

@@ -401,6 +401,6 @@ class DataLoadsTest {
     /** A CSV load's sites as its plan carries them (the planner's {@code PlanMaker.sites}, here without the planner). */
     private static List<ExecutionPlan.Site> planned(List<com.legend.sql.dialect.RaiseSite> written) {
         return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
-                ExecutionPlan.Site.sentence(w.kind(), w.where()))).toList();
+                w.operands().stream().map(com.legend.executionplan.Operand::of).toList())).toList();
     }
 }

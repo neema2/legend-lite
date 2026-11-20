@@ -236,8 +236,13 @@ class EdgeOnlyMembersTest {
             // caller only wording each error -- legend-engine's compile route its one caller; J40.Compiler closes
             Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function)",
                     "2026-11-18: lite's compiler door over its own protocol records, the caller wording each error (the orchestrator's ruling)"),
-            Map.entry("com.legend.exec.RaisedErrors$Raised#statement()",
-                    "2026-11-18: the plan's own text of the statement that raised, a fact of the product's run (the orchestrator's ruling)"),
+            // stage B's B1 (2026-11-20, errors as records; D2, the user's pre-approval of B1's guard moves, ~17:00): a raised
+            // error's site record, read by type (the edge's WebAssembly planner holds no exec class) -- the edge words
+            // legend-pure's sentence from it after the run
+            Map.entry("com.legend.executionplan.ExecutionPlan$RaisedAtSite#site()",
+                    "2026-11-20: a raised error's site, lite's own record of the raise (stage B's B1)"),
+            // (RaisedErrors$Raised#statement(), the statement's text the edge keyed its recorded words on: deleted
+            // with the recorder, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
             Map.entry("com.legend.plan.QueryPlan#columns()",
                     "2026-11-18: lite's query plan's own columns and shape"),
             // the class's ruling, extended 2026-11-18 on train 19's trial by the GUARD stream: the product's own plan and

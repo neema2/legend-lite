@@ -89,7 +89,9 @@ legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/t
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
 # lite_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
 legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"])
-legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
+# //engine-client: lite's sentence of each raise kind, generated for the hosts (stage B's B1, 2026-11-20: the plan carries
+# a site's facts and no words, so each host words a raise from error.ErrorKind's table, as Java's runner does)
+legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), visibility = ["//engine-client:__pkg__"], deps = ["//base"])
 # THE COMPATIBILITY FORMS A RUN IS HANDED (phase D's W9/W10, 2026-11-16): the hook the edge implements and the planner
 # and the test planner read -- interfaces only
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on

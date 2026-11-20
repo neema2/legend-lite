@@ -1069,13 +1069,14 @@ describe('a raise, worded', () => {
   it('words a raise at the send, on every route: a statement run, and a plan run', async () => {
     // a planned query dividing by zero, run by runPlan over the engine's held session: worded from its plan's raises
     const plan = planned(fn('divide', lit.integer(1), lit.integer(0)));
-    assert.deepEqual((JSON.parse(plan) as { raises: unknown }).raises, { DIVIDE_BY_ZERO: 'division by zero' });
+    // the kinds its statements can send, no words (PlanJson v59, stage B's B1): the host words each from its table
+    assert.deepEqual((JSON.parse(plan) as { raises: unknown }).raises, ['DIVIDE_BY_ZERO']);
     await assert.rejects(() => inRun('a test', () => engine.exclusive((held) => runPlan(plan, sessionOn('DuckDB', held)))),
       (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero');
     // the envelope a product statement raises, sent as the database's own error() writes it: read through the sites
     // the plans the tab read declared for that text
     const sent = "SELECT error(chr(31) || chr(28) || 'LG#1' || chr(31))";
-    declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO', where: null, message: 'division by zero' }], 'a test');
+    declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO', where: null }], 'a test');
     await assert.rejects(() => inRun('a test', () => asTest(engine).run(unplanned(sent), 0)),
       (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero' && e.kind === 'DIVIDE_BY_ZERO');
   });

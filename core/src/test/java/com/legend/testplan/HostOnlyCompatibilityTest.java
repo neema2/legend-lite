@@ -80,11 +80,6 @@ class HostOnlyCompatibilityTest {
         }
 
         @Override
-        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
-            PlanStyle.PRODUCT.siteWords(text, sites);
-        }
-
-        @Override
         public <F> F facet(Class<F> kind) {
             return PlanStyle.PRODUCT.facet(kind);
         }

@@ -49,11 +49,6 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
-        public String raisedWords(String statement, int n) {
-            throw new NotImplementedException("legend-pure's words of raise site " + n + " " + WHY);
-        }
-
-        @Override
         public com.legend.testexecutionplan.JsonGrammar json() {
             // lite's own runs read strict JSON (register S144)
             return com.legend.testexecutionplan.JudgeJson.STRICT;

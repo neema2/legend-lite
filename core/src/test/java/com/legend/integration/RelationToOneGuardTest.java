@@ -50,14 +50,17 @@ class RelationToOneGuardTest {
         assertTrue(String.valueOf(e.getMessage()).contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()
                 + ": [1]"), query + " (size " + size + "): "
                 + e.getMessage());
-        // the size the database counted, a value, is pinned at the edge, whose sentence carries it (the D part 1 audit's S5, 2026-11-15)
+        // the size, a row count only the database knows, prints <computed> in the edge's words, its formatter's after
+        // the run (stage B's B1, 2026-11-20; D1, register S389): until B1 the edge's SQL wrote the count (the D part 1
+        // audit's S5, 2026-11-15)
         Exception edge;
         try (Connection edgeSession = backend.open(com.legend.edge.PureText.UPSTREAM)) {   // the edge's database (the audit's J22)
             edge = assertThrows(Exception.class, () -> com.legend.testing.EdgeProgram.last(model, query,
                     StorelessRuntime.RUNTIME, edgeSession, com.legend.testing.EdgeProgram.upstream()), query);
         }
-        assertTrue(String.valueOf(edge.getMessage()).contains("Cannot cast a collection of size " + size + " to"),
-                query + " (size " + size + ") at the edge: " + edge.getMessage());
+        String words = com.legend.edge.PureMessages.compile(edge);
+        assertTrue(words.contains("Cannot cast a collection of size " + com.legend.edge.PureMessages.WITHHELD + " to"),
+                query + " (size " + size + ") at the edge: " + words);
     }
 
     @Test

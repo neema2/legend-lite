@@ -821,10 +821,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
                 co.list());
         // placed by the bound, a fixed text known at planning (2026-11-15, the orchestrator under the user's ruling of
-        // 2026-11-10); the edge's operands, the bound and the size, as before
+        // 2026-11-10); its operands the bound and the size: the size the typed multiplicity states where it states one
+        // (a literal the site's record carries: stage B's B1, 2026-11-20), else the database's count; the guard
+        // counts in every case
         SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new SqlExpr.StringLit(bound),
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null, bound));
+                        co.statedSize() != null ? new SqlExpr.IntLit(co.statedSize())
+                                : SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null,
+                bound));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
             return writer.expr(new SqlExpr.Case(

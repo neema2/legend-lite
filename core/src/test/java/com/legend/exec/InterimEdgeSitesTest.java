@@ -15,12 +15,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE INTERIM'S SITES, COUNTED (phase D's Phase 2, raises as SITES, 2026-11-16: docs/records/d-phase2-raise-marker-2026-11-16.md,
- * "Interim, stated"): a raise whose upstream sentence needs a COMPUTED operand keeps legend-pure's sentence in SQL in an
- * edge plan ({@code edge.PureMessages#wordable} false), with no token and no site, until the user rules. Over a fixed
- * query set planned in the edge's style, this counts those raises and the ones the edge words at planning, so the
- * interim cannot grow silently: a new computed-operand raise moves the count, and the count moves only with a dated
- * reason here.
+ * EVERY EDGE RAISE IS A SITE, ITS COMPUTED OPERANDS COUNTED (stage B's B1, errors as records, 2026-11-20; before it,
+ * phase D's Phase 2 interim: a raise whose upstream sentence needed a computed operand kept legend-pure's sentence in
+ * SQL, with no site). Over a fixed query set planned in the edge's style, every raise a statement writes is one of its
+ * sites -- no sentence in SQL, on any door -- and legend-pure's sentence of each, worded after the run from the site's
+ * record ({@code edge.PureMessages#worded}), is counted where it prints {@code <computed>} (a value the database
+ * computed, register S389, the user's D1 of 2026-11-20 ~17:00), so that count cannot grow silently: it moves only with
+ * a dated reason here.
  */
 class InterimEdgeSitesTest {
 
@@ -35,12 +36,8 @@ class InterimEdgeSitesTest {
             "|#>{s::DB.T}#->extend(~r: r|sqrt(-1.0))->select(~r)",
             "|#>{s::DB.T}#->extend(~r: r|[1, 2, 3]->at($r.D))->select(~r)");
 
-    /** {@code query} planned in a fresh recorder of the edge's style on DuckDB (planning alone, no database), and the
-     *  words of its raise sites the recorder kept (K10b, 2026-11-17: the edge's records, read once after the planning). */
-    private record Planned(ExecutionPlan plan, java.util.Map<String, java.util.Map<Integer, String>> words) {
-    }
-
-    private static Planned planned(String query) {
+    /** {@code query} planned in the edge's style on DuckDB (planning alone, no database). */
+    private static ExecutionPlan planned(String query) {
         String model = """
                 ###Relational
                 Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, D INTEGER NOT NULL ) )
@@ -55,58 +52,53 @@ class InterimEdgeSitesTest {
                 ###Runtime
                 Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
                 """;
-        com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
-                com.legend.edge.PureText.UPSTREAM);
-        ExecutionPlan plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query)
-                .executionPlan("s::RT", java.util.Set.of(), recording);
-        return new Planned(plan, recording.read());
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query)
+                .executionPlan("s::RT", java.util.Set.of(), com.legend.edge.PureText.UPSTREAM);
     }
 
     @Test
-    void theInterimsComputedOperandSitesDoNotGrow() {
-        List<String> interim = new ArrayList<>();
-        int worded = 0;
+    void everyEdgeRaiseIsASite_andItsComputedOperandsDoNotGrow() {
+        List<String> withheld = new ArrayList<>();
         int sites = 0;
         for (String query : QUERIES) {
-            Planned planned;
+            ExecutionPlan plan;
             try {
-                planned = planned(query);
+                plan = planned(query);
             } catch (com.legend.sql.DialectCapability | com.legend.error.NotImplementedException
                      | com.legend.error.LegendCompileException refused) {
-                interim.add("REFUSED " + query + ": " + refused.getMessage());
+                withheld.add("REFUSED " + query + ": " + refused.getMessage());
                 continue;
             }
-            for (ExecutionPlan.Sql sql : statements(planned.plan().root())) {
+            for (ExecutionPlan.Sql sql : statements(plan.root())) {
                 sites += sql.sites().size();
-                java.util.Set<Integer> worded_ = planned.words().getOrDefault(sql.statement(), java.util.Map.of())
-                        .keySet();
-                for (ExecutionPlan.Site site : sql.sites()) {
-                    assertTrue(worded_.contains(site.n()), "the edge's recorder words every edge site: " + site);
-                }
-                if (sql.tree() == null) {
-                    continue;
-                }
-                for (SqlExpr.RaiseText r : raises(sql.tree())) {
-                    if (r.asData() != null || r.kind() == RaiseKind.USER_FAIL) {
-                        continue;
+                if (sql.tree() != null) {
+                    int raises = 0;
+                    for (SqlExpr.RaiseText r : raises(sql.tree())) {
+                        if (r.asData() == null && r.kind() != RaiseKind.USER_FAIL) {
+                            raises++;
+                        }
                     }
-                    if (com.legend.edge.PureMessages.wordable(r)) {
-                        worded++;
-                    } else {
-                        interim.add(r.kind() + " in " + query);
+                    assertTrue(raises <= sql.sites().size(), "every raise is a site (" + raises + " raises, "
+                            + sql.sites().size() + " sites): " + sql.statement());
+                }
+                for (ExecutionPlan.Site site : sql.sites()) {
+                    String words = com.legend.edge.PureMessages.worded(site);
+                    if (words.contains(com.legend.edge.PureMessages.WITHHELD)) {
+                        withheld.add(site.kind() + " in " + query + ": " + words);
                     }
                 }
             }
         }
-        // MEASURED 2026-11-16 (phase D's Phase 2): the computed-operand raises the edge still words in SQL over this
-        // set. The count moves only with a dated reason; a ruling on the interim (the design note's §5.3) takes it to 0.
-        assertEquals(INTERIM, interim.size(), String.join("\n", interim));
-        assertTrue(worded > 0 && sites >= worded, "worded " + worded + ", sites " + sites);
+        // MEASURED 2026-11-20 (stage B's B1): the sites whose legend-pure sentence prints a value the database computed
+        // over this set. The count moves only with a dated reason.
+        assertEquals(WITHHELD, withheld.size(), String.join("\n", withheld));
+        assertTrue(sites > 0, "sites " + sites);
     }
 
-    /** The computed-operand raises over {@link #QUERIES}, as measured 2026-11-16. */
-    private static final int INTERIM = 4;   // rem by a column and by 0 (its dividend a column), sqrt of a
-                                            // literal (its operand cast), at by a column
+    /** The sites over {@link #QUERIES} whose words print {@code <computed>} (D1, register S389), as measured 2026-11-20
+     *  (stage B's B1): rem's dividend twice (a column), a relation's row count under toOne, at's offset (a column) --
+     *  each a value only the database holds. A ceiling: it moves only down, or up with the user's word. */
+    private static final int WITHHELD = 4;
 
     private static List<SqlExpr.RaiseText> raises(com.legend.sql.SqlQuery q) {
         List<SqlExpr.RaiseText> out = new ArrayList<>();

@@ -3,9 +3,9 @@
 """A PRODUCT RAISE, WORDED (#104's M2(b), 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16): a statement lite
 planned raises a bare token ``LG#<n>`` inside an envelope (the dialect's raise), and Python reads it as Java's runner does
 (exec.RaisedErrors): site ``n`` of the statement it sent, from the sites the plans read here declared for that text
-(``sites`` of each statement, PlanJson v56) -- its kind, its where, and its words rendered at planning: LITE'S own
-``message`` alone (the edge program's H9, 2026-11-17: until then a site's ``upstream`` words, legend-engine's, were
-preferred where the plan carried them; those are the edge's to say). The envelope's marks are GENERATED from legend-lite (``_type_facts.py``), the
+(``sites`` of each statement, PlanJson v59) -- its kind and its where, worded HERE in lite's words (``RAISE_SENTENCES``,
+generated from error.ErrorKind: the plan carries a site's facts and no words since stage B's B1, 2026-11-20; legend-pure's
+words are the edge's to say). The envelope's marks are GENERATED from legend-lite (``_type_facts.py``), the
 same as the tab's (engine-client/src/raised.ts); each answer's sites are declared here as it is read
 (:func:`declare_sites`) -- one source, never copied; a token no answer declared for the statement is refused by name."""
 
@@ -16,7 +16,7 @@ import json
 import re
 from typing import Any
 
-from ._type_facts import RAISE_POSITION_SEP, RAISE_QUOTE_MARK, RAISE_SENTINEL, RAISE_TOKEN
+from ._type_facts import RAISE_POSITION_SEP, RAISE_QUOTE_MARK, RAISE_SENTENCES, RAISE_SENTINEL, RAISE_TOKEN
 
 _DECLARED: dict[str, list[dict[str, Any]]] = {}
 
@@ -28,8 +28,8 @@ def _sites_of(value: object, what: str) -> list[dict[str, Any]]:
         raise ValueError(f"{what}'s raise sites are not a list")
     for i, site in enumerate(value):
         if not isinstance(site, dict) or site.get('n') != i + 1 or not isinstance(site.get('kind'), str) \
-                or not isinstance(site.get('message'), str):
-            raise ValueError(f"{what}'s raise site {i + 1} is not a site numbered in order")
+                or 'message' in site:
+            raise ValueError(f"{what}'s raise site {i + 1} is not a site numbered in order (facts, no words)")
     return value
 
 
@@ -45,8 +45,8 @@ def declare_statement_sites(text: str, sites: list[dict[str, Any]], what: str) -
 def declare_sites(answer: object, what: str) -> None:
     """Every statement's sites a planner's answer carries (a plan, a text plan), declared: wherever an object of it
     holds ``sites``, each statement text beside them (``statement``, ``sql``, ``run``, ``statements``). Refused by name
-    where the answer carries no ``raises`` (a plan of PlanJson v53 or later always does)."""
-    if not isinstance(answer, dict) or not isinstance(answer.get('raises'), dict):
+    where the answer carries no ``raises``, the kinds its statements can send (a plan of PlanJson v59 always does)."""
+    if not isinstance(answer, dict) or not isinstance(answer.get('raises'), list):
         raise ValueError(f"{what} carries no raises (PlanJson's ``raises`` and each statement's ``sites``)")
 
     def walk(node: object) -> None:
@@ -92,7 +92,17 @@ def raised_words(message: str, statement: str) -> str | None:
     if n > len(sites):
         declared = ', '.join(f"{RAISE_TOKEN}{s['n']} {s['kind']}" for s in sites) or 'none'
         raise ValueError(f'the database raised {inner}, which the statement does not declare (it declares {declared})')
-    return sites[n - 1]['message']
+    site = sites[n - 1]
+    return sentence(site['kind'], site.get('where'))
+
+
+def sentence(kind: str, where: str | None) -> str:
+    """Lite's sentence of a site of ``kind`` placed by ``where``: its kind's, then ': ' and the where, as Java's runner
+    words it (ExecutionPlan.Site#sentence). A kind this host has no sentence for is refused by name."""
+    words = RAISE_SENTENCES.get(kind)
+    if words is None:
+        raise ValueError(f'a raise of kind {kind}, which this host has no sentence for')
+    return words if where is None else f'{words}: {where}'
 
 
 def raised_kind(message: str, statement: str) -> str | None:

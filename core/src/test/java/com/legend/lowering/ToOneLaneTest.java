@@ -45,12 +45,15 @@ class ToOneLaneTest {
         conn.close();
     }
 
+    /** A size only the database counted, as the edge's words print it (D1, register S389). */
+    private static final String COMPUTED = com.legend.edge.PureMessages.WITHHELD;
+
     private static Object run(String query) throws Exception {
         Lean.Result r = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
         return r.value();
     }
 
-    private static void assertSizeError(String query, int size) {
+    private static void assertSizeError(String query, String size) {
         var ex = assertThrows(Exception.class, () -> run(query));
         // the product's kind, in lite's words (D1.1), and its where, the bound (2026-11-15: a collection's count
         // carried none until //core:product_raise_probe found it)
@@ -58,51 +61,54 @@ class ToOneLaneTest {
                         com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": [1]"),
                 "expected pure's size-" + size + " cast error for "
                         + query + ", got: " + ex.getMessage());
-        // the size itself, a value, is legend-pure's sentence's: the same query in the edge's style raises it, so the
-        // pin holds the size the database counted (the D part 1 audit's S5, 2026-11-15)
+        // the size itself is legend-pure's sentence's: the same query in the edge's style raises it, worded by the
+        // edge's formatter after the run (stage B's B1, 2026-11-20): the size the typed multiplicity states, else
+        // <computed> (D1, register S389) -- until B1 the edge's SQL wrote the size the database counted (the D part 1
+        // audit's S5, 2026-11-15)
         var edge = assertThrows(Exception.class, () -> com.legend.testing.EdgeProgram.last(StorelessRuntime.with("",
                 Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn, com.legend.testing.EdgeProgram.upstream()));
-        assertTrue(edge.getMessage().contains("Cannot cast a collection of size " + size + " to multiplicity"),
-                "expected pure's size-" + size + " cast error at the edge for " + query + ", got: " + edge.getMessage());
+        String words = com.legend.edge.PureMessages.compile(edge);
+        assertTrue(words.contains("Cannot cast a collection of size " + size + " to multiplicity"),
+                "expected pure's size-" + size + " cast error at the edge for " + query + ", got: " + words);
     }
 
     @Test
     @DisplayName("audit rows: literal and Call shapes still raise")
     void literalAndCallShapes() throws Exception {
-        assertSizeError("{|[1,2]->toOne()}", 2);
-        assertSizeError("{|[1,2]->filter(x|true)->toOne()}", 2);
-        assertSizeError("{|[3,1,2]->sort()->toOne()}", 3);
+        assertSizeError("{|[1,2]->toOne()}", "2");
+        assertSizeError("{|[1,2]->filter(x|true)->toOne()}", COMPUTED);
+        assertSizeError("{|[3,1,2]->sort()->toOne()}", "3");
     }
 
     @Test
     @DisplayName("audit row: slice's Case wrapper no longer hides the list")
     void sliceRaises() throws Exception {
-        assertSizeError("{|[1,2]->slice(0,2)->toOne()}", 2);
+        assertSizeError("{|[1,2]->slice(0,2)->toOne()}", COMPUTED);
     }
 
     @Test
     @DisplayName("audit row: if-branch collections raise")
     void ifRaises() throws Exception {
-        assertSizeError("{|if(true,|[1,2],|[3,4])->toOne()}", 2);
+        assertSizeError("{|if(true,|[1,2],|[3,4])->toOne()}", "2");
     }
 
     @Test
     @DisplayName("audit row: range() raises")
     void rangeRaises() throws Exception {
-        assertSizeError("{|range(1,5)->toOne()}", 4);
+        assertSizeError("{|range(1,5)->toOne()}", COMPUTED);
     }
 
     @Test
     @DisplayName("audit row: descending sort has the same guarantee as ascending")
     void sortDescRaises() throws Exception {
-        assertSizeError("{|[3,1,2]->sort({a,b|$b->compare($a)})->toOne()}", 3);
-        assertSizeError("{|[3,1,2]->reverse()->toOne()}", 3);
+        assertSizeError("{|[3,1,2]->sort({a,b|$b->compare($a)})->toOne()}", "3");
+        assertSizeError("{|[3,1,2]->reverse()->toOne()}", "3");
     }
 
     @Test
     @DisplayName("audit row: zip raises (audit-of-blockers probe, pinned)")
     void zipRaises() throws Exception {
-        assertSizeError("{|[1,2]->zip([3,4])->toOne()}", 2);
+        assertSizeError("{|[1,2]->zip([3,4])->toOne()}", COMPUTED);
     }
 
     @Test
@@ -110,8 +116,8 @@ class ToOneLaneTest {
     void takeLimitCarryTheLane() throws Exception {
         assertEquals(1L, ((Number) run("{|[1,2]->take(1)->toOne()}"))
                 .longValue());
-        assertSizeError("{|[1,2]->take(2)->toOne()}", 2);
-        assertSizeError("{|[1,2]->limit(2)->toOne()}", 2);
+        assertSizeError("{|[1,2]->take(2)->toOne()}", COMPUTED);
+        assertSizeError("{|[1,2]->limit(2)->toOne()}", COMPUTED);
         // (value-lane sortBy itself is an honest unimplemented wall —
         // its lane arm is in place for when the emission lands)
     }

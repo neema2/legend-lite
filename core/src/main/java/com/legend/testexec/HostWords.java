@@ -104,7 +104,6 @@ public interface HostWords {
 
     /** The message an assertError matches a caught {@code error} by (K10 of the edge audit, the orchestrator's ruling
      *  (A) of 2026-11-17, re-ported onto J29's hook, 2026-11-18): lite's words, the error's own message; legend-pure's,
-     *  for a raise of a planned site, the words the plan's edge records hold for it ({@code hearing}'s
-     *  {@link EdgeHearing#raisedWords}). */
+     *  for a raise of a planned site, worded from the site's record after the run (stage B's B1, 2026-11-20). */
     String caught(RuntimeException error, EdgeHearing hearing);
 }

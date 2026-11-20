@@ -28,10 +28,9 @@ class RaisedKindTest {
 
     /** A statement's site table: site 1 a division by zero, site 2 a fraction kept, placed. */
     private static final List<ExecutionPlan.Site> SITES = List.of(
-            new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null, "division by zero"),
-            new ExecutionPlan.Site(2, RaiseKind.FRACTION_NOT_KEPT, "the DateTime parameter 't'",
-                    "more fraction digits than this database keeps: the DateTime parameter 't'"),
-            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, "index out of bounds"));
+            new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null, List.of()),
+            new ExecutionPlan.Site(2, RaiseKind.FRACTION_NOT_KEPT, "the DateTime parameter 't'", List.of()),
+            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, List.of()));
 
     @Test
     void aSitesTokenIsItsKindAndItsPlannedWords() {

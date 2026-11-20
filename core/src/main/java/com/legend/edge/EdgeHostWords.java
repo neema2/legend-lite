@@ -221,14 +221,13 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
     }
 
     /** legend-pure's words of a caught error (K10 of the edge audit, re-ported onto J29's hook, 2026-11-18): a raise
-     *  of a planned site is the words the plan's edge records hold for it, by the raising statement's text and the
-     *  site's number; any other error its own message. */
+     *  of a planned site worded from its site's record, after the run (stage B's B1, 2026-11-20:
+     *  {@link PureMessages#worded}); any other error its own message. */
     @Override
     public String caught(RuntimeException error, com.legend.testexec.EdgeHearing hearing) {
         if (error instanceof com.legend.error.DataError && error.getCause() instanceof com.legend.exec.RaisedErrors.Raised r
                 && r.site() != null) {
-            return hearing.raisedWords(java.util.Objects.requireNonNull(r.statement(),
-                    "a raise of a planned site carries its statement's text"), r.site().n());
+            return PureMessages.worded(r.site());
         }
         return String.valueOf(error.getMessage());
     }

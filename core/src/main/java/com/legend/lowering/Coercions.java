@@ -73,7 +73,8 @@ final class Coercions {
                         && !CollectionLanes.scalarCarriedIf(
                                 n.args().get(0))) {
                     return new SqlExpr.CheckedOne(
-                            new SqlExpr.CompactList(args.get(0)));
+                            new SqlExpr.CompactList(args.get(0)), false, false,
+                            Scalars.exactSize(n.args().get(0)));
                 }
                 // a LIST-producing call over the relation lane (a raw grid's
                 // rows.values — getH2Versions): the SQL value IS a list, so
@@ -81,7 +82,8 @@ final class Coercions {
                 if (m.isMany() && args.get(0) instanceof SqlExpr.Call lc
                         && lc.fn().producesList()) {
                     return new SqlExpr.CheckedOne(
-                            new SqlExpr.CompactList(args.get(0)));
+                            new SqlExpr.CompactList(args.get(0)), false, false,
+                            Scalars.exactSize(n.args().get(0)));
                 }
                 // VALUE-LANE [0..1] (user ruling 2026-08-26, "if not
                 // relational, follow the type system literally"): a
@@ -168,7 +170,7 @@ final class Coercions {
                                 n.args().get(0))) {
                     return new SqlExpr.CheckedOne(
                             new SqlExpr.CompactList(args.get(0)), false,
-                            true /* at least one */);
+                            true /* at least one */, Scalars.exactSize(n.args().get(0)));
                 }
                 if (m.isMany()) {
                     return args.get(0);   // row-lane collection: flow

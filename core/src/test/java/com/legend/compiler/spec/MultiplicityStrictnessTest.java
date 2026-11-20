@@ -106,7 +106,7 @@ class MultiplicityStrictnessTest {
             assertTrue(String.valueOf(e.getMessage())
                             .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     e.getMessage());
-            edgeSize(c, "{| [1,2]->toOne() }", 2);
+            edgeSize(c, "{| [1,2]->toOne() }", "2");
             // the singleton extracts — the guard is size-exact
             var ok = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), "{| [7]->toOne() }", StorelessRuntime.RUNTIME, c);
             assertEquals(7L, ((Number) ok.one()).longValue());
@@ -121,7 +121,8 @@ class MultiplicityStrictnessTest {
             assertTrue(String.valueOf(e.getMessage())
                             .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     e.getMessage());
-            edgeSize(c, "{| [1,2,3]->filter(x|$x > 10)->toOne() }", 0);
+            // a size only the database counted (0): <computed> in the edge's words (D1, register S389; B1, 2026-11-20)
+            edgeSize(c, "{| [1,2,3]->filter(x|$x > 10)->toOne() }", com.legend.edge.PureMessages.WITHHELD);
         }
     }
 
@@ -206,11 +207,13 @@ class MultiplicityStrictnessTest {
         Compiler.query(Compiler.compileModel(MODEL), "m::Person.all()->sortBy(p|$p.middleName)").expression();
     }
 
-    /** {@code query}'s size error at the edge, whose sentence carries the size the database counted (the D part 1 audit's S5, 2026-11-15). */
-    private static void edgeSize(Connection c, String query, int size) {
+    /** {@code query}'s size error at the edge, in its formatter's words after the run (stage B's B1, 2026-11-20): the
+     *  size the typed multiplicity states, else {@code <computed>} (D1, register S389; until B1 the edge's SQL wrote the
+     *  size the database counted, the D part 1 audit's S5, 2026-11-15). */
+    private static void edgeSize(Connection c, String query, String size) {
         Exception edge = assertThrows(Exception.class, () -> com.legend.testing.EdgeProgram.last(StorelessRuntime.with("",
                 Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c, com.legend.testing.EdgeProgram.upstream()));
-        assertTrue(String.valueOf(edge.getMessage()).contains("Cannot cast a collection of size " + size + " to"),
-                query + " at the edge: " + edge.getMessage());
+        String words = com.legend.edge.PureMessages.compile(edge);
+        assertTrue(words.contains("Cannot cast a collection of size " + size + " to"), query + " at the edge: " + words);
     }
 }
