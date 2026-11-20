@@ -3514,8 +3514,13 @@ who confirms or changes phases 1-3.
     - **Asked of the oracle (already recorded):** `raise.toOneOfEmpty` gives a 200 with one null row (`select null as
       "o"`). `raise.toOneOverMany` (`[1, 2]->toOne()`) is refused at planning with legend-pure's sentence.
     - **Built:** the door flags a store-bound one-argument `toOne` whose operand the typer gives no value (`[0]`) as
-      `toOne(empty)`, and rewrites it to the core's `trustOne` (no check). `trustOne` of a valueless operand lowers to
-      SQL's NULL.
+      `toOne(empty)`, and rewrites it to the core's `trustOne` (no check). Its empty operand lowers to SQL's NULL, as
+      every empty literal already does.
+    - **A mistake, caught by the local gate and reverted (`bd595b8c`):** 6b6a2fde also added a `trustOne` lowering
+      arm (a valueless operand to an untyped NULL), assumed and never tested first. The empty literal already lowers to
+      a typed NULL (`CAST(NULL AS JSON)` for a Variant). The arm broke `//core:cypher_parity_postgres_test`'s
+      `across_the_classes_of_a_labelless_node` ("operator is not unique: unknown #>> unknown"). Reverted; the door's
+      answers, the edge net and the oracle are byte-identical without it, and the Cypher case passes again.
     - **Scope:** H2 and DuckDB. Elsewhere the request is refused by name, as every flagged call is (lite raised there
       before, so no request that answered now refuses).
     - **Left as lite's raise, by design:**
@@ -3548,4 +3553,9 @@ who confirms or changes phases 1-3.
       SQL text, and is now order-checked here.
     - **Not built: the database computing the hidden sort key.** It would only distinguish a tie from a wrong order;
       none of these tests has tied rows that differ.
-  - **The local gate and both corpus lanes** are running on the three commits (`a35ac9bc`).
+  - **The local gate and both corpus lanes on `a35ac9bc`:** 566 of 581 passed, and both corpus lanes passed.
+    - The 14 targets that refuse root (13 Postgres, DataCube's verify_app) were rerun as `ubuntu`. Five of them read
+      data through the worktree, which sits in the root-only scratchpad, so they needed traverse permission on its
+      directories, granted for the run and then restored.
+    - One real failure: the Cypher case above, now fixed.
+    - The gate is being rerun on `bd595b8c`.
