@@ -3198,3 +3198,8 @@ who confirms or changes phases 1-3.
   output, the fallback's need for lite's rows of a query the test never ran (the hard part), and assertError and
   branch asserts as records. A design spike against B3 as planned sent to the error-records session, after its probe,
   with sizes and a recommendation.
+- **~02:20 UTC, the user: "Isn't 1 already true? Isn't that exactly what the host judge already plans/gets/does in the
+  product path?"** Yes, largely: the test plan computes each assert's sides and the runner hands their typed rows to
+  the host judge; option N's compatibility judge is a second host judge fed the same sides. The spike sharpened: confirm
+  it briefly and pick the smaller wiring (the run-time hand-off or a post-run report); spend the time on the fallback's
+  rows, the rewrites, the sizes, and any compatibility check needing a different side planned (e.g. the printed table).
