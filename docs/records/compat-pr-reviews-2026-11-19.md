@@ -1863,3 +1863,102 @@ The combination review will check, on that one measurement:
 - each lean-SQL growth matched to its cause in piece 2's `lean-sql-growth.txt`, with none shrinking unexplained;
 - `own_corpus.matched` regenerated on the merged tree;
 - the accepted rosters restored, and S388 marked ruled.
+
+## A3 piece 1: the SQL-family frontends say SQL's meaning by name, `origin/claude/compat-a3-frontends` at `a4c1f2b19` (3 commits on `main` `b75d6c73a`)
+
+**Verdict: APPROVED.**
+- **The change:** two lite-internal natives, `meta::legend::lite::sqlSubstring` (2 overloads) and `sqlPosition` (1).
+  Their rules in `Scalars` write `SqlFn.SUBSTRING` and `SqlFn.STRPOS`, exactly the calls Pure's `substring` and
+  String `indexOf` rules wrote before piece 2. So no SQL moves: `SubstringClamp` still matches the same function, and
+  `StringCountsAsInt` the same counts.
+- **Every frontend site is moved:**
+  - Cypher, the SQL island's Postgres functions, IQ's functions and aggregates, and `RelOpTranslator`'s `substring`,
+    `indexOf` and `position` dynaFunctions now name the new natives (`Calls.exact` / `SqlToPure.SQL_SUBSTRING`).
+  - A grep of the protocol and normalizer trees finds no call of Pure's `substring` or `indexOf` left. What remains
+    are source-language function names (Cypher's and SQL's own `substring`).
+  - The one exception is `CypherToPure.labelsJson`'s `substr(text, 1, length - 1)`, which means Pure's offsets and
+    says so in its comment.
+- **The guard moves**, ruled ~20:50 ("Okay approved", read in the owner's log) and in the translator's session:
+  - `INTERNAL_DESUGAR` 38 → 40;
+  - `FUNCTION_FQN_LITERALS_MAX` 346 → 347;
+  - `NOT_UPSTREAM_MAX` 73 → 76;
+  - `Intrinsic` 735 → 738;
+  - the 9 re-blessed text goldens (the call head prints as `sqlSubstring`/`sqlPosition`).
+
+  Each Java ceiling carries a dated note. `spec`'s `ratchets.tsv` has no per-line notes by its own convention ("a move
+  is a reviewed diff of this file, its reason in the commit", `SpecRatchets`), and `3a75adc4c`'s message gives the
+  reason.
+
+## A3 piece 2: the core switch to Pure's meaning, and S383's raise, `origin/claude/compat-a3-switch` at `1f4b108d1` (on A2 `6551c203`, piece 1 as `633a0561`)
+
+**Verdict: APPROVED, with ONE MUST-FIX (P2-M1).** The fold claim is checked and correct.
+
+**The fold claim, read in the rule (`Scalars`, the `AT_STRING_SUBSTRING` loop):**
+- **The 3-argument form:**
+  - `start < 0` is added unless the start is a literal of 0 or more;
+  - `end > LENGTH(s)` is always added, since it depends on the length;
+  - `end < start` is added unless both are literals with the end at or past the start.
+- **The 1-argument form:** `start < 0` as above, and `start > LENGTH(s)` unless the start is a literal of 0 or less.
+  So `substring(s, 0)` carries no guard.
+- **Nothing is missed.** A start past the length in the 3-argument form is covered: either the end is past the length,
+  or the end is before the start.
+- **Nothing is computed in Java:** only literals are compared, and every length-dependent check is the database's.
+- **The message:** operands start, end and length (for the 1-argument form the end is `LENGTH(s)`). `PureMessages`
+  writes `Range [b, e) out of bounds for length n`, the engine runner's own probe text.
+- **The folds not made** (a negative literal start, which always raises; a literal end below a literal start; a
+  literal end of 0 or less) cost only SQL size, never an answer.
+
+**`indexOf`:**
+- **The 2-argument form:** `STRPOS - 1`, exact for a hit and for a miss (0 − 1 = −1), and for an empty needle (1 − 1 =
+  0).
+- **The 3-argument form:** `from0 = max(from, 0)`, the suffix searched from `from0 + 1`, a hit re-based to
+  `k + from0 - 1`, and −1 on a miss.
+
+**P2-M1 (must): S383's raise is missing on two roads that answer Pure's `substring`.**
+- **Under `CORRECT_SQL_SUBSTRING_INDEXING`:**
+  - `FeatureRules.select` returns `CORRECTED_SUBSTRING`, the unguarded rule, which wins over `Scalars`' plain guarded
+    rule (`Scalars.lower`: "a flagged rule wins over the plain one").
+  - So with the flag set, an out-of-range `substring` answers the database's clamp instead of raising.
+  - `FeatureRules`' own javadoc says the flag is "a DOCUMENTED NO-OP ... the rule the flag selects here is the same".
+    It is not, for out-of-range indexes.
+- **On `substr`:** it is always `CORRECTED_SUBSTRING`, unguarded. By the code's own reading, legend-pure's `substr`
+  is `substring`'s synonym and calls it (`SubstrIndexingTest`, the `Scalars` comment), so it raises in legend-pure too.
+- **Why it matters:** S383 says lite raises "on all three" for `substring`. It names neither the flag nor `substr`.
+  `SubstrIndexingTest` checks only in-range answers, with and without the flag, so nothing catches this.
+- **The fix:**
+  - one guarded rule for all three: plain `substring`, `substring` under the flag, and `substr`. The flag either
+    registers the same rule or registers none, if an unregistered flag is still accepted;
+  - a test that each of the three raises `SUBSTRING_OUT_OF_RANGE` out of range.
+- **What may move:** the corpus or PCT rows that set the flag or call `substr` out of range. Measure them, for the
+  user's word.
+- **If instead** the flag is meant to keep legend-engine's corrected, unchecked answer, that is a divergence from Pure
+  and needs its own row, ruled by the user.
+
+**Shoulds:**
+- **P2-S1:** `SubstringRangeTest`'s raises are all literal indexes over a one-row table. Add a computed start or end
+  (from a column), in range on one row and out of range on another. That shows the guard is the database's, row by
+  row, and covers the computed paths of the fold. Today only the lean-SQL pins' text covers them.
+- **P2-S2:** for the 3-argument `indexOf` with an empty needle and `from` past the length, lite answers `from`. Java's
+  `"abc".indexOf("", 5)` answers the length, 3. If legend-pure's `indexOf(s, t, from)` is Java's, as the comment and
+  S134 say, read it at the pin. The fix is `from0 = least(max(from, 0), LENGTH(s))`, or a register row.
+
+**Notes:**
+- **The cross-kind fix:** the shape note (rev 2, §5.6) says "The cross-kind `!=` fix gates A3" (`63421e0a`). That
+  fix is on neither `main` nor this branch, and `claude/compat-cross-kind-ne` does not exist on origin. But the gate
+  on `09183550` ran the corpus verdicts green on this branch without it (`gate-summary.txt`), so the committed +7 rows
+  per database are this branch's own. The note should say the fix no longer gates A3, and that it carries its own
+  moves when it lands.
+- **The JDK:** `PureMessages`' comment says "the JDK 21 text measured here ... read at the engine runner before this
+  lands". S383 pins JDK 25.0.4's text, and the engine runner has since answered with the same form. Update the
+  comment to cite those readings.
+- **Lean SQL:** checked row by row on the diff of `core/src/test/resources/lean-sql/baseline.tsv`: 29 rows, 59 numeric
+  pins grow, none shrink. The keys are those `lean-sql-growth.txt` names: `indexOf`'s two forms across channel A and
+  core, and core `substring`, its sort key, extend and project. Ruled by the user (~01:35).
+- **The other moves,** ruled in the translator's session ("approved: push both A3 branches and make piece 2's moves"):
+  - PCT −63;
+  - the 9 re-pins;
+  - the corpus: +7 fail rows and −4 unordered-register rows per database. The 7 are the three `testFilterUsing...`
+    tests, `testToSQLStringSubstringIsUncorrectedByDefault`, and H12's three plan-text tests, whose
+    `indexOf(...) != -1` was vacuous under the old meaning;
+  - the 5 edge-net re-records.
+- **The PCT adapters** now set no flag (`c2cb56bf5`), as upstream's own adapters do. `DETERMINISTIC_AS_OF` stays.
