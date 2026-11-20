@@ -3441,3 +3441,8 @@ who confirms or changes phases 1-3.
   - **Also under LITE+DATABASE:**
     - 22 MariaDB rows hit the server's `--max-session-mem-used` (the environment).
     - 3 ClickHouse rows raise "substring range is out of the text's bounds" (removeDuplicatesByPrimitive, testSimpleSortWithKey, testSimpleSortWithFunctionVariables). They pass under COMPAT HOST and in channel A. Sibling 1b is finding the SQL shape and cause, measure only: eager evaluation of the guard in ClickHouse, or a batch padding row?
+- **~09:25 UTC, the ClickHouse finding (sibling 1b, measured):** ClickHouse does not short-circuit a CASE inside a lambda, even with force_enable.
+  - So a guarded raise, piece 2's substring range check or any `Scalars.guarded`, inside arrayMap, arraySort or arrayFilter raises spuriously on VALID data. It is a loud error, not a silent wrong answer.
+  - The 3 PCT rows under LITE show it. By inference from the code, it reaches product queries on ClickHouse with substring in a list lambda; not run.
+  - Fix shape, measured: the raise branch carries its own condition (`toInt64(if(cond, concat(...), '0'))`).
+  - The window-fix session (`session_0195rQEjkEZDfj2GjXCAhyJr`) is PREPARING it on `claude/clickhouse-lambda-raise`, dialect-only. Whether it joins #128's single push is the user's call.
