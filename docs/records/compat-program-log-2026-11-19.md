@@ -3402,3 +3402,13 @@ who confirms or changes phases 1-3.
   - Its fast lanes are green, including //gates:edge_net 40/40 with NO record moved, and //pct:batteries_test.
   - The move list is on the PR draft's word list.
   - The judges merge it and run //gates:local plus the edge lanes once. The reviewer reviews it.
+- **~08:45 UTC, THE BATCH PR IS OUT: #128 reopened on the final head `67fa4df5`.**
+  - That head is the batch plus piece 2's review round plus B1-R's door pass: `c35e90888`, `aacb49b96`, and the docs in `67fa4df5`.
+  - CI run 44704746658 is running on it.
+  - #128's earlier run on `71b7bf55e` (44694807016) finished GREEN on every OS, including `macos/parser_equivalence`.
+  - #127 is closed with a pointer.
+  - In parallel on `67fa4df5`:
+    - the judges: //gates:local, the edge lanes and the full measurement, then MySQL ×1 and MariaDB ×2;
+    - the two PR #118 heavy-round sessions: D's 41 targets (`session_0195rQEkoSZaSZPXqt8GgGHs`), and the build sweep, six manual targets and the warehouse verdict (`session_0195rQEkwPHouTKiaM325UY5`);
+    - the reviewer: B1-R's pass.
+  - The warm-database lanes run on `317204773`, which B1-R's pass does not touch for PCT. BigQuery, Snowflake and sibling 1a are done with 0 lost passes; 1b and Databricks are still running.
