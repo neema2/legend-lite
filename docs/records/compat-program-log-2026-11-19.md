@@ -3446,3 +3446,11 @@ who confirms or changes phases 1-3.
   - The 3 PCT rows under LITE show it. By inference from the code, it reaches product queries on ClickHouse with substring in a list lambda; not run.
   - Fix shape, measured: the raise branch carries its own condition (`toInt64(if(cond, concat(...), '0'))`).
   - The window-fix session (`session_0195rQEjkEZDfj2GjXCAhyJr`) is PREPARING it on `claude/clickhouse-lambda-raise`, dialect-only. Whether it joins #128's single push is the user's call.
+- **~09:42 UTC, the judges' gate on `aacb49b96`** (code-identical to `67fa4df5`): 609 of 610 pass, plus 14 of 14 run as the unprivileged user.
+  - **The one red:** `//core:update_generated_1_test`. B1-R's `c35e90888` wrote the substrAsGiven line in generated Pure.java one line before where the generator puts it. B1-R ran only `update_generated_4`.
+  - #128's CI shows the same thing: `linux / checks` FAILED on `update_generated_1_test`, the only red of 49 completed jobs.
+  - **The fix:** `b4be20ec2` (the generator's output; no pin moves). Local, not pushed.
+  - **The single push waits on the user's word for:**
+    1. the PCT judge-SQL re-pin (↑);
+    2. the follow-ups' own_corpus 3327 → 3330 (↑);
+    3. A/B on the ClickHouse lambda fix.
