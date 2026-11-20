@@ -835,14 +835,11 @@ duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testDateTi
 duckdb-lite	Essential	meta::pure::functions::string::tests::format::testFormatIntegerWithZeroPadding	ModelException: format's %05d is legend-pure's text, the compatibility edge's: the product's format writes %s, %d, %f and %t{}
 duckdb-lite	Essential	meta::pure::functions::string::tests::format::testFormatRepr	ModelException: format's %r is legend-pure's text, the compatibility edge's: the product's format writes %s, %d, %f and %t{}
 duckdb-lite	Essential	meta::pure::functions::string::tests::toString::testPersonToString	ModelException: toString of an instance is legend-pure's text, the compatibility edge's: the product writes an object by graph fetch
-# lite's indexOf and substring are 1-based where Pure's are 0-based (the compatibility program's R4, not built; COMPAT runs CORRECT_SQL_SUBSTRING_INDEXING), and a sort by a key over them (2026-11-19; 7 rows)
-duckdb-lite	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: expected 0, got 1
-duckdb-lite	Essential	meta::pure::functions::collection::tests::sort::testSimpleSortWithKey	AssertFailed: expected ["Smith", "Doe", "Branche"], got ["Branche", "Doe", "Smith"]
-duckdb-lite	Essential	meta::pure::functions::collection::tests::sort::testSimpleSortWithFunctionVariables	AssertFailed: expected ["Smith", "Doe", "Branche"], got ["Branche", "Doe", "Smith"]
-duckdb-lite	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: expected 4, got 5
-duckdb-lite	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: expected 1, got 2
-duckdb-lite	Essential	meta::pure::functions::string::tests::substring::testStart	AssertFailed: expected "he quick brown fox jumps over the lazy dog", got "the quick brown fox jumps over the lazy dog"
-duckdb-lite	Essential	meta::pure::functions::string::tests::substring::testStartEnd	AssertFailed: expected "he quick brown fox jumps over the lazy do", got "the quick brown fox jumps over the lazy do"
+# (2026-11-20, the stage-A batch: A3 piece 2 gave indexOf and substring Pure's 0-based meaning in the core, so under
+# lite's own rules the 7 rows that stood here pass and left -- indexOf::testSimple, testFromIndex,
+# indexof::testIndexOfOneElement, substring::testStart, testStartEnd, sort::testSimpleSortWithKey and
+# testSimpleSortWithFunctionVariables; a guard moving down only: approved by the user 2026-11-19 ~20:45
+# ("Approved to move guards down"))
 # acos/asin out of domain raise nothing: the database answers NaN (lite's IEEE Float, S119), where legend-pure raises 'Unable to compute acos of 2.0' (2026-11-19; 2 rows)
 duckdb-lite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: expected the error "Unable to compute acos of 2.0", got none
 duckdb-lite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: expected the error "Unable to compute asin of 2.0", got none

@@ -45,11 +45,10 @@ public class Test_LegendLite_LiteRules_EssentialFunctions_PCT extends PCTReportC
             one("meta::pure::functions::string::tests::toString::testDateTimeWithTimezoneToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-01T00:00:00.0000+0000'\nactual:   '2014-01-01T00:00:00.000000Z'\""),
             one("meta::pure::functions::string::tests::toString::testSimpleDateToString_Function_1__Boolean_1_", "\"\nexpected: '2014-01-02T01:54:27.352+0000'\nactual:   '2014-01-02T01:54:27.352000Z'\""),
             one("meta::pure::functions::string::tests::toString::testFloatToStringWithNegativeExponent_Function_1__Boolean_1_", "\"\nexpected: '0.000000013421'\nactual:   '0'\""),
-            // lite's substring indexing (the compatibility program's R4, not built: the PCT lanes' COMPAT rules plan CORRECT_SQL_SUBSTRING_INDEXING; LITE runs the product's default features) (2026-11-19)
-            one("meta::pure::functions::string::tests::substring::testStart_Function_1__Boolean_1_", "\"\nexpected: 'he quick brown fox jumps over the lazy dog'\nactual:   'the quick brown fox jumps over the lazy dog'\""),
-            one("meta::pure::functions::string::tests::substring::testStartEnd_Function_1__Boolean_1_", "\"\nexpected: 'he quick brown fox jumps over the lazy do'\nactual:   'the quick brown fox jumps over the lazy do'\""),
-            one("meta::pure::functions::collection::tests::sort::testSimpleSortWithKey_Function_1__Boolean_1_", "\"\nexpected: ['Smith', 'Doe', 'Branche']\nactual:   ['Branche', 'Doe', 'Smith']\""),
-            one("meta::pure::functions::collection::tests::sort::testSimpleSortWithFunctionVariables_Function_1__Boolean_1_", "\"\nexpected: ['Smith', 'Doe', 'Branche']\nactual:   ['Branche', 'Doe', 'Smith']\""),
+            // (2026-11-20, the stage-A batch: A3 piece 2 gave substring Pure's 0-based meaning in the core, so under lite's
+            // rules substring::testStart, testStartEnd, sort::testSimpleSortWithKey and testSimpleSortWithFunctionVariables
+            // pass and their 4 rows left; a guard moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move
+            // guards down"))
             // legend-pure's text refused by name: an instance's toString, format's %r and %05d are the compatibility edge's (2026-11-19)
             one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "\"toString of an instance is legend-pure's text, the compatibility edge's: the product writes an object by graph fetch\""),   // a COMPAT row, failing with lite's text
             one("meta::pure::functions::string::tests::format::testFormatRepr_Function_1__Boolean_1_", "format's %r is legend-pure's text, the compatibility edge's: the product's format writes %s, %d, %f and %t{}"),
