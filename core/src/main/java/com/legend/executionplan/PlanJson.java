@@ -253,8 +253,8 @@ public final class PlanJson {
      * with {@link com.legend.sql.RaiseKind#MARK} and a kind's name, as the renderer writes it
      * ({@code AnsiSqlRenderer.raiseMessage}), in a statement, a script, a load's step or its bundle, or a MongoDB
      * pipeline's JSON (the mark escaped there) -- by the kind's name, sorted: derived from the statements' sites since v56.
-     * No sentence since v59 (stage B's B1, 2026-11-20): the kind's words are each audience's, written after the run. A
-     * site the edge words in SQL (the interim) is no site, and has none. The hosts read it from the plan's JSON
+     * No sentence since v59 (stage B's B1, 2026-11-20): the kind's words are each audience's, written after the run.
+     * The hosts read it from the plan's JSON
      * ({@code raises}); exec, which holds the plan, asks here when a statement fails (a raise the plan does not declare
      * is refused by name).
      */

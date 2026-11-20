@@ -21,11 +21,24 @@ import com.legend.error.LegendCompileException;
  * @param element        the model element a compile error names ({@link Kind#MODEL}, {@link Kind#MAPPING_RESOLUTION})
  * @param unjudgedReason an {@link Kind#ASSERT_FAILED} that is an UNJUDGED decline: why
  * @param where          the planning site that recorded it, for debugging (ruled 2026-11-08): stable across runs
- * @param compile        the kinded compile error in it and lite's wrapper around that, as data ({@link Compile}); null
- *                       where it holds none
+ * @param fact           the facts an audience words the error from ({@link Fact}: its kinded compile error and lite's
+ *                       wrapper, or a file's size against a load's limit); null where it holds none
  */
 public record Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
-        @Nullable String element, @Nullable String unjudgedReason, String where, @Nullable Compile compile) {
+        @Nullable String element, @Nullable String unjudgedReason, String where, @Nullable Fact fact) {
+
+    /** THE FACTS A PLANNED FAILURE CARRIES FOR ITS WORDS (stage B's B1, 2026-11-20, errors as records): what another audience words the error
+     *  from after the run, where lite's message alone would lose it. */
+    public sealed interface Fact permits Compile, FileTooLarge {
+    }
+
+    /** A load's file larger than its limit ({@code base.DataSize.TooLarge}'s facts): legend-pure words its size and the
+     *  limit. */
+    public record FileTooLarge(String path, long bytes, long characters, int limitMegabytes) implements Fact {
+        public FileTooLarge {
+            java.util.Objects.requireNonNull(path, "path");
+        }
+    }
 
     /**
      * A COMPILE ERROR'S KINDED PART, AS DATA (stage B's B1, 2026-11-20, errors as records; until then the plan's style worded the error
@@ -36,7 +49,7 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
      * audience's formatter words the kinded part its way and keeps the wrapper, after the run.
      */
     public record Compile(String prefix, com.legend.error.CompileKind kind, java.util.List<String> operands,
-            @Nullable String position, String suffix) {
+            @Nullable String position, String suffix) implements Fact {
         public Compile {
             java.util.Objects.requireNonNull(prefix, "prefix");
             java.util.Objects.requireNonNull(kind, "kind");
@@ -50,7 +63,7 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         }
     }
 
-    /** A failure with no kinded compile error in it. */
+    /** A failure with no facts beyond its message. */
     public Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
             @Nullable String element, @Nullable String unjudgedReason, String where) {
         this(kind, message, phase, element, unjudgedReason, where, null);
@@ -66,9 +79,18 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         if (unjudgedReason != null && kind != Kind.ASSERT_FAILED) {
             throw new IllegalArgumentException("an unjudged reason is a failed assert's alone: " + kind);
         }
-        if (compile != null && !(compile.prefix() + compile.own() + compile.suffix()).equals(message)) {
-            throw new IllegalArgumentException("a failure's kinded part and lite's wrapper spell its message: '"
-                    + compile.prefix() + compile.own() + compile.suffix() + "' is not '" + message + "'");
+        if (fact instanceof Compile c) {
+            if (kind != Kind.MODEL && kind != Kind.TYPE_INFERENCE && kind != Kind.RESOLUTION
+                    && kind != Kind.MAPPING_RESOLUTION && kind != Kind.SCHEMA_INVARIANT && kind != Kind.ISLAND_SYNTAX) {
+                throw new IllegalArgumentException("a failure's compile facts are a compile error's alone: " + kind);
+            }
+            if (!(c.prefix() + c.own() + c.suffix()).equals(message)) {
+                throw new IllegalArgumentException("a failure's kinded part and lite's wrapper spell its message: '"
+                        + c.prefix() + c.own() + c.suffix() + "' is not '" + message + "'");
+            }
+        }
+        if (fact instanceof FileTooLarge && kind != Kind.DATA) {
+            throw new IllegalArgumentException("a failure's file-size facts are a data error's alone: " + kind);
         }
     }
 

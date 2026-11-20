@@ -183,10 +183,9 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: the query's execution target (Compiler.Target), lite's own"),
             Map.entry("com.legend.arrowipc.ZstdFrame#of([B)",
                     "2026-11-18: lite's own Arrow IPC zstd frame; its product caller lands with the host train (J36)"),
-            Map.entry("com.legend.base.DataSize$TooLarge#characters()",
-                    "2026-11-18: lite's size-limit refusal's own facts, which the edge words as upstream does"),
-            Map.entry("com.legend.base.DataSize$TooLarge#limitMegabytes()",
-                    "2026-11-18: lite's size-limit refusal's own facts, which the edge words as upstream does"),
+            // (DataSize$TooLarge#characters() and #limitMegabytes(), the size limit's refusal's facts: the product reads
+            // them since stage B's B1, 2026-11-20 -- a planned failure carries them, Failures.factOf -- so they are no
+            // longer the edge's alone; a down move)
             Map.entry("com.legend.base.RunScope#judging()",
                     "2026-11-18: the run witness's post-run judging scope (lite's G4 proof), opened by the edge's appeals"),
             Map.entry("com.legend.compiler.StoreLookups#findOwnTableDefinition(java.lang.String, java.lang.String)",

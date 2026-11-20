@@ -153,7 +153,7 @@ corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::right	2	152	8417	0	
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::round	2	205	8623	0	36	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::rtrim	2	144	8062	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::sin	2	125	8017	0	0	0
-corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::sqrt	2	5597	17330	0	2606	0
+corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::sqrt	2	395	11801	0	52	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::stddev::population	1	67	3825	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::stddev::sample	1	64	3811	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::sqlFunction::stringToDate	2	224	8415	0	0	0
@@ -252,7 +252,7 @@ corpus	DuckDB	meta::relational::tests::query::filter::lessThanEqual	2	778	13495	
 corpus	DuckDB	meta::relational::tests::query::filter::multipleFilters	3	1474	29233	3	0	0
 corpus	DuckDB	meta::relational::tests::query::filter::notEqual	2	528	8601	0	0	0
 corpus	DuckDB	meta::relational::tests::query::filter::or	1	468	10512	1	0	0
-corpus	DuckDB	meta::relational::tests::query::function	27	8667	170635	6	147	0
+corpus	DuckDB	meta::relational::tests::query::function	27	8248	170630	6	64	0
 corpus	DuckDB	meta::relational::tests::query::function::acos	1	696	9925	1	46	0
 corpus	DuckDB	meta::relational::tests::query::function::asin	1	696	9925	1	46	0
 corpus	DuckDB	meta::relational::tests::query::function::atan	1	551	9521	1	0	0
@@ -268,11 +268,11 @@ corpus	DuckDB	meta::relational::tests::query::function::isempty	1	171	2602	0	0	0
 corpus	DuckDB	meta::relational::tests::query::function::log	2	1101	19042	2	0	0
 corpus	DuckDB	meta::relational::tests::query::function::mod	1	606	9857	1	0	0
 corpus	DuckDB	meta::relational::tests::query::function::pow	1	555	9641	1	0	0
-corpus	DuckDB	meta::relational::tests::query::function::rem	1	695	10750	1	0	0
+corpus	DuckDB	meta::relational::tests::query::function::rem	1	636	10785	1	0	0
 corpus	DuckDB	meta::relational::tests::query::function::round	2	764	13317	1	54	0
 corpus	DuckDB	meta::relational::tests::query::function::sign	1	567	9538	1	0	0
 corpus	DuckDB	meta::relational::tests::query::function::sin	1	552	9536	1	0	0
-corpus	DuckDB	meta::relational::tests::query::function::sqrt	1	2320	12568	1	780	0
+corpus	DuckDB	meta::relational::tests::query::function::sqrt	1	640	10810	1	0	0
 corpus	DuckDB	meta::relational::tests::query::function::tan	1	552	9536	1	0	0
 corpus	DuckDB	meta::relational::tests::query::function::toString	1	564	9593	1	0	0
 corpus	DuckDB	meta::relational::tests::query::legacyNullUnsafeEquals	0	0	0	0	0	0
@@ -466,7 +466,7 @@ corpus	H2	meta::relational::tests::mapping::sqlFunction::right	2	162	9459	0	17	0
 corpus	H2	meta::relational::tests::mapping::sqlFunction::round	2	855	10339	0	326	0
 corpus	H2	meta::relational::tests::mapping::sqlFunction::rtrim	2	158	9112	0	0	0
 corpus	H2	meta::relational::tests::mapping::sqlFunction::sin	2	139	9067	0	0	0
-corpus	H2	meta::relational::tests::mapping::sqlFunction::sqrt	2	6718	19655	0	3214	0
+corpus	H2	meta::relational::tests::mapping::sqlFunction::sqrt	2	481	12929	0	75	0
 corpus	H2	meta::relational::tests::mapping::sqlFunction::stddev::population	1	73	4348	0	0	0
 corpus	H2	meta::relational::tests::mapping::sqlFunction::stddev::sample	1	70	4334	0	0	0
 corpus	H2	meta::relational::tests::mapping::sqlFunction::stringToDate	2	259	9484	0	0	0
@@ -565,7 +565,7 @@ corpus	H2	meta::relational::tests::query::filter::lessThanEqual	2	895	14690	1	0	
 corpus	H2	meta::relational::tests::query::filter::multipleFilters	3	1666	31080	3	0	0
 corpus	H2	meta::relational::tests::query::filter::notEqual	2	556	9669	0	0	0
 corpus	H2	meta::relational::tests::query::filter::or	1	517	11116	1	0	0
-corpus	H2	meta::relational::tests::query::function	27	9568	185905	6	92	0
+corpus	H2	meta::relational::tests::query::function	27	9194	185939	6	76	0
 corpus	H2	meta::relational::tests::query::function::acos	1	904	10690	1	48	0
 corpus	H2	meta::relational::tests::query::function::asin	1	904	10690	1	48	0
 corpus	H2	meta::relational::tests::query::function::atan	1	649	10172	1	0	0
@@ -581,11 +581,11 @@ corpus	H2	meta::relational::tests::query::function::isempty	1	190	3146	0	0	0
 corpus	H2	meta::relational::tests::query::function::log	2	1297	20344	2	0	0
 corpus	H2	meta::relational::tests::query::function::mod	1	710	10520	1	0	0
 corpus	H2	meta::relational::tests::query::function::pow	1	653	10292	1	0	0
-corpus	H2	meta::relational::tests::query::function::rem	1	811	11425	1	0	0
+corpus	H2	meta::relational::tests::query::function::rem	1	750	11456	1	0	0
 corpus	H2	meta::relational::tests::query::function::round	2	2040	15695	1	555	0
 corpus	H2	meta::relational::tests::query::function::sign	1	665	10189	1	0	0
 corpus	H2	meta::relational::tests::query::function::sin	1	650	10187	1	0	0
-corpus	H2	meta::relational::tests::query::function::sqrt	1	2787	13644	1	1020	0
+corpus	H2	meta::relational::tests::query::function::sqrt	1	762	11487	1	0	0
 corpus	H2	meta::relational::tests::query::function::tan	1	650	10187	1	0	0
 corpus	H2	meta::relational::tests::query::function::toString	1	662	10244	1	0	0
 corpus	H2	meta::relational::tests::query::legacyNullUnsafeEquals	0	0	0	0	0	0

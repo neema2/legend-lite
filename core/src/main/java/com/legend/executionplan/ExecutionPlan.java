@@ -847,6 +847,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 throw new IllegalArgumentException("a raise site is numbered from 1: " + n);
             }
             Objects.requireNonNull(kind, "a raise site's kind");
+            if (kind == com.legend.sql.RaiseKind.USER_FAIL) {
+                // a user's fail raises its own message, never a site (RaiseSite refuses it too; B1's audit)
+                throw new IllegalArgumentException("a user's fail is no raise site");
+            }
             operands = List.copyOf(operands);
         }
 

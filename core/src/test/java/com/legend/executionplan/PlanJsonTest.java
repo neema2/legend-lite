@@ -135,6 +135,25 @@ class PlanJsonTest {
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
 
+    /** A raise site's every operand kind reads back as written (stage B's B1, 2026-11-20): a literal by its Pure kind,
+     *  a Float and a Decimal as text (never a JSON number), and a computed one as its position alone. */
+    @Test
+    void aSitesOperandsOfEveryKindReadBack() {
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
+                List.of(), List.of(), null, null, null);
+        List<Operand> every = List.of(new Operand.Text("label"), new Operand.Int(-7), new Operand.Flt(0.1 + 0.2),
+                new Operand.Dec(new java.math.BigDecimal("12.3400")), new Operand.Bool(true), new Operand.Day("2016-12-32"),
+                new Operand.Instant("2017-01-01T10:30:00+0000"), Operand.Computed.IT);
+        Sql sql = new Sql("select 1", List.of(), t, null).raising(List.of(
+                new ExecutionPlan.Site(1, com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, "rem", every),
+                new ExecutionPlan.Site(2, com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, null, List.of())));
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.VALUE,
+                List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), sql));
+        assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+        assertTrue(PlanJson.write(plan).contains("{\"float\":\"0.30000000000000004\"}"), PlanJson.write(plan));
+        assertTrue(PlanJson.write(plan).contains("{\"decimal\":\"12.3400\"}"), PlanJson.write(plan));
+    }
+
     /** The settings a target's database must have (the C checkpoint's SHOULD-FIX 3, 2026-11-12: H2's MODE and null
      *  ordering, the database's, whose SET would commit a caller's transaction) are the plan's data: each a name and a
      *  value, with the statement that reads them back; written only where a target declares them. */

@@ -1035,8 +1035,8 @@ public final class PlanMaker {
         // the typed tree carried beside the statement names each payload by its digest, never its text or rows (the
         // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
         SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
-        // the raise sites its render wrote, planned: each token's kind, where and product words (phase D's Phase 2,
-        // 2026-11-16), the statement and its sites offered to the plan's style (K10b, 2026-11-17)
+        // the raise sites its render wrote, planned: each token's kind, where and operands, no words (phase D's Phase 2,
+        // 2026-11-16; stage B's B1, 2026-11-20)
         return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content)
                 .raising(sites(rendered.sites()));
     }

@@ -76,8 +76,8 @@ public final class RaisedErrors {
     /**
      * The site a raise's text names (phase D's Phase 2, raises as SITES, 2026-11-16): a text that is a site's token
      * ({@code LG#<n>}, {@link com.legend.sql.RaiseKind#token}) is site {@code n} of the statement that raised it, read
-     * from the sites its plan declares for it; null for any other text -- a user's {@code fail} message, the edge's
-     * sentence written in SQL (the interim). A token the statement does not declare is refused by name: the database
+     * from the sites its plan declares for it; null for any other text -- a user's {@code fail} message. A token the
+     * statement does not declare is refused by name: the database
      * reported what the plan did not plan.
      */
     static ExecutionPlan.@com.legend.base.Nullable Site siteOf(String text, List<ExecutionPlan.Site> sites) {
@@ -96,9 +96,8 @@ public final class RaisedErrors {
     /** A failure that IS a raise (pure's own error, its text the platform's: the sentinel envelope unwrapped), told by
      *  its type wherever a caller asks whether a failure was raised (the B checkpoint's tenets audit, LOW 4,
      *  2026-11-11: until then the seam compared a failure's message with its database's to tell). A raise of a site
-     *  carries the site's kind, where and words; its message the kind behind its mark and the where behind a second
-     *  (K10a of the edge audit, 2026-11-17: never the plan's upstream words, which are the edge's) (the text an upstream reader has read since PR1:
-     *  {@code edge.PureMessages.compile}). */
+     *  carries the site's record (its kind, where and operands; no words: stage B's B1, 2026-11-20); its message the
+     *  kind behind its mark and the where behind a second, lite's carriage, never words. */
     public static class Raised extends java.sql.SQLException implements ExecutionPlan.RaisedAtSite {
         private final ExecutionPlan.@com.legend.base.Nullable Site site;
 
@@ -218,7 +217,7 @@ public final class RaisedErrors {
                     site.productSentence(), raised);
         }
         if (text != null && !text.equals(message)) {
-            // lite's envelope, no site: a user's fail, or the edge's sentence written in SQL (the interim)
+            // lite's envelope, no site: a user's fail
             return new com.legend.error.DataError(text, cause);
         }
         // no envelope: the database's own failure, its message verbatim (a document store's: no SQLSTATE)
@@ -235,7 +234,7 @@ public final class RaisedErrors {
                     site.productSentence(), un);
         }
         if (un instanceof Raised) {
-            // lite's envelope, no site: a user's fail (its own text), or the edge's sentence in SQL (the interim) --
+            // lite's envelope, no site: a user's fail (its own text) --
             // never the database's (phase D's Phase 2, item 4)
             return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
         }

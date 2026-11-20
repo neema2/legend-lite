@@ -52,8 +52,8 @@ class AssertErrorNativeTest {
     }
 
     /** {@code query} under the COMPATIBILITY RULES, heard by the edge's run (K10b of the edge audit, 2026-11-17):
-     *  assertError matches a raise of a planned site by legend-pure's words of it, the edge's records looked up by the
-     *  run's hearing ({@code EdgeHearing.raisedWords}) -- never the product plan's, whose sites say lite's message. */
+     *  assertError matches a raise of a planned site by legend-pure's words of it, worded by the edge from the site's
+     *  record after the run (stage B's B1, 2026-11-20) -- never lite's message. */
     private static Lean.Result compat(String query) {
         return com.legend.testing.EdgeProgram.run(StorelessRuntime.with("", Databases.PLATFORM), query,
                 StorelessRuntime.RUNTIME, conn, com.legend.testing.EdgeProgram.compat()).side();

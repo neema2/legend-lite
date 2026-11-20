@@ -39,6 +39,15 @@ class TestPlanJsonRoundTripTest {
 
     private static final ExecutionPlan.Multiplicity ONE = new ExecutionPlan.Multiplicity(1, 1);
     private static final Failure FAILURE = new Failure(Failure.Kind.ILLEGAL_STATE, "refused", null, null, null, "here");
+
+    /** A planned failure's facts round-trip (stage B's B1, 2026-11-20): a kinded compile error inside lite's stated
+     *  wrapper, and a file's size against a load's limit. */
+    private static final Failure COMPILE_FAILURE = new Failure(Failure.Kind.MODEL, "in function 'f': [2:3] window frame starts"
+            + " after it ends [inlined via a -> b]", com.legend.error.LegendCompileException.Phase.TYPE, null, null,
+            "there", new Failure.Compile("in function 'f': ", com.legend.error.CompileKind.WINDOW_FRAME_INVERTED,
+                    List.of(), "[2:3]", " [inlined via a -> b]"));
+    private static final Failure FILE_FAILURE = new Failure(Failure.Kind.DATA, "the file is larger than the load admits:"
+            + " /big.csv", null, null, null, "elsewhere", new Failure.FileTooLarge("/big.csv", 1048577, 1048577, 1));
     private static final Assertion ASSERTION = new Assertion("assertEquals", "equality", true, null);
 
     @Test
@@ -119,6 +128,8 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Json(true),
                 new HostJudgment.Rendered("rendered", false, "form", null, "aForm", true, true),
                 new HostJudgment.Raise(FAILURE),
+                new HostJudgment.Raise(COMPILE_FAILURE),
+                new HostJudgment.Raise(FILE_FAILURE),
                 new HostJudgment.EdgeJudged(new com.legend.edge.EngineTextJudgment("text", "golden", "ours", false, "decline"), 1,
                         "origin", true),
                 new HostJudgment.AssertError("expected", 3L, null, FAILURE, part),

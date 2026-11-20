@@ -52,6 +52,12 @@ public final class DataSize {
         }
     }
 
+    /** The refusal its facts state: a test plan's planned failure rebuilt at its verdict's turn (stage B's B1,
+     *  2026-11-20), so its words are worded from the same facts as a live one's. */
+    public static TooLarge refusal(String path, long bytes, long characters, int limitMegabytes) {
+        return new TooLarge(path, bytes, characters, limitMegabytes);
+    }
+
     /** {@code bytes} refused ({@link TooLarge}) where they are more than {@code limitMegabytes} megabytes (legend-pure's
      *  {@code CsvReader.readCsv}, read 2026-11-09 at 5.99.0: the UTF-8 length against the limit). */
     public static void requireSize(String path, byte[] bytes, int limitMegabytes) {

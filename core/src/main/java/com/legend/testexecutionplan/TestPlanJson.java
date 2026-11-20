@@ -60,8 +60,8 @@ public final class TestPlanJson {
      *  (2026-11-19, A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge is the
      *  only judge in compatibility): a database root's row carries no {@code orElse}, {@code appeal} or
      *  {@code decline}, and the edge's appeal record no {@code batched} or {@code joins} -- the database judge's
-     *  compatibility path deleted; 34 (stage B's B1, 2026-11-20, errors as records): a planned failure carries its kinded compile error
-     *  and lite's wrapper as data ({@code compile}), no words planned in a style's; no size refusal's words
+     *  compatibility path deleted; 34 (stage B's B1, 2026-11-20, errors as records): a planned failure carries the facts an audience words
+     *  it from ({@code fact}: its kinded compile error and lite's wrapper, or a file's size against a load's limit), no words planned in a style's; no size refusal's words
      *  ({@code SideShape.sizeWords}, {@code answerSizeWords}: the run raises the refusal as its record); and the
      *  product's version 59 (a raise site's facts, no words). */
     public static final int VERSION = 34;

@@ -395,6 +395,11 @@ final class Overloads {
             if (hygienic.written().isEmpty() || said == null) {
                 throw e;
             }
+            if (e.kind() != null && e.position() == null) {
+                // a kinded error stays kinded, its operands restored (stage B's B1, 2026-11-20: its record, which an
+                // audience words, keeps what the user wrote)
+                throw new TypeInferenceException(e.kind(), e.operands().stream().map(hygienic::restore).toList());
+            }
             throw new TypeInferenceException(hygienic.restore(said), e);
         } finally {
             normalizing.pop();
@@ -450,7 +455,8 @@ final class Overloads {
         try {
             kernel.unify(want, got, new Bindings());
         } catch (TypeInferenceException e) {
-            throw new TypeInferenceException(said + ": " + e.getMessage(), e);
+            // its text before the unifier's error, stated (stage B's B1, 2026-11-20)
+            throw new TypeInferenceException(said + ": ", e, "");
         }
         List<String> extra = got.columns().stream().map(Type.Column::name)
                 .filter(n -> want.columns().stream().noneMatch(c -> InferenceKernel.sameColumn(c.name(), n)))

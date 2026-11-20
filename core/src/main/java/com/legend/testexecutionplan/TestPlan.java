@@ -33,9 +33,8 @@ import java.util.Objects;
  * @param session             the target of the session the body runs on: its runtime's, planned (the plan-as-data
  *                            design's slice 5, 2026-11-09: until then the door planned it from the model beside the
  *                            plan, so a plan read back from its JSON could not open its own session)
- * @param answerSizeWords     the body's answer's refusal of no rows under a required bound, worded at planning by the
- *                            plan's style (C5's step E, 2026-11-17: the run spells no text); null where the answer has
- *                            no required bound, or the plan sends none
+ *                            (the answer's refusal of no rows is the run's record since stage B's B1, 2026-11-20:
+ *                            no {@code answerSizeWords})
  * @param words               the name of the words the plan's failures are worded in, as its style planned them
  *                            ({@link #LITE_WORDS}, or the compatibility edge's; census J29, 2026-11-18: a name, never a flag)
  *                            (census C1, the orchestrator's ruling of 2026-11-17: one choice per run, the style's at

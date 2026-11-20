@@ -194,7 +194,11 @@ public final class PureMessages {
             }
         }
         if (message.length() > 1 && message.charAt(0) == com.legend.sql.RaiseKind.MARK) {
-            throw new IllegalStateException("a raise's carriage with no site reached the edge's words: " + e);
+            // a product raise's carriage (MARK kind [MARK where]) with no site to word: its kind's name, as main's edge
+            // answered it; the mark and the where are lite's carriage, never upstream's text (the golden net,
+            // 2026-11-16). A formatter answers; it never throws (B1's audit, 2026-11-20)
+            int end = message.indexOf(com.legend.sql.RaiseKind.MARK, 1);
+            return end < 0 ? message.substring(1) : message.substring(1, end);
         }
         if (e instanceof com.legend.error.MissingParameters m) {
             // legend-engine's parameter validation, its exact join (4.145.0,

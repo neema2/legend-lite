@@ -140,7 +140,6 @@ class TestDataPlannerTest {
         assertEquals(com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED, e.failureKind());
         assertEquals("Multiple table row identifiers passed for the table: PERSON",
                 com.legend.edge.PureMessages.compile(e));
-        assertEquals(e.getMessage(), e.getMessage());
     }
 
     /** The server routes' text as their writer writes it (the B2d.3 audit's M1 and M2, 2026-11-12): the header each
@@ -769,7 +768,6 @@ class TestDataPlannerTest {
         assertEquals("Row Identifers should be provided for the root table: t::DB.ORDERS [ID:INT]\nExample:\n"
                 + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'ORDERS', [\n\n"
                 + "  ])\n", com.legend.edge.PureMessages.compile(root));
-        assertEquals(root.getMessage(), root.getMessage());
         TestDataPlanner.NoRowIdentifiers view = org.junit.jupiter.api.Assertions.assertThrows(
                 TestDataPlanner.NoRowIdentifiers.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Order.all()->project([o|$o.pnl.pnl], ['p'])"), "t::M",

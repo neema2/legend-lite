@@ -40,7 +40,22 @@ public final class Failures {
         String element = e instanceof LegendCompileException c
                 && (kind == Failure.Kind.MODEL || kind == Failure.Kind.MAPPING_RESOLUTION) ? c.element() : null;
         String unjudged = e instanceof AssertFailed f ? f.unjudgedReason() : null;
-        return new Failure(kind, message, phase, element, unjudged, where, compileOf(e));
+        return new Failure(kind, message, phase, element, unjudged, where, factOf(e));
+    }
+
+    /** {@code e}'s facts for its words: its kinded compile error ({@link #compileOf}), or a load's file larger than its
+     *  limit in its chain; null where it holds neither (stage B's B1, 2026-11-20, errors as records). */
+    static Failure.@Nullable Fact factOf(Throwable e) {
+        Failure.Compile compile = compileOf(e);
+        if (compile != null) {
+            return compile;
+        }
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.base.DataSize.TooLarge big) {
+                return new Failure.FileTooLarge(big.path(), big.bytes(), big.characters(), big.limitMegabytes());
+            }
+        }
+        return null;
     }
 
     /**
@@ -65,18 +80,23 @@ public final class Failures {
         return null;
     }
 
-    /** The exception {@code f} names, its message as planned: raised at the verdict's turn, its kinded part
-     *  ({@link Failure#compile}) riding it as its cause ({@link Planned}), so an audience's words of a caught error word
-     *  it from the data (stage B's B1, 2026-11-20, errors as records). */
+    /** The exception {@code f} names, its message as planned: raised at the verdict's turn, its facts
+     *  ({@link Failure#fact}) riding it as its cause -- a kinded part as {@link Planned}, a file's size as the size's
+     *  own refusal -- so an audience's words of a caught error word it from the data (stage B's B1, 2026-11-20, errors as records). */
     public static RuntimeException raised(Failure f) {
         RuntimeException raised = rebuilt(f);
-        Failure.Compile compile = f.compile();
-        if (compile != null) {
+        Throwable cause = switch (f.fact()) {
+            case null -> null;
+            case Failure.Compile c -> new Planned(c);
+            case Failure.FileTooLarge t -> com.legend.base.DataSize.refusal(t.path(), t.bytes(), t.characters(),
+                    t.limitMegabytes());
+        };
+        if (cause != null) {
             try {
-                raised.initCause(new Planned(compile));
+                raised.initCause(cause);
             } catch (IllegalStateException held) {
                 throw new IllegalStateException("a planned failure of kind " + f.kind() + " is rebuilt with a cause, so"
-                        + " its kinded part cannot ride it", held);
+                        + " its facts cannot ride it", held);
             }
         }
         return raised;

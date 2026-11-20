@@ -31,7 +31,7 @@ import java.util.TreeMap;
  * 2026-11-19) -- compatibility enters through the translator and leaves through the formatters -- so no product code
  * may branch on which edge style a plan is in. This census counts today's branches on "which edge style" by their
  * call sites in the product's and the edge's jars, and writes them to {@code mode_branch_census.txt} in the test's
- * outputs: {@code PureText.isEdgeStyle}, {@code PlanStyle.judgesEngineText}, {@code PureText.recording}'s template
+ * outputs: {@code PureText.isEdgeStyle}, {@code PlanStyle.judgesEngineText} (PureText.recording's went with stage B's B1, 2026-11-20)
  * check, and the {@code Boolean.getBoolean} switches (the engine scan order's among them). It fails only when it
  * cannot see a planted branch; it reports until the program's guard phase makes the count a shrink-only ratchet that
  * ends at 0. It does not count {@code PlanStyle.twoForm} or {@code facet} calls, {@code LoweringForms} or the
@@ -44,7 +44,7 @@ class ModeBranchCensusTest {
     static final List<String> BRANCHES = List.of(
             "com.legend.edge.PureText.isEdgeStyle",
             "com.legend.database.PlanStyle.judgesEngineText",
-            "com.legend.edge.PureText.recording",
+            // (com.legend.edge.PureText.recording: deleted 2026-11-20 with stage B's B1)
             "java.lang.Boolean.getBoolean");
 
     /** Each branch's call sites ({@code Class.method(line)}) in {@code classes}, the planted class's left out. */

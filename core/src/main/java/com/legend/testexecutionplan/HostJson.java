@@ -158,18 +158,25 @@ final class HostJson {
         o.put("element", x.element() == null ? null : x.element());
         o.put("unjudgedReason", x.unjudgedReason() == null ? null : x.unjudgedReason());
         o.put("where", x.where());
-        Failure.Compile c = x.compile();
-        if (c == null) {
-            o.put("compile", null);
-        } else {
-            // the kinded part and lite's wrapper, as data (stage B's B1, 2026-11-20, errors as records)
-            Map<String, Object> k = new LinkedHashMap<>();
-            k.put("prefix", c.prefix());
-            k.put("kind", c.kind().name());
-            k.put("operands", c.operands());
-            k.put("position", c.position());
-            k.put("suffix", c.suffix());
-            o.put("compile", k);
+        // the facts an audience words the failure from (stage B's B1, 2026-11-20, errors as records): one key, its variant's
+        Map<String, Object> k = new LinkedHashMap<>();
+        switch (x.fact()) {
+            case null -> o.put("fact", null);
+            case Failure.Compile c -> {
+                k.put("prefix", c.prefix());
+                k.put("kind", c.kind().name());
+                k.put("operands", c.operands());
+                k.put("position", c.position());
+                k.put("suffix", c.suffix());
+                o.put("fact", Map.of("compile", k));
+            }
+            case Failure.FileTooLarge t -> {
+                k.put("path", t.path());
+                k.put("bytes", t.bytes());
+                k.put("characters", t.characters());
+                k.put("limitMegabytes", t.limitMegabytes());
+                o.put("fact", Map.of("fileTooLarge", k));
+            }
         }
         return o;
     }
@@ -181,19 +188,27 @@ final class HostJson {
         @Nullable String v_element = absent(o, "element", "Failure") ? null : str(o.get("element"));
         @Nullable String v_unjudgedReason = absent(o, "unjudgedReason", "Failure") ? null : str(o.get("unjudgedReason"));
         String v_where = str(field(o, "where", "Failure"));
-        Failure.@Nullable Compile v_compile = null;
-        if (!absent(o, "compile", "Failure")) {
-            Json.Obj c = (Json.Obj) o.get("compile");
+        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where,
+                absent(o, "fact", "Failure") ? null : rFact(obj(o.get("fact"))));
+    }
+
+    private static Failure.Fact rFact(Json.Obj o) {
+        if (o.getOr("compile", null) instanceof Json.Obj c) {
             List<String> operands = new ArrayList<>();
             for (Json.Node n : ((Json.Arr) field(c, "operands", "Failure.Compile")).items()) {
                 operands.add(str(n));
             }
-            v_compile = new Failure.Compile(str(field(c, "prefix", "Failure.Compile")),
+            return new Failure.Compile(str(field(c, "prefix", "Failure.Compile")),
                     com.legend.error.CompileKind.valueOf(str(field(c, "kind", "Failure.Compile"))), operands,
                     absent(c, "position", "Failure.Compile") ? null : str(c.get("position")),
                     str(field(c, "suffix", "Failure.Compile")));
         }
-        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where, v_compile);
+        if (o.getOr("fileTooLarge", null) instanceof Json.Obj t) {
+            return new Failure.FileTooLarge(str(field(t, "path", "Failure.FileTooLarge")),
+                    num(field(t, "bytes", "Failure.FileTooLarge")), num(field(t, "characters", "Failure.FileTooLarge")),
+                    Math.toIntExact(num(field(t, "limitMegabytes", "Failure.FileTooLarge"))));
+        }
+        throw new IllegalArgumentException("a failure's fact is compile or fileTooLarge: " + o);
     }
 
     static Map<String, Object> wSideShape(SideShape x) {
