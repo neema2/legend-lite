@@ -1840,3 +1840,15 @@ moves.
   - **The worker's open observation:** a value drawn afresh (`random`, `uuid`), merged under an operand a dialect
     writes several times, could draw once per copy. It applies to merges generally and predates this fix, so the
     product track is the right home.
+
+**The window fix's notes, `bf2e9c4c3`: both met.**
+- **N1:** `selectLayersNeverLiftsAWindowUnderAListRead` builds a three-level chain: a window of joined names, a second
+  window of the same rows, and a list read of the first above them.
+  - It asserts `SelectLayers` re-lays the chain from three levels to two, a precondition, so the pin cannot pass
+    vacuously.
+  - It asserts no window sits under a SQLite-queried operation, both after `SelectLayers` alone and after SQLite's
+    merge then layout.
+  - A planted lifted shape shows the check bites.
+- **N2:** `Postgres.passes()`'s javadoc is back above its method and names the merge's rule. The field keeps its own
+  javadoc.
+- `core_tests_sql`, guardrails and `lean_sql_baseline_test` are green, as reported.
