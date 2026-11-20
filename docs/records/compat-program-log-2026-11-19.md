@@ -3232,3 +3232,18 @@ who confirms or changes phases 1-3.
   is the known pre-existing set (PR #118's heavy round: 41 JDBC PreparedStatement refusals, the Q2 track), to be
   confirmed equal to main; the judge-SQL ratchet under LITE/BOTH moved, read at the measurement. B1-R can land the
   wiring now.
+- **~03:24 UTC, H13: B3 option N measured** (record §27 at `be7d569a`; probe never for merge). On the H2 lane the probe
+  found 1,075 SQL-text asserts in 1,013 tests in six AST shapes; **our rows read 1,060 times through public doors only, no
+  hook** (`from(<the producer lambda's last statement>, mapping, runtime)` planned with resolveQuery/queryResolved, run
+  with Execution.run on the body's own session after the body); golden rows by the harness's own referee mirror (MATCH
+  995, DIVERGED 27, DECLINED 26, ERROR 27); 603 of today's 634 matching asserts match (31 others: 23 facts the harness
+  can supply, 7 shapes the public `from()` cannot spell, 1 unexplained); the six shapes reach 632 of today's 1,146 row
+  MATCHes, 514 via helpers and other shapes unclassified. Q1: the typed sides already reach the host judge
+  (`TestRun.Judges.sides`), and the edge's hearing already receives them; the run-time hand-off is the only faithful
+  wiring (a failed assert stops the body). Q2: no blocker, if the corpus keeps its recorder and mirror. Q3: assertError
+  and planned branches are typed. Q4: S15, S144, S131 apply at run time; S137 via the public `withBody`. **Size: N
+  deletes 3,449 lines of core main** (SqlTextVerdicts, Appeals, AppealJson, EngineTextPlanning, SqlTextReferee, Appeal;
+  SqlReplayReferee and ReplayGates move to the harness; AssertVerdicts' 15 calls and the EngineTestText facet gone),
+  **about 7.5 to 9 days against B3's 8**; G4 needs nothing new (1,069 post-run door calls, RunScope refused none).
+  Recommendation: adopt N for B3's SQL-text half. Decisions: (a) the corpus keeps its recorder and mirror; (b) the 7
+  unspellable shapes: a harness query shape or a recorded decline. Follow-up first: N2's reach on the 514 (half a day).

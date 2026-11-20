@@ -358,6 +358,43 @@ audience.
 
 **Recommendation: A.**
 
+### Q16. B3's design: option N, no compatibility judging in planning (added ~03:30, the user's idea; measured)
+
+**Context.** The user asked whether the SQL-text fallback, which is test-harness code, could be plain Java at the edge
+with no planning (~02:15).
+
+**The spike** (H13 §27, `be7d569a`), measured on the H2 lane:
+- **The query is public.** Lite's rows for a SQL-text assert's query come through public doors, with no hook: the
+  query is taken from the assert and run after the test body on its own session. 1,060 reads.
+- **The golden rows come from the harness's own referee.** legend-engine's H2 mirror answered 603 of the 634 asserts
+  that match today. Of the other 31, 23 need facts the harness can supply, 7 are shapes the public `from()` can't
+  spell, and 1 is unexplained.
+- **The run-time rules stay.** The ones that must apply at run time (S15, S144, S131) already ride the edge's existing
+  typed hand-off.
+
+| | B3 as planned | **Option N** |
+|---|---|---|
+| Compatibility judging in planning | narrowed to three connections | **none** |
+| Core main code deleted | the hooks narrowed | **3,449 lines** (the appeal's planning: SqlTextVerdicts, Appeals, EngineTextPlanning and the rest; the referee moves to the harness) |
+| Size | about 8 days | about 7.5 to 9 days |
+| New core hooks | none | none |
+
+**Two decisions before it is built:**
+- **(a) The corpus keeps its recorder and its referee mirror** (legend-engine's own H2 2.1.214).
+  - Replaying the golden on lite's own session instead would make the referee less independent (MATCH 745 instead of
+    995).
+  - **Recommendation: keep them.**
+- **(b) The 7 shapes `from()` can't spell** (4 runtimes with post-processors, 3 inline mappings).
+  - The choices are a harness query shape, or recording them as declines.
+  - **Recommendation: recorded declines**, 7 tests.
+
+**A half-day follow-up first:** the probe's six shapes reach 632 of today's 1,146 row matches. The other 514 come
+through helper functions and other shapes. Measuring them is the one number that could make the detection larger
+than estimated.
+
+**Recommendation:** adopt option N for B3's SQL-text half, with (a) keep and (b) recorded declines, after the
+half-day follow-up.
+
 ## The questions at a glance
 
 | # | Question | Recommendation |
@@ -377,6 +414,7 @@ audience.
 | 13 | `engine` on more databases | on demand |
 | 14 | The corpus in `engine` mode | yes, as part of B3, measured first; PCT stays in Pure's meaning |
 | 15 | Assert-failure words | lite's own everywhere (no upstream reader; B3 about 2 days smaller) |
+| 16 | B3's design | option N: no compatibility judging in planning, 3,449 lines out of core main, about the same size; keep the recorder and mirror; the 7 unspellable shapes as recorded declines; a half-day reach check first |
 
 Q5 and Q12 can start before stage B is ratified. Q5 is a product bug fix, and your 14:30 word covers taking it over.
 Q12 is tooling, right after stage A. The rest take effect when you ratify stage B.
