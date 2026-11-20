@@ -3476,3 +3476,7 @@ who confirms or changes phases 1-3.
   - The PR description is updated with every measured number; no [final] is left.
   - Still to report: MySQL ×1 and MariaDB ×2.
   - The single push waits on the user's three answers.
+- **~10:17 UTC, the judges' channel-B MySQL ×1 and MariaDB ×2 on `d634926a4`.** On both databases, the batch changes only piece 2's three `indexOf` rows, which now pass. Everything else red is pre-existing, of known cause, and not ledgered at the base either.
+  - MySQL: 17 decimal-scale rows (Q3b).
+  - MariaDB: list-order flips, 10 and then 28 across the two runs (Q3, a determinism finding for the product track).
+  - **All measurements are in.** The single push waits only on the user's three answers.
