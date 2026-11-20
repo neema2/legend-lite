@@ -223,18 +223,23 @@ public final class PureMessages {
                         + com.legend.testdatagen.TestDataPlanner.physical(r.schema(), r.table());
             }
         }
-        // the kinded error itself, or the one a wrapper's message holds ("in function 'f': " + its message, and after
-        // it the inliner's " [inlined via ...]": the P2 checkpoint audit's A-S1, 2026-11-16 -- spliced where it stands)
+        // a planned failure rebuilt at its verdict's turn carries its record (Failures.Planned): worded from the data
         for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof com.legend.error.LegendCompileException c && c.kind() != null) {
-                String own = String.valueOf(c.getMessage());
-                int at = message.lastIndexOf(own);
-                if (at >= 0) {
-                    return message.substring(0, at) + upstream(c) + message.substring(at + own.length());
-                }
+            if (t instanceof com.legend.testexecutionplan.Failures.Planned p) {
+                return planned(p.compile());
             }
         }
-        return message;
+        // a live error: its kinded part and lite's wrapper as the product's record states them (Failures.compileOf: the
+        // body compiler's "in function 'f': " before, the inliner's " [inlined via ...]" after -- the P2 checkpoint
+        // audit's A-S1, 2026-11-16; stage B's B1, 2026-11-20, errors as records: stated by the wrappers, never found by position)
+        com.legend.testexecutionplan.Failure.Compile record = com.legend.testexecutionplan.Failures.compileOf(e);
+        return record == null ? message : planned(record);
+    }
+
+    /** legend-pure's and legend-engine's sentence of a compile error's record: LITE'S wrapper as it is, the kinded part
+     *  as upstream words its kind (stage B's B1, 2026-11-20, errors as records). */
+    public static String planned(com.legend.testexecutionplan.Failure.Compile c) {
+        return c.prefix() + upstream(c.kind(), c.operands(), c.position()) + c.suffix();
     }
 
     /** The name an upstream answer gives an uncaught error's type (pure/v1's {@code "<type>: <message>"}): a parameter
@@ -259,9 +264,9 @@ public final class PureMessages {
     }
 
     /** {@code c}'s sentence as upstream words its kind, after the driver's {@code [line:col]}. */
-    private static String upstream(com.legend.error.LegendCompileException c) {
-        java.util.List<String> o = c.operands();
-        String upstream = switch (java.util.Objects.requireNonNull(c.kind(), "a kinded error")) {
+    private static String upstream(com.legend.error.CompileKind kind, java.util.List<String> o,
+            @com.legend.base.Nullable String position) {
+        String upstream = switch (java.util.Objects.requireNonNull(kind, "a kinded error")) {
             // PureModel.getConnection, getMapping, getRuntime, getStore, getAssociation (legend-engine)
             case MISSING -> "Can't find " + o.get(0) + " '" + o.get(1) + "'";
             // PureModel.getProfile
@@ -313,7 +318,7 @@ public final class PureMessages {
             case MISSING_STORE_TABLE -> "The table '" + o.get(0) + "' can't be found in the database '" + o.get(1)
                     + "' (" + o.get(2) + ")";
         };
-        return c.position() == null ? upstream : c.position() + " " + upstream;
+        return position == null ? upstream : position + " " + upstream;
     }
 
     /** legend-pure's sentence of a load's file larger than the load admits (J25 of the edge audit, 2026-11-17: moved

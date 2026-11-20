@@ -241,6 +241,13 @@ class EdgeOnlyMembersTest {
             // legend-pure's sentence from it after the run
             Map.entry("com.legend.executionplan.ExecutionPlan$RaisedAtSite#site()",
                     "2026-11-20: a raised error's site, lite's own record of the raise (stage B's B1)"),
+            // the same (B1's planning half): a planned failure's kinded part and lite's wrapper, riding the failure the
+            // run rebuilds -- the edge words legend-pure's sentence from it; and a plan's answer columns, read by the
+            // product's TestDoor until its answer's size words were deleted with B1 (the edge's routes read them)
+            Map.entry("com.legend.testexecutionplan.Failures$Planned#compile()",
+                    "2026-11-20: a planned failure's record, lite's own (stage B's B1)"),
+            Map.entry("com.legend.executionplan.ExecutionPlan#answerColumns()",
+                    "2026-11-20: a plan's own answer columns (its product reader went with B1's size words)"),
             // (RaisedErrors$Raised#statement(), the statement's text the edge keyed its recorded words on: deleted
             // with the recorder, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
             Map.entry("com.legend.plan.QueryPlan#columns()",

@@ -63,7 +63,7 @@ class PlanStyleSurfaceTest {
             "public abstract boolean judgesEngineText()",
             "public abstract com.legend.database.PlanStyle$TraceCell traceCell()",
             "public abstract com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
-            "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
+            // (errorWords: deleted 2026-11-20, stage B's B1: a planned failure carries lite's message and its kinded part as data; a down move)
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)");
             // (siteWords(String, List<RaiseSite>), the planner's offer of each statement and its sites to the edge's
@@ -71,7 +71,7 @@ class PlanStyleSurfaceTest {
             // (plainRaises(): gone from the style 2026-11-17, d-int6)
 
     /** Every style method by name: each style implements them all today. */
-    private static final Set<String> ALL = Set.of("dialect", "errorWords", "facet", "graphKeyDate",
+    private static final Set<String> ALL = Set.of("dialect", "facet", "graphKeyDate",
             "graphKeyString", "judgesEngineText", "traceCell", "twoForm");
 
     /** Each implementer of PlanStyle -> the style methods it declares. */
@@ -211,7 +211,7 @@ class PlanStyleSurfaceTest {
             "$1#public boolean judgesEngineText()",
             "$1#public com.legend.database.PlanStyle$TraceCell traceCell()",
             "$1#public com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
-            "$1#public java.lang.String errorWords(java.lang.RuntimeException)",
+            // ($1#errorWords: deleted 2026-11-20, stage B's B1: a planned failure carries lite's message and its kinded part as data; a down move)
             "$1#public java.lang.String graphKeyDate(java.lang.String)",
             "$1#public java.lang.String graphKeyString(java.lang.String)",
             // (siteWords, K10b's offer of a statement and its sites: deleted, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
@@ -230,7 +230,7 @@ class PlanStyleSurfaceTest {
             "public abstract boolean judgesEngineText()",
             "public abstract com.legend.database.PlanStyle$TraceCell traceCell()",
             "public abstract com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
-            "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
+            // (errorWords: deleted 2026-11-20, stage B's B1: a planned failure carries lite's message and its kinded part as data; a down move)
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
             "public static final TraceCell (class)",

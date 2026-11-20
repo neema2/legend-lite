@@ -159,27 +159,14 @@ public final class TestDoor {
         // the body's facts, stated over the body as its caller gave it, before any rewrite (C5-J item 2, 2026-11-15;
         // the C5-J audit's SHOULD 1: the record the test door's facts state, TestPlanner.plan)
         TestPlan plan = new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
-                PlanMaker.testSessionTarget(body.context(), runtime, style), facts, null,
+                PlanMaker.testSessionTarget(body.context(), runtime, style), facts,
                 style.twoForm(com.legend.lowering.VerdictWords.class,
                         com.legend.lowering.LiteVerdictWords.INSTANCE).name());
-        return plan.withAnswerSizeWords(answerSizeWords(plan, style));
+        return plan;
     }
 
-    /** The body's answer's refusal of no rows, worded at planning as {@code style} words it (C5's step E, 2026-11-17):
-     *  where the plan sends a value's answer whose column requires a row ({@code TestRunner}'s walk contract), the
-     *  side's words ({@link JudgePlans#sizeWords}); null otherwise. */
-    private static @Nullable String answerSizeWords(TestPlan plan, com.legend.database.PlanStyle style) {
-        if (!plan.answers() || !plan.sendsTheAnswer()
-                || plan.answerShape() != com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
-            return null;
-        }
-        List<com.legend.executionplan.ExecutionPlan.Column> columns = com.legend.executionplan.ExecutionPlan
-                .reading(plan.parameters(), plan.answer()).answerColumns();
-        if (columns == null || columns.isEmpty() || columns.get(0).multiplicity().lower() < 1) {
-            return null;
-        }
-        return JudgePlans.sizeWords(style, columns.get(0).multiplicity().text());
-    }
+    // (answerSizeWords, the body's answer's refusal of no rows worded at planning: deleted with stage B's B1, 2026-11-20, errors as records
+    // -- the run raises the refusal as its record, SideShapes.holding)
 
     /**
      * Under the compatibility edge, every load step of the body's program is a seed the test planner planned texts for

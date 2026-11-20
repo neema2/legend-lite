@@ -39,9 +39,4 @@ final class PlantedEngineTestText implements EngineTestText {
     public String why(com.legend.testplan.HostSides.@com.legend.base.Nullable Check check) {
         throw new UnsupportedOperationException("planted");
     }
-
-    @Override
-    public String sizeWords(String multiplicity) {
-        throw new UnsupportedOperationException("planted");
-    }
 }

@@ -260,7 +260,7 @@ class HookRulingTest {
         var step = new com.legend.testexecutionplan.TestPlan.Verdicts(List.of(verdict), null, null);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
-                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null,
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"),
                 com.legend.testexecutionplan.TestPlan.LITE_WORDS);
     }
 

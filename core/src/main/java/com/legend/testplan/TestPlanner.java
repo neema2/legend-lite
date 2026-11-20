@@ -102,7 +102,7 @@ public final class TestPlanner {
         TestPlan database = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.DATABASE));
         TestPlan both = new TestPlan(List.of(), List.of(new TestPlan.Isolated(host, database)),
                 TestPlan.Judge.AGREEMENT, java.util.Map.of(), java.util.Map.of(), host.answersLastVerdict(),
-                host.session(), host.facts(), host.answerSizeWords(), host.words());
+                host.session(), host.facts(), host.words());
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(both);
         return both;
     }

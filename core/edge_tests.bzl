@@ -90,6 +90,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/PureMeaningCheckTest.java",
     "src/test/java/com/legend/edge/PureMeaningRewriteTest.java",
     "src/test/java/com/legend/edge/PureMeaningEngineTest.java",
+    # the edge's words of a raise site from its record (stage B's B1, 2026-11-20)
+    "src/test/java/com/legend/edge/PureMessagesWordedTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     # the engine rewrite's substitute, typed as the typer types it, and the native it calls (A3, 2026-11-19)
     "src/test/java/com/legend/edge/EngineSubstitutesTest.java",

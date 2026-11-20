@@ -36,6 +36,13 @@ public abstract class LegendCompileException extends RuntimeException {
     private final java.util.List<String> operands;
     /** The element's {@code [line:col]} the driver put before the sentence, if any. */
     private final @com.legend.base.Nullable String position;
+    /** A WRAPPER's own texts around the error it wraps (its cause): what it writes before and after the wrapped
+     *  error's message -- the body compiler's {@code "in function 'f': "}, the inliner's {@code " [inlined via ...]"}
+     *  (stage B's B1, 2026-11-20, errors as records: stated by the throw site, so a reader of the error's record searches nothing).
+     *  Both empty for an error that wraps none. */
+    private final String prefix;
+    private final String suffix;
+    private final boolean wraps;
 
     /** An error of {@code kind} over {@code operands}, its message lite's sentence ({@link CompileKind#sentence}),
      *  after {@code position} where the driver placed it. */
@@ -47,6 +54,24 @@ public abstract class LegendCompileException extends RuntimeException {
         this.kind = kind;
         this.operands = java.util.List.copyOf(operands);
         this.position = position;
+        this.prefix = "";
+        this.suffix = "";
+        this.wraps = false;
+    }
+
+    /** A WRAPPER of {@code wrapped}: its message {@code prefix + wrapped's message + suffix}, its cause
+     *  {@code wrapped}, its texts stated ({@link #prefix()}, {@link #suffix()}). */
+    protected LegendCompileException(Phase phase, LegendCompileException wrapped, String prefix, String suffix) {
+        super(java.util.Objects.requireNonNull(prefix, "prefix") + wrapped.getMessage()
+                + java.util.Objects.requireNonNull(suffix, "suffix"), wrapped);
+        this.phase = java.util.Objects.requireNonNull(phase, "phase");
+        this.element = null;
+        this.kind = null;
+        this.operands = java.util.List.of();
+        this.position = null;
+        this.prefix = prefix;
+        this.suffix = suffix;
+        this.wraps = true;
     }
 
     protected LegendCompileException(Phase phase, @com.legend.base.Nullable String message) {
@@ -61,6 +86,9 @@ public abstract class LegendCompileException extends RuntimeException {
         this.kind = null;
         this.operands = java.util.List.of();
         this.position = null;
+        this.prefix = "";
+        this.suffix = "";
+        this.wraps = false;
     }
 
     /** An error with no kind, its message its site's own text, after {@code position} where the driver or the parser
@@ -74,6 +102,9 @@ public abstract class LegendCompileException extends RuntimeException {
         this.kind = null;
         this.operands = java.util.List.of();
         this.position = position;
+        this.prefix = "";
+        this.suffix = "";
+        this.wraps = false;
     }
 
     protected LegendCompileException(Phase phase, @com.legend.base.Nullable String message,
@@ -84,6 +115,9 @@ public abstract class LegendCompileException extends RuntimeException {
         this.kind = null;
         this.operands = java.util.List.of();
         this.position = null;
+        this.prefix = "";
+        this.suffix = "";
+        this.wraps = false;
     }
 
     public Phase phase() {
@@ -113,5 +147,20 @@ public abstract class LegendCompileException extends RuntimeException {
     /** The {@code [line:col]} the driver or the parser placed before the message, or null. */
     public @com.legend.base.Nullable String position() {
         return position;
+    }
+
+    /** Whether this error is a wrapper of its cause, its texts stated ({@link #prefix()}, {@link #suffix()}). */
+    public boolean wraps() {
+        return wraps;
+    }
+
+    /** A wrapper's text before the wrapped error's message ("" for an error that wraps none). */
+    public String prefix() {
+        return prefix;
+    }
+
+    /** A wrapper's text after the wrapped error's message ("" for an error that wraps none). */
+    public String suffix() {
+        return suffix;
     }
 }

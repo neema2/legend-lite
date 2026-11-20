@@ -158,6 +158,19 @@ final class HostJson {
         o.put("element", x.element() == null ? null : x.element());
         o.put("unjudgedReason", x.unjudgedReason() == null ? null : x.unjudgedReason());
         o.put("where", x.where());
+        Failure.Compile c = x.compile();
+        if (c == null) {
+            o.put("compile", null);
+        } else {
+            // the kinded part and lite's wrapper, as data (stage B's B1, 2026-11-20, errors as records)
+            Map<String, Object> k = new LinkedHashMap<>();
+            k.put("prefix", c.prefix());
+            k.put("kind", c.kind().name());
+            k.put("operands", c.operands());
+            k.put("position", c.position());
+            k.put("suffix", c.suffix());
+            o.put("compile", k);
+        }
         return o;
     }
 
@@ -168,7 +181,19 @@ final class HostJson {
         @Nullable String v_element = absent(o, "element", "Failure") ? null : str(o.get("element"));
         @Nullable String v_unjudgedReason = absent(o, "unjudgedReason", "Failure") ? null : str(o.get("unjudgedReason"));
         String v_where = str(field(o, "where", "Failure"));
-        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where);
+        Failure.@Nullable Compile v_compile = null;
+        if (!absent(o, "compile", "Failure")) {
+            Json.Obj c = (Json.Obj) o.get("compile");
+            List<String> operands = new ArrayList<>();
+            for (Json.Node n : ((Json.Arr) field(c, "operands", "Failure.Compile")).items()) {
+                operands.add(str(n));
+            }
+            v_compile = new Failure.Compile(str(field(c, "prefix", "Failure.Compile")),
+                    com.legend.error.CompileKind.valueOf(str(field(c, "kind", "Failure.Compile"))), operands,
+                    absent(c, "position", "Failure.Compile") ? null : str(c.get("position")),
+                    str(field(c, "suffix", "Failure.Compile")));
+        }
+        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where, v_compile);
     }
 
     static Map<String, Object> wSideShape(SideShape x) {
@@ -184,7 +209,6 @@ final class HostJson {
         o.put("tdsNullRoot", x.tdsNullRoot());
         o.put("nullableRoot", x.nullableRoot());
         o.put("listCarrier", x.listCarrier());
-        o.put("sizeWords", x.sizeWords() == null ? null : x.sizeWords());
         return o;
     }
 
@@ -200,8 +224,7 @@ final class HostJson {
         boolean v_tdsNullRoot = bool(field(o, "tdsNullRoot", "SideShape"));
         boolean v_nullableRoot = bool(field(o, "nullableRoot", "SideShape"));
         boolean v_listCarrier = bool(field(o, "listCarrier", "SideShape"));
-        @Nullable String v_sizeWords = absent(o, "sizeWords", "SideShape") ? null : str(o.get("sizeWords"));
-        return new SideShape(v_kind, v_typeName, v_columns, v_templates, v_oneCarrier, v_scalar, v_lower, v_multiplicity, v_tdsNullRoot, v_nullableRoot, v_listCarrier, v_sizeWords);
+        return new SideShape(v_kind, v_typeName, v_columns, v_templates, v_oneCarrier, v_scalar, v_lower, v_multiplicity, v_tdsNullRoot, v_nullableRoot, v_listCarrier);
     }
 
     static Map<String, Object> wSideShapeColumn(SideShape.Column x) {

@@ -156,10 +156,5 @@ final class EdgeEngineTestText implements EngineTestText {
                 com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs), letPrefix, specs);
     }
 
-    /** legend-pure's sentence of a SIZE_NOT_MULTIPLICITY site whose bound is {@code multiplicity}. */
-    @Override
-    public String sizeWords(String multiplicity) {
-        return PureMessages.worded(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                List.of(new com.legend.executionplan.Operand.Text(multiplicity)));
-    }
+    // (sizeWords: deleted with stage B's B1, 2026-11-20, errors as records -- the run's refusal is a record PureMessages words)
 }

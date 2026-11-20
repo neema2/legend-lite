@@ -55,12 +55,9 @@ public interface PlanStyle {
      *  quoted (D1.2). */
     String graphKeyString(String value);
 
-    /** An error's message as the style's reader reads it, where a test plans it as data (an {@code assertError}'s f
-     *  failing while it is planned): the product's, its own message; the edge's, upstream's sentence of a compile
-     *  error's kind ({@code edge.PureMessages.compile}; the first stage-linux run's PCT regression, 2026-11-16: M4's
-     *  window-frame kinds reached PCT in lite's sentence). */
-    @com.legend.base.Nullable
-    String errorWords(RuntimeException e);
+    // (errorWords, an error's message in the style's words where a test plans it as data: deleted 2026-11-20
+    // with stage B's B1 -- a planned failure carries lite's message and its kinded part as data, and every audience
+    // words it after the run)
 
     // (siteWords, the words of a statement's raise sites offered at planning to the edge's recorder: deleted 2026-11-20
     // with stage B's B1 -- a site's record carries its operands, and every audience words it after the run)
@@ -91,11 +88,6 @@ public interface PlanStyle {
             return Databases.dialect(type);
         }
 
-
-        @Override
-        public @com.legend.base.Nullable String errorWords(RuntimeException e) {
-            return e.getMessage();
-        }
 
         @Override
         public boolean judgesEngineText() {

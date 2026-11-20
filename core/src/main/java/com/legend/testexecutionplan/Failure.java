@@ -21,9 +21,40 @@ import com.legend.error.LegendCompileException;
  * @param element        the model element a compile error names ({@link Kind#MODEL}, {@link Kind#MAPPING_RESOLUTION})
  * @param unjudgedReason an {@link Kind#ASSERT_FAILED} that is an UNJUDGED decline: why
  * @param where          the planning site that recorded it, for debugging (ruled 2026-11-08): stable across runs
+ * @param compile        the kinded compile error in it and lite's wrapper around that, as data ({@link Compile}); null
+ *                       where it holds none
  */
 public record Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
-        @Nullable String element, @Nullable String unjudgedReason, String where) {
+        @Nullable String element, @Nullable String unjudgedReason, String where, @Nullable Compile compile) {
+
+    /**
+     * A COMPILE ERROR'S KINDED PART, AS DATA (stage B's B1, 2026-11-20, errors as records; until then the plan's style worded the error
+     * at planning, {@code PlanStyle.errorWords}): the {@link com.legend.error.CompileKind}, its operands and its
+     * {@code [line:col]}, and LITE'S WRAPPER around the kinded sentence as its two stated texts ({@code prefix}, the
+     * body compiler's {@code "in function 'f': "}; {@code suffix}, the inliner's {@code " [inlined via a -> b]"}).
+     * {@code message} stays lite's own, whole: {@code prefix + [position + " "] + kind's sentence + suffix}. Another
+     * audience's formatter words the kinded part its way and keeps the wrapper, after the run.
+     */
+    public record Compile(String prefix, com.legend.error.CompileKind kind, java.util.List<String> operands,
+            @Nullable String position, String suffix) {
+        public Compile {
+            java.util.Objects.requireNonNull(prefix, "prefix");
+            java.util.Objects.requireNonNull(kind, "kind");
+            operands = java.util.List.copyOf(operands);
+            java.util.Objects.requireNonNull(suffix, "suffix");
+        }
+
+        /** Lite's own sentence of the kinded part, after its position. */
+        public String own() {
+            return (position == null ? "" : position + " ") + kind.sentence(operands);
+        }
+    }
+
+    /** A failure with no kinded compile error in it. */
+    public Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
+            @Nullable String element, @Nullable String unjudgedReason, String where) {
+        this(kind, message, phase, element, unjudgedReason, where, null);
+    }
 
     public Failure {
         if ((phase != null) != (kind == Kind.MODEL)) {
@@ -34,6 +65,10 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         }
         if (unjudgedReason != null && kind != Kind.ASSERT_FAILED) {
             throw new IllegalArgumentException("an unjudged reason is a failed assert's alone: " + kind);
+        }
+        if (compile != null && !(compile.prefix() + compile.own() + compile.suffix()).equals(message)) {
+            throw new IllegalArgumentException("a failure's kinded part and lite's wrapper spell its message: '"
+                    + compile.prefix() + compile.own() + compile.suffix() + "' is not '" + message + "'");
         }
     }
 

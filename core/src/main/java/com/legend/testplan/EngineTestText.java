@@ -48,7 +48,6 @@ import java.util.List;
     // (recording and siteWords, a test body's recorder of its raise sites' words and the door's one read of it (K10b):
     // deleted 2026-11-20 with stage B's B1 -- a raise is worded after the run from its site's record)
 
-    /** A required side's refusal of no rows as legend-pure words it ({@code multiplicity} the bound; C5's step E,
-     *  2026-11-17; moved behind this facet with K10b: a site's words are no member of the product's style). */
-    String sizeWords(String multiplicity);
+    // (sizeWords, a required side's refusal of no rows as legend-pure words it: deleted with stage B's B1, 2026-11-20, errors as records
+    // -- the run raises the refusal as its record, which the edge's formatter words)
 }

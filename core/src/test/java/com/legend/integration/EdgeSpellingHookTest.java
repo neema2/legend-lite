@@ -90,11 +90,6 @@ class EdgeSpellingHookTest {
         }
 
         @Override
-        public String errorWords(RuntimeException e) {
-            return e.getMessage();
-        }
-
-        @Override
         public boolean judgesEngineText() {
             return PlanStyle.PRODUCT.judgesEngineText();
         }

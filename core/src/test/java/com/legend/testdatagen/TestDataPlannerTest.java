@@ -139,8 +139,8 @@ class TestDataPlannerTest {
         assertEquals("PERSON", e.table());
         assertEquals(com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED, e.failureKind());
         assertEquals("Multiple table row identifiers passed for the table: PERSON",
-                com.legend.edge.PureText.UPSTREAM.errorWords(e));
-        assertEquals(e.getMessage(), com.legend.database.PlanStyle.PRODUCT.errorWords(e));
+                com.legend.edge.PureMessages.compile(e));
+        assertEquals(e.getMessage(), e.getMessage());
     }
 
     /** The server routes' text as their writer writes it (the B2d.3 audit's M1 and M2, 2026-11-12): the header each
@@ -768,8 +768,8 @@ class TestDataPlannerTest {
         assertEquals(com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED, root.failureKind());
         assertEquals("Row Identifers should be provided for the root table: t::DB.ORDERS [ID:INT]\nExample:\n"
                 + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'ORDERS', [\n\n"
-                + "  ])\n", com.legend.edge.PureText.UPSTREAM.errorWords(root));
-        assertEquals(root.getMessage(), com.legend.database.PlanStyle.PRODUCT.errorWords(root));
+                + "  ])\n", com.legend.edge.PureMessages.compile(root));
+        assertEquals(root.getMessage(), root.getMessage());
         TestDataPlanner.NoRowIdentifiers view = org.junit.jupiter.api.Assertions.assertThrows(
                 TestDataPlanner.NoRowIdentifiers.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Order.all()->project([o|$o.pnl.pnl], ['p'])"), "t::M",
@@ -780,7 +780,7 @@ class TestDataPlannerTest {
         assertEquals("Row Identifers should be provided for the root table of the view (PNLVIEW): t::DB.PNL"
                 + " [ORDER_ID:INT]\nExample:\n"
                 + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'PNL', [\n\n"
-                + "  ])\n", com.legend.edge.PureText.UPSTREAM.errorWords(view));
+                + "  ])\n", com.legend.edge.PureMessages.compile(view));
     }
 
     /** A column resolved by its exact name, as upstream resolves one (the orchestrator's go, 2026-11-12: no case

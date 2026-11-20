@@ -466,7 +466,7 @@ final class HostAsserts implements TestDoor.Asserts {
         try {
             sides = HostSides.plan(name, asks, before, specs, at);
         } catch (RuntimeException e) {
-            caught = AssertErrorNative.caught(e, "HostAsserts.planAssertError: f's sides", env.options().style());
+            caught = AssertErrorNative.caught(e, "HostAsserts.planAssertError: f's sides");
             if (caught == null) {
                 // no error the arm takes (a wall): raised at the assert's turn, loud, as the walk's arm raises it
                 return planned(AssertVerdicts.HostAssert.raising(name, null,

@@ -74,11 +74,11 @@ final class AssertErrorNative {
     /** The error {@code f} raised, as the arm catches it: a database's error (its message clean, its cause the raise's
      *  position where the raise was ours) or a deferred guard's model error; any other exception is no answer of the
      *  arm's (a wall stays loud) and is null here. */
-    static com.legend.testexecutionplan.@com.legend.base.Nullable Failure caught(RuntimeException e, String where,
-            com.legend.database.PlanStyle style) {
-        // its message in the style's words: upstream's sentence on the edge (PCT's assertError compares it)
+    static com.legend.testexecutionplan.@com.legend.base.Nullable Failure caught(RuntimeException e, String where) {
+        // lite's own message, and the kinded part as data: an audience's words of it are worded at the verdict's turn,
+        // from the record (stage B's B1, 2026-11-20, errors as records: until then the plan's style worded it here, PlanStyle.errorWords)
         return e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException
-                ? com.legend.testexecutionplan.Failures.of(e, where, style.errorWords(e)) : null;
+                ? com.legend.testexecutionplan.Failures.of(e, where) : null;
     }
 
     /** {@code Integer[0..1]} argument: a literal, {@code []}, or absent

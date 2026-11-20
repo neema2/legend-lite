@@ -60,8 +60,11 @@ public final class TestPlanJson {
      *  (2026-11-19, A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host judge is the
      *  only judge in compatibility): a database root's row carries no {@code orElse}, {@code appeal} or
      *  {@code decline}, and the edge's appeal record no {@code batched} or {@code joins} -- the database judge's
-     *  compatibility path deleted. */
-    public static final int VERSION = 33;
+     *  compatibility path deleted; 34 (stage B's B1, 2026-11-20, errors as records): a planned failure carries its kinded compile error
+     *  and lite's wrapper as data ({@code compile}), no words planned in a style's; no size refusal's words
+     *  ({@code SideShape.sizeWords}, {@code answerSizeWords}: the run raises the refusal as its record); and the
+     *  product's version 59 (a raise site's facts, no words). */
+    public static final int VERSION = 34;
 
     private TestPlanJson() {
     }
@@ -111,7 +114,6 @@ public final class TestPlanJson {
         out.put("productVersion", PlanJson.VERSION);
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
-        out.put("answerSizeWords", plan.answerSizeWords());
         out.put("words", plan.words());
         out.put("session", PlanJson.targetJson(plan.session()));
         Map<String, Object> facts = new LinkedHashMap<>();
@@ -273,8 +275,7 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")),
-                o.get("answerSizeWords") instanceof Json.Str w ? w.value() : null, o.getString("words"));
+                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")), o.getString("words"));
     }
 
     private static BodyFacts factsOf(Json.Obj f) {

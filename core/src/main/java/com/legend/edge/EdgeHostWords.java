@@ -225,10 +225,9 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
      *  {@link PureMessages#worded}); any other error its own message. */
     @Override
     public String caught(RuntimeException error, com.legend.testexec.EdgeHearing hearing) {
-        if (error instanceof com.legend.error.DataError && error.getCause() instanceof com.legend.exec.RaisedErrors.Raised r
-                && r.site() != null) {
-            return PureMessages.worded(r.site());
-        }
-        return String.valueOf(error.getMessage());
+        // the edge's one wording of an error, the pure/v1 routes' too: a raised site's record, a planned failure's
+        // kinded part (stage B's B1, 2026-11-20, errors as records), legend-engine's and legend-pure's sentences of the product's typed
+        // refusals; any other error its own message
+        return PureMessages.compile(error);
     }
 }

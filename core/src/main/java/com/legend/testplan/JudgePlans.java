@@ -272,11 +272,11 @@ public final class JudgePlans {
                 TypedSide answered = java.util.Objects.requireNonNull(p.answered(), "a constant side's value");
                 decodeConstant((TestPlan.Side.Constant) p.side(), answered, constantRows(p));
                 yield sideShape(com.legend.testexecutionplan.SideShape.Kind.CONSTANT, answered.returnType(), List.of(),
-                        List.of(), false, answered instanceof TypedSide.Scalar, 0, "", false, false, false, null);
+                        List.of(), false, answered instanceof TypedSide.Scalar, 0, "", false, false, false);
             }
             case GRAPH -> sideShape(com.legend.testexecutionplan.SideShape.Kind.GRAPH,
                     p.wrappedSide().shapeInfo().type().typeName(), List.of(), List.of(), false, false, 0, "", false,
-                    false, false, null);
+                    false, false);
             case TABULAR, KEYED -> {
                 Type.RelationType schema = java.util.Objects.requireNonNull(p.schema(), "a grid's schema");
                 Type t = p.wrappedSide().shapeInfo().type();
@@ -292,7 +292,7 @@ public final class JudgePlans {
                 }
                 yield sideShape(p.kind() == Kind.KEYED ? com.legend.testexecutionplan.SideShape.Kind.KEYED
                         : com.legend.testexecutionplan.SideShape.Kind.TABULAR, t.typeName(), columns, templates,
-                        oneCarrier(t), false, 0, "", false, false, false, null);
+                        oneCarrier(t), false, 0, "", false, false, false);
             }
             case VALUES -> {
                 BodyDriver.WrappedSide w = p.wrappedSide();
@@ -305,8 +305,7 @@ public final class JudgePlans {
                 String multiplicity = info.multiplicity().text();
                 yield sideShape(com.legend.testexecutionplan.SideShape.Kind.VALUES, type.typeName(), List.of(),
                         List.of(), false, w.shape() == com.legend.plan.ResultShape.SCALAR, lower, multiplicity,
-                        tdsNullRoot, nullable, PlatformTypes.isListCarrier(type),
-                        lower >= 1 ? sizeWords(style, multiplicity) : null);
+                        tdsNullRoot, nullable, PlatformTypes.isListCarrier(type));
             }
         };
     }
@@ -314,18 +313,13 @@ public final class JudgePlans {
     private static com.legend.testexecutionplan.SideShape sideShape(com.legend.testexecutionplan.SideShape.Kind kind,
             String typeName, List<com.legend.testexecutionplan.SideShape.Column> columns,
             List<com.legend.testexecutionplan.SideShape.Column> templates, boolean oneCarrier, boolean scalar,
-            long lower, String multiplicity, boolean tdsNullRoot, boolean nullableRoot, boolean listCarrier,
-            @com.legend.base.Nullable String sizeWords) {
+            long lower, String multiplicity, boolean tdsNullRoot, boolean nullableRoot, boolean listCarrier) {
         return new com.legend.testexecutionplan.SideShape(kind, typeName, columns, templates, oneCarrier, scalar, lower,
-                multiplicity, tdsNullRoot, nullableRoot, listCarrier, sizeWords);
+                multiplicity, tdsNullRoot, nullableRoot, listCarrier);
     }
 
-    /** A required side's refusal of no rows, as {@code style} words it at planning (C5's step E, 2026-11-17): the
-     *  compatibility edge's legend-pure sentence (its engine-text facet's, K10b), else the product's own, the kind's
-     *  sentence and the bound ({@link EngineTextGates#sizeWords}). The run spells none. */
-    static String sizeWords(com.legend.database.PlanStyle style, String multiplicity) {
-        return EngineTextGates.sizeWords(style, multiplicity);
-    }
+    // (sizeWords, a required side's refusal of no rows worded at planning in the style's words: deleted with
+    // stage B's B1, 2026-11-20, errors as records -- the run raises the refusal as its record)
 
     private static com.legend.testexecutionplan.SideShape.Column shapeColumn(Type.Column c) {
         return new com.legend.testexecutionplan.SideShape.Column(c.name(), c.type().typeName(),

@@ -456,7 +456,7 @@ public final class TestDataPlanner {
      * schema, its name, the view whose main table it is (or null), its key columns with their types; its message lite's
      * own sentence, its kind and where, no value. Upstream's words (legend-pure's {@code getRowIdentifiersForTable},
      * TDG:482-518: "Row Identifers should be provided for the root table ...") are the compatibility edge's, worded from
-     * these facts ({@code edge.PureMessages}, through {@code PlanStyle.errorWords}); the server's legend-engine routes
+     * these facts ({@code edge.PureMessages}, after the run: stage B's B1, 2026-11-20); the server's legend-engine routes
      * answer upstream's error node from them (their form, {@link Printing#unidentified}). A failed assert where a test
      * plan records it, as upstream's is.
      */
@@ -516,7 +516,7 @@ public final class TestDataPlanner {
      * table's schema and name; its message lite's own sentence. Upstream's words (legend-pure's
      * {@code getRowIdentifiersForTable} assert, TDG:487, and the plan form's, TDG:1208: "Multiple table row identifiers
      * passed for the table: " and the table's qualified name) are the compatibility edge's, worded from these facts
-     * ({@code edge.PureMessages}, through {@code PlanStyle.errorWords}). A failed assert where a test plan records it, as
+     * ({@code edge.PureMessages}, after the run: stage B's B1, 2026-11-20). A failed assert where a test plan records it, as
      * upstream's is.
      */
     public static final class RowIdentifiersRepeated extends RuntimeException

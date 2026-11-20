@@ -196,12 +196,8 @@ class HookLambdasTest {
             // the engine-text facet, asked only where the style judges engine text (census C4)
             Map.entry("com.legend.testplan.EngineTextGates#facet(com.legend.testplan.BodyDriver$ExecEnv)",
                     Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
-            // K10b of the edge audit (the orchestrator's ruling (A) of 2026-11-17; host train, pinned 2026-11-18 for train
-            // 19): the same facet, asked only where the style judges engine text -- a required side's no-rows words
-            // (the product's own sentence otherwise). (planningCall and siteWords, a body's planning call's recorder and
-            // the test door's one read of its raise-site words: deleted, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
-            Map.entry("com.legend.testplan.EngineTextGates#sizeWords(com.legend.database.PlanStyle, java.lang.String)",
-                    Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
+            // (K10b of the edge audit's three -- planningCall and siteWords, a body's planning call's recorder and the
+            // test door's one read of its raise-site words; sizeWords, a required side's no-rows words -- deleted, stage B's B1, 2026-11-20, errors as records: the run raises the refusal as its record; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
             // legend-engine's seed SQL from records or from CSV, a seed text a body asserts
             Map.entry("com.legend.testplan.SeedSqlForms#assertForm(java.util.List,"
                     + " com.legend.compiler.spec.typed.TypedNativeCall, com.legend.testplan.BodyDriver$ExecEnv)",

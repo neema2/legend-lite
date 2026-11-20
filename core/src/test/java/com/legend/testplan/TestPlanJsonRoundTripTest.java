@@ -78,7 +78,7 @@ class TestPlanJsonRoundTripTest {
                 null)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
                 byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
-                "the answer's planned size words", TestPlan.LITE_WORDS);
+                TestPlan.LITE_WORDS);
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }
@@ -150,8 +150,7 @@ class TestPlanJsonRoundTripTest {
 
     private static SideShape shape() {
         return new SideShape(SideShape.Kind.TABULAR, "Relation", List.of(new SideShape.Column("v", "String", ONE)),
-                List.of(new SideShape.Column("sum", "Integer", null)), true, false, 1, "[1]", false, true, false,
-                "a planned size refusal's words");
+                List.of(new SideShape.Column("sum", "Integer", null)), true, false, 1, "[1]", false, true, false);
     }
 
     /** A seed's referee's copy (B2b): a statement, the rows as a content blob, a file by its reference read by the

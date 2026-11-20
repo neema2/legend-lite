@@ -106,7 +106,8 @@ public final class SpecCompiler {
                 System.err.println("[spec] compile of " + fn.qualifiedName() + " failed: " + e.getMessage());
                 e.printStackTrace(System.err);
             }
-            throw new TypeInferenceException("in " + where(fn) + ": " + e.getMessage(), e);
+            // its text before the body's error, stated (stage B's B1, 2026-11-20, errors as records)
+            throw new TypeInferenceException("in " + where(fn) + ": ", e, "");
         }
         memo.put(fn, cf);
         return cf;

@@ -75,11 +75,6 @@ class HostOnlyCompatibilityTest {
         }
 
         @Override
-        public @com.legend.base.Nullable String errorWords(RuntimeException e) {
-            return PlanStyle.PRODUCT.errorWords(e);
-        }
-
-        @Override
         public <F> F facet(Class<F> kind) {
             return PlanStyle.PRODUCT.facet(kind);
         }

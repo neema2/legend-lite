@@ -43,8 +43,7 @@ import java.util.Objects;
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts,
-        @com.legend.base.Nullable String answerSizeWords, String words) {
+        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts, String words) {
 
     /** The name of lite's own words ({@code LiteHostWords}, {@code LiteFailureWords}). */
     public static final String LITE_WORDS = "lite";
@@ -70,14 +69,11 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
         return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts,
-                answerSizeWords, words);
+                words);
     }
 
-    /** The same plan carrying {@code words}, its answer's size refusal as its style words it. */
-    public TestPlan withAnswerSizeWords(@com.legend.base.Nullable String sizeWords) {
-        return new TestPlan(parameters, steps, judge, extensionsByStep, extensionsByVerdict, answersLastVerdict, session,
-                facts, sizeWords, words);
-    }
+    // (answerSizeWords and withAnswerSizeWords, the answer's refusal of no rows worded at planning: deleted with
+    // stage B's B1, 2026-11-20, errors as records -- the run raises the refusal as its record)
 
     private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {
         java.util.TreeMap<Integer, List<Extension>> out = new java.util.TreeMap<>();
