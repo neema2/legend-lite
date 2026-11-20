@@ -328,3 +328,38 @@ Both land in the batch after the core switch (piece 2), with piece 1 under them.
 | tenet 6: no modes in the core | yes | the native is a function with its own meaning, not a mode; the switch is read once, at the door (the switch rule) |
 | no core hook | yes | the native is ordinary product vocabulary; the rewrite uses public API only, checked in the first hour |
 | D1 and the final plan's §2 part 2 | amended | by the user's ~20:05 ruling, for requests a server opts in to with `engine` |
+
+## 9. substr, the corrected substring and a literal-0 start (2026-11-20; the compat owner's go on the part common to A and B)
+
+Asked of legend-engine 4.145.0 on H2 and DuckDB (docs/records/compat-homework/a3-engine-probes/substr/), not assumed.
+legend-engine's processSubstr sends `substr`, and `substring` under `CORRECT_SQL_SUBSTRING_INDEXING`, as the database's
+SUBSTRING over `start + 1` and `end - start`. It folds literal indexes and adds no range check. So in range it agrees with
+legend-pure. Out of range it answers the database's cut-short value, per database (`'FX'->substr(1, 3)` is 'X' on both;
+`substr(2, 1)` is '' on H2 and 'r' on DuckDB). Lite raises there, as legend-pure does (S383, the translator's 97d4c78b2).
+
+| part | what |
+|---|---|
+| the detector | four codes, `substr/2`, `substr/3`, `substring(corrected)/2`, `substring(corrected)/3` (`Code.outOfRangeOnly`); the sentence says they differ out of range alone |
+| the walk under `engine` (the reviewer's M-a1) | `PureMeaningCheck.forEngine`: the measured literal-0 exemption is off, so `$r.x->substring(0, n)` is rewritten too ('ab'->substring(0, 3) answers 'ab', legend-engine's; lite raises); `refuse` and `warn` keep the exemption |
+| the substitute | `EngineSubstitutes.substr`: `substringAsGiven` over legend-engine's folded literal indexes. Each folded index is an Integer literal typed as the typer typed the literal it stands for, through a `substitute()` overload that takes the built arguments and `checked()` |
+| a computed index | refused by name under `engine`. Its `start + 1` would be a typed call the door would have to assemble (D-S2). The user's word is pending: (1) a native `substrAsGiven`, or (3') answered as lite answers it, with the header |
+| the REFUSE policy | pending the user's A or B |
+
+**Measured at build** (the batteries' ten new rows on a value shorter than its end, `col.`/`lit.` `s19`, `r01`, `r02`,
+`c01`, `c02`; legend-engine's oracle re-run in the same pass, +10 rows per database, no row moved):
+
+| half | H2 | DuckDB |
+|---|---|---|
+| `engine` | AGREE on all ten: {AGREE=56, BOTH_FAIL=1, DIFFER=2} (was 46) | AGREE on all ten: {AGREE=57, DIFFER=2} (was 47) |
+| `warn` | DIFFER on all ten (lite raises): {AGREE=11, BOTH_FAIL=1, DIFFER=47} | DIFFER on all ten: {AGREE=8, DIFFER=51} |
+
+| plant | the tests it turns red |
+|---|---|
+| s1 the detector skips `substr` | 6: the detector's two, the rewrite's, and the engine test's three `substr` tests |
+| s2 the corrected `substring` quiet again | 3: one each in the detector, rewrite and engine tests |
+| s3 `engine` keeps the literal-0 exemption | 2: M-a1's rewrite and engine tests |
+| s4 the substitute sends Pure's indexes unfolded | 3: the engine test's past-the-end pair and the folded plan |
+
+The guard moves: `native-claims.tsv` regenerated, `substr`'s two rows naming `EngineSubstitutes` and `PureMeaningCheck`
+beside `Scalars` (ClaimRegistryTest's pin reads `substringAsGiven`'s rows alone, which do not move); the four battery pins
+and legend-engine's two answer files as above; no ceiling, ledger or allowlist.

@@ -446,3 +446,19 @@ against `aLetBoundLambdaTheQueryNamesIsStoreBound`. Plant P9 (a computed let wal
   - Only an `eval` met in the query's own tree counts. A followed function's own parameter is unaffected.
   - Test `anEvaluatedLetWhoseValueIsNotALiteralLambdaIsUnverified`; plant P10 (the site gone) turns it red.
 
+
+## 12. substr and the corrected substring (2026-11-20; the compat owner's question, asked of legend-engine)
+
+The detector flagged neither. `substr` was not matched, and `substring` under `CORRECT_SQL_SUBSTRING_INDEXING` was quiet
+on purpose, since legend-engine's processSubstring honours the flag. Both rested on lite's corrected answer being
+legend-engine's. Once S383's range check is under them (the translator's 97d4c78b2), that holds in range only. Out of
+range lite raises, as legend-pure does, and legend-engine answers the database's cut-short SUBSTRING
+(docs/records/compat-homework/a3-engine-probes/substr/). So the detector now flags four more forms: `substr/2`,
+`substr/3`, `substring(corrected)/2` and `substring(corrected)/3`, each marked as differing out of range alone.
+
+- These forms have no literal-0 exemption: none is measured.
+- Under `engine` the uncorrected `substring`'s literal-0 exemption is off too (the reviewer's M-a1,
+  `PureMeaningCheck.forEngine`). `refuse` and `warn` keep it.
+- The engine rewrite of these forms is in A3-engine-rewrite-design.md §9.
+- Still with the user: what the default `refuse` does with these forms (A: refuse them; B: answer them with the header,
+  since no answer is silently different), and how a computed index is answered under `engine`.
