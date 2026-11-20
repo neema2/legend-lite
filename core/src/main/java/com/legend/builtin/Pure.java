@@ -2696,8 +2696,8 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_POSITION = com.legend.model.FunctionId.ofAll(SQL_POSITION__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SQL_SUBSTRING = com.legend.model.FunctionId.ofAll(SQL_SUBSTRING__STRING_1__INTEGER_1, SQL_SUBSTRING__STRING_1__INTEGER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_STAGE = com.legend.model.FunctionId.ofAll(STAGE__RELATION_1);
-    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SUBSTRING_AS_GIVEN = com.legend.model.FunctionId.ofAll(SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1, SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SUBSTR_AS_GIVEN = com.legend.model.FunctionId.ofAll(SUBSTR_AS_GIVEN__STRING_1__INTEGER_1, SUBSTR_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SUBSTRING_AS_GIVEN = com.legend.model.FunctionId.ofAll(SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1, SUBSTRING_AS_GIVEN__STRING_1__INTEGER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF = com.legend.model.FunctionId.ofAll(TIME_OF__DATE_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(TIME_OF_TEXT__STRING_0_1);
