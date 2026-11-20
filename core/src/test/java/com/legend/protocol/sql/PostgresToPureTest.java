@@ -544,11 +544,11 @@ class PostgresToPureTest {
         assertEquals("translate(...) whose characters replace one another in a cycle is not supported yet",
                 refusal("select translate(dept, 'ab', 'ba') as t from tb('s::DB.T')").getMessage());
         // concat_ws: each value present after a separator, the first separator taken off
-        assertEquals("#>{s::DB.T}#->extend(~[c:r|substring(if($r.firstName->isEmpty(), |'', |', ' + $r.firstName"
+        assertEquals("#>{s::DB.T}#->extend(~[c:r|meta::legend::lite::sqlSubstring(if($r.firstName->isEmpty(), |'', |', ' + $r.firstName"
                 + "->toOne()) + (', ' + $r.dept), length(', ') + 1)])->select(~[c])",
                 pure("select concat_ws(', ', firstName, dept) as c from tb('s::DB.T')"));
         // overlay: substring(s, 1, n - 1) || r || substring(s, n + m)
-        assertEquals("#>{s::DB.T}#->extend(~[o:r|$r.dept->substring(1, 1) + 'XX' + $r.dept->substring(5)])"
+        assertEquals("#>{s::DB.T}#->extend(~[o:r|$r.dept->meta::legend::lite::sqlSubstring(1, 1) + 'XX' + $r.dept->meta::legend::lite::sqlSubstring(5)])"
                 + "->select(~[o])", pure("select overlay(dept placing 'XX' from 2 for 3) as o from tb('s::DB.T')"));
         assertEquals("unrecognized format() type specifier \"d\"",
                 refusal("select format('%d', ID) as f from tb('s::DB.T')").getMessage());
@@ -619,7 +619,7 @@ class PostgresToPureTest {
                 refusal("select log(2, ID) as l from tb('s::DB.T')").kind());
         // split_part steps over a delimiter by its characters, not its UTF-16 units
         assertTrue(pure("select split_part(dept, '\uD83C\uDF89', 2) as p from tb('s::DB.T')").contains(
-                "->indexOf('\\uD83C\\uDF89') + 1)"));
+                "->meta::legend::lite::sqlPosition('\\uD83C\\uDF89') + 1)"));
         // only count takes *, FILTER or not; min and max of booleans are Postgres's errors
         assertEquals("sum(*) is not a function; only count(*) is", refusal("select ID, sum(*) filter (where age > 1)"
                 + " over () as s from tb('s::DB.T')").getMessage());

@@ -234,7 +234,11 @@ class CatalogUpstreamDiffTest {
      *  #118 fix round: N2, the in-body assert's default message chosen by the plan's style at lowering; the user's word
      *  "Okay", the same function the user's "raise it" let into Pure.INTERNAL_DESUGAR): meta::legend::lite::
      *  assertFailedText, lite-INTERNAL -- the product's sentence, the compatibility edge's legend-pure "Assert failed". */
-    private static final int NOT_UPSTREAM_MAX = 73;
+    // 73 -> 76 (2026-11-19, A3 of the compatibility program, piece 1; the user's word in the translator session, "Yes to
+    // phases 1 guard move", and in the compat owner's session, "Okay approved", ~20:50): meta::legend::lite::sqlSubstring
+    // (2 overloads) and sqlPosition (1), SQL's SUBSTRING and POSITION by name for the islands and the ###Relational
+    // dynaFunctions -- upstream declares neither
+    private static final int NOT_UPSTREAM_MAX = 76;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

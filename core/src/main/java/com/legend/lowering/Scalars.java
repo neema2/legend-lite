@@ -1496,6 +1496,16 @@ final class Scalars {
                     new SqlExpr.Call(SqlFn.SUBSTRING, args));
         }
         // (the same call under CORRECT_SQL_SUBSTRING_INDEXING: FeatureRules)
+        // SQL's SUBSTRING and POSITION BY NAME (A3 of the compatibility program, PR1, 2026-11-19): the islands and the
+        // ###Relational dynaFunctions write the database's meaning through these two lite-internal natives, each the
+        // database's function verbatim -- the same calls the plain substring and String indexOf rules emit today, so
+        // no SQL moves; Pure's own substring and indexOf are then free to take Pure's meaning (A3's PR2)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SQL_SUBSTRING) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.SUBSTRING, args));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_SQL_POSITION) {
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.STRPOS, args));
+        }
         // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
         // engine's RELATIONAL lowering registers it separately and ALWAYS
         // corrects it (processSubstr, "needs no flag"); so does the platform:
