@@ -2094,3 +2094,78 @@ Notes:
   - M-c3, now with S381 (PROPOSED rows);
   - M-a1, superseded by the user's ~07:55 ruling: the door always rewrites, with no literal-0 exemption. It is checked
     in B1-R's pass.
+
+## B1-R's pass: the setting deleted, the door always rewrites (`origin/claude/compat-a3-engine` at `aacb49b96`, on `317204773`)
+
+The pass is `c35e90888` (the `substrAsGiven` native, the user's ~07:45 "Okay 1") and `aacb49b96`
+(`LEGEND_LITE_PURE_MEANING` deleted, the user's ~07:55). Both rulings were read verbatim in the owner's log at
+`25ede64f`, §1.
+
+**Verdict: the code is APPROVED. The docs commit is still to come, and the up moves go on the PR's word list.**
+- **The dead-path grep at the head** (code, tests, pct, spec, tools) finds none of these:
+  - `Mode`, `mode()`, `SETTING`, `HEADER` or the sentence's refuse/warn branches;
+  - the `getenv`, `withMeaning` or the WARNING line;
+  - checkMeaning's switch, TestDataRoutes' `meaning` or `doored`'s discarded rewrite;
+  - LiteBatteries' `--meaning` or the warn battery half;
+  - `zeroStartAnswersAsPure` or `zeroStartExempt`.
+
+  What remains is a test constant (`OLD_HEADER`), used to assert that the header is not sent, and
+  ObservabilityGuardrailTest's dated note.
+- **The detector:**
+  - the four new codes (`CORRECTED_SUBSTRING_2/3`, `SUBSTR_2/3`) flag `substring` under the flag and `substr`;
+  - no call is exempt, which covers both halves of M-a1, H2's 3-argument `substring(x, 0, n)` included;
+  - the walk has no target any more;
+  - a refusal names its calls (`calls()`) and counts.
+- **The rewrite:**
+  - `PureText.CHECKED = {H2, DuckDB}`. Any other database with a flagged call is refused by name ("legend-engine's
+    answer for ... is not yet checked on Postgres");
+  - unverified calls, unreachable calls and a shared let root are refused as before;
+  - `checkMeaning` is the rewrite, always.
+- **D-S2:**
+  - `EngineSubstitutes.substr` is a callee swap through `substitute()` and `checked()`, replacing `AT_STRING_SUBSTR`
+    and `AT_STRING_SUBSTRING`;
+  - the arithmetic is the lowering's: `Scalars` writes `SUBSTRING_AS_GIVEN(s, start + 1[, end - start])` as SQL,
+    which is processSubstr's correction, with no fold, clamp or check in Java and no typed arithmetic at the door;
+  - `SubstringClamp` stays off it, as for `substringAsGiven`.
+- **The batteries:** ten rows on a value shorter than its end, on both databases, covering both halves of M-a1:
+  - `col`/`lit.s19`: the literal-0 `substring(0, 3)` on 'FX';
+  - `r01`/`r02`: `substr(1, 3)` and `(0, 3)`;
+  - `c01`/`c02`: the flagged `substring(1, 3)` and `(0, 3)`.
+
+  All ten AGREE with the engine runner's pinned answers. H2 is now 56 AGREE, 1 BOTH_FAIL, 2 DIFFER; DuckDB 57 and 2.
+  The DIFFERs are still the i04 pair (E-R2).
+- **The plants**, taken as reported, each turn its tests red: s1, s2, s3, n1, n2, W1', W2' and R1.
+
+**The test-data choice B1-R put to me: I agree, and do not overrule it.**
+- **What changed:** `generateTestData_WithSeed` is not refused on an unchecked database, because its rows are the
+  identifiers'. `TestDataPlanner.plan` reads the request's query through `ScanRelations.relTree` alone, for its tables
+  and columns, so no call's value chooses a row. Refusing it would be a false refusal.
+- **The other two routes:** `generateSeedData` and `generateTestData_WithDefaultSeed` still pass their seed through
+  `checkMeaning`, so they are rewritten or refused by name.
+- **Should:** a test pinning the choice. On Postgres, `WithSeed` with a flagged call answers, and gives the same CSV as
+  the same request without the call.
+
+**For the PR's word list (up moves; "Okay 1" chose the native, and its log row says "its guard moves posted before they
+land"):**
+- `INTERNAL_DESUGAR` 41 → 42;
+- `NOT_UPSTREAM_MAX` 78 → 80;
+- Intrinsic 740 → 742;
+- `native-claims.tsv`'s two `substrAsGiven` rows;
+- the engine battery pins' +10 AGREE rows per database, and the engine runner's pinned answers, +10 rows per database.
+  `c35e90888` says "the pins did not move", but each `agreement_engine_*.tsv` gains ten rows and its header count moves
+  46 → 56 and 47 → 57.
+
+Down moves, covered by ~20:45:
+- the warn pins `agreement_{h2,duckdb}.tsv` deleted;
+- `ObservabilityGuardrailTest.ENV_FLAGS` −1.
+
+The new `ClaimRegistryTest` pin is a tightening.
+
+**The docs commit, to check when it lands.** These still name the setting at `aacb49b96`:
+- `docs/SEMANTICS_REGISTER.md`: S130, S134 and S383, plus S385 and S388 per the ~07:55 row;
+- `docs/DIFFERENCES_FROM_LEGEND_ENGINE.md`;
+- the design note (1 mention) and the shape note (3);
+- the rules of record's switch registry, whose first entry was `LEGEND_LITE_PURE_MEANING`. AGENTS.md's tenet 6 still
+  reads true.
+
+S383 should also name `substr` and the flagged `substring`, which raise on lite's own doors.
