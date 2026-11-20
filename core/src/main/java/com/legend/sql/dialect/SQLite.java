@@ -229,6 +229,28 @@ public class SQLite extends AnsiSqlRenderer {
         return true;
     }
 
+    /** The operations SQLite writes as a query of their own, their operands inside it (2026-11-19, the H11 record's P1):
+     *  a list operation, a correlated subquery over {@code json_each}; a split, a regular expression, base64,
+     *  Levenshtein and Jaro-Winkler, recursive walks; a digest, a map, a Float's or a decimal's text, a date's parse,
+     *  each a subquery. A window's or an aggregate's value is never merged under one ({@link SelectMerge}): written
+     *  there it is computed over that query's one row. Measured on every operation by
+     *  {@code SelectMergeQueriedOperandsTest}, which fails when one writes a query and is not here, or is here and
+     *  writes none (the lambdas' and a map of entries' operations, which it cannot build, named in its list). */
+    static final java.util.Set<SqlFn> OPERANDS_IN_A_QUERY = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(
+            SqlFn.CONCAT, SqlFn.LENGTH, SqlFn.CONCAT_JOIN, SqlFn.LIST_CONCAT, SqlFn.LIST_POSITION, SqlFn.UNNEST,
+            SqlFn.LIST_FLATTEN, SqlFn.REGEXP_EXTRACT, SqlFn.REGEXP_EXTRACT_ALL, SqlFn.REGEXP_REPLACE,
+            SqlFn.REGEXP_FULL_MATCH, SqlFn.IS_NUMERIC, SqlFn.MAP_FROM_LISTS, SqlFn.MAP_EXTRACT, SqlFn.MAP_KEYS,
+            SqlFn.MAP_VALUES, SqlFn.MAP_CONCAT, SqlFn.MATCHES, SqlFn.SPLIT, SqlFn.SPLIT_PART, SqlFn.PURE_SPLIT_PART,
+            SqlFn.ENCODE_BASE64, SqlFn.LEVENSHTEIN, SqlFn.HASH, SqlFn.MD5, SqlFn.SHA1, SqlFn.SHA256,
+            SqlFn.JARO_WINKLER, SqlFn.DECODE_BASE64, SqlFn.LIST_ZIP, SqlFn.LIST_DISTINCT, SqlFn.LIST_SUM,
+            SqlFn.LIST_MIN, SqlFn.LIST_MAX, SqlFn.LIST_AVG, SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_SORT,
+            SqlFn.LIST_SORT_DESC, SqlFn.LIST_TAIL, SqlFn.LIST_INIT, SqlFn.RANGE_FN, SqlFn.LIST_PRODUCT,
+            SqlFn.LIST_SLICE, SqlFn.REPEAT_VALUE, SqlFn.LIST_BOOL_AND, SqlFn.LIST_BOOL_OR, SqlFn.ALL_DISTINCT,
+            SqlFn.PARSE_DATE, SqlFn.LIST_REVERSE, SqlFn.DECIMAL_TO_TEXT, SqlFn.FLOAT_SHORTEST_TEXT,
+            // a lambda's operations and a map of entries, over json_each (the census builds no lambda, no entry list)
+            SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM, SqlFn.LIST_EXISTS, SqlFn.LIST_FOR_ALL, SqlFn.LIST_REDUCE,
+            SqlFn.MAP_FROM_ENTRIES));
+
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
@@ -236,7 +258,7 @@ public class SQLite extends AnsiSqlRenderer {
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
                 // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
-                new QualifyToSubselect(true), new SelectMerge(java.util.function.UnaryOperator.identity()), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(),
+                new QualifyToSubselect(true), new SelectMerge(java.util.function.UnaryOperator.identity(), SelectMerge.queriedBy(OPERANDS_IN_A_QUERY)), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(),
                 new CommonSubexpressions());
     }
 

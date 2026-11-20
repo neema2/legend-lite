@@ -294,6 +294,24 @@ public class Postgres extends AnsiSqlRenderer {
      * QUALIFY as a wrapping subselect (Postgres has no QUALIFY), and a constant GROUP BY or
      * ORDER BY key as a typed expression (Postgres reads a bare one as a position, or refuses
      * it). */
+    /** The operations Postgres writes as a query of their own, their operands inside it (2026-11-19, the H11 record's
+     *  P1): a list operation over {@code unnest}, a map over {@code jsonb_each}, a regular expression's matches over
+     *  {@code generate_series}, Levenshtein and Jaro-Winkler as walks, a format's arguments. A window's or an
+     *  aggregate's value is never merged under one ({@link SelectMerge}): written there it is computed over that
+     *  query's rows ("window functions are not allowed in functions in FROM", or one row's value). Measured on every
+     *  operation by {@code SelectMergeQueriedOperandsTest}, which fails when one writes a query and is not here, or is
+     *  here and writes none (the lambdas', a map's and a format's operations, which it cannot build, named in its
+     *  list). */
+    static final java.util.Set<SqlFn> OPERANDS_IN_A_QUERY = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(
+            SqlFn.UNNEST, SqlFn.REGEXP_EXTRACT_ALL, SqlFn.MAP_FROM_LISTS, SqlFn.MAP_CONCAT, SqlFn.LEVENSHTEIN,
+            SqlFn.JARO_WINKLER, SqlFn.LIST_DISTINCT, SqlFn.LIST_SUM, SqlFn.LIST_MIN, SqlFn.LIST_MAX, SqlFn.LIST_AVG,
+            SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_SORT, SqlFn.LIST_SORT_DESC, SqlFn.RANGE_FN,
+            SqlFn.LIST_BOOL_AND, SqlFn.LIST_BOOL_OR, SqlFn.ALL_DISTINCT, SqlFn.LIST_REVERSE, SqlFn.VARIANT_ELEMENTS,
+            // a lambda's operations, a map's and a format's, over unnest, jsonb_each and the format's arguments (the
+            // census builds no lambda, no entry list, no map, no format)
+            SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM, SqlFn.LIST_EXISTS, SqlFn.LIST_FOR_ALL, SqlFn.LIST_REDUCE,
+            SqlFn.MAP_FROM_ENTRIES, SqlFn.MAP_EXTRACT, SqlFn.MAP_KEYS, SqlFn.MAP_VALUES, SqlFn.FORMAT));
+
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS),
@@ -303,7 +321,8 @@ public class Postgres extends AnsiSqlRenderer {
                 new QualifyToSubselect(true),
                 // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
                 // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
-                new SelectMerge(n -> n.toLowerCase(java.util.Locale.ROOT)), new SelectLayers(n -> n.toLowerCase(java.util.Locale.ROOT)),
+                new SelectMerge(n -> n.toLowerCase(java.util.Locale.ROOT), SelectMerge.queriedBy(OPERANDS_IN_A_QUERY)),
+                new SelectLayers(n -> n.toLowerCase(java.util.Locale.ROOT)),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 

@@ -694,6 +694,9 @@ legend_java_library(
             "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
             # a relation's toOne() guard on Postgres is :relation_to_one_postgres_test's (D2, 2026-11-07)
             "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
+            # a window's column read through a list operation on Postgres is :window_read_through_a_list_postgres_test's
+            # (the H11 record's P1, 2026-11-19)
+            "src/test/java/com/legend/integration/WindowReadThroughAListPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's, and so is the LEAN twin's reader (track T, 2026-10-29): every
             # per-lane target reads its lane's answers through it
@@ -2437,6 +2440,34 @@ junit_test(
         # core_edge_tests_lib's (Phase 7's build half, 2026-11-17)
         ":core_edge_tests_lib",
         ":test_cases",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# A WINDOW'S COLUMN READ THROUGH A LIST OPERATION (the compatibility program's H11 record, §8 P1, 2026-11-19): on the
+# embedded Postgres 16, where a list operation is a query over unnest, each window computed over its partition before
+# the list operation reads it -- PCT's rows; the same shapes run on DuckDB, H2 and SQLite by the integration tests named
+# for each (WindowReadThroughAListDuckDbTest, ...SQLiteTest, ...H2Test)
+junit_test(
+    name = "window_read_through_a_list_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/WindowReadThroughAListPostgresTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.WindowReadThroughAListPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":core_tests_lib",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
