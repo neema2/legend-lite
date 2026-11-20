@@ -2032,3 +2032,37 @@ Notes:
     query-capture runs are the proof, and should be in the judges' measurement.
   - **The engine rewrite against piece 2's meaning:** a flagged call becomes the unguarded `substringAsGiven`, and an
     unflagged call keeps Pure's meaning (M-a1).
+
+## A3 piece 2's review fixes, `origin/claude/compat-a3-switch` at `97d4c78b2` (3 commits on `1f4b108d1`)
+
+**Verdict: APPROVED. P2-M1, P2-S1 and P2-S2 are met, and with them M-c1 is met at the code. The batch head
+`71b7bf55e` does not yet carry these commits, so they must be merged into it before the judges' measurement.**
+- **P2-M1:** one rule, `FeatureRules.PURE_SUBSTRING` (its body `Scalars.pureSubstring`, the guard unchanged), serves:
+  - plain `substring`;
+  - the flag's registration (`under(CORRECT_SQL_SUBSTRING_INDEXING, ..., PURE_SUBSTRING)`);
+  - `substr`.
+
+  So the flag is a true no-op, the raise included. FeatureRules' javadoc now says so, and `CORRECTED_SUBSTRING` is the
+  in-range value alone. `SqlFnSortedTest`'s pin holds: no SQL function gains a writer class.
+- **P2-S2:** `indexOf(s, t, from)` clamps `from` to `[0, LENGTH(s)]`, which is Java's `String.indexOf` (read at the
+  pin: `IndexOfString.java:60`, `CompiledSupport.java:1536-1539`). The upper clamp is folded away only for a literal
+  `from` of 0 or less, or a non-empty literal search, where it can never matter. For a non-empty search, a `from` past
+  the end gives −1 either way.
+- **P2-S1:** the new tests:
+  - `substr` and the flagged `substring` raise;
+  - a computed index (the row's `id`) is in range on one row and out of range on another (a second row `9,Al`);
+  - the empty search past the end (`8, 3, 0, -1, 8`).
+- **The moves** quote the user's word in `97d4c78b2`: "approved: push the review fixes and make the moves (corpus
+  +2/-1 per database, edge net, lean SQL +172/-2, census +17)". I counted them on the diff:
+  - lean SQL: 68 rows, 172 up and 2 down;
+  - the cast-case census: 28 rows, 17 up and 11 down (the down moves are covered by ~20:45);
+  - the corpus: +2 fail rows and −1 unordered row per database;
+  - the edge net: 2 lines per database.
+- **The JDK comment** in PureMessages now cites the JDK 25.0.4 measurement.
+- **Note:** `97d4c78b2`'s message says "the compatibility edge's detector names store-routed substr as it does
+  substring". It does not, at the head or on this branch: `PureMeaningCheck.call` matches `AT_STRING_SUBSTRING` alone.
+  That is right as designed: legend-engine always corrects `substr` (processSubstr), so its only difference from Pure
+  is S383's raise, a recorded difference that the detector does not flag. Correct the sentence where it is carried
+  into a record.
+- **M-a1 now applies under the flag too, as expected.** Under `engine`, with `CORRECT_SQL_SUBSTRING_INDEXING` set or at
+  an exempt literal 0, an out-of-range call raises where legend-engine answers. This is still the user's call.
