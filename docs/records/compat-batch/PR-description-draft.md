@@ -95,7 +95,12 @@ below.]**
   - a new ClaimRegistryTest pin, `substrAsGivensOneProductClaimerIsScalars`;
   - the engine batteries: +10 rows per database from the oracle re-run, H2 46 → 56 AGREE and DuckDB 47 → 57 AGREE,
     all ten new rows agreeing, no existing row moved;
-  - the door's records re-recorded for the deleted setting **[B1-R's list, final]**;
+  - the warn half of the batteries, pct/batteries/agreement_{h2,duckdb}.tsv, DELETED (a down move; last H2 11/1/47, DuckDB 8/51);
+  - ObservabilityGuardrailTest.ENV_FLAGS −1 (`LEGEND_LITE_PURE_MEANING`; a down move);
+  - tools/engine-runner engine_{h2,duckdb}_answers.tsv +10 rows each (legend-engine's oracle re-run);
+  - no edge-net record moved (//gates:edge_net 40/40 as recorded); no PeRatchets move; the JavaEvalLedgerTest funnel rows unchanged;
+  - the switch registry's one entry deleted (the registry stays, empty);
+  - generateTestData_WithSeed answered on an unchecked database (its rows are the identifiers', no flagged call chooses them), B1-R's choice, open to the user;
   - register rows S130, S134, S383, S385, S388 and AGENTS.md's switch-rule entry reworded;
 - A2 PR 1's ordered-keys registers (`e66846d4d`: DuckDB +5, H2 +4, an UP move; M-b4) and A2's fail-roster growth
   itself (H2 +145, DuckDB +149; the six accepted rows were ruled ~20:35, the growth was not);

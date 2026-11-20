@@ -3397,3 +3397,8 @@ who confirms or changes phases 1-3.
   - The differences from COMPAT are error wording: 19 tests where lite's own raise text ≠ legend-pure's. This is stage B's Q3, error records.
   - And relation `toString`: 353 tests, stage B's B2. There are no value differences.
   - The bisect of main's BigQuery UNION ALL regression is running: 8 first-parent merges.
+- **~08:40 UTC, B1-R's code pass is done**, 2h40 sooner than its ETA.
+  - Commits: `c35e90888` (option 1) and `aacb49b96` (the ~07:55 ruling), on `317204773`. The docs follow as a separate .md commit.
+  - Its fast lanes are green, including //gates:edge_net 40/40 with NO record moved, and //pct:batteries_test.
+  - The move list is on the PR draft's word list.
+  - The judges merge it and run //gates:local plus the edge lanes once. The reviewer reviews it.
