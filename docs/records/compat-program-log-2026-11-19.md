@@ -3287,3 +3287,18 @@ who confirms or changes phases 1-3.
   wording); MT_CheckMapping (not run). A legend-engine client sees it in each checked value's `defects[].message`, written
   by legend-engine's Java platform binding when a constraint has no message (constraints.pure:151-153). Put to the user
   with Q7, both in depth.
+- **~04:22 UTC, the translator: piece 2's review fixes done and measured** (local `ba7af669`, `169d8214` on `1f4b108d`):
+  P2-M1, one guarded rule (`Scalars.pureSubstring`) for substring, flagged substring and substr; P2-S2, Java's
+  `String.indexOf` read at the pin (IndexOfString.java:59-60), `from` clamped by LEAST(from, LENGTH(s)), moving nothing;
+  P2-S1, SubstringRangeTest 5 tests; the JDK comment and the shape note corrected. **Moves, all from P2-M1, for the
+  user's word in its session:** corpus fail rosters +2 per database (`testToSQLStringSubstrFoldsLiteralIndexes`,
+  `testToSQLStringSubstrWithComputedIndex`, legend-engine's substr text tests whose rows now raise like Pure), unordered
+  −1 per database, 2 edge-net lines per database re-recorded, lean SQL +172/−2 (channel A's substring and substr families
+  carried the flag and planned the unguarded rule; now guarded), the cast-case census +17. The user given the line to
+  type there.
+- **~05:04 UTC, B1-R: the engine wiring pushed** (`claude/compat-a3-engine` at `6b0d25d8f` on a merge of `ced5708ec`):
+  the batteries' engine half restored exactly (H2 46/1/2, DuckDB 47/2); the warn half and the ENGINE lane moved with piece
+  2, not the wiring (lite now Pure's meaning); PureMeaningEngineTest both ways (plants W1 8 of 13 red, W2 3 red); gate
+  624 of 625, the one red parser_parity on B1's `EngineSubstitutesTest.java` (two snippets without section headers),
+  sent to the judges to fix. New guard files only the two ruled engine pins. The judges merge it back and the docs; the
+  batch then waits on the translator's review fixes.
