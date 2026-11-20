@@ -1,0 +1,544 @@
+diff --git a/spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java b/spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java
+index 26e85ddb..f86fb417 100644
+--- a/spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java
++++ b/spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java
+@@ -278,6 +278,18 @@ public final class MinimalCorpus {
+         // platform-namespace guard: nothing the harness loads may define
+         // the platform's stdlib
+         refusePlatformNamespace(parsed.model().elements());
++        for (PackageableElement el : parsed.model().elements()) {
++            if (el instanceof FunctionDefinition f) {
++                H13_BY_FQN.computeIfAbsent(f.qualifiedName(), k -> new ArrayList<>()).add(f);
++                String q = f.qualifiedName();
++                H13_BY_SIMPLE.computeIfAbsent(q.contains("::") ? q.substring(q.lastIndexOf("::") + 2) : q,
++                        k -> new ArrayList<>()).add(f);
++                ImportScope own = parsed.model().elementImports().get(ParsedModel.keyOf(f));
++                if (own != null) {
++                    H13_IMPORTS.put(f, own);
++                }
++            }
++        }
+         if (!parseWalls.isEmpty()) {
+             throw new IllegalStateException("corpus parse walls: " + parseWalls);
+         }
+@@ -496,6 +508,11 @@ public final class MinimalCorpus {
+         return BACKEND == TestBackends.referee();
+     }
+ 
++    // B3 option-N probe v2 (scratch): the parsed model's functions, for the harness's helper inlining
++    static final Map<String, List<FunctionDefinition>> H13_BY_FQN = new java.util.concurrent.ConcurrentHashMap<>();
++    static final Map<String, List<FunctionDefinition>> H13_BY_SIMPLE = new java.util.concurrent.ConcurrentHashMap<>();
++    static final Map<FunctionDefinition, ImportScope> H13_IMPORTS = new java.util.IdentityHashMap<>();
++
+     public void endSession() {
+         runner.endSession();
+     }
+@@ -540,8 +557,482 @@ public final class MinimalCorpus {
+         private com.legend.edge.RawLedger.Recorder.@com.legend.base.Nullable Mark mark;
+         private @com.legend.base.Nullable String currentTest;
+ 
++        // ---- B3 OPTION-N PROBE v2 (scratch, never for merge): today's appeal outcome per verdict, against the
++        // asserts a harness detector finds with helper functions inlined over the PARSED model (no planner entry)
++        private PureTests.@com.legend.base.Nullable TestCase h13Test;
++        private final List<String> h13Today = new ArrayList<>();
++        private final List<String[]> h13Verdicts = new ArrayList<>();
++        private @com.legend.base.Nullable String h13Pending;
++
++        @Override
++        public void refereed(String name, String outcome) {
++            h13Today.add(outcome);
++            h13Pending = outcome;
++        }
++
++        @Override
++        public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {
++            h13Verdicts.add(new String[] {name, h13Pending == null ? "" : h13Pending, String.valueOf(pass)});
++            h13Pending = null;
++        }
++
++        /** One terminal assert the walk met, in evaluation order. */
++        private record H13Assert(String cls, String detail, @com.legend.base.Nullable List<ValueSpecification> query,
++                @com.legend.base.Nullable String golden, List<String> imports) {
++        }
++
++        private static boolean h13IsLet(ValueSpecification s) {
++            return s instanceof AppliedFunction let && let.function().endsWith("letFunction")
++                    && let.parameters().size() == 2
++                    && let.parameters().get(0) instanceof com.legend.protocol.spec.CString;
++        }
++
++        private static String h13Simple(String fn) {
++            int i = fn.lastIndexOf("::");
++            return i < 0 ? fn : fn.substring(i + 2);
++        }
++
++        private static boolean h13Producer(String fn) {
++            String s = h13Simple(fn);
++            return s.equals("toSQLString") || s.equals("toSQLStringPretty") || s.equals("execute")
++                    || s.equals("executionPlan");
++        }
++
++        private static boolean h13TerminalAssert(String fn) {
++            String s = h13Simple(fn);
++            return s.startsWith("assert") && (h13Fns(fn).isEmpty() || s.equals("assertSameSQL"));
++        }
++
++        /** The user function a call names, from the parsed model: by FQN, else by simple name and arity. */
++        private static @com.legend.base.Nullable FunctionDefinition h13Helper(AppliedFunction call,
++                @com.legend.base.Nullable List<String> imports) {
++            if (call.propertyCall() || h13Producer(call.function()) || h13Simple(call.function()).equals("assertSameSQL")
++                    || h13Simple(call.function()).equals("sqlRemoveFormatting") || call.function().endsWith("letFunction")) {
++                return null;
++            }
++            List<FunctionDefinition> c = h13Fns(call.function());
++            Map<String, FunctionDefinition> arity = new LinkedHashMap<>();
++            for (FunctionDefinition f : c) {
++                if (f.parameters().size() == call.parameters().size()) {
++                    arity.putIfAbsent(f.qualifiedName() + f.parameters(), f);
++                }
++            }
++            if (arity.size() > 1 && imports != null) {
++                Map<String, FunctionDefinition> scoped = new LinkedHashMap<>();
++                arity.forEach((k, f) -> {
++                    String q = f.qualifiedName();
++                    if (imports.contains(q.contains("::") ? q.substring(0, q.lastIndexOf("::")) : "")) {
++                        scoped.put(k, f);
++                    }
++                });
++                arity = scoped;
++            }
++            return arity.size() == 1 ? arity.values().iterator().next() : null;
++        }
++
++        private static List<FunctionDefinition> h13Fns(String fn) {
++            return fn.contains("::") ? H13_BY_FQN.getOrDefault(fn, List.of())
++                    : H13_BY_SIMPLE.getOrDefault(fn, List.of());
++        }
++
++        private static ValueSpecification h13Let(String name, ValueSpecification v) {
++            return new AppliedFunction("letFunction", List.of(new com.legend.protocol.spec.CString(name, null, false), v),
++                    List.of(), null, false, false, false);
++        }
++
++        private static final java.util.regex.Pattern H13_VAR = java.util.regex.Pattern.compile("Variable\\[name=([^,\\]]+),");
++
++        private static java.util.Set<String> h13Names(ValueSpecification v) {
++            java.util.Set<String> out = new java.util.HashSet<>();
++            java.util.regex.Matcher m = H13_VAR.matcher(v.toString());
++            while (m.find()) {
++                out.add(m.group(1));
++            }
++            return out;
++        }
++
++        private static boolean h13Reads(ValueSpecification v, java.util.Set<String> names) {
++            String text = v.toString();
++            return names.stream().anyMatch(x -> text.contains("Variable[name=" + x + ","));
++        }
++
++        /** The walk's state: the variable environment, the non-producer lets in order, the producer-derived names. */
++        private static final class H13Scope {
++            final Map<String, ValueSpecification> env = new LinkedHashMap<>();
++            final List<ValueSpecification> lets = new ArrayList<>();
++            final java.util.Set<String> derived = new java.util.HashSet<>();
++            final List<String> imports = new ArrayList<>();
++            boolean nested;
++            boolean h2Compatible;
++        }
++
++        private static void h13Bind(FunctionDefinition f, AppliedFunction call, H13Scope sc) {
++            for (int i = 0; i < f.parameters().size(); i++) {
++                String p = f.parameters().get(i).name();
++                ValueSpecification arg = call.parameters().get(i);
++                if (arg instanceof com.legend.protocol.spec.Variable same && same.name().equals(p)) {
++                    continue;   // $p passed to a parameter named p: the outer binding stands
++                }
++                sc.env.put(p, arg);
++                if (h13Reads(arg, sc.derived)) {
++                    sc.derived.add(p);
++                } else {
++                    sc.lets.add(h13Let(p, arg));
++                }
++            }
++            ImportScope own = H13_IMPORTS.get(f);
++            if (own != null) {
++                own.wildcards().forEach(w -> { if (!sc.imports.contains(w)) sc.imports.add(w); });
++            }
++            String fq = f.qualifiedName();
++            String pkg = fq.contains("::") ? fq.substring(0, fq.lastIndexOf("::")) : "";
++            if (!pkg.isEmpty() && !sc.imports.contains(pkg)) {
++                sc.imports.add(pkg);
++            }
++        }
++
++        /** {@code v} with variables replaced by their bindings (up to five steps), helper calls inlined (their leading
++         *  statements walked), and sqlRemoveFormatting peeled; {@code via[0]} set where a helper was inlined. */
++        private ValueSpecification h13Resolve(ValueSpecification v, H13Scope sc, List<H13Assert> out, int depth,
++                boolean[] via, boolean[] varUsed) {
++            for (int step = 0; step < 6; step++) {
++                if (v instanceof AppliedFunction f && h13Simple(f.function()).equals("sqlRemoveFormatting")
++                        && !f.parameters().isEmpty()) {
++                    v = f.parameters().get(0);
++                    continue;
++                }
++                if (v instanceof com.legend.protocol.spec.Variable var && sc.env.containsKey(var.name())) {
++                    v = sc.env.get(var.name());
++                    varUsed[0] = true;
++                    continue;
++                }
++                if (v instanceof AppliedFunction call && depth < 5) {
++                    FunctionDefinition h = h13Helper(call, sc.imports);
++                    if (h != null && !h.body().isEmpty()) {
++                        h13Bind(h, call, sc);
++                        h13Walk(h.body().subList(0, h.body().size() - 1), depth + 1, sc, out);
++                        v = h.body().get(h.body().size() - 1);
++                        via[0] = true;
++                        continue;
++                    }
++                }
++                break;
++            }
++            return v;
++        }
++
++        private void h13Walk(List<ValueSpecification> body, int depth, H13Scope sc, List<H13Assert> out) {
++            for (ValueSpecification stmt : body) {
++                if (h13IsLet(stmt)) {
++                    AppliedFunction let = (AppliedFunction) stmt;
++                    String name = ((com.legend.protocol.spec.CString) let.parameters().get(0)).value();
++                    ValueSpecification v = let.parameters().get(1);
++                    if (v instanceof AppliedFunction call && depth < 5 && h13Helper(call, sc.imports) != null
++                            && !java.util.Objects.requireNonNull(h13Helper(call, sc.imports)).body().isEmpty()) {
++                        boolean[] via = {false};
++                        boolean[] vu = {false};
++                        v = h13Resolve(v, sc, out, depth, via, vu);
++                    }
++                    sc.env.put(name, v);
++                    if (v instanceof AppliedFunction p && h13Producer(p.function())) {
++                        sc.derived.add(name);
++                    } else if (h13Reads(v, sc.derived)) {
++                        sc.derived.add(name);
++                    } else {
++                        sc.lets.add(h13Let(name, v));
++                    }
++                    continue;
++                }
++                if (stmt instanceof AppliedFunction a && h13TerminalAssert(a.function())) {
++                    out.add(h13Classify(a, sc, depth, out));
++                    continue;
++                }
++                if (stmt instanceof AppliedFunction call && depth < 5) {
++                    FunctionDefinition h = h13Helper(call, sc.imports);
++                    if (h != null) {
++                        h13Bind(h, call, sc);
++                        if (h13Simple(call.function()).startsWith("assert")) {
++                            List<H13Assert> inner = new ArrayList<>();
++                            h13Walk(h.body(), depth + 1, sc, inner);
++                            H13Assert pick = inner.stream().filter(x -> x.query() != null).findFirst()
++                                    .orElse(inner.stream().filter(x -> !x.cls().equals("NOT_TEXT")).findFirst()
++                                            .orElse(inner.isEmpty() ? new H13Assert("NOT_TEXT", "assert helper, none",
++                                                    null, null, List.copyOf(sc.imports)) : inner.get(0)));
++                            out.add(new H13Assert(pick.cls(), "via " + h13Simple(call.function()) + ": " + pick.detail(),
++                                    pick.query(), pick.golden(), pick.imports()));
++                        } else {
++                            h13Walk(h.body(), depth + 1, sc, out);
++                        }
++                        continue;
++                    }
++                }
++                if (stmt instanceof AppliedFunction iff && h13Simple(iff.function()).equals("if")
++                        && iff.parameters().size() == 3
++                        && iff.parameters().get(2) instanceof com.legend.protocol.spec.LambdaFunction no
++                        && iff.parameters().get(0).toString().contains("1.4.200")) {
++                    sc.h2Compatible = true;
++                    h13Walk(no.body(), depth, sc, out);
++                    continue;
++                }
++                if (stmt.toString().contains("assert")) {
++                    sc.nested = true;
++                }
++            }
++        }
++
++        /** A constant String written as literals joined by {@code +} (variables resolved), else null. */
++        private @com.legend.base.Nullable String h13Fold(ValueSpecification v, H13Scope sc, List<H13Assert> out,
++                int depth) {
++            ValueSpecification r = h13Resolve(v, sc, out, depth, new boolean[1], new boolean[1]);
++            if (r instanceof com.legend.protocol.spec.CString c) {
++                return c.value();
++            }
++            if (r instanceof AppliedFunction f && h13Simple(f.function()).equals("plus") && f.parameters().size() == 1
++                    && f.parameters().get(0) instanceof com.legend.protocol.spec.PureCollection pc) {
++                StringBuilder b = new StringBuilder();
++                for (ValueSpecification x : pc.values()) {
++                    String part = h13Fold(x, sc, out, depth);
++                    if (part == null) {
++                        return null;
++                    }
++                    b.append(part);
++                }
++                return b.toString();
++            }
++            return null;
++        }
++
++        private H13Assert h13Classify(AppliedFunction a, H13Scope sc, int depth, List<H13Assert> out) {
++            String fn = h13Simple(a.function());
++            List<String> imports = List.copyOf(sc.imports);
++            if (a.parameters().size() < 2 && !fn.equals("assertSameSQL")) {
++                return new H13Assert("NOT_TEXT", fn, null, null, imports);
++            }
++            boolean[] via = {false};
++            boolean[] vu = {false};
++            ValueSpecification g = h13Resolve(a.parameters().get(0), sc, out, depth, via, vu);
++            boolean goldenVar = vu[0];
++            String folded = h13Fold(g, sc, out, depth);
++            boolean foldedGolden = folded != null && !(g instanceof com.legend.protocol.spec.CString);
++            if (folded != null) {
++                g = new com.legend.protocol.spec.CString(folded, null, false);
++            }
++            if (!(g instanceof com.legend.protocol.spec.CString golden)) {
++                return new H13Assert("NOT_TEXT", fn + " golden=" + g.getClass().getSimpleName()
++                        + (g instanceof AppliedFunction gf ? ":" + h13Simple(gf.function()) : ""), null, null, imports);
++            }
++            if (foldedGolden) {
++                goldenVar = true;
++            }
++            vu[0] = false;
++            ValueSpecification read = h13Resolve(a.parameters().get(a.parameters().size() - 1), sc, out, depth, via, vu);
++            String gl = golden.value().strip().toLowerCase(java.util.Locale.ROOT);
++            boolean sqlGolden = gl.startsWith("select") || gl.startsWith("with") || gl.startsWith("(select");
++            String where = (depth > 0 || via[0] ? "HELPER" : (vu[0] || goldenVar ? "LET" : "DIRECT"));
++            boolean activities = false;
++            if (!(read instanceof AppliedFunction p0 && h13Producer(p0.function()))) {
++                String rt = read.toString();
++                if (rt.contains("property=activities") || rt.contains("property=sql")) {
++                    ValueSpecification r = read;
++                    for (int i = 0; i < 12; i++) {
++                        if (r instanceof com.legend.protocol.spec.AppliedProperty ap) {
++                            r = ap.receiver();
++                        } else if (r instanceof com.legend.protocol.spec.Variable var && sc.env.containsKey(var.name())) {
++                            r = sc.env.get(var.name());
++                        } else if (r instanceof AppliedFunction rf && h13Producer(rf.function())) {
++                            break;
++                        } else if (r instanceof AppliedFunction rf && !rf.parameters().isEmpty()) {
++                            r = rf.parameters().get(0);
++                        } else {
++                            break;
++                        }
++                    }
++                    if (r instanceof AppliedFunction rf && h13Producer(rf.function())) {
++                        read = rf;
++                        activities = true;
++                    }
++                }
++            }
++            if (!(read instanceof AppliedFunction p && h13Producer(p.function()) && p.parameters().size() >= 2)) {
++                String shape = read instanceof AppliedFunction rf ? (rf.propertyCall() ? "property:" : "call:")
++                        + h13Simple(rf.function()) : read.getClass().getSimpleName();
++                String text = read.toString();
++                boolean mentions = text.contains("toSQLString") || text.contains("executionPlan")
++                        || text.contains("execute") || text.contains("activities");
++                return new H13Assert(mentions ? "OTHER_SHAPE" : "NO_PRODUCER", where + " " + fn + " read=" + shape
++                        + (sqlGolden ? "" : " golden=nonsql"), null, golden.value(), imports);
++            }
++            AppliedFunction producer = (AppliedFunction) read;
++            boolean[] lv = {false};
++            ValueSpecification lam = h13Resolve(producer.parameters().get(0), sc, out, depth, new boolean[1], lv);
++            if (h13Simple(producer.function()).equals("executionPlan") || !sqlGolden) {
++                return new H13Assert("PLAN_TEXT", where + " " + fn + " producer=" + h13Simple(producer.function()),
++                        null, golden.value(), imports);
++            }
++            if (!(lam instanceof com.legend.protocol.spec.LambdaFunction q) || q.body().isEmpty()) {
++                return new H13Assert("OTHER_SHAPE", where + " " + fn + " lambda=" + lam.getClass().getSimpleName(), null,
++                        golden.value(), imports);
++            }
++            ValueSpecification map = h13Resolve(producer.parameters().get(1), sc, out, depth, new boolean[1],
++                    new boolean[1]);
++            if (!(map instanceof com.legend.protocol.spec.PackageableElementPtr)) {
++                return new H13Assert("OTHER_SHAPE", where + " " + fn + " mapping=" + map.getClass().getSimpleName(),
++                        null, golden.value(), imports);
++            }
++            if (lv[0] && where.equals("DIRECT")) {
++                where = "LET";
++            }
++            String six = depth == 0 && !via[0] && !goldenVar && !lv[0] ? "SIX" : where;
++            java.util.Set<String> need = h13Names(q);
++            List<ValueSpecification> chosen = new ArrayList<>();
++            for (int i = sc.lets.size() - 1; i >= 0; i--) {
++                AppliedFunction l = (AppliedFunction) sc.lets.get(i);
++                String ln = ((com.legend.protocol.spec.CString) l.parameters().get(0)).value();
++                if (need.remove(ln) && !h13Reads(l, sc.derived)) {
++                    chosen.add(0, l);
++                    need.addAll(h13Names(l.parameters().get(1)));
++                }
++            }
++            List<ValueSpecification> stmts = new ArrayList<>(chosen);
++            stmts.addAll(q.body().subList(0, q.body().size() - 1));
++            stmts.add(new AppliedFunction("from", List.of(q.body().get(q.body().size() - 1), map,
++                    new com.legend.protocol.spec.PackageableElementPtr(RUNTIME)), List.of(), null, false, false, false));
++            if (activities) {
++                six = six.equals("SIX") ? "LET" : six;
++            }
++            return new H13Assert(six, fn + " producer=" + h13Simple(producer.function()) + (activities ? " activities" : ""),
++                    stmts, golden.value(), imports);
++        }
++
++        private void h13Probe(com.legend.exec.Sessions.Session conn) {
++            PureTests.TestCase t = h13Test;
++            if (t == null) {
++                return;
++            }
++            try {
++                if (!com.legend.testbackend.TestSessions.connectionOf(conn).getMetaData().getDatabaseProductName()
++                        .contains("H2")) {
++                    return;
++                }
++            } catch (SQLException e) {
++                return;
++            }
++            H13Scope sc = new H13Scope();
++            sc.imports.addAll(t.imports().wildcards());
++            List<H13Assert> found = new ArrayList<>();
++            h13Walk(t.fn().body(), 0, sc, found);
++            long todayAny = h13Verdicts.stream().filter(v -> !v[1].isEmpty()).count();
++            long candidates = found.stream().filter(x -> !x.cls().equals("NOT_TEXT") && !x.cls().equals("NO_PRODUCER"))
++                    .count();
++            if (todayAny == 0 && candidates == 0) {
++                return;
++            }
++            boolean aligned = !sc.nested && found.size() == h13Verdicts.size();
++            StringBuilder summary = new StringBuilder();
++            for (H13Assert x : found) {
++                summary.append(x.cls()).append(',');
++            }
++            h13Log("TEST\t" + t.fqn() + "\taligned=" + aligned + "\tverdicts=" + h13Verdicts.size() + "\tfound="
++                    + found.size() + "\tnested=" + sc.nested + "\th2c=" + sc.h2Compatible + "\t" + summary);
++            for (int k = 0; k < found.size(); k++) {
++                H13Assert x = found.get(k);
++                String today = aligned ? h13Verdicts.get(k)[1] : "?";
++                String outcome = "-";
++                if (x.query() != null && x.golden() != null) {
++                    outcome = h13Verify(conn, t, x);
++                }
++                h13Log("A\t" + t.fqn() + "\t" + k + "\t" + x.cls() + "\ttoday=" + (today.isEmpty() ? "none" : today)
++                        + "\t" + outcome + "\t" + x.detail());
++            }
++            if (!aligned) {
++                for (int k = 0; k < h13Verdicts.size(); k++) {
++                    if (!h13Verdicts.get(k)[1].isEmpty()) {
++                        h13Log("U\t" + t.fqn() + "\t" + k + "\t" + h13Verdicts.get(k)[0] + "\ttoday="
++                                + h13Verdicts.get(k)[1]);
++                    }
++                }
++            }
++        }
++
++        private String h13Verify(com.legend.exec.Sessions.Session conn, PureTests.TestCase t, H13Assert x) {
++            try {
++                com.legend.TypedQuery typed = Compiler.queryResolved(ctx,
++                        Compiler.resolveQuery(x.query(), new ImportScope(x.imports()), ctx));
++                com.legend.result.Collector ours = new com.legend.result.Collector();
++                com.legend.Execution.run(typed, RUNTIME, com.legend.exec.SessionSource.given(conn),
++                        com.legend.exec.PlanSessions.of(conn), com.legend.exec.ProductRun.Establish.AS_GIVEN,
++                        java.util.Set.of(), com.legend.edge.PureText.UPSTREAM,
++                        new com.legend.result.Output.Rows(ours), 1024);
++                com.legend.result.Collector.Collected c = ours.collected();
++                String rootFqn = typed.resultType().type() instanceof com.legend.compiler.element.type.Type.ClassType ct
++                        ? ct.fqn() : null;
++                List<com.legend.testexecutionplan.Column> cols = new ArrayList<>();
++                for (var col : c.columns()) {
++                    cols.add(new com.legend.testexecutionplan.Column(col.name(), col.type(), col.multiplicity()));
++                }
++                com.legend.testexecutionplan.TypedSide side;
++                if (rootFqn != null && c.columns().size() == 1 && c.rows().stream().allMatch(
++                        r -> r.size() == 1 && r.get(0) instanceof String js && (js.startsWith("{") || js.startsWith("[")))) {
++                    String json = c.rows().size() == 1 && ((String) c.rows().get(0).get(0)).startsWith("[")
++                            ? (String) c.rows().get(0).get(0)
++                            : "[" + String.join(",", c.rows().stream().map(r -> (String) r.get(0)).toList()) + "]";
++                    side = new com.legend.testexecutionplan.TypedSide.Graph(json, rootFqn);
++                } else {
++                    side = new com.legend.testexecutionplan.TypedSide.Tabular(cols, c.rows().stream()
++                            .map(com.legend.testexecutionplan.Row::new).toList(),
++                            rootFqn != null ? rootFqn : "TabularDataSet", false);
++                }
++                AppliedFunction from = (AppliedFunction) x.query().get(x.query().size() - 1);
++                String mapFqn = ((com.legend.protocol.spec.PackageableElementPtr) from.parameters().get(1)).fullPath();
++                var v = java.util.Objects.requireNonNull(referee).verify(conn, java.util.Objects.requireNonNull(x.golden()),
++                        side, mapFqn, rootFqn, new com.legend.edge.SqlReplayReferee.ReplayFacts(false, false, null),
++                        com.legend.edge.Appeal.Enums.NONE);
++                String pol = "P_" + v.outcome() + (v.detail() == null ? "" : " " + v.detail());
++                pol = pol.replace('\n', ' ').replace('\t', ' ');
++                return pol.length() > 160 ? pol.substring(0, 160) : pol;
++            } catch (Exception e) {
++                String m = "N_ERROR " + e.getClass().getSimpleName() + ": "
++                        + String.valueOf(e.getMessage()).replace('\n', ' ').replace('\t', ' ');
++                return m.length() > 160 ? m.substring(0, 160) : m;
++            }
++        }
++
++        private List<String> h13Rows(List<List<Object>> rows) {
++            List<String> out = new ArrayList<>();
++            for (List<Object> r : rows) {
++                StringBuilder b = new StringBuilder();
++                for (Object c : r) {
++                    Object v = c;
++                    if (v instanceof Number num && !(v instanceof Integer || v instanceof Long)) {
++                        v = new java.math.BigDecimal(num.toString()).stripTrailingZeros().toPlainString();
++                    } else if (v instanceof Integer || v instanceof Long) {
++                        v = v.toString();
++                    }
++                    b.append(v).append('|');
++                }
++                out.add(b.toString());
++            }
++            java.util.Collections.sort(out);
++            return out;
++        }
++
++        private void h13Log(String line) {
++            java.nio.file.Path dir = java.nio.file.Path.of("/home/user/h13log");
++            if (!java.nio.file.Files.isDirectory(dir)) {
++                return;
++            }
++            try {
++                java.nio.file.Files.writeString(dir.resolve("n_probe.tsv"), line + "\n",
++                        java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
++            } catch (IOException e) {
++                throw new java.io.UncheckedIOException(e);
++            }
++        }
++
+         @Override
+         public void testStarted(PureTests.TestCase t) {
++            h13Test = t;
++            h13Today.clear();
+             // the referee's declines and verdict roster name the test they
+             // belong to (display attribution only, no verdict flows through it)
+             currentTest = t.fqn();
+@@ -615,6 +1106,9 @@ public final class MinimalCorpus {
+ 
+         @Override
+         public void bodyStarting(com.legend.exec.Sessions.Session conn, boolean effectful) {
++            h13Verdicts.clear();
++            h13Today.clear();
++            h13Pending = null;
+             // the harness's own referee brackets the attempt on the driver's connection: the session's, asked for it
+             try {
+                 mark = effectful ? java.util.Objects.requireNonNull(referee).beginAttempt(com.legend.testbackend.TestSessions.connectionOf(conn)) : null;
+@@ -625,6 +1119,7 @@ public final class MinimalCorpus {
+ 
+         @Override
+         public void bodyPassed(com.legend.exec.Sessions.Session conn, boolean effectful) {
++            h13Probe(conn);
+             // the session state the body produced is what the engine's run
+             // leaves too — kept whether or not the body adjudicated anything
+             if (effectful) {
+@@ -639,6 +1134,7 @@ public final class MinimalCorpus {
+ 
+         @Override
+         public void bodyFailed(com.legend.exec.Sessions.Session conn, boolean effectful) {
++            h13Probe(conn);
+             if (effectful && mark != null) {
+                 try {
+                     java.util.Objects.requireNonNull(referee).rollbackAttempt(com.legend.testbackend.TestSessions.connectionOf(conn), mark);

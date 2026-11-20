@@ -1531,3 +1531,109 @@ The test plan then holds no compatibility judging.
 
 **One half-day follow-up first:** measure N2's reach on the 514 MATCHes the six shapes miss, with helper inlining over
 the parsed model. It is the one number that could make the harness's detector larger than estimated.
+
+## 28. N2's reach: the MATCHes the six shapes miss, classified (measured, 2026-11-20)
+
+This is the orchestrator's follow-up of 2026-11-20 (03:25 UTC), homework only. The question: N2's reach on the row
+MATCHes that section 27's six shapes do not reach, classified by how the SQL-text assert reaches its producer, and
+whether N2's 2.5 to 3.5 days holds.
+
+The probe is `H13/option-n-probe-v2.patch.txt`: a scratch `CorpusObserver` on `origin/main` `8eea8fa1`, run on
+`//spec:corpus_h2` four times (runs 4 to 7, each fixing what the one before showed). `corpus_h2_verdict` PASSED every
+time. `update_rcorpus_h2_2_test` failed every time, on the unordered-chain register that the probe's referee calls
+move (as in section 27).
+
+### 28.1 How it counts: per verdict, aligned to the body's asserts
+
+**Today's outcomes, per verdict.** The observer records today's appeal outcome against each verdict:
+- an appeal's `refereed` outcome comes just before its assert's `verdict` (`PureTestRunner.java:350-382`), so it is
+  attached to that verdict;
+- the lists are cleared at each `bodyStarting`, so the last attempt of each body is the one counted.
+
+**The harness's walk.** After the body, the walk goes over the parsed body in evaluation order:
+- it inlines each helper call from the parsed model:
+  - the helper is found by FQN, or by simple name, arity and import scope;
+  - its parameters are bound as lets;
+  - its package and imports are added to the scope;
+  - nothing is planned, and there is no planner entry;
+- it resolves variables through lets;
+- it folds a golden written as `'...' + '...'`;
+- it follows an `execute` result's `activities ... .sql` chain back to its `execute`;
+- it treats a corpus `assert*` helper as ONE verdict, which is how the run reports it;
+- it walks the else side of legend-engine's H2-version switch (below).
+
+**Alignment.** Where the walk's terminal asserts equal the body's verdicts in number, assert *k* is verdict *k*.
+
+**Verification.** Each assert found with a query is verified as in section 27:
+- our rows come through `Execution.run`, with only the lets the producer's lambda reads;
+- the golden replays on the referee's mirror under its policy.
+
+**The base, corrected.** Counted per verdict, today's appeal on H2 heard **1,053** row MATCHes. Section 27's 1,146
+was the referee's `verify8` counter less the probe's calls: that counts verify calls, not verdicts, and earlier
+attempts too (the 93 not decomposed). The six shapes reach **620** of the 1,053, so the MATCHes they miss are **433**,
+not 514. 1,021 of the 1,053 align one to one, and 32 sit in bodies whose assert count the walk does not reproduce.
+
+### 28.2 The classification
+
+| How the SQL-text assert reaches its producer | Today's MATCHes | Policy MATCH (our rows against the golden) |
+|---|---|---|
+| the six shapes (section 27) | 620 | 597 (12 DIVERGED, 10 DECLINED, 1 ERROR, as classified in 27.1) |
+| **in the test body, through a let or a constant golden**: a let-bound lambda or golden, or a `'...' + '...'` golden | **122** | 117 (3 DIVERGED, 2 DECLINED) |
+| **through a helper function, inlined over the parsed model** | **244** | **244** |
+| - `meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible(legacy, upgraded, actual)` | 199 | 199 |
+| - `meta::relational::mapping::sql(result)`, i.e. `$result.activities->filter(...)->at(n)->cast(@RelationalActivity).sql` (`helperFunctions.pure:38-46`) | 42 | 42 |
+| - other helpers | 3 | 3 |
+| **plan-text goldens**: `planToString(...)`, or a plan property with a non-SQL golden | **15** | not verified: needs the referee's `verifyPlan` with its bindings (N4) |
+| **other shapes** | **20** | not verified |
+| - the producer's lambda is an expression, not a literal | 9 | |
+| - the mapping is built inline (`^Mapping`) | 3 | |
+| - a `validate(...)` producer | 6 | |
+| - a post-processor `replace` | 1 | |
+| - `executeInDb` | 1 | |
+| **unaligned**: the walk's assert count differs from the body's verdicts | **32** | not classified per verdict |
+| - beside other-shape asserts | 18 | |
+| - beside six-shape asserts | 7 | |
+| - beside helper asserts | 3 | |
+| - asserts in nested lambdas | 3 | |
+| - beside a non-producer assert | 1 | |
+
+Sums: 620 + 122 + 244 + 15 + 20 + 32 = 1,053. The 433 the six shapes miss are 122 + 244 + 15 + 20 + 32.
+
+**The one rule the helper class needs: legend-engine's H2-version switch.**
+- 199 of the 244 helper MATCHes (19% of all 1,053) go through `assertEqualsH2Compatible`.
+- Its body asserts `size(getH2Versions()) == 1`, then runs
+  `if($h2Versions->toOne()->eq('1.4.200'), |assertEquals($legacyExpected, $actual), |assertEquals($upgradedExpected,
+  $actual))` (`h2Extension.pure:29-41`).
+- `getH2Versions()` is `executeInDb('SELECT H2VERSION();', ...)` (`:45-49`). The product door refuses it in a query:
+  run 5's `RawSqlRefusal: an executeInDb's SQL in a query`. So the harness cannot evaluate the condition through a door.
+- The probe walks the else side. That is the side lite's H2 2.5 takes, and the one the 2.1.214 referee's golden is
+  written for.
+- In N2 this is a named harness rule, legend-engine's own version switch, read from its source. It is not a generic
+  `if` evaluation. All 199 then MATCH under the policy.
+
+### 28.3 N2's reach with helper inlining, and whether 2.5 to 3.5 days holds
+
+**Reach: 986 of 1,053 (93.6%).** The probe's detector reaches 620 + 122 + 244 of today's MATCHes. Its policy verdict
+reproduces **958** of them (91.0%); the 28 others are section 27.1's causes (enum decodes, populations, temps), which
+are N4's.
+- Helper inlining over the parsed model needs **no planner entry**: it reads `FunctionDefinition.body()` from the
+  harness's own parse. No `PLANNER_ENTRIES_ONLY` entry is needed.
+- What it does not reach is **67 (6.4%)**: the 15 plan-text goldens, the 20 other shapes and the 32 unaligned.
+
+**The probe's detector is about 360 lines:** the walk, the resolver, the helper lookup and binding, the fold, the
+activities chain, the assert-helper fold, the H2 rule and the constructor's function index. It is scratch code, with no
+tests:
+- overloads are resolved by arity and import scope, not by type;
+- shadowing is handled only for the `$p` passed to `p` case;
+- nested lambdas and other `if`s are not walked.
+
+**N2 holds at 2.5 to 3.5 days, at its lower half for the 93.6%:**
+- about 1.5 to 2 days to make the probe's walk production code: typed overload choice from the parsed signatures,
+  proper scopes, generic planned branches where the condition is a literal, and its own unit tests;
+- about 1 day for the tail:
+  - the 15 plan-text goldens route to the referee's existing `verifyPlan` (N4 binds them);
+  - the 20 other shapes each get an arm or a recorded decline (the 9 lambda expressions and 3 inline mappings are the
+    same family as section 27's 8 from-unspellable shapes);
+  - the 32 unaligned bodies get read one by one.
+- The estimate does not grow: the shapes found are few and regular. 199 of the 433 are one helper, and 42 more are a
+  second.
