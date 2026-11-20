@@ -3127,3 +3127,6 @@ who confirms or changes phases 1-3.
   stale javadoc. The draws-afresh item agreed as the product track's.
 - **~00:17 UTC, the window fix's notes in** (`claude/window-list-lowering` at `bf2e9c4c3`: N1's planted SelectLayers
   test with a non-vacuity precondition; N2's javadoc); touched lanes green. To the judges and the reviewer.
+- **~00:18 UTC, the reviewer: the window fix's notes met at `bf2e9c4c3`** (record `3d8eda7fe`); nothing open on it. The
+  combination review is ready when the judges report. Stage A is held only on the user's word on piece 2's lean-SQL
+  re-pin (59 entries), in the translator's session.
