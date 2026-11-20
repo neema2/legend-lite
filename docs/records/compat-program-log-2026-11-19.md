@@ -3504,3 +3504,35 @@ who confirms or changes phases 1-3.
   - **The fix:** a fused group starts at each verdict that may raise.
   - **The cost:** judge statements +30% essential, +33% grammar, +8% standard. That is past this session's own ~25% line, and the move was never put to the user. It was missing from #128's word list until now (added to the draft).
   - **Today's +14 statements** are the same rule meeting A3's range check.
+- **~13:30-14:40 UTC, the next items, built by this session alone (no subagents), on a local branch from #128's head
+  (`22eaa472`), for a follow-up PR after #128 lands.**
+  - **1. `toOne()` at legend-engine's door** (the user's ~13:10, "toOne yes needs to be fixed for engine next"), commit
+    `6b6a2fde`.
+    - **Read in the pinned 4.145.0 source:** legend-engine compiles a store-bound `toOne` as `processNoOp`, which writes
+      its operand alone (`pureToSQLQuery.pure:3133-3137`, registered at `:10793`). It writes an empty collection as
+      SQL's null literal (`processValue`, `:714`).
+    - **Asked of the oracle (already recorded):** `raise.toOneOfEmpty` gives a 200 with one null row (`select null as
+      "o"`). `raise.toOneOverMany` (`[1, 2]->toOne()`) is refused at planning with legend-pure's sentence.
+    - **Built:** the door flags a store-bound one-argument `toOne` whose operand the typer gives no value (`[0]`) as
+      `toOne(empty)`, and rewrites it to the core's `trustOne` (no check). `trustOne` of a valueless operand lowers to
+      SQL's NULL.
+    - **Scope:** H2 and DuckDB. Elsewhere the request is refused by name, as every flagged call is (lite raised there
+      before, so no request that answered now refuses).
+    - **Left as lite's raise, by design:**
+      - a row's value, which lite already lets through unchecked on both doors, as processNoOp does. Swapping every
+        optional `toOne` would have touched the resolver passes that match `toOne` by name (Anchors, ChainDispatch,
+        ChainNormalizer, ResultEnvelopeSplice) for no change in answer;
+      - a literal list of two or more (legend-engine refuses it at planning);
+      - a computed value that is empty at run time (legend-engine's answer not yet asked).
+    - **Measured:**
+      - the edge net's `raise.toOneOfEmpty`: 500 to 200 with a null row;
+      - the oracle's H2 differences: that request now differs from legend-engine only in the column's relationalType
+        (INTEGER against BIGINT);
+      - native-claims (generated): two rows name the door's classes;
+      - S384 and DIFFERENCES item 5 rewritten for the door.
+  - **2. `RootLoops.rejected` removed** (the user's ~13:10, "Yes remove mutable next"), commit `d1e180b0`.
+    - A rejected fused statement's error is now the judging step's argument: `Run.judgeRejected`, called by the
+      runner's `fused` callback. It was a field set by one callback and read by the next.
+    - The run no longer hands each verdict of a rejected group a null row.
+    - Same failure, same assert reported, same text.
+    - CodeShapeGuardrailTest's mutable-field allowlist loses the entry (a down move).
