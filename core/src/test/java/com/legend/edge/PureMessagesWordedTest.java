@@ -85,5 +85,10 @@ class PureMessagesWordedTest {
         assertEquals("Invalid month: 13", PureMessages.worded(site));
         assertTrue(site.productSentence().endsWith(": month"), site.productSentence());
         assertFalse(site.productSentence().contains("Invalid month"), site.productSentence());
+        // a kind with no upstream text: the product's former sentence, its parts the operands (PCT pins it)
+        com.legend.executionplan.ExecutionPlan.Site own = new com.legend.executionplan.ExecutionPlan.Site(1,
+                RaiseKind.VALUE_NOT_HELD, "an integer past 64 bits has no SQLite value",
+                List.of(new Operand.Text("an integer past 64 bits has no SQLite value")));
+        assertEquals("an integer past 64 bits has no SQLite value", PureMessages.worded(own));
     }
 }

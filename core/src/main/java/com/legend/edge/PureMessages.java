@@ -69,8 +69,8 @@ public final class PureMessages {
             case SLICE_BOUNDS_INVERTED -> "The low bound (" + str(o, 0) + ") can't be higher than the high bound ("
                     + str(o, 1) + ") in a slice operation";
             case DATE_COMPONENT_INVALID -> dateComponent(o);
-            // lite's own refusals (S138, S181, the CSV width): no upstream text; the product's former sentence, its
-            // parts the operands
+            // lite's own refusals (S138, S181, the CSV width): no upstream text; the compatibility road writes the
+            // product's former sentence, its parts the operands, as main's edge did (PCT's expected failures pin them)
             case VALUE_NOT_HELD, FRACTION_NOT_KEPT, CSV_TOO_WIDE -> {
                 StringBuilder parts = new StringBuilder();
                 for (int i = 0; i < o.size(); i++) {

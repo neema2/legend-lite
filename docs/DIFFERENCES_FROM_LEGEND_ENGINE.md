@@ -126,7 +126,8 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 ### 5. `toOne()` of an empty collection raises on lite's own doors
 - **legend-engine** answers `null`: it writes no check (its `processNoOp`), and an empty collection is SQL's `null`.
 - **lite raises an error** on its own doors, as Pure defines ("Cannot cast a collection of size 0 to multiplicity
-  [1]"). Today it is worded `Raised: SIZE_NOT_MULTIPLICITY`; Pure's words come with stage B's error formatter.
+  [1]"), worded from the raise's record after the run (stage B's B1, 2026-11-20). A size only the database
+  counted prints `<computed>` (register S389).
 - **At legend-engine's door** (the user, 2026-11-20 ~13:10, "toOne yes needs to be fixed for engine"), a database-side
   `toOne()` of a value that is always empty (`[]`, `[]->cast(@Integer)`) answers legend-engine's `null` on H2 and
   DuckDB; on a database where legend-engine's answer is not yet checked, the request is refused by name. A `toOne()` of
@@ -173,10 +174,15 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
 
 ### 9. Error messages
 - **legend-engine's message** is often its database's own error over legend-engine's SQL.
-- **lite gives** its own clear message, in legend-engine's error envelope and with the same status. Neither points
-  into your code (legend-engine's can carry a position in legend-engine's own Pure).
-- **When:** today; the words move to a formatter in stage B.
-- **Measured:** the pure/v1 net (for example divide by zero: 500 on both, different words).
+- **lite gives** legend-pure's sentence of the error, in legend-engine's error envelope and with the same status,
+  worded from the error's record after the run (stage B's B1, 2026-11-20). A value only the database held prints
+  `<computed>` ("Cannot divide <computed> by zero" where the dividend is a column; register S389). Neither points into
+  your code (legend-engine's can carry a position in legend-engine's own Pure).
+- **When:** stage B's B1.
+- **Measured:** the pure/v1 net (for example divide by zero: 500 on both, different words); legend-engine wraps a
+  check its Pure plans fail as a `PureAssertFailException` with the assert's location, and refuses some at planning in
+  its own words (`%2017->hour()`: "Ensure the target system understands Year or Year-month semantic.").
+- **Register:** S390 (proposed), S389 (`<computed>`).
 
 ### 10. lite answers where legend-engine refuses
 - **legend-engine** refuses some functions at planning ("No SQL translation exists ..." and the like).
