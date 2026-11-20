@@ -43,6 +43,50 @@ class ClickHouseLambdaRaiseServerTest {
         }
     }
 
+    /** A NULL condition (the review's "should", 2026-11-20), at run time on the server: the dialect's own SQL for
+     *  {@code arrayMap(x -> CASE ...)} over a list holding a NULL. A branch whose condition is NULL for an element is
+     *  not taken, so its raise does not raise there; and a later branch's raise, its own condition true there, still
+     *  raises (its guard reads the earlier condition as not true, never as NULL). */
+    @Test
+    void aNullConditionNeitherRaisesFalselyNorHidesALaterRaise() throws Exception {
+        TestBackend backend = TestBackends.of(DatabaseType.ClickHouse);
+        com.legend.sql.SqlExpr x = com.legend.sql.SqlExpr.Column.param("x",
+                new com.legend.sql.SqlExpr.Column(null, "x"));
+        com.legend.sql.SqlExpr list = new com.legend.sql.SqlExpr.ArrayLit(java.util.List.of(
+                new com.legend.sql.SqlExpr.StringLit("a"), new com.legend.sql.SqlExpr.NullLit(),
+                new com.legend.sql.SqlExpr.StringLit("abcdef")));
+        com.legend.sql.SqlExpr len = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH, x);
+        com.legend.sql.SqlExpr raise = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                new com.legend.sql.SqlExpr.StringLit("boom"));
+        try (Connection c = backend.open(); java.sql.Statement st = c.createStatement()) {
+            // no element is longer than 9; the NULL element's condition is NULL: nothing raises, the NULL stays NULL
+            String quiet = backend.dialect().render(mapped(list, new com.legend.sql.SqlExpr.Case(java.util.List.of(
+                    new com.legend.sql.SqlExpr.Case.When(com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER,
+                            len, new com.legend.sql.SqlExpr.IntLit(9)), raise)), x,
+                    com.legend.sql.SqlExpr.Reason.RAISE)));
+            try (java.sql.ResultSet rs = st.executeQuery(quiet)) {
+                assertTrue(rs.next(), quiet);
+                assertEquals("[a, NULL, abcdef]", rs.getString(1), "no false raise, the NULL kept: " + quiet);
+            }
+            // the first condition NULL for the NULL element, the second true there: the second's raise raises
+            String loud = backend.dialect().render(mapped(list, new com.legend.sql.SqlExpr.Case(java.util.List.of(
+                    new com.legend.sql.SqlExpr.Case.When(com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER,
+                            len, new com.legend.sql.SqlExpr.IntLit(9)), new com.legend.sql.SqlExpr.StringLit("long")),
+                    new com.legend.sql.SqlExpr.Case.When(com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL, x),
+                            raise)), x, com.legend.sql.SqlExpr.Reason.RAISE)));
+            java.sql.SQLException e = assertThrows(java.sql.SQLException.class, () -> st.executeQuery(loud).close(),
+                    loud);
+            assertTrue(String.valueOf(e.getMessage()).contains("boom"), "the later branch's raise: " + e.getMessage());
+        }
+    }
+
+    /** {@code SELECT arrayMap(x -> body, list) AS v}. */
+    private static com.legend.sql.SqlSelect mapped(com.legend.sql.SqlExpr list, com.legend.sql.SqlExpr body) {
+        return com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Dual()).withProjections(java.util.List.of(
+                new com.legend.sql.SqlSelect.Projection(com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_TRANSFORM,
+                        list, new com.legend.sql.SqlExpr.Lambda(java.util.List.of("x"), body)), "v", null)));
+    }
+
     /** The range raise this dialect writes for date arithmetic (ClickHouse clamps a date past 2299): dates in range,
      *  adjusted in a map's lambda, answer; one adjusted past 2299 still raises the product's kind. */
     @Test
