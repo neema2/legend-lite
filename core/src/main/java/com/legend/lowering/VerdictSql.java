@@ -747,8 +747,9 @@ public final class VerdictSql {
     }
 
     /** The {@code $need->forAll(n | $have->contains($n))} subset idiom:
-     * no needed canon is absent from the haves. */
-    public static SqlQuery subset(SqlQuery needRows, SqlQuery haveRows, boolean wantTrue) {
+     * no needed canon is absent from the haves; a failure raises {@code message}, its condition's (null, the frame). */
+    public static SqlQuery subset(SqlQuery needRows, SqlQuery haveRows, boolean wantTrue,
+            @com.legend.base.Nullable String message) {
         OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
         SqlExpr present = new SqlExpr.Exists(new SqlSelect(
                 List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
@@ -769,7 +770,8 @@ public final class VerdictSql {
         return predicateOver(List.of(new SqlWith.Cte("__n", needRows), new SqlWith.Cte("__h", haveRows),
                         new SqlWith.Cte("__sn", sideFacts("__n", true, true))),
                 List.of(m, t), wantTrue ? SqlExpr.Call.of(SqlFn.NOT, anyMissing) : anyMissing,
-                new SqlExpr.StringLit(wantTrue ? "subset" : "not a subset"), t.col(F_TEXT), new SqlExpr.NullLit());
+                new SqlExpr.StringLit(wantTrue ? "subset" : "not a subset"), t.col(F_TEXT), new SqlExpr.NullLit(),
+                message);
     }
 
     /** {@code text} framed as a Pure String's {@code %r}, the canon's own literal (null stays null). */

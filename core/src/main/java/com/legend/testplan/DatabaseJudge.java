@@ -643,8 +643,9 @@ public final class DatabaseJudge {
             if (literal && (nr.literalIndex() < 0 || hr.literalIndex() < 0)) {
                 return unjudged(name, "forAll-contains: no literal channel");
             }
-            return runVerdict(name, true, com.legend.lowering.VerdictSql.subset(need.rows(literal), have.rows(literal), wantTrue),
-                    need.on(env));
+            // the condition's own failure (its message), as the host's subset judges it (the S2+S3 fixes' audit)
+            return runVerdict(name, true, com.legend.lowering.VerdictSql.subset(need.rows(literal), have.rows(literal),
+                    wantTrue, message), need.on(env));
         }
         SideRows side = planSide(cond, false, letPrefix, specs, env, hook);
         if (side.why() != null) {

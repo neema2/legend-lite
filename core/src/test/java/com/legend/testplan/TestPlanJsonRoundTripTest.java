@@ -123,7 +123,9 @@ class TestPlanJsonRoundTripTest {
                 new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1), new RootLoop.Row("second", 2)),
                         new RootLoop.Message(constant(), true)),
                 new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
-                        new RootLoop.Message(constant(), false))),
+                        new RootLoop.Message(constant(), false)),
+                // a caller's message whose computing raises: its error rides the root, no message (item 3, 2026-11-21)
+                new RootLoop.Root("assertSize", List.of(new RootLoop.Row("third", 3)), null, FILE_FAILURE)),
                 Map.of("fragment", "reason"));
         TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());

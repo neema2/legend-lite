@@ -80,8 +80,8 @@ public final class AssertMessages {
         // a message that READS (a variable, a let, a query) splits as a spelled one does (2026-11-04, the assert bar: a
         // call planned whole dropped it, both judges failing with the family's default): upstream evaluates it only
         // where the assert fails, so a message the planner cannot plan is no refusal of the assert -- the host judge
-        // raises the planning failure where the assert fails (HostJudgment.Messaged#unplanned) and the database judge
-        // leaves the assert to the host (DatabaseJudge.failureMessage)
+        // raises the planning failure where the assert fails (HostJudgment.Messaged#unplanned), and so does the database
+        // judge, from its root (RootLoop.Root#unplanned; item 3, 2026-11-21)
         TypedFunction overload = overload(fn.fqn(), base, specs);
         if (overload == null) {
             return null;

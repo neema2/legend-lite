@@ -222,6 +222,12 @@ class AssertBarTest {
             // assertIs over two primitives: compiled pure's `left == right`, their values (the engine runner)
             new Probe("assertIs-primitives-holds", "{|assertIs('a', 'a')}", null),
             new Probe("assertIs-primitives-fails", "{|assertIs(1, 2)}", "expected 1, got 2"),
+            // the forAll-contains fold of an assert's condition fails as the condition does, under every judge (the
+            // S2+S3 fixes' audit, 2026-11-21: the host wrote a contains record, the database judge a frame of its own)
+            new Probe("assert-subset-fails", "{|assert([1, 3]->forAll(e | [1, 2]->contains($e)))}",
+                    "expected true, got false"),
+            new Probe("assertFalse-subset-fails", "{|assertFalse([1]->forAll(e | [1, 2]->contains($e)))}",
+                    "expected false, got true"),
             // an if closing the body whose other side is the literal true
             new Probe("branch-true-side-last", "{|if(1 == 2, |assertEquals(1, 1), |true);}", null),
             new Probe("branch-true-side-last-fails", "{|if(1 == 1, |assertEquals(1, 2), |true);}",
@@ -272,6 +278,35 @@ class AssertBarTest {
                 assertTrue(said.startsWith("DataError: The system is trying to get an element at offset 5 where the"
                         + " collection is of size "), mode + ": " + said);
             }
+        }
+    }
+
+    /** An assertError over one assert whose own message raises: where the assert fails, that error is what f raised,
+     *  so the assertError holds under the host judge; the database judge decides the same where the assert fails at
+     *  planning, and refuses by name where the assert is a row (a raising row cannot raise another error), never
+     *  dropping the error into the assert's own failure (the S2+S3 fixes' audit, HIGH, 2026-11-21). */
+    @Test
+    void anAssertErrorOverAnAssertWhoseMessageRaisesCatchesThatError() throws Exception {
+        String body = "{|let x = [1, 2]; assertError(|assertEmpty([1], | $x->at(5)->toString()),"
+                + " 'The system is trying to get an element at offset 5 where the collection is of size 2');}";
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                String said = outcome(c, body, mode);
+                assertTrue(said.equals("pass") || mode != com.legend.testplan.PlanningOptions.JudgeMode.HOST
+                        && said.contains("cannot plan this assertError"), mode + ": " + said);
+            }
+        }
+    }
+
+    /** A quantified assert whose elements' messages read or raise: the database judge carries one caller's message per
+     *  assert until S4 carries one per element, so it refuses the body by name (the S2+S3 fixes' audit, 2026-11-21:
+     *  until then a passing element's error replaced a later element's failure). */
+    @Test
+    void aQuantifiedAssertsElementMessagesAreRefusedByNameUnderTheDatabaseJudge() throws Exception {
+        String body = "{|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}";
+        try (Connection c = TestBackends.platform().open()) {
+            String said = outcome(c, body, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+            assertTrue(said.contains("carries one caller's message per assert"), said);
         }
     }
 

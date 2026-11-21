@@ -435,10 +435,15 @@ public final class AssertVerdicts {
             try {
                 message = DatabaseJudge.plannedMessage(split.message(), letPrefix, specs, env, hook);
             } catch (RuntimeException e) {
-                if (!com.legend.testexecutionplan.Failures.atItsTurn(e) || batch == null || !batch.active()) {
+                if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
                     // a refusal, a compile error, a defect: the body is refused at planning, as itself (the BE
                     // audit's finding 4, 2026-11-21), as the host judge's HostSides.planChecked refuses it
                     throw e;
+                }
+                if (batch == null || !batch.active()) {
+                    // the database judge plans a message only in an open batch: an error raised at its turn with none
+                    // would be planned as the root's failure, raised where the assert passes (the S2+S3 fixes' audit)
+                    throw new IllegalStateException("an assert's message planned outside a verdict batch", e);
                 }
                 // an error upstream raises where the message runs: planned as data and raised in place of the
                 // assert's failure where its root fails, and only there (item 3, 2026-11-21, the user's lazy rule; the

@@ -72,7 +72,8 @@ public final class TestPlanJson {
      *  always empty), a message's side is required, and the product's version 60 (no prose in the product plan); 38
      *  (item 3, 2026-11-21, assert verdicts as records): a planned assert failure carries its record (an assert's
      *  code and its values), a decided verdict's failure ({@code Decided.failure}) and a vector's ({@code
-     *  AllRows.failure}) are records, an unplanned message is its error's planned failure ({@code Messaged.unplanned}),
+     *  AllRows.failure}) are records, an unplanned message is its error's planned failure ({@code Messaged.unplanned}, and a database root's
+     *  {@code RootLoop.Root.unplanned}, required, null where none),
      *  and the plan names no audience's words ({@code words} gone: one catalog). */
     public static final int VERSION = 38;
 

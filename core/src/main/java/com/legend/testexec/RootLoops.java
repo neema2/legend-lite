@@ -226,7 +226,13 @@ public final class RootLoops {
                     && af.unjudgedReason() == null) {
                 // computing the caller's message raises: that error is the outcome, as upstream's (item 3, the user's
                 // lazy rule; the host judge's HostJudgment.Messaged#unplanned)
-                failure = Failures.raised(r.unplanned());
+                RuntimeException raised = Failures.raised(r.unplanned());
+                if (!(raised instanceof com.legend.error.AssertFailed || raised instanceof com.legend.error.DataError)) {
+                    // an error of another class is no verdict: raised unreported, as the host's AssertRuns lets it
+                    // pass (the S2+S3 fixes' audit, 2026-11-21: until then reported as a failed verdict)
+                    throw raised;
+                }
+                failure = raised;
             } else if (messages && message != null && failure instanceof com.legend.error.AssertFailed af
                     && af.unjudgedReason() == null) {
                 failure = messaged(r.listenerName(), message, reader);

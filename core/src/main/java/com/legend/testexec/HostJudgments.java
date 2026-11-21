@@ -533,13 +533,10 @@ final class HostJudgments {
         if (subsetHolds == wantTrue) {
             return com.legend.testexecutionplan.Verdicts.ok();
         }
-        // a catalog record (the S2+S3 audit's MEDIUM, 2026-11-21: until then a sentence of its own, "name (forAll-contains
-        // subset): missing [..]"): the haves, and the needed elements they miss, or with a subset unwanted, the needs
-        return com.legend.testexecutionplan.Verdicts.fail(wantTrue
-                ? record(com.legend.error.AssertKind.CONTAINS, "collection", LiteWords.values(have, null), "value",
-                        LiteWords.values(missing, null))
-                : record(com.legend.error.AssertKind.NOT_CONTAINS, "collection", LiteWords.values(have, null),
-                        "value", LiteWords.values(need, null)));
+        // the subset is the fold of an assert's (or assertFalse's) condition, so its failure is the condition's record,
+        // as the database judge's subset row writes it (the S2+S3 audit's MEDIUM, 2026-11-21: until then a sentence of
+        // its own, "name (forAll-contains subset): missing [..]"; the fixes' audit: not a contains record)
+        return com.legend.testexecutionplan.Verdicts.fail(AssertRecords.condition(wantTrue));
     }
 
     private static TypedSide emptyOf(HostJudgment.Empty j, TypedSide er,

@@ -239,6 +239,12 @@ public final class VerdictBatch {
      *  where the assert fails, and its evaluation's error is the test's; the assert bar, 2026-11-04). */
     public void message(SqlQuery row, ExecutionPlan.Target on) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        if (r.unplanned != null || r.message != null && !r.message.equals(row)) {
+            // a root carries ONE caller's message: an unrolled quantifier's elements whose messages differ, or one that
+            // raises beside one that reads, are each element's own (S4 carries a message per step; the S2+S3 fixes'
+            // audit, 2026-11-21: until then the last element's message silently stood for every element's)
+            throw oneMessagePerRoot(r);
+        }
         r.message = row;
         r.messageOn = on;
     }
@@ -247,7 +253,20 @@ public final class VerdictBatch {
      *  raised in place of the root's failure where the root fails, and only there (item 3, 2026-11-21, the user's lazy
      *  rule; until then lite's sentence around the error's text as the verdict row's message). */
     public void unplanned(com.legend.testexecutionplan.Failure error) {
-        java.util.Objects.requireNonNull(current, "verdict batch: no open root").unplanned = error;
+        Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        if (scope.elementIndex() >= 0 || r.unplanned != null || r.message != null) {
+            // an unrolled quantifier's element: its message's error is raised only where THAT element fails, and the
+            // root holds one for all its elements (S4 carries it per step; the S2+S3 fixes' audit, 2026-11-21: until
+            // then a passing element's error replaced a later element's failure)
+            throw oneMessagePerRoot(r);
+        }
+        r.unplanned = error;
+    }
+
+    /** The refusal of a second caller's message on one root, by name: the body is refused at planning. */
+    private static com.legend.error.NotImplementedException oneMessagePerRoot(Root r) {
+        return new com.legend.error.NotImplementedException("the database judge carries one caller's message per"
+                + " assert: " + r.listenerName + "'s elements each have a message that reads or raises");
     }
 
     /** {@code query}, the open root's verdict row. (Its overload with an appeal and a decline, the edge's engine-text
@@ -275,7 +294,7 @@ public final class VerdictBatch {
     /** The batch's one root as ONE statement (the user's ruling S135, 2026-11-05: an assert inside assertError is a
      *  statement that raises its own failure): its one verdict row, self-contained, with the batch's frames at its head
      *  and the session it reads; or the failure it was decided with at planning; null where the batch holds no root,
-     *  several, a root of several steps or a caller's message that reads
+     *  several, a root of several steps, a caller's message that reads, or a verdict row whose message raises
      *  (no one row decides it alone). */
     public @com.legend.base.Nullable Sole sole() {
         // a static verdict's count (Judged) is no step of the one statement: the statement is the assert's, its census
@@ -286,12 +305,19 @@ public final class VerdictBatch {
             return null;
         }
         Step step = steps.get(0);
+        com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned = roots.get(0).unplanned;
         if (step instanceof Pending p) {
-            return new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on());
+            // a row whose failure is its message's error raises that error where it fails, which a raising row cannot
+            // spell: no one row decides it, so the assertError is refused by name (the S2+S3 fixes' audit, HIGH,
+            // 2026-11-21: until then the row raised its own failure and the error was dropped)
+            return unplanned != null ? null
+                    : new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on());
         }
         if (step instanceof Resolved r && r.reported() && r.failure().kind() == com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED
                 && r.failure().unjudgedReason() == null) {
-            return new Sole.Decided(r.failure());
+            // the assert fails at planning, so its message's error, where computing it raises, is the outcome (the
+            // user's lazy rule, as RootLoops raises it)
+            return new Sole.Decided(unplanned != null ? unplanned : r.failure());
         }
         return null;
     }
