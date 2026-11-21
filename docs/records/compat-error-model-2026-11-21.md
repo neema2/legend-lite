@@ -22,11 +22,13 @@ slug into a per-locale catalog, the struct rendered at emission.
   `CALL_ARGUMENT(function, index)`, ... Each renders through the catalog around the inner error.
 - **`error.LegendError`**: implemented by every lite exception: `ErrorRecord record()`. Its `getMessage()` is
   `LiteCatalog.render(record)`: errors render themselves (the user's (d), ~20:30).
-- **Catalogs:**
-  - **lite's**: the codes' own templates;
-  - **legend-pure's / legend-engine's** (`edge/PureMessages`): upstream's sentence for each code an upstream test or
-    client reads; every other code is worded by lite's catalog at legend-engine's door, ONE ruled mapping (Q3 = B,
-    ~16:40: compile errors stay lite's words), written as such, never a silent fallback.
+- **ONE catalog, its words legend-pure's** (the user's ruling of 2026-11-21 ~02:40, replacing Q6 of 2026-11-10 and
+  Q3 = B's "compile errors stay lite's words"): a code's sentence is legend-pure's wherever legend-pure has one, read
+  from the pinned sources. Lite's own words only where it must: an error legend-pure does not have (lite's refusals,
+  a database's capability, a data load); a value only the database computed, not read back by the lean-SQL rule
+  (legend-pure's sentence with `<computed>`, D1); legend-engine's wrapper (`Raised: ...`) at the engine's door
+  alone. The lite and legend-pure audiences then read the same words; `PctPlanRoute.Audience.words` comes down to
+  the wrapper.
 - **The test plan**: a `Failure` carries the record, not a message (`Failure.message`, `Fact`, the wrapper texts go).
   The run rebuilds the exception from it, so its message is lite's sentence again and the edge's words are the same
   function of the same record.
@@ -48,12 +50,21 @@ slug into a per-locale catalog, the struct rendered at emission.
 The test plan's closed list also carries Java's own exceptions (`NullPointerException`, `NumberFormatException`, ...)
 as planned failures, with their text.
 
-## 4. Internal defects: the user's decision (asked 2026-11-21 ~00:00)
+## 4. Where an error is raised (the user's rulings of 2026-11-21: "defects def fail loud", ~00:10; "D", ~03:25)
 
-- **A.** A defect keeps its developer text, marked `INTERNAL`: the one prose a test plan may hold, a named exception
-  the guard allows.
-- **B.** A defect's record is `INTERNAL` and its class; its developer text goes to the log, never the plan.
-- Recommended B where a measurement shows no test reads a defect's text; A for the cases that do. Measured first.
+Decided by upstream's answer, stated once per code from the pinned sources, never by the exception's class:
+- **legend-pure never raises it** (a lite refusal), **raises it at compile time**, or **lite's own defect**: refused
+  at planning, naming it. A test body lite cannot fully plan -- one of these anywhere in it, an untaken `if` side
+  included -- is refused whole, as a query is. Refusals never enter a test plan, so they need no codes here (later
+  polish for API clients).
+- **legend-pure raises it at run time**: a run-time code, raised at its turn (`assertError` catches it as upstream
+  does), even where lite could find it at planning. The census (claude/compat-planned-failure-census, 410aa467)
+  found 8 such errors lite files as model errors: the window frames, `timeBucket`'s checks, a variant output.
+- So a test plan holds run-time errors alone, each a code. The cost: 2 tests that pass upstream fail on lite
+  (`mapping::inheritance::relational::testGetAll` and its `union::` twin, DuckDB and H2: a refusal in an untaken `if`
+  side), a register row; a failing test's reason may name the first refusal found in planning (about 5 corpus rows
+  on DuckDB, 6 on H2). Measured before landing on the stress lanes, core's suites, the corpus, PCT and Postgres;
+  anything beyond these comes back to the user first.
 
 ## 5. The order of work
 
@@ -61,10 +72,11 @@ as planned failures, with their text.
    plan v35), the edge's one path; the existing kinds (`CompileKind`, `ErrorKind`, `MissingParameters`,
    `InvalidParameters`, `DataSize.TooLarge`, test data's facts) moved into the one space; B1's `Fact` and wrapper texts
    deleted.
-2. **The sites**, one family at a time: `NotImplementedException`'s 417, then type, model, mapping, parse and schema
-   errors. A literal message joined with values becomes a code and its values (scripted where mechanical, by hand
-   where the message is built elsewhere); a site whose words a test pins keeps them exactly, or moves by name.
-3. **The defects**, by the user's A or B.
+2. **Refused at planning** (§4): compile errors, refusals and defects anywhere in a test body; the 8 run-time errors
+   moved to their turn; each code states upstream's phase, and a guard refuses a code without one.
+3. **The catalog in legend-pure's words** (§2): the 51 kinds of today first (about 113 test and ledger files name one
+   of lite's sentences), then the compile sites kind by kind as each gets its code, each sentence read from the
+   pinned sources; every pinned message that moves listed by name for the user.
 4. **The guard**: no prose in the plan's or the test plan's JSON (a scan of every string field against the codes'
    and the values' shapes), no exception constructor taking a sentence; the 13 refusal-fragment sites (B1's audit (a))
    among the converted.
@@ -72,8 +84,8 @@ as planned failures, with their text.
 
 ## 6. What does not change
 
-- Lite's own sentences, where a test pins them, are kept word for word: a code's template is the sentence the site
-  wrote.
+- (Superseded 2026-11-21 ~02:40: lite's own sentences give way to legend-pure's wherever legend-pure has one, §2;
+  each pinned message that moves is listed by name.)
 - legend-pure's words at legend-engine's doors, where B1 gave them.
 - The phases (`LegendCompileException.Phase`) and the exception classes: a class stays the family of its codes, so the
   catches that decide by type are unchanged.
