@@ -1,5 +1,8 @@
 # Item 3: assert verdicts as records, and the judges' rules — the homework
 
+**A session with no context starts at `compat-assert-records-START-HERE.md`** (beside this file): where to build, the
+program's words, the commands, the owner's rules, the steps, and the traps.
+
 Written 2026-11-21 so the work can be done fast and right. It comes after BE (#131) and is the first slice of B3. The
 user ruled the rules in §1; everything else is design, for the user's word where §8 says so. The evidence is read from
 the code at `dad8a710` and from the pinned upstream sources. It lives beside this file:
@@ -127,8 +130,8 @@ worded by the catalog. No "Assert failed" literal stays in the product plan.
 | S8 | `assertError` | the no-error edge cases, per Q-B | verdicts match upstream's |
 | S9 | Re-pins and audit | JavaEvalLedgerTest's pins (`AssertVerdicts`, `DatabaseJudge`, `HostJudgments`, …), the 12 ladder `*.current.sql`, the PCT judge-SQL ratchets, the lean baselines, the moved ledger rows; then an independent audit and the PR | the PR's pins table, each move dated |
 
-S0 can start before the rulings in §8. S1 to S3 need only Q15 = A, already ruled. S4 waits for Q-A, S7 for Q-D and S8
-for Q-B.
+S0 can start before the rulings in §8. S1 to S3 need only Q15 = A, already ruled. S4 waits for Q-A, S6 for Q-C, S7 for
+Q-D and S8 for Q-B.
 
 ## 6. The guards that make the rules mechanical
 
