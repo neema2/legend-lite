@@ -11,7 +11,44 @@ rules become mechanical. This file says how to work here. The design says what t
 - `compat-assert-records-homework/fast-round-targets.txt` is the local test round the previous session ran before
   every commit.
 
-Written 2026-11-21 by the compatibility program's owner session.
+Written 2026-11-21 by the compatibility program's owner session; brought up to date the same evening for a session
+on another account (§0).
+
+## 0. The state on 2026-11-21, evening: read this first
+
+- **These files live on the branch `claude/compat-program`**, not on `main` and not on the branch you build on. Read
+  them from a worktree of that branch:
+
+  ```
+  git fetch origin claude/compat-program
+  git worktree add ../program origin/claude/compat-program
+  ```
+
+  Two kinds of file, two places:
+  - **On `claude/compat-program`:** the program's records (this file, the design, the homework, the stage B plan,
+    the program log).
+  - **On your base** (BE's branch, or `main` once #131 merges): BE's record
+    (`docs/records/compat-error-model-2026-11-21.md`) and the register rows S392 to S397.
+
+  Do not push to `claude/compat-program`; the program's owner session writes there. Keep your own progress notes in
+  your branch, as `docs/records/compat-assert-records-progress.md`, and tell the user what you would add to the
+  program's records.
+- **The measurements are done** (design §7, "Results"):
+  - M1 is in `compat-assert-records-homework/m1/`;
+  - M3, M4 and M5 are in `compat-assert-records-homework/m3-m4-m5.md`;
+  - do not redo them. M2 and M6 are measured during S2 and S4.
+- **The rulings:**
+  - Q15 = A, Q-A, Q-B and Q-C are ruled (design §8, verbatim in `compat-program-log-2026-11-19.md`).
+  - **Q-D is measured but not yet ruled.** The proposal is in design §8. Ask the user before S7.
+- **Single-shot verdicts** (one statement per segment for both judges) are a brainstorm, not part of item 3. Design §8,
+  "Not part of item 3", says what was found. Do not build it without the user's word.
+- **BE** (PR #131, the error model this builds on) was green on every check at `9fa42018` and waited for the user's
+  merge word.
+- **Your branch:** the user names it; ask if they have not. It starts from `main` if #131 has merged, else from
+  `claude/compat-error-model`. Item 3 lands as ONE pull request to `main`, stacked on #131 if #131 is still open, after
+  every slice is green and audited, and merges only on the user's word.
+- **Warm lanes:** the user gives you your account's warm sessions for the databases this container cannot run. §4
+  lists what to ask them to run.
 
 ## 1. Read these first, in this order
 
@@ -84,8 +121,25 @@ Written 2026-11-21 by the compatibility program's owner session.
   - `//core:update_ladder`
   - `//docs:update_dialect_capability`
 - **Lanes this container cannot run.** The database servers (MariaDB, MySQL, SQLite, Trino, ClickHouse, MongoDB) and
-  the cloud databases (BigQuery, Snowflake, Databricks, whose credentials are in the dialect program's warm sessions)
-  run in the owner's warm sessions. Ask the owner to have them run; do not assume they pass.
+  the cloud databases (BigQuery, Snowflake, Databricks, whose credentials only warm sessions hold) run in warm sessions
+  the user gives you. Do not assume they pass.
+  - **What to ask a warm session to run.** Ask for the slice's commit and for `main`'s, so each difference is yours
+    or main's, and for every changed verdict and message line by name:
+    - `//pct:pct_<db>_*` (channel A) and `//pct:pct_channel_b_<db>_*` (channel B), each five suites;
+    - `<db>` is one of `sqlite`, `mariadb`, `mysql`, `trino`, `clickhouse`, `postgres`, `bigquery`, `snowflake`,
+      `databricks`; MongoDB has `//pct:pct_mongodb_*` and `//core:mongodb_plan_test`;
+    - `//core:data_source_servers_test` and `//core:core_tests_integration_sqlite`.
+  - **Known on `main`, not yours** (seen 2026-11-21): MySQL channel B's Decimal text mismatch
+    (`3.8D` against `3.800000000000000000000000000000D`; 9, 4 and 4 lines in essential, grammar and standard), and
+    MariaDB channel B's list-order flake (`expected: [..] actual: [..]`, the same elements reordered; its count varies
+    run to run).
+- **The heavy round,** once, before the PR, in a session with the memory for it: `bazel test //gates:heavy` (the
+  manual suite CI never runs), the six manual targets (`//spec:reference_lane`, `//spec:corpus_warehouse_verdict`,
+  `//core:answer_snapshot`, `//pct:pct_channel_b_twice_*`, `//core:data_source_servers_test`,
+  `//core:mongodb_plan_test`), and a build of `//...` in groups with a `bazel clean` between them.
+  - On `main` at 2026-11-21, `//spec:corpus_warehouse_verdict` fails with 41 named losses, and
+    `//spec:update_reference_lane_test` and `//spec:manifest_world_census` fail. All three are main's own; compare
+    against main, name by name.
 
 ## 5. Rules of engagement (the owner's standing rules)
 
@@ -103,18 +157,22 @@ Written 2026-11-21 by the compatibility program's owner session.
 
 ## 6. How to start, step by step
 
-1. Read §1. Build the base (§2). Run the fast round once to get a green baseline before you change anything.
-2. **S0, the dead code** (needs no ruling): the design's S0 row lists it. Commit it with the round green.
-3. **The measurements:**
-   - M1: prototype three ladder statements.
-   - M3: count the asserts planned as `Messaged` with an unplanned text, on the PCT and corpus lanes.
-   - M4: count the `Literals.fold` firings per caller.
-   - M5: grep PCT and the corpus for the `assertError` edge cases.
-   Each is described in the design's §7. Write the results down.
-4. **Bring the measurements and Q-A to Q-D to the owner** (design §8, each with a recommendation). Stop there until
-   they rule.
-5. **Then S1 to S9 in order** (design §5), each green and audited. S1 to S3 need only Q15 = A, already ruled. S4
-   waits for Q-A, S6 for Q-C, S7 for Q-D and S8 for Q-B.
+1. Read §0 and §1. Build the base (§2). Run the fast round once to get a green baseline before you change anything.
+2. **Confirm the code map against your base.** It was written at `dad8a710`; find each site by its symbol, and note
+   any that moved in your progress file.
+3. **S0, the dead code** (needs no ruling): the design's S0 row lists it. Commit it with the round green.
+4. **Then S1 to S9 in order** (design §5), each green, run on the warm lanes where it touches them, and audited by a
+   reviewer that wrote none of it.
+   - S1 to S3 need only Q15 = A (ruled).
+   - S4 has Q-A (ruled) and uses M1's member forms.
+   - S6 has Q-C (ruled), S8 has Q-B (ruled).
+   - **S7 waits for the user's word on Q-D** (design §8). Ask when you reach it, with M4's numbers.
+5. **Post every divergence from upstream to the user before it lands**, as a PROPOSED `SEMANTICS_REGISTER` row:
+   - the expression, upstream's answer, and lite's;
+   - upstream's answer read from the pinned sources.
+   Take the next free S-number on your branch, marked PROVISIONAL; the program's owner reconciles numbers at landing.
+6. **At the end:** the heavy round (§4), the PR with its pins table (every moved pin, ceiling, ledger, golden and
+   roster, each with its dated note), and the user's merge word.
 
 ## 7. What not to touch
 

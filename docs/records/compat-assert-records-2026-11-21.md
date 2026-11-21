@@ -165,6 +165,22 @@ Q-D and S8 for Q-B.
 | M5 | `assertError`'s edge cases | grep PCT and the corpus for an expected text of exactly "No error was thrown", and for matcher forms that check nothing | Q-B's reach |
 | M6 | Run time and judge SQL | the PCT judge-SQL ratchets on the LITE-PCT lane, and core's judge_database lanes' time, before and after | no regression |
 
+**Results, measured 2026-11-21 at `9fa42018`** (the evidence is in `compat-assert-records-homework/`):
+- **M1** (`m1/`): verdict statements over typed values are 1.6% to 26% of today's. Four ladder rungs gave the right
+  verdicts on DuckDB, on the ladder's rows and on a changed table. The multiset member was also checked on H2.
+- **M1's portable multiset member:** one signed `UNION ALL` grouped by value. H2 has neither `EXCEPT ALL` nor
+  `FULL OUTER JOIN`.
+- **M3** (`m3-m4-m5.md`): zero. No assert on any lane is planned with an unplanned message, so S3 refuses nothing.
+- **M4** (`m3-m4-m5.md`):
+  - PCT, both roads: no fold joins anything.
+  - The corpus, which is compatibility-only, joins four kinds of text:
+    - an effect native's SQL or DDL text;
+    - a seed's CSV;
+    - a generator's load text;
+    - 727 judged constant sides.
+- **M5** (`m3-m4-m5.md`): zero. No upstream test expects "No error was thrown", and no matcher checks nothing.
+- **M2 and M6** are measured during S2 and S4.
+
 ## 8. Decisions for the user
 
 **The user's rulings, 2026-11-21 (verbatim in the program log):**
@@ -180,6 +196,29 @@ Q-D and S8 for Q-B.
   - the compatibility path's host judge may do in Java what is a final print, which covers joining a printed message
     (`joinStrings` is on rule 3's closed list);
   - a constant side the judge compares is never computed in Java on either road.
+- **Q-D, measured (M4), NOT YET RULED.** The owner session's proposal, posted to the user 2026-11-21 and not yet
+  answered:
+  - the 727 judged constant sides become expressions of the statement, so the database computes them;
+  - an effect's SQL text, a seed's CSV and a generator's load text keep their literal join at planning. They are
+    program text joined at build time, sent or loaded as written and never compared. The database cannot build an
+    SQL text and then run it inside one SELECT, so the only other choice is to refuse those corpus bodies.
+  
+  S7 waits for the user's word on this. Ask before S7.
+
+**Not part of item 3: single-shot verdicts (the user's brainstorm, 2026-11-21, nothing ruled).**
+- **The question:** both judges on the product path send one statement per segment, not stopping at the first assert.
+- **The facts:** fusing never changes pass or fail, only which failure is named. The case that matters is an assert
+  that fails followed by one that raises.
+- **Option E** (`compat-assert-records-homework/e-probe/`): each raise site's own guard also requires the asserts
+  before it to have passed. It keeps upstream's first failure on DuckDB and H2. Wrapping the whole assert instead
+  raises on DuckDB, and an error the database makes on its own is not guarded.
+- **The proposal:**
+  - E for the database judge, with a probe in every dialect's lane;
+  - C for the host judge and any dialect that fails the probe (C: an assert that can raise starts a new statement,
+    so every assert before it was judged by an earlier one);
+  - an M7 first: asserts per segment, the share that can raise, statements under each form;
+  - a slice after S4.
+- **Do not build it** without the user's word.
 
 
 **Q-A, how the database judge compares.** Today it compares texts in legend-pure's literal spelling. That is a
