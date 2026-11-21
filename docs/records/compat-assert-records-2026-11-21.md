@@ -167,6 +167,21 @@ Q-D and S8 for Q-B.
 
 ## 8. Decisions for the user
 
+**The user's rulings, 2026-11-21 (verbatim in the program log):**
+- **Q-A, RULED: typed values, as a core tenet** ("yes typed values for sure 100% must be a core tenet"). A value's type
+  is its expression's type: where the program's last call is `toString`, the value is a String and is compared as one.
+  On lite's flow the database makes that string; on the compatibility path the host judge may print it in Java as the
+  last step (rule 3).
+- **Q-B, RULED: the same on every road** ("whatever easiest I'm fine with"). Upstream's verdicts, worded by lite's
+  catalog, with no product-versus-compatibility switch (one road, and B5 deletes switches).
+- **Q-C, RULED: C1.**
+- **Q-D: measure first (M4)**, by road and by caller. The direction the user set:
+  - the product path needs no Java folding: the database computes a value the program uses;
+  - the compatibility path's host judge may do in Java what is a final print, which covers joining a printed message
+    (`joinStrings` is on rule 3's closed list);
+  - a constant side the judge compares is never computed in Java on either road.
+
+
 **Q-A, how the database judge compares.** Today it compares texts in legend-pure's literal spelling. That is a
 spelling, not one of the equality rules A4 removed, but it is legend-pure's on lite's own flow, which rule 1 rules
 out.
