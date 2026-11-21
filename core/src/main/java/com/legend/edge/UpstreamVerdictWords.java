@@ -18,7 +18,7 @@ import java.util.function.UnaryOperator;
  * of the two-form {@link com.legend.lowering.VerdictWords} kind (census C1's FailureWords, which named whose words they
  * were by a flag) -- the assert files' own messages, moved from the product's VerdictSql: assertEquals.pure's
  * {@code '\nexpected: %r\nactual:   %r'}, assertSize.pure's, assertError.pure's, ... Each side read as its CANON, a
- * value as the representation facet writes it ({@code VerdictSql.represented}).
+ * value as the representation facet writes it ({@code EdgePureOnlyTexts.representationOf}).
  */
 public final class UpstreamVerdictWords implements com.legend.lowering.VerdictWords {
 
@@ -91,7 +91,9 @@ public final class UpstreamVerdictWords implements com.legend.lowering.VerdictWo
 
     @Override
     public SqlExpr elementText(Type kind, SqlExpr value, Styled styled) {
-        return VerdictSql.represented(styled, kind, value);
+        // legend-pure's representation, the edge's own facet (item 3's S0, 2026-11-21: VerdictSql.represented went
+        // with the database judge's legend-pure default; this builder goes whole at S3)
+        return EdgePureOnlyTexts.INSTANCE.representationOf(styled, kind, value);
     }
 
     @Override

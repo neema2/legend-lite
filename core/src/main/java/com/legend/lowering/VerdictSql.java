@@ -2319,12 +2319,6 @@ public final class VerdictSql {
                 : LiteText.of(m.kind(), value);
     }
 
-    /** legend-pure's representation of a judged value, the compatibility rules' message (C5's step A, 2026-11-17: the
-     *  edge's, the plan style's PureOnlyTexts facet; the product's style refuses it by name). */
-    public static SqlExpr represented(Styled styled, Type kind, SqlExpr value) {
-        return styled.pureOnly().apply(TextRefusals::representation).representationOf(styled, kind, value);
-    }
-
     /** A row's element as the failure message writes it ({@link Message}), and the value the sorted form orders by:
      *  two more columns of a side's rows, where the side is written. */
     private static void written(Side s, SqlExpr valueRef, SqlExpr canon, @com.legend.base.Nullable OutputCol valueOut,
