@@ -90,8 +90,19 @@ place ruled ~23:55 ("we need to do the 'one error' work first").
   - **One record for every error:** a code (its kind), its typed values, where it happened, and the context it passed
     through (the function, the inlining: today lite's wrapper text) as frames. No record holds prose: not the plan, not
     the test plan, not an exception's fields.
-  - **Words only at the last step, from a catalog per audience:** lite's sentences (`ErrorKind`, `CompileKind`) and
-    legend-pure's/legend-engine's (`edge/PureMessages`). The hosts' tables are generated from the catalogs.
+  - **Words only at the last step, from ONE catalog whose words are legend-pure's** (the user's ruling of 2026-11-21
+    ~02:40, "Agreed on both", replacing Q6 of 2026-11-10, "the product's own wording"): lite's message for an error
+    is legend-pure's sentence wherever legend-pure has one. Lite's own words only where it must:
+    1. an error legend-pure does not have (lite's refusals, a database's capability, a data load);
+    2. a value only the database computed, not read back by the lean-SQL rule: legend-pure's sentence with
+       `<computed>` in its place (D1);
+    3. legend-engine's wrapper (`Raised: ...`), at the engine's door alone.
+    The reason for lite's own sentences was the SQL (no value text in it); B1 moved every sentence out of the SQL,
+    so the reason is gone. The 51 kinds of today (`ErrorKind` 31, `CompileKind` 20) switch first: about 113 test
+    and ledger files name one of lite's current sentences (a rough count, 2026-11-21). With it the lite-rules
+    lane's 4 window-frame rows of B1 go, and most of its other rows; `PctPlanRoute.Audience.words` comes down to
+    the three cases. The ~870 plain-string compile sites match legend-pure kind by kind as each gets its code,
+    each sentence read from the pinned sources. The hosts' tables are generated from the catalog.
   - **Errors render themselves** (the ~20:30 (d)): the run passes the facts; the error type words itself through the
     catalog.
 - **What it folds in:**
