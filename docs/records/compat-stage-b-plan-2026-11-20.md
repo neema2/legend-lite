@@ -114,6 +114,17 @@ place ruled ~23:55 ("we need to do the 'one error' work first").
   - the six shapes `PureMessages.compile` walks become one; the marked-message residue (a raise's carriage off its
     record, answered with the kind's name, pinned by `PureMessagesWordedTest`) goes;
   - `RaisedErrors.dataError`'s product sentence.
+- **Where an error is raised (the user's ruling of 2026-11-21 ~03:25, "D"):** by upstream's answer, stated once per
+  code from the pinned sources: legend-pure never raises it (a lite refusal), raises it at compile time, or at run
+  time; a defect is lite's own. A test body lite cannot fully plan -- a refusal, a compile error or a defect anywhere
+  in it, an untaken `if` side included -- is refused at planning, naming it, as a query is; a test plan holds
+  run-time errors alone, each a code raised at its turn (the 8 errors legend-pure raises at run that lite files as
+  model errors -- the window frames, `timeBucket`'s checks, a variant output -- move to run time). So refusals need
+  no codes for BE (later polish for API clients). The cost: 2 tests that pass upstream fail on lite
+  (`mapping::inheritance::relational::testGetAll` and its `union::` twin, DuckDB and H2), a register row; a failing
+  test's reason may name the first refusal found in planning (about 5 corpus rows on DuckDB, 6 on H2). Measured
+  before landing on the stress lanes, core's suites, the corpus, PCT and Postgres; anything more comes back to the
+  user first.
 - **Upstream's words:** each new kind's legend-pure/legend-engine sentence read from the pinned sources. A kind with no
   upstream sentence maps explicitly to lite's sentence in the compatibility catalog, as a ledgered row (no fallback).
   S391 (a query accessor over a missing store) is a candidate fix here: the reference's origin becomes a frame.
