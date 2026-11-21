@@ -23,24 +23,25 @@ public final class ModelException extends LegendCompileException {
         super(phase, kind, operands, elementFqn, null);
     }
 
-    /** {@code e} about the element {@code elementFqn}, its kind and operands kept where it has them. */
+    /** {@code e} about the element {@code elementFqn}, its record kept where it has one. */
     public static ModelException attributed(LegendCompileException e, String elementFqn) {
-        CompileKind k = e.kind();
-        return k == null ? new ModelException(e.phase(), e.getMessage(), elementFqn)
-                : new ModelException(e.phase(), k, e.operands(), elementFqn, e.position());
+        ErrorRecord r = e.record();
+        return r == null ? new ModelException(e.phase(), e.getMessage(), elementFqn)
+                : new ModelException(e.phase(), r, elementFqn);
     }
 
-    private ModelException(Phase phase, CompileKind kind, java.util.List<String> operands,
-            @com.legend.base.Nullable String elementFqn, @com.legend.base.Nullable String position) {
-        super(phase, kind, operands, elementFqn, position);
+    /** The error {@code record} states, about the element {@code elementFqn} (a planned failure rebuilt from its
+     *  record, stage B's BE, 2026-11-21). */
+    public ModelException(Phase phase, ErrorRecord record, @com.legend.base.Nullable String elementFqn) {
+        super(phase, record, elementFqn);
     }
 
-    /** {@code e} placed at {@code where} (the element's {@code [line:col]}): its kind and operands kept, where it has
-     *  them, so a reader that words the kind (the edge) still can. */
+    /** {@code e} placed at {@code where} (the element's {@code [line:col]}): its record kept, placed, where it has one,
+     *  so a reader that words the record (the edge) still can. */
     public static ModelException placed(LegendCompileException e, String where) {
-        CompileKind k = e.kind();
-        return k == null ? new ModelException(e.phase(), e.getMessage(), e.element(), where)
-                : new ModelException(e.phase(), k, e.operands(), e.element(), where);
+        ErrorRecord r = e.record();
+        return r == null ? new ModelException(e.phase(), e.getMessage(), e.element(), where)
+                : new ModelException(e.phase(), r.placed(where), e.element());
     }
 
     /** With the element's position, placed before the message and kept as data ({@link #position()}). */

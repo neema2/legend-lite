@@ -11,7 +11,7 @@ package com.legend.error;
  * raise kinds ({@code sql.RaiseKind}, the MIR's bare enum: the two held equal by name, both ways, by
  * {@code ErrorKindTest}). legend-pure's and legend-engine's sentences are the compatibility edge's.
  */
-public enum ErrorKind {
+public enum ErrorKind implements ErrorCode {
     DIVIDE_BY_ZERO("division by zero"),
     SHIFT_OUT_OF_RANGE("bit shift outside 0..62"),
     DATE_PART_ABSENT("the date has no such part: it is coarser"),
@@ -75,5 +75,17 @@ public enum ErrorKind {
     /** Lite's own short sentence of the kind: no value in it. */
     public String sentence() {
         return sentence;
+    }
+
+    @Override
+    public String family() {
+        return "run";
+    }
+
+    /** Lite's sentence over {@code values}: the kind's, then ': ' and its first value, the place it names (a run's
+     *  error's where), as the run words it; the kind's alone where there is none. */
+    @Override
+    public String sentence(java.util.List<String> values) {
+        return values.isEmpty() ? sentence : sentence + ": " + values.get(0);
     }
 }

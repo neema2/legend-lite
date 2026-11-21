@@ -106,8 +106,8 @@ public final class SpecCompiler {
                 System.err.println("[spec] compile of " + fn.qualifiedName() + " failed: " + e.getMessage());
                 e.printStackTrace(System.err);
             }
-            // its text before the body's error, stated (stage B's B1, 2026-11-20, errors as records)
-            throw new TypeInferenceException("in " + where(fn) + ": ", e, "");
+            // the body's error inside the function's frame (stage B's BE, 2026-11-21, the one error model)
+            throw new TypeInferenceException(frameOf(fn), e);
         }
         memo.put(fn, cf);
         return cf;
@@ -116,17 +116,30 @@ public final class SpecCompiler {
     /** Where a body's error is: its function -- or, for a property's default and a function's condition, what was
      *  written (2026-10-21, the independent audit: their synthesized names leaked into the message). A derived
      *  property's and a mapping's synthesized functions keep their names, which the corpora's expectations quote. */
-    private static String where(TypedFunction fn) {
+    /** The frame a body's error passes through: a property's default value, a pre- or post-condition, or else the
+     *  function (stage B's BE, 2026-11-21: until then its text, "in " and the synthesized function's description). */
+    private static com.legend.error.ErrorRecord.Frame frameOf(TypedFunction fn) {
         if (fn.definition() instanceof com.legend.model.FunctionDefinition fd && fd.synthesizedFrom() != null) {
-            switch (fd.synthesizedFrom().hat()) {
-                case DEFAULT, PRE, POST -> {
-                    return fd.synthesizedFrom().describe();
+            com.legend.model.FunctionDefinition.Synthesized s = fd.synthesizedFrom();
+            switch (s.hat()) {
+                case DEFAULT -> {
+                    return new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.IN_DEFAULT_VALUE,
+                            List.of(s.memberName(), s.ownerFqn()));
+                }
+                case PRE -> {
+                    return new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.IN_PRE_CONDITION,
+                            List.of(s.memberName(), s.ownerFqn()));
+                }
+                case POST -> {
+                    return new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.IN_POST_CONDITION,
+                            List.of(s.memberName(), s.ownerFqn()));
                 }
                 default -> {
                 }
             }
         }
-        return "function '" + fn.qualifiedName() + "'";
+        return new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.IN_FUNCTION,
+                List.of(fn.qualifiedName()));
     }
 
     /**

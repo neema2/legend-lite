@@ -600,9 +600,9 @@ public final class UserCallInliner {
                 // random library function
                 List<String> path = new ArrayList<>(names);
                 java.util.Collections.reverse(path);
-                // its text after the body's error, stated (stage B's B1, 2026-11-20, errors as records)
-                throw new TypeInferenceException("", e,
-                        " [inlined via " + String.join(" -> ", path) + "]");
+                // the body's error inside the inlining's frame (stage B's BE, 2026-11-21, the one error model)
+                throw new TypeInferenceException(new com.legend.error.ErrorRecord.Frame(
+                        com.legend.error.FrameKind.INLINED_VIA, path), e);
             }
             // A relation param accepts a SUPERSET schema (covariant call);
             // the spliced body then carries the caller's extra columns in

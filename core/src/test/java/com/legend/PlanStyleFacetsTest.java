@@ -64,8 +64,8 @@ class PlanStyleFacetsTest {
         java.util.Arrays.fill(big, (byte) 'a');
         com.legend.base.DataSize.TooLarge tooLarge = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.base.DataSize.TooLarge.class, () -> com.legend.base.DataSize.requireSize("/big.csv", big, 1));
-        RuntimeException refused = new com.legend.error.DataError(com.legend.error.ErrorKind.FILE_TOO_LARGE,
-                tooLarge.path(), tooLarge);
+        RuntimeException refused = com.legend.error.DataError.fileTooLarge(tooLarge.path(), tooLarge.bytes(),
+                tooLarge.characters(), tooLarge.limitMegabytes(), tooLarge);
         org.junit.jupiter.api.Assertions.assertEquals("the file is larger than the load admits: /big.csv",
                 refused.getMessage());
         org.junit.jupiter.api.Assertions.assertEquals("Unable to read the CSV file '/big.csv' Execution error at ??,"

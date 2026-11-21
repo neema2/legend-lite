@@ -8,7 +8,7 @@ package com.legend.error;
  * ({@code edge.PureMessages.compile}), which spells it where an upstream client reads the error. Each sentence is a
  * format over the operands, positional ({@code %1$s}, ...).
  */
-public enum CompileKind {
+public enum CompileKind implements ErrorCode {
     /** An element the text names that the model does not have: its kind's noun and its name. */
     MISSING("%1$s '%2$s' is not defined"),
     /** A profile the text names that the model does not have. */
@@ -70,7 +70,13 @@ public enum CompileKind {
         this.sentence = sentence;
     }
 
+    @Override
+    public String family() {
+        return "compile";
+    }
+
     /** Lite's sentence of this kind over {@code operands}. */
+    @Override
     public String sentence(java.util.List<String> operands) {
         return String.format(java.util.Locale.ROOT, sentence, operands.toArray());
     }

@@ -63,8 +63,10 @@ public final class TestPlanJson {
      *  compatibility path deleted; 34 (stage B's B1, 2026-11-20, errors as records): a planned failure carries the facts an audience words
      *  it from ({@code fact}: its kinded compile error and lite's wrapper, or a file's size against a load's limit), no words planned in a style's; no size refusal's words
      *  ({@code SideShape.sizeWords}, {@code answerSizeWords}: the run raises the refusal as its record); and the
-     *  product's version 59 (a raise site's facts, no words). */
-    public static final int VERSION = 34;
+     *  product's version 59 (a raise site's facts, no words); 35 (stage B's BE, 2026-11-21, the one error model): a
+     *  planned failure carries its error's {@code record} (a code, its values, its position, its frames) and, where it
+     *  has one, no message -- B1's {@code fact} and lite's wrapper texts gone. */
+    public static final int VERSION = 35;
 
     private TestPlanJson() {
     }

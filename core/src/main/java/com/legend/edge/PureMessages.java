@@ -214,9 +214,22 @@ public final class PureMessages {
             // exec.PlanParameters, J8 of the edge audit, 2026-11-17): the problems in brackets, joined by "; "
             return "Invalid provided parameter(s): [" + String.join("; ", v.problems()) + "]";
         }
+        // an error with its record (stage B's BE, 2026-11-21, the one error model): legend-pure's words of its code,
+        // inside lite's frames, after its position -- live, or rebuilt from a planned failure's record, the same
+        // function. The chain's first lite error decides: one with no record keeps its own words (a wrapper that states
+        // only its text is never looked through)
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.error.LegendError le) {
+                if (le.record() != null) {
+                    return upstream(le.record());
+                }
+                break;
+            }
+        }
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof com.legend.base.DataSize.TooLarge big) {
-                return tooLarge(big);
+                // a size refusal no load wrapped (the base library's own: it has no record)
+                return tooLarge(big.path(), big.characters(), big.limitMegabytes());
             }
             if (t instanceof com.legend.testdatagen.TestDataPlanner.NoRowIdentifiers n) {
                 // legend-pure's assert, worded from the generator's facts (J7/K12 of the edge audit, 2026-11-17)
@@ -229,23 +242,23 @@ public final class PureMessages {
                         + com.legend.testdatagen.TestDataPlanner.physical(r.schema(), r.table());
             }
         }
-        // a planned failure rebuilt at its verdict's turn carries its record (Failures.Planned): worded from the data
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof com.legend.testexecutionplan.Failures.Planned p) {
-                return planned(p.compile());
-            }
-        }
-        // a live error: its kinded part and lite's wrapper as the product's record states them (Failures.compileOf: the
-        // body compiler's "in function 'f': " before, the inliner's " [inlined via ...]" after -- the P2 checkpoint
-        // audit's A-S1, 2026-11-16; stage B's B1, 2026-11-20, errors as records: stated by the wrappers, never found by position)
-        com.legend.testexecutionplan.Failure.Compile record = com.legend.testexecutionplan.Failures.compileOf(e);
-        return record == null ? message : planned(record);
+        return message;
     }
 
-    /** legend-pure's and legend-engine's sentence of a compile error's record: LITE'S wrapper as it is, the kinded part
-     *  as upstream words its kind (stage B's B1, 2026-11-20, errors as records). */
-    public static String planned(com.legend.testexecutionplan.Failure.Compile c) {
-        return c.prefix() + upstream(c.kind(), c.operands(), c.position()) + c.suffix();
+    /** legend-pure's and legend-engine's sentence of an error's record (stage B's BE, 2026-11-21, the one error
+     *  model): its code in upstream's words where an upstream test or client reads them, inside lite's frames as lite
+     *  words them, after its position. A code upstream has no sentence for is worded by lite's catalog, ONE ruled
+     *  mapping (Q3 = B, the user, 2026-11-20 ~16:40: compile errors keep lite's words where upstream has none). */
+    public static String upstream(com.legend.error.ErrorRecord record) {
+        return record.sentence((code, values) -> switch (code) {
+            case com.legend.error.CompileKind k -> upstream(k, values);
+            case com.legend.error.ErrorKind k when k == com.legend.error.ErrorKind.FILE_TOO_LARGE ->
+                    tooLarge(values.get(0), Long.parseLong(values.get(2)), Integer.parseInt(values.get(3)));
+            // a run's error with no site, upstream's words none: lite's (the ruled mapping)
+            case com.legend.error.ErrorKind k -> k.sentence(values);
+            case com.legend.error.FrameKind f -> throw new IllegalStateException("an error's code is never a frame's: "
+                    + f);
+        });
     }
 
     /** The name an upstream answer gives an uncaught error's type (pure/v1's {@code "<type>: <message>"}): a parameter
@@ -270,8 +283,7 @@ public final class PureMessages {
     }
 
     /** {@code c}'s sentence as upstream words its kind, after the driver's {@code [line:col]}. */
-    private static String upstream(com.legend.error.CompileKind kind, java.util.List<String> o,
-            @com.legend.base.Nullable String position) {
+    private static String upstream(com.legend.error.CompileKind kind, java.util.List<String> o) {
         String upstream = switch (java.util.Objects.requireNonNull(kind, "a kinded error")) {
             // PureModel.getConnection, getMapping, getRuntime, getStore, getAssociation (legend-engine)
             case MISSING -> "Can't find " + o.get(0) + " '" + o.get(1) + "'";
@@ -324,7 +336,7 @@ public final class PureMessages {
             case MISSING_STORE_TABLE -> "The table '" + o.get(0) + "' can't be found in the database '" + o.get(1)
                     + "' (" + o.get(2) + ")";
         };
-        return position == null ? upstream : position + " " + upstream;
+        return upstream;
     }
 
     /** legend-pure's sentence of a load's file larger than the load admits (J25 of the edge audit, 2026-11-17: moved
@@ -332,10 +344,10 @@ public final class PureMessages {
      *  text's length in megabytes against the limit, wrapped by its outer "Unable to read the CSV file" (read 2026-11-09
      *  at 5.99.0; the inner exception carries no source information, so "Execution error at ??, " and the info quoted:
      *  legend-pure's PureException.printMessage; the M1 correctness audit's C4, 2026-11-09). */
-    static String tooLarge(com.legend.base.DataSize.TooLarge big) {
-        return "Unable to read the CSV file '" + big.path() + "' Execution error at ??, \"File is too large, file was "
-                + String.format(java.util.Locale.ROOT, "%.2f", big.characters() * 1.0 / (1024 * 1024L)) + " Mb, limit is "
-                + big.limitMegabytes() + " Mb\"";
+    static String tooLarge(String path, long characters, int limitMegabytes) {
+        return "Unable to read the CSV file '" + path + "' Execution error at ??, \"File is too large, file was "
+                + String.format(java.util.Locale.ROOT, "%.2f", characters * 1.0 / (1024 * 1024L)) + " Mb, limit is "
+                + limitMegabytes + " Mb\"";
     }
 
     /** legend-pure's sentence of a test-data generation's starting table no identifier names (J7/K12 of the edge audit,

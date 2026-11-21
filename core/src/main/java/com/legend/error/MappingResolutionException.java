@@ -12,6 +12,11 @@ package com.legend.error;
  */
 public final class MappingResolutionException extends LegendCompileException {
 
+    /** The error {@code record} states, about the element {@code elementFqn} (stage B's BE, 2026-11-21). */
+    public MappingResolutionException(ErrorRecord record, @com.legend.base.Nullable String elementFqn) {
+        super(Phase.MAPPING, record, elementFqn);
+    }
+
     public MappingResolutionException(@com.legend.base.Nullable String message) {
         super(Phase.MAPPING, message);
     }

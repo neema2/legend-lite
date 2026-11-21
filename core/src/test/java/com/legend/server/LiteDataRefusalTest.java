@@ -50,7 +50,7 @@ class LiteDataRefusalTest {
     @Test
     void aLoadsRefusedFileIsDataItsPathInTheMessageNotWhere() {
         assertEquals("{\"kind\":\"data\",\"message\":\"the file is larger than the load admits: /data/big.csv\"}",
-                LiteV1Api.refusal(new DataError(ErrorKind.FILE_TOO_LARGE, "/data/big.csv", CAUSE)).json());
+                LiteV1Api.refusal(DataError.fileTooLarge("/data/big.csv", 1048577, 1048577, 1, CAUSE)).json());
     }
 
     @Test

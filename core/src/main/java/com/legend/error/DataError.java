@@ -16,7 +16,7 @@ package com.legend.error;
  * database's own text (the raised-message provenance discipline —
  * RaisedErrors — is unchanged and runs before translation).
  */
-public final class DataError extends RuntimeException {
+public final class DataError extends RuntimeException implements LegendError {
 
     /** The product raise's kind (phase D's D1.1), or null: a database's own error, the edge's sentence, a user's
      *  {@code fail} message. */
@@ -32,6 +32,9 @@ public final class DataError extends RuntimeException {
      *  database keeps), or null. Kept since PR #118's fix round (2026-11-18, N3): until then it was taken and dropped,
      *  so lite's API could not answer it. */
     private final @com.legend.base.Nullable String where;
+    /** The error as data where its kind and place are its facts (stage B's BE, 2026-11-21): null for a database's own
+     *  failure and an error of no kind, whose words are their own. */
+    private final @com.legend.base.Nullable ErrorRecord record;
 
     public DataError(String message, Throwable cause) {
         super(message, cause);
@@ -39,6 +42,7 @@ public final class DataError extends RuntimeException {
         this.sqlState = null;
         this.databaseMessage = null;
         this.where = null;
+        this.record = null;
     }
 
     /** A product raise of {@code kind}: its message the kind's sentence, spelled here, the error layer's
@@ -51,11 +55,53 @@ public final class DataError extends RuntimeException {
      *  digits a database keeps): its message the kind's sentence, then the where (the D part 1 audit's S4,
      *  2026-11-15: the user's "its kind and where it happened"). */
     public DataError(ErrorKind kind, @com.legend.base.Nullable String where, Throwable cause) {
-        super(where == null ? kind.sentence() : kind.sentence() + ": " + where, cause);
-        this.kind = kind;
+        this(recordOf(kind, where, cause), cause);
+    }
+
+    /** {@code kind} at {@code where} as data. A file too large is refused here by name: its record carries its size's
+     *  facts, which every audience words, so it is made by {@link #fileTooLarge} alone (this package imports nothing to
+     *  read them from a cause). */
+    private static ErrorRecord recordOf(ErrorKind kind, @com.legend.base.Nullable String where, Throwable cause) {
+        if (kind == ErrorKind.FILE_TOO_LARGE) {
+            throw new IllegalArgumentException("a file too large is raised with its size's facts, by"
+                    + " DataError.fileTooLarge: " + where);
+        }
+        return ErrorRecord.of(kind, where == null ? java.util.List.of() : java.util.List.of(where));
+    }
+
+    private static ErrorRecord fileTooLargeRecord(String path, long bytes, long characters, int limitMegabytes) {
+        return ErrorRecord.of(ErrorKind.FILE_TOO_LARGE, java.util.List.of(path, Long.toString(bytes),
+                Long.toString(characters), Integer.toString(limitMegabytes)));
+    }
+
+    /** The error {@code record} states, its code a run's {@link ErrorKind} and its first value its place: its message
+     *  the record's sentence (stage B's BE, 2026-11-21; a planned failure rebuilt from its record). */
+    public DataError(ErrorRecord record) {
+        this(record, null);
+    }
+
+    private DataError(ErrorRecord record, @com.legend.base.Nullable Throwable cause) {
+        super(record.sentence(), cause);
+        if (!(record.code() instanceof ErrorKind k)) {
+            throw new IllegalArgumentException("a data error's record is a run's error: " + record.code());
+        }
+        this.kind = k;
         this.sqlState = null;
         this.databaseMessage = null;
-        this.where = where;
+        this.where = record.values().isEmpty() ? null : record.values().get(0);
+        this.record = record;
+    }
+
+    /** A load's file larger than the load admits ({@link ErrorKind#FILE_TOO_LARGE}): its record the file, its size in
+     *  bytes and in characters, and the limit in megabytes, so an audience words the size as it does (stage B's BE,
+     *  2026-11-21: until then its facts rode {@code base.DataSize.TooLarge}, its cause, alone). */
+    public static DataError fileTooLarge(String path, long bytes, long characters, int limitMegabytes, Throwable cause) {
+        return new DataError(fileTooLargeRecord(path, bytes, characters, limitMegabytes), cause);
+    }
+
+    @Override
+    public @com.legend.base.Nullable ErrorRecord record() {
+        return record;
     }
 
     /** A raise of a planned site of {@code kind} placed by {@code where} (phase D's Phase 2, raises as SITES,
@@ -67,6 +113,7 @@ public final class DataError extends RuntimeException {
         this.sqlState = null;
         this.databaseMessage = null;
         this.where = where;
+        this.record = null;
     }
 
     private DataError(ErrorKind kind, @com.legend.base.Nullable String sqlState, String databaseMessage, String message,
@@ -80,6 +127,7 @@ public final class DataError extends RuntimeException {
         this.sqlState = sqlState;
         this.databaseMessage = databaseMessage;
         this.where = null;
+        this.record = null;
     }
 
     /** A failure the database raised itself (phase D's Phase 2, item 4, 2026-11-16): {@code kind} DATABASE_ERROR or
@@ -119,5 +167,6 @@ public final class DataError extends RuntimeException {
         this.sqlState = null;
         this.databaseMessage = null;
         this.where = null;
+        this.record = null;
     }
 }

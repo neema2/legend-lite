@@ -16,60 +16,27 @@ import com.legend.error.LegendCompileException;
  * reads either: a database's position rides a cause the database raised at run, and planning sends no statement).
  *
  * @param kind           the exception's class, from the closed list
- * @param message        its message, as {@code getMessage()} answered (null where it had none)
+ * @param message        its message, as {@code getMessage()} answered (null where it had none, and where its record
+ *                       says it: {@link #message()} is then the record's sentence -- stage B's BE, 2026-11-21: no
+ *                       prose in the test plan for an error that has its record)
  * @param phase          a {@link Kind#MODEL} error's phase; null for every other kind (each has its one phase)
  * @param element        the model element a compile error names ({@link Kind#MODEL}, {@link Kind#MAPPING_RESOLUTION})
  * @param unjudgedReason an {@link Kind#ASSERT_FAILED} that is an UNJUDGED decline: why
  * @param where          the planning site that recorded it, for debugging (ruled 2026-11-08): stable across runs
- * @param fact           the facts an audience words the error from ({@link Fact}: its kinded compile error and lite's
- *                       wrapper, or a file's size against a load's limit); null where it holds none
+ * @param record         the error as data ({@link com.legend.error.ErrorRecord}: its code, values, position and frames;
+ *                       stage B's BE, 2026-11-21, the one error model): what every audience words it from; null where
+ *                       its site states none yet
  */
 public record Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
-        @Nullable String element, @Nullable String unjudgedReason, String where, @Nullable Fact fact) {
+        @Nullable String element, @Nullable String unjudgedReason, String where,
+        com.legend.error.@Nullable ErrorRecord record) {
 
-    /** The kinds of failure a compile error's facts ride ({@link Compile}): the compile exceptions' (stage B's B1,
-     *  2026-11-20; one list for the record's check and {@link Failures#of}'s reading of them). */
-    static final java.util.Set<Kind> COMPILE_FACTS = java.util.Set.of(Kind.MODEL, Kind.TYPE_INFERENCE, Kind.RESOLUTION,
-            Kind.MAPPING_RESOLUTION, Kind.SCHEMA_INVARIANT, Kind.ISLAND_SYNTAX);
+    /** The kinds of failure a record rides: the classes that are lite's errors with a record (stage B's BE,
+     *  2026-11-21; one list for the record's check and {@link Failures#of}'s reading of it). */
+    static final java.util.Set<Kind> RECORDED = java.util.Set.of(Kind.MODEL, Kind.TYPE_INFERENCE, Kind.RESOLUTION,
+            Kind.MAPPING_RESOLUTION, Kind.SCHEMA_INVARIANT, Kind.ISLAND_SYNTAX, Kind.DATA);
 
-
-    /** THE FACTS A PLANNED FAILURE CARRIES FOR ITS WORDS (stage B's B1, 2026-11-20, errors as records): what another audience words the error
-     *  from after the run, where lite's message alone would lose it. */
-    public sealed interface Fact permits Compile, FileTooLarge {
-    }
-
-    /** A load's file larger than its limit ({@code base.DataSize.TooLarge}'s facts): legend-pure words its size and the
-     *  limit. */
-    public record FileTooLarge(String path, long bytes, long characters, int limitMegabytes) implements Fact {
-        public FileTooLarge {
-            java.util.Objects.requireNonNull(path, "path");
-        }
-    }
-
-    /**
-     * A COMPILE ERROR'S KINDED PART, AS DATA (stage B's B1, 2026-11-20, errors as records; until then the plan's style worded the error
-     * at planning, {@code PlanStyle.errorWords}): the {@link com.legend.error.CompileKind}, its operands and its
-     * {@code [line:col]}, and LITE'S WRAPPER around the kinded sentence as its two stated texts ({@code prefix}, the
-     * body compiler's {@code "in function 'f': "}; {@code suffix}, the inliner's {@code " [inlined via a -> b]"}).
-     * {@code message} stays lite's own, whole: {@code prefix + [position + " "] + kind's sentence + suffix}. Another
-     * audience's formatter words the kinded part its way and keeps the wrapper, after the run.
-     */
-    public record Compile(String prefix, com.legend.error.CompileKind kind, java.util.List<String> operands,
-            @Nullable String position, String suffix) implements Fact {
-        public Compile {
-            java.util.Objects.requireNonNull(prefix, "prefix");
-            java.util.Objects.requireNonNull(kind, "kind");
-            operands = java.util.List.copyOf(operands);
-            java.util.Objects.requireNonNull(suffix, "suffix");
-        }
-
-        /** Lite's own sentence of the kinded part, after its position. */
-        public String own() {
-            return (position == null ? "" : position + " ") + kind.sentence(operands);
-        }
-    }
-
-    /** A failure with no facts beyond its message. */
+    /** A failure with no record, its message its own. */
     public Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
             @Nullable String element, @Nullable String unjudgedReason, String where) {
         this(kind, message, phase, element, unjudgedReason, where, null);
@@ -85,18 +52,26 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         if (unjudgedReason != null && kind != Kind.ASSERT_FAILED) {
             throw new IllegalArgumentException("an unjudged reason is a failed assert's alone: " + kind);
         }
-        if (fact instanceof Compile c) {
-            if (!COMPILE_FACTS.contains(kind)) {
-                throw new IllegalArgumentException("a failure's compile facts are a compile error's alone: " + kind);
+        if (record != null) {
+            if (!RECORDED.contains(kind)) {
+                throw new IllegalArgumentException("a failure's record is a lite error's alone: " + kind);
             }
-            if (!(c.prefix() + c.own() + c.suffix()).equals(message)) {
-                throw new IllegalArgumentException("a failure's kinded part and lite's wrapper spell its message: '"
-                        + c.prefix() + c.own() + c.suffix() + "' is not '" + message + "'");
+            if (message != null) {
+                throw new IllegalArgumentException("a failure with its record carries no message of its own (the"
+                        + " record's sentence is its message): " + kind);
             }
         }
-        if (fact instanceof FileTooLarge && kind != Kind.DATA) {
-            throw new IllegalArgumentException("a failure's file-size facts are a data error's alone: " + kind);
-        }
+    }
+
+    /** Its message: its record's sentence in lite's words where it has a record, else its own. */
+    @Override
+    public @Nullable String message() {
+        return record != null ? record.sentence() : message;
+    }
+
+    /** The message it carries of its own (null where its record says it). */
+    public @Nullable String ownMessage() {
+        return message;
     }
 
     /** The exception classes a planning failure is raised as, each by its class's name: a closed list (a class not

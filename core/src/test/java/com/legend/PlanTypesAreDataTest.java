@@ -50,7 +50,12 @@ class PlanTypesAreDataTest {
             "com.legend.sql",
             // 2026-11-08, the plan-as-data design's step 8 (2.10's guard 1 names them): the edge's extension records,
             // reached only through the test plan's Extension -- every implementation on the classpath, walked as data
-            "com.legend.edge");
+            "com.legend.edge",
+            // 2026-11-21, stage B's BE (the one error model; for the user's word with BE's moves): an error's record
+            // (error.ErrorRecord: its code, one of the package's enums, already data below; its values; its frames),
+            // what a planned failure carries in place of a message -- walked as data, so an exception class of the
+            // package reached from a plan is still a violation
+            "com.legend.error");
 
     private static final Set<Class<?>> LEAVES = Set.of(String.class, Boolean.class, Byte.class, Short.class,
             Integer.class, Long.class, Float.class, Double.class, Character.class, java.math.BigDecimal.class,
