@@ -135,21 +135,23 @@ public final class VerdictSql {
      * brackets; otherwise assertEquals' (assertEquals.pure: {@code %r} of each where both sides hold one element, else
      * each side's elements in brackets, in their order).
      */
-    public record Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
-            boolean lite, boolean canon, @com.legend.base.Nullable String kindText,
-            @com.legend.base.Nullable String canonClass, Styled styled) {
+    public record Message(Type kind, boolean sorted, @com.legend.base.Nullable String literal, boolean canon,
+            @com.legend.base.Nullable String kindText, @com.legend.base.Nullable String canonClass, Styled styled) {
+        // (the lite flag, the listed flag and the five-argument constructor whose default was legend-pure's words --
+        // an invariant-4 default every caller overrode -- gone 2026-11-21, item 3's S0: the database judge plans for
+        // lite's flow alone since A4, so a side is written by lite's own rules, LiteText)
+
         /** {@code styled}: the planning environment's style, the text helpers' (B8, 2026-11-17: an explicit style
-         *  from every caller, never an implicit product default -- the seam agreed with E-Java); legend-pure's words
-         *  ({@code lite} false), the side's own kind. */
-        public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
-                Styled styled) {
-            this(kind, sorted, listed, literal, false, false, null, null, styled);
+         *  from every caller, never an implicit product default -- the seam agreed with E-Java); the side's own
+         *  kind. */
+        public Message(Type kind, boolean sorted, @com.legend.base.Nullable String literal, Styled styled) {
+            this(kind, sorted, literal, false, null, null, styled);
         }
 
         /** This message with the side's KIND as lite's sentence names it where two texts tie
          *  ({@code AssertSentence.EQUALS_KINDS}). */
         public Message withKindText(String kindText) {
-            return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass, styled);
+            return new Message(kind, sorted, literal, canon, kindText, canonClass, styled);
         }
 
         /** A side of no one primitive kind (a mixed-kind collection, a literal channel), written by lite's own rules
@@ -157,46 +159,21 @@ public final class VerdictSql {
          *  own order (the orchestrator's ruling, 2026-11-17); {@code classFqn}: the side's declared class, prefixed to
          *  an element whose canon is its JSON object (an instance as the product writes it), or null. */
         public static Message fromCanon(boolean sorted, @com.legend.base.Nullable String classFqn, Styled styled) {
-            return new Message(Type.Primitive.STRING, sorted, false, null, true, true, null, classFqn, styled);
+            return new Message(Type.Primitive.STRING, sorted, null, true, null, classFqn, styled);
         }
 
-        public Message(Type kind, boolean sorted, boolean listed, Styled styled) {
-            this(kind, sorted, listed, null, styled);
+        public Message(Type kind, boolean sorted, Styled styled) {
+            this(kind, sorted, null, styled);
         }
 
-        /** This message written by lite's own rules ({@link LiteText#of}: a String quoted JSON-style, every value its
-         *  product text), or legend-pure's ({@code lite} false). */
-        public Message withLite(boolean lite) {
-            return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass, styled);
-        }
-
-        /** A LITERAL side (one value the planner holds): {@code text}, its representation spelled at planning. */
+        /** A LITERAL side (one value the planner holds): {@code text}, its lite text spelled at planning. */
         public static Message literal(Type kind, String text, Styled styled) {
-            return new Message(kind, false, false, text, styled);
+            return new Message(kind, false, text, styled);
         }
 
-        /** {@code kind}'s message for a side, or null where its elements' representation is no one primitive's. */
+        /** {@code kind}'s message for a side, or null where its elements' text is no one primitive's. */
         public static @com.legend.base.Nullable Message of(@com.legend.base.Nullable Type kind, boolean sorted,
                 Styled styled) {
-            return of(kind, sorted, false, styled);
-        }
-
-        /** {@code kind}'s elements as a List's {@code %s} writes them (assertEmpty.pure: {@code '%s is not empty'}
-         *  over {@code ^List<Any>(values=$collection)}; the host's {@code PureAsserts.notEmptyMessage}): a String
-         *  as it is, every other kind its representation. */
-        public static @com.legend.base.Nullable Message listed(@com.legend.base.Nullable Type kind, Styled styled) {
-            return of(kind, false, true, styled);
-        }
-
-        /** Instances of a GENERIC class (a {@code Pair}) carried as structs of primitive fields -- the caller has seen
-         *  the side's plan answer such a struct: each written as the host writes an instance with no id,
-         *  {@code <1|a instanceOf meta::pure::functions::collection::Pair>} ({@link #genericInstanceRepr}'s rule). */
-        public static Message instances(Type.GenericType kind, boolean sorted, Styled styled) {
-            return new Message(kind, sorted, false, styled);
-        }
-
-        private static @com.legend.base.Nullable Message of(@com.legend.base.Nullable Type kind, boolean sorted,
-                boolean listed, Styled styled) {
             if (kind == null) {
                 return null;
             }
@@ -206,7 +183,14 @@ public final class VerdictSql {
                     || kind == Type.Primitive.FLOAT || kind == Type.Primitive.DECIMAL || kind == Type.Primitive.STRING
                     || kind == Type.Primitive.BOOLEAN || kind == Type.Primitive.DATE
                     || kind == Type.Primitive.STRICT_DATE || kind == Type.Primitive.DATE_TIME;
-            return spelled ? new Message(kind, sorted, listed, styled) : null;
+            return spelled ? new Message(kind, sorted, styled) : null;
+        }
+
+        /** Instances of a GENERIC class (a {@code Pair}) carried as structs of primitive fields -- the caller has seen
+         *  the side's plan answer such a struct: each written by lite's own rules, its class then its properties
+         *  ({@link #instanceLite}). */
+        public static Message instances(Type.GenericType kind, boolean sorted, Styled styled) {
+            return new Message(kind, sorted, styled);
         }
     }
 
@@ -242,7 +226,7 @@ public final class VerdictSql {
         if (e.message() == null || a.message() == null) {
             return row;
         }
-        SqlQuery written = withWrittenSides(row, e.message().sorted(), e.message().lite() && e.byCanonText());
+        SqlQuery written = withWrittenSides(row, e.message().sorted(), e.byCanonText());
         return e.message().kindText() != null && a.message().kindText() != null
                 ? withKinds(written, e.message().kindText(), a.message().kindText()) : written;
     }
@@ -590,7 +574,7 @@ public final class VerdictSql {
             OneRow l = writtenListOf("l", "__a");
             OutputCol wo = new OutputCol(W, SqlType.Scalar.VARCHAR, true);
             OneRow vw = new OneRow("vw", new SqlSelect(List.of(new SqlSelect.Projection(
-                    written(new Message(valueWritten.kind(), false, false, valueWritten.styled()).withLite(true),
+                    written(new Message(valueWritten.kind(), false, valueWritten.styled()),
                             SqlExpr.Column.of("__v0", valScalar.outputs(), "value")), W, wo)),
                     false, v0, null, List.of(), null, null, List.of(), null, null, List.of(wo)), List.of(wo));
             ops.add(l);
@@ -1408,7 +1392,7 @@ public final class VerdictSql {
             aggs.add(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
                     List.of(w, new SqlExpr.StringLit(", ")), false,
                     // lite's sentence lists a side in its own order (the orchestrator's ruling, 2026-11-17)
-                    List.of(new SqlSelect.SortKey(message.sorted() && !message.lite() ? col(rowsCte, O) : rn, true,
+                    List.of(new SqlSelect.SortKey(rn, true,
                             null, null))),
                     "__joinedw", joinedWOut));
         }
@@ -1815,25 +1799,6 @@ public final class VerdictSql {
             return Type.Primitive.DATE_TIME;
         }
         return Type.Primitive.INTEGER;
-    }
-
-    /** {@code value}, a struct of primitive fields, written as the host writes an instance with no id: its fields'
-     *  texts joined {@code |}, {@code <1|a instanceOf T>}. */
-    private static SqlExpr instanceWritten(SqlExpr value, String typeFqn) {
-        SqlType.Struct st = (SqlType.Struct) ((com.legend.sql.TypeFact.Typed) value.type()).type();
-        List<SqlExpr> parts = new ArrayList<>();
-        parts.add(new SqlExpr.StringLit("<"));
-        for (SqlType.Struct.Field f : st.fields()) {
-            if (parts.size() > 1) {
-                parts.add(new SqlExpr.StringLit("|"));
-            }
-            SqlExpr v = new SqlExpr.StructGet(value, f.name());
-            SqlExpr text = f.type() == SqlType.Scalar.BOOLEAN ? SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v)
-                    : new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
-            parts.add(SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit("null")));
-        }
-        parts.add(new SqlExpr.StringLit(" instanceOf " + typeFqn + ">"));
-        return new SqlExpr.Call(SqlFn.CONCAT, parts);
     }
 
     /** A caller's failure message for an assert (the asserts-as-plan-nodes program, step 2, 2026-11-04): a constant the
@@ -2347,12 +2312,11 @@ public final class VerdictSql {
             return new SqlExpr.StringLit(m.literal());
         }
         if (m.kind() instanceof Type.GenericType g) {
-            return m.lite() ? instanceLite(value, g.rawFqn()) : instanceWritten(value, g.rawFqn());
+            return instanceLite(value, g.rawFqn());
         }
-        return PlatformTypes.isNil(m.kind()) ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                : m.lite() ? LiteText.of(m.kind(), value)
-                : m.listed() && m.kind() == Type.Primitive.STRING ? new SqlExpr.Cast(value, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                : represented(m.styled(), m.kind(), value);
+        return PlatformTypes.isNil(m.kind())
+                ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
+                : LiteText.of(m.kind(), value);
     }
 
     /** legend-pure's representation of a judged value, the compatibility rules' message (C5's step A, 2026-11-17: the

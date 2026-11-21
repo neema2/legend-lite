@@ -282,7 +282,7 @@ public final class DatabaseJudge {
             // each element from its canon's mark, an instance's class-prefixed
             return com.legend.lowering.VerdictSql.Message.fromCanon(sorted, classOf(side), styled);
         }
-        return m.withLite(true);
+        return m;
     }
 
     /** A date's lite text (the host's {@code LiteWords.dateText}): its day where it has no time of day (its own text
@@ -528,12 +528,11 @@ public final class DatabaseJudge {
             return unjudged(name, side.why());
         }
         var sw = java.util.Objects.requireNonNull(side.side());
-        // the elements written as the message writes them where the side's canon names one primitive kind (2026-11-04,
-        // the assert bar: upstream's '%s is not empty', the host's)
+        // the elements written as lite's sentence writes them where the side's canon names one primitive kind
         com.legend.lowering.CanonRider r = side.rider();
         com.legend.lowering.VerdictSql.Message listed = r == null || r.declined() != null || r.tdsWrapped()
-                || r.kinds().isEmpty() ? null : java.util.Optional.ofNullable(com.legend.lowering.VerdictSql.Message.listed(
-                        r.kinds().get(0), env.plan().styled())).map(m -> m.withLite(true)).orElse(null);
+                || r.kinds().isEmpty() ? null : com.legend.lowering.VerdictSql.Message.of(r.kinds().get(0), false,
+                        env.plan().styled());
         com.legend.sql.SqlQuery vq = sw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.emptyOfGraph(sw.plan(), wantEmpty)
                 : listed != null ? com.legend.lowering.VerdictSql.empty(com.legend.lowering.VerdictSql.writtenRows(

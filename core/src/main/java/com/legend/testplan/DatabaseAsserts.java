@@ -412,24 +412,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         return new TestPlan.Verdicts(List.of(v), null, host.savepoint());
     }
 
-    /** {@link #errorVerdict} for the agreement judge (S135): the assertError {@code statement} (after {@code lets})
-     *  the host planner planned as {@code step}, as the database judges it; null where it holds no comparison. */
-    static TestPlan.@Nullable Verdicts errorVerdictFor(HostAsserts.Planned step, TypedSpec statement,
-            List<TypedSpec> lets, SpecCompiler specs, BodyDriver.ExecEnv env) {
-        TestPlan.Verdicts raising = errorVerdict(step, env, () -> innerSole(statement, lets, Map.of(), specs, env));
-        if (raising == null) {
-            return null;
-        }
-        // both halves are steps of one plan under the agreement judge (the host's own step where the function is an
-        // assert, then this one): the raising verdict is a verdict of its own, its own id -- the database judge's
-        // alone keeps the host's, the step it replaces (the slice 1 audit's id fix, 2026-11-08: identity had told
-        // the two apart)
-        TestPlan.Verdict r = raising.verdicts().get(0);
-        return new TestPlan.Verdicts(List.of(new TestPlan.Verdict(env.verdictIds().next(), r.name(), r.arm(), r.base(),
-                r.wrapper(), r.message(), r.raises()).withHost(step.verdict().host())), raising.fused(),
-                raising.savepoint());
-    }
-
     /** The assert {@code statement}'s assertError holds as its function ({@code assertError(|assertEquals(...), m)}),
      *  planned by the database judge's arm alone in a batch of its own: its one verdict row, or its failure decided at
      *  planning; null where the arm plans it as no one row. */
