@@ -3613,3 +3613,18 @@ who confirms or changes phases 1-3.
   reads as a value in legend-pure's sentence. The cheap product option offered for after B1: the raising call's
   line and column, which every raise already carries.
 - **#129:** CI 55/55 green on `bd595b8c`; waiting for the user's merge word.
+
+### 2026-11-21 ~01:50 UTC: #130 at `1c22efc3`, B1's last two fixes
+
+- **The ClickHouse raise, measured by the heavy-round session at `401ccccf`:** a raise that reads no column, in a
+  `CASE` after an `ARRAY JOIN`, runs on every row, its guard included; `testFlatten_LateralJoin_Nested_Extend`
+  raised where main answered the right 10 rows (legend-engine's expected values). `401ccccf`'s fix never ran (the
+  renderer rewrites the raise to its token before ClickHouse's `error()`). `1c22efc3`: ClickHouse's `expr` sends a
+  raise to `error()` first, which reads each computed operand as `substring(coalesce(toString(x), ''), 1, 0)` (the
+  user's ~01:35 ruling). Locally the five `pct_clickhouse` and five `pct_channel_b_clickhouse` suites pass, that test
+  included (ClickHouse expects no failure there); the heavy-round session re-measures the statement.
+- **The lite-rules lanes:** under the LITE audience PCT's harness now keeps lite's sentence for a raise
+  (`PctExecuteNative`); the five `pct_duckdb_lite` and five `pct_duckdb` suites pass.
+- **For the user's word (in the PR):** `JavaEvalLedgerTest`'s `PctExecuteNative` pin 94 -> 99; the lean-SQL baseline,
+  8 ClickHouse families grew (ClickHouse's SQL +3,560 characters, +0.19%; overall +0.025%; no other database moved).
+- **CI:** the run on `401ccccf` was cancelled by the push; one full run on `1c22efc3` started 01:47.
