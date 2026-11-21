@@ -2162,6 +2162,14 @@ public class ClickHouse extends AnsiSqlRenderer {
         return writer;
     }
 
+    /** Whether the database computes {@code operand} (no literal the statement writes). */
+    private static boolean computed(SqlExpr operand) {
+        return !(operand instanceof SqlExpr.StringLit || operand instanceof SqlExpr.IntLit
+                || operand instanceof SqlExpr.FloatLit || operand instanceof SqlExpr.DecimalLit
+                || operand instanceof SqlExpr.BoolLit || operand instanceof SqlExpr.DateLit
+                || operand instanceof SqlExpr.TimestampLit);
+    }
+
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
         // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence; D1.1), in
         // main's unfoldable form (each raise its own rand(n), #81; merged 2026-11-14)
@@ -2191,7 +2199,19 @@ public class ClickHouse extends AnsiSqlRenderer {
         // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
         writer.append("replaceAll(toString(").expr(a.get(0), 0)
                 .append("), '\\'', char(29)), char(31), substring(toString(rand(" + (++raises[0])
-                        + ")), 1, 0))");
+                        + ")), 1, 0)");
+        // each value the database computes for the raise, read and kept empty: a raise that reads no column is
+        // evaluated on every row of its CASE, the guard's false ones too (measured on PR #130's server round,
+        // 2026-11-21: flatten's testFlatten_LateralJoin_Nested_Extend raised its at() check; until B1 the edge's
+        // sentence read these values in SQL, and the server held the raise back) -- no words, no value in the text
+        if (c.args().get(0) instanceof SqlExpr.RaiseText rt) {
+            for (SqlExpr operand : rt.operands()) {
+                if (computed(operand)) {
+                    writer.append(", substring(toString(").expr(operand, 0).append("), 1, 0)");
+                }
+            }
+        }
+        writer.append(")");
         return writer.append(guarded ? ", '0'))" : ")");
     }
 
