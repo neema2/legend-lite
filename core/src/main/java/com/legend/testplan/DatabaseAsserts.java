@@ -127,7 +127,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         // absorbed unplanned (the test door needs a non-null answer), every later let untouched (the M7 audit's F5)
         boolean walled = false;
         // a let's model error, held for the next assert's root (B1)
-        com.legend.error.@Nullable LegendCompileException pendingLet = null;
+        @Nullable RuntimeException pendingLet = null;
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             boolean last = i == body.size() - 1;
@@ -164,9 +164,13 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                         PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs, benv.plan());
                         letPrefix.add(let);
                     }
-                } catch (com.legend.error.LegendCompileException e) {
-                    // the let's model error, held for the next assert's root as the host holds it (the PR1 re-review's
-                    // B1; the static pass let the body through only where an assert follows)
+                } catch (RuntimeException e) {
+                    // the let's error upstream raises at run, held for the next assert's root as the host holds it
+                    // (the PR1 re-review's B1; the static pass let the body through only where an assert follows);
+                    // any other refuses the body here, as itself (the BE audit's finding 5, 2026-11-21)
+                    if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                        throw e;
+                    }
                     pendingLet = e;
                 }
                 continue;
@@ -309,10 +313,13 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 }
                 outcome = AssertVerdicts.planDatabase(batch, bare, letPrefix, specs, at, hook);
             } catch (RuntimeException e) {
-                // the gate's own classification raised (a side's planning): the arm would raise the same at the
-                // assert's turn, after the roots before it reported -- a wall at the root's place
+                // the gate's own classification raised (a side's planning): an error upstream raises at run is a wall
+                // at the root's place, raised at the assert's turn after the roots before it reported; any other
+                // refuses the body here, as itself (classified before a root is opened: the BE audit's finding 1)
+                com.legend.testexecutionplan.Failure wall = com.legend.testexecutionplan.Failures.planned(e,
+                        "DatabaseAsserts.plan: the gate's classification");
                 batch.open(AssertVerdicts.listenerName(bare));
-                batch.wall(com.legend.testexecutionplan.Failures.planned(e, "DatabaseAsserts.plan: the gate's classification"));
+                batch.wall(wall);
                 batch.close();
                 outcome = AssertVerdicts.DatabasePlan.WALLED;
             }
@@ -507,22 +514,22 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                                 pre.plan());
                         letPrefix.add(let);
                     }
-                } catch (com.legend.error.LegendCompileException e) {
-                    // the let's model error at planning (a class its mapping does not map), as the host judge's planner
-                    // holds it (HostAsserts' pendingLet): raised at the next assert's turn, after the asserts before it
-                    // ran and reported -- the main pass plans it as that root's wall; with no assert after it, raised
+                } catch (RuntimeException e) {
+                    // an error upstream would not raise at run -- a refusal, a compile error, a defect -- refuses the
+                    // body here, as itself (the BE audit's finding 5, 2026-11-21: any class but a model error left the
+                    // body to the deleted walk, refused in the generic words, a DataError D keeps among them).
+                    // One upstream raises at run (a class its mapping does not map), as the host judge's planner holds
+                    // it (HostAsserts' pendingLet): raised at the next assert's turn, after the asserts before it ran
+                    // and reported -- the main pass plans it as that root's wall; with no assert after it, raised
                     // here, for the body (DE5's second group, 2026-11-16; the PR1 re-review's B1: an assert before the
                     // let reports first under every judge, G2)
+                    if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                        throw e;
+                    }
                     if (anAssertFollows(body, i, scan)) {
                         return true;
                     }
                     throw e;
-                } catch (RuntimeException e) {
-                    // the let raises: the walk raises it at the let's turn, after the earlier segments ran and
-                    // reported (the M7 audit's F4) -- the walk's body
-                    com.legend.diagnostics.Diagnostics.judgeDecline("static", "let " + let.name(),
-                            "the let raises: " + e);
-                    return false;
                 }
                 continue;
             }

@@ -173,6 +173,12 @@ final class HostAsserts implements TestDoor.Asserts {
                             letPrefix.add(let);
                         }
                     } catch (RuntimeException e) {
+                        // held for the next assert's turn only where upstream raises it there; any other error
+                        // refuses the body here, as itself (the BE audit's finding 5, 2026-11-21: held, it was lost
+                        // where an effect, a frame or a branch followed, the body refused in the generic words)
+                        if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                            throw e;
+                        }
                         pendingLet = e;
                     }
                 }

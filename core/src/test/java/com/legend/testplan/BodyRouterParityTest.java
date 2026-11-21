@@ -385,17 +385,19 @@ class BodyRouterParityTest {
 
     /** A side lite cannot plan REFUSES THE BODY AT PLANNING, whether or not the run would reach it (the user's ruling
      *  of 2026-11-21, "D"; until then a planned raise at its assert's turn, R14, M6's audit S1): nothing runs, the
-     *  assert before it reports nothing, the body fails with the refusal itself, on both roads. */
+     *  assert before it reports nothing, the body fails with the refusal itself, under every judge (the BE audit's
+     *  findings 1 and 8, 2026-11-21: the database judge's root stayed open, an unrelated IllegalStateException in the
+     *  refusal's place, and this test ran the host judge alone). */
     @ParameterizedTest
     @MethodSource("backends")
     void aSideLiteCannotPlanRefusesTheBodyAtPlanning(TestBackend backend) throws Exception {
         String body = "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
                 + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}";
         ModelContext ctx = Compiler.compileModel(model(backend, false));
-        Run run = run(backend, ctx, body, "select 1");
-        assertEquals(true, run.outcome.startsWith("NotImplementedException: dynamic slicing bounds"), run.outcome);
-        assertEquals(run.outcome, run.refused, "refused at planning");
-        assertEquals(0, run.verdicts.size(), "nothing ran, no assert reported: " + run.verdicts);
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            assertRefusedAtPlanning(run(backend, ctx, RT, body, "select 1", List.of(), mode),
+                    "NotImplementedException: dynamic slicing bounds", mode.toString());
+        }
     }
 
     /** A store, a mapping and a runtime with NO test data on {@code backend} (a seeded runtime is left on the walk):
@@ -2011,15 +2013,20 @@ class BodyRouterParityTest {
         return moved;
     }
 
-    /** {@code run} moved {@code plans} times -- or, refused at planning, its outcome the refusal itself and at most
-     *  {@code plans} routings counted (the router counts a body as it routes it, before its planning ends). */
+    /** {@code run} PLANNED and moved {@code plans} times: a body refused at planning fails here (the BE audit's finding
+     *  8, 2026-11-21: this accepted a refusal, so a body a regression refused at planning passed every caller); a body
+     *  refused at planning is asserted so at its call site ({@link #assertRefusedAtPlanning}). */
     private static void assertMoved(Run run, int plans, String message) {
-        if (run.refused() != null) {
-            assertEquals(run.refused(), run.outcome, "a body refused at planning runs nothing: " + message);
-            assertTrue(run.moved <= plans, "a body refused at planning: " + message);
-            return;
-        }
+        assertNull(run.refused(), "planned, never refused at planning: " + message + " (refused: " + run.refused() + ")");
         assertEquals(plans, run.moved, message);
+    }
+
+    /** {@code run} refused at planning, its outcome the refusal itself and nothing run (the user's ruling of 2026-11-21,
+     *  "D"), the refusal starting {@code refusal}. */
+    private static void assertRefusedAtPlanning(Run run, String refusal, String message) {
+        assertEquals(run.refused(), run.outcome, "a body refused at planning runs nothing: " + message);
+        assertTrue(run.outcome.startsWith(refusal), message + ": " + run.outcome);
+        assertEquals(0, run.verdicts.size(), "nothing ran, no assert reported: " + message + " " + run.verdicts);
     }
 
     /** {@code body}, a MIXED body (a statement on the graph's system database beside the body's own: per-statement

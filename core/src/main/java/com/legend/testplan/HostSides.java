@@ -66,7 +66,10 @@ public final class HostSides {
         try {
             return new PlannedCheck(check, plan(name, check.asks(), letPrefix, specs, env));
         } catch (RuntimeException e) {
-            Check c = withoutTheMessage(check, e);
+            // an error upstream would not raise where the message runs -- a refusal, a compile error, a defect --
+            // refuses the body at planning, as itself (the BE audit's finding 4, 2026-11-21: it became the assert's
+            // failure text, both judges and every class alike)
+            Check c = com.legend.testexecutionplan.Failures.atItsTurn(e) ? withoutTheMessage(check, e) : null;
             if (c == null) {
                 throw e;
             }

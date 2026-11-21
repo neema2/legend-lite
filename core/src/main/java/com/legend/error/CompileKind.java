@@ -37,11 +37,13 @@ public enum CompileKind implements ErrorCode {
     WINDOW_FRAME_INVERTED("Invalid window frame boundary - lower bound of window frame cannot be greater than the upper"
             + " bound!", Raised.RUNNING),
     /** A window frame whose computed bounds, read by how they are written (-(n) before the current row, any other n
-     *  after it), start after they end (register S170). */
+     *  after it), start after they end (register S170). Lite's own refusal, raised COMPILING: legend-engine computes
+     *  the bound and runs {@code rows(1 - $n, 0)} for n = 2, its rows.pure assert firing only on the numbers it
+     *  computes (the BE audit's finding 2, 2026-11-21: it was marked RUNNING). */
     WINDOW_FRAME_COMPUTED_INVERTED("Invalid window frame boundary - a computed bound's direction is read from how it"
             + " is written (-(n) is n before the current row, any other n after it), and this frame then starts after"
             + " where it ends: write the bound before the current row as -(n) (docs/SEMANTICS_REGISTER.md S170)",
-            Raised.RUNNING),
+            Raised.COMPILING),
     /** A relation column, or a value cast to a class, of a type the relation runtime does not hold: the type. legend-
      *  engine raises it at run, in its words (the relation natives, {@code AggregationShared}, {@code
      *  RelationNativeImplementation}; PCT's {@code testVariantColumn_modelOutputNotSupported} asserts it inside

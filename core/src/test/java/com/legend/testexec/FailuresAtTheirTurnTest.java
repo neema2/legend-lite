@@ -45,6 +45,20 @@ class FailuresAtTheirTurnTest {
         Failure cell = Failures.planned(new TypeInferenceException(CompileKind.ELEMENT_AT_OFFSET, List.of("3", "2")),
                 "the test");
         assertEquals(Failure.Kind.TYPE_INFERENCE, cell.kind());
+        // framed (a function's body, inlined): the record's own code decides, its frames lite's context
+        TypeInferenceException framed = new TypeInferenceException(new com.legend.error.ErrorRecord.Frame(
+                com.legend.error.FrameKind.IN_FUNCTION, List.of("a::f")),
+                new TypeInferenceException(CompileKind.ELEMENT_AT_OFFSET, List.of("3", "2")));
+        assertNotNull(Failures.planned(framed, "the test").record(), "a framed code at run rides the plan");
+    }
+
+    @Test
+    void theDatabaseJudgesDeclineIsLitesRefusal() {
+        // an assert's shape the database judge does not judge (UNJUDGED): legend-pure judges it, so it is lite's own
+        // refusal, refused at planning (the BE audit's finding 3, 2026-11-21)
+        RuntimeException declined = AssertFailed.unjudged("a json golden that is not a literal",
+                "assertJsonStringsEqual: UNJUDGED in database mode");
+        assertSame(declined, assertThrows(AssertFailed.class, () -> Failures.planned(declined, "the test")));
     }
 
     @Test
@@ -69,7 +83,7 @@ class FailuresAtTheirTurnTest {
     void theKindsUpstreamRaisesAtRunAreTheCitedOnes() {
         List<CompileKind> atRun = java.util.Arrays.stream(CompileKind.values()).filter(CompileKind::atRun).toList();
         assertEquals(List.of(CompileKind.ELEMENT_AT_OFFSET, CompileKind.WINDOW_FRAME_INVERTED,
-                CompileKind.WINDOW_FRAME_COMPUTED_INVERTED, CompileKind.TYPE_NOT_SUPPORTED_YET,
+                CompileKind.TYPE_NOT_SUPPORTED_YET,
                 CompileKind.STRICT_DATE_BUCKET_UNIT), atRun,
                 "each read from the pinned sources and cited on its kind: a kind added at run is named here");
     }

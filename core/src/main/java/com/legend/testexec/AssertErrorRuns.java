@@ -48,8 +48,12 @@ final class AssertErrorRuns {
         RuntimeException raised = null;
         try {
             sides.get();
-        } catch (com.legend.error.DataError | com.legend.error.ModelException e) {
-            // the errors the arm takes (caught's): any other is a wall and stays loud, raised as it was
+        } catch (RuntimeException e) {
+            // the errors the arm takes, caught's (an error upstream raises at run, as upstream's assertError catches
+            // it: the BE audit's finding 6, 2026-11-21): any other is a wall and stays loud, raised as it was
+            if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                throw e;
+            }
             raised = e;
         }
         return judged(a.expected(), a.line(), a.column(), raised == null ? null : run.caughtMessage(raised),

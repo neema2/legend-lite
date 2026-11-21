@@ -25,10 +25,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag("guardrail")
 class TerminalRowsFrozenTest {
 
+    /** The one catalog's rows: the user's ruling of 2026-11-21 (stage B's BE, "Agreed on both"). */
+    private static final String ONE_CATALOG = "the one catalog, the user's ruling of 2026-11-21 (stage B's BE):"
+            + " upstream's sentence wherever upstream has one";
+
     /** Every terminal row, "file | spelling | count | step", with its ruling: its count frozen with it (the review of
      *  5911e970e1, 2026-11-17: a terminal row keyed without its count grew unseen, since the census counts no terminal
      *  row). */
     static final Map<String, String> TERMINAL = Map.ofEntries(
+            // the one catalog: upstream's compile sentences in error/CompileKind.java (stage B's BE)
+            Map.entry("error/CompileKind.java | Can't find | 5 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | Default values are supported only | 1 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | Duplicated class mappings | 1 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | Duplicated element | 1 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | Duplicated mapping include | 1 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | Found duplicated | 2 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | Invalid supertype | 1 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | Invalid window frame boundary | 2 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | arguments count ( | 1 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | can't be found | 3 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | trying to get an element at offset | 1 | RULED", ONE_CATALOG),
+            Map.entry("error/CompileKind.java | variables count ( | 1 | RULED", ONE_CATALOG),
             // a product semantic sharing the spelling: the date pattern's letter Z (phase D's register, 2026-11-12)
             Map.entry("lowering/DateFormats.java | +0000 | 1 | STAYS", "D register 2026-11-12 (pattern letter Z)"),
             // INPUT read, no spelling written

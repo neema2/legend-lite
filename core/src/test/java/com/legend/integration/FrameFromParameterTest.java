@@ -152,10 +152,10 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
         // -(0 - 1) spelled is one row AFTER the current row: rows(1, 0), refused when planned, as upstream refuses it -- by its
         // kind, in lite's sentence on the product road (legend-pure's is the edge's: the P2 checkpoint audit's M4, 2026-11-16)
         Exception w = assertThrows(Exception.class, () -> sums("|test::frames::window(0)"));
-        assertTrue(chain(w).contains("window frame starts after it ends"), chain(w));
+        assertTrue(chain(w).contains("lower bound of window frame cannot be greater than the upper bound"), chain(w));
         // rows(-1, -2): one row before to two rows before -- nearly every database answers empty windows
         Exception r = assertThrows(Exception.class, () -> sums("|test::frames::between(1, 2)"));
-        assertTrue(chain(r).contains("window frame starts after it ends"), chain(r));
+        assertTrue(chain(r).contains("lower bound of window frame cannot be greater than the upper bound"), chain(r));
         // the same frame from a query's parameters is the database's: its check refuses it, in upstream's words, where
         // a database would answer empty windows (dialect/ComputedFrameOffsetTest has the check's text)
         String query = "{a: Integer[1], b: Integer[1]|" + sum("rows(-$a, -$b)") + "}";
@@ -178,7 +178,7 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
         Exception e = assertThrows(Exception.class, () -> Compiler.query(
                 Compiler.compileModel(getCompletePureModelWithRuntime()), query).executionPlan("test::TestRuntime"));
         // its kind (lite's sentence; the edge words S170's: the P2 checkpoint audit's M4, 2026-11-16)
-        assertTrue(chain(e).contains("its computed bounds read by how they are written"), chain(e));
+        assertTrue(chain(e).contains("a computed bound's direction is read from how it is written"), chain(e));
     }
 
     @Test

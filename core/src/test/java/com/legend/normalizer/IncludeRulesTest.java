@@ -100,7 +100,7 @@ class IncludeRulesTest {
         ModelException e = assertThrows(ModelException.class, () -> Compiler.compileModel(dupId));
         // the product's kind and lite's sentence (J10, 2026-11-17); legend-engine's words are the edge's
         assertEquals(com.legend.error.CompileKind.DUPLICATE_CLASS_MAPPING_IDS, e.kind(), e.getMessage());
-        assertTrue(e.getMessage().contains("mapping 'w::AB' has more than one class mapping with the ids [p (w::A, w::B)]"),
+        assertTrue(e.getMessage().contains("Duplicated class mappings found with ID [p (w::A, w::B)] in mapping 'w::AB'"),
                 e.getMessage());
         Compiler.BuiltModule module = Compiler.buildModule(Compiler.parseSources(List.of(
                 new Compiler.ModelSource("m.pure", dupId))).model());
@@ -114,7 +114,7 @@ class IncludeRulesTest {
                 """;
         ModelException e2 = assertThrows(ModelException.class, () -> Compiler.compileModel(dupInclude));
         assertEquals(com.legend.error.CompileKind.DUPLICATE_MAPPING_INCLUDE, e2.kind(), e2.getMessage());
-        assertTrue(e2.getMessage().contains("mapping 'w::AA' includes 'w::A' more than once"), e2.getMessage());
+        assertTrue(e2.getMessage().contains("Duplicated mapping include 'w::A' in mapping 'w::AA'"), e2.getMessage());
     }
 
     @Test
@@ -129,7 +129,7 @@ class IncludeRulesTest {
                 Mapping w::M ( include mapping w::A )
                 """;
         ModelException e = assertThrows(ModelException.class, () -> Compiler.compileModel(dupMapping));
-        assertTrue(e.getMessage().contains("'w::M' is defined more than once"), e.getMessage());
+        assertTrue(e.getMessage().contains("Duplicated element 'w::M'"), e.getMessage());
         // the module parse drops the second definition itself and reports it; the survivor compiles
         Compiler.ParsedModule parsed = Compiler.parseSources(List.of(new Compiler.ModelSource("m.pure", dupMapping)));
         assertTrue(parsed.duplicateElements().toString().contains("w::M"), parsed.duplicateElements().toString());
@@ -144,7 +144,7 @@ class IncludeRulesTest {
                 Mapping w::M ( include mapping w::M )
                 """;
         ModelException e2 = assertThrows(ModelException.class, () -> Compiler.compileModel(selfInclude));
-        assertTrue(e2.getMessage().contains("'w::M' is defined more than once"), e2.getMessage());
+        assertTrue(e2.getMessage().contains("Duplicated element 'w::M'"), e2.getMessage());
         // across kinds: a class and a mapping of one name; the module parse keeps both (it keys by kind), the
         // build walls the name
         String crossKind = CLASSES + """
@@ -155,10 +155,10 @@ class IncludeRulesTest {
                 Mapping w::M ( include mapping w::A )
                 """;
         ModelException e3 = assertThrows(ModelException.class, () -> Compiler.compileModel(crossKind));
-        assertTrue(e3.getMessage().contains("'w::M' is defined more than once"), e3.getMessage());
+        assertTrue(e3.getMessage().contains("Duplicated element 'w::M'"), e3.getMessage());
         Compiler.ParsedModule both = Compiler.parseSources(List.of(new Compiler.ModelSource("m.pure", crossKind)));
         assertTrue(both.duplicateElements().isEmpty(), both.duplicateElements().toString());
         Map<String, String> walls = Compiler.buildModule(both.model()).walls();
-        assertEquals("'w::M' is defined more than once", walls.get("w::M"), walls.toString());
+        assertEquals("Duplicated element 'w::M'", walls.get("w::M"), walls.toString());
     }
 }

@@ -36,7 +36,9 @@ class PlannedFailureWordsTest {
     @Test
     void aCompileErrorInsideItsFramesIsWordedFromItsRecord_plannedAsLive() {
         TypeInferenceException live = framed();
-        assertEquals("in function 'a::f': store 'a::NoDb' is not defined [inlined via a::g -> a::f]", live.getMessage());
+        // one catalog (stage B's BE, 2026-11-21): the kind's sentence is legend-engine's on the product and at the edge
+        assertEquals("in function 'a::f': The store 'a::NoDb' can't be found. [inlined via a::g -> a::f]",
+                live.getMessage());
         Failure planned = Failures.of(live, "the test");
         assertNotNull(planned.record());
         assertNull(planned.ownMessage(), "the record, and no message, rides the plan");
@@ -44,7 +46,7 @@ class PlannedFailureWordsTest {
         String upstream = "in function 'a::f': The store 'a::NoDb' can't be found. [inlined via a::g -> a::f]";
         assertEquals(upstream, PureMessages.compile(live));
         RuntimeException rebuilt = Failures.raised(planned);
-        assertEquals(live.getMessage(), rebuilt.getMessage(), "lite's message, as planned");
+        assertEquals(live.getMessage(), rebuilt.getMessage(), "the message, as planned");
         assertEquals(upstream, PureMessages.compile(rebuilt), "the edge's words of the planned failure are the live one's");
     }
 

@@ -89,13 +89,13 @@ public final class AssertVerdicts {
         try {
             v = adjudicate(bare, letPrefix, specs, env, rawHook);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-            batch.resolve(com.legend.testexecutionplan.Failures.planned(e, "AssertVerdicts.planDatabase: the arm decided at planning"));
+            batch.resolve(plannedOrDropped(batch, e, "AssertVerdicts.planDatabase: the arm decided at planning"));
             batch.close();
             return DatabasePlan.PLANNED;
         } catch (RuntimeException e) {
             // the wall's raise is counted at the root's turn (RootLoops), from the plan's data: planning counts no
             // verdict outcome (the slice 3 invariant audit, 2026-11-08)
-            batch.wall(com.legend.testexecutionplan.Failures.planned(e, "AssertVerdicts.planDatabase: the arm left through a wall"));
+            batch.wall(plannedOrDropped(batch, e, "AssertVerdicts.planDatabase: the arm left through a wall"));
             batch.close();
             return DatabasePlan.WALLED;
         }
@@ -296,6 +296,20 @@ public final class AssertVerdicts {
                 instanceof com.legend.compiler.element.type.Type.RelationType late && late.isLateBound();
     }
 
+    /** {@code e} as the root's planned failure ({@code Failures.planned}); an error that refuses the body at planning
+     *  drops the open root first, so the refusal leaves as itself and the batch holds no root half planned (the BE
+     *  audit's finding 1, 2026-11-21: the root stayed open and the caller's own wall reopened it, an unrelated
+     *  {@code IllegalStateException} in the refusal's place). */
+    private static com.legend.testexecutionplan.Failure plannedOrDropped(VerdictBatch batch, RuntimeException e,
+            String where) {
+        try {
+            return com.legend.testexecutionplan.Failures.planned(e, where);
+        } catch (RuntimeException refused) {
+            batch.discard();
+            throw refused;
+        }
+    }
+
     /** A statement-root HELPER call: a user function that is neither a root engine-text arm nor a verdict native
      *  (the test-is-the-product plan's M10c item 4; {@code BodyDriver.helperAssertRoot} says what it reduces to). */
     static boolean isHelperCall(TypedSpec bare, BodyDriver.ExecEnv env) {
@@ -421,8 +435,13 @@ public final class AssertVerdicts {
             try {
                 message = DatabaseJudge.plannedMessage(split.message(), letPrefix, specs, env, hook);
             } catch (RuntimeException e) {
-                // a message the planner cannot plan: the assert fails naming it, as the host judge's does
-                // (HostJudgment.Messaged#unplanned) -- upstream evaluates the message only where the assert fails
+                if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                    // a refusal, a compile error, a defect: the body is refused at planning, as itself (the BE
+                    // audit's finding 4, 2026-11-21), as the host judge's HostSides.planChecked refuses it
+                    throw e;
+                }
+                // an error upstream raises where the message runs: the assert fails naming it, as the host judge's
+                // does (HostJudgment.Messaged#unplanned) -- upstream evaluates the message only where the assert fails
                 message = new DatabaseJudge.PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(
                         com.legend.compiler.spec.AssertMessages.unevaluated(e.getMessage()), null), env.target());
             }

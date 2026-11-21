@@ -1451,6 +1451,11 @@ final class SqlTextVerdicts {
             if (f == null) {
                 return Appeal.Read.NONE;
             }
+            if (f.getClass().getName().startsWith("java.")) {
+                // a defect of lite's (one of Java's own exceptions) fails loud, never an appeal's side (the BE audit's
+                // finding 9, 2026-11-21, the user's "defects def fail loud"; the rest of this hole closes with B3)
+                throw f;
+            }
             // a class off the closed list keeps its words alone, the rows leg's only read of it (the slice 2 audit,
             // 2026-11-08): the body's planning goes on, as when the failure was kept until the appeal was heard
             return com.legend.testexecutionplan.Failure.Kind.named(f.getClass().getName()) == null

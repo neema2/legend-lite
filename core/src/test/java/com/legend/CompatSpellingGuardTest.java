@@ -145,6 +145,22 @@ class CompatSpellingGuardTest {
      * SHRINK-ONLY: a row falls or goes as its step lands; a row rises or is added only with a dated justification.
      */
     static final List<String> REGISTER = List.of(
+            // THE ONE CATALOG (stage B's BE, the user's ruling of 2026-11-21, "Agreed on both": one catalog whose words
+            // are legend-pure's or legend-engine's wherever upstream has one, lite's own only where upstream has none):
+            // a compile kind's sentence is upstream's, in error/CompileKind.java alone -- RULED, each row frozen with
+            // the ruling (TerminalRowsFrozenTest); a site still spells no sentence of its own (it raises a kind)
+            "error/CompileKind.java | Can't find  | 5 | RULED",
+            "error/CompileKind.java | Default values are supported only | 1 | RULED",
+            "error/CompileKind.java | Duplicated class mappings | 1 | RULED",
+            "error/CompileKind.java | Duplicated element | 1 | RULED",
+            "error/CompileKind.java | Duplicated mapping include | 1 | RULED",
+            "error/CompileKind.java | Found duplicated  | 2 | RULED",
+            "error/CompileKind.java | Invalid supertype | 1 | RULED",
+            "error/CompileKind.java | Invalid window frame boundary | 2 | RULED",
+            "error/CompileKind.java | arguments count ( | 1 | RULED",
+            "error/CompileKind.java | can't be found | 3 | RULED",
+            "error/CompileKind.java | trying to get an element at offset | 1 | RULED",
+            "error/CompileKind.java | variables count ( | 1 | RULED",
             // census J29 (2026-11-18): "Assert failed", legend-pure's assert.pure default, as the compiler plans an in-body
             // guard's message where the guard gives none -- RULED STAYS by the orchestrator at J29 (the GUARD stream's
             // re-cut triage). The user's R1 (2026-11-18, PR #118, "For 118 r1-r3 are fine") covers `assert`: its default

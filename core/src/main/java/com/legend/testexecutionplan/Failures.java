@@ -22,7 +22,8 @@ public final class Failures {
     /** A TEST BODY'S PLANNING FAILURE, by where upstream raises it (the user's ruling of 2026-11-21, "D", the one
      *  error model's §4): an error legend-pure raises when the expression RUNS is planned and raised at its turn --
      *  a database's error found while planning ({@code DataError}), an assert lite decided at planning
-     *  ({@code AssertFailed}), a query's routing through its mapping ({@code MappingResolutionException}), and a
+     *  ({@code AssertFailed}; not the database judge's decline of an assert's shape, {@code unjudgedReason}, which is
+     *  lite's own refusal: the BE audit's finding 3, 2026-11-21), a query's routing through its mapping ({@code MappingResolutionException}), and a
      *  compile kind upstream raises at run ({@code CompileKind#atRun}: the window frames, a type the relation runtime
      *  does not hold, {@code timeBucket}'s StrictDate unit, a row's cell offset).
      *  Any other error -- a compile error upstream raises compiling, a refusal (lite cannot do it; legend-pure would
@@ -39,9 +40,11 @@ public final class Failures {
      *  through its mapping ({@code MappingResolutionException}, the store resolver's: a class the mapping does not
      *  map, a runtime with no mapping for it) is one: legend-engine routes a query when its {@code execute} runs
      *  ({@code meta::pure::router}), never when the test compiles. */
-    static boolean atItsTurn(RuntimeException e) {
-        if (e instanceof com.legend.error.DataError || e instanceof AssertFailed
-                || e instanceof com.legend.error.MappingResolutionException) {
+    public static boolean atItsTurn(RuntimeException e) {
+        if (e instanceof AssertFailed f) {
+            return f.unjudgedReason() == null;
+        }
+        if (e instanceof com.legend.error.DataError || e instanceof com.legend.error.MappingResolutionException) {
             return true;
         }
         com.legend.error.@Nullable ErrorRecord r = e instanceof com.legend.error.LegendError le ? le.record() : null;

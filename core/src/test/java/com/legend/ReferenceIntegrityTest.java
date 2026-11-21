@@ -46,16 +46,17 @@ class ReferenceIntegrityTest {
      *  {@code expected}. */
     /** legend-engine's words of each error (the edge's, {@code PureMessages.compile}; D1.6, W7 of
      *  docs/records/d-plan-2026-11-16.md): this test holds lite's refusals to upstream's, word for word. The product
-     *  says its own sentence of each kind ({@link #theProductWordsAKindItsOwnWay}). */
+     *  says the same sentence of each kind since the one catalog ({@link #theProductWordsAKindAsUpstreamDoes}). */
     private static final java.util.function.Function<Throwable, String> UPSTREAM = com.legend.edge.PureMessages::compile;
 
-    /** The product's sentence of a kind (D1.6): lite's own words, the names the same. */
+    /** The product's sentence of a kind: legend-engine's, the one catalog's (stage B's BE, the user's ruling of
+     *  2026-11-21; lite's own words from D1.6 until then). */
     @org.junit.jupiter.api.Test
-    void theProductWordsAKindItsOwnWay() {
-        assertEquals(List.of("profile 'a::NoProfile' is not defined"),
+    void theProductWordsAKindAsUpstreamDoes() {
+        assertEquals(List.of("Can't find the profile 'a::NoProfile'"),
                 Compiler.compileErrors(BASE + "Class <<a::NoProfile.s>> a::B\n{\n}\n").stream()
                         .map(m -> m.substring(m.indexOf(' ') + 1)).toList());
-        assertEquals(List.of("mapping 'a::NoMapping' is not defined"),
+        assertEquals(List.of("Can't find mapping 'a::NoMapping'"),
                 Compiler.compileErrors(BASE + "###Mapping\nMapping a::M\n(\n  include a::NoMapping\n)\n").stream()
                         .map(m -> m.substring(m.indexOf(' ') + 1)).toList());
     }

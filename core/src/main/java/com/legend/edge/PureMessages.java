@@ -278,8 +278,9 @@ public final class PureMessages {
      *  offset (legend-pure's {@code at}, an {@code IllegalStateException} -- the product's answer until W7 made it a
      *  kind, restored at the edge by the P2 checkpoint audit's A-S2, 2026-11-16). */
     public static boolean uncaught(Throwable e) {
-        return e instanceof com.legend.error.LegendCompileException c
-                && c.kind() == com.legend.error.CompileKind.ELEMENT_AT_OFFSET;
+        // the record's own code, framed or not (the BE audit's nit 10, 2026-11-21: kind() is null under a frame)
+        return e instanceof com.legend.error.LegendCompileException c && c.record() != null
+                && c.record().code() == com.legend.error.CompileKind.ELEMENT_AT_OFFSET;
     }
 
     /** {@code kind}'s sentence over {@code o}: upstream's words are the kind's own (one catalog, the user's ruling of

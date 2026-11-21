@@ -26,16 +26,9 @@ public class Test_LegendLite_LiteRules_RelationFunctions_PCT extends PCTReportCo
     private static final Adapter adapter = LegendLitePCTReportProvider.LegendLiteAdapter;
     private static final String platform = "interpreted";
 
-    // lite's own words for a compile error under lite's own rules (stage B's B1, 2026-11-21, PR #130, approved by the
-    // user: "land B1 with the 4 rows"; the lane chooses its words once, PctPlanRoute.Audience -- until then a compile
-    // error crossed in legend-pure's words on this lane too): the inverted window frame, M4's kind, in lite's sentence.
-    // TEMPORARY, UNTIL BE: lite's message becomes legend-pure's sentence wherever legend-pure has one (the user's
-    // ruling of 2026-11-21), and these four rows go with it
-    private static final MutableList<ExclusionSpecification> expectedFailures = LiteRulesLedger.under(COMPAT.expectedFailures(),
-            one("meta::pure::functions::relation::tests::over::testRows_InvalidWindowFrameBoundary_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"window frame starts after it ends\"\nwhere the expected message was:\"Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!\"\""),
-            one("meta::pure::functions::relation::tests::over::testRange_InvalidWindowFrameBoundary_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"window frame starts after it ends\"\nwhere the expected message was:\"Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!\"\""),
-            one("meta::pure::functions::relation::tests::reduce::testRows_InvalidWindowFrameBoundary_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"window frame starts after it ends\"\nwhere the expected message was:\"Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!\"\""),
-            one("meta::pure::functions::relation::tests::reduce::testRange_InvalidWindowFrameBoundary_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"window frame starts after it ends\"\nwhere the expected message was:\"Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!\"\""));
+    // (the 4 inverted window frame rows of stage B's B1, 2026-11-21, PR #130, went with BE's one catalog the same day:
+    // lite's sentence of the frame is legend-pure's, so the tests pass under lite's rules too)
+    private static final MutableList<ExclusionSpecification> expectedFailures = LiteRulesLedger.under(COMPAT.expectedFailures());
 
     public static Test suite() {
         LiteRulesLedger.requireLite("Relation");
