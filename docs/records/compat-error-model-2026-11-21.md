@@ -136,8 +136,10 @@ Measured against §1's rule, at the commit carrying this section.
    `EngineTextJudgment.decline`) and the edge appeal path's planned mapping and not-implemented errors (the audit 2's
    S4), both B3; the mapping errors upstream raises at run (compat-mapping-errors-followup-2026-11-21.md).
 6. **Known small divergences**, each a SEMANTICS_REGISTER row to rule (posted at the BE PR; the BE audit 5's M4):
-   S394 (a Decimal second past an int), S395 (a duplicate at legend-engine's door), S396 (the TS host's large
-   Integers), all PROPOSED; the fourth, one table's name under two databases, is now exact (the model tells one
+   S394 (a Decimal second past an int) and S395 (a duplicate at legend-engine's door), RULED by the user
+   2026-11-21 ("First two are fine": lite keeps refusing); S396 (the TS host's large Integers), PROPOSED, its fix a
+   follow-up by the user's word ("put it on follow up": an Integer operand written into the plan as its digits'
+   text); the fourth, one table's name under two databases, is now exact (the model tells one
    table from two, as upstream counts table objects). The full list: the TS host loses an Integer operand's digits above 2^53 (predates BE); a Decimal
    second whose `intValue` wraps into [0, 60) is valid upstream, refused by lite; one table name in two databases says
    inconsistent databases where upstream, for two declared tables, says no main table; where legend-engine words a
@@ -151,4 +153,5 @@ Measured against §1's rule, at the commit carrying this section.
    test already failing (the fail rosters, re-recorded at D, moved by its 2 alone) or a refusal the accepted rosters
    ledger (S192, S305), each refused by a named gap (no DB2 or Composite writer, H2's list support, a class query in
    `map()`, ...), where until D its leading statements planned and the run failed at the first it could not plan.
-   For the user's word with the baseline's re-pin.
+   Re-pinned on the user's word, 2026-11-21 ("Repin is okay"): `bazel run //spec:update_lean_sql_corpus_duckdb` and
+   `_h2`, refused DuckDB 193 and H2 338.
