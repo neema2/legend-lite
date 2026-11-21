@@ -150,7 +150,8 @@ class DecimalKindsTest {
         try (Connection c = seeded()) {
             assertTrue(judged(c, scaled).passed());
             AssertFailed scale = assertThrows(AssertFailed.class, () -> com.legend.testing.EdgeProgram.run(model(), scaled, "m::RT", c));
-            assertEquals("\nexpected: 0.3D\nactual:   0.30D", scale.getMessage());
+            // (item 3, 2026-11-21: the catalog's words on every route (Q15 = A); the verdict compatibility's, scale and all)
+            assertEquals("expected 0.3, got 0.30", scale.getMessage());
             AssertFailed kind = assertThrows(AssertFailed.class,
                     () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
             // lite's own sentence, each value its product text (the user's judge model, 2026-11-17)

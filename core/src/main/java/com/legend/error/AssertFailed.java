@@ -18,9 +18,9 @@ package com.legend.error;
 public final class AssertFailed extends RuntimeException implements LegendError {
 
     private final @com.legend.base.Nullable String unjudgedReason;
-    /** The failure as data (item 3, 2026-11-21): its {@link AssertKind} and values; null for the two failures that
-     *  are not yet records -- the database judge's decline ({@link #unjudged}) and the compatibility edge's appeal
-     *  words (B3's). */
+    /** The failure as data (item 3, 2026-11-21): its {@link AssertKind} and values; null for the failures that are not
+     *  yet records -- the database judge's decline ({@link #unjudged}), its verdict row's sentence until item 3's S4
+     *  carries the row's values, and the compatibility edge's appeal words (B3's). */
     private final @com.legend.base.Nullable ErrorRecord record;
 
     /** A failed assert as a record (item 3, 2026-11-21): its message is the record's sentence in lite's words. */
@@ -34,7 +34,8 @@ public final class AssertFailed extends RuntimeException implements LegendError 
         this.unjudgedReason = null;
     }
 
-    /** A failure worded elsewhere: the compatibility edge's appeal path (B3's, not yet records). */
+    /** A failure worded elsewhere, not yet a record: the database judge's verdict row until item 3's S4, and the
+     *  compatibility edge's appeal path (B3's). */
     public AssertFailed(String message) {
         this(message, null);
     }

@@ -1126,16 +1126,17 @@ public final class TestDataPlanner {
         for (Expected e : expected) {
             boolean defaultSchema = "default".equals(e.schema());
             if (!defaultSchema && !hasSchema(ctx, dbFqn, e.schema(), new java.util.HashSet<>())) {
-                return fails(lead + "There should be exactly 1 schema with name " + e.schema() + " found in the"
-                        + " provided runtime database(s) [" + dbFqn + "] at the given connection.");
+                // the catalog's words, the CSV seed's (item 3's S1 audit, M1: one catalog, no second copy)
+                return fails(lead + AssertKind.CSV_SCHEMA_NOT_FOUND.record(Map.of("schema", e.schema(), "databases",
+                        dbFqn)).sentence());
             }
             // the default schema's table by its schema too: a bare name would find a named schema's table of that name
             // (upstream's schema('default')->table(T) does not; the B2d.3 audit's L1)
             DatabaseDefinition.TableDefinition def = ctx.findTableDefinition(dbFqn, e.schema() + "." + e.table())
                     .orElse(null);
             if (def == null) {
-                return fails(lead + "Table \"" + e.table() + "\" not found in Schema \"" + e.schema()
-                        + "\" in Database(s) " + dbFqn);
+                return fails(lead + AssertKind.CSV_TABLE_NOT_FOUND.record(Map.of("table", e.table(), "schema", e.schema(),
+                        "databases", dbFqn)).sentence());
             }
             List<String> header = new ArrayList<>(e.header().size());
             for (String h : e.header()) {
@@ -1147,8 +1148,8 @@ public final class TestDataPlanner {
                     }
                 }
                 if (col == null) {
-                    return fails(lead + "Column \"" + h + "\" not found in Table \"" + e.table()
-                            + "\" in Database(s) " + dbFqn);
+                    return fails(lead + AssertKind.CSV_COLUMN_NOT_FOUND.record(Map.of("column", h, "table", e.table(),
+                            "database", dbFqn)).sentence());
                 }
                 header.add(col.name());
             }

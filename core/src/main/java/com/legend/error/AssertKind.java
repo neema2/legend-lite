@@ -11,8 +11,10 @@ import java.util.Map;
  * A FAILED ASSERT'S CODE, AND LITE'S SENTENCE OF IT: ONE CATALOG FOR EVERY ROUTE (item 3 of the compatibility program,
  * 2026-11-21: assert verdicts as records; the user's Q15 = A of 2026-11-20, "lite's own assert-failure words on every
  * route"). The fourth family of the one error model ({@link ErrorCode}, beside {@link CompileKind}, {@link ErrorKind}
- * and {@link FrameKind}): a failed assert is an {@link ErrorRecord} of one of these and its values, never a sentence --
- * not in a plan, not in a test plan; the sentence is made from the record at the last step. Until item 3 this was
+ * and {@link FrameKind}): a failed assert is an {@link ErrorRecord} of one of these and its values; the sentence is
+ * made from the record at the last step. Item 3's end state is that no plan holds an assert's sentence; until its S4
+ * the database judge's verdict row still writes one in SQL from this table, and the compatibility edge's appeal path
+ * keeps its own words (B3). Until item 3 this was
  * {@code AssertSentence}, the product's table beside legend-pure's words at the edge; the edge now words a record by
  * this table too (one catalog).
  *

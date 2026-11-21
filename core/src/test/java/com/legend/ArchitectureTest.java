@@ -1321,11 +1321,9 @@ final class ArchitectureTest {
             // user 2026-11-19: legend-engine's statement shape, EngineShape, deleted with its SQL text, CP-4) (a guard
             // moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
-            // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
-            // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's String %r
-            // (VerdictSql#represented gone 2026-11-21, item 3's S0, a shrink: the database judge's legend-pure message
-            // default went, and the edge's last caller asks its own facet, EdgePureOnlyTexts)
-            "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            // (census J29's legend-pure words of the database judge's failures, the edge's UpstreamVerdictWords, and the
+            // product parts it read -- VerdictSql#represented, gone at item 3's S0, and VerdictSql#quoted: gone from this
+            // census 2026-11-21, item 3's S3, a shrink, with UpstreamVerdictWords)
             // (VerdictWords$Reads#CANONS until 2026-11-18, then VerdictReads#CANONS -- the enum left the two-form kind
             // for its own type, the GUARD stream's re-cut on train 15 1931d419b1 -- deleted with legend-pure's canon
             // reading in A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved down by the

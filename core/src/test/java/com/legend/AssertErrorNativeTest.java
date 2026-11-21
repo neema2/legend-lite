@@ -70,25 +70,23 @@ class AssertErrorNativeTest {
     }
 
     @Test
-    @DisplayName("message mismatch fails with legend-pure's sentence, both errors quoted")
+    @DisplayName("message mismatch fails with the catalog's sentence, both errors quoted")
     void messageMismatch() {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3), 'wrong expectation')}"));
-        // legend-pure's assertError.pure:24 spelling: the edge's run writes legend-pure's words (census C1, 2026-11-17)
-        assertEquals("Execution error message mismatch.\nThe actual message was \"The system is trying to get an"
-                + " element at offset 3 where the collection is of size 2\"\nwhere the expected message was:"
-                + "\"wrong expectation\"", e.getMessage());
+        // (item 3, 2026-11-21: one catalog, lite's words on every route, Q15 = A; until then legend-pure's)
+        assertEquals("expected the error \"wrong expectation\", got \"The system is trying to get an element at offset"
+                + " 3 where the collection is of size 2\"", e.getMessage());
     }
 
     @Test
-    @DisplayName("an assert over a zip with no message fails in legend-pure's words on the edge: Assert failed")
-    void aVectorAssertsDefaultIsLegendPuresOnTheEdge() {
-        // the user's R1 (2026-11-18, PR #118): "Assert failed" is the edge's words alone; the product's default is
-        // lite's sentence (QuantifiedRowsTest)
+    @DisplayName("an assert over a zip with no message fails in the catalog's words on the edge too")
+    void aVectorAssertsDefaultIsTheCatalogsOnTheEdge() {
+        // (item 3, 2026-11-21: one catalog, lite's words on every route, Q15 = A; until then legend-pure's): the user's R1 (2026-11-18, PR #118) gave the edge "Assert failed"
         com.legend.error.AssertFailed e = assertThrows(com.legend.error.AssertFailed.class,
                 () -> compat("{|[1, 2]->zip([2, 1])->forAll(p | assert($p.first < $p.second))}"));
-        assertEquals("Assert failed", e.getMessage());
+        assertEquals("expected true, got false", e.getMessage());
     }
 
     @Test
@@ -97,7 +95,7 @@ class AssertErrorNativeTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|1 + 2, 'anything')}"));
-        assertEquals("No error was thrown", e.getMessage());
+        assertEquals("expected the error \"anything\", got none", e.getMessage());
     }
 
     // leg 2 (assertError positions): the raise emission threads the
@@ -115,27 +113,25 @@ class AssertErrorNativeTest {
     }
 
     @Test
-    @DisplayName("line mismatch fails with assertError.pure:25's exact spelling")
+    @DisplayName("line mismatch fails with the catalog's sentence")
     void lineMismatchSpelling() {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
                 + " where the collection is of size 2', 42, [])}"));
-        assertEquals("Execution error line mismatch. Actual: 1"
-                + " where expected: 42", e.getMessage());
+        assertEquals("expected the error at line 42, got line 1", e.getMessage());
     }
 
     @Test
-    @DisplayName("column mismatch fails with assertError.pure:26's exact spelling")
+    @DisplayName("column mismatch fails with the catalog's sentence")
     void columnMismatchSpelling() {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
                 + " where the collection is of size 2', 1, 5)}"));
-        assertEquals("Execution error column mismatch. Actual: 23"
-                + " where expected: 5", e.getMessage());
+        assertEquals("expected the error at column 5, got column 23", e.getMessage());
     }
 
 
@@ -166,7 +162,7 @@ class AssertErrorNativeTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|date(2016, 2, 29), 'anything')}"));
-        assertEquals("No error was thrown", e.getMessage());
+        assertEquals("expected the error \"anything\", got none", e.getMessage());
     }
 
     // ---- B7 (RaisedErrors): the ONE envelope owner's spec — sentinel

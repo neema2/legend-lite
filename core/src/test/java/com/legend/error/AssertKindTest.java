@@ -107,4 +107,56 @@ class AssertKindTest {
                         .sentence());
         assertTrue(AssertKind.SEED_ROOT_TABLE.arity() == 0 && AssertKind.SEED_SINGLE_ROOT_VIEW.arity() == 0);
     }
+
+    /** Every template pinned by hand (the S1 audit's L5: a mistyped template must fail here, not pass by reading the
+     *  table it checks). A row changes only with a dated reason: its words are what every route says. */
+    @Test
+    void everyTemplateIsPinned() {
+        Map<AssertKind, String> pinned = Map.ofEntries(
+                Map.entry(AssertKind.EQUALS, "expected {expected}, got {actual}"),
+                Map.entry(AssertKind.EQUALS_KINDS, "expected {expected} ({expectedKind}), got {actual} ({actualKind})"),
+                Map.entry(AssertKind.NOT_EQUALS, "expected a value other than {actual}"),
+                Map.entry(AssertKind.SAME_ELEMENTS, "expected the elements {expected} in any order, got {actual}"),
+                Map.entry(AssertKind.SIZE, "expected size {expected}, got {actual}"),
+                Map.entry(AssertKind.NOT_SIZE, "expected a size other than {size}"),
+                Map.entry(AssertKind.CONTAINS, "expected {collection} to contain {value}"),
+                Map.entry(AssertKind.NOT_CONTAINS, "expected {collection} not to contain {value}"),
+                Map.entry(AssertKind.EMPTY, "expected no values, got {collection}"),
+                Map.entry(AssertKind.NOT_EMPTY, "expected at least one value, got none"),
+                Map.entry(AssertKind.TRUE, "expected true, got false"),
+                Map.entry(AssertKind.FALSE, "expected false, got true"),
+                Map.entry(AssertKind.IS, "expected the same instance as {expected}, got {actual}"),
+                Map.entry(AssertKind.IS_NOT, "expected an instance other than {actual}"),
+                Map.entry(AssertKind.SAME_INSTANCE, "expected the same instance"),
+                Map.entry(AssertKind.INSTANCE_OF, "expected an instance of {type}, got {actual}"),
+                Map.entry(AssertKind.TDS_EQUIVALENT, "expected the rows {expected} within {delta}, got {actual}"),
+                Map.entry(AssertKind.WITHIN_TOLERANCE, "expected {expected} within {delta}, got {actual}"),
+                Map.entry(AssertKind.JSON_EQUALS, "expected the JSON {expected}, got {actual}"),
+                Map.entry(AssertKind.ERROR, "expected the error {expected}, got {actual}"),
+                Map.entry(AssertKind.NO_ERROR, "expected the error {expected}, got none"),
+                Map.entry(AssertKind.ERROR_LINE, "expected the error at line {expected}, got line {actual}"),
+                Map.entry(AssertKind.ERROR_COLUMN, "expected the error at column {expected}, got column {actual}"),
+                Map.entry(AssertKind.ERROR_NO_POSITION, "expected the error at a source position, got an error with none"),
+                Map.entry(AssertKind.MESSAGE, "{message}"),
+                Map.entry(AssertKind.SEED_SINGLE_ROOT_VIEW, "Seed data generation currently supports queries with a single root table/view (unions are not supported)"),
+                Map.entry(AssertKind.SEED_SINGLE_ROOT, "Seed data generation currently supports queries with a single root (got: {count})"),
+                Map.entry(AssertKind.SEED_ROOT_TABLE, "Seed data generation currently supports queries with a root table (unions/views are not supported, got: RelationTree)"),
+                Map.entry(AssertKind.SEED_TABLE_KEYS, "Table : {table} must have atleast 1 primary key or non-null column to utilise this feature"),
+                Map.entry(AssertKind.CSV_SCHEMA_NOT_FOUND, "There should be exactly 1 schema with name {schema} found in the provided runtime database(s) [{databases}] at the given connection."),
+                Map.entry(AssertKind.CSV_TABLE_NOT_FOUND, "Table \"{table}\" not found in Schema \"{schema}\" in Database(s) {databases}"),
+                Map.entry(AssertKind.CSV_COLUMN_NOT_FOUND, "Column \"{column}\" not found in Table \"{table}\" in Database(s) {database}"));
+        assertEquals(java.util.Set.of(AssertKind.values()), pinned.keySet(), "a kind added or removed is pinned here");
+        for (AssertKind k : AssertKind.values()) {
+            assertEquals(pinned.get(k), k.template(), k.name());
+        }
+    }
+
+    /** The AT_INDEX frame's shape the database judge's SQL builds on (VerdictSql.atIndexFrame: the message, then the
+     *  frame's text, the index last; the S1 audit's L4): no text before the inner failure, the index the frame's end. */
+    @Test
+    void theIndexFrameIsTheMessageThenItsIndex() {
+        assertEquals("", FrameKind.AT_INDEX.wrap(List.of(""), "").replace(" at index ", ""));
+        assertEquals("inner at index 7", FrameKind.AT_INDEX.wrap(List.of("7"), "inner"));
+        assertTrue(FrameKind.AT_INDEX.wrap(List.of("7"), "inner").startsWith("inner"), "nothing before the failure");
+    }
 }

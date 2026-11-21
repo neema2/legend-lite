@@ -72,6 +72,31 @@ class TestPlanJsonRoundTripTest {
                 (com.legend.error.AssertFailed) e, "the test"));
     }
 
+    /** A failure refuses a record not its kind's code, and a record beside a decline's reason (the S1 audit's L5). */
+    @Test
+    void anAssertFailureRefusesARecordNotAnAssertsOrBesideADecline() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> new Failure(
+                Failure.Kind.ASSERT_FAILED, null, null, null, null, com.legend.error.ErrorRecord.of(
+                        com.legend.error.ErrorKind.DIVIDE_BY_ZERO, List.of())));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> new Failure(
+                Failure.Kind.ASSERT_FAILED, null, null, null, "a decline", ASSERT_FAILURE.record()));
+    }
+
+    /** A plan whose assert record holds other than its sentence's slots is refused as it is read (the S1 audit's L5). */
+    @Test
+    void anAssertRecordOfTheWrongArityIsRefusedOnRead() {
+        TestPlan.Verdict v = new TestPlan.Verdict(1, "v1", "arm", List.of(constant()), null, null, false,
+                new TestPlan.Host(ASSERTION, new HostJudgment.Raise(ASSERT_FAILURE), List.of(shape())));
+        TestPlan plan = new TestPlan(List.of(), List.of(new TestPlan.Verdicts(List.of(v), null, null)),
+                TestPlan.Judge.HOST, Map.of(), Map.of(), false, anyTarget(),
+                new com.legend.testexecutionplan.BodyFacts(true, false, true, "A"));
+        String json = com.legend.testexecutionplan.TestPlanJson.write(plan);
+        String one = json.replaceFirst("\\[\"1\",\\s*\"2\"\\]", "[\"1\"]");
+        org.junit.jupiter.api.Assertions.assertNotEquals(json, one, "the record's two values were found");
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> com.legend.testexecutionplan.TestPlanJson.read(one));
+    }
+
     @Test
     void everyRecordReadsBackEqual() {
         List<HostJudgment> judgments = judgments();

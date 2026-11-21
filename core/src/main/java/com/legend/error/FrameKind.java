@@ -7,7 +7,8 @@ package com.legend.error;
  * WHERE AN ERROR PASSED THROUGH, AS DATA (stage B's BE, the one error model, 2026-11-21): the context lite's compiler
  * adds around an error raised inside it -- the function whose body it was, the calls it was inlined through -- each a
  * frame of the error's record ({@link ErrorRecord.Frame}), worded around the inner error by lite's templates, a text
- * before it and a text after it. Until BE these were the wrappers' stated texts (B1's prefix and suffix).
+ * before it and a text after it -- and, since item 3 (2026-11-21), the element of a quantified assert whose failure
+ * it frames ({@link #AT_INDEX}). Until BE these were the wrappers' stated texts (B1's prefix and suffix).
  */
 public enum FrameKind implements ErrorCode {
     /** The body of a function: its name. */

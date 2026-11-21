@@ -149,9 +149,9 @@ class HarnessDisciplineTest {
             // audit-of-Blocker-3 closed], CSVJOIN cell multiset, text
             // line multiset) — two-sided comparison policy gated on the
             // chain's sortedness, each with a distinct [ord] tag (#10)
-            // PureAsserts: the typeRank sort inside sameElements — the
-            // pure total-order comparator applied to BOTH sides
-            Map.entry("PureAsserts.java", 1),
+            // (PureAsserts: the typeRank sort, PureAsserts.sorted -- gone
+            // 2026-11-21, item 3's S2, a shrink: its one caller, the edge's
+            // legend-pure words, went; the judge's order is Equality.sorted)
             // JUDGING_TWO_MODES step 2 (2026-09-17): the host judge — the
             // same-elements sort (sort, then ordered: the engine's own rule)
             // and the row-multiset match moved here from PureAsserts /

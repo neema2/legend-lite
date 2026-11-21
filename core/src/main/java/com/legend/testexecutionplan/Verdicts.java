@@ -20,23 +20,8 @@ public final class Verdicts {
 
 
 
-    /** One-line first-difference sketch of two rendered texts (failure
-     * message position — the full texts drown the diagnosis). */
-    public static String firstTextDiff(String e, String a) {
-        String[] el = e.split("\n", -1);
-        String[] al = a.split("\n", -1);
-        if (el.length != al.length) {
-            return "line-count " + el.length + " != " + al.length
-                    + " (expected first line: " + el[0] + ")";
-        }
-        for (int i = 0; i < el.length; i++) {
-            if (!el[i].equals(al[i])) {
-                return "line " + i + ": expected <" + el[i] + "> got <"
-                        + al[i] + ">";
-            }
-        }
-        return "texts differ only in leniency-adjudicated cells";
-    }
+    // (firstTextDiff, a first-difference sketch of two rendered texts: moved 2026-11-21, item 3's S2, to the edge's
+    // referee, its one caller since the host judge's rendered-text failure became a catalog record)
 
     public static List<Object> decodeSideValues(
             @com.legend.base.Nullable TypedSide r) {

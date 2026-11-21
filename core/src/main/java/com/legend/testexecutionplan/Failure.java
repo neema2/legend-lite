@@ -62,7 +62,9 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
             boolean codeIsKinds = switch (kind) {
                 case DATA -> record.code() instanceof com.legend.error.ErrorKind;
                 case ASSERT_FAILED -> record.code() instanceof com.legend.error.AssertKind;
-                default -> record.code() instanceof com.legend.error.CompileKind;
+                case MODEL, TYPE_INFERENCE, RESOLUTION, MAPPING_RESOLUTION, SCHEMA_INVARIANT, ISLAND_SYNTAX ->
+                        record.code() instanceof com.legend.error.CompileKind;
+                case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, DIALECT_CAPABILITY, NOT_A_CONSTANT -> false;
             };
             if (!codeIsKinds) {
                 throw new IllegalArgumentException("a " + kind + " failure's record is not its kind's code: "
