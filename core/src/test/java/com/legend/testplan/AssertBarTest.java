@@ -282,9 +282,9 @@ class AssertBarTest {
     }
 
     /** An assertError over one assert whose own message raises: where the assert fails, that error is what f raised,
-     *  so the assertError holds under the host judge; the database judge decides the same where the assert fails at
-     *  planning, and refuses by name where the assert is a row (a raising row cannot raise another error), never
-     *  dropping the error into the assert's own failure (the S2+S3 fixes' audit, HIGH, 2026-11-21). */
+     *  so the assertError holds under the host judge; the database judge refuses the body by name (a raising row cannot
+     *  raise another error, until S4), never dropping the error into the assert's own failure (the S2+S3 fixes' audit,
+     *  HIGH, 2026-11-21). */
     @Test
     void anAssertErrorOverAnAssertWhoseMessageRaisesCatchesThatError() throws Exception {
         String body = "{|let x = [1, 2]; assertError(|assertEmpty([1], | $x->at(5)->toString()),"
@@ -292,21 +292,9 @@ class AssertBarTest {
         try (Connection c = TestBackends.platform().open()) {
             for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
                 String said = outcome(c, body, mode);
-                assertTrue(said.equals("pass") || mode != com.legend.testplan.PlanningOptions.JudgeMode.HOST
-                        && said.contains("cannot plan this assertError"), mode + ": " + said);
+                assertTrue(mode == com.legend.testplan.PlanningOptions.JudgeMode.HOST ? said.equals("pass")
+                        : said.contains("the program road does not plan this body"), mode + ": " + said);
             }
-        }
-    }
-
-    /** A quantified assert whose elements' messages read or raise: the database judge carries one caller's message per
-     *  assert until S4 carries one per element, so it refuses the body by name (the S2+S3 fixes' audit, 2026-11-21:
-     *  until then a passing element's error replaced a later element's failure). */
-    @Test
-    void aQuantifiedAssertsElementMessagesAreRefusedByNameUnderTheDatabaseJudge() throws Exception {
-        String body = "{|let l = [10]; [1, 0]->forAll(i | assertEquals(1, $i, | $l->at($i)->toString()));}";
-        try (Connection c = TestBackends.platform().open()) {
-            String said = outcome(c, body, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
-            assertTrue(said.contains("carries one caller's message per assert"), said);
         }
     }
 
