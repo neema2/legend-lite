@@ -73,6 +73,12 @@ public final class Verdicts {
                 "Boolean");
     }
 
+    /** A failed assert, as its record (item 3, 2026-11-21): the catalog words it. */
+    public static TypedSide fail(com.legend.error.ErrorRecord failure) {
+        throw new com.legend.error.AssertFailed(failure);
+    }
+
+    /** A failure worded elsewhere: the compatibility edge's appeal path alone (B3's; lite's judges raise records). */
     public static TypedSide fail(String message) {
         // the seam: verdicts speak the platform vocabulary
         throw new com.legend.error.AssertFailed(message);
@@ -105,8 +111,7 @@ public final class Verdicts {
     }
 
     public static TypedSide decided(HostJudgment.Decided d) {
-        return d.held() ? ok()
-                : fail(java.util.Objects.requireNonNull(d.message(), "a failed verdict's message"));
+        return d.held() ? ok() : fail(java.util.Objects.requireNonNull(d.failure(), "a failed verdict's record"));
     }
 
 

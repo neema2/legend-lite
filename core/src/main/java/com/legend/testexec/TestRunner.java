@@ -96,14 +96,8 @@ public final class TestRunner {
             // judges tell the caller's listener through it, its reports kept back while an appeal is held
             // (the edge's hearing, opened for this run: census C2, 2026-11-17; the product's refuses an appeal by name)
             EdgeHearing appeals = edgeRun.open(plan, callers, execution);
-            String hookWords = appeals.hostForms().words().name();
-            if (!plan.words().equals(hookWords)) {
-                // one choice per run (census C1, the orchestrator's ruling of 2026-11-17): the plan's style and the run's
-                // hook word its failures alike -- a mixed run is refused by name, never judged half one way
-                throw new IllegalArgumentException("a test plan worded in " + plan.words() + "'s words is run with a run"
-                        + " hook whose words are " + hookWords + "'s: the style and the hook go together (the edge's"
-                        + " style with the edge's hook)");
-            }
+            // (the plan's words against the run hook's, census C1's check: gone with item 3, 2026-11-21 -- one catalog
+            // words every assert failure, so a run has no words of its own to match)
             // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
             BodyRun run = new BodyRun(appeals);
             AssertListener listener = appeals.listener();
@@ -255,7 +249,7 @@ public final class TestRunner {
                 // an assertError's verdict the database judges (S135): its row is its statement's, judged alone at its
                 // step -- the host's facts name the assert it reports under
                 com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(), java.util.Objects.requireNonNull(row,
-                        "an assertError's verdict statement answered no row"), listener, run.hearing().hostForms().words());
+                        "an assertError's verdict statement answered no row"), listener);
                 lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
                 return;
             }
@@ -282,7 +276,7 @@ public final class TestRunner {
 
         /** The database judge's verdict arm over one root's row. */
         private void databaseVerdict(String name, List<Object> row) {
-            com.legend.testexec.DatabaseVerdicts.verdictOf(name, row, this.run.hearing().hostForms().words());
+            com.legend.testexec.DatabaseVerdicts.verdictOf(name, row);
         }
 
         /** A fused statement's word, counted; a rejected one's segment judged at once on the rejection, handed to the

@@ -117,10 +117,6 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
-            if (kind == com.legend.lowering.VerdictWords.class) {
-                // legend-pure's words of a failed assert, the database judge's (census J29; C1's FailureWords before)
-                return kind.cast(UpstreamVerdictWords.INSTANCE);
-            }
             if (kind == com.legend.planner.ExecutedValues.class) {
                 // legend-engine's json-builder envelope around a serialized root's text (train 17 item 2)
                 return kind.cast(EngineExecutedValues.INSTANCE);

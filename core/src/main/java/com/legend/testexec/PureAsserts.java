@@ -7,7 +7,6 @@ import static com.legend.testexecutionplan.Verdicts.wireId;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +17,7 @@ import java.util.Map;
  * files, never loaded from them): each decision is {@link Equality}'s under the run's {@link HostRules} (the plan's
  * data), and this class writes no word. A failure's text was asked of the PureWords hook, which the
  * compatibility edge alone implements (C5's step B, 2026-11-17). Since census J29 (2026-11-18) it holds the decisions
- * alone: every failure's words are the run's {@link HostWords} ({@link LiteHostWords}, or the edge's legend-pure words).
+ * alone: every failure is a record of the one catalog ({@link AssertRecords}; item 3, 2026-11-21).
  * Mapped: census J17 (2026-11-18), CompatSpellingGuardTest.WORDED_BY_HOOK -- its only string literal is its
  * refusal's.
  */
@@ -156,18 +155,6 @@ public final class PureAsserts {
         return v instanceof com.legend.values.PureDateLiteral;
     }
 
-    // ================================================================
-    // sort() — pure's total order over Any, for assertSameElements
-    // (numbers by value, then strings lexically, then booleans,
-    // temporals by instant — the spec's own failure examples pin
-    // number-before-string: sort([1, 3, '2']) = [1, 3, '2'])
-    // ================================================================
-
-    public static List<Object> sorted(List<Object> values) {
-        List<Object> out = new ArrayList<>(values.size());
-        for (Equality.Typed t : Equality.sorted(Equality.Typed.all(values, null))) {
-            out.add(t.value());
-        }
-        return out;
-    }
+    // (sort(), pure's total order over Any, for assertSameElements' words: gone 2026-11-21, item 3's S2, with its one
+    // caller, the edge's legend-pure words -- the judge's own order is Equality.sorted)
 }

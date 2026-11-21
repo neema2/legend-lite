@@ -35,20 +35,15 @@ import java.util.Objects;
  *                            plan, so a plan read back from its JSON could not open its own session)
  *                            (the answer's refusal of no rows is the run's record since stage B's B1, 2026-11-20:
  *                            no {@code answerSizeWords})
- * @param words               the name of the words the plan's failures are worded in, as its style planned them
- *                            ({@link #LITE_WORDS}, or the compatibility edge's; census J29, 2026-11-18: a name, never a flag)
- *                            (census C1, the orchestrator's ruling of 2026-11-17: one choice per run, the style's at
- *                            planning and the run hook's at run -- the runner refuses a hook that words them otherwise)
+ *                            (the plan's {@code words}, the name of its audience's words: gone with item 3's S3,
+ *                            2026-11-21 -- a failure is a record of one catalog, so a plan no longer depends on its
+ *                            audience)
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts, String words) {
-
-    /** The name of lite's own words ({@code LiteHostWords}, {@code LiteFailureWords}). */
-    public static final String LITE_WORDS = "lite";
+        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts) {
 
     public TestPlan {
-        java.util.Objects.requireNonNull(words, "words");
         Objects.requireNonNull(session, "session");
         // the body's facts (C5-J item 2, 2026-11-15): what a runner reads of the body, data the plan carries
         Objects.requireNonNull(facts, "facts");
@@ -67,8 +62,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
-        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts,
-                words);
+        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts);
     }
 
     // (answerSizeWords and withAnswerSizeWords, the answer's refusal of no rows worded at planning: deleted with

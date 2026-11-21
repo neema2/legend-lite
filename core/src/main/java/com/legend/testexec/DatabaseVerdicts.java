@@ -3,6 +3,8 @@
 
 package com.legend.testexec;
 
+import com.legend.testexecutionplan.RootLoop;
+
 
 import com.legend.testexecutionplan.TypedSide;
 import java.util.ArrayList;
@@ -17,7 +19,7 @@ final class DatabaseVerdicts {
     /** The verdict of one row ({@code verdict, expected, actual, unjudged, lenient, holds, message}): unjudged
      * (counted, the assert fails with the reason), or the row's own answer -- holds, or its message raised (the
      * test-is-the-product plan's M8b: the polarity and the text are the statement's; this reads two columns). */
-    static TypedSide verdictOf(String name, List<Object> row, HostWords words) {
+    static TypedSide verdictOf(String name, List<Object> row) {
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the SQL dump's companion: the verdict row the statement returned
             System.err.println("[verdict] " + name + " verdict=" + row.get(com.legend.testexecutionplan.RootLoop.VERDICT_COLUMN)
@@ -32,9 +34,9 @@ final class DatabaseVerdicts {
             // the evidence columns ride the message (bounded): an accepted
             // divergence matches its witness here, and a row is diagnosable
             // without a re-run
-            return unjudged(name, String.valueOf(unjudged),
-                    words.unjudged(com.legend.testexec.AssertRuns.excerpt(row.get(com.legend.testexecutionplan.RootLoop.EXPECTED_COLUMN)),
-                    com.legend.testexec.AssertRuns.excerpt(row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN))));
+            // (the evidence's words were HostWords#unjudged's until item 3, 2026-11-21; this decline goes with S4)
+            return unjudged(name, String.valueOf(unjudged), " (expected " + AssertRuns.excerpt(row.get(RootLoop.EXPECTED_COLUMN))
+                    + ", got " + AssertRuns.excerpt(row.get(RootLoop.ACTUAL_COLUMN)) + ")");
         }
         if (!(row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN) instanceof Boolean holds)) {
             throw new IllegalStateException(name + ": the holds column is not a boolean: " + row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN));

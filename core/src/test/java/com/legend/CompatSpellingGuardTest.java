@@ -92,8 +92,8 @@ class CompatSpellingGuardTest {
             "createTableRowIdentifiers(", "createRowIdentifier([",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
             "TDSNull",
-            // legend-pure's assert sentences (census J29, 2026-11-18: the host judge's are the edge's EdgeHostWords; a
-            // planted one in a product source turns this guard red)
+            // legend-pure's assert sentences (census J29, 2026-11-18; since item 3's S2, 2026-11-21, no source holds them:
+            // one catalog of lite's words on every route, Q15 = A; a planted one in a product source turns this guard red)
             "No error was thrown", "Expected non-empty collection", "Execution error message mismatch",
             "Execution error line mismatch", "Execution error column mismatch", "^Assert failed$",
             "should not equal", " does not contain ", "is not equivalent to", "the element references differ",
@@ -478,7 +478,7 @@ class CompatSpellingGuardTest {
      *  owns) and nothing else: a sentence, a separator or a print form here would be upstream's format back in the
      *  product, which the LITERALS list above cannot see unless it is listed. File, then its census line. */
     static final Map<String, String> WORDED_BY_HOOK = Map.of(
-            "testexec/PureAsserts.java", "J17 2026-11-18 (its words EdgePureWords', through PureWords)");
+            "testexec/PureAsserts.java", "J17 2026-11-18 (its failures records of the one catalog since item 3's S2)");
 
     @Test
     void theHookWordedClassesWriteNoWord() throws IOException {

@@ -83,8 +83,11 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
 
     /** A quantified assert's VECTOR judgment (the test-is-the-product plan's M10c item 5): the one side is the
      *  predicate vector the database computes over the source's elements; the assert holds when every row is
-     *  {@code wantTrue}, else it fails with {@code message} (the element arm's own words). */
-    record AllRows(String name, boolean wantTrue, String message) implements HostJudgment {
+     *  {@code wantTrue}, else it fails with {@code failure}, decided at planning: the caller's own message as the
+     *  program wrote it ({@code AssertKind.MESSAGE}), or with none the condition's ({@code TRUE}, {@code FALSE}) --
+     *  a record of the one catalog (item 3, 2026-11-21: until then the default's sentence, planned in the plan's
+     *  audience's words). */
+    record AllRows(String name, boolean wantTrue, com.legend.error.ErrorRecord failure) implements HostJudgment {
     }
 
     /** A quantified {@code assertEquals} / {@code assertEqWithinTolerance} over a source's ROWS, judged row by row as
@@ -167,8 +170,14 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     record Is(String name) implements HostJudgment {
     }
 
-    /** A verdict decided at planning with no side (two type identities, the same let-bound instance). */
-    record Decided(boolean held, @Nullable String message) implements HostJudgment {
+    /** A verdict decided at planning with no side (two type identities, the same let-bound instance): its failure a
+     *  record of the one catalog where it does not hold (item 3, 2026-11-21: until then its sentence). */
+    record Decided(boolean held, com.legend.error.@Nullable ErrorRecord failure) implements HostJudgment {
+        public Decided {
+            if (held != (failure == null)) {
+                throw new IllegalArgumentException("a decided verdict carries its failure exactly where it fails");
+            }
+        }
     }
 
     record SameElements(SideFacts e, SideFacts a, boolean gridPair, Keys keys) implements HostJudgment {
@@ -204,11 +213,12 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
      *  {@code compiler.spec.AssertMessages}): {@code inner} judges the first {@code innerSides} sides, the family's
      *  check over the base overload; the side after them is the message, a String the plan read -- a failure of
      *  {@code inner} raises its text, as upstream's {@code assert(condition, | message)} does. {@code unplanned}: the
-     *  message is no side -- its planning failed (a message reading what the planner cannot plan), and this is the
-     *  assert's whole failure text where {@code inner} fails, naming that failure ({@code AssertMessages.unevaluated},
-     *  spelled at planning since 2026-11-09), as upstream evaluates the message only there (2026-11-04, the assert
-     *  bar). */
-    record Messaged(HostJudgment inner, int innerSides, @Nullable String unplanned) implements HostJudgment {
+     *  message is no side -- computing it raises an error upstream raises at run, found while planning, and that
+     *  error is raised in place of the assert's failure where {@code inner} fails, and only there: upstream evaluates
+     *  the message only where the assert fails (2026-11-04, the assert bar). A record, never a sentence (item 3,
+     *  2026-11-21, the user's ruling: the message lazy, its error the outcome; until then lite's sentence around the
+     *  error's, {@code AssertMessages.unevaluated}). */
+    record Messaged(HostJudgment inner, int innerSides, @Nullable Failure unplanned) implements HostJudgment {
         /** The message a side the plan reads. */
         public Messaged(HostJudgment inner, int innerSides) {
             this(inner, innerSides, null);

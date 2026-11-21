@@ -36,7 +36,7 @@ final class BodyRun {
      *  2026-11-20); any other error its own message. */
     String caughtMessage(RuntimeException e) {
         // whose words: the run hook's (census J29, 2026-11-18), never a branch of the judge's
-        return hearing.hostForms().words().caught(e, hearing);
+        return hearing.hostForms().caught(e, hearing);
     }
 
     /** The listener the run's judges tell: the caller's, its reports kept back while an appeal is held. */

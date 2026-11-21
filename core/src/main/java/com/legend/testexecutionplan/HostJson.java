@@ -348,15 +348,14 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("wantTrue", x.wantTrue());
-        o.put("message", x.message());
+        o.put("failure", wRecord(x.failure()));
         return o;
     }
 
     static HostJudgment.AllRows rHjAllRows(Json.Obj o) {
         String v_name = str(field(o, "name", "AllRows"));
         boolean v_wantTrue = bool(field(o, "wantTrue", "AllRows"));
-        String v_message = str(field(o, "message", "AllRows"));
-        return new HostJudgment.AllRows(v_name, v_wantTrue, v_message);
+        return new HostJudgment.AllRows(v_name, v_wantTrue, rRecord(obj(field(o, "failure", "AllRows"))));
     }
 
     static Map<String, Object> wHjRows(HostJudgment.Rows x) {
@@ -529,14 +528,15 @@ final class HostJson {
     static Map<String, Object> wHjDecided(HostJudgment.Decided x) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("held", x.held());
-        o.put("message", x.message() == null ? null : x.message());
+        o.put("failure", x.failure() == null ? null : wRecord(x.failure()));
         return o;
     }
 
     static HostJudgment.Decided rHjDecided(Json.Obj o) {
         boolean v_held = bool(field(o, "held", "Decided"));
-        @Nullable String v_message = absent(o, "message", "Decided") ? null : str(o.get("message"));
-        return new HostJudgment.Decided(v_held, v_message);
+        com.legend.error.@Nullable ErrorRecord v_failure = absent(o, "failure", "Decided") ? null
+                : rRecord(obj(o.get("failure")));
+        return new HostJudgment.Decided(v_held, v_failure);
     }
 
     static Map<String, Object> wHjSameElements(HostJudgment.SameElements x) {
@@ -666,14 +666,15 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("inner", wHostJudgment(x.inner()));
         o.put("innerSides", x.innerSides());
-        o.put("unplanned", x.unplanned() == null ? null : x.unplanned());
+        o.put("unplanned", x.unplanned() == null ? null : wFailure(x.unplanned()));
         return o;
     }
 
     static HostJudgment.Messaged rHjMessaged(Json.Obj o) {
         HostJudgment v_inner = rHostJudgment(obj(field(o, "inner", "Messaged")));
         int v_innerSides = Math.toIntExact(num(field(o, "innerSides", "Messaged")));
-        @Nullable String v_unplanned = absent(o, "unplanned", "Messaged") ? null : str(o.get("unplanned"));
+        @Nullable Failure v_unplanned = absent(o, "unplanned", "Messaged") ? null
+                : rFailure(obj(o.get("unplanned")));
         return new HostJudgment.Messaged(v_inner, v_innerSides, v_unplanned);
     }
 

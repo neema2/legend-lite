@@ -86,11 +86,12 @@ public final class HostSides {
                 || m.innerSides() != check.asks().size() - 1) {
             return null;
         }
-        // the message's planning failure is read for its text alone, never raised: its text, not a failure record
-        // (the slice 1 audit, 2026-11-08: a class off the closed list must not fail here) -- the assert's whole failure
-        // text, planned (AssertMessages.unevaluated; slice 5, 2026-11-09: the run spells no message of its own)
+        // the message's error, planned as data and raised in place of the assert's failure where the assert fails, and
+        // only there (item 3, 2026-11-21, the user's ruling: the message lazy, its error the outcome; until then lite's
+        // sentence around the error's text, AssertMessages.unevaluated). An error upstream raises at run alone: any
+        // other refuses the body (D, Failures.planned)
         return new Check(check.asks().subList(0, m.innerSides()), new HostJudgment.Messaged(m.inner(), m.innerSides(),
-                com.legend.compiler.spec.AssertMessages.unevaluated(String.valueOf(failure.getMessage()))));
+                com.legend.testexecutionplan.Failures.planned(failure, "an assert's message")));
     }
 
     /** An arm's sides PLANNED, in its order: one verdict's base and what shaping each needs once it ran; {@code on}

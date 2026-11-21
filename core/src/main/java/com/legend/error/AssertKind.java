@@ -58,6 +58,10 @@ public enum AssertKind implements ErrorCode {
     // census J29 (2026-11-18): assertError's line and column, lite's own
     ERROR_LINE("expected the error at line {expected}, got line {actual}"),
     ERROR_COLUMN("expected the error at column {expected}, got column {actual}"),
+    /** assertError's line or column asked of an error that carries no source position (a native database error, or a
+     *  raise emission without provenance): item 3, 2026-11-21, until then a sentence outside the catalog, the same on
+     *  both judges. */
+    ERROR_NO_POSITION("expected the error at a source position, got an error with none"),
     /** The caller's own message ({@code assert(c, 'm')}, {@code assertEquals(e, a, 'm')}, ...): a value the program
      *  computed, the whole sentence. */
     MESSAGE("{message}"),
@@ -127,6 +131,13 @@ public enum AssertKind implements ErrorCode {
     /** A record of a kind with no slots. */
     public ErrorRecord record() {
         return record(Map.of());
+    }
+
+    /** A condition's failure ({@code assert}, {@code assertFalse}): the caller's own literal message, else the
+     *  condition's record ({@link #TRUE}, {@link #FALSE}). */
+    public static ErrorRecord condition(boolean wantTrue, @com.legend.base.Nullable String callerMessage) {
+        return callerMessage != null ? MESSAGE.record(Map.of("message", callerMessage))
+                : (wantTrue ? TRUE : FALSE).record();
     }
 
     /** The row's sentence with its slots in braces. */

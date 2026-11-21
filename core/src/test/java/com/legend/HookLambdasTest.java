@@ -79,18 +79,13 @@ class HookLambdasTest {
             // per run, the style's FailureWords two-form kind; measured 2026-11-18 on d-int8 fdf001bee); census J29
             // (E-Java's 21a9734475, train 14) renamed the kind VerdictWords (lowering) and DatabaseJudge#lite #words --
             // the same two callers, re-measured 2026-11-18 on train 15 1931d419b1 by the GUARD stream's re-cut
-            Map.entry("com.legend.testplan.DatabaseJudge#words(com.legend.testplan.BodyDriver$ExecEnv)",
-                    Set.of("com.legend.lowering.VerdictWords", "(twoForm reaches 1)")),
+            // (DatabaseJudge#words: no style asked since 2026-11-21, item 3's S3 -- the database judge plans for lite's flow alone)
             // a serialized root's string-entry value (E-Java's train-17 item 2, VALUES half, b70d85ab9, train 18,
             // 2026-11-18: ResultEnvelopes.values deleted, the frame planner asks the ExecutedValues two-form kind)
             Map.entry("com.legend.planner.FramePlanner#chain(com.legend.compiler.spec.typed.TypedNativeCall,"
                     + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
                     Set.of("com.legend.planner.ExecutedValues", "(twoForm reaches 1)")),
-            Map.entry("com.legend.testplan.TestDoor#planned(com.legend.TypedQuery, java.lang.String, java.util.Set,"
-                    + " com.legend.testplan.TestDoor$Asserts, boolean, com.legend.executionplan.DataStores,"
-                    + " com.legend.testexecutionplan.Edge, com.legend.database.PlanStyle,"
-                    + " com.legend.testexecutionplan.BodyFacts)",
-                    Set.of("com.legend.lowering.VerdictWords", "(twoForm reaches 1)")),
+            // (TestDoor#planned: the plan's words, VerdictWords' name, went 2026-11-21, item 3's S3)
             // the test planner: a relation counted by an assert (S137); a test-data timestamp's text (L9)
             Map.entry("com.legend.testplan.TestPlanner#lifted(com.legend.TypedQuery,"
                     + " com.legend.testplan.PlanningOptions)",
@@ -120,7 +115,7 @@ class HookLambdasTest {
             Map.entry("com.legend.testdatagen.LitePrinting", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")),
             // the failure words' product form (C1 item 4, 3120418b2a, train 8; measured 2026-11-18); census J29 (train 14's
             // 21a9734475) renamed it LiteVerdictWords, of the VerdictWords kind (re-measured 2026-11-18 on 1931d419b1)
-            Map.entry("com.legend.lowering.LiteVerdictWords", Set.of("com.legend.lowering.VerdictWords")),
+            // (LiteVerdictWords: VerdictWords left the two-form kinds 2026-11-21, item 3's S3)
             // (two numbers' equality's product form, LiteVerdictNumbers, deleted with its kind: A4 of the compatibility
             // program, stage A ratified by the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45
             // ("Approved to move guards down"))

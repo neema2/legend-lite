@@ -60,9 +60,11 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
         return ok;
     }
 
+    /** legend-pure's words of a caught error (K10 of the edge audit, 2026-11-18): a raise of a planned site worded
+     *  from its site's record, after the run (stage B's B1, 2026-11-20: {@link PureMessages#worded}); any other error
+     *  its own message -- the edge's one wording of an error, the pure/v1 routes' too. */
     @Override
-    public com.legend.testexec.HostWords words() {
-        // the compatibility rules: legend-pure's words
-        return EdgeHostWords.INSTANCE;
+    public String caught(RuntimeException error, com.legend.testexec.EdgeHearing hearing) {
+        return PureMessages.compile(error);
     }
 }

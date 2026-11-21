@@ -21,7 +21,10 @@ public interface HostForms {
      *  plan's {@code floatUlps} rule). */
     boolean equalFloatsApart(double e, double a);
 
-    /** The words a failure is worded in (census J29, 2026-11-18: the hook, never a flag): lite's runs
-     *  {@link LiteHostWords}, the compatibility edge's legend-pure's. */
-    HostWords words();
+    /** The message an assertError matches a caught {@code error} by (K10 of the edge audit, the orchestrator's ruling
+     *  (A) of 2026-11-17): lite's, the error's own message; legend-pure's, a raise of a planned site worded from its
+     *  record after the run (stage B's B1, 2026-11-20). An error's words, never an assert's failure: those are one
+     *  catalog's on every route (item 3, 2026-11-21: until then HostWords' 26th method, beside its two forms of the
+     *  assert words, deleted). */
+    String caught(RuntimeException error, EdgeHearing hearing);
 }

@@ -14,16 +14,15 @@ import java.util.function.UnaryOperator;
  * order: "every legend-pure sentence comes from an edge text hook; the product holds only lite's sentences"): a
  * two-form kind ({@code PlanStyle.twoForm}, {@code PlanStyleFacets.TWO_FORMS}; FailureWords' place, which named whose
  * words they were by a flag). One method per failure kind, each building the verdict row's message from the SQL pieces
- * the verdict already computed -- a method words a failure, it never decides one. The product's form is
- * {@link LiteVerdictWords} (lite's {@code AssertKind} table); the compatibility edge's writes legend-pure's words.
+ * the verdict already computed -- a method words a failure, it never decides one. Its one form is
+ * {@link LiteVerdictWords} (lite's {@code AssertKind} table): since item 3's S3 (2026-11-21) it is no two-form kind --
+ * the database judge plans for lite's flow alone, and legend-pure's form (the edge's UpstreamVerdictWords) went whole.
+ * Goes at S4, when the database judge carries its values to the record.
  * {@link #reads} names the frame's shape the words need: lite's sentences read each side as WRITTEN (lite's own text,
  * a column the verdict adds), legend-pure's the CANONS (its framing writes from the canon and the representation
  * facet). Signatures only.
  */
 public interface VerdictWords {
-
-    /** The words' name, the plan's data ({@code TestPlan.words}): a run refuses a plan worded otherwise. */
-    String name();
 
     /** An assertSize that failed: the size wanted and the count, each as text. */
     SqlExpr sizeDiffers(SqlExpr want, SqlExpr count);
@@ -92,10 +91,4 @@ public interface VerdictWords {
 
     /** An unrolled quantifier's element's failure {@code message}, at the zero-based {@code index}. */
     SqlExpr atIndex(SqlExpr message, int index);
-
-    /** An assert or assertFalse whose condition failed, with no message of the caller's. */
-    String conditionFailed(boolean wantTrue);
-
-    /** Two values that differ, each spelled at planning (a host-decided pair's words). */
-    String valuesDiffer(String expected, String actual);
 }

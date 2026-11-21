@@ -69,8 +69,12 @@ public final class TestPlanJson {
      *  in the test plan -- a planned failure carries no {@code where} (a planner method's name) and no kind of Java's
      *  own exceptions (a defect fails loud, never planned); 37 (stage B's BE, item 2, 2026-11-21): a database root's row
      *  and caller's message carry no refusal (a dialect's refusal refuses the body at planning, D: the slots were
-     *  always empty), a message's side is required, and the product's version 60 (no prose in the product plan). */
-    public static final int VERSION = 37;
+     *  always empty), a message's side is required, and the product's version 60 (no prose in the product plan); 38
+     *  (item 3, 2026-11-21, assert verdicts as records): a planned assert failure carries its record (an assert's
+     *  code and its values), a decided verdict's failure ({@code Decided.failure}) and a vector's ({@code
+     *  AllRows.failure}) are records, an unplanned message is its error's planned failure ({@code Messaged.unplanned}),
+     *  and the plan names no audience's words ({@code words} gone: one catalog). */
+    public static final int VERSION = 38;
 
     private TestPlanJson() {
     }
@@ -120,7 +124,6 @@ public final class TestPlanJson {
         out.put("productVersion", PlanJson.VERSION);
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
-        out.put("words", plan.words());
         out.put("session", PlanJson.targetJson(plan.session()));
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("effects", plan.facts().effects());
@@ -281,7 +284,7 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")), o.getString("words"));
+                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")));
     }
 
     private static BodyFacts factsOf(Json.Obj f) {

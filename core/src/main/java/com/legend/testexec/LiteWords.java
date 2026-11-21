@@ -82,11 +82,6 @@ public final class LiteWords {
                 : values(values, instanceClass);
     }
 
-    /** {@code row}'s sentence filled: each slot's text by name. */
-    public static String sentence(AssertKind row, Map<String, String> slots) {
-        return row.fill(slots);
-    }
-
     /** A String JSON-style: quoted, a backslash, a quote, a newline, a tab and a carriage return escaped. */
     public static String quoted(String s) {
         StringBuilder sb = new StringBuilder(s.length() + 2).append('"');
@@ -161,10 +156,11 @@ public final class LiteWords {
 
     /** {@code EQUALS} over two written sides, or {@code EQUALS_KINDS} where their texts tie (the orchestrator's ruling,
      *  2026-11-17): each side's kind after it, and where both are DateTimes, each one's precision too. */
-    public static String equalsSentence(String e, String a, java.util.function.Supplier<String> eKind,
-            java.util.function.Supplier<String> aKind, @Nullable Object eValue, @Nullable Object aValue) {
+    public static com.legend.error.ErrorRecord equalsRecord(String e, String a,
+            java.util.function.Supplier<String> eKind, java.util.function.Supplier<String> aKind,
+            @Nullable Object eValue, @Nullable Object aValue) {
         if (!e.equals(a)) {
-            return com.legend.error.AssertKind.EQUALS.fill(Map.of("expected", e, "actual", a));
+            return com.legend.error.AssertKind.EQUALS.record(Map.of("expected", e, "actual", a));
         }
         String ek = eKind.get();
         String ak = aKind.get();
@@ -173,7 +169,7 @@ public final class LiteWords {
             ek = ek + ", " + ed.precision().name().toLowerCase(java.util.Locale.ROOT);
             ak = ak + ", " + ad.precision().name().toLowerCase(java.util.Locale.ROOT);
         }
-        return com.legend.error.AssertKind.EQUALS_KINDS.fill(Map.of("expected", e, "expectedKind", ek,
+        return com.legend.error.AssertKind.EQUALS_KINDS.record(Map.of("expected", e, "expectedKind", ek,
                 "actual", a, "actualKind", ak));
     }
 

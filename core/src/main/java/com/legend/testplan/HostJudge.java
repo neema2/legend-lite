@@ -188,10 +188,10 @@ final class HostJudge {
 
     /** The VECTOR judgment planned (M10c item 5): one identity-lane side, the predicate vector; judged by
      *  {@link #allRowsOf} as {@link #quantified} judges its read. */
-    static HostSides.Check planAllRows(String fqn, TypedSpec predMap, boolean wantTrue, String message,
+    static HostSides.Check planAllRows(String fqn, TypedSpec predMap, boolean wantTrue, com.legend.error.ErrorRecord failure,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return new HostSides.Check(List.of(identityAsk(predMap, hook)),
-                new HostJudgment.AllRows(fqn, wantTrue, message));
+                new HostJudgment.AllRows(fqn, wantTrue, failure));
     }
 
     /** A quantified assert over rows planned for the program road (HostJudgment.Rows): its asks the zip's arms or the

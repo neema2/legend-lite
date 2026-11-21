@@ -27,36 +27,48 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * adjudicated wire policies the platform owner carries.
  */
 class PureAssertsTest {
-    /** legend-pure's words, the compatibility edge's (C5's step B, 2026-11-17: an edge test since). */
-    private static final com.legend.edge.EdgePureWords W = com.legend.edge.EdgePureWords.INSTANCE;
 
     /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
     private static final HostRules LITE = HostRules.LITE;
 
-    /** assertEquals' message: the product's decision, the edge's words (the wrappers left the product, J17). */
-    private static String eqMsg(List<Object> e, List<Object> a, HostRules rules, com.legend.edge.EdgePureWords w) {
-        return PureAsserts.holds(e, a, rules) ? null : w.equals(e, a, null, null);
+    // Each decision is the product's (PureAsserts, Equality), the spec's own cases; each failure is a record of the one
+    // catalog, lite's words on every route (item 3, 2026-11-21: until then legend-pure's words, the edge's EdgePureWords
+    // and EdgeHostWords, both deleted under Q15 = A).
+
+    /** assertEquals' failure. */
+    private static String eqMsg(List<Object> e, List<Object> a, HostRules rules) {
+        return PureAsserts.holds(e, a, rules) ? null : AssertRecords.sidesNotEqual(e, a, e, a, null, null).sentence();
     }
 
-    private static String sizeMsg(List<Object> c, long size, com.legend.edge.EdgePureWords w) {
-        return c.size() == size ? null : w.size(size, c.size());
+    private static String sizeMsg(List<Object> c, long size) {
+        return c.size() == size ? null : AssertRecords.size(size, c.size()).sentence();
     }
 
-    /** assertSameElements' message: the product's decision over both sides sorted, the edge's words (census J29). */
-    private static String sameMsg(List<Object> e, List<Object> a, HostRules rules,
-            com.legend.edge.EdgePureWords w) {
-        return PureAsserts.holds(PureAsserts.sorted(e), PureAsserts.sorted(a), rules) ? null
-                : com.legend.edge.EdgeHostWords.INSTANCE.sameElements(e, a, null, null);
+    /** assertSameElements' failure: the product's decision over both sides sorted (Pure's sort), each side's values
+     *  in its own order in the words. */
+    private static String sameMsg(List<Object> e, List<Object> a, HostRules rules) {
+        return PureAsserts.holds(sorted(e), sorted(a), rules) ? null
+                : AssertRecords.sameElements(e, a, null, null).sentence();
     }
 
-    /** assertEq's message: the product's decision, the edge's words (census J29). */
-    private static String eqOneMsg(Object e, Object a, HostRules rules, com.legend.edge.EdgePureWords w) {
+    /** assertEq's failure. */
+    private static String eqOneMsg(Object e, Object a, HostRules rules) {
         return PureAsserts.eqHolds(e, null, a, null, rules) ? null
-                : com.legend.edge.EdgeHostWords.INSTANCE.notEq(e, a, null, null, null, null);
+                : AssertRecords.notEq(e, a, null, null, null, null).sentence();
     }
 
-    private static String tolMsg(Number e, Number a, Number delta, com.legend.edge.EdgePureWords w) {
-        return PureAsserts.withinTolerance(e, a, delta) ? null : w.pair(e, null, a, null);
+    private static String tolMsg(Number e, Number a, Number delta) {
+        return PureAsserts.withinTolerance(e, a, delta) ? null : AssertRecords.notWithin(e, a, delta).sentence();
+    }
+
+    /** Pure's sort over Any (numbers by value, then strings, then booleans, temporals by instant): Equality's order
+     *  (PureAsserts.sorted until item 3's S2, which went with the edge's legend-pure words, its one caller). */
+    private static List<Object> sorted(List<Object> values) {
+        List<Object> out = new java.util.ArrayList<>(values.size());
+        for (Equality.Typed t : Equality.sorted(Equality.Typed.all(values, null))) {
+            out.add(t.value());
+        }
+        return out;
     }
 
     private static boolean same(@com.legend.base.Nullable Object e, @com.legend.base.Nullable Object a) {
@@ -73,31 +85,31 @@ class PureAssertsTest {
     @Test
     @DisplayName("spec: testSuccessAssertEquals + WithCollections")
     void specSuccess() {
-        assertNull(eqMsg(List.of(1L), List.of(1L), LITE, W));
-        assertNull(eqMsg(List.of("aaa"), List.of("aaa"), LITE, W));
-        assertNull(eqMsg(List.of(1L, 2L), List.of(1L, 2L), LITE, W));
+        assertNull(eqMsg(List.of(1L), List.of(1L), LITE));
+        assertNull(eqMsg(List.of("aaa"), List.of("aaa"), LITE));
+        assertNull(eqMsg(List.of(1L, 2L), List.of(1L, 2L), LITE));
         assertNull(eqMsg(
-                List.of("aaa", 2L), List.of("aaa", 2L), LITE, W));
+                List.of("aaa", 2L), List.of("aaa", 2L), LITE));
     }
 
     @Test
     @DisplayName("spec: testFailureAssertEquals — the exact message")
     void specFailureMessage() {
-        assertEquals("\nexpected: 1\nactual:   2",
-                eqMsg(List.of(1L), List.of(2L), LITE, W));
+        assertEquals("expected 1, got 2",
+                eqMsg(List.of(1L), List.of(2L), LITE));
     }
 
     @Test
     @DisplayName("spec: testFailureAssertEqualsWithCollections — exact messages")
     void specFailureCollections() {
-        assertEquals("\nexpected: [1, 3, 2]\nactual:   [2, 4, 1, 5]",
+        assertEquals("expected [1, 3, 2], got [2, 4, 1, 5]",
                 eqMsg(List.of(1L, 3L, 2L),
-                        List.of(2L, 4L, 1L, 5L), LITE, W));
-        assertEquals("\nexpected: [1, 2]\nactual:   [2, 1]",
-                eqMsg(List.of(1L, 2L), List.of(2L, 1L), LITE, W));
-        assertEquals("\nexpected: ['aaa', 2]\nactual:   [2, 'aaa']",
+                        List.of(2L, 4L, 1L, 5L), LITE));
+        assertEquals("expected [1, 2], got [2, 1]",
+                eqMsg(List.of(1L, 2L), List.of(2L, 1L), LITE));
+        assertEquals("expected [\"aaa\", 2], got [2, \"aaa\"]",
                 eqMsg(List.of("aaa", 2L),
-                        List.of(2L, "aaa"), LITE, W));
+                        List.of(2L, "aaa"), LITE));
     }
 
     // ---- assertSameElements.pure's own tests --------------------------
@@ -106,20 +118,20 @@ class PureAssertsTest {
     @DisplayName("spec: testSuccessAssertSameElements")
     void sameElementsSuccess() {
         assertNull(sameMsg(
-                List.of(1L, 2L), List.of(2L, 1L), LITE, W));
+                List.of(1L, 2L), List.of(2L, 1L), LITE));
         assertNull(sameMsg(
-                List.of("aaa", 2L), List.of(2L, "aaa"), LITE, W));
+                List.of("aaa", 2L), List.of(2L, "aaa"), LITE));
     }
 
     @Test
-    @DisplayName("spec: testFailureAssertSameElements — SORTED renders, number-before-string")
+    @DisplayName("spec: testFailureAssertSameElements — lite's words, each side in its own order")
     void sameElementsFailureMessage() {
-        assertEquals("\nexpected: [1, 2, 3]\nactual:   [1, 2, 4, 5]",
+        assertEquals("expected the elements [1, 3, 2] in any order, got [2, 4, 1, 5]",
                 sameMsg(List.of(1L, 3L, 2L),
-                        List.of(2L, 4L, 1L, 5L), LITE, W));
-        assertEquals("\nexpected: [1, 3, '2']\nactual:   [1, 4, 5, '2']",
+                        List.of(2L, 4L, 1L, 5L), LITE));
+        assertEquals("expected the elements [1, 3, \"2\"] in any order, got [\"2\", 4, 1, 5]",
                 sameMsg(List.of(1L, 3L, "2"),
-                        List.of("2", 4L, 1L, 5L), LITE, W));
+                        List.of("2", 4L, 1L, 5L), LITE));
     }
 
     // ---- assertSize.pure ----------------------------------------------
@@ -127,9 +139,9 @@ class PureAssertsTest {
     @Test
     @DisplayName("spec: assertSize message form")
     void sizeMessage() {
-        assertNull(sizeMsg(List.of(1L, 2L), 2, W));
-        assertEquals("expected size: 3, actual size: 2",
-                sizeMsg(List.of(1L, 2L), 3, W));
+        assertNull(sizeMsg(List.of(1L, 2L), 2));
+        assertEquals("expected size 3, got 2",
+                sizeMsg(List.of(1L, 2L), 3));
     }
 
     // ---- the adjudicated wire policies (documented divergences) -------
@@ -194,23 +206,8 @@ class PureAssertsTest {
         assertFalse(same(d, "2014-01-01"));
     }
 
-    // ---- toRepresentation (the one owner) -----------------------------
-
-    @Test
-    @DisplayName("toRepresentation: spec spellings (escape, %-dates, D-suffix)")
-    void representation() {
-        assertEquals("'a\\'b'", W.repr("a'b", null));
-        assertEquals("'a\\nb'", W.repr("a\nb", null));
-        assertEquals("%2014-01-01", W.repr(
-                com.legend.values.PureDateLiteral.parse("2014-01-01"), null));
-        // partial precision reprs exactly as written — impossible on
-        // the old java.time carrier
-        assertEquals("%2014-01", W.repr(
-                com.legend.values.PureDateLiteral.parse("2014-01"), null));
-        assertEquals("3.14D", W.repr(new BigDecimal("3.14"), null));
-        assertEquals("1", W.repr(1L, null));
-        assertEquals("true", W.repr(Boolean.TRUE, null));
-    }
+    // (toRepresentation's spellings, legend-pure's print through EdgePureWords.repr: gone with it, item 3's S2 --
+    // legend-pure's printing at the compatibility edge is B2's, rule 3's closed list)
 
     // ===== 2026-08-19 phase-2 deep-audit remediation pins =====
 
@@ -223,11 +220,11 @@ class PureAssertsTest {
         BigDecimal e = new BigDecimal("1.00000000000000000000000000000000000000000001");
         BigDecimal a = new BigDecimal("1.00000000000000000000000000000000000000000003");
         assertNotNull(tolMsg(e, a,
-                new BigDecimal("1E-50"), W), "exact kinds must compare exactly");
+                new BigDecimal("1E-50")), "exact kinds must compare exactly");
         assertNull(tolMsg(e, a,
-                new BigDecimal("1E-40"), W));
+                new BigDecimal("1E-40")));
         // floating sides keep double arithmetic
-        assertNull(tolMsg(1.0d, 1.0d + 1e-16, 1e-13, W));
+        assertNull(tolMsg(1.0d, 1.0d + 1e-16, 1e-13));
     }
 
     @Test
@@ -240,16 +237,16 @@ class PureAssertsTest {
         // TEXT order would put "2014-01-01 05:00:00" vs "2014-01-02" at
         // the mercy of the space-vs-dash byte
         assertNull(sameMsg(
-                Arrays.asList(t1, d2), Arrays.asList(d2, t1), LITE, W));
+                Arrays.asList(t1, d2), Arrays.asList(d2, t1), LITE));
     }
 
     @Test
     @DisplayName("P2-5: assertEq — primitives compare, non-primitives are LOUD")
     void assertEqSemantics() {
-        assertNull(eqOneMsg(1L, 1L, LITE, W));
-        assertNotNull(eqOneMsg(1L, 2L, LITE, W));
+        assertNull(eqOneMsg(1L, 1L, LITE));
+        assertNotNull(eqOneMsg(1L, 2L, LITE));
         assertThrows(com.legend.error.NotImplementedException.class,
-                () -> eqOneMsg(Map.of("a", 1L), Map.of("a", 1L), LITE, W),
+                () -> eqOneMsg(Map.of("a", 1L), Map.of("a", 1L), LITE),
                 "eq is INSTANCE identity — unobservable on a value wire");
     }
 

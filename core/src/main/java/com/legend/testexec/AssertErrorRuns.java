@@ -72,9 +72,8 @@ final class AssertErrorRuns {
     private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
             @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
             @com.legend.base.Nullable Throwable caughtCause, BodyRun run) {
-        HostWords words = run.hearing().hostForms().words();   // whose words: the run hook's (census J29)
         if (caughtMessage == null) {
-            throw new com.legend.error.AssertFailed(words.noError(expected));
+            throw new com.legend.error.AssertFailed(AssertRecords.noError(expected));
         }
         // B7 (RaisedErrors): messages arrive ALREADY clean — the
         // Executor funnel unwraps the transport envelope from
@@ -84,7 +83,7 @@ final class AssertErrorRuns {
         // coincidence. The old broad prefix regex is deleted.
         String actual = caughtMessage;
         if (!actual.equals(expected)) {
-            throw new com.legend.error.AssertFailed(words.errorDiffers(expected, actual));
+            throw new com.legend.error.AssertFailed(AssertRecords.errorDiffers(expected, actual));
         }
         // POSITION adjudication (leg 2, assertError.pure:25-26 — message
         // first, then line, then column, each only when expected): the
@@ -97,16 +96,13 @@ final class AssertErrorRuns {
         // pass here would launder a native error's missing provenance.
         if (expectedLine != null || expectedColumn != null) {
             if (!(caughtCause instanceof com.legend.exec.RaisedErrors.Positioned p)) {
-                throw new com.legend.error.AssertFailed(
-                        "assertError line/column: the caught error carries"
-                        + " no source position (a native database error, or"
-                        + " a raise emission without provenance)");
+                throw new com.legend.error.AssertFailed(com.legend.error.AssertKind.ERROR_NO_POSITION.record());
             }
             if (expectedLine != null && p.line() != expectedLine) {
-                throw new com.legend.error.AssertFailed(words.lineDiffers(expectedLine, p.line()));
+                throw new com.legend.error.AssertFailed(AssertRecords.lineDiffers(expectedLine, p.line()));
             }
             if (expectedColumn != null && p.column() != expectedColumn) {
-                throw new com.legend.error.AssertFailed(words.columnDiffers(expectedColumn, p.column()));
+                throw new com.legend.error.AssertFailed(AssertRecords.columnDiffers(expectedColumn, p.column()));
             }
         }
         return new TypedSide.Scalar(Boolean.TRUE,

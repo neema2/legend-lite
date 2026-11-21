@@ -29,8 +29,9 @@ public enum LiteHostForms implements HostForms {
         return false;
     }
 
+    /** Lite's words of a caught error: its own message (K10). */
     @Override
-    public HostWords words() {
-        return LiteHostWords.INSTANCE;
+    public String caught(RuntimeException error, EdgeHearing hearing) {
+        return String.valueOf(error.getMessage());
     }
 }

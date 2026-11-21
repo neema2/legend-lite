@@ -109,8 +109,7 @@ class TestPlanJsonRoundTripTest {
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words",
                 null)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
-                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
-                TestPlan.LITE_WORDS);
+                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"));
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }
@@ -125,7 +124,9 @@ class TestPlanJsonRoundTripTest {
         HostJudgment.Keys keys = new HostJudgment.Keys(tree, null, true, false, Map.of("my::D", nested));
         HostJudgment.Part part = new HostJudgment.Part(ASSERTION, new HostJudgment.Size(true), 2);
         return List.of(
-                new HostJudgment.AllRows("allRows", true, "message"),
+                new HostJudgment.AllRows("allRows", true, com.legend.error.AssertKind.MESSAGE.record(
+                        java.util.Map.of("message", "a caller's message"))),
+                new HostJudgment.AllRows("allRows", false, com.legend.error.AssertKind.FALSE.record()),
                 new HostJudgment.Rows("rows", true, List.of(new HostJudgment.RowArg.Whole(),
                         new HostJudgment.RowArg.Field("f"), new HostJudgment.RowArg.Literal("Long", "1")),
                         "my::C", null, new HostJudgment.Pairing.Zip(new HostJudgment.Pairing.Arm(0),
@@ -143,7 +144,9 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Eq(e, a, keys),
                 new HostJudgment.InstanceOf("my::C", Set.of("my::C", "my::B")),
                 new HostJudgment.Is("is"),
-                new HostJudgment.Decided(true, "held"),
+                new HostJudgment.Decided(true, null),
+                new HostJudgment.Decided(false, com.legend.error.AssertKind.EQUALS.record(
+                        java.util.Map.of("expected", "a::A", "actual", "a::B"))),
                 new HostJudgment.SameElements(e, new HostJudgment.SideFacts("my::F", new KindClass.Element("my::F"),
                         false, false, false, "F", "F"), true, keys),
                 new HostJudgment.Equals("equals", true, false, true, e, a, keys,
@@ -157,7 +160,8 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.EdgeJudged(new com.legend.edge.EngineTextJudgment("text", "golden", "ours", false, "decline"), 1,
                         "origin", true),
                 new HostJudgment.AssertError("expected", 3L, null, FAILURE, part),
-                new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"),
+                new HostJudgment.Messaged(new HostJudgment.Size(true), 1, FILE_FAILURE),
+                new HostJudgment.Messaged(new HostJudgment.Size(true), 1),
                 new HostJudgment.Negated(new HostJudgment.Size(false), "NOT_SIZE"));
     }
 

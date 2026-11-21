@@ -184,17 +184,14 @@ class PlanTypesAreDataTest {
             Map.entry("SqlExpr$RaiseText.asData", "CONSTRAINT_UNEVALUABLE's sentence as a defect row's cell, the"
                     + " checked envelope built in SQL -- B2 (upstream's printed text in Java from typed rows)"),
             // a failure with no record (a record and a message never ride together, Failure's constructor)
-            Map.entry("Failure.message", "a failure with no record: an assert's words (the user's message or the"
-                    + " default words lite plans) -- assert verdicts as records (item 3, the user's go of 2026-11-21)"),
+            Map.entry("Failure.message", "a failure with no record: the edge's prose failures alone since item 3's S3"
+                    + " (an assert's failure is a record, AssertKind) -- the appeal path's (SqlTextVerdicts' NOT_A_CONSTANT"
+                    + " and Appeal.Read.failure) -- B3"),
             Map.entry("Failure.unjudgedReason", "why an assert is unjudged: none on the product's planned road since D"
                     + " (an unjudged decline refuses the body at planning); the edge's appeal path still records one"
                     + " (SqlTextVerdicts' Failures.of) -- removed with that path (B3)"),
-            // the host judge's assert words decided at planning
-            Map.entry("HostJudgment$AllRows.message", "an assert's words decided at planning -- assert verdicts as"
-                    + " records (item 3)"),
-            Map.entry("HostJudgment$Decided.message", "the same -- item 3"),
-            Map.entry("HostJudgment$Messaged.unplanned", "a caller's message the plan could not evaluate, lite's words"
-                    + " around its reason -- item 3 (a body lite cannot fully plan is refused, D)"),
+            // (the host judge's assert words decided at planning -- AllRows.message, Decided.message,
+            // Messaged.unplanned: records since 2026-11-21, item 3's S3, assert verdicts as records)
             // the compatibility edge's records in a test plan, withdrawn from the run with E1 (B3)
             Map.entry("Appeal$Unlisted.message", "an appeal's error message -- the edge's, B3"),
             Map.entry("Appeal.contract", "an appeal's description (\"(sql-text, H2 -- text is the contract)\") -- B3"),
@@ -279,8 +276,8 @@ class PlanTypesAreDataTest {
                     "SqlDdl$ColumnType$Scaled.kind", "SqlDdl$ColumnType$Sized.kind", "SqlExpr$Tagged$Candidate.kind",
                     "SqlExpr$TaggedList$Channel.kind", "SqlExpr$WindowCall$Frame$Bound$IntervalFollowing.unit",
                     "SqlExpr$WindowCall$Frame$Bound$IntervalPreceding.unit", "SqlSource$RawSql.writtenFor",
-                    "SqlSource$Table.storedTypes", "SqlType$Tagged$Slot.kind", "TestPlan$Verdict.arm",
-                    "TestPlan.words")),
+                    "SqlSource$Table.storedTypes", "SqlType$Tagged$Slot.kind", "TestPlan$Verdict.arm")),
+                    // (TestPlan.words, the plan's audience's words' name: gone 2026-11-21, item 3's S3)
             Map.entry("a name: an element's, a column's, a table's, an alias, a path", Set.of(
                     "Appeal$Enums.enums", "Appeal$Enums.properties", "Appeal$Rows.classFqn",
                     "Appeal$Rows.mappingFqn", "Appeal$TempTable.name", "Appeal$Unlisted.simpleName", "Appeal.name",

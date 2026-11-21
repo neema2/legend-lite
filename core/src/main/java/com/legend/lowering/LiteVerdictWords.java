@@ -22,19 +22,11 @@ public final class LiteVerdictWords implements VerdictWords {
 
     public static final LiteVerdictWords INSTANCE = new LiteVerdictWords();
 
-    /** The name a plan worded in lite's sentences carries ({@code TestPlan.LITE_WORDS}, the same text). */
-    public static final String NAME = "lite";
-
     private LiteVerdictWords() {
     }
 
     private static SqlExpr lit(String s) {
         return new SqlExpr.StringLit(s);
-    }
-
-    @Override
-    public String name() {
-        return NAME;
     }
 
     @Override
@@ -164,15 +156,5 @@ public final class LiteVerdictWords implements VerdictWords {
 
     private static SqlExpr atIndex(SqlExpr message, SqlExpr index) {
         return VerdictSql.atIndexFrame(message, index);
-    }
-
-    @Override
-    public String conditionFailed(boolean wantTrue) {
-        return sentence(wantTrue ? AssertKind.TRUE : AssertKind.FALSE);
-    }
-
-    @Override
-    public String valuesDiffer(String expected, String actual) {
-        return AssertKind.EQUALS.fill(Map.of("expected", expected, "actual", actual));
     }
 }

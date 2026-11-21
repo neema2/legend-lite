@@ -611,7 +611,7 @@ public final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                TypedSide isv = isVerdict(args.get(0), args.get(1), DatabaseJudge.words(env));
+                TypedSide isv = isVerdict(args.get(0), args.get(1));
                 if (isv != null) {
                     arm.staticallyDecided(env);
                     yield isv;
@@ -960,7 +960,7 @@ public final class AssertVerdicts {
                 // statically identified operands: decided with no side (the verdict, or its failure, at the
                 // assert's turn)
                 yield staticallyIdentified(left, right) ? new HostSides.Check(List.of(),
-                        java.util.Objects.requireNonNull(isDecided(left, right, DatabaseJudge.words(env)), "statically identified"))
+                        java.util.Objects.requireNonNull(isDecided(left, right), "statically identified"))
                         // two primitive values: is() is compiled pure's `left == right`, their values (as assertEq)
                         : primitivePair(left, right) ? HostJudge.planEq(args, letPrefix, env, hook)
                         : HostJudge.planIs(name, args, specs, hook);
@@ -1046,19 +1046,19 @@ public final class AssertVerdicts {
      * {@code is}'s missing SQL rule — a wire carries values, never
      * reference identity (the eq/equalNonPrimitive irreducible ruling). */
     static @com.legend.base.Nullable TypedSide isVerdict(
-            TypedSpec left, TypedSpec right, com.legend.lowering.VerdictWords words) {
-        HostJudgment.Decided d = isDecided(left, right, words);
+            TypedSpec left, TypedSpec right) {
+        HostJudgment.Decided d = isDecided(left, right);
         return d == null ? null : com.legend.testexecutionplan.Verdicts.decided(d);
     }
 
     /** {@link #isVerdict} as data (M8a): the verdict decided at planning with no side -- held, or its failure's
      *  message -- or null where the operands are not statically identified. */
-    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right, com.legend.lowering.VerdictWords words) {
+    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right) {
         String lt = typeIdentityOf(left);
         String rt = typeIdentityOf(right);
         if (lt != null && rt != null) {
             return lt.equals(rt) ? new HostJudgment.Decided(true, null)
-                    : new HostJudgment.Decided(false, words.valuesDiffer(lt, rt));
+                    : new HostJudgment.Decided(false, com.legend.error.AssertKind.EQUALS.record(java.util.Map.of("expected", lt, "actual", rt)));
         }
         TypedSpec l = instanceOrigin(left);
         TypedSpec r = instanceOrigin(right);
@@ -1424,10 +1424,11 @@ public final class AssertVerdicts {
         return marks.size() <= 1;
     }
 
-    /** A condition's failure text with no message of the caller's: lite's sentence ("expected true, got false") under
-     *  lite's own rules, legend-pure's "Assert failed" under the compatibility rules -- both judges read it. */
-    static String defaultConditionMessage(boolean wantTrue, BodyDriver.ExecEnv env) {
-        return DatabaseJudge.words(env).conditionFailed(wantTrue);
+    /** A condition's failure SENTENCE for the database judge's verdict row, until item 3's S4 carries the record
+     *  (item 3, 2026-11-21: the host judge plans the record, AssertKind.condition; until then lite's sentence or
+     *  legend-pure's "Assert failed", by the plan's style). */
+    static String defaultConditionMessage(boolean wantTrue) {
+        return com.legend.error.AssertKind.condition(wantTrue, null).sentence();
     }
 
     /** The unroll's elements as ONE host assert under the statement's name and no family: every element's asks in
@@ -1468,8 +1469,8 @@ public final class AssertVerdicts {
                 // family's truth and inverted assertFalse until this item's audit
                 return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true,
                         HostJudge.planAllRows(vectorFamily(sh), sh.vectorPredMap(), true,
-                                com.legend.compiler.spec.VerdictQueries.assertMessage(sh.root(),
-                                        defaultConditionMessage(family == NativeFn.Verdict.ASSERT, env)), hook)));
+                                com.legend.error.AssertKind.condition(family == NativeFn.Verdict.ASSERT,
+                                        com.legend.compiler.spec.VerdictQueries.callerMessage(sh.root())), hook)));
             }
             if (family == NativeFn.Verdict.ASSERT_EQUALS || family == NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE) {
                 // row by row on the host, planned (2026-11-04, the core program): the zip's arms or the relation
@@ -1484,14 +1485,14 @@ public final class AssertVerdicts {
         }
         if (sh.simplePredicate()) {
             List<TypedSpec> aargs = com.legend.compiler.spec.typed.Calls.argsOf(sh.root());
-            String msg = aargs.size() >= 2 && aargs.get(1) instanceof com.legend.compiler.spec.typed.TypedCString cs
-                    ? cs.value() : defaultConditionMessage(family == NativeFn.Verdict.ASSERT, env);
+            com.legend.error.ErrorRecord failure = com.legend.error.AssertKind.condition(family == NativeFn.Verdict.ASSERT,
+                    aargs.size() >= 2 && aargs.get(1) instanceof com.legend.compiler.spec.typed.TypedCString cs ? cs.value() : null);
             TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVector(qm, sh.lam(), aargs.get(0));
             boolean truth = family == NativeFn.Verdict.ASSERT;
             // the family the walk's arm fetched under was the root's FQN, and it counted no family at all (its census
             // row is new with this item, one spelling for both vector forms: the bare name)
             return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), truth,
-                    HostJudge.planAllRows(vectorFamily(sh), predMap, truth, msg, hook)));
+                    HostJudge.planAllRows(vectorFamily(sh), predMap, truth, failure, hook)));
         }
         List<TypedSpec> elements = com.legend.compiler.spec.VerdictQueries.unrollElements(sh.source(), letPrefix,
                 env.ctx());
@@ -1547,7 +1548,7 @@ public final class AssertVerdicts {
         String msg = aargs.size() >= 2
                 && aargs.get(1) instanceof
                         com.legend.compiler.spec.typed.TypedCString cs
-                ? cs.value() : defaultConditionMessage(qfn == NativeFn.Verdict.ASSERT, env);
+                ? cs.value() : defaultConditionMessage(qfn == NativeFn.Verdict.ASSERT);
         if (aargs.size() >= 2 && !(aargs.get(1) instanceof
                 com.legend.compiler.spec.typed.TypedCString)) {
             throw new com.legend.error.NotImplementedException(

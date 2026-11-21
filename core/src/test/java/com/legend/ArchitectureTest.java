@@ -4021,8 +4021,8 @@ final class ArchitectureTest {
             // the host judge's words of a failed assert (census J29, train 14's 21a9734475; registered 2026-11-18 by the
             // GUARD stream's re-cut on train 15 1931d419b1, where this rule first met them): the run hook HostForms
             // names, the kind and lite's form; each words a verdict over Equality's typed grids, never decides one
-            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostWords")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostWords")
+            // the host judge's failed asserts as records (HostWords and LiteHostWords until 2026-11-21, item 3's S2)
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.AssertRecords")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
             // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")

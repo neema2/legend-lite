@@ -152,9 +152,15 @@ public final class VerdictQueries {
      *  2026-11-18, PR #118: lite's sentence, legend-pure's the edge's alone; 2026-11-04: both judges printed the default
      *  over a caller's message -- AssertBarTest's forAll-zip-assert-message). */
     public static String assertMessage(TypedSpec root, String otherwise) {
+        String m = callerMessage(root);
+        return m != null ? m : otherwise;
+    }
+
+    /** The literal message of an {@code assert}/{@code assertFalse} under the vector contract, or null where it has
+     *  none ({@code (3)} admits no other). */
+    public static @com.legend.base.Nullable String callerMessage(TypedSpec root) {
         List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
-        return a.size() >= 2 && a.get(1) instanceof com.legend.compiler.spec.typed.TypedCString m ? m.value()
-                : otherwise;
+        return a.size() >= 2 && a.get(1) instanceof com.legend.compiler.spec.typed.TypedCString m ? m.value() : null;
     }
 
     /** (1): rows the relation lane plans. */
