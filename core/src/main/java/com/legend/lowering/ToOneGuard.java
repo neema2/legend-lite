@@ -67,7 +67,7 @@ final class ToOneGuard {
         // the bound and the size, the edge's sentence's operands (D1.1); placed by the bound, a fixed text known at
         // planning (2026-11-15, the orchestrator under the user's ruling of 2026-11-10)
         SqlExpr raise = SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
-                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(new SqlExpr.StringLit("[1]"), n), null, "[1]"));
+                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(new SqlExpr.StringLit("[1]"), n), null));
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL, n, new SqlExpr.IntLit(1)), new SqlExpr.BoolLit(true))), raise, SqlExpr.Reason.RAISE);
         List<SqlSelect.Projection> out = new ArrayList<>(cols.size());

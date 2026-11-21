@@ -16,7 +16,7 @@ package com.legend.error;
  * database's own text (the raised-message provenance discipline —
  * RaisedErrors — is unchanged and runs before translation).
  */
-public final class DataError extends RuntimeException {
+public final class DataError extends RuntimeException implements LegendError {
 
     /** The product raise's kind (phase D's D1.1), or null: a database's own error, the edge's sentence, a user's
      *  {@code fail} message. */
@@ -28,45 +28,66 @@ public final class DataError extends RuntimeException {
     /** The database's own message, verbatim, where the error is the database's ({@link ErrorKind#isDatabases}). */
     private final @com.legend.base.Nullable String databaseMessage;
 
-    /** Where the raise happened, as its constructor was given it (a site's where: a parameter's name, the digits a
-     *  database keeps), or null. Kept since PR #118's fix round (2026-11-18, N3): until then it was taken and dropped,
-     *  so lite's API could not answer it. */
-    private final @com.legend.base.Nullable String where;
+    /** Where in the query the raise happened, the driver's {@code [line:col]} its statement's envelope carried, or
+     *  null (stage B's BE, 2026-11-21: until then a {@code where}, a site's fixed text that repeated its facts, kept
+     *  since PR #118's fix round, N3, so lite's API could answer where; it answers this instead). Beside the record,
+     *  never in its sentence. */
+    private final @com.legend.base.Nullable String position;
+    /** The error as data where its kind and place are its facts (stage B's BE, 2026-11-21): null for a database's own
+     *  failure and an error of no kind, whose words are their own. */
+    private final @com.legend.base.Nullable ErrorRecord record;
 
     public DataError(String message, Throwable cause) {
         super(message, cause);
         this.kind = null;
         this.sqlState = null;
         this.databaseMessage = null;
-        this.where = null;
+        this.position = null;
+        this.record = null;
     }
 
-    /** A product raise of {@code kind}: its message the kind's sentence, spelled here, the error layer's
-     *  ({@link ErrorKind#sentence}). */
-    public DataError(ErrorKind kind, Throwable cause) {
-        this(kind, null, cause);
+    // (the constructors of a kind and its where -- (kind, cause), (kind, where, cause) and (kind, where, message,
+    // cause) -- gone 2026-11-21, the BE audit 2's S10: no product path made one, and a kind's sentence reads its
+    // operands, which they put in its first slot; a raise is its record, DataError(record, position, cause))
+
+    private static ErrorRecord fileTooLargeRecord(String path, long bytes, long characters, int limitMegabytes) {
+        return ErrorRecord.of(ErrorKind.FILE_TOO_LARGE, java.util.List.of(path, Long.toString(bytes),
+                Long.toString(characters), Integer.toString(limitMegabytes)));
     }
 
-    /** A product raise of {@code kind} placed by {@code where}, a fixed text known at planning (a parameter's name, the
-     *  digits a database keeps): its message the kind's sentence, then the where (the D part 1 audit's S4,
-     *  2026-11-15: the user's "its kind and where it happened"). */
-    public DataError(ErrorKind kind, @com.legend.base.Nullable String where, Throwable cause) {
-        super(where == null ? kind.sentence() : kind.sentence() + ": " + where, cause);
-        this.kind = kind;
+    /** The error {@code record} states, its code a run's {@link ErrorKind}, with no place: its message
+     *  the record's sentence (stage B's BE, 2026-11-21; a planned failure rebuilt from its record). */
+    public DataError(ErrorRecord record) {
+        // no place: a planned failure carries none (the BE audit 2's nit 4: its first value was taken for it)
+        this(record, null, null);
+    }
+
+    /** A raise of a planned site (stage B's BE, 2026-11-21, the one catalog): its record the site's kind and its
+     *  operands as the kind's sentence prints them ({@code result.RaiseWords}), its message the record's sentence --
+     *  the one catalog's, upstream's words -- and {@code position} where in the query it happened, or null. */
+    public DataError(ErrorRecord record, @com.legend.base.Nullable String position,
+            @com.legend.base.Nullable Throwable cause) {
+        super(record.sentence(), cause);
+        if (!(record.code() instanceof ErrorKind k)) {
+            throw new IllegalArgumentException("a data error's record is a run's error: " + record.code());
+        }
+        this.kind = k;
         this.sqlState = null;
         this.databaseMessage = null;
-        this.where = where;
+        this.position = position;
+        this.record = record;
     }
 
-    /** A raise of a planned site of {@code kind} placed by {@code where} (phase D's Phase 2, raises as SITES,
-     *  2026-11-16): its message the site's words, RENDERED AT PLANNING and read back from the plan -- the product's
-     *  sentence, or legend-pure's in a plan the compatibility edge wrote -- never worded here. */
-    public DataError(ErrorKind kind, @com.legend.base.Nullable String where, String message, Throwable cause) {
-        super(message, cause);
-        this.kind = kind;
-        this.sqlState = null;
-        this.databaseMessage = null;
-        this.where = where;
+    /** A load's file larger than the load admits ({@link ErrorKind#FILE_TOO_LARGE}): its record the file, its size in
+     *  bytes and in characters, and the limit in megabytes, so an audience words the size as it does (stage B's BE,
+     *  2026-11-21: until then its facts rode {@code base.DataSize.TooLarge}, its cause, alone). */
+    public static DataError fileTooLarge(String path, long bytes, long characters, int limitMegabytes, Throwable cause) {
+        return new DataError(fileTooLargeRecord(path, bytes, characters, limitMegabytes), null, cause);
+    }
+
+    @Override
+    public @com.legend.base.Nullable ErrorRecord record() {
+        return record;
     }
 
     private DataError(ErrorKind kind, @com.legend.base.Nullable String sqlState, String databaseMessage, String message,
@@ -79,7 +100,8 @@ public final class DataError extends RuntimeException {
         this.kind = kind;
         this.sqlState = sqlState;
         this.databaseMessage = databaseMessage;
-        this.where = null;
+        this.position = null;
+        this.record = null;
     }
 
     /** A failure the database raised itself (phase D's Phase 2, item 4, 2026-11-16): {@code kind} DATABASE_ERROR or
@@ -101,9 +123,9 @@ public final class DataError extends RuntimeException {
         return databaseMessage;
     }
 
-    /** Where the raise happened, as its constructor was given it, or null. */
-    public @com.legend.base.Nullable String where() {
-        return where;
+    /** Where in the query the raise happened ({@code [line:col]}), or null. */
+    public @com.legend.base.Nullable String position() {
+        return position;
     }
 
     /** The product raise's kind, or null where the error is not one ({@link #DataError(String, Throwable)}). */
@@ -118,6 +140,7 @@ public final class DataError extends RuntimeException {
         this.kind = null;
         this.sqlState = null;
         this.databaseMessage = null;
-        this.where = null;
+        this.position = null;
+        this.record = null;
     }
 }

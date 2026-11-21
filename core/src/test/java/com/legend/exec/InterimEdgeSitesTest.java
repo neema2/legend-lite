@@ -83,7 +83,7 @@ class InterimEdgeSitesTest {
                 }
                 for (ExecutionPlan.Site site : sql.sites()) {
                     String words = com.legend.edge.PureMessages.worded(site);
-                    if (words.contains(com.legend.edge.PureMessages.WITHHELD)) {
+                    if (words.contains(com.legend.result.RaiseWords.COMPUTED)) {
                         withheld.add(site.kind() + " in " + query + ": " + words);
                     }
                 }

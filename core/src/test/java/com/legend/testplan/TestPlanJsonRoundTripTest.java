@@ -38,16 +38,20 @@ import org.junit.jupiter.api.Test;
 class TestPlanJsonRoundTripTest {
 
     private static final ExecutionPlan.Multiplicity ONE = new ExecutionPlan.Multiplicity(1, 1);
-    private static final Failure FAILURE = new Failure(Failure.Kind.ILLEGAL_STATE, "refused", null, null, null, "here");
+    private static final Failure FAILURE = new Failure(Failure.Kind.NOT_IMPLEMENTED, "refused", null, null, null);
 
-    /** A planned failure's facts round-trip (stage B's B1, 2026-11-20): a kinded compile error inside lite's stated
-     *  wrapper, and a file's size against a load's limit. */
-    private static final Failure COMPILE_FAILURE = new Failure(Failure.Kind.MODEL, "in function 'f': [2:3] window frame starts"
-            + " after it ends [inlined via a -> b]", com.legend.error.LegendCompileException.Phase.TYPE, null, null,
-            "there", new Failure.Compile("in function 'f': ", com.legend.error.CompileKind.WINDOW_FRAME_INVERTED,
-                    List.of(), "[2:3]", " [inlined via a -> b]"));
-    private static final Failure FILE_FAILURE = new Failure(Failure.Kind.DATA, "the file is larger than the load admits:"
-            + " /big.csv", null, null, null, "elsewhere", new Failure.FileTooLarge("/big.csv", 1048577, 1048577, 1));
+    /** A planned failure's record round-trips, and no message rides it (stage B's BE, 2026-11-21, the one error model):
+     *  a compile error inside two frames at a position, and a file's size against a load's limit. */
+    private static final Failure COMPILE_FAILURE = new Failure(Failure.Kind.MODEL, null,
+            com.legend.error.LegendCompileException.Phase.TYPE, null, null, new com.legend.error.ErrorRecord(
+                    com.legend.error.CompileKind.WINDOW_FRAME_INVERTED, List.of(), "[2:3]", List.of(
+                            new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.INLINED_VIA,
+                                    List.of("a", "b")),
+                            new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.IN_FUNCTION,
+                                    List.of("f")))));
+    private static final Failure FILE_FAILURE = new Failure(Failure.Kind.DATA, null, null, null, null,
+            com.legend.error.ErrorRecord.of(com.legend.error.ErrorKind.FILE_TOO_LARGE,
+                    List.of("/big.csv", "1048577", "1048577", "1")));
     private static final Assertion ASSERTION = new Assertion("assertEquals", "equality", true, null);
 
     @Test
@@ -71,11 +75,12 @@ class TestPlanJsonRoundTripTest {
             id++;
         }
         RootLoop roots = new RootLoop(List.of(
-                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, null),
-                        new RootLoop.Row("refused", RootLoop.NO_VERDICT, FAILURE)),
-                        new RootLoop.Message(constant(), null, true)),
+                // (a refused row and a refused message went 2026-11-21, stage B's BE: a dialect's refusal refuses the
+                // body at planning, D)
+                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1), new RootLoop.Row("second", 2)),
+                        new RootLoop.Message(constant(), true)),
                 new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
-                        new RootLoop.Message(null, FAILURE, false))),
+                        new RootLoop.Message(constant(), false))),
                 Map.of("fragment", "reason"));
         TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
@@ -168,7 +173,7 @@ class TestPlanJsonRoundTripTest {
      *  referee's own statements. */
     private static RefereeLoad refereeLoad() {
         com.legend.setup.LoadSteps rows = com.legend.setup.LoadSteps.blob(List.of("INSERT INTO T VALUES (1)"),
-                "the data of the table T");
+                "T");
         List<com.legend.executionplan.ExecutionPlan.LoadStep> steps = new java.util.ArrayList<>();
         steps.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement("create table t"));
         steps.addAll(rows.steps());

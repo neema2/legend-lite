@@ -202,8 +202,13 @@ final class ChainDispatch {
         TypedSpec test = new TypedNativeCall(instanceOfCallee(), List.of(var,
                 new TypedTypeRef(to, ExprType.one(to))),
                 boolOne);
-        // the product's raise of its kind (W5 of docs/records/d-plan-2026-11-16.md): legend-pure's sentence is the edge's
-        TypedSpec raise = typeRaise(com.legend.sql.RaiseKind.INSTANCE_NOT_OF, from.fqn(), to.fqn(), boolOne);
+        // the product's raise of its kind (W5 of docs/records/d-plan-2026-11-16.md), the two classes' NAMES as
+        // legend-pure's cast prints them (GenericType.print, fullPaths false; the BE audit 3's M3, 2026-11-21). The
+        // first is the ROW's class, which legend-pure prints (Cast.java, the value's generic type): the static class
+        // where it has no subclass, else a class only the database knows, {@code <computed>} (S389; the BE audit 5's
+        // M1, 2026-11-21: until then the static class, "Vehicle" for a Bicycle row)
+        String rowClass = ctx.subtree(from.fqn()).isEmpty() ? nameOf(from.fqn()) : com.legend.error.ErrorKind.COMPUTED;
+        TypedSpec raise = typeRaise(com.legend.sql.RaiseKind.INSTANCE_NOT_OF, rowClass, nameOf(to.fqn()), boolOne);
         TypedSpec body = new TypedIf(test, new TypedCBoolean(true, boolOne),
                 Optional.of(raise), boolOne);
         TypedLambda pred = new TypedLambda(List.of(v), List.of(body),
@@ -214,6 +219,11 @@ final class ChainDispatch {
                                 Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
         return new TypedFilter(source, pred, source.info(), TypedFilter.Stamp.NONE /* runtime-if branch */);
+    }
+
+    /** An element's name, its path's last part ({@code ux::A} is {@code A}). */
+    static String nameOf(String fqn) {
+        return fqn.substring(fqn.lastIndexOf(':') + 1);
     }
 
     /** {@code typeRaise(kind, from, to)} ({@link com.legend.builtin.Pure.Lite#TYPE_RAISE}): the product's raise of a

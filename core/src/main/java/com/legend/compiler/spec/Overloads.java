@@ -401,17 +401,17 @@ final class Overloads {
         }
     }
 
-    /** {@code e} in the names the user wrote (stage B's B1, 2026-11-20, errors as records; the fixes' review): a kinded
-     *  error stays kinded, its operands restored; a stated wrapper stays one, its texts and the error it wraps restored
-     *  -- so the record an audience words keeps what the user wrote; any other error (no record: lite's words alone)
-     *  its message restored, wrapping it (one with no message as it is). */
+    /** {@code e} in the names the user wrote (stage B's B1, 2026-11-20; the one error model, BE, 2026-11-21): an error
+     *  with a record keeps it, its values and its frames' values restored -- so the record an audience words keeps what
+     *  the user wrote; any other error (no record: lite's words alone) its message restored, wrapping it (one with no
+     *  message as it is). */
     private static TypeInferenceException restored(TypeInferenceException e, ColumnHygiene.Renamed hygienic) {
-        if (e.kind() != null) {
-            return new TypeInferenceException(e.kind(), e.operands().stream().map(hygienic::restore).toList());
-        }
-        if (e.wraps() && e.getCause() instanceof TypeInferenceException wrapped) {
-            return new TypeInferenceException(hygienic.restore(e.prefix()), restored(wrapped, hygienic),
-                    hygienic.restore(e.suffix()));
+        com.legend.error.ErrorRecord r = e.record();
+        if (r != null) {
+            return new TypeInferenceException(new com.legend.error.ErrorRecord(r.code(),
+                    r.values().stream().map(hygienic::restore).toList(), r.position(), r.frames().stream()
+                            .map(f -> new com.legend.error.ErrorRecord.Frame(f.kind(),
+                                    f.values().stream().map(hygienic::restore).toList())).toList()));
         }
         String said = e.getMessage();
         // no message: nothing written to restore
@@ -467,8 +467,11 @@ final class Overloads {
         try {
             kernel.unify(want, got, new Bindings());
         } catch (TypeInferenceException e) {
-            // its text before the unifier's error, stated (stage B's B1, 2026-11-20)
-            throw new TypeInferenceException(said + ": ", e, "");
+            // the unifier's error inside the body's frame (stage B's BE, 2026-11-21, the one error model)
+            throw new TypeInferenceException(new com.legend.error.ErrorRecord.Frame(
+                    com.legend.error.FrameKind.BODY_ANSWERS, java.util.List.of(chosen.qualifiedName(),
+                            String.valueOf(columnNames(got)), declared.type().typeName(),
+                            String.valueOf(columnNames(want)))), e);
         }
         List<String> extra = got.columns().stream().map(Type.Column::name)
                 .filter(n -> want.columns().stream().noneMatch(c -> InferenceKernel.sameColumn(c.name(), n)))

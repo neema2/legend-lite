@@ -48,6 +48,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Trino extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "Trino";
+    }
+
     /** Trino (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): double quotes; Trino's documented reserved
      *  keywords. The {@code Trino} dialect quotes every identifier, so the list decides no spelling there. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of(

@@ -19,8 +19,8 @@ import java.util.Set;
  * test the LITE rows name is theirs alone, every other keeps its COMPAT row. Measured at claude/compat-judges-parity, 2026-11-19:
  * 26 rows differ, 7 COMPAT failures failing with lite's text and 19 new; the relation and unclassified suites did not
  * move (lite's relation answers are legend-pure's by value). 2026-11-21 (stage B's B1, PR #130): a compile error too is
- * in lite's words on this lane (the lane chooses its words once), so the relation suite holds 4 rows, the inverted
- * window frame's tests.
+ * in lite's words on this lane (the lane chooses its words once), so the relation suite held 4 rows, the inverted
+ * window frame's tests, until BE's one catalog (the same day) made lite's sentence legend-pure's.
  */
 final class LiteRulesLedger {
 

@@ -6836,7 +6836,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 com.legend.error.LegendCompileException.class,
                 () -> executeRelation(pureQuery));
         // its kind, in lite's sentence on the product road; legend-pure's is the edge's (the P2 checkpoint audit's M4)
-        assertTrue(ex.getMessage().contains("window frame starts after it ends"),
+        assertTrue(ex.getMessage().contains("lower bound of window frame cannot be greater than the upper bound"),
                 "Expected the inverted frame's refusal, got: " + ex.getMessage());
     }
 
@@ -6850,7 +6850,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 com.legend.error.LegendCompileException.class,
                 () -> executeRelation(pureQuery));
         // its kind, in lite's sentence on the product road; legend-pure's is the edge's (the P2 checkpoint audit's M4)
-        assertTrue(ex.getMessage().contains("window frame starts after it ends"),
+        assertTrue(ex.getMessage().contains("lower bound of window frame cannot be greater than the upper bound"),
                 "Expected the inverted frame's refusal, got: " + ex.getMessage());
     }
 }

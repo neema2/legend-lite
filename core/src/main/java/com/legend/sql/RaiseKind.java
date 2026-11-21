@@ -7,7 +7,7 @@ package com.legend.sql;
  * THE KINDS OF A PRODUCT RAISE (phase D's D1.1; the user's ruling of 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md
  * §6.1: "a product error is its kind plus where it happened: a fixed text known at planning, never the value"): what a
  * statement's guard refuses, one closed list. A raise's message is a {@link SqlExpr.RaiseText} of one of these; the
- * product writes the kind's name behind its {@link #MARK}, and its where, the compatibility edge legend-pure's sentence
+ * product writes the kind's name behind its {@link #MARK} (its where went with BE's item 2), the compatibility edge legend-pure's sentence
  * from the kind and its operands. The product's WORDING of each is the error layer's {@code com.legend.error.ErrorKind}
  * (its sentence, held equal by name, both ways, by {@code ErrorKind}'s test), applied where exec reads the raise back
  * ({@code exec.RaisedErrors}), never SQL.
@@ -38,8 +38,18 @@ public enum RaiseKind {
     /** Text that is not a Float, read as one (parseFloat; Phase 8, 2026-11-16). */
     TEXT_NOT_FLOAT,
     TEXT_NOT_DATE,
-    VALUE_NOT_HELD,
-    FRACTION_NOT_KEPT,
+    /** Lite's refusals of a value a database cannot hold (S138, S181, a load's width), each its own kind with its facts
+     *  the operands (stage B's BE-P, 2026-11-21: until then VALUE_NOT_HELD, FRACTION_NOT_KEPT and CSV_TOO_WIDE, whose
+     *  operand was the place's prose). */
+    INVERSE_TRIG_NAN,
+    PARSED_NAN_NOT_HELD,
+    NOT_FINITE_NOT_HELD,
+    DATE_PAST_YEARS,
+    DATE_OUTSIDE_YEARS,
+    INTEGER_PAST_64_BITS,
+    MIXED_RANK_INEXACT,
+    PARAMETER_FRACTION_NOT_KEPT,
+    SECOND_FRACTION_NOT_KEPT,
     CSV_TOO_WIDE,
     /** A window frame whose computed start comes after its end (merged with #81's frame guard, 2026-11-14). */
     WINDOW_FRAME_INVERTED,
@@ -53,9 +63,10 @@ public enum RaiseKind {
     /** {@code fail(message)}: the user's own message, the one operand the product writes. */
     USER_FAIL;
 
-    /** U+001C (file separator): the mark a product raise's text opens with, before its kind's name -- and again before
-     *  its where, a fixed text known at planning -- so a user's {@code fail} text spelled as a kind's name is never read
-     *  as that kind (the D part 1 audit's nit and S4, 2026-11-15). exec reads it ({@code exec.RaisedErrors}). */
+    /** U+001C (file separator): the mark a product raise's text opens with, before its kind's name, so a user's
+     *  {@code fail} text spelled as a kind's name is never read as that kind (the D part 1 audit's nit and S4,
+     *  2026-11-15; the second mark, before a where, went with the where, stage B's BE item 2, 2026-11-21). exec reads it
+     *  ({@code exec.RaisedErrors}). */
     public static final char MARK = '\u001c';
 
     /** What a raise SITE's token opens with (phase D's Phase 2, raises as SITES, 2026-11-16): the {@link #MARK}, then

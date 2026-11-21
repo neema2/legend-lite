@@ -179,6 +179,19 @@ class RuntimeTypeDispatchTest {
         assertTrue(e.getMessage().contains(com.legend.sql.RaiseKind.TOKEN), e.getMessage());
     }
 
+    /** A Bicycle row cast to Car: legend-pure prints the ROW's class ("Bicycle cannot be cast to Car", Cast.java's
+     *  value's generic type), which only the database knows here -- Vehicle has subclasses -- so lite prints it
+     *  {@code <computed>} (S389), never the static "Vehicle" (the BE audit 5's M1, 2026-11-21). */
+    @Test
+    void aFailedCastNamesTheRowsClassComputed_neverTheStaticOne() {
+        var statement = ResolvedSql.statement(MODEL, "|rt::Vehicle.all()"
+                + "->project([v|$v->cast(@rt::Car).engineType], ['e'])" + FROM);
+        List<String> words = statement.sites().stream().map(site -> com.legend.result.RaiseWords.sentence(
+                new com.legend.executionplan.ExecutionPlan.Site(1, site.kind(),
+                        site.operands().stream().map(com.legend.executionplan.Operand::of).toList()))).toList();
+        assertTrue(words.contains("Cast exception: <computed> cannot be cast to Car"), words.toString());
+    }
+
     @Test
     @DisplayName("a subtype the row carries no columns for stays LOUD, never a guessed boolean")
     void unmappedSubtypeIsLoud() {

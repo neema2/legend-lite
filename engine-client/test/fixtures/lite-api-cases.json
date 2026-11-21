@@ -1615,7 +1615,7 @@
       }
     },
     {
-      "name": "a run's raise is refused, kind data: the raise's kind in raise, its site in where (422; PR #118's fix round, 2026-11-18)",
+      "name": "a run's raise is refused, kind data: the raise's kind in raise (422; PR #118's fix round, 2026-11-18; its where its position in the query since stage B's BE, 2026-11-21 -- a protocol query has none)",
       "op": "query/run",
       "bindings": [
         "server"
@@ -1693,8 +1693,7 @@
       },
       "refusal": {
         "kind": "data",
-        "raise": "sizeNotMultiplicity",
-        "where": "[1]"
+        "raise": "sizeNotMultiplicity"
       }
     },
     {

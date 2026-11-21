@@ -66,7 +66,7 @@ public final class RootLoops {
             this.loop = loop;
             for (RootLoop.Root r : loop.roots()) {
                 for (RootLoop.Step s : r.steps()) {
-                    if (s instanceof RootLoop.Row row && row.verdict() != RootLoop.NO_VERDICT) {
+                    if (s instanceof RootLoop.Row row) {
                         members.add(row.verdict());
                     }
                 }
@@ -235,24 +235,19 @@ public final class RootLoops {
             throw failure;   // first-failure sequencing, as before
         }
 
-        /** {@code p} judged: its row (a member the dialect refused at planning raises its refusal, nothing sent).
+        /** {@code p} judged: its row (a member the dialect cannot spell refuses the body at planning, D).
          *  (A row's ruled comparison decided at planning raised here where the generic row failed until A4 of the
          *  compatibility program, stage A ratified by the user 2026-11-19.) */
         private void row(RootLoop.Row p, Judge judge, com.legend.error.@com.legend.base.Nullable DataError rejected) {
-            List<Object> row = p.verdict() == RootLoop.NO_VERDICT ? null : rows.get(p.verdict());
-            if (row == null && rejected != null && p.verdict() != RootLoop.NO_VERDICT) {
+            List<Object> row = rows.get(p.verdict());
+            if (row == null && rejected != null) {
                 // the segment's fused statement was rejected: its database error is this root's failure, raised at its
                 // turn as the host's side batch raises it at its first verdict's
                 throw rejected;
             }
             if (row == null) {
-                // a member the dialect cannot spell, refused at planning: raised at its place, nothing sent; any other
-                // absent row is the runner's defect
-                Failure refusal = p.refusal();
-                if (refusal == null) {
-                    throw new IllegalStateException(p.name() + ": the runner answered no row for a verdict of the plan");
-                }
-                throw refused(p.name(), refusal);
+                // an absent row is the runner's defect (a member the dialect cannot spell refuses the body at planning)
+                throw new IllegalStateException(p.name() + ": the runner answered no row for a verdict of the plan");
             }
             judge.judge(p.name(), row);
         }
@@ -264,22 +259,12 @@ public final class RootLoops {
         return at < 0 ? listenerName : listenerName.substring(at + 2);
     }
 
-    /** A refusal decided at planning raised at its place: counted UNJUDGED, raised as itself. */
-    private static RuntimeException refused(String name, Failure refused) {
-        com.legend.diagnostics.VerdictCensus.sqlUnjudged(name, "dialect-capability: " + String.valueOf(refused.message()).split("\n")[0]);
-        return Failures.raised(refused);
-    }
-
     /** The failure of a root that did not hold, with its caller's message: the message's row read now, at the root's
      *  place, its value the failure's text -- or the error reading it raised. */
     private static RuntimeException messaged(String listenerName, RootLoop.Message message,
             @com.legend.base.Nullable SideReader reader) {
         com.legend.diagnostics.Diagnostics.judgeSend("message", listenerName);
-        Failure refusal = message.refusal();
-        if (refusal != null) {
-            return refused(listenerName, refusal);
-        }
-        TestPlan.Side side = java.util.Objects.requireNonNull(message.side());
+        TestPlan.Side side = message.side();
         if (!message.carried()) {
             // a root with no verdict in the plan (every member refused, or decided at planning): its message rides no
             // statement of the plan, so it is not read -- refused by name (the milestone audit's 3)

@@ -326,6 +326,8 @@ meta::relational::tests::map::testSubAggregationMultiLevelJoinString
 meta::relational::tests::mapping::dataType::testSimpleTypeMappingProject
 meta::relational::tests::mapping::dataType::testSimpleTypeMappingProjectNulls
 meta::relational::tests::mapping::dates::datetime::testProject
+meta::relational::tests::mapping::inheritance::relational::testGetAll
+meta::relational::tests::mapping::inheritance::relational::union::testGetAll
 meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDatesInClass
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
 meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping

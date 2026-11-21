@@ -316,7 +316,7 @@ class PlanRunnerTest {
                     new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
                     List.of(), List.of(), null, TestBackends.settings(connection.databaseType()), null), com.legend.setup.LoadSteps.of(List.of(statement(
                             "CREATE TABLE K (A VARCHAR(10), B VARCHAR(10))"))).then(com.legend.setup.LoadSteps.blob(
-                            List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"), "the data of the table K")));
+                            List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"), "K")));
             long before = setupStatements();
             assertEquals("3", run(ExecutionPlan.reading(List.of(), cell(new ExecutionPlan.Sql(
                     "SELECT CAST(COUNT(*) AS VARCHAR(10)) FROM K", List.of(), target, null))), PlanSessions.shared()),
@@ -338,7 +338,7 @@ class PlanRunnerTest {
                         null), List.of(), List.of(), null, TestBackends.settings(b.type()), null);
                 com.legend.setup.LoadSteps steps = com.legend.setup.LoadSteps.blob(List.of(
                         "INSERT INTO WHOLE_K VALUES ('a')", "INSERT INTO NO_SUCH_TABLE VALUES ('b')"),
-                        "the data of the table WHOLE_K");
+                        "WHOLE_K");
                 ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
                         steps, target);
                 Sessions.Session session = com.legend.testbackend.TestSessions.over(c);

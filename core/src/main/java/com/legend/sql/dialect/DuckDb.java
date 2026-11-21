@@ -22,6 +22,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class DuckDb extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "DuckDB";
+    }
+
     /**
      * An outer join's ON without the IS NOT NULL tests a comparison beside them already makes (2026-10-17, the IQ
      * island's TPC-H corpus lane): DuckDB plans a LEFT JOIN whose ON tests a preserved column IS NOT NULL as a nested

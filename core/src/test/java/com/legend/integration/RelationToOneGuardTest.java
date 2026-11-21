@@ -45,10 +45,10 @@ class RelationToOneGuardTest {
     private static void assertSizeError(TestBackend backend, String model, Connection c, String query, int size)
             throws Exception {
         Exception e = assertThrows(Exception.class, () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
-        // the product's kind, in lite's words (D1.1), and its where, the bound (2026-11-15: a relation's row count
-        // carried none until //core:product_raise_probe found it); the size is legend-pure's sentence's, the edge's
-        assertTrue(String.valueOf(e.getMessage()).contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()
-                + ": [1]"), query + " (size " + size + "): "
+        // the product's kind in legend-pure's sentence (the one catalog, stage B's BE, 2026-11-21), the size a row
+        // count only the database knows: <computed>, as the edge says it
+        assertTrue(String.valueOf(e.getMessage()).contains("Cannot cast a collection of size "
+                + com.legend.result.RaiseWords.COMPUTED + " to multiplicity [1]"), query + " (size " + size + "): "
                 + e.getMessage());
         // the size, a row count only the database knows, prints <computed> in the edge's words, its formatter's after
         // the run (stage B's B1, 2026-11-20; D1, register S389): until B1 the edge's SQL wrote the count (the D part 1
@@ -59,7 +59,7 @@ class RelationToOneGuardTest {
                     StorelessRuntime.RUNTIME, edgeSession, com.legend.testing.EdgeProgram.upstream()), query);
         }
         String words = com.legend.edge.PureMessages.compile(edge);
-        assertTrue(words.contains("Cannot cast a collection of size " + com.legend.edge.PureMessages.WITHHELD + " to"),
+        assertTrue(words.contains("Cannot cast a collection of size " + com.legend.result.RaiseWords.COMPUTED + " to"),
                 query + " (size " + size + ") at the edge: " + words);
     }
 

@@ -10,8 +10,8 @@ import java.util.Objects;
  * ONE OPERAND OF A RAISE SITE, AS THE PLAN STATES IT (stage B's B1, errors as records: the user's rulings of 2026-11-20
  * ~16:40, "we should do B to keep the PCT", and ~17:00, the plan carries the error's facts and no words): a literal the
  * statement holds, by its Pure kind, or {@link Computed} where the database computes the value. The plan never carries
- * a computed value; each audience's formatter words a site from its kind, its where and these operands after the run,
- * in Java (the product's sentence names the kind and the where; legend-pure's prints the literals, and a computed
+ * a computed value; each audience's formatter words a site from its kind and these operands after the run, in Java
+ * (the one catalog's sentence over them; legend-pure's prints the literals, and a computed
  * operand as {@code <computed>}, register row S389). One JSON key an operand, its value a string where a JSON number
  * would lose digits.
  */

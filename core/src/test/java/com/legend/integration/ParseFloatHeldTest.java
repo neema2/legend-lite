@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A FLOAT PARSED FROM TEXT IS THE VALUE ITS TEXT NAMES, OR REFUSED BY NAME (Phase 8, 2026-11-16; D's probe: on SQLite
  * parseFloat('NaN') answered 0, SQLite's CAST reading 'NaN' and 'Infinity' as 0): NaN where the database holds it,
- * VALUE_NOT_HELD where it cannot (register S138); an infinity as the database's own; never a silent 0.
+ * refused where it cannot (register S138: PARSED_NAN_NOT_HELD, NOT_FINITE_NOT_HELD since BE-P, 2026-11-21); an infinity as the database's own; never a silent 0.
  */
 class ParseFloatHeldTest extends AbstractDatabaseTest {
 

@@ -663,8 +663,11 @@ public final class PlanRunner {
                         try {
                             seeding.execute(statement);
                         } catch (com.legend.error.DataError e) {
-                            // the database's own words, the data named (§3 rule 5): the plan names it
-                            throw new com.legend.error.DataError(s.of() + ": " + e.getMessage(), e);
+                            // the database's own words, the data named (§3 rule 5): the plan names its table, the
+                            // catalog words it (stage B's BE, 2026-11-21)
+                            throw new com.legend.error.DataError(com.legend.error.ErrorRecord.of(
+                                    com.legend.error.ErrorKind.LOAD_REFUSED, List.of(s.table(),
+                                            String.valueOf(e.getMessage()))), null, e);
                         }
                     }
                     answered.add(false);

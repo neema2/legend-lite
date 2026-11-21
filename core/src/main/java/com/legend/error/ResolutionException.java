@@ -6,6 +6,11 @@ package com.legend.error;
  */
 public final class ResolutionException extends LegendCompileException {
 
+    /** The error {@code record} states (stage B's BE, 2026-11-21). */
+    public ResolutionException(ErrorRecord record) {
+        super(Phase.RESOLVE, record, null);
+    }
+
     public ResolutionException(String message) {
         super(Phase.RESOLVE, message);
     }

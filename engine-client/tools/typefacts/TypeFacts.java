@@ -115,29 +115,48 @@ public final class TypeFacts {
                 .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("',\n")
                 .append("} as const;\n\n")
                 .append("/**\n")
-                .append(" * LITE'S SENTENCE OF EACH RAISE KIND (stage B's B1, 2026-11-20: the plan carries a site's facts and no words):\n")
-                .append(" * error.ErrorKind's, by the kind's name. A site says its kind's sentence, then ': ' and its where where it\n")
-                .append(" * has one, as exec.RaisedErrors words it (ExecutionPlan.Site#sentence).\n")
+                .append(" * EACH RAISE KIND'S FORMS, the one catalog's (stage B's BE, 2026-11-21: lite says upstream's sentence\n")
+                .append(" * wherever upstream has one): error.ErrorKind's, by the kind's name, in the order tried -- the first form\n")
+                .append(" * whose arity takes the site's operands (any, where negative) and, where emptySlot is not negative, whose\n")
+                .append(" * operand there is an empty text, says them: template over the operands (%1$s, ...), each printed as its\n")
+                .append(" * slot says (TEXT past the last). As result.RaiseWords words a site.\n")
                 .append(" */\n")
-                .append("export const RAISE_SENTENCES: Readonly<Record<string, string>> = {\n");
-        for (Map.Entry<String, String> e : sentences().entrySet()) {
-            out.append("  ").append(e.getKey()).append(": '").append(quoted(e.getValue())).append("',\n");
+                .append("export interface RaiseForm {\n")
+                .append("  readonly arity: number;\n")
+                .append("  readonly emptySlot: number;\n")
+                .append("  readonly template: string;\n")
+                .append("  readonly slots: readonly string[];\n")
+                .append("  readonly shape: 'TEMPLATE' | 'FILE_SIZE';\n")
+                .append("}\n\n")
+                .append("export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {\n");
+        for (Map.Entry<String, java.util.List<com.legend.error.ErrorKind.Form>> e : forms().entrySet()) {
+            out.append("  ").append(e.getKey()).append(": [\n");
+            for (com.legend.error.ErrorKind.Form f : e.getValue()) {
+                out.append("    { arity: ").append(f.arity()).append(", emptySlot: ").append(f.emptySlot())
+                        .append(", template: '").append(quoted(f.template())).append("', slots: [")
+                        .append(slots(f, "'")).append("], shape: '").append(f.shape().name()).append("' },\n");
+            }
+            out.append("  ],\n");
         }
         out.append("};\n");
         return out.toString();
     }
 
-    /** Lite's sentence of each raise kind (a site's kind: {@code sql.RaiseKind}), error.ErrorKind's, in the kind's
-     *  order. */
-    private static Map<String, String> sentences() {
-        Map<String, String> out = new java.util.LinkedHashMap<>();
+    /** Each raise kind's forms (a site's kind: {@code sql.RaiseKind}), error.ErrorKind's, in the kind's order. */
+    private static Map<String, java.util.List<com.legend.error.ErrorKind.Form>> forms() {
+        Map<String, java.util.List<com.legend.error.ErrorKind.Form>> out = new java.util.LinkedHashMap<>();
         for (com.legend.sql.RaiseKind k : com.legend.sql.RaiseKind.values()) {
             if (k == com.legend.sql.RaiseKind.USER_FAIL) {
                 continue;   // a user's own message, never a site
             }
-            out.put(k.name(), com.legend.error.ErrorKind.valueOf(k.name()).sentence());
+            out.put(k.name(), com.legend.error.ErrorKind.valueOf(k.name()).forms());
         }
         return out;
+    }
+
+    /** {@code f}'s slots, each its name inside {@code quote}, comma-separated. */
+    private static String slots(com.legend.error.ErrorKind.Form f, String quote) {
+        return String.join(", ", f.slots().stream().map(sl -> quote + sl.name() + quote).toList());
     }
 
     /** {@code s} inside single quotes, in TypeScript and Python alike: a backslash and a quote escaped. */
@@ -170,12 +189,18 @@ public final class TypeFacts {
                 .append("RAISE_QUOTE_MARK = '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("'\n")
                 .append("RAISE_TOKEN = '").append(unicode(com.legend.sql.RaiseKind.TOKEN.charAt(0)))
                 .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("'\n\n")
-                .append("# LITE'S SENTENCE OF EACH RAISE KIND (stage B's B1, 2026-11-20: the plan carries a site's facts and no\n")
-                .append("# words): error.ErrorKind's, by the kind's name. A site says its kind's sentence, then ': ' and its where\n")
-                .append("# where it has one, as exec.RaisedErrors words it. The same as the tab's (lite-raise.ts RAISE_SENTENCES).\n")
-                .append("RAISE_SENTENCES: dict[str, str] = {\n");
-        for (Map.Entry<String, String> e : sentences().entrySet()) {
-            out.append("    '").append(e.getKey()).append("': '").append(quoted(e.getValue())).append("',\n");
+                .append("# EACH RAISE KIND'S FORMS, the one catalog's (stage B's BE, 2026-11-21: lite says upstream's sentence\n")
+                .append("# wherever upstream has one): error.ErrorKind's, by the kind's name, in the order tried, as result.RaiseWords\n")
+                .append("# words a site. The same as the tab's (lite-raise.ts RAISE_FORMS).\n")
+                .append("RAISE_FORMS: dict[str, list[dict[str, object]]] = {\n");
+        for (Map.Entry<String, java.util.List<com.legend.error.ErrorKind.Form>> e : forms().entrySet()) {
+            out.append("    '").append(e.getKey()).append("': [\n");
+            for (com.legend.error.ErrorKind.Form f : e.getValue()) {
+                out.append("        {'arity': ").append(f.arity()).append(", 'emptySlot': ").append(f.emptySlot())
+                        .append(", 'template': '").append(quoted(f.template())).append("', 'slots': [")
+                        .append(slots(f, "'")).append("], 'shape': '").append(f.shape().name()).append("'},\n");
+            }
+            out.append("    ],\n");
         }
         out.append("}\n");
         return out.toString();

@@ -1311,7 +1311,8 @@ public final class MappingNormalizer {
             return synthJsonSourceMapping(md, rcm, model);
         }
         if (rcm.mainTable() == null) {
-            LegacyMappingDefinition.TableReference inferred = resolvedMainTable(rcm);
+            // the model told, so one table's name under two databases is told one table from two (exact, as upstream)
+            LegacyMappingDefinition.TableReference inferred = inferMainTable(rcm, model);
             if (inferred == null) {
                 throw new NotImplementedException(
                         "Relational mapping without ~mainTable, sourceUrl, or an"
@@ -1394,6 +1395,16 @@ public final class MappingNormalizer {
      */
     static LegacyMappingDefinition.@com.legend.base.Nullable TableReference inferMainTable(
             ClassMapping.Relational rcm) {
+        return inferMainTable(rcm, null);
+    }
+
+    /** {@link #inferMainTable(ClassMapping.Relational)}, told by {@code model} (where given) whether one table's name
+     *  under two databases is ONE table, which a database includes from another (upstream's inconsistent databases),
+     *  or two tables, each database declaring its own (upstream's two tables: no main table). legend-pure's
+     *  RelationalInstanceSetImplementationProcessor collects table OBJECTS, then databases (the BE audit 5's M4(a),
+     *  2026-11-21: lite, comparing names alone, called both inconsistent databases). */
+    static LegacyMappingDefinition.@com.legend.base.Nullable TableReference inferMainTable(
+            ClassMapping.Relational rcm, @com.legend.base.Nullable ModelBuilder model) {
         List<LegacyMappingDefinition.TableReference> refs = new ArrayList<>();
         for (PropertyMapping pm : rcm.propertyMappings()) {
             collectMainTables(pm, refs);
@@ -1402,22 +1413,47 @@ public final class MappingNormalizer {
         // different tables — table-name-only dedup would silently pick
         // refs.get(0)'s database. Null (scope-block) refs inherit the
         // explicit one, so only NON-NULL databases enter the check.
+        // the TABLES first, then the databases, as legend-pure's RelationalInstanceSetImplementationProcessor and
+        // legend-engine's RelationalCompilerExtension decide (the BE audit 3's M5, 2026-11-21): two tables name no main
+        // table; one table's name under two databases is upstream's inconsistent definitions where it is one table, one
+        // database including it from another, and two tables where each database declares its own (told by the model,
+        // below; a probe without one says inconsistent databases)
+        Set<String> names = new LinkedHashSet<>();
+        refs.forEach(r -> names.add(canonicalTable(r.table())));
+        if (names.size() > 1) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    com.legend.error.CompileKind.MAIN_TABLE_UNNAMED,
+                    java.util.List.of(com.legend.protocol.Protocol.splitFqn(rcm.className())[1], names.toString()));
+        }
         Set<String> dbs = new LinkedHashSet<>();
         refs.forEach(r -> {
             if (r.database() != null) {
                 dbs.add(r.database());
             }
         });
+        if (dbs.size() > 1 && model != null) {
+            // the tables the references reach, by identity: an included table is its database's one object
+            Set<DatabaseDefinition.TableDefinition> tables =
+                    java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            for (LegacyMappingDefinition.TableReference r : refs) {
+                if (r.database() != null) {
+                    model.findTableDefinition(r.database(), r.table()).ifPresent(tables::add);
+                }
+            }
+            if (tables.size() > 1) {
+                // the record's second value the tables as found, each under its database (the BE audit 6's N-3: the
+                // name alone, "[T]", said one table for two)
+                Set<String> found = new LinkedHashSet<>();
+                refs.forEach(r -> found.add("[" + r.database() + "]" + canonicalTable(r.table())));
+                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        com.legend.error.CompileKind.MAIN_TABLE_UNNAMED,
+                        java.util.List.of(com.legend.protocol.Protocol.splitFqn(rcm.className())[1], found.toString()));
+            }
+        }
         if (dbs.size() > 1) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "Inconsistent database definitions for the mapping of class '"
-                  + rcm.className() + "': " + dbs);
-        }
-        Set<String> names = new LinkedHashSet<>();
-        refs.forEach(r -> names.add(canonicalTable(r.table())));
-        if (names.size() > 1) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    com.legend.error.CompileKind.MAIN_TABLE_UNNAMED, java.util.List.of(rcm.className(), names.toString()));
+                    com.legend.error.CompileKind.MAIN_TABLE_DATABASES_INCONSISTENT,
+                    java.util.List.of(com.legend.protocol.Protocol.splitFqn(rcm.className())[1], dbs.toString()));
         }
         if (refs.isEmpty()) {
             return null;

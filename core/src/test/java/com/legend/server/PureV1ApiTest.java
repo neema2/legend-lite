@@ -436,8 +436,9 @@ class PureV1ApiTest {
     }
 
     /** A TDS row's cell offset outside the row (TdsDesugars, a compile kind since W7): the product refuses the text
-     *  (lite's sentence, a 400); the edge answers as before W7, legend-pure's uncaught {@code IllegalStateException}
-     *  and its sentence, a 500 (the P2 checkpoint audit's A-S2, 2026-11-16). */
+     *  (a 400, in legend-pure's sentence since the one catalog, stage B's BE, 2026-11-21); the edge answers as before
+     *  W7, legend-pure's uncaught {@code IllegalStateException} and its sentence, a 500 (the P2 checkpoint audit's
+     *  A-S2, 2026-11-16). */
     @Test
     void aRowsCellOffsetOutsideTheRow_isTheProductsRefusal_andTheEdgesUncaughtIllegalState() {
         java.util.function.Supplier<String> offset = () -> {
@@ -447,8 +448,8 @@ class PureV1ApiTest {
         LiteV1Api.Answer product = LiteV1Api.answer(offset);
         assertEquals(400, product.status(), product.json());
         assertEquals("compile", Json.parseObject(product.json()).getString("kind"), product.json());
-        assertTrue(Json.parseObject(product.json()).getString("message").contains("offset 3 is outside a row of 2 cells"),
-                product.json());
+        assertTrue(Json.parseObject(product.json()).getString("message").contains(
+                "The system is trying to get an element at offset 3 where the collection is of size 2"), product.json());
         LiteV1Api.Answer edge = com.legend.edge.EngineEnvelope.answer(400, "COMPILATION", offset,
                 com.legend.edge.PureMessages::compile,
                 com.legend.edge.PureMessages::typeName, com.legend.edge.PureMessages::uncaught);

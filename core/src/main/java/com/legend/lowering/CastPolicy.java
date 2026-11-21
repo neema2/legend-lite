@@ -139,7 +139,7 @@ final class CastPolicy {
             // extraction arm in scalar() fields them).
             throw new ModelException(
                     LegendCompileException.Phase.LOWER,
-                    "The type " + tc.fqn() + " is not supported yet!");
+                    com.legend.error.CompileKind.TYPE_NOT_SUPPORTED_YET, java.util.List.of(tc.fqn()));
         }
         // A Variant to STRING is its TEXT: fromJson('"Hello"')->to(@String)
         // is 'Hello' (variant/convert/to.pure testToString), never the JSON
@@ -234,7 +234,7 @@ final class CastPolicy {
         // part 1 audit's S4, 2026-11-15)
         return SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, java.util.List.of(new SqlExpr.StringLit(src.typeName()),
-                        new SqlExpr.StringLit(target.typeName())), null, src.typeName() + " to " + target.typeName()));
+                        new SqlExpr.StringLit(target.typeName())), null));
     }
 
     private static Type.Primitive.@com.legend.base.Nullable Family familyOf(Type t) {

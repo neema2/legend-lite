@@ -69,7 +69,6 @@ class EdgeOnlyDataTest {
      *  "DEAD" data no one reads, deleted in train 17 by its package's owner (shrink-only, not a separation line);
      *  "RULED_PENDING" a question before the user. */
     /** CP-7's ruling (the user, 2026-11-19 ~12:10), cited by each of a raise site's operand pieces. */
-    private static final String CP7_OPERANDS = "READ_API (2026-11-20): a raise site's literals, facts of lite's error record (stage B's B1); lite's own sentence reads the kind and the where, the edge's formatter the operands -- CP-7's one row (the user, 2026-11-19 ~12:10)";
 
     static final Map<String, String> OPEN = Map.ofEntries(
             // (SqlExpr$PlanParam#kind, now #valueType: ruled the product's in meaning 2026-11-18, train 18 --
@@ -98,17 +97,9 @@ class EdgeOnlyDataTest {
                     "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
             Map.entry("component com.legend.testexecutionplan.EnumFacts#properties: by the edge",
                     "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
-            // stage B's B1 (2026-11-20, errors as records): a raise site's operands, the literals the statement holds,
-            // read by the edge's formatter alone -- CP-7's one ruled row (the user, 2026-11-19 ~12:10: "error words leave
-            // the plan, with one EdgeOnlyDataTest row"), written as one row a piece, each citing it
-            Map.entry("component com.legend.executionplan.ExecutionPlan$Site#operands: by the edge", CP7_OPERANDS),
-            Map.entry("component com.legend.executionplan.Operand$Bool#value: by the edge", CP7_OPERANDS),
-            Map.entry("component com.legend.executionplan.Operand$Day#iso: by the edge", CP7_OPERANDS),
-            Map.entry("component com.legend.executionplan.Operand$Dec#value: by the edge", CP7_OPERANDS),
-            Map.entry("component com.legend.executionplan.Operand$Flt#value: by the edge", CP7_OPERANDS),
-            Map.entry("component com.legend.executionplan.Operand$Instant#iso: by the edge", CP7_OPERANDS),
-            Map.entry("component com.legend.executionplan.Operand$Int#value: by the edge", CP7_OPERANDS),
-            Map.entry("component com.legend.executionplan.Operand$Text#value: by the edge", CP7_OPERANDS),
+            // (a raise site's operands, ExecutionPlan$Site#operands and the seven Operand values, CP-7's one ruled row
+            // of stage B's B1, 2026-11-20: gone 2026-11-21 with BE's one catalog -- the product words a raise from its
+            // operands too, result.RaiseWords)
             // (SqlExpr$DeferredTdsString with its three components and Form.CSV, and SqlExpr$TempTableInSplice: deleted
             // 2026-11-18 by E-SQL's J40, 9822fd89c8, train 17 -- the J40.SqlExpr line closes)
             // dead data (the orchestrator's ruling: a shrink-only DEAD list, each deleted in train 17 by its owner;

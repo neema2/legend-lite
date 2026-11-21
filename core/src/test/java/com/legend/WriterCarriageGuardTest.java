@@ -144,6 +144,20 @@ class WriterCarriageGuardTest {
                     Map.entry("contains(\"\")", 1),
                     Map.entry("endsWith(\"\")", 1),
                     Map.entry("startsWith(\"\")", 1))),
+            // added 2026-11-21 (stage B's BE, the one catalog, the user's ruling that day: upstream's sentence wherever
+            // upstream has one): a planned raise's sentence prints each operand as legend-pure's sentence prints it,
+            // the operations legend-pure's own printing performs and the edge's PureMessages performed until then (its
+            // helpers deleted) -- a Float's plain digits (BigDecimal.valueOf, exact: a PLAIN slot), a Decimal read as
+            // the Float a FLOAT slot prints (doubleValue), a date's own precision from a minute on (atLeast: legend-
+            // pure's +0000). It decides nothing: the kind's form names the slot. 2026-11-21 (the BE audit 2's S2): a
+            // fractional second's whole part, as legend-pure validates it (toBigInteger, exact, of a Float's own decimal
+            // -- BigDecimal.valueOf -- and of a Decimal), in place of its plain digits. 2026-11-21 (the BE audit 3's S3):
+            // that whole part is a Decimal's intValue, as upstream's CoreHelper.newDate takes it (a Double's is Java's
+            // narrowing, no operation listed here) -- BigDecimal.valueOf and toBigInteger gone
+            Map.entry("RaiseWords.java", Map.ofEntries(
+                    Map.entry("intValue", 1),
+                    Map.entry("doubleValue", 1),
+                    Map.entry("atLeast", 1))),
             Map.entry("ArrowWriter.java", Map.ofEntries(
                     // Arrow's representation of a value held whole (track A, 2026-10-29): a decimal's unscaled digits
                     // AT THE COLUMN'S SCALE (setScale adds zeros to a cell written at fewer places; a cell with more

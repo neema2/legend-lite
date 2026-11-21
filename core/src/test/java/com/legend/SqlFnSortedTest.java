@@ -156,9 +156,12 @@ class SqlFnSortedTest {
             // the product's lowering and the edge's compositions (upstream's texts, its plans, its renderings) each
             // build calls of these, each with its product writers' top classes (the review of f788dd3230: names alone
             // let a function whose product writes all moved to the edge, a comparison left, pass) -- measured 2026-11-17
+            // (DateCtorRule joins 2026-11-21, the BE audit 2's S2: a date()'s fractional second kept unsigned, as
+            // legend-pure's CoreHelper.newDate keeps it)
             Map.entry("ABS", Set.of(
-                    "com.legend.lowering.MixedEncoding", "com.legend.lowering.Scalars",
-                    "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.FloatShortestText")),
+                    "com.legend.lowering.DateCtorRule", "com.legend.lowering.MixedEncoding",
+                    "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
+                    "com.legend.sql.dialect.FloatShortestText")),
             // re-measured 2026-11-18 on d-int10 5f83349087: the EXISTS decomposition's writer is sql.ExistsJoins, not
             // lowering.ExistsJoinForm (F's J19, a3b8f3f3: ClickHouse decomposes the EXISTS it cannot correlate at render)
             // in AND, EQUAL, IS_NOT_NULL, IS_NULL and NOT; REGEXP_REPLACE joins (E-SQL's J2, train 9: the goldens' '}{'
@@ -288,8 +291,9 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.sql.dialect.FoldsAsRecursiveCtes", "com.legend.sql.dialect.FrameGuard",
                     "com.legend.testdatagen.TestDataPlanner")),
+            // (DateCtorRule joins 2026-11-21, the BE audit 2's S2: a fractional second's whole part below 0 is -1 or less)
             Map.entry("LESS_EQUAL", Set.of(
-                    "com.legend.lowering.CalendarAgg", "com.legend.lowering.KeyedCounts",
+                    "com.legend.lowering.CalendarAgg", "com.legend.lowering.DateCtorRule", "com.legend.lowering.KeyedCounts",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
                     "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CarrierStrategies",

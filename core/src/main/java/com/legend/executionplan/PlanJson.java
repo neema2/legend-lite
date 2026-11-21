@@ -172,8 +172,11 @@ public final class PlanJson {
      *  its {@code operands} ({@link Operand}: one key each, a literal by its Pure kind or {@code computed}) and no
      *  {@code message}, and the plan's {@code raises} is the sorted list of the kinds its statements can send, no
      *  sentence -- each audience words a raise in its own code after the run (the product's sentence:
-     *  {@code ExecutionPlan.Site#sentence}); a v58 plan, which carries the product's words, is refused by its version. */
-    public static final int VERSION = 59;
+     *  {@code ExecutionPlan.Site#sentence}); a v58 plan, which carries the product's words, is refused by its version.
+     *  60 since 2026-11-21 (stage B's BE, the one error model): a site carries no {@code where} (its facts are its
+     *  operands), and the raise kinds whose operand was prose are replaced by kinds whose operands are facts
+     *  (VALUE_NOT_HELD, FRACTION_NOT_KEPT and the old CSV_TOO_WIDE went); a v59 plan is refused by its version. */
+    public static final int VERSION = 60;
 
     private PlanJson() {
     }
@@ -802,7 +805,7 @@ public final class PlanJson {
             case ExecutionPlan.Binding.Payload payload -> {
                 o.put("_type", BindingTag.payload.name());
                 o.put("digest", payload.digest());
-                o.put("label", payload.label());
+                o.put("characters", payload.characters());
             }
         }
         return o;
@@ -969,7 +972,7 @@ public final class PlanJson {
             case LoadStep.Statements st -> {
                 o.put("_type", SetupTag.statements.name());
                 o.put("ref", ref(st.ref()));
-                o.put("of", st.of());
+                o.put("table", st.table());
             }
             case LoadStep.File f -> {
                 o.put("_type", SetupTag.file.name());
@@ -1329,7 +1332,7 @@ public final class PlanJson {
                     o.has("fraction") ? o.getInt("fraction") : null);
             case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
             case source -> new ExecutionPlan.Binding.Source(o.getString("location"));
-            case payload -> new ExecutionPlan.Binding.Payload(o.getString("digest"), o.getString("label"));
+            case payload -> new ExecutionPlan.Binding.Payload(o.getString("digest"), o.getInt("characters"));
         };
     }
 
@@ -1406,7 +1409,7 @@ public final class PlanJson {
         }
     }
 
-    /** A statement's raise sites as JSON (v59): each {@code n}, {@code kind}, its {@code where} where it has one, and its
+    /** A statement's raise sites as JSON (v60): each {@code n}, {@code kind}, and its
      *  {@code operands} where it has any, each one key ({@link Operand#key}) and its value (a Float, a Decimal, a date
      *  and a date-time as text, so no digit is lost to a JSON number; a computed operand {@code true}). */
     private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites) {
@@ -1415,9 +1418,6 @@ public final class PlanJson {
             Map<String, Object> so = new LinkedHashMap<>();
             so.put("n", site.n());
             so.put("kind", site.kind().name());
-            if (site.where() != null) {
-                so.put("where", site.where());
-            }
             if (!site.operands().isEmpty()) {
                 so.put("operands", site.operands().stream().map(PlanJson::operandJson).toList());
             }
@@ -1494,7 +1494,7 @@ public final class PlanJson {
                 }
             }
             out.add(new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
-                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), operands));
+                    so.getString("kind"), "raise kind"), operands));
         }
         return out;
     }
@@ -1557,7 +1557,15 @@ public final class PlanJson {
         }
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("key", project.key());
-        o.put("refused", project.refused());
+        // its refusal a code and its values (v60, stage B's BE: until then its sentence), in a fixed order
+        com.legend.error.ErrorRecord r = project.refused();
+        Map<String, Object> refused = null;
+        if (r != null) {
+            refused = new LinkedHashMap<>();
+            refused.put("code", r.code().qualified());
+            refused.put("values", r.values());
+        }
+        o.put("refused", refused);
         return o;
     }
 
@@ -1568,8 +1576,44 @@ public final class PlanJson {
         if (!(database.get("project") instanceof Json.Obj o)) {
             return null;
         }
-        return new ExecutionPlan.Project(o.getString("key"), o.getStringOr("refused", null));
+        return new ExecutionPlan.Project(o.getString("key"), projectRefusal(o.getOr("refused", null)));
     }
+
+    /** A project's refusal as the plan writes it, {@code {code, values}} or null; anything else refused by name. */
+    private static com.legend.error.@com.legend.base.Nullable ErrorRecord projectRefusal(
+            Json.@com.legend.base.Nullable Node node) {
+        if (node == null || node instanceof Json.Null) {
+            return null;
+        }
+        if (!(node instanceof Json.Obj r) || !(r.getOr("code", null) instanceof Json.Str code)
+                || !(r.getOr("values", null) instanceof Json.Arr values) || r.fields().size() != 2) {
+            throw new IllegalArgumentException("a project's refusal is {code, values}: " + node);
+        }
+        // its code qualified, as the test plan spells a record's (HostJson.wRecord), and one of the three a project's
+        // data is refused by; its values exactly its sentence's (the BE audit 5's L6, 2026-11-21)
+        if (!(com.legend.error.ErrorCode.named(code.value()) instanceof com.legend.error.CompileKind kind)
+                || !PROJECT_REFUSALS.contains(kind)) {
+            throw new IllegalArgumentException("a project's refusal's code is a project data refusal's: " + node);
+        }
+        List<String> texts = new ArrayList<>();
+        for (Json.Node v : values.items()) {
+            if (!(v instanceof Json.Str s)) {
+                throw new IllegalArgumentException("a project's refusal's values are texts: " + node);
+            }
+            texts.add(s.value());
+        }
+        if (texts.size() < kind.arity()) {
+            // at least its sentence's values, as a record's reader reads them (HostJson.rRecord; the BE audit 6's L-2)
+            throw new IllegalArgumentException("a project's refusal " + kind.name() + " has at least " + kind.arity()
+                    + " values: " + node);
+        }
+        return com.legend.error.ErrorRecord.of(kind, texts);
+    }
+
+    /** The codes a project's data is refused by ({@code setup.ProjectData.refusal}). */
+    private static final java.util.Set<com.legend.error.CompileKind> PROJECT_REFUSALS = java.util.Set.of(
+            com.legend.error.CompileKind.DATA_TABLE_EMPTY, com.legend.error.CompileKind.DATA_TABLE_UNDECLARED,
+            com.legend.error.CompileKind.DATA_TABLE_DECLARED_TWICE);
 
     private static LoadStep readLoadStep(Json.Obj o) {
         return switch (tag(SetupTag.class, o, "setup step")) {
@@ -1578,7 +1622,7 @@ public final class PlanJson {
                 Json.Obj ref = o.getObj("ref");
                 yield new LoadStep.Statements(new DataRef(DataRef.Namespace.valueOf(ref.getString("namespace")),
                         ref.getString("name"), ref.getString("digest"), ref.getLong("size"),
-                        format(ref.getObj("format"))), o.getString("of"));
+                        format(ref.getObj("format"))), o.getString("table"));
             }
             case file -> {
                 // the reference refuses a path-shaped name as it is read (DataRef: never a machine's path in a plan)

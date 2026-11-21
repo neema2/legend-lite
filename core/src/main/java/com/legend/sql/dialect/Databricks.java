@@ -45,6 +45,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Databricks extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "Databricks";
+    }
+
     /** A Date and a DateTime parameter as upstream's literal processor writes them (databricksExtension.pure): a Date
      *  {@code to_date('%s')}, a {@code DATE} (a date-time value's time dropped, as upstream's), a DateTime
      *  {@code to_timestamp('%s')}, a {@code TIMESTAMP} of microseconds, a value of finer digits refused by the

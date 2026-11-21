@@ -52,12 +52,11 @@ class PureMeaningPostgresTest {
         TestBackend postgres = TestBackends.of(DatabaseType.Postgres);
         assertFalse(PureText.engineAnswers(DatabaseType.Postgres), "Postgres is not yet checked: the case this covers");
         try (Connection c = postgres.openWorkspace()) {
-            LiteV1Api.Runner onPostgres = (query, runtime, output) -> RaisedWords.run(PureText.PURE_V1,
-                    style -> com.legend.Execution.run(query, runtime,
+            LiteV1Api.Runner onPostgres = (query, runtime, output) -> com.legend.Execution.run(query, runtime,
                             com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
                             com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
-                            com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(), style, output,
-                            com.legend.result.Batcher.DEFAULT_CAPACITY));
+                            com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(), PureText.PURE_V1, output,
+                            com.legend.result.Batcher.DEFAULT_CAPACITY);
             String model = model(postgres);
             LiteV1Api.Answer flagged = withSeed(model, FLAGGED, onPostgres);
             LiteV1Api.Answer clean = withSeed(model, CLEAN, onPostgres);

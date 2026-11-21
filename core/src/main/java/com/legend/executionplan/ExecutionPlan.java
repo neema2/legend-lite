@@ -325,7 +325,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 switch (step) {
                     case LoadStep.Statement st -> field(sb.append('S'), st.sql());
                     case LoadStep.Statements st -> field(field(field(sb.append('T'), st.ref().name()),
-                            st.ref().digest()).append(st.ref().size()).append(':'), st.of());
+                            st.ref().digest()).append(st.ref().size()).append(':'), st.table());
                     case LoadStep.File f -> {
                         field(field(field(sb.append('F'), f.ref().namespace().name()), f.ref().name()), f.ref().digest());
                         sb.append(f.ref().size()).append(':').append(f.sizeLimitMegabytes()).append(':');
@@ -833,15 +833,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     /**
      * ONE RAISE SITE OF A STATEMENT, PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16;
      * docs/records/d-phase2-raise-marker-2026-11-16.md): the statement raises the bare token {@code LG#<n>}
-     * ({@link com.legend.sql.dialect.RaiseSite#token}) and this says what it means -- its kind, its where (a fixed text
-     * known at planning, or none) and its operands ({@link Operand}: the literals the statement holds, a computed value
-     * as its position alone). FACTS, NO WORDS (stage B's B1, the user's rulings of 2026-11-20 ~16:40 and ~17:00): the
-     * product's sentence ({@link #sentence}) and the compatibility edge's are written in Java after the run, from these
+     * ({@link com.legend.sql.dialect.RaiseSite#token}) and this says what it means -- its kind and its operands
+     * ({@link Operand}: the literals the statement holds, a computed value as its position alone; its where, a fixed
+     * text beside them, went in v60, stage B's BE, 2026-11-21). FACTS, NO WORDS (stage B's B1, the user's rulings of
+     * 2026-11-20 ~16:40 and ~17:00): the product's sentence ({@link #sentence}) and the compatibility edge's are written in Java after the run, from these
      * facts; until v59 the plan carried the product's sentence as {@code message}, and the edge recorded legend-pure's
      * beside it.
      */
-    public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where,
-            List<Operand> operands) {
+    public record Site(int n, com.legend.sql.RaiseKind kind, List<Operand> operands) {
         public Site {
             if (n < 1) {
                 throw new IllegalArgumentException("a raise site is numbered from 1: " + n);
@@ -852,19 +851,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 throw new IllegalArgumentException("a user's fail is no raise site");
             }
             operands = List.copyOf(operands);
+            // its operands one of its kind's forms, refused when the site is made, never first at the raise (the BE
+            // audit 3's S2, 2026-11-21: a site no form says threw where the database's raise was read)
+            List<Operand> o = operands;
+            com.legend.error.ErrorKind.valueOf(kind.name()).form(o.size(),
+                    i -> o.get(i) instanceof Operand.Text t && t.value().isEmpty());
         }
 
-        /** The product's sentence of this site: its kind's and its where ({@link #sentence}), written when the raise is
-         *  read back, never planned. */
-        public String productSentence() {
-            return sentence(kind, where);
-        }
-
-        /** The product's sentence of a site of {@code kind} placed by {@code where}: the error layer's
-         *  ({@link com.legend.error.ErrorKind#sentence}), then {@code ": "} and the where, as {@code error.DataError} has
-         *  spelled it. */
-        public static String sentence(com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where) {
-            return com.legend.error.ErrorKind.valueOf(kind.name()).sentence() + (where == null ? "" : ": " + where);
+        /** The error kind this site raises: its raise kind's twin of the one name (the catalog's, error.ErrorKind;
+         *  stage B's BE, 2026-11-21), so a reader of the plan's errors words it without reading the SQL layer. */
+        public com.legend.error.ErrorKind errorKind() {
+            return com.legend.error.ErrorKind.valueOf(kind.name());
         }
 
         /** {@code sites} as a statement holds them: numbered 1..k in order, refused by name otherwise. */
@@ -1000,13 +997,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         /** A {@code data:} payload's one JSON array, the plan's own value, bound as its text to a statement that splits
          *  it itself (its dialect's delivery, 2026-11-11); named by its SHA-256 {@code digest}, its text the
          *  statement's {@link Sql#content} (the JSON pass, 2026-11-11: the payload's bytes once in the plan's data, as a
-         *  load's are); the slot names no declared parameter. Census M18: the payload in the plan. {@code label}: what
-         *  the database's refusal of the statement is told under (its digest's head and its size, planned: the B
-         *  checkpoint's tenets audit, LOW 4, 2026-11-11 -- until then the runner wrote it from the bound value). */
-        record Payload(String digest, String label) implements Binding {
+         *  load's are); the slot names no declared parameter. Census M18: the payload in the plan. {@code characters}:
+         *  its text's length, which the database's refusal of the statement is told under with its digest's head
+         *  ({@code error.ErrorKind#PAYLOAD_REFUSED}, worded after the run; planned: the B checkpoint's tenets audit,
+         *  LOW 4, 2026-11-11 -- until then the runner wrote it from the bound value; v60, stage B's BE, 2026-11-21:
+         *  until then {@code label}, the words as prose). */
+        record Payload(String digest, int characters) implements Binding {
             public Payload {
                 Objects.requireNonNull(digest, "digest");
-                Objects.requireNonNull(label, "label");
+                if (characters < 0) {
+                    throw new IllegalArgumentException("a payload's characters: " + characters);
+                }
             }
         }
     }
@@ -1178,11 +1179,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * @param refused why the model's Data rows cannot make it (a table its Databases declare none or more than once
      *                of), or null: raised where the runner would make it, never by a run on another database (the
      *                plan-as-data design's slice 5, 2026-11-09: planned as a failure until then, every query of such
-     *                a model refused at planning; before hole 7 the server refused it as it made the database)
+     *                a model refused at planning; before hole 7 the server refused it as it made the database). A
+     *                record, its code and values (stage B's BE, 2026-11-21: until then its sentence)
      */
-    public record Project(String key, @com.legend.base.Nullable String refused) {
+    public record Project(String key, com.legend.error.@com.legend.base.Nullable ErrorRecord refused) {
         public Project {
             Objects.requireNonNull(key, "key");
+            if (refused != null && (!(refused.code() instanceof com.legend.error.CompileKind)
+                    || refused.position() != null || !refused.frames().isEmpty())) {
+                throw new IllegalArgumentException("a project's refusal is a compile code and its values: " + refused);
+            }
         }
     }
 
@@ -1258,15 +1264,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          * typed literals), named by its digest in the load's bundle, each sent as it is written. All model data takes
          * it -- a connection's test data, a project's Data, the catalog's rows, a seed, a payload's elements -- whatever
          * its size: where the bytes travel (inside the plan's JSON or beside it) is the plan writer's
-         * ({@code PlanJson.writeBundle}). {@code of} names the data as a refusal names it -- "the data of the table
-         * PEOPLE", "the data: source's payload ..." -- so a statement the database refuses is refused naming its data
-         * (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5, A4), in the database's own words.
+         * ({@code PlanJson.writeBundle}). {@code table} names the table the data fills, so a statement the database
+         * refuses is refused naming its data (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5, A4), in the database's
+         * own words, worded after the run ({@code error.ErrorKind#LOAD_REFUSED}; v60, stage B's BE, 2026-11-21: until
+         * then {@code of}, the sentence's head as prose).
          */
-        record Statements(DataRef ref, String of) implements LoadStep {
+        record Statements(DataRef ref, String table) implements LoadStep {
             public Statements {
                 Objects.requireNonNull(ref, "ref");
-                Objects.requireNonNull(of, "of");
-                if (of.strip().isEmpty()) {
+                Objects.requireNonNull(table, "table");
+                if (table.strip().isEmpty()) {
                     throw new IllegalArgumentException("a load's statements name the data they load: " + ref);
                 }
                 if (ref.namespace() != DataRef.Namespace.CONTENT || !(ref.format() instanceof DataRef.Statements)) {

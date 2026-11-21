@@ -19,8 +19,13 @@ public class TypeInferenceException extends LegendCompileException {
         super(Phase.TYPE, message, cause);
     }
 
-    /** A wrapper of {@code wrapped}, its texts before and after it stated (stage B's B1, 2026-11-20, errors as records). */
-    public TypeInferenceException(String prefix, TypeInferenceException wrapped, String suffix) {
-        super(Phase.TYPE, wrapped, prefix, suffix);
+    /** {@code wrapped} inside one more {@code frame} (stage B's BE, 2026-11-21, the one error model). */
+    public TypeInferenceException(ErrorRecord.Frame frame, TypeInferenceException wrapped) {
+        super(Phase.TYPE, wrapped, frame);
+    }
+
+    /** The error {@code record} states (a planned failure rebuilt from its record, stage B's BE). */
+    public TypeInferenceException(ErrorRecord record) {
+        super(Phase.TYPE, record, null);
     }
 }

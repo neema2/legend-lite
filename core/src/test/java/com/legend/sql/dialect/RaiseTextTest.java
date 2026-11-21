@@ -90,7 +90,7 @@ class RaiseTextTest {
     void aRaisesMessageIsOnlyItsKindAndOperands() {
         // its kind, its operands, and its product words where it is data, a fixed text worded at planning -- never a
         // value (the D part 1 audit's S3 and its nit, 2026-11-15: the type the constructor discarded went)
-        assertEquals(List.of("kind", "operands", "asData", "where"), Arrays.stream(SqlExpr.RaiseText.class.getRecordComponents())
+        assertEquals(List.of("kind", "operands", "asData"), Arrays.stream(SqlExpr.RaiseText.class.getRecordComponents())
                 .map(java.lang.reflect.RecordComponent::getName).toList());
     }
 
@@ -109,7 +109,7 @@ class RaiseTextTest {
                     select(rem)), type + ": rem's");
             String remWords = upstream(com.legend.edge.PureText.dialect(type), select(rem));
             if (remWords != null) {
-                assertEquals("Cannot divide " + com.legend.edge.PureMessages.WITHHELD + " by zero", remWords,
+                assertEquals("Cannot divide " + com.legend.result.RaiseWords.COMPUTED + " by zero", remWords,
                         type + ": rem's site");
             }
             // a site of literal operands: the product's token in SQL, upstream's sentence planned in its site (phase D's
@@ -136,8 +136,8 @@ class RaiseTextTest {
         }
         assertEquals(1, statement.sites().size(), dialect.getClass().getSimpleName() + ": " + statement.sites());
         RaiseSite site = statement.sites().get(0);
-        return com.legend.edge.PureMessages.worded(site.kind(),
-                site.operands().stream().map(com.legend.executionplan.Operand::of).toList());
+        return com.legend.result.RaiseWords.sentence(new com.legend.executionplan.ExecutionPlan.Site(1, site.kind(),
+                site.operands().stream().map(com.legend.executionplan.Operand::of).toList()));
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
@@ -187,7 +187,7 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("month"), new SqlExpr.IntLit(13))),
                 lit("Invalid month: 13"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("second"),
-                new SqlExpr.FloatLit(61.5))), lit("Invalid second: 61.5"));
+                new SqlExpr.FloatLit(61.5))), lit("Invalid second: 61"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("hour"), a)),
                 cat(lit("Invalid hour: "), str(a)));
         moved.put(new SqlExpr.RaiseText(RaiseKind.CAST_IMPOSSIBLE, List.of(lit("Integer"), lit("Date"))),
@@ -210,12 +210,37 @@ class RaiseTextTest {
                 lit("Could not convert string '"), a, lit("' to INT64")));
         moved.put(new SqlExpr.RaiseText(RaiseKind.TEXT_NOT_DATE, List.of(a)), SqlExpr.Call.of(SqlFn.CONCAT,
                 lit("Could not parse '"), a, lit("' as a date")));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.VALUE_NOT_HELD, List.of(lit("an integer past 64 bits has no SQLite"
-                + " value"))), lit("an integer past 64 bits has no SQLite value"));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.FRACTION_NOT_KEPT, List.of(lit("the second "), a, lit(" has more"))),
-                cat(lit("the second "), str(a), lit(" has more")));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.CSV_TOO_WIDE, List.of(lit("a record of the CSV file is wide"))),
-                lit("a record of the CSV file is wide"));
+        // lite's own refusals of a value a database cannot hold, their facts the operands, each sentence as it read when
+        // its place was the operand (stage B's BE-P, 2026-11-21)
+        moved.put(new SqlExpr.RaiseText(RaiseKind.INTEGER_PAST_64_BITS, List.of(lit("SQLite"))),
+                lit("an integer past 64 bits has no SQLite value"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.INVERSE_TRIG_NAN, List.of(lit("acos"))),
+                lit("acos of a value outside [-1, 1] is NaN, which this database cannot hold"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.PARSED_NAN_NOT_HELD, List.of()),
+                lit("parseFloat of NaN is NaN, which this database cannot hold"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.NOT_FINITE_NOT_HELD, List.of(lit("MariaDB"))),
+                lit("NaN or an infinity has no MariaDB value"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_PAST_YEARS, List.of(lit("9999"), lit("MariaDB"))),
+                lit("a date past the year 9999 has no MariaDB value"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_PAST_YEARS, List.of(lit("0000"), lit("9999"), lit("SQLite"))),
+                lit("a date past the years 0000-9999 has no SQLite value"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_OUTSIDE_YEARS, List.of(lit("1900"), lit("2299"),
+                lit("ClickHouse"))), lit("a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to"
+                + " the end it passed)"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.MIXED_RANK_INEXACT, List.of()), lit("an Integer beyond 2^53 in a"
+                + " mixed list's order: its DOUBLE rank does not hold it exactly (refused until the kinds-kept carrier"
+                + " ranks numbers exactly)"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"), lit("t"),
+                lit("DuckDB"), new SqlExpr.IntLit(6))), lit("the DateTime parameter 't' has more fraction digits than"
+                + " DuckDB keeps (6): refused, never cut (S181)"));
+        // (ClickHouse's names its parameter since the BE audit 4's M1, 2026-11-21: the unnamed form went)
+        moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"), lit("t"),
+                lit("ClickHouse"), new SqlExpr.IntLit(6))), lit("the DateTime parameter 't' has more fraction digits"
+                + " than ClickHouse keeps (6): refused, never cut (S181)"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.SECOND_FRACTION_NOT_KEPT, List.of(a, new SqlExpr.IntLit(6))),
+                cat(lit("the second "), str(a), lit(" has more than 6 fraction digits")));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.CSV_TOO_WIDE, List.of(new SqlExpr.IntLit(3))),
+                lit("a record of the CSV file has more cells than its table's 3 column(s)"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.LIST_LENGTHS_DIFFER, List.of(lit("zip"))),
                 lit("zip: the two value lists differ in length"));
         for (DatabaseType type : Databases.implemented()) {
@@ -237,7 +262,7 @@ class RaiseTextTest {
                 if (e.getValue() instanceof SqlExpr.StringLit sentence) {
                     assertEquals(sentence.value(), upstream, type + ": " + r);
                 } else {
-                    assertTrue(upstream.contains(com.legend.edge.PureMessages.WITHHELD), type + ": " + r + " -> "
+                    assertTrue(upstream.contains(com.legend.result.RaiseWords.COMPUTED), type + ": " + r + " -> "
                             + upstream);
                 }
             }

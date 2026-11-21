@@ -10,6 +10,11 @@ package com.legend.error;
  */
 public final class IslandSyntaxException extends LegendCompileException {
 
+    /** The error {@code record} states (stage B's BE, 2026-11-21). */
+    public IslandSyntaxException(ErrorRecord record) {
+        super(Phase.PARSE, record, null);
+    }
+
     public IslandSyntaxException(String message) {
         super(Phase.PARSE, message);
     }

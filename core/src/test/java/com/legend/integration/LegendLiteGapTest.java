@@ -182,7 +182,7 @@ class LegendLiteGapTest {
         // not a gap of its own: 94-canonical-services.pure's services run on 55-canonical-store.pure's mappings and
         // runtimes, so they leave with it (the measure case above); a model naming them without 55 is refused, as
         // the engine refuses it (2026-10-21, the reference checks)
-        rejectsWith("a service of a missing mapping", "mapping 'demo::M' is not defined", """
+        rejectsWith("a service of a missing mapping", "Can't find mapping 'demo::M'", """
                 ###Service
                 Service demo::S
                 {

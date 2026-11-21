@@ -14,6 +14,11 @@ package com.legend.error;
  */
 public class SchemaInvariantException extends TypeInferenceException {
 
+    /** The error {@code record} states (stage B's BE, 2026-11-21). */
+    public SchemaInvariantException(ErrorRecord record) {
+        super(record);
+    }
+
     public SchemaInvariantException(String message) {
         super(message);
     }

@@ -72,9 +72,8 @@ class SourceUrlUserCallableTest {
         String text = PAYLOAD.substring(PAYLOAD.indexOf(',') + 1);
         // its label planned (the B checkpoint's tenets audit, LOW 4, 2026-11-11): what the database's refusal is told
         // under, its digest's head and its size, never written by the runner from the value it binds
-        assertEquals(List.of(new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest,
-                "the statement reading the data: payload " + digest.substring(0, 16) + " (" + text.length()
-                        + " characters)")),
+        // (its size a fact since v60, stage B's BE, 2026-11-21: the words the catalog's, PAYLOAD_REFUSED)
+        assertEquals(List.of(new com.legend.executionplan.ExecutionPlan.Binding.Payload(digest, text.length())),
                 sql.slots().stream().map(com.legend.executionplan.ExecutionPlan.Slot::binding).toList());
         assertEquals(java.util.Map.of(digest, text), sql.content());
         assertEquals(List.of(), sql.target().loads(), "no load");

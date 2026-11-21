@@ -76,6 +76,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class BigQuery extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "BigQuery";
+    }
+
     /** {@inheritDoc} -- BigQuery: half its 1,024K-character query limit. */
     @Override
     public int fusedStatementBudget() {
@@ -2386,9 +2391,8 @@ public class BigQuery extends AnsiSqlRenderer {
     /** A map's raise of {@code kind}, inside the platform's envelope (phase D's D1.1; until then these three raised a
      *  bare ERROR('...') outside it, which exec could not tell for a raise: the brief's defect). */
     private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
-        // its where the map's construction, a fixed text (the D part 1 audit's S4, 2026-11-15)
-        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null,
-                "a map built from its key and value lists")), "ERROR");
+        // a map construction's raise, its kind alone (the D part 1 audit's S4, 2026-11-15; its where went with BE's item 2)
+        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null)), "ERROR");
     }
 
     /** A map cast to another map's key and value types, entry by entry; the empty map {@code MAP_EMPTY} typed. */

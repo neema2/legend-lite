@@ -40,6 +40,10 @@ import java.util.stream.Collectors;
  */
 public abstract class AnsiSqlRenderer implements SqlDialect {
 
+    /** The database's name, as an error names it ("DuckDB", "Postgres"): a fact of a raise, never a dialect's Java class
+     *  (the BE audit 5's L5, 2026-11-21: PARAMETER_FRACTION_NOT_KEPT named "DuckDb", the class). */
+    protected abstract String product();
+
     private final Lexicon lexicon;
 
     /** A dialect over its own lexicon ({@code LEXICON}, a constant of its class: the dialect program's Phase 1a). */
@@ -795,7 +799,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  (2026-10-26: the corpus's {@code sqlstring::testGreatestLeast}, {@code greatest([$t.quantity, 1, 3])} in a
      *  project column, whose expected text is {@code greatest("root".quantity, 1, 3)}). */
     protected SqlWriter tagged(SqlWriter writer, SqlExpr.Tagged t, int parentPrec) {
-        throw new IllegalStateException("a tagged value reached the renderer: a mixed"
+        // a refusal, never a defect: lite lowers no other consumer of a mixed selection, a gap no dialect spells. The
+        // sql layer's one refusal is DialectCapability (it depends on nothing, ArchitectureTest's sqlLayerIsStandalone),
+        // which the planner, D and lite's API treat as NotImplementedException (unsupported); the TaggedList arm
+        // likewise (the BE lane round's heavy mirror, 2026-11-21: as an IllegalStateException it escaped a corpus body's
+        // planning, testGreatestLeast; the BE audit 5's L1)
+        throw new com.legend.sql.DialectCapability("a tagged value reached the renderer: a mixed"
                 + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
                 + " of it is not lowered (" + t.candidates().size() + " candidates of kinds "
                 + t.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
@@ -827,8 +836,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new SqlExpr.StringLit(bound),
                         co.statedSize() != null ? new SqlExpr.IntLit(co.statedSize())
-                                : SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null,
-                bound));
+                                : SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
             return writer.expr(new SqlExpr.Case(
@@ -1061,7 +1069,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
-            case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
+            case SqlExpr.TaggedList tl -> throw new com.legend.sql.DialectCapability("a tagged list reached the renderer: a"
                     + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
                     + " other consumer of it is not lowered (channels of kinds "
                     + tl.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
@@ -1222,7 +1230,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /**
      * THE PRODUCT'S RAISE TEXT (phase D's D1.1; the user's ruling of 2026-11-10: "a product error is its kind plus where
      * it happened ... never the value"; phase D's Phase 2, raises as SITES, 2026-11-16): the bare token of the raise's
-     * site ({@link #site}), its kind, its where and its operands the statement's site table's, never its text -- no
+     * site ({@link #site}), its kind and its operands the statement's site table's, never its text -- no
      * value cast to text, no concatenation, no parameter bound for one -- except {@link com.legend.sql.RaiseKind#USER_FAIL}'s,
      * the user's own message. exec reads the token back through the plan's table ({@code exec.RaisedErrors}). Every
      * dialect, the compatibility edge's too, writes the site's token (stage B's B1, 2026-11-20); the edge overrides
@@ -1237,7 +1245,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
      * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
      * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
-     * with its kind, its where and its operands (no words: each audience words a site after the run from its record;
+     * with its kind and its operands (no words: each audience words a site after the run from its record;
      * stage B's B1, 2026-11-20). A raise written outside a statement's
      * render has no table to declare it, refused by name.
      */
@@ -1253,11 +1261,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             throw new IllegalStateException("a raise of " + r.kind() + " written outside a statement's render: no"
                     + " statement's site table declares it (" + getClass().getSimpleName() + ")");
         }
-        RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.where(), r.operands());
+        RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.operands());
         for (RaiseSite held : raiseSites) {
             // the same raise written again in the statement (a guard a dialect writes twice, a CASE copied): its one
             // site, said once -- the copies' text stays identical, so the database and the lean measure see one repeat
-            if (held.kind() == written.kind() && java.util.Objects.equals(held.where(), written.where())
+            if (held.kind() == written.kind()
                     && held.operands().equals(written.operands())) {
                 return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(held.n()));
             }
@@ -2093,12 +2101,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
         int past = 9 - kept;
         String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
-        // FRACTION_NOT_KEPT: lite's own sentence the operand, written by the edge alone (D1.1)
-        // its where the parameter's name and the digits this database keeps: planning text (the D part 1 audit's S4)
-        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
-                com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, "the " + kind
-                + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
-                + " keeps (" + kept + "): refused, never cut (S181)"));
+        // PARAMETER_FRACTION_NOT_KEPT: lite's own sentence, its facts the operands -- the kind, the parameter's name,
+        // the database, the digits it keeps -- its where the parameter (stage B's BE-P, 2026-11-21: until then the
+        // sentence itself was the operand)
+        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(new SqlExpr.StringLit(kind),
+                        new SqlExpr.StringLit(p.name()), new SqlExpr.StringLit(product()),
+                        new SqlExpr.IntLit(kept)), null));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
                 .append(" AS " + text + ")");
         java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");
@@ -2491,9 +2500,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected String csvRecordCheck(int width) {
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                 SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
-                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
-                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, "a record of the CSV"
-                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true), SqlExpr.Reason.RAISE);
+                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, List.of(new SqlExpr.IntLit(width)))))), new SqlExpr.BoolLit(true), SqlExpr.Reason.RAISE);
         SqlWriter where = newWriter().expr(check, 0);
         if (where.bound() != 0) {
             throw new IllegalStateException("a CSV load's record check binds no value");

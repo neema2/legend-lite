@@ -52,6 +52,9 @@ class CompatConstantPoolTest {
     private static final String BORROWED_TDS_NULL_FQN = "PlatformTypes.TDS_NULL_FQN borrowed: Pure's class"
             + " meta::pure::tds::TDSNull, LANGUAGE (C5 step C, C-2, 2026-11-17; PlatformTypes' register row STAYS)";
 
+    private static final String ONE_CATALOG_FOLDED = "folded in its own file: a sentence of the one catalog written"
+            + " across lines; RULED, the user's ruling of 2026-11-21 (stage B's BE), the register's row of the file";
+
     /** The hits no class's own source accounts for, "top class | spelling" (the register's spelling), each with its
      *  reason. Measured 2026-11-17. */
     static final Map<String, String> POOL_ONLY = Map.ofEntries(
@@ -71,7 +74,15 @@ class CompatConstantPoolTest {
             // single literal holds -- the spelling the register's RULED row counts (S5, 2026-11-16: the user's ruling
             // on H2's lexicon, its session half)
             Map.entry("com.legend.sql.dialect.H2 | SET NON_KEYWORDS", "folded in its own file with H2.NON_KEYWORDS;"
-                    + " RULED (S5, 2026-11-16), the register's H2.java row"));
+                    + " RULED (S5, 2026-11-16), the register's H2.java row"),
+            // the one catalog's sentences written across two lines in their own file (a long sentence's literal pieces
+            // folded by javac into the one constant the pool holds): the register's RULED rows of the file (stage B's
+            // BE, the user's ruling of 2026-11-21)
+            Map.entry("com.legend.error.CompileKind | Can't find ", ONE_CATALOG_FOLDED),
+            Map.entry("com.legend.error.CompileKind | Invalid window frame boundary", ONE_CATALOG_FOLDED),
+            Map.entry("com.legend.error.ErrorKind | Invalid window frame boundary", ONE_CATALOG_FOLDED),
+            Map.entry("com.legend.error.ErrorKind | can't be higher than the high bound", ONE_CATALOG_FOLDED),
+            Map.entry("com.legend.error.ErrorKind | trying to get an element at offset", ONE_CATALOG_FOLDED));
 
     // ---- the matching ------------------------------------------------------------------------------------------
 
@@ -172,12 +183,14 @@ class CompatConstantPoolTest {
         return out;
     }
 
-    /** The register's "file | spelling" pairs (every step). */
+    /** The register's "file | spelling" pairs (every step), each spelling exactly as the register writes it -- split
+     *  as the register's own scan splits a row (2026-11-21, stage B's BE: trimmed, a spelling ending in a space, the
+     *  catalog's "Cannot divide ", never matched its row). */
     static Set<String> registered() {
         Set<String> out = new TreeSet<>();
         for (String row : CompatSpellingGuardTest.REGISTER) {
-            String[] p = row.split("\\|");
-            out.add(p[0].trim() + " | " + p[1].trim());
+            String[] p = row.split(" \\| ", -1);
+            out.add(p[0] + " | " + p[1]);
         }
         return out;
     }

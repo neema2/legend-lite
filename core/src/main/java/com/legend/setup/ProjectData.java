@@ -91,24 +91,29 @@ public record ProjectData(String name, List<String> open, List<String> use, List
      * with no rows, not even a header, or a table it fills that the model's Databases declare none or more than once of
      * ({@link #declaring}). A plan carries it as data (the plan-as-data design's slice 5, 2026-11-09): the server
      * refuses it where it makes the project's database, as it did before hole 7, and a query whose session is not the
-     * project's -- a test's, on its own database -- never meets it.
+     * project's -- a test's, on its own database -- never meets it. A record, its code and values, never a sentence
+     * (stage B's BE, 2026-11-21).
      */
-    public static @com.legend.base.Nullable String refusal(ModelContext ctx) {
+    public static com.legend.error.@com.legend.base.Nullable ErrorRecord refusal(ModelContext ctx) {
         for (DataDefinition data : ctx.dataElements().toList()) {
             Protocol.PRelationalCsvData csv = tables(data);
             if (csv == null) {
                 continue;   // no table of the project's database (tables())
             }
             for (Protocol.PRelationalCsvTable t : csv.tables()) {
+                String table = t.schema() + "." + t.table();
                 if (t.values() == null) {
-                    return "the Data element " + data.qualifiedName() + " fills " + t.schema() + "." + t.table()
-                            + " with no rows, not even a header";
+                    return com.legend.error.ErrorRecord.of(com.legend.error.CompileKind.DATA_TABLE_EMPTY,
+                            List.of(data.qualifiedName(), table));
                 }
                 List<String> declaring = declaringAll(ctx, t.schema(), t.table());
-                if (declaring.size() != 1) {
-                    return "the Data element " + data.qualifiedName() + " fills " + t.schema() + "." + t.table()
-                            + (declaring.isEmpty() ? ", which no Database of the model declares"
-                                    : ", which more than one Database declares " + declaring);
+                if (declaring.isEmpty()) {
+                    return com.legend.error.ErrorRecord.of(com.legend.error.CompileKind.DATA_TABLE_UNDECLARED,
+                            List.of(data.qualifiedName(), table));
+                }
+                if (declaring.size() > 1) {
+                    return com.legend.error.ErrorRecord.of(com.legend.error.CompileKind.DATA_TABLE_DECLARED_TWICE,
+                            List.of(data.qualifiedName(), table, declaring.toString()));
                 }
             }
         }
@@ -120,9 +125,9 @@ public record ProjectData(String name, List<String> open, List<String> use, List
      *  refused by name where the rows cannot make the database ({@link #refusal}). The fill's text alone, which the hosts
      *  ran outside any plan, is gone (B3, 2026-11-11, census M14): every host runs the plan's load. */
     public static List<CsvSeed.Step> fillSteps(ModelContext ctx, SqlDialect dialect) {
-        String refused = refusal(ctx);
+        com.legend.error.ErrorRecord refused = refusal(ctx);
         if (refused != null) {
-            throw new IllegalArgumentException(refused);
+            throw new IllegalArgumentException(refused.sentence());
         }
         List<CsvSeed.Step> out = new ArrayList<>();
         for (DataDefinition data : ctx.dataElements().toList()) {

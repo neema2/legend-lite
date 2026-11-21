@@ -48,6 +48,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class ClickHouse extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "ClickHouse";
+    }
+
     /** {@inheritDoc} -- ClickHouse: one assert's statement (up to ~45K characters, measured) parses well
      *  under its AST limit; 1.3M characters fused passed neither the limit nor, raised, the memory (10-12 GB). */
     @Override
@@ -854,9 +859,14 @@ public class ClickHouse extends AnsiSqlRenderer {
                 .append(", 27) NOT IN ('', '000')");
         return writer.append("CASE WHEN ").bind(textBind(p, asText)).append(" IS NULL THEN NULL WHEN ")
                 .piece(yearOutside).append(" THEN CAST(")
-                .piece(x -> guardedError(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE), yearOutside))
+                .piece(x -> guardedError(x, raised(com.legend.sql.RaiseKind.DATE_OUTSIDE_YEARS, "1900", "2299", "ClickHouse"), yearOutside))
                 .append(" AS " + type.name() + ") WHEN ").piece(fractionPast).append(" THEN CAST(")
-                .piece(x -> guardedError(x, raised(com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, FRACTION),
+                .piece(x -> guardedError(x, SqlExpr.Call.of(SqlFn.ERROR,
+                        // the kind, the parameter's name, the database, the digits kept (the BE audit 4's M1,
+                        // 2026-11-21: its name was held by the where alone until the where went)
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(
+                                new SqlExpr.StringLit("DateTime"), new SqlExpr.StringLit(p.name()),
+                                new SqlExpr.StringLit("ClickHouse"), new SqlExpr.IntLit(6)), null)),
                         w -> w.append("NOT coalesce(").piece(yearOutside).append(", false) AND ").piece(fractionPast)))
                 .append(" AS " + type.name() + ") ELSE toDateTime64(substring(")
                 .bind(textBind(p, asText)).append(", 1, 26), 6, 'UTC') END");
@@ -2220,17 +2230,12 @@ public class ClickHouse extends AnsiSqlRenderer {
         return writer.append(guarded ? ", '0'))" : ")");
     }
 
-    /** The message a date-time parameter of a digit past the microsecond raises (S181, A7). */
-    private static final String FRACTION = "a DateTime parameter has more fraction digits than ClickHouse keeps (6):"
-            + " refused, never cut (S181)";
-
-    /** The message a date past ClickHouse's years raises. */
-    private static final String DATE_RANGE = "a date outside the years 1900 to 2299 has no ClickHouse value (it clamps"
-            + " one to the end it passed)";
-
-    /** A raise of {@code kind} whose sentence, lite's own, the edge writes ({@code message}, D1.1). */
-    private static SqlExpr.Call raised(com.legend.sql.RaiseKind kind, String message) {
-        return SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(kind, message));
+    /** A raise of {@code kind} over {@code facts}, lite's own sentence of them (stage B's BE-P, 2026-11-21: a date
+     *  outside ClickHouse's years, which it clamps to the end it passed, a wrong value; until then the sentence was the
+     *  operand). */
+    private static SqlExpr.Call raised(com.legend.sql.RaiseKind kind, String... facts) {
+        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(kind,
+                java.util.Arrays.stream(facts).map(f -> (SqlExpr) new SqlExpr.StringLit(f)).toList()));
     }
 
     /** Whether {@code date} moved by {@code n} of {@code unit} leaves ClickHouse's dates, 1900-01-01 to the last
@@ -2493,7 +2498,7 @@ public class ClickHouse extends AnsiSqlRenderer {
                 SqlType slot = typeOf(c);
                 // in a lambda the raise carries the range check (guardedError: a CASE there evaluates every branch)
                 SqlWriter.Piece outside = outsideDates(unit, a.get(2), a.get(1));
-                SqlWriter.Piece raise = x -> guardedError(x, raised(com.legend.sql.RaiseKind.VALUE_NOT_HELD, DATE_RANGE),
+                SqlWriter.Piece raise = x -> guardedError(x, raised(com.legend.sql.RaiseKind.DATE_OUTSIDE_YEARS, "1900", "2299", "ClickHouse"),
                         outside);
                 yield writer.append("CASE WHEN ").piece(outside).append(" THEN ")
                         .piece(slot == null ? raise : x -> x.append("CAST(").piece(raise)

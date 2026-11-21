@@ -140,8 +140,7 @@ final class MatchChecker {
             ExprType str = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
             return new com.legend.compiler.spec.typed.TypedNativeCall(raise, List.of(
                     new com.legend.compiler.spec.typed.TypedCString(com.legend.sql.RaiseKind.MATCH_FAILURE.name(), str),
-                    new com.legend.compiler.spec.typed.TypedCString(input.info().type().typeName()
-                            + input.info().multiplicity().text(), str),
+                    new com.legend.compiler.spec.typed.TypedCString(unmatched(input), str),
                     new com.legend.compiler.spec.typed.TypedCString("", str)),
                     new ExprType(java.util.Objects.requireNonNull(lub),
                             java.util.Objects.requireNonNull(lubMult)));
@@ -150,6 +149,38 @@ final class MatchChecker {
                 selected.extraParam(), selected.extra(), selected.info(),
                 new ExprType(java.util.Objects.requireNonNull(lub),
                         java.util.Objects.requireNonNull(lubMult)));
+    }
+
+    /** The value no branch takes, as legend-pure's {@code CompiledSupport.matchFailure} prints it: each literal its
+     *  text and {@code " instanceOf "} its type's name, a collection's elements in {@code [..., ...]}; a value the
+     *  program does not spell (computed) {@code <computed>}, as a value only the database held prints (S389; the BE
+     *  audit 3's M4, 2026-11-21). */
+    private static String unmatched(TypedSpec input) {
+        // one value is printed bare, never in brackets: interpreted Match prints values.getFirst() where valueCount is
+        // 1, and compiled Pure holds a one-value [42] as 42 (the BE audit 5's L3, 2026-11-21). A date literal still
+        // prints <computed>: PureDate's text by its precision is not yet read (deferred, the BE record's section 7)
+        if (input instanceof com.legend.compiler.spec.typed.TypedCollection c && c.elements().size() == 1) {
+            return unmatched(c.elements().get(0));
+        }
+        if (input instanceof com.legend.compiler.spec.typed.TypedCollection c) {
+            List<String> each = c.elements().stream().map(MatchChecker::spelled).toList();
+            return each.contains(null) ? com.legend.error.ErrorKind.COMPUTED : "[" + String.join(", ", each) + "]";
+        }
+        String one = spelled(input);
+        return one == null ? com.legend.error.ErrorKind.COMPUTED : one;
+    }
+
+    private static @com.legend.base.Nullable String spelled(TypedSpec v) {
+        return switch (v) {
+            case com.legend.compiler.spec.typed.TypedCInteger i -> i.value() + " instanceOf Integer";
+            case com.legend.compiler.spec.typed.TypedCFloat f -> f.value() + " instanceOf Float";
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> d.value() + " instanceOf Decimal";
+            case com.legend.compiler.spec.typed.TypedCString s -> s.value() + " instanceOf String";
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> b.value() + " instanceOf Boolean";
+            case com.legend.compiler.spec.typed.TypedEnumValue e -> e.value() + " instanceOf "
+                    + com.legend.protocol.Protocol.splitFqn(e.enumFqn())[1];
+            default -> null;
+        };
     }
 
     /** Build the runtime-dispatch node when static selection is unsound

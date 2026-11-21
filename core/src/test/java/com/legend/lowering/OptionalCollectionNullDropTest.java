@@ -75,7 +75,7 @@ class OptionalCollectionNullDropTest {
         var ex = assertThrows(Exception.class, () -> Lean.runInStyle(MODEL, query, "m::RT", conn,
                 com.legend.edge.PureText.UPSTREAM));
         String words = com.legend.edge.PureMessages.compile(ex);
-        assertTrue(words.contains("Cannot cast a collection of size " + com.legend.edge.PureMessages.WITHHELD + " to"),
+        assertTrue(words.contains("Cannot cast a collection of size " + com.legend.result.RaiseWords.COMPUTED + " to"),
                 "expected pure's cast error at the edge, got: " + words);
     }
 
@@ -113,7 +113,7 @@ class OptionalCollectionNullDropTest {
     void toOneCountsPureCollection() {
         var ex = assertThrows(Exception.class,
                 () -> run("{| m::P.all().nick->toOne();}"));
-        assertTrue(ex.getMessage().contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
+        assertTrue(ex.getMessage().contains("Cannot cast a collection of size"),
                 "expected pure's size-2 cast error, got: " + ex.getMessage());
         edgeSize("{| m::P.all().nick->toOne();}");
     }
@@ -132,7 +132,7 @@ class OptionalCollectionNullDropTest {
     void relationLaneToOneCountsPure() {
         var ex = assertThrows(Exception.class,
                 () -> run("{| #>{s::DB.P}#->map(r|$r.NICK)->toOne();}"));
-        assertTrue(ex.getMessage().contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
+        assertTrue(ex.getMessage().contains("Cannot cast a collection of size"),
                 "expected pure's size-2 cast error, got: " + ex.getMessage());
         edgeSize("{| #>{s::DB.P}#->map(r|$r.NICK)->toOne();}");
     }

@@ -316,10 +316,12 @@ class DataLoadsTest {
         for (TestBackend b : loading()) {
             DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir),
                     load(b, file(b.dialect(), "big.csv", bytes, 1))), b.name());
-            // the product's kind and where (J25 of the edge audit, 2026-11-17); legend-pure's sentence is the edge's
-            // (PlanStyleFacetsTest)
+            // the product's kind and where (J25 of the edge audit, 2026-11-17), in legend-pure's sentence (the one
+            // catalog, stage B's BE, 2026-11-21: until then lite's own, legend-pure's the edge's)
             assertEquals(com.legend.error.ErrorKind.FILE_TOO_LARGE, e.kind(), b.name());
-            assertEquals("the file is larger than the load admits: /big.csv", e.getMessage());
+            assertTrue(e.getMessage().startsWith("Unable to read the CSV file '/big.csv' Execution error at ??,"
+                    + " \"File is too large, file was ") && e.getMessage().endsWith(" Mb, limit is 1 Mb\""),
+                    e.getMessage());
         }
     }
 
@@ -400,7 +402,7 @@ class DataLoadsTest {
 
     /** A CSV load's sites as its plan carries them (the planner's {@code PlanMaker.sites}, here without the planner). */
     private static List<ExecutionPlan.Site> planned(List<com.legend.sql.dialect.RaiseSite> written) {
-        return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
+        return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(),
                 w.operands().stream().map(com.legend.executionplan.Operand::of).toList())).toList();
     }
 }

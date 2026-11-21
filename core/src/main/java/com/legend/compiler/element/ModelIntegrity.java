@@ -289,7 +289,8 @@ final class ModelIntegrity {
             if (!propertyNames.add(pd.name())) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
-                        com.legend.error.CompileKind.DUPLICATE_PROPERTY, List.of(pd.name(), cd.qualifiedName()));
+                        com.legend.error.CompileKind.DUPLICATE_PROPERTY,
+                        List.of(com.legend.protocol.Protocol.splitFqn(cd.qualifiedName())[1], pd.name()));
             }
             classifier.classify(pd.type(), typeParams);
             classifier.requireArguments(pd.type(), typeParams);
@@ -438,15 +439,21 @@ final class ModelIntegrity {
         }
     }
 
-    /** Engine parity: "Found duplicated value 'X' in enumeration 'E'". */
+    /** legend-pure's EnumerationValidator: "Enumeration E has duplicate values: X, Y". */
     private static void checkEnum(com.legend.model.EnumDefinition ed) {
         java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.Set<String> duplicated = new java.util.TreeSet<>();
         for (String v : ed.values()) {
             if (!seen.add(v)) {
-                throw new com.legend.error.ModelException(
-                        com.legend.error.LegendCompileException.Phase.MODEL,
-                        com.legend.error.CompileKind.DUPLICATE_ENUM_VALUE, List.of(v, ed.qualifiedName()));
+                duplicated.add(v);
             }
+        }
+        if (!duplicated.isEmpty()) {
+            // every duplicated value, sorted, as legend-pure's EnumerationValidator names them
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.MODEL,
+                    com.legend.error.CompileKind.DUPLICATE_ENUM_VALUE,
+                    List.of(ed.qualifiedName(), String.join(", ", duplicated)));
         }
     }
 
@@ -581,7 +588,7 @@ final class ModelIntegrity {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
                         com.legend.error.CompileKind.MISSING_STORE_COLUMN,
-                        List.of(cr.column(), "table", table.get().name(), site, db.qualifiedName()));
+                        List.of(cr.column(), table.get().name()));
             }
             return;
         }
@@ -593,13 +600,34 @@ final class ModelIntegrity {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
                         com.legend.error.CompileKind.MISSING_STORE_COLUMN,
-                        List.of(cr.column(), "view", view.get().name(), site, db.qualifiedName()));
+                        List.of(cr.column(), view.get().name()));
             }
             return;
         }
+        String schema = cr.table().contains(".") ? cr.table().substring(0, cr.table().lastIndexOf('.')) : "default";
+        String dbName = com.legend.protocol.Protocol.splitFqn(db.qualifiedName())[1];
+        // the SCHEMA first, as legend-pure's DatabaseProcessor.findTableForAlias decides (its schemaExists: the default
+        // schema always, else one the database or an include declares; the BE audit 3's S1, 2026-11-21)
+        if (!schema.equals("default") && !schemaDeclared(model, db.qualifiedName(), schema, new java.util.HashSet<>())) {
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.MODEL,
+                    com.legend.error.CompileKind.MISSING_STORE_SCHEMA, List.of(schema, dbName));
+        }
         throw new com.legend.error.ModelException(
                 com.legend.error.LegendCompileException.Phase.MODEL,
-                com.legend.error.CompileKind.MISSING_STORE_TABLE, List.of(cr.table(), db.qualifiedName(), site));
+                com.legend.error.CompileKind.MISSING_STORE_TABLE, List.of(
+                        cr.table().contains(".") ? cr.table().substring(cr.table().lastIndexOf('.') + 1) : cr.table(),
+                        schema, dbName));
+    }
+
+    /** Whether {@code dbFqn} or a database it includes declares the schema {@code name} (legend-pure's schemaExists). */
+    private static boolean schemaDeclared(ModelBuilder model, String dbFqn, String name, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return false;
+        }
+        var db = model.findDatabase(dbFqn);
+        return db.isPresent() && (db.get().schemas().stream().anyMatch(s -> s.name().equals(name))
+                || db.get().includes().stream().anyMatch(inc -> schemaDeclared(model, inc, name, seen)));
     }
 
     /** Declared columns + milestoning-declared temporal columns, by bare name

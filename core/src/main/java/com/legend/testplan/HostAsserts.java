@@ -173,6 +173,12 @@ final class HostAsserts implements TestDoor.Asserts {
                             letPrefix.add(let);
                         }
                     } catch (RuntimeException e) {
+                        // held for the next assert's turn only where upstream raises it there; any other error
+                        // refuses the body here, as itself (the BE audit's finding 5, 2026-11-21: held, it was lost
+                        // where an effect, a frame or a branch followed, the body refused in the generic words)
+                        if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                            throw e;
+                        }
                         pendingLet = e;
                     }
                 }
@@ -200,7 +206,7 @@ final class HostAsserts implements TestDoor.Asserts {
                 TypedSpec bare = Lets.bare(statement);
                 Planned p = pendingLet != null
                         ? planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare),
-                                com.legend.testexecutionplan.Failures.of(pendingLet, "HostAsserts.plan: a let's handle registration")),
+                                com.legend.testexecutionplan.Failures.planned(pendingLet, "HostAsserts.plan: a let's handle registration")),
                                 HostSides.Planned.NONE, env)
                         : planAssertError(statement, bare, letPrefix, frames, specs, env);
                 if (p == null) {
@@ -217,7 +223,7 @@ final class HostAsserts implements TestDoor.Asserts {
             Planned p;
             if (pendingLet != null) {
                 p = planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare),
-                        com.legend.testexecutionplan.Failures.of(pendingLet, "HostAsserts.plan: a let's handle registration")),
+                        com.legend.testexecutionplan.Failures.planned(pendingLet, "HostAsserts.plan: a let's handle registration")),
                         HostSides.Planned.NONE, env);
                 raisedByAnAssert = true;
             } else {
@@ -316,7 +322,7 @@ final class HostAsserts implements TestDoor.Asserts {
         } catch (RuntimeException e) {
             // the frame environment raised: the walk raises it before the arm is entered (S1)
             return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare),
-                    com.legend.testexecutionplan.Failures.of(e, "HostAsserts.planAssert: the frame environment")), HostSides.Planned.NONE, env);
+                    com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssert: the frame environment")), HostSides.Planned.NONE, env);
         }
         AssertVerdicts.HostAssert assertion;
         try {
@@ -325,7 +331,7 @@ final class HostAsserts implements TestDoor.Asserts {
             // the classification raised before any family was named: raised at the assert's turn, counted as the
             // walk counts it (entered, raised)
             assertion = AssertVerdicts.HostAssert.raising(AssertVerdicts.listenerName(bare), null,
-                    com.legend.testexecutionplan.Failures.of(e, "HostAsserts.planAssert: the arm's classification"));
+                    com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssert: the arm's classification"));
         }
         com.legend.builtin.NativeFn.Verdict declined = assertion != null ? null : com.legend.builtin.NativeFn.Verdict
                 .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
@@ -341,7 +347,7 @@ final class HostAsserts implements TestDoor.Asserts {
             } catch (IllegalStateException | com.legend.error.NotImplementedException e) {
                 // the lowering's refusal of an assert native as a scalar (NoRule: "not as a scalar")
                 return planned(AssertVerdicts.HostAssert.raising(AssertVerdicts.listenerName(bare), null,
-                        com.legend.testexecutionplan.Failures.of(e, "HostAsserts.planAssert: an assert native lowered as a scalar")),
+                        com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssert: an assert native lowered as a scalar")),
                         HostSides.Planned.NONE, env);
             }
             return null;
@@ -365,7 +371,7 @@ final class HostAsserts implements TestDoor.Asserts {
             // a side's planning raised: raised at the assert's turn, once its family is counted (the walk plans the
             // sides there, after the asserts before it ran)
             assertion = AssertVerdicts.HostAssert.raising(assertion.listenerName(), assertion.family(),
-                    com.legend.testexecutionplan.Failures.of(e, "HostAsserts.planAssert: a side's planning"));
+                    com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssert: a side's planning"));
             sides = HostSides.Planned.NONE;
         }
         if (sides.on() != null && !sides.on().equals(target)
@@ -404,9 +410,10 @@ final class HostAsserts implements TestDoor.Asserts {
         try {
             args = AssertErrorNative.args(ae, letPrefix);
         } catch (com.legend.error.NotImplementedException e) {
-            // a shape the arm refuses: raised at the assert's turn, as the walk's arm raises it
+            // a shape the arm refuses: no error upstream raises at run, so Failures.planned refuses the body at
+            // planning (D, 2026-11-21; the BE audit 2's nit 2: until then this said it was raised at the assert's turn)
             return planned(AssertVerdicts.HostAssert.raising(name, null,
-                    com.legend.testexecutionplan.Failures.of(e, "HostAsserts.planAssertError: a shape the arm refuses")), HostSides.Planned.NONE, env);
+                    com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssertError: a shape the arm refuses")), HostSides.Planned.NONE, env);
         }
         com.legend.compiler.spec.typed.TypedSpec inner = QueryDoor.innerAssert(ae, specs);
         if (inner != null) {
@@ -455,7 +462,7 @@ final class HostAsserts implements TestDoor.Asserts {
             hook = BodyDriver.spliceHook(frames, before, specs, env)::apply;
         } catch (RuntimeException e) {
             return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(name,
-                    com.legend.testexecutionplan.Failures.of(e, "HostAsserts.planAssertError: the frame environment")), HostSides.Planned.NONE, env);
+                    com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssertError: the frame environment")), HostSides.Planned.NONE, env);
         }
         List<HostSides.Ask> asks = new ArrayList<>(working.size());
         for (TypedSpec side : working) {
@@ -468,9 +475,10 @@ final class HostAsserts implements TestDoor.Asserts {
         } catch (RuntimeException e) {
             caught = AssertErrorNative.caught(e, "HostAsserts.planAssertError: f's sides");
             if (caught == null) {
-                // no error the arm takes (a wall): raised at the assert's turn, loud, as the walk's arm raises it
+                // no error the arm takes (a wall): planned at the assert's turn only if upstream raises it at run, else
+                // the body is refused at planning (D, 2026-11-21, as above)
                 return planned(AssertVerdicts.HostAssert.raising(name, null,
-                        com.legend.testexecutionplan.Failures.of(e, "HostAsserts.planAssertError: a wall f's sides raised")), HostSides.Planned.NONE,
+                        com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssertError: a wall f's sides raised")), HostSides.Planned.NONE,
                         env);
             }
             sides = HostSides.Planned.NONE;

@@ -33,7 +33,13 @@ final class AssertErrorRuns {
                     throw new com.legend.error.NotImplementedException(a.inner().assertion().name()
                             + " inside assertError: the host judge declined the sides it read");
                 }
-            } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {
+            } catch (com.legend.error.AssertFailed | com.legend.error.DataError
+                    | com.legend.error.LegendCompileException e) {
+                // the errors upstream's assertError catches, per code as the branch below decides (the BE audit 2's
+                // S3, 2026-11-21: by class until then, so a row's cell offset escaped the arm)
+                if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                    throw e;
+                }
                 message = run.caughtMessage(e);
             }
             return judged(a.expected(), a.line(), a.column(), message, null, run);
@@ -48,8 +54,14 @@ final class AssertErrorRuns {
         RuntimeException raised = null;
         try {
             sides.get();
-        } catch (com.legend.error.DataError | com.legend.error.ModelException e) {
-            // the errors the arm takes (caught's): any other is a wall and stays loud, raised as it was
+        } catch (com.legend.error.DataError | com.legend.error.AssertFailed
+                | com.legend.error.LegendCompileException e) {
+            // the errors the arm takes, caught's: lite's error families, each taken where upstream raises it at run, as
+            // upstream's assertError catches it (the BE audit's finding 6, 2026-11-21; until then a DataError or a
+            // ModelException alone); any other is a wall and stays loud, raised as it was
+            if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                throw e;
+            }
             raised = e;
         }
         return judged(a.expected(), a.line(), a.column(), raised == null ? null : run.caughtMessage(raised),

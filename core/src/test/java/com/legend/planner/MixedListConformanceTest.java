@@ -172,10 +172,11 @@ class MixedListConformanceTest {
                 "|let n = 9007199254740990 + 3; [$n, 0.5]->max();"}) {
             ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), q).executionPlan(StorelessRuntime.RUNTIME);
             try (Connection conn = backend.open()) {
-                // the database raises VALUE_NOT_HELD, worded by its kind (D1.1: the product's words are the kind's)
+                // the database raises MIXED_RANK_INEXACT, worded by its kind: lite's own sentence, its facts the
+                // operands (stage B's BE-P, 2026-11-21: until then VALUE_NOT_HELD, its place prose)
                 com.legend.error.DataError e = assertThrows(com.legend.error.DataError.class,
                         () -> PlanCases.write(plan, conn, Map.of(), PlanCases.Written.JSON::writer), q);
-                assertTrue(String.valueOf(e.getMessage()).contains("outside the range"), q + ": " + e);
+                assertTrue(String.valueOf(e.getMessage()).contains("beyond 2^53"), q + ": " + e);
             }
         }
         ExecutionPlan within = Compiler.query(Compiler.compileModel(model),

@@ -36,6 +36,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Postgres extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "Postgres";
+    }
+
     /** PostgreSQL 16+ (2026-10-01 W5.5/P1 Postgres dialect). The {@code Postgres} dialect
      * QUOTES EVERY identifier (Postgres folds an unquoted name to lowercase, so a bare
      * {@code NAME} reads {@code name}), so this list never decides a spelling there; it
@@ -468,9 +473,8 @@ public class Postgres extends AnsiSqlRenderer {
 
     /** A map's raise of {@code kind} (DuckDB's words the edge's, D1.1), raised as a map (the CASE's type). */
     private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
-        // its where the map's construction, a fixed text (the D part 1 audit's S4, 2026-11-15)
-        SqlWriter.Piece text = raise(raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null,
-                "a map built from its key and value lists")), null, true);
+        // a map construction's raise, its kind alone (the D part 1 audit's S4, 2026-11-15; its where went with BE's item 2)
+        SqlWriter.Piece text = raise(raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null)), null, true);
         return w -> w.append("CAST(").piece(text).append(" AS JSONB[])");
     }
 

@@ -53,7 +53,9 @@ final class MappingValidation {
         if (!dupIds.isEmpty()) {
             throw new ModelException(LegendCompileException.Phase.MODEL,
                     com.legend.error.CompileKind.DUPLICATE_CLASS_MAPPING_IDS,
-                    List.of(dupIds.toString(), md.qualifiedName()), md.qualifiedName());
+                    // the first id alone, as legend-engine's MappingValidator names it (the BE audit 2's M1)
+                    List.of(dupIds.get(0).substring(0, dupIds.get(0).indexOf(" (")), md.qualifiedName()),
+                    md.qualifiedName());
         }
         Map<String, ModelException> invalid = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {

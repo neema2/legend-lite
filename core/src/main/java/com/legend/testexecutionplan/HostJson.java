@@ -153,31 +153,30 @@ final class HostJson {
     static Map<String, Object> wFailure(Failure x) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("kind", x.kind().name());
-        o.put("message", x.message() == null ? null : x.message());
+        // its own message only where it has no record: a record's sentence is lite's words, made after the plan is read
+        // (stage B's BE, 2026-11-21, the one error model: no prose in the plan for an error that has its record)
+        o.put("message", x.ownMessage());
         o.put("phase", x.phase() == null ? null : x.phase().name());
         o.put("element", x.element() == null ? null : x.element());
         o.put("unjudgedReason", x.unjudgedReason() == null ? null : x.unjudgedReason());
-        o.put("where", x.where());
-        // the facts an audience words the failure from (stage B's B1, 2026-11-20, errors as records): one key, its variant's
-        Map<String, Object> k = new LinkedHashMap<>();
-        switch (x.fact()) {
-            case null -> o.put("fact", null);
-            case Failure.Compile c -> {
-                k.put("prefix", c.prefix());
-                k.put("kind", c.kind().name());
-                k.put("operands", c.operands());
-                k.put("position", c.position());
-                k.put("suffix", c.suffix());
-                o.put("fact", Map.of("compile", k));
-            }
-            case Failure.FileTooLarge t -> {
-                k.put("path", t.path());
-                k.put("bytes", t.bytes());
-                k.put("characters", t.characters());
-                k.put("limitMegabytes", t.limitMegabytes());
-                o.put("fact", Map.of("fileTooLarge", k));
-            }
+        o.put("record", x.record() == null ? null : wRecord(x.record()));
+        return o;
+    }
+
+    /** An error's record: its code (qualified), its values, its position, its frames (each a code and its values). */
+    static Map<String, Object> wRecord(com.legend.error.ErrorRecord r) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("code", r.code().qualified());
+        o.put("values", r.values());
+        o.put("position", r.position());
+        List<Object> frames = new ArrayList<>();
+        for (com.legend.error.ErrorRecord.Frame f : r.frames()) {
+            Map<String, Object> fo = new LinkedHashMap<>();
+            fo.put("code", f.kind().qualified());
+            fo.put("values", f.values());
+            frames.add(fo);
         }
+        o.put("frames", frames);
         return o;
     }
 
@@ -187,28 +186,47 @@ final class HostJson {
         com.legend.error.LegendCompileException.@Nullable Phase v_phase = absent(o, "phase", "Failure") ? null : com.legend.error.LegendCompileException.Phase.valueOf(str(o.get("phase")));
         @Nullable String v_element = absent(o, "element", "Failure") ? null : str(o.get("element"));
         @Nullable String v_unjudgedReason = absent(o, "unjudgedReason", "Failure") ? null : str(o.get("unjudgedReason"));
-        String v_where = str(field(o, "where", "Failure"));
-        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where,
-                absent(o, "fact", "Failure") ? null : rFact(obj(o.get("fact"))));
+        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason,
+                absent(o, "record", "Failure") ? null : rRecord(obj(o.get("record"))));
     }
 
-    private static Failure.Fact rFact(Json.Obj o) {
-        if (o.getOr("compile", null) instanceof Json.Obj c) {
-            List<String> operands = new ArrayList<>();
-            for (Json.Node n : ((Json.Arr) field(c, "operands", "Failure.Compile")).items()) {
-                operands.add(str(n));
+    static com.legend.error.ErrorRecord rRecord(Json.Obj o) {
+        com.legend.error.ErrorCode code = com.legend.error.ErrorCode.named(str(field(o, "code", "ErrorRecord")));
+        List<com.legend.error.ErrorRecord.Frame> frames = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) field(o, "frames", "ErrorRecord")).items()) {
+            Json.Obj f = obj(n);
+            if (!(com.legend.error.ErrorCode.named(str(field(f, "code", "ErrorRecord.Frame")))
+                    instanceof com.legend.error.FrameKind kind)) {
+                throw new IllegalArgumentException("a frame's code is a frame's: " + f);
             }
-            return new Failure.Compile(str(field(c, "prefix", "Failure.Compile")),
-                    com.legend.error.CompileKind.valueOf(str(field(c, "kind", "Failure.Compile"))), operands,
-                    absent(c, "position", "Failure.Compile") ? null : str(c.get("position")),
-                    str(field(c, "suffix", "Failure.Compile")));
+            frames.add(new com.legend.error.ErrorRecord.Frame(kind, strings(field(f, "values", "ErrorRecord.Frame"))));
         }
-        if (o.getOr("fileTooLarge", null) instanceof Json.Obj t) {
-            return new Failure.FileTooLarge(str(field(t, "path", "Failure.FileTooLarge")),
-                    num(field(t, "bytes", "Failure.FileTooLarge")), num(field(t, "characters", "Failure.FileTooLarge")),
-                    Math.toIntExact(num(field(t, "limitMegabytes", "Failure.FileTooLarge"))));
+        List<String> values = strings(field(o, "values", "ErrorRecord"));
+        // its values its code's sentence's, refused here by name, never first where the sentence is said (the BE audit
+        // 5's L6, 2026-11-21)
+        // at least its sentence's: a compile kind may carry facts its sentence does not print (MAIN_TABLE_*'s second;
+        // the BE audit 6's L-2, 2026-11-21: an exact count refused a record lite builds)
+        if (code instanceof com.legend.error.CompileKind c && values.size() < c.arity()) {
+            throw new IllegalArgumentException("a record of " + c.qualified() + " has at least " + c.arity()
+                    + " values: " + o);
         }
-        throw new IllegalArgumentException("a failure's fact is compile or fileTooLarge: " + o);
+        if (code instanceof com.legend.error.ErrorKind k) {
+            try {
+                k.form(values.size(), i -> values.get(i).isEmpty());
+            } catch (IllegalStateException e) {
+                throw new IllegalArgumentException("a record of " + k.qualified() + ": " + e.getMessage(), e);
+            }
+        }
+        return new com.legend.error.ErrorRecord(code, values,
+                absent(o, "position", "ErrorRecord") ? null : str(o.get("position")), frames);
+    }
+
+    private static List<String> strings(Json.Node n) {
+        List<String> out = new ArrayList<>();
+        for (Json.Node v : ((Json.Arr) n).items()) {
+            out.add(str(v));
+        }
+        return out;
     }
 
     static Map<String, Object> wSideShape(SideShape x) {
@@ -816,32 +834,28 @@ final class HostJson {
 
     static Map<String, Object> wRlMessage(RootLoop.Message x) {
         Map<String, Object> o = new LinkedHashMap<>();
-        o.put("side", x.side() == null ? null : TestPlanJson.side(x.side()));
-        o.put("refusal", x.refusal() == null ? null : wFailure(x.refusal()));
+        o.put("side", TestPlanJson.side(x.side()));
         o.put("carried", x.carried());
         return o;
     }
 
     static RootLoop.Message rRlMessage(Json.Obj o) {
-        TestPlan.@Nullable Side v_side = absent(o, "side", "Message") ? null : TestPlanJson.readSide(obj(o.get("side")));
-        @Nullable Failure v_refusal = absent(o, "refusal", "Message") ? null : rFailure(obj(o.get("refusal")));
+        TestPlan.Side v_side = TestPlanJson.readSide(obj(field(o, "side", "Message")));
         boolean v_carried = bool(field(o, "carried", "Message"));
-        return new RootLoop.Message(v_side, v_refusal, v_carried);
+        return new RootLoop.Message(v_side, v_carried);
     }
 
     static Map<String, Object> wRsRow(RootLoop.Row x) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("verdict", x.verdict());
-        o.put("refusal", x.refusal() == null ? null : wFailure(x.refusal()));
         return o;
     }
 
     static RootLoop.Row rRsRow(Json.Obj o) {
         String v_name = str(field(o, "name", "Row"));
         int v_verdict = Math.toIntExact(num(field(o, "verdict", "Row")));
-        @Nullable Failure v_refusal = absent(o, "refusal", "Row") ? null : rFailure(obj(o.get("refusal")));
-        return new RootLoop.Row(v_name, v_verdict, v_refusal);
+        return new RootLoop.Row(v_name, v_verdict);
     }
 
     static Map<String, Object> wRsDecided(RootLoop.Decided x) {

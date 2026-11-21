@@ -3,6 +3,7 @@
 
 package com.legend.edge;
 
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.Operand;
 import com.legend.sql.RaiseKind;
 import org.junit.jupiter.api.Test;
@@ -17,13 +18,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * THE EDGE'S WORDS OF A RAISE SITE, FROM ITS RECORD (stage B's B1, 2026-11-20, errors as records): legend-pure's
  * sentence of each kind, worded in Java after the run from the site's kind and operands -- a literal printed as
- * legend-pure prints it, a value only the database held as {@link PureMessages#WITHHELD} (D1, register S389). The plan
+ * legend-pure prints it, a value only the database held as {@link com.legend.result.RaiseWords#COMPUTED} (D1, register S389). The plan
  * carries no words; this is the one place they are made.
  */
 class PureMessagesWordedTest {
 
     private static String worded(RaiseKind kind, Operand... operands) {
-        return PureMessages.worded(kind, List.of(operands));
+        return com.legend.result.RaiseWords.sentence(new ExecutionPlan.Site(1, kind, List.of(operands)));
     }
 
     @Test
@@ -50,11 +51,11 @@ class PureMessagesWordedTest {
 
     @Test
     void aComputedOperandIsWithheld() {
-        assertEquals("Cannot divide " + PureMessages.WITHHELD + " by zero",
+        assertEquals("Cannot divide " + com.legend.result.RaiseWords.COMPUTED + " by zero",
                 worded(RaiseKind.DIVIDE_BY_ZERO, Operand.Computed.IT));
-        assertEquals("Cannot cast a collection of size " + PureMessages.WITHHELD + " to multiplicity [1]",
+        assertEquals("Cannot cast a collection of size " + com.legend.result.RaiseWords.COMPUTED + " to multiplicity [1]",
                 worded(RaiseKind.SIZE_NOT_MULTIPLICITY, new Operand.Text("[1]"), Operand.Computed.IT));
-        assertEquals("Invalid hour: " + PureMessages.WITHHELD,
+        assertEquals("Invalid hour: " + com.legend.result.RaiseWords.COMPUTED,
                 worded(RaiseKind.DATE_COMPONENT_INVALID, new Operand.Text("hour"), Operand.Computed.IT));
     }
 
@@ -65,14 +66,28 @@ class PureMessagesWordedTest {
     void everySiteKindIsWorded_aUsersFailIsNone() {
         for (RaiseKind kind : RaiseKind.values()) {
             if (kind == RaiseKind.USER_FAIL) {
-                assertThrows(IllegalStateException.class, () -> worded(kind, new Operand.Text("mine")));
+                assertThrows(IllegalArgumentException.class, () -> worded(kind, new Operand.Text("mine")));
                 continue;
             }
-            List<Operand> computed = java.util.Collections.nCopies(4, Operand.Computed.IT);
-            String words = PureMessages.worded(kind, kind == RaiseKind.DATE_COMPONENT_INVALID
-                    ? List.of(new Operand.Text("hour"), Operand.Computed.IT) : computed);
-            assertFalse(words.isBlank(), kind.name());
-            assertFalse(words.contains(kind.name()), kind + ": the words are a sentence, never the kind's name: " + words);
+            // every form of the kind, given the values it names (the BE audit 2's S5, 2026-11-21: a form takes no
+            // fewer values than it names, an exact form its arity alone), a form chosen by an empty value given one
+            for (com.legend.error.ErrorKind.Form form : com.legend.error.ErrorKind.valueOf(kind.name()).forms()) {
+                int named = 0;
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("%(\\d+)\\$s").matcher(form.template());
+                while (m.find()) {
+                    named = Math.max(named, Integer.parseInt(m.group(1)));
+                }
+                int size = form.arity() >= 0 ? form.arity() : Math.max(named, form.emptySlot() + 1);
+                List<Operand> values = new java.util.ArrayList<>(java.util.Collections.nCopies(size,
+                        Operand.Computed.IT));
+                if (form.emptySlot() >= 0) {
+                    values.set(form.emptySlot(), new Operand.Text(""));
+                }
+                String words = com.legend.result.RaiseWords.sentence(new ExecutionPlan.Site(1, kind, values));
+                assertFalse(words.isBlank(), kind.name());
+                assertFalse(words.contains(kind.name()), kind + ": the words are a sentence, never the kind's name: "
+                        + words);
+            }
         }
     }
 
@@ -80,8 +95,8 @@ class PureMessagesWordedTest {
      *  the one error model removes (B1's fixes' review, 2026-11-20). */
     @Test
     void aMarkedMessageOffItsRecordReadsItsKindsName_asOnMain() {
-        assertEquals("DIVIDE_BY_ZERO", PureMessages.compile(new IllegalStateException(RaiseKind.MARK + "DIVIDE_BY_ZERO"
-                + RaiseKind.MARK + "the where")));
+        // the mark and the kind alone, as exec.RaisedErrors writes it (the second mark, before a where, went with BE's
+        // item 2; the BE audit 6's N-1, 2026-11-21: the edge no longer reads one)
         assertEquals("DIVIDE_BY_ZERO", PureMessages.compile(new IllegalStateException(RaiseKind.MARK + "DIVIDE_BY_ZERO")));
     }
 
@@ -90,14 +105,13 @@ class PureMessagesWordedTest {
     @Test
     void aSitesWordsAreAFunctionOfItsRecordAlone() {
         com.legend.executionplan.ExecutionPlan.Site site = new com.legend.executionplan.ExecutionPlan.Site(1,
-                RaiseKind.DATE_COMPONENT_INVALID, "month", List.of(new Operand.Text("month"), new Operand.Int(13)));
+                RaiseKind.DATE_COMPONENT_INVALID, List.of(new Operand.Text("month"), new Operand.Int(13)));
         assertEquals("Invalid month: 13", PureMessages.worded(site));
-        assertTrue(site.productSentence().endsWith(": month"), site.productSentence());
-        assertFalse(site.productSentence().contains("Invalid month"), site.productSentence());
-        // a kind with no upstream text: the product's former sentence, its parts the operands (PCT pins it)
+        // one catalog (stage B's BE, 2026-11-21): the product says the same sentence, its place a fact apart
+        assertEquals("Invalid month: 13", com.legend.result.RaiseWords.sentence(site));
+        // a kind with no upstream text: lite's own sentence over its facts (stage B's BE-P, 2026-11-21)
         com.legend.executionplan.ExecutionPlan.Site own = new com.legend.executionplan.ExecutionPlan.Site(1,
-                RaiseKind.VALUE_NOT_HELD, "an integer past 64 bits has no SQLite value",
-                List.of(new Operand.Text("an integer past 64 bits has no SQLite value")));
+                RaiseKind.INTEGER_PAST_64_BITS, List.of(new Operand.Text("SQLite")));
         assertEquals("an integer past 64 bits has no SQLite value", PureMessages.worded(own));
     }
 }

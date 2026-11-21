@@ -126,8 +126,8 @@ final class Coercions {
         // cellText -- a TDS cell's text (Lite.CELL_TEXT): the product's empty where the cell is, the edge's TDSNull
         // (phase D's D1.3, 2026-11-15)
         // typeRaise -- a run-time type check's failure (Lite.TYPE_RAISE, W5 of docs/records/d-plan-2026-11-16.md): the
-        // product's raise of the kind its first argument names, the two types its operands and its where; typed as the
-        // position it stands in, as fail's is
+        // product's raise of the kind its first argument names, the two types its operands; typed as the position it
+        // stands in, as fail's is
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TYPE_RAISE) {
             rules.put(f, (n, args) -> {
                 if (!(args.get(0) instanceof com.legend.sql.SqlExpr.StringLit kind)
@@ -136,10 +136,9 @@ final class Coercions {
                     throw new IllegalStateException("typeRaise's arguments are the resolver's literals: " + args);
                 }
                 com.legend.sql.RaiseKind k = com.legend.sql.RaiseKind.valueOf(kind.value());
-                // its where: the two types, or a match's value's type alone
+                // its operands: the two types, or a match's value's type alone
                 com.legend.sql.SqlExpr raised = PureSql.raise(new com.legend.sql.SqlExpr.RaiseText(k,
-                        List.of(from, to), null, k == com.legend.sql.RaiseKind.MATCH_FAILURE ? from.value()
-                                : from.value() + " to " + to.value()), n.pos());
+                        List.of(from, to), null), n.pos());
                 return n.info().type() instanceof com.legend.compiler.element.type.Type.Primitive p && p != com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                         ? new com.legend.sql.SqlExpr.Cast(raised, PureSql.type(p), com.legend.sql.SqlExpr.Reason.RAISE)
                         : raised;

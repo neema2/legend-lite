@@ -563,8 +563,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  loaded measured worse on two pages). Measured 438,076 over main's 437,233.
  *  438,100 -> 438,250 (2026-11-17, the user's word typed in D's session, 2026-11-17: "raise the three datacube bundle budgets to 438,250 / 425,800 / 454,150"; re-measured on d-stage b27bfa1a7 first, still over:
  *  the separation stream's edge moves since 2026-11-16). Measured 438,206 on Linux; the same Windows headroom as before.
- *  438,250 -> 439,800 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 439,767 on Linux (the TS host, the merge point with J9 and query/parse at LEGEND_LITE). */
-const BUDGET = 439_800;
+ *  438,250 -> 439,800 (2026-11-17 ~22:58, the user's word relayed by the orchestrator: "Datacube is also okay to raise"; the host train -- lite API v1's protocol, error shape and routes client, the plain-type plan v57 and its run-time parameters). Measured 439,767 on Linux (the TS host, the merge point with J9 and query/parse at LEGEND_LITE).
+ *  439,800 -> 440,400 (2026-11-21, stage B's BE on claude/compat-error-model, for the user's word at the BE PR: the one
+ *  catalog in the host -- the generated raise table in legend-pure's words (engine-client/src/generated/lite-raise.ts) and
+ *  raised.ts's strict forms and whole-number spelling, which the grid's plan runner carries). Measured 440,373 on Linux. */
+const BUDGET = 440_400;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

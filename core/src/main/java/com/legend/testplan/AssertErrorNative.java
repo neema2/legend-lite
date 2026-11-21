@@ -71,14 +71,16 @@ final class AssertErrorNative {
         return new Args(f, message, optionalInt(ae, 2), optionalInt(ae, 3));
     }
 
-    /** The error {@code f} raised, as the arm catches it: a database's error (its message clean, its cause the raise's
-     *  position where the raise was ours) or a deferred guard's model error; any other exception is no answer of the
-     *  arm's (a wall stays loud) and is null here. */
+    /** The error {@code f} raised, as the arm catches it: an error upstream raises when {@code f} runs
+     *  ({@code Failures.atItsTurn}: a database's error, an assert's failure, a code raised at run), as upstream's
+     *  assertError catches it (the BE audit's finding 6, 2026-11-21: until then a DataError or a ModelException alone,
+     *  so a row's cell offset escaped the arm); any other is null here, and refuses the body where its caller plans
+     *  it (a mapping error among them: the user's option 1, register S393). */
     static com.legend.testexecutionplan.@com.legend.base.Nullable Failure caught(RuntimeException e, String where) {
-        // lite's own message, and the kinded part as data: an audience's words of it are worded at the verdict's turn,
-        // from the record (stage B's B1, 2026-11-20, errors as records: until then the plan's style worded it here, PlanStyle.errorWords)
-        return e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException
-                ? com.legend.testexecutionplan.Failures.of(e, where) : null;
+        // the kinded part as data: an audience's words of it are worded at the verdict's turn, from the record (stage
+        // B's B1, 2026-11-20, errors as records: until then the plan's style worded it here, PlanStyle.errorWords)
+        return com.legend.testexecutionplan.Failures.atItsTurn(e) ? com.legend.testexecutionplan.Failures.of(e, where)
+                : null;
     }
 
     /** {@code Integer[0..1]} argument: a literal, {@code []}, or absent

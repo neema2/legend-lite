@@ -117,7 +117,10 @@ final class JdbcStatements implements Statements {
         for (ExecutionPlan.Slot slot : slots) {
             if (slot.binding() instanceof ExecutionPlan.Binding.Payload payload) {
                 Throwable cause = failure.getCause() != null ? failure.getCause() : e;
-                String message = payload.label() + " was refused: " + failure.getMessage();
+                // the payload named from the plan's facts, the catalog's words (stage B's BE, 2026-11-21)
+                String message = com.legend.error.ErrorKind.PAYLOAD_REFUSED.sentence(List.of(
+                        payload.digest().substring(0, 16), Integer.toString(payload.characters()),
+                        String.valueOf(failure.getMessage())));
                 // the database's own failure keeps its kind, SQLSTATE and words, named by the payload it refused
                 com.legend.error.DataError named = failure.kind() != null && failure.kind().isDatabases()
                         ? com.legend.error.DataError.database(failure.kind(), failure.sqlState(),

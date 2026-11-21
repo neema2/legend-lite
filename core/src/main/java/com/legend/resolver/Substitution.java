@@ -2315,8 +2315,14 @@ final class Substitution {
         // leaf's list is the aggregation above this CASE): its stamp is
         // the scalar position, never the read's list multiplicity
         return new TypedIf(witnessTest(fqn), leaf,
+                // the two classes' names, as legend-pure's cast prints them (the BE audit 3's M3, 2026-11-21); the
+                // first the ROW's class (Cast.java prints the value's), which only the database knows: a row of a
+                // mapped subtype's root that fails the test is of a class its witnesses say, {@code <computed>} (S389;
+                // the BE audit 5's M1, 2026-11-21: until then the root's, "Vehicle" for a Bicycle row). The row holds
+                // the subtype tables its query reads, never every mapped subtype, so it cannot tell the root exact
                 Optional.of(ChainDispatch.typeRaise(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
-                        target.classFqn(), fqn, new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
+                        com.legend.error.ErrorKind.COMPUTED, ChainDispatch.nameOf(fqn),
+                        new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
                 pa.info());
     }
 

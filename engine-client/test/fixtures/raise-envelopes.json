@@ -1,12 +1,11 @@
 {
   "_comment": "A raise's envelope, one set of cases Java's runner (exec.RaisedErrors), the tab's (engine-client/src/raised.ts) and Python's (legend_lite/_raised.py) each read and agree on: the words each says for 'message' (#104's M2(b), the narrow check's item 7, 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16: a raise is a bare token, the kind mark U+001C and LG#<n> (the mark so that a user's fail text is never read as a site: the D part 1 audit's S4), read through the site table its statement declares). A case marked 'refused' names a token the statement does not declare: each reader refuses it by name. A message with no envelope is the database's own failure: kind DATABASE_ERROR, its words the database's verbatim (phase D's Phase 2, item 4).",
-  "_aboutSites": "the site table of the one statement these cases raise from (PlanJson v59's 'sites' of a statement): each n, its kind, its where and its operands, FACTS, no words (stage B's B1, 2026-11-20); each reader words a site itself, lite's sentence its kind's (error.ErrorKind, generated for the hosts: lite-raise.ts and _type_facts.py's RAISE_SENTENCES) and its where -- the 'words' each case states",
+  "_aboutSites": "the site table of the one statement these cases raise from (PlanJson v60's 'sites' of a statement): each n, its kind and its operands, FACTS, no words (stage B's B1, 2026-11-20); each reader words a site itself, the one catalog's sentence its kind's (upstream's words wherever upstream has them, stage B's BE, 2026-11-21) (error.ErrorKind, generated for the hosts: lite-raise.ts and _type_facts.py's RAISE_SENTENCES) -- the 'words' each case states",
   "statement": "SELECT 1",
   "sites": [
     {
       "n": 1,
       "kind": "DIVIDE_BY_ZERO",
-      "where": null,
       "operands": [
         {
           "integer": 5
@@ -16,23 +15,114 @@
     {
       "n": 2,
       "kind": "SIZE_NOT_MULTIPLICITY",
-      "where": "[1]"
+      "operands": [
+        {
+          "string": "[1]"
+        }
+      ]
     },
     {
       "n": 3,
-      "kind": "FRACTION_NOT_KEPT",
-      "where": "ts keeps 6: of 9"
+      "kind": "PARAMETER_FRACTION_NOT_KEPT",
+      "operands": [
+        {
+          "string": "DateTime"
+        },
+        {
+          "string": "t: s"
+        },
+        {
+          "string": "DuckDB"
+        },
+        {
+          "integer": 6
+        }
+      ]
     },
     {
       "n": 4,
       "kind": "INDEX_OUT_OF_BOUNDS",
-      "where": null,
       "operands": [
         {
           "integer": 3
         },
         {
           "computed": true
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "kind": "SQRT_OF_NEGATIVE",
+      "operands": [
+        {
+          "float": -1.0
+        }
+      ]
+    },
+    {
+      "n": 6,
+      "kind": "DATE_PART_ABSENT",
+      "operands": [
+        {
+          "string": "hour"
+        },
+        {
+          "string": "2017-01-01T10:00"
+        }
+      ]
+    },
+    {
+      "n": 7,
+      "kind": "DATE_COMPONENT_INVALID",
+      "operands": [
+        {
+          "string": "second"
+        },
+        {
+          "float": 61.5
+        }
+      ]
+    },
+    {
+      "n": 8,
+      "kind": "MATCH_FAILURE",
+      "operands": [
+        {
+          "string": "x"
+        },
+        {
+          "string": ""
+        }
+      ]
+    },
+    {
+      "n": 9,
+      "kind": "DATE_COMPONENT_INVALID",
+      "operands": [
+        {
+          "string": "day"
+        },
+        {
+          "integer": 2016
+        },
+        {
+          "integer": 12
+        },
+        {
+          "integer": 32
+        }
+      ]
+    },
+    {
+      "n": 10,
+      "kind": "DATE_COMPONENT_INVALID",
+      "operands": [
+        {
+          "string": "second"
+        },
+        {
+          "float": 10000000000.0
         }
       ]
     }
@@ -47,33 +137,31 @@
     {
       "name": "a site's raise is its message",
       "message": "Invalid Input Error: \u001f\u001cLG#1\u001f",
-      "words": "division by zero",
+      "words": "Cannot divide 5 by zero",
       "kind": "DIVIDE_BY_ZERO"
     },
     {
       "name": "a site's raise with its where",
       "message": "x \u001f\u001cLG#2\u001f y",
-      "words": "collection size does not match the multiplicity: [1]",
-      "kind": "SIZE_NOT_MULTIPLICITY",
-      "where": "[1]"
+      "words": "Cannot cast a collection of size 0 to multiplicity [1]",
+      "kind": "SIZE_NOT_MULTIPLICITY"
     },
     {
       "name": "a where that holds a colon and a space",
       "message": "\u001f\u001cLG#3\u001f",
-      "words": "more fraction digits than this database keeps: ts keeps 6: of 9",
-      "kind": "FRACTION_NOT_KEPT",
-      "where": "ts keeps 6: of 9"
+      "words": "the DateTime parameter 't: s' has more fraction digits than DuckDB keeps (6): refused, never cut (S181)",
+      "kind": "PARAMETER_FRACTION_NOT_KEPT"
     },
     {
       "name": "a source position before its separator is dropped",
       "message": "\u001f3:7\u001e\u001cLG#1\u001f",
-      "words": "division by zero",
+      "words": "Cannot divide 5 by zero",
       "kind": "DIVIDE_BY_ZERO"
     },
     {
       "name": "a site's message is said (v58: legend-pure's words are the edge's, never the plan's)",
       "message": "\u001f\u001cLG#4\u001f",
-      "words": "index out of bounds",
+      "words": "The system is trying to get an element at offset 3 where the collection is of size <computed>",
       "kind": "INDEX_OUT_OF_BOUNDS"
     },
     {
@@ -89,19 +177,55 @@
     {
       "name": "a raise fired at fetch (duckdb's second line)",
       "message": "Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result\nError: Invalid Input Error: \u001f\u001cLG#1\u001f",
-      "words": "division by zero",
+      "words": "Cannot divide 5 by zero",
       "kind": "DIVIDE_BY_ZERO"
     },
     {
       "name": "the first envelope where the statement's text repeats it (H2)",
       "message": "\u001f\u001cLG#4\u001f; SQL statement: SELECT error(chr(31) || '\u001cLG#4' || chr(31)) \u001f\u001cLG#1\u001f",
-      "words": "index out of bounds",
+      "words": "The system is trying to get an element at offset 3 where the collection is of size <computed>",
       "kind": "INDEX_OUT_OF_BOUNDS"
     },
     {
       "name": "a token the statement does not declare is refused by name",
-      "message": "\u001f\u001cLG#9\u001f",
+      "message": "\u001f\u001cLG#99\u001f",
       "refused": true
+    },
+    {
+      "name": "a Float as Pure prints one (the FLOAT slot)",
+      "message": "\u001f\u001cLG#5\u001f",
+      "words": "Unable to compute sqrt of -1.0",
+      "kind": "SQRT_OF_NEGATIVE"
+    },
+    {
+      "name": "a date from a minute on, legend-pure's +0000 (the DATE slot)",
+      "message": "\u001f\u001cLG#6\u001f",
+      "words": "Cannot get hour for 2017-01-01T10:00+0000",
+      "kind": "DATE_PART_ABSENT"
+    },
+    {
+      "name": "a fractional second's whole part, as legend-pure validates it (the WHOLE slot)",
+      "message": "\u001f\u001cLG#7\u001f",
+      "words": "Invalid second: 61",
+      "kind": "DATE_COMPONENT_INVALID"
+    },
+    {
+      "name": "a form chosen by an empty operand",
+      "message": "\u001f\u001cLG#8\u001f",
+      "words": "Match failure: x",
+      "kind": "MATCH_FAILURE"
+    },
+    {
+      "name": "a form chosen by its four values",
+      "message": "\u001f\u001cLG#9\u001f",
+      "words": "Invalid day: 2016-12-32",
+      "kind": "DATE_COMPONENT_INVALID"
+    },
+    {
+      "name": "a whole part past the int range, saturated as Java's intValue of a Double (the WHOLE slot; the BE audit 3's S3)",
+      "message": "\u001f\u001cLG#10\u001f",
+      "words": "Invalid second: 2147483647",
+      "kind": "DATE_COMPONENT_INVALID"
     }
   ]
 }

@@ -60,35 +60,115 @@ RAISE_POSITION_SEP = '\u001e'
 RAISE_QUOTE_MARK = '\u001d'
 RAISE_TOKEN = '\u001cLG#'
 
-# LITE'S SENTENCE OF EACH RAISE KIND (stage B's B1, 2026-11-20: the plan carries a site's facts and no
-# words): error.ErrorKind's, by the kind's name. A site says its kind's sentence, then ': ' and its where
-# where it has one, as exec.RaisedErrors words it. The same as the tab's (lite-raise.ts RAISE_SENTENCES).
-RAISE_SENTENCES: dict[str, str] = {
-    'DIVIDE_BY_ZERO': 'division by zero',
-    'SHIFT_OUT_OF_RANGE': 'bit shift outside 0..62',
-    'DATE_PART_ABSENT': 'the date has no such part: it is coarser',
-    'INDEX_OUT_OF_BOUNDS': 'index out of bounds',
-    'INSERT_OUT_OF_BOUNDS': 'insert position out of bounds',
-    'SQRT_OF_NEGATIVE': 'square root of a negative number',
-    'SIZE_NOT_MULTIPLICITY': 'collection size does not match the multiplicity',
-    'SLICE_BOUNDS_INVERTED': 'slice start is after its end',
-    'DATE_COMPONENT_INVALID': 'invalid date component',
-    'CAST_IMPOSSIBLE': 'the value cannot be cast to the requested type',
-    'INSTANCE_NOT_OF': 'the value is not an instance of the requested type',
-    'MATCH_FAILURE': 'no match arm accepts the value',
-    'RANGE_STEP_ZERO': 'range step is zero',
-    'CONSTRAINT_UNEVALUABLE': 'constraint not evaluable: data not available',
-    'LIST_LENGTHS_DIFFER': 'the two lists differ in length',
-    'MAP_KEYS_MISALIGNED': 'map keys do not align with values',
-    'MAP_KEY_NULL': 'map key is null',
-    'MAP_KEYS_NOT_UNIQUE': 'map keys are not unique',
-    'TEXT_NOT_INTEGER': 'text is not an integer',
-    'TEXT_NOT_FLOAT': 'text is not a float',
-    'TEXT_NOT_DATE': 'text is not a date',
-    'VALUE_NOT_HELD': 'the value is outside the range this database can hold',
-    'FRACTION_NOT_KEPT': 'more fraction digits than this database keeps',
-    'CSV_TOO_WIDE': 'CSV record wider than its table',
-    'WINDOW_FRAME_INVERTED': 'window frame starts after it ends',
-    'WINDOW_FRAME_OFFSET_INVALID': 'window frame offset is negative or empty',
-    'SUBSTRING_OUT_OF_RANGE': 'substring range is out of the text\'s bounds',
+# EACH RAISE KIND'S FORMS, the one catalog's (stage B's BE, 2026-11-21: lite says upstream's sentence
+# wherever upstream has one): error.ErrorKind's, by the kind's name, in the order tried, as result.RaiseWords
+# words a site. The same as the tab's (lite-raise.ts RAISE_FORMS).
+RAISE_FORMS: dict[str, list[dict[str, object]]] = {
+    'DIVIDE_BY_ZERO': [
+        {'arity': 0, 'emptySlot': -1, 'template': 'Division by zero', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': -1, 'emptySlot': -1, 'template': 'Cannot divide %1$s by zero', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'SHIFT_OUT_OF_RANGE': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Unsupported number of bits to shift - max bits allowed is 62', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'DATE_PART_ABSENT': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Cannot get %1$s for %2$s', 'slots': ['TEXT', 'DATE'], 'shape': 'TEMPLATE'},
+    ],
+    'INDEX_OUT_OF_BOUNDS': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'The system is trying to get an element at offset %1$s where the collection is of size %2$s', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'INSERT_OUT_OF_BOUNDS': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'add(set, index, value): index out of bounds', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'SQRT_OF_NEGATIVE': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Unable to compute sqrt of %1$s', 'slots': ['FLOAT'], 'shape': 'TEMPLATE'},
+    ],
+    'SIZE_NOT_MULTIPLICITY': [
+        {'arity': 1, 'emptySlot': -1, 'template': 'Cannot cast a collection of size 0 to multiplicity %1$s', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': -1, 'emptySlot': -1, 'template': 'Cannot cast a collection of size %2$s to multiplicity %1$s', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'SLICE_BOUNDS_INVERTED': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'The low bound (%1$s) can\'t be higher than the high bound (%2$s) in a slice operation', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'DATE_COMPONENT_INVALID': [
+        {'arity': 4, 'emptySlot': -1, 'template': 'Invalid day: %2$s-%3$s-%4$s', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': -1, 'emptySlot': -1, 'template': 'Invalid %1$s: %2$s', 'slots': ['TEXT', 'WHOLE'], 'shape': 'TEMPLATE'},
+    ],
+    'CAST_IMPOSSIBLE': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Cast exception: %1$s cannot be cast to %2$s', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'INSTANCE_NOT_OF': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Cast exception: %1$s cannot be cast to %2$s', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'MATCH_FAILURE': [
+        {'arity': -1, 'emptySlot': 1, 'template': 'Match failure: %1$s', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': -1, 'emptySlot': -1, 'template': 'Match failure: <computed>', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'RANGE_STEP_ZERO': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'range step must not be 0', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'CONSTRAINT_UNEVALUABLE': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Unable to evaluate constraint [%1$s]: data not available - check your mappings', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'LIST_LENGTHS_DIFFER': [
+        {'arity': -1, 'emptySlot': -1, 'template': '%1$s: the two value lists differ in length', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'MAP_KEYS_MISALIGNED': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'The map key list does not align with the map value list.', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'MAP_KEY_NULL': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Map keys can not be NULL.', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'MAP_KEYS_NOT_UNIQUE': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Map keys must be unique.', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'TEXT_NOT_INTEGER': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Could not convert string \'%1$s\' to INT64', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'TEXT_NOT_FLOAT': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Could not convert string \'%1$s\' to DOUBLE', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'TEXT_NOT_DATE': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Could not parse \'%1$s\' as a date', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'INVERSE_TRIG_NAN': [
+        {'arity': 1, 'emptySlot': -1, 'template': '%1$s of a value outside [-1, 1] is NaN, which this database cannot hold', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'PARSED_NAN_NOT_HELD': [
+        {'arity': 0, 'emptySlot': -1, 'template': 'parseFloat of NaN is NaN, which this database cannot hold', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'NOT_FINITE_NOT_HELD': [
+        {'arity': 1, 'emptySlot': -1, 'template': 'NaN or an infinity has no %1$s value', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'DATE_PAST_YEARS': [
+        {'arity': 2, 'emptySlot': -1, 'template': 'a date past the year %1$s has no %2$s value', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': 3, 'emptySlot': -1, 'template': 'a date past the years %1$s-%2$s has no %3$s value', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'DATE_OUTSIDE_YEARS': [
+        {'arity': 3, 'emptySlot': -1, 'template': 'a date outside the years %1$s to %2$s has no %3$s value (it clamps one to the end it passed)', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'INTEGER_PAST_64_BITS': [
+        {'arity': 1, 'emptySlot': -1, 'template': 'an integer past 64 bits has no %1$s value', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'MIXED_RANK_INEXACT': [
+        {'arity': 0, 'emptySlot': -1, 'template': 'an Integer beyond 2^53 in a mixed list\'s order: its DOUBLE rank does not hold it exactly (refused until the kinds-kept carrier ranks numbers exactly)', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'PARAMETER_FRACTION_NOT_KEPT': [
+        {'arity': 4, 'emptySlot': -1, 'template': 'the %1$s parameter \'%2$s\' has more fraction digits than %3$s keeps (%4$s): refused, never cut (S181)', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'SECOND_FRACTION_NOT_KEPT': [
+        {'arity': 2, 'emptySlot': -1, 'template': 'the second %1$s has more than %2$s fraction digits, which a date()\'s fractional second keeps: refused, never cut (S181)', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'CSV_TOO_WIDE': [
+        {'arity': 1, 'emptySlot': -1, 'template': 'a record of the CSV file has more cells than its table\'s %1$s column(s)', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'WINDOW_FRAME_INVERTED': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'WINDOW_FRAME_OFFSET_INVALID': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Invalid window frame boundary - a window frame bound written -(n) is n before the current row and any other n after it, so a computed n must be neither negative nor empty (docs/SEMANTICS_REGISTER.md S170)', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
+    'SUBSTRING_OUT_OF_RANGE': [
+        {'arity': -1, 'emptySlot': -1, 'template': 'Range [%1$s, %2$s) out of bounds for length %3$s', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
 }

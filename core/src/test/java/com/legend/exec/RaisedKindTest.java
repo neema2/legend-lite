@@ -28,9 +28,12 @@ class RaisedKindTest {
 
     /** A statement's site table: site 1 a division by zero, site 2 a fraction kept, placed. */
     private static final List<ExecutionPlan.Site> SITES = List.of(
-            new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null, List.of()),
-            new ExecutionPlan.Site(2, RaiseKind.FRACTION_NOT_KEPT, "the DateTime parameter 't'", List.of()),
-            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, List.of()));
+            new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, List.of()),
+            new ExecutionPlan.Site(2, RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(
+                    new com.legend.executionplan.Operand.Text("DateTime"), new com.legend.executionplan.Operand.Text("t"),
+                    new com.legend.executionplan.Operand.Text("DuckDB"), new com.legend.executionplan.Operand.Int(6))),
+            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, List.of(
+                    new com.legend.executionplan.Operand.Int(5), com.legend.executionplan.Operand.Computed.IT)));
 
     @Test
     void aSitesTokenIsItsKindAndItsPlannedWords() {
@@ -41,11 +44,28 @@ class RaisedKindTest {
         assertEquals(7, r.column());
         var error = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "3"), SITES));
         assertEquals(ErrorKind.INDEX_OUT_OF_BOUNDS, error.kind());
-        // lite's message, the site's planned sentence (K10a/K10b, 2026-11-17: legend-pure's words of a site are the
-        // edge's records, looked up by its hearing -- the edge's test, AssertErrorNativeTest -- never exec's)
-        assertEquals("index out of bounds", error.getMessage(), "a site says its planned product message");
+        // the site's sentence, the one catalog's over its operands (stage B's BE, 2026-11-21: legend-pure's words,
+        // the database's value never read back)
+        assertEquals("The system is trying to get an element at offset 5 where the collection is of size <computed>",
+                error.getMessage(), "a site says its kind's sentence over its operands");
         assertEquals(ErrorKind.DIVIDE_BY_ZERO, RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + RaiseKind.TOKEN + "1"
                 + RaisedErrors.SENTINEL, new RuntimeException(), SITES).kind());
+    }
+
+    /** A raise's position in the query, its envelope's [line:col], reaches its DataError (the API's where) beside its
+     *  record and never in its sentence -- through a statement's failure and a driver's text alike (MongoDB's); a raise
+     *  whose envelope carries none has none (the BE audit 4's M3 and its SHOULD, 2026-11-21). */
+    @Test
+    void aRaisesPositionReachesItsErrorBesideItsRecord() {
+        var positioned = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(
+                failure("3:7" + RaisedErrors.POSITION_SEP + RaiseKind.TOKEN + "1"), SITES));
+        assertEquals("[3:7]", positioned.position());
+        assertEquals("Division by zero", positioned.getMessage(), "the position is never in the sentence");
+        var text = RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + "3:7" + RaisedErrors.POSITION_SEP
+                + RaiseKind.TOKEN + "1" + RaisedErrors.SENTINEL, new RuntimeException(), SITES);
+        assertEquals("[3:7]", text.position());
+        assertEquals(null, RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "1"), SITES))
+                .position());
     }
 
     /** A site's where, a fixed text known at planning, follows its kind's sentence in its planned message; a user's
@@ -53,8 +73,9 @@ class RaisedKindTest {
     @Test
     void aSitesWhereIsWorded_andAUsersTextIsNeverAKind() {
         var placed = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "2"), SITES));
-        assertEquals(ErrorKind.FRACTION_NOT_KEPT, placed.kind());
-        assertEquals("more fraction digits than this database keeps: the DateTime parameter 't'", placed.getMessage());
+        assertEquals(ErrorKind.PARAMETER_FRACTION_NOT_KEPT, placed.kind());
+        assertEquals("the DateTime parameter 't' has more fraction digits than DuckDB keeps (6): refused, never cut"
+                + " (S181)", placed.getMessage(), "lite's own sentence over its facts (stage B's BE-P, 2026-11-21)");
         var users = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("DIVIDE_BY_ZERO"), SITES));
         assertEquals(null, users.kind());
         assertEquals("DIVIDE_BY_ZERO", users.getMessage());
