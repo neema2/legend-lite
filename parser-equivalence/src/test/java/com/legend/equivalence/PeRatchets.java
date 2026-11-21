@@ -168,8 +168,10 @@ public final class PeRatchets {
                     + " not a literal); measured by //parser-equivalence:update_ratchets; a floor rising, the same kind the"
                     + " user's word of 2026-11-19 ~20:10 covered for the detector's test models, listed for the user's"
                     + " word at the PR; UP)",
-            "own_corpus.matched 3330 -> 3338 (2026-11-21, stage B's BE on claude/compat-error-model: eight more of"
-                    + " core's test model literals, added or changed by the branch's tests, match the reference grammar;"
+            "own_corpus.matched 3330 -> 3344 (2026-11-21, stage B's BE on claude/compat-error-model: fourteen more"
+                    + " of core's test model literals, added or changed by the branch's tests (the last six the BE audit"
+                    + " 5's MappingNormalizerTest models, which Windows' parser_parity caught at 3338), match the"
+                    + " reference grammar;"
                     + " measured by //parser-equivalence:update_ratchets; a floor rising, listed for the user's word at"
                     + " the BE PR; UP)");
 
