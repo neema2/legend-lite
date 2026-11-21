@@ -1090,6 +1090,9 @@ public class ClickHouse extends AnsiSqlRenderer {
     @Override
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
+            // a raise reaches its writer with its site's values, before its text is the site's token ({@link #error}
+            // reads them; the base rewrites the call first, raised)
+            case SqlExpr.Call c when c.fn() == SqlFn.ERROR -> error(writer, c);
             // an Int64: a bare literal is typed by its magnitude (1 is UInt8)
             case SqlExpr.IntLit i -> writer.append("toInt64(" + i.value() + ")");
             // the empty list whose element type is known is that type's empty array, not one of no type
@@ -2200,14 +2203,16 @@ public class ClickHouse extends AnsiSqlRenderer {
         writer.append("replaceAll(toString(").expr(a.get(0), 0)
                 .append("), '\\'', char(29)), char(31), substring(toString(rand(" + (++raises[0])
                         + ")), 1, 0)");
-        // each value the database computes for the raise, read and kept empty: a raise that reads no column is
-        // evaluated on every row of its CASE, the guard's false ones too (measured on PR #130's server round,
-        // 2026-11-21: flatten's testFlatten_LateralJoin_Nested_Extend raised its at() check; until B1 the edge's
-        // sentence read these values in SQL, and the server held the raise back) -- no words, no value in the text
+        // each value the database computes for the raise, read and kept empty, never NULL (a NULL concat raises
+        // nothing): a raise that reads no column, in a CASE after an ARRAY JOIN, is evaluated on every row, its
+        // guard's false ones too (measured on 26.3.60.2 for PR #130, 2026-11-21: flatten's
+        // testFlatten_LateralJoin_Nested_Extend raised its at() check on rows whose collection holds its element;
+        // with the read it answers its ten rows. Until B1 the edge's sentence read these values) -- no words, no value
+        // in the text
         if (c.args().get(0) instanceof SqlExpr.RaiseText rt) {
             for (SqlExpr operand : rt.operands()) {
                 if (computed(operand)) {
-                    writer.append(", substring(toString(").expr(operand, 0).append("), 1, 0)");
+                    writer.append(", substring(coalesce(toString(").expr(operand, 0).append("), ''), 1, 0)");
                 }
             }
         }

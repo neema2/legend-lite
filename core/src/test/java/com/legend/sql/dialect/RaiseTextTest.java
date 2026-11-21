@@ -55,8 +55,18 @@ class RaiseTextTest {
                     List.of(OPERAND, new SqlExpr.StringLit("by")))));
             String without = text(Databases.dialect(type), select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO,
                     List.of())));
-            assertEquals(without, with, type.name());
-            assertFalse(with.contains("operand_col"), type + ": " + with);
+            if (type == DatabaseType.ClickHouse) {
+                // ClickHouse reads a computed value of the raise, kept empty and never NULL, so the server holds the
+                // raise back where its guard is false (PR #130, 2026-11-21: a raise reading no column was evaluated on
+                // every row after an ARRAY JOIN) -- the value is read, never in the raise's text
+                String read = ", substring(coalesce(toString(";
+                assertTrue(with.contains(read) && with.contains("operand_col"), with);
+                assertEquals(without, with.replaceAll(java.util.regex.Pattern.quote(read) + ".*?operand_col.*?\\), ''\\), 1,"
+                        + " 0\\)", ""), type.name());
+            } else {
+                assertEquals(without, with, type.name());
+                assertFalse(with.contains("operand_col"), type + ": " + with);
+            }
             if (!with.startsWith("refused: ")) {
                 // the site's bare token alone (phase D's Phase 2, raises as SITES, 2026-11-16): no kind's name
                 assertTrue(with.contains("LG#1"), type + ": " + with);

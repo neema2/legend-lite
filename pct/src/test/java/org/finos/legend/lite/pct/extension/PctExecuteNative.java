@@ -184,8 +184,15 @@ public class PctExecuteNative extends NativeFunction {
             // a message — is DELETED; native errors cross whole.
             // a compile error of a kind in legend-pure's words: PCT is legend-pure's suite, read through the edge
             // (edge.PureMessages.compile; the first stage-linux run's regression, 2026-11-16: M4's window-frame kinds
-            // crossed in lite's sentence)
-            throw new PureExecutionException(src, com.legend.edge.PureMessages.compile(e), e);
+            // crossed in lite's sentence). Under lite's own rules (the LITE-PCT lane) a raise keeps lite's sentence, as
+            // its run raised it: the lane measures lite's words (stage B's B1, 2026-11-20, worded raises at the edge;
+            // the gate round on PR #130, 2026-11-21, found the lane hearing legend-pure's)
+            boolean liteRaise = PctPlanRoute.audience(System.getProperty("pct.audience"), System.getProperty(
+                    "pct.channela.rules", "COMPAT")) == PctPlanRoute.Audience.LITE && java.util.stream.Stream.iterate(
+                    (Throwable) e, t -> t != null, Throwable::getCause).anyMatch(t -> t instanceof
+                    com.legend.executionplan.ExecutionPlan.RaisedAtSite r && r.site() != null);
+            throw new PureExecutionException(src, liteRaise ? String.valueOf(e.getMessage())
+                    : com.legend.edge.PureMessages.compile(e), e);
         }
     }
 }
