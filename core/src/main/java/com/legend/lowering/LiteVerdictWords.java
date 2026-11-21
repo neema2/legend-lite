@@ -6,7 +6,6 @@ package com.legend.lowering;
 import com.legend.base.Nullable;
 import com.legend.compiler.element.type.Type;
 import com.legend.error.AssertKind;
-import com.legend.error.FrameKind;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 
@@ -163,12 +162,8 @@ public final class LiteVerdictWords implements VerdictWords {
         return atIndex(message, lit(Integer.toString(index)));
     }
 
-    /** {@code message} inside the AT_INDEX frame (item 3, 2026-11-21: a frame of the record, no longer a sentence of
-     *  its own): the message, then the frame's text with the index last, as {@link FrameKind#wrap} words it. Until item
-     *  3's S4, which carries the database judge's values to the record and deletes this SQL. */
     private static SqlExpr atIndex(SqlExpr message, SqlExpr index) {
-        return new SqlExpr.Call(SqlFn.CONCAT, java.util.List.of(message,
-                lit(FrameKind.AT_INDEX.wrap(java.util.List.of(""), "")), index));
+        return VerdictSql.atIndexFrame(message, index);
     }
 
     @Override

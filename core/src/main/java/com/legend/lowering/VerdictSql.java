@@ -76,6 +76,14 @@ public final class VerdictSql {
     private static final String EXPECTED_KIND = "__ekind";
     private static final String ACTUAL_KIND = "__akind";
 
+    /** {@code message} inside the AT_INDEX frame (item 3, 2026-11-21: a frame of the record, no longer a sentence of
+     *  its own): the message, then the frame's text with the index last, as {@link com.legend.error.FrameKind#wrap}
+     *  words it. Until item 3's S4, which carries the database judge's values to the record and deletes this SQL. */
+    public static SqlExpr atIndexFrame(SqlExpr message, SqlExpr index) {
+        return new SqlExpr.Call(SqlFn.CONCAT, List.of(message,
+                new SqlExpr.StringLit(com.legend.error.FrameKind.AT_INDEX.wrap(List.of(""), "")), index));
+    }
+
     /** {@code row}'s sentence as SQL: its text pieces as literals and each slot the expression {@code slots} names, one
      *  concatenation -- the database judge's twin of the host's {@code AssertKind.fill} (the user's judge model,
      *  2026-11-17: one table for both judges). */
