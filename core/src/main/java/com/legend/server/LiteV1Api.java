@@ -416,7 +416,7 @@ public final class LiteV1Api {
     /**
      * A run's failure as lite's refusal (spec §3; PR #118 fix round, 2026-11-18, N3, ruled by the user that day, "N3
      * okay"): a raise ({@link com.legend.error.ErrorKind#isRaise}) is {@code data}, its kind in {@code raise} and its
-     * site's where in {@code where}; the database refusing the work in its own words ({@code DATABASE_ERROR}), a load's
+     * position in the query in {@code where} where it has one (amended 2026-11-21, spec section 3); the database refusing the work in its own words ({@code DATABASE_ERROR}), a load's
      * file larger than it admits ({@code FILE_TOO_LARGE}, its path in the message) and an error of no kind are
      * {@code data} with no {@code raise}; a connection that could not open or was lost ({@code CONNECTION_ERROR}) is
      * the environment, not the caller's query: {@code internal}.

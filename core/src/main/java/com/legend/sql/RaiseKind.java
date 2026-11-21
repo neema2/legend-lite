@@ -63,9 +63,10 @@ public enum RaiseKind {
     /** {@code fail(message)}: the user's own message, the one operand the product writes. */
     USER_FAIL;
 
-    /** U+001C (file separator): the mark a product raise's text opens with, before its kind's name -- and again before
-     *  its where, a fixed text known at planning -- so a user's {@code fail} text spelled as a kind's name is never read
-     *  as that kind (the D part 1 audit's nit and S4, 2026-11-15). exec reads it ({@code exec.RaisedErrors}). */
+    /** U+001C (file separator): the mark a product raise's text opens with, before its kind's name, so a user's
+     *  {@code fail} text spelled as a kind's name is never read as that kind (the D part 1 audit's nit and S4,
+     *  2026-11-15; the second mark, before a where, went with the where, stage B's BE item 2, 2026-11-21). exec reads it
+     *  ({@code exec.RaisedErrors}). */
     public static final char MARK = '\u001c';
 
     /** What a raise SITE's token opens with (phase D's Phase 2, raises as SITES, 2026-11-16): the {@link #MARK}, then

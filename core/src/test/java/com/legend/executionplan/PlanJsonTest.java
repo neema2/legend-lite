@@ -48,18 +48,24 @@ class PlanJsonTest {
                 null, null, null);
         String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        assertTrue(json.contains("\"refused\":{\"code\":\"DATA_TABLE_UNDECLARED\",\"values\":[\"proj::PartyData\","
+        // the code qualified, as the test plan spells a record's (the BE audit 5's L6, 2026-11-21)
+        assertTrue(json.contains("\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[\"proj::PartyData\","
                 + "\"PARTY.NOPE\"]}"), json);
         assertEquals(json, PlanJson.write(PlanJson.read(json)));
         assertEquals("the Data element proj::PartyData fills PARTY.NOPE, which no Database of the model declares",
                 ((Database.Declared) ((Sql) ((TdsResult) PlanJson.read(json).root()).sql()).target().database())
                         .project().refused().sentence());
-        for (String bad : List.of("\"refused\":\"a sentence\"", "\"refused\":{\"code\":\"NO_SUCH\",\"values\":[]}",
-                "\"refused\":{\"code\":\"DATA_TABLE_UNDECLARED\",\"values\":[1]}",
-                "\"refused\":{\"code\":\"DATA_TABLE_UNDECLARED\",\"values\":[\"one\"]}")) {
+        // a sentence, an unknown or bare or other code, a value not a text, too few values or too many: each by name
+        for (String bad : List.of("\"refused\":\"a sentence\"", "\"refused\":{\"code\":\"compile.NO_SUCH\",\"values\":[]}",
+                "\"refused\":{\"code\":\"DATA_TABLE_UNDECLARED\",\"values\":[\"a\",\"b\"]}",
+                "\"refused\":{\"code\":\"compile.MISSING_STORE\",\"values\":[\"a\"]}",
+                "\"refused\":{\"code\":\"run.DIVIDE_BY_ZERO\",\"values\":[\"a\"]}",
+                "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[1]}",
+                "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[\"one\"]}",
+                "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[\"a\",\"b\",\"c\"]}")) {
             String broken = json.replaceFirst("\"refused\":\\{[^}]*\\}", java.util.regex.Matcher.quoteReplacement(bad));
             assertTrue(!broken.equals(json), bad);
-            assertThrows(RuntimeException.class, () -> PlanJson.read(broken), bad);
+            assertThrows(IllegalArgumentException.class, () -> PlanJson.read(broken), bad);
         }
     }
 

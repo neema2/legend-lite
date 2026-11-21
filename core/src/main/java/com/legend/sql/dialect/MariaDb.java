@@ -136,7 +136,7 @@ public class MariaDb extends AnsiSqlRenderer {
         return "\\" + n;
     }
 
-    /** The database's name, as an error names it. */
+    @Override
     protected String product() {
         return "MariaDB";
     }

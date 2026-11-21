@@ -210,11 +210,11 @@ class DateTimeFractionTest {
                 // the product's raise is its kind, in lite's words (phase D's D1.1), and its where: the parameter's
                 // name and the digits DuckDB keeps (the D part 1 audit's S5, 2026-11-15)
                 assertTrue(nanos.contains("fraction digits"), nanos);
-                assertTrue(nanos.contains("parameter 't'") && nanos.contains("DuckDb keeps (6)"), nanos);
+                assertTrue(nanos.contains("parameter 't'") && nanos.contains("DuckDB keeps (6)"), nanos);
                 String date = answer(type, "{d: Date[1]|$d}", Map.of("d",
                         LocalDateTime.parse("2024-01-02T10:00:00.0000001")));
                 assertTrue(date.contains("fraction digits"), date);
-                assertTrue(date.contains("Date parameter 'd'") && date.contains("DuckDb keeps (6)"), date);
+                assertTrue(date.contains("Date parameter 'd'") && date.contains("DuckDB keeps (6)"), date);
             } else {
                 // H2's TIMESTAMP(9) and SQLite's text keep nine
                 assertEquals(answer(type, "|%2024-01-02T23:59:59.999999999", Map.of()), nanos, type.name());

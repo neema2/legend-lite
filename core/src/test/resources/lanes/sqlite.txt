@@ -57,5 +57,5 @@ TypeInferenceIntegrationTest#testHugeIntegerLiteralSubtraction	measured 2026-11-
 TypeInferenceIntegrationTest#testLargeIntegerMultiplication	measured 2026-11-21: an integer past 64 bits has no SQLite value
 # 2026-11-16 (W5 of docs/records/d-plan-2026-11-16.md): re-measured -- a run-time type check raises its kind
 # (INSTANCE_NOT_OF), the product's sentence; legend-pure's "Cast exception" is the edge's
-UnionJoinMappedPropertyTest#joinMappedOnOneMemberOnly	measured 2026-11-21: Cast exception: A cannot be cast to B
+UnionJoinMappedPropertyTest#joinMappedOnOneMemberOnly	measured 2026-11-21: Cast exception: <computed> cannot be cast to B
 WritePlansTest#aProgramThatWritesIsPlannedAsItsSteps	measured 2026-10-29: an INSERT of a query's rows on SQLite: no spelling measured on its database (the store writes run on DuckDB, H2 and Post

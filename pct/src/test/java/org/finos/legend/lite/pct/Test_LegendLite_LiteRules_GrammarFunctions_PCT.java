@@ -26,9 +26,9 @@ public class Test_LegendLite_LiteRules_GrammarFunctions_PCT extends PCTReportCon
     private static final Adapter adapter = LegendLitePCTReportProvider.LegendLiteAdapter;
     private static final String platform = "interpreted";
 
-    private static final MutableList<ExclusionSpecification> expectedFailures = LiteRulesLedger.under(COMPAT.expectedFailures(),
-            // legend-pure's error words: the test asserts upstream's sentence and lite raises its own (lite's rules word a raise; the edge words upstream's) (2026-11-19)
-            one("meta::pure::functions::collection::tests::range::testRangeStepError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"range step is zero\"\nwhere the expected message was:\"range step must not be 0\"\""));
+    // (testRangeStepError gone 2026-11-21, stage B's BE, the one catalog: lite raises legend-pure's "range step must not
+    // be 0"; a down move)
+    private static final MutableList<ExclusionSpecification> expectedFailures = LiteRulesLedger.under(COMPAT.expectedFailures());
 
     public static Test suite() {
         LiteRulesLedger.requireLite("Grammar");

@@ -167,7 +167,11 @@ public final class PeRatchets {
                     + " Mapping, which match the reference grammar (its Connection and Runtime carry the backend's text,"
                     + " not a literal); measured by //parser-equivalence:update_ratchets; a floor rising, the same kind the"
                     + " user's word of 2026-11-19 ~20:10 covered for the detector's test models, listed for the user's"
-                    + " word at the PR; UP)");
+                    + " word at the PR; UP)",
+            "own_corpus.matched 3330 -> 3338 (2026-11-21, stage B's BE on claude/compat-error-model: eight more of"
+                    + " core's test model literals, added or changed by the branch's tests, match the reference grammar;"
+                    + " measured by //parser-equivalence:update_ratchets; a floor rising, listed for the user's word at"
+                    + " the BE PR; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

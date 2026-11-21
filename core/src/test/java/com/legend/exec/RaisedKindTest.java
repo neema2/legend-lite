@@ -31,7 +31,7 @@ class RaisedKindTest {
             new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, List.of()),
             new ExecutionPlan.Site(2, RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(
                     new com.legend.executionplan.Operand.Text("DateTime"), new com.legend.executionplan.Operand.Text("t"),
-                    new com.legend.executionplan.Operand.Text("DuckDb"), new com.legend.executionplan.Operand.Int(6))),
+                    new com.legend.executionplan.Operand.Text("DuckDB"), new com.legend.executionplan.Operand.Int(6))),
             new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, List.of(
                     new com.legend.executionplan.Operand.Int(5), com.legend.executionplan.Operand.Computed.IT)));
 
@@ -74,7 +74,7 @@ class RaisedKindTest {
     void aSitesWhereIsWorded_andAUsersTextIsNeverAKind() {
         var placed = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "2"), SITES));
         assertEquals(ErrorKind.PARAMETER_FRACTION_NOT_KEPT, placed.kind());
-        assertEquals("the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut"
+        assertEquals("the DateTime parameter 't' has more fraction digits than DuckDB keeps (6): refused, never cut"
                 + " (S181)", placed.getMessage(), "lite's own sentence over its facts (stage B's BE-P, 2026-11-21)");
         var users = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("DIVIDE_BY_ZERO"), SITES));
         assertEquals(null, users.kind());

@@ -76,6 +76,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class BigQuery extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "BigQuery";
+    }
+
     /** {@inheritDoc} -- BigQuery: half its 1,024K-character query limit. */
     @Override
     public int fusedStatementBudget() {

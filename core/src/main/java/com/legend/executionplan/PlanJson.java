@@ -1562,7 +1562,7 @@ public final class PlanJson {
         Map<String, Object> refused = null;
         if (r != null) {
             refused = new LinkedHashMap<>();
-            refused.put("code", ((com.legend.error.CompileKind) r.code()).name());
+            refused.put("code", r.code().qualified());
             refused.put("values", r.values());
         }
         o.put("refused", refused);
@@ -1589,8 +1589,12 @@ public final class PlanJson {
                 || !(r.getOr("values", null) instanceof Json.Arr values) || r.fields().size() != 2) {
             throw new IllegalArgumentException("a project's refusal is {code, values}: " + node);
         }
-        com.legend.error.CompileKind kind = named(com.legend.error.CompileKind.class, code.value(),
-                "project refusal code");
+        // its code qualified, as the test plan spells a record's (HostJson.wRecord), and one of the three a project's
+        // data is refused by; its values exactly its sentence's (the BE audit 5's L6, 2026-11-21)
+        if (!(com.legend.error.ErrorCode.named(code.value()) instanceof com.legend.error.CompileKind kind)
+                || !PROJECT_REFUSALS.contains(kind)) {
+            throw new IllegalArgumentException("a project's refusal's code is a project data refusal's: " + node);
+        }
         List<String> texts = new ArrayList<>();
         for (Json.Node v : values.items()) {
             if (!(v instanceof Json.Str s)) {
@@ -1598,10 +1602,17 @@ public final class PlanJson {
             }
             texts.add(s.value());
         }
-        com.legend.error.ErrorRecord record = com.legend.error.ErrorRecord.of(kind, texts);
-        record.sentence();   // its values its code's: refused by name here, never first at the run
-        return record;
+        if (texts.size() != kind.arity()) {
+            throw new IllegalArgumentException("a project's refusal " + kind.name() + " has " + kind.arity()
+                    + " values: " + node);
+        }
+        return com.legend.error.ErrorRecord.of(kind, texts);
     }
+
+    /** The codes a project's data is refused by ({@code setup.ProjectData.refusal}). */
+    private static final java.util.Set<com.legend.error.CompileKind> PROJECT_REFUSALS = java.util.Set.of(
+            com.legend.error.CompileKind.DATA_TABLE_EMPTY, com.legend.error.CompileKind.DATA_TABLE_UNDECLARED,
+            com.legend.error.CompileKind.DATA_TABLE_DECLARED_TWICE);
 
     private static LoadStep readLoadStep(Json.Obj o) {
         return switch (tag(SetupTag.class, o, "setup step")) {

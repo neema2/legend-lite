@@ -59,7 +59,7 @@ public final class PureMessages {
             }
         }
         if (message.length() > 1 && message.charAt(0) == com.legend.sql.RaiseKind.MARK) {
-            // a product raise's carriage (MARK kind [MARK where]) copied off its record, so no site to word: its kind's
+            // a product raise's carriage (MARK kind) copied off its record, so no site to word: its kind's
             // name, as main's edge answered it -- PRE-EXISTING, kept (B1's audits, 2026-11-20: a residue of the one
             // error model, which carries the record everywhere); the mark and the where are lite's carriage, never
             // upstream's text (the golden net, 2026-11-16). It answers, never throws: a refusal by name is for a site

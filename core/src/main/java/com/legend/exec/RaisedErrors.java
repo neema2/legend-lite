@@ -96,8 +96,8 @@ public final class RaisedErrors {
     /** A failure that IS a raise (pure's own error, its text the platform's: the sentinel envelope unwrapped), told by
      *  its type wherever a caller asks whether a failure was raised (the B checkpoint's tenets audit, LOW 4,
      *  2026-11-11: until then the seam compared a failure's message with its database's to tell). A raise of a site
-     *  carries the site's record (its kind, where and operands; no words: stage B's B1, 2026-11-20); its message the
-     *  kind behind its mark and the where behind a second, lite's carriage, never words. */
+     *  carries the site's record (its kind and operands; no words: stage B's B1, 2026-11-20); its message the kind
+     *  behind its mark, lite's carriage, never words. */
     public static class Raised extends java.sql.SQLException implements ExecutionPlan.RaisedAtSite {
         private final ExecutionPlan.@com.legend.base.Nullable Site site;
 

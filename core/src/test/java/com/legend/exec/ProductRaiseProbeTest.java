@@ -457,8 +457,11 @@ class ProductRaiseProbeTest {
                 break;
             }
         }
+        // its fact (the bound, a parameter's name) one of its record's values, never a suffix of its words: the one
+        // catalog's sentence is upstream's, which ends where upstream's does (the BE lane round's BigQuery report,
+        // 2026-11-21: "toOne over two rows" read ": [1]" off lite's old sentence)
         if (error == null || error.kind() != kind
-                || where != null && !String.valueOf(error.getMessage()).endsWith(": " + where)) {
+                || where != null && (error.record() == null || !error.record().values().contains(where))) {
             wrong.add(label + ": expected " + kind + (where == null ? "" : " at " + where) + ", got " + describe(answered));
         }
     }

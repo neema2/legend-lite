@@ -56,6 +56,13 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
             if (!RECORDED.contains(kind)) {
                 throw new IllegalArgumentException("a failure's record is a lite error's alone: " + kind);
             }
+            // a data failure's record a run's code, a compile failure's a compile's: Failures.raised rebuilds the error
+            // its kind names over the record (the BE audit 5's L6, 2026-11-21)
+            if ((kind == Kind.DATA) != (record.code() instanceof com.legend.error.ErrorKind)
+                    || kind != Kind.DATA && !(record.code() instanceof com.legend.error.CompileKind)) {
+                throw new IllegalArgumentException("a " + kind + " failure's record is not its kind's code: "
+                        + record.code().qualified());
+            }
             if (message != null) {
                 throw new IllegalArgumentException("a failure with its record carries no message of its own (the"
                         + " record's sentence is its message): " + kind);

@@ -36,6 +36,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Postgres extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "Postgres";
+    }
+
     /** PostgreSQL 16+ (2026-10-01 W5.5/P1 Postgres dialect). The {@code Postgres} dialect
      * QUOTES EVERY identifier (Postgres folds an unquoted name to lowercase, so a bare
      * {@code NAME} reads {@code name}), so this list never decides a spelling there; it

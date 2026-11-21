@@ -32,7 +32,7 @@
           "string": "t: s"
         },
         {
-          "string": "DuckDb"
+          "string": "DuckDB"
         },
         {
           "integer": 6
@@ -149,7 +149,7 @@
     {
       "name": "a where that holds a colon and a space",
       "message": "\u001f\u001cLG#3\u001f",
-      "words": "the DateTime parameter 't: s' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)",
+      "words": "the DateTime parameter 't: s' has more fraction digits than DuckDB keeps (6): refused, never cut (S181)",
       "kind": "PARAMETER_FRACTION_NOT_KEPT"
     },
     {

@@ -31,7 +31,7 @@ export function declareStatementSites(text: string, sites: readonly Site[], what
 
 /** Every statement's sites a planner's answer carries (a plan, a text plan), declared: wherever an object of it holds
  *  `sites`, each statement text beside them (`statement`, `sql`, `run`, `statements`). Refused by name where the answer
- *  carries no `raises`, the kinds its statements can send (a plan of PlanJson v59 always does). */
+ *  carries no `raises`, the kinds its statements can send (a plan of PlanJson v60 always does). */
 export function declareSites(answer: unknown, what: string): void {
   if (!Array.isArray((answer as { raises?: unknown } | null)?.raises)) throw new Error(`${what} carries no raises`);
   const walk = (node: unknown): void => {

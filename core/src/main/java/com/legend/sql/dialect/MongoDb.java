@@ -52,6 +52,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class MongoDb extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "MongoDB";
+    }
+
     /** No quoting: a field or collection name is spelled as a JSON string, never delimited. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of());
 

@@ -231,8 +231,8 @@ class RaiseTextTest {
                 + " mixed list's order: its DOUBLE rank does not hold it exactly (refused until the kinds-kept carrier"
                 + " ranks numbers exactly)"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"), lit("t"),
-                lit("DuckDb"), new SqlExpr.IntLit(6))), lit("the DateTime parameter 't' has more fraction digits than"
-                + " DuckDb keeps (6): refused, never cut (S181)"));
+                lit("DuckDB"), new SqlExpr.IntLit(6))), lit("the DateTime parameter 't' has more fraction digits than"
+                + " DuckDB keeps (6): refused, never cut (S181)"));
         // (ClickHouse's names its parameter since the BE audit 4's M1, 2026-11-21: the unnamed form went)
         moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"), lit("t"),
                 lit("ClickHouse"), new SqlExpr.IntLit(6))), lit("the DateTime parameter 't' has more fraction digits"

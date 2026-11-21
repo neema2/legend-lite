@@ -104,6 +104,10 @@ Measured against §1's rule, at the commit carrying this section.
   raise site's kind and operands, a compile error legend-pure raises at run as its `CompileKind`. The test plan names no
   Java exception class and no Java method (v36). The guard is default-deny: `PlanTypesAreDataTest.noComponentHoldsProse`
   reviews all 240 text components the plans reach, 226 facts and 14 named prose, each with the step that removes it.
+  Its reach is the records' text components: a text a SQL statement writes as a string literal is a fact to it (the
+  BE audit 5's M3). One such text is prose: the database judge's unevaluated assert message ("Assert failed; its message
+  could not be evaluated: " and an error's sentence, `AssertMessages.unevaluated`, written by `VerdictSql`), the host
+  judge's twin of `Messaged.unplanned` below; item 3's, with the assert words.
 - **Where an error is raised** (§4, "D"): a body lite cannot fully plan is refused whole at planning; an error upstream
   raises at run is raised at its turn, decided per code. Mapping errors refuse at planning (option 1, S393).
 - **One catalog, upstream's words**: every kinded error, compile and run-time, says legend-pure's (or legend-engine's)
@@ -131,11 +135,17 @@ Measured against §1's rule, at the commit carrying this section.
 5. **Other stages'**: the edge's prose in test plans (`Appeal.contract`, `Appeal.Unlisted.message`,
    `EngineTextJudgment.decline`) and the edge appeal path's planned mapping and not-implemented errors (the audit 2's
    S4), both B3; the mapping errors upstream raises at run (compat-mapping-errors-followup-2026-11-21.md).
-6. **Known small divergences**: the TS host loses an Integer operand's digits above 2^53 (predates BE); a Decimal
+6. **Known small divergences**, each a SEMANTICS_REGISTER row to rule (posted at the BE PR; the BE audit 5's M4): the TS host loses an Integer operand's digits above 2^53 (predates BE); a Decimal
    second whose `intValue` wraps into [0, 60) is valid upstream, refused by lite; one table name in two databases says
    inconsistent databases where upstream, for two declared tables, says no main table; where legend-engine words a
    compile error differently, its door prints legend-pure's (the ruling); the product plan's raise kinds changed within
    v59 (an older plan naming a removed kind is refused by name); six prefix-only checks of "Cannot cast a collection of
-   size" could pin the full sentence.
+   size" could pin the full sentence; a Match failure over a date literal prints `<computed>` where legend-pure prints
+   the date's text by its precision (not yet read; the BE audit 5's L3).
 7. **BE-M**: the measurement round (the corpus, every PCT lane, channel B, stress, Postgres, warm sessions), the moved
-   pins for the user's word, an independent audit, the PR and CI.
+   pins for the user's word, an independent audit, the PR and CI. Measured: the lean-SQL corpus counts more bodies
+   refused at planning (DuckDB 56 to 193, H2 59 to 338), D's trade in a measure D's ruling did not count: every one is a
+   test already failing (the fail rosters, re-recorded at D, moved by its 2 alone) or a refusal the accepted rosters
+   ledger (S192, S305), each refused by a named gap (no DB2 or Composite writer, H2's list support, a class query in
+   `map()`, ...), where until D its leading statements planned and the run failed at the first it could not plan.
+   For the user's word with the baseline's re-pin.

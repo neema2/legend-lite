@@ -629,6 +629,11 @@ class CarrierDifferentialTest {
             super(DuckDb.LEXICON);
         }
 
+        @Override
+        protected String product() {
+            return "DuckDB";
+        }
+
         /** A Float's text as DuckDB writes it (D1.2). */
         @Override
         protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {

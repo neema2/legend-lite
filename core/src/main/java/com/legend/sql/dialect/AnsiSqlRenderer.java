@@ -40,6 +40,10 @@ import java.util.stream.Collectors;
  */
 public abstract class AnsiSqlRenderer implements SqlDialect {
 
+    /** The database's name, as an error names it ("DuckDB", "Postgres"): a fact of a raise, never a dialect's Java class
+     *  (the BE audit 5's L5, 2026-11-21: PARAMETER_FRACTION_NOT_KEPT named "DuckDb", the class). */
+    protected abstract String product();
+
     private final Lexicon lexicon;
 
     /** A dialect over its own lexicon ({@code LEXICON}, a constant of its class: the dialect program's Phase 1a). */
@@ -795,7 +799,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  (2026-10-26: the corpus's {@code sqlstring::testGreatestLeast}, {@code greatest([$t.quantity, 1, 3])} in a
      *  project column, whose expected text is {@code greatest("root".quantity, 1, 3)}). */
     protected SqlWriter tagged(SqlWriter writer, SqlExpr.Tagged t, int parentPrec) {
-        throw new IllegalStateException("a tagged value reached the renderer: a mixed"
+        // a refusal, never a defect: lite lowers no other consumer of a mixed selection, a gap no dialect spells. The
+        // sql layer's one refusal is DialectCapability (it depends on nothing, ArchitectureTest's sqlLayerIsStandalone),
+        // which the planner, D and lite's API treat as NotImplementedException (unsupported); the TaggedList arm
+        // likewise (the BE lane round's heavy mirror, 2026-11-21: as an IllegalStateException it escaped a corpus body's
+        // planning, testGreatestLeast; the BE audit 5's L1)
+        throw new com.legend.sql.DialectCapability("a tagged value reached the renderer: a mixed"
                 + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
                 + " of it is not lowered (" + t.candidates().size() + " candidates of kinds "
                 + t.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
@@ -1060,7 +1069,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
-            case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
+            case SqlExpr.TaggedList tl -> throw new com.legend.sql.DialectCapability("a tagged list reached the renderer: a"
                     + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
                     + " other consumer of it is not lowered (channels of kinds "
                     + tl.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
@@ -2097,7 +2106,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // sentence itself was the operand)
         SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(new SqlExpr.StringLit(kind),
-                        new SqlExpr.StringLit(p.name()), new SqlExpr.StringLit(getClass().getSimpleName()),
+                        new SqlExpr.StringLit(p.name()), new SqlExpr.StringLit(product()),
                         new SqlExpr.IntLit(kept)), null));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
                 .append(" AS " + text + ")");

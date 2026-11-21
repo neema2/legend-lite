@@ -156,6 +156,12 @@ final class MatchChecker {
      *  program does not spell (computed) {@code <computed>}, as a value only the database held prints (S389; the BE
      *  audit 3's M4, 2026-11-21). */
     private static String unmatched(TypedSpec input) {
+        // one value is printed bare, never in brackets: interpreted Match prints values.getFirst() where valueCount is
+        // 1, and compiled Pure holds a one-value [42] as 42 (the BE audit 5's L3, 2026-11-21). A date literal still
+        // prints <computed>: PureDate's text by its precision is not yet read (deferred, the BE record's section 7)
+        if (input instanceof com.legend.compiler.spec.typed.TypedCollection c && c.elements().size() == 1) {
+            return unmatched(c.elements().get(0));
+        }
         if (input instanceof com.legend.compiler.spec.typed.TypedCollection c) {
             List<String> each = c.elements().stream().map(MatchChecker::spelled).toList();
             return each.contains(null) ? com.legend.error.ErrorKind.COMPUTED : "[" + String.join(", ", each) + "]";

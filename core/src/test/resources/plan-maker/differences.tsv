@@ -51,5 +51,5 @@ duckdb	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->se
 # is refused by the statement's own raise, never cut (until A7 it was cut to .123456).
 # 2026-11-21 (stage B's BE, the one catalog, the user's ruling that day): a fraction refusal's words are its place
 # alone, lite's own sentence (the kind's lead, 'more fraction digits than this database keeps: ', went: the place says it).
-duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
-duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
+duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDB keeps (6): refused, never cut (S181)
+duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDB keeps (6): refused, never cut (S181)

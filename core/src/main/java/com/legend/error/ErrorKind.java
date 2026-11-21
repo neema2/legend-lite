@@ -45,9 +45,11 @@ public enum ErrorKind implements ErrorCode {
      *  fractional second's whole part, as legend-pure validates it): legend-pure's date(). */
     DATE_COMPONENT_INVALID(Form.of(4, "Invalid day: %2$s-%3$s-%4$s"),
             Form.any("Invalid %1$s: %2$s", Slot.TEXT, Slot.WHOLE)),
-    /** [the source type's name, the target's]: legend-pure's cast. */
+    /** [the row's class's name, the target's]: legend-pure's cast; the row's class {@code <computed>} where the
+     *  database alone knows it (a root with mapped subtypes; S389). */
     CAST_IMPOSSIBLE(Form.any("Cast exception: %1$s cannot be cast to %2$s")),
-    /** [the value's run-time class's name, the needed class's]: legend-pure's cast (Cast.java's sentence of a failed
+    /** [the value's run-time class's name -- {@code <computed>} where only the database knows it, a class with
+     *  subclasses (S389) -- the needed class's]: legend-pure's cast (Cast.java's sentence of a failed
      *  cast, the classes' names as GenericType.print writes them; the BE audit 2's S2, 2026-11-21: until then "is not
      *  a", which neither upstream says; the audit 3's M3: the names, until then the paths). */
     INSTANCE_NOT_OF(Form.any("Cast exception: %1$s cannot be cast to %2$s")),

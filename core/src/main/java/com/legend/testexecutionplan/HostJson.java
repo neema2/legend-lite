@@ -201,7 +201,20 @@ final class HostJson {
             }
             frames.add(new com.legend.error.ErrorRecord.Frame(kind, strings(field(f, "values", "ErrorRecord.Frame"))));
         }
-        return new com.legend.error.ErrorRecord(code, strings(field(o, "values", "ErrorRecord")),
+        List<String> values = strings(field(o, "values", "ErrorRecord"));
+        // its values its code's sentence's, refused here by name, never first where the sentence is said (the BE audit
+        // 5's L6, 2026-11-21)
+        if (code instanceof com.legend.error.CompileKind c && values.size() != c.arity()) {
+            throw new IllegalArgumentException("a record of " + c.qualified() + " has " + c.arity() + " values: " + o);
+        }
+        if (code instanceof com.legend.error.ErrorKind k) {
+            try {
+                k.form(values.size(), i -> values.get(i).isEmpty());
+            } catch (IllegalStateException e) {
+                throw new IllegalArgumentException("a record of " + k.qualified() + ": " + e.getMessage(), e);
+            }
+        }
+        return new com.legend.error.ErrorRecord(code, values,
                 absent(o, "position", "ErrorRecord") ? null : str(o.get("position")), frames);
     }
 

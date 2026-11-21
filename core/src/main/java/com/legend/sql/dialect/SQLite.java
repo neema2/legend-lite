@@ -71,6 +71,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class SQLite extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "SQLite";
+    }
+
     /** {@inheritDoc} -- SQLite: half its SQLITE_MAX_SQL_LENGTH (1,000,000 bytes), a margin for multi-byte text. */
     @Override
     public int fusedStatementBudget() {

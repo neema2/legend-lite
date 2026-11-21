@@ -142,6 +142,17 @@ public enum CompileKind implements ErrorCode {
         return "compile";
     }
 
+    /** The number of values this kind's sentence names: its highest {@code %n$s} (the BE audit 5's L6, 2026-11-21: a
+     *  reader checks a record's values by it, never by String.format's failure). */
+    public int arity() {
+        int most = 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("%(\\d+)\\$s").matcher(sentence);
+        while (m.find()) {
+            most = Math.max(most, Integer.parseInt(m.group(1)));
+        }
+        return most;
+    }
+
     /** Lite's sentence of this kind over {@code operands}. */
     @Override
     public String sentence(java.util.List<String> operands) {

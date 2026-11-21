@@ -2183,8 +2183,10 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                                     SqlExpr.Call.of(SqlFn.LIST_LENGTH, xs),
                                     SqlExpr.Call.of(SqlFn.LIST_LENGTH, ys)),
+                            // the native's path, as the catalog names its operand (the BE audit 5's L4, 2026-11-21:
+                            // until then its overloads' ids, a Java list's text)
                             SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(
-                                    com.legend.sql.RaiseKind.LIST_LENGTHS_DIFFER, String.valueOf(e.getKey()))))),
+                                    com.legend.sql.RaiseKind.LIST_LENGTHS_DIFFER, n.callee().qualifiedName())))),
                             new SqlExpr.ScalarSubquery(outer), SqlExpr.Reason.RAISE);
                 });
             }

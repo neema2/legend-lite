@@ -67,6 +67,11 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Snowflake extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "Snowflake";
+    }
+
     /** {@inheritDoc} 9: its {@code TIMESTAMP_NTZ} keeps nanoseconds (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
