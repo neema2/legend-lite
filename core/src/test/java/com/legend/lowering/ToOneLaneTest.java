@@ -46,7 +46,7 @@ class ToOneLaneTest {
     }
 
     /** A size only the database counted, as the edge's words print it (D1, register S389). */
-    private static final String COMPUTED = com.legend.edge.PureMessages.WITHHELD;
+    private static final String COMPUTED = com.legend.result.RaiseWords.COMPUTED;
 
     private static Object run(String query) throws Exception {
         Lean.Result r = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
@@ -55,10 +55,10 @@ class ToOneLaneTest {
 
     private static void assertSizeError(String query, String size) {
         var ex = assertThrows(Exception.class, () -> run(query));
-        // the product's kind, in lite's words (D1.1), and its where, the bound (2026-11-15: a collection's count
-        // carried none until //core:product_raise_probe found it)
+        // the product's kind, in legend-pure's words (the one catalog, stage B's BE, 2026-11-21): the size the typed
+        // multiplicity states, else <computed> -- the same sentence the edge says
         assertTrue(ex.getMessage().contains(
-                        com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": [1]"),
+                        "Cannot cast a collection of size " + size + " to multiplicity [1]"),
                 "expected pure's size-" + size + " cast error for "
                         + query + ", got: " + ex.getMessage());
         // the size itself is legend-pure's sentence's: the same query in the edge's style raises it, worded by the

@@ -4,55 +4,176 @@
 package com.legend.error;
 
 /**
- * THE KIND OF A PRODUCT ERROR RAISED IN A STATEMENT, AND ITS SENTENCE (phase D's D1.1; the user's ruling of 2026-11-10:
- * "a product error is its kind plus where it happened ... never the value"; the wording ruled by the orchestrator
- * 2026-11-12): the error layer's own vocabulary, beside the typed error ({@link DataError#kind}) -- exec parses a raise
- * into its kind and decides nothing more; the caller or writer spells it from here. One name for each of the plan's
- * raise kinds ({@code sql.RaiseKind}, the MIR's bare enum: the two held equal by name, both ways, by
- * {@code ErrorKindTest}). legend-pure's and legend-engine's sentences are the compatibility edge's.
+ * THE KIND OF A PRODUCT ERROR RAISED IN A STATEMENT, AND ITS SENTENCE (phase D's D1.1): the error layer's own
+ * vocabulary, beside the typed error ({@link DataError#kind}) -- exec parses a raise into its kind and decides nothing
+ * more. One name for each of the plan's raise kinds ({@code sql.RaiseKind}, the MIR's bare enum: the two held equal by
+ * name, both ways, by {@code ErrorKindTest}).
+ *
+ * <p>ONE CATALOG, ITS WORDS UPSTREAM'S (the user's ruling of 2026-11-21 ~02:40, replacing Q6 of 2026-11-10's "the
+ * product's own wording"): a kind's sentence is legend-pure's (or legend-engine's) wherever upstream has one, the
+ * values in it the site's operands as the kind's {@link Form} prints them -- a literal as the program wrote it, a value
+ * only the database computed {@code <computed>} (D1, register S389; the SQL never reads it back, the lean-SQL rule).
+ * Every audience says the same words: lite's API, the hosts (generated from these forms), legend-pure's PCT and
+ * legend-engine's door (which adds its own {@code Raised:} wrapper). Lite's own words only where upstream has none:
+ * {@code INSERT_OUT_OF_BOUNDS}, {@code LIST_LENGTHS_DIFFER}, the S170 window frame, and the three refusals of a value a
+ * database cannot hold ({@link Form#joined}: the place the plan states).
  */
 public enum ErrorKind implements ErrorCode {
-    DIVIDE_BY_ZERO("division by zero"),
-    SHIFT_OUT_OF_RANGE("bit shift outside 0..62"),
-    DATE_PART_ABSENT("the date has no such part: it is coarser"),
-    INDEX_OUT_OF_BOUNDS("index out of bounds"),
-    INSERT_OUT_OF_BOUNDS("insert position out of bounds"),
-    SQRT_OF_NEGATIVE("square root of a negative number"),
-    SIZE_NOT_MULTIPLICITY("collection size does not match the multiplicity"),
-    SLICE_BOUNDS_INVERTED("slice start is after its end"),
-    DATE_COMPONENT_INVALID("invalid date component"),
-    CAST_IMPOSSIBLE("the value cannot be cast to the requested type"),
-    INSTANCE_NOT_OF("the value is not an instance of the requested type"),
-    MATCH_FAILURE("no match arm accepts the value"),
-    RANGE_STEP_ZERO("range step is zero"),
-    CONSTRAINT_UNEVALUABLE("constraint not evaluable: data not available"),
-    LIST_LENGTHS_DIFFER("the two lists differ in length"),
-    MAP_KEYS_MISALIGNED("map keys do not align with values"),
-    MAP_KEY_NULL("map key is null"),
-    MAP_KEYS_NOT_UNIQUE("map keys are not unique"),
-    TEXT_NOT_INTEGER("text is not an integer"),
-    TEXT_NOT_FLOAT("text is not a float"),
-    TEXT_NOT_DATE("text is not a date"),
-    VALUE_NOT_HELD("the value is outside the range this database can hold"),
-    FRACTION_NOT_KEPT("more fraction digits than this database keeps"),
-    CSV_TOO_WIDE("CSV record wider than its table"),
-    WINDOW_FRAME_INVERTED("window frame starts after it ends"),
-    WINDOW_FRAME_OFFSET_INVALID("window frame offset is negative or empty"),
-    SUBSTRING_OUT_OF_RANGE("substring range is out of the text's bounds"),
+    /** rem's and quotient's, the dividend its operand (legend-pure's CompiledSupport); Integer / Integer's, no operand:
+     *  the interpreter's BigDecimal. */
+    DIVIDE_BY_ZERO(Form.of(0, "Division by zero"), Form.any("Cannot divide %1$s by zero")),
+    /** legend-engine's bitShiftLeft/Right.pure. */
+    SHIFT_OUT_OF_RANGE(Form.any("Unsupported number of bits to shift - max bits allowed is 62")),
+    /** [the part's label, the date]: legend-pure's date part accessors. */
+    DATE_PART_ABSENT(Form.any("Cannot get %1$s for %2$s", Slot.TEXT, Slot.DATE)),
+    /** [the offset, the size]: legend-pure's {@code at} native. */
+    INDEX_OUT_OF_BOUNDS(Form.any("The system is trying to get an element at offset %1$s where the collection is of"
+            + " size %2$s")),
+    /** Lite's own (no upstream text: the D0 inventory's 1.6), as PCT's expected failures pin it. */
+    INSERT_OUT_OF_BOUNDS(Form.any("add(set, index, value): index out of bounds")),
+    /** [the value]: legend-pure's, the value as Pure prints a Float (K2). */
+    SQRT_OF_NEGATIVE(Form.any("Unable to compute sqrt of %1$s", Slot.FLOAT)),
+    /** [the bound] (a size known empty) or [the bound, the size]: legend-pure's toOne/cast. */
+    SIZE_NOT_MULTIPLICITY(Form.of(1, "Cannot cast a collection of size 0 to multiplicity %1$s"),
+            Form.any("Cannot cast a collection of size %2$s to multiplicity %1$s")),
+    /** [low, high]: legend-pure's slice. */
+    SLICE_BOUNDS_INVERTED(Form.any("The low bound (%1$s) can't be higher than the high bound (%2$s) in a slice"
+            + " operation")),
+    /** [day, year, month, day] its attempted date (the month unpadded), or [the component, its literal] (a
+     *  fractional second's plain digits): legend-pure's date(). */
+    DATE_COMPONENT_INVALID(Form.of(4, "Invalid day: %2$s-%3$s-%4$s"),
+            Form.any("Invalid %1$s: %2$s", Slot.TEXT, Slot.PLAIN)),
+    /** [the source type's name, the target's]: legend-pure's cast. */
+    CAST_IMPOSSIBLE(Form.any("Cast exception: %1$s cannot be cast to %2$s")),
+    /** [the value's run-time type's path, the needed type's]: legend-pure's cast. */
+    INSTANCE_NOT_OF(Form.any("Cast exception: %1$s is not a %2$s")),
+    /** [the value, the arms]: legend-pure's Match.java where no branch takes the value (no arms named); the resolver's
+     *  run-time dispatch, its arms named. */
+    MATCH_FAILURE(Form.whenEmpty(1, "Match failure: %1$s matches no branch"),
+            Form.any("Match failure: no arm of [%2$s] accepts the row's run-time type")),
+    /** legend-pure's Range native. */
+    RANGE_STEP_ZERO(Form.any("range step must not be 0")),
+    /** [the constraint's id]: legend-engine's. */
+    CONSTRAINT_UNEVALUABLE(Form.any("Unable to evaluate constraint [%1$s]: data not available - check your mappings")),
+    /** [the native's name]: lite's own (no upstream text). */
+    LIST_LENGTHS_DIFFER(Form.any("%1$s: the two value lists differ in length")),
+    /** legend-pure has none (its maps take any key); legend-engine's on its reference database, DuckDB's own words,
+     *  which lite raises on every database (the D0 inventory's K3). */
+    MAP_KEYS_MISALIGNED(Form.any("The map key list does not align with the map value list.")),
+    MAP_KEY_NULL(Form.any("Map keys can not be NULL.")),
+    MAP_KEYS_NOT_UNIQUE(Form.any("Map keys must be unique.")),
+    /** [the text]: legend-engine's on its reference database, DuckDB's cast errors (legend-pure's are Java's own
+     *  NumberFormatException text), which lite raises on every database. */
+    TEXT_NOT_INTEGER(Form.any("Could not convert string '%1$s' to INT64")),
+    TEXT_NOT_FLOAT(Form.any("Could not convert string '%1$s' to DOUBLE")),
+    TEXT_NOT_DATE(Form.any("Could not parse '%1$s' as a date")),
+    /** Lite's own refusals of a value a database cannot hold (S138, S181, the CSV width): no upstream text; the place
+     *  the plan states, its parts the operands ({@link Form#joined}). */
+    VALUE_NOT_HELD(Form.joined()),
+    FRACTION_NOT_KEPT(Form.joined()),
+    CSV_TOO_WIDE(Form.joined()),
+    /** legend-engine's rows()/_range() assert, verbatim (#81's frame guard). */
+    WINDOW_FRAME_INVERTED(Form.any("Invalid window frame boundary - lower bound of window frame cannot be greater than"
+            + " the upper bound!")),
+    /** Lite's own (S170). */
+    WINDOW_FRAME_OFFSET_INVALID(Form.any("Invalid window frame boundary - a window frame bound written -(n) is n before"
+            + " the current row and any other n after it, so a computed n must be neither negative nor empty"
+            + " (docs/SEMANTICS_REGISTER.md S170)")),
+    /** [the start, the end, the length]: legend-pure's String.substring raise, Java's own words (S383). */
+    SUBSTRING_OUT_OF_RANGE(Form.any("Range [%1$s, %2$s) out of bounds for length %3$s")),
     /** {@code fail(message)}: the user's own message is the error's text; this word only where none was given. */
-    USER_FAIL("fail"),
+    USER_FAIL(Form.of(0, "fail"), Form.any("fail: %1$s")),
     /** A failure the database raised with no site of lite's (phase D's Phase 2, item 4, 2026-11-16; the user's ruling:
      *  "I'm good with database only giving the database message too"): its message is the database's own, verbatim,
      *  carried as the database's ({@link DataError#databaseMessage}), its SQLSTATE where the driver gives one. Not a
      *  raise kind: no statement writes it. */
-    DATABASE_ERROR("the database refused the statement"),
+    DATABASE_ERROR(Form.of(0, "the database refused the statement"),
+            Form.any("the database refused the statement: %1$s")),
     /** A session that could not be opened, or a connection lost (a driver's SQLSTATE class 08): the database's own
      *  message, as {@link #DATABASE_ERROR}'s. Not a raise kind. */
-    CONNECTION_ERROR("the connection to the database failed"),
-    /** A load's file larger than the load admits (J25 of the edge audit, 2026-11-17: {@code base.DataSize.TooLarge},
-     *  its facts the file, its size and the limit): the run refuses it before any statement reads it. Not a raise kind:
-     *  no statement writes it. */
-    FILE_TOO_LARGE("the file is larger than the load admits");
+    CONNECTION_ERROR(Form.of(0, "the connection to the database failed"),
+            Form.any("the connection to the database failed: %1$s")),
+    /** A load's file larger than the load admits (J25 of the edge audit, 2026-11-17): [the file, its bytes, its
+     *  characters, the limit in megabytes], legend-pure's CsvReader.readCsv words ({@link Form#fileSize}: the text's
+     *  length in megabytes to two places). The run refuses it before any statement reads it. Not a raise kind. */
+    FILE_TOO_LARGE(Form.fileSize());
+
+    /** How a form prints one value of a site's operands (the site's record's values are these prints). */
+    public enum Slot {
+        /** As the program wrote it: a text itself, an Integer's digits, a Float as Pure prints one, a Decimal's plain
+         *  digits, a Boolean's word, a date's ISO text. */
+        TEXT,
+        /** A date literal at the precision it was written, {@code +0000} from a minute on (legend-pure's
+         *  DateFormat.append); any other value as {@link #TEXT}. */
+        DATE,
+        /** A number as Pure prints a Float (an Integer's too: {@code 4.0}); any other value as {@link #TEXT}. */
+        FLOAT,
+        /** A Float's plain digits, never an exponent ({@code BigDecimal.toPlainString}); any other as {@link #TEXT}. */
+        PLAIN
+    }
+
+    /**
+     * One of a kind's sentences: chosen by the number of values (any, where {@code arity} is negative) and, where
+     * {@code emptySlot} is not negative, by that value being empty; the first form of the kind that takes the values
+     * says them. {@code template} is a format over the values, positional ({@code %1$s}, ...); {@code slots} how each is
+     * printed ({@link Slot#TEXT} past the last).
+     */
+    public record Form(int arity, int emptySlot, String template, java.util.List<Slot> slots, Shape shape) {
+
+        /** How a form says its values. */
+        public enum Shape {
+            /** {@code template} over the values. */
+            TEMPLATE,
+            /** The values joined, nothing between: the place a plan states, its parts the operands. */
+            JOINED,
+            /** A load's file larger than its limit: [the file, bytes, characters, limit in megabytes]. */
+            FILE_SIZE
+        }
+
+        public Form {
+            slots = java.util.List.copyOf(slots);
+        }
+
+        static Form of(int arity, String template, Slot... slots) {
+            return new Form(arity, -1, template, java.util.List.of(slots), Shape.TEMPLATE);
+        }
+
+        static Form any(String template, Slot... slots) {
+            return of(-1, template, slots);
+        }
+
+        static Form whenEmpty(int slot, String template, Slot... slots) {
+            return new Form(-1, slot, template, java.util.List.of(slots), Shape.TEMPLATE);
+        }
+
+        static Form joined() {
+            return new Form(-1, -1, "", java.util.List.of(), Shape.JOINED);
+        }
+
+        static Form fileSize() {
+            return new Form(4, -1, "Unable to read the CSV file '%1$s' Execution error at ??, \"File is too large, file"
+                    + " was %2$s Mb, limit is %3$s Mb\"", java.util.List.of(), Shape.FILE_SIZE);
+        }
+
+        /** How value {@code i} is printed. */
+        public Slot slot(int i) {
+            return i < slots.size() ? slots.get(i) : Slot.TEXT;
+        }
+
+        boolean takes(int size, java.util.function.IntPredicate empty) {
+            return (arity < 0 || arity == size) && (emptySlot < 0 || emptySlot < size && empty.test(emptySlot));
+        }
+
+        String say(java.util.List<String> values) {
+            return switch (shape) {
+                case TEMPLATE -> String.format(java.util.Locale.ROOT, template, values.toArray());
+                case JOINED -> String.join("", values);
+                case FILE_SIZE -> String.format(java.util.Locale.ROOT, template, values.get(0),
+                        String.format(java.util.Locale.ROOT, "%.2f",
+                                Long.parseLong(values.get(2)) * 1.0 / (1024 * 1024L)), values.get(3));
+            };
+        }
+    }
 
     /** Whether the kind is the database's own failure ({@link #DATABASE_ERROR}, {@link #CONNECTION_ERROR}), never a
      *  raise a statement writes. */
@@ -66,15 +187,26 @@ public enum ErrorKind implements ErrorCode {
         return !isDatabases() && this != FILE_TOO_LARGE;
     }
 
-    private final String sentence;
+    private final java.util.List<Form> forms;
 
-    ErrorKind(String sentence) {
-        this.sentence = sentence;
+    ErrorKind(Form... forms) {
+        this.forms = java.util.List.of(forms);
     }
 
-    /** Lite's own short sentence of the kind: no value in it. */
-    public String sentence() {
-        return sentence;
+    /** The kind's forms, in the order they are tried (the hosts' tables are generated from them). */
+    public java.util.List<Form> forms() {
+        return forms;
+    }
+
+    /** The form that says {@code size} values, {@code empty} telling which are empty; refused by name where none does
+     *  (a site built otherwise than its kind's sentence reads it: a defect of the site). */
+    public Form form(int size, java.util.function.IntPredicate empty) {
+        for (Form f : forms) {
+            if (f.takes(size, empty)) {
+                return f;
+            }
+        }
+        throw new IllegalStateException("no sentence of " + name() + " says " + size + " values");
     }
 
     @Override
@@ -82,10 +214,9 @@ public enum ErrorKind implements ErrorCode {
         return "run";
     }
 
-    /** Lite's sentence over {@code values}: the kind's, then ': ' and its first value, the place it names (a run's
-     *  error's where), as the run words it; the kind's alone where there is none. */
+    /** The kind's sentence over {@code values}, each printed as its form's slot says. */
     @Override
     public String sentence(java.util.List<String> values) {
-        return values.isEmpty() ? sentence : sentence + ": " + values.get(0);
+        return form(values.size(), i -> values.get(i).isEmpty()).say(values);
     }
 }

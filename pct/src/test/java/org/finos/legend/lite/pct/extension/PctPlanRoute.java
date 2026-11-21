@@ -89,6 +89,16 @@ final class PctPlanRoute {
             return audience(System.getProperty("pct.audience"), System.getProperty("pct.channela.rules", "COMPAT"));
         }
 
+        /** The style the audience's cases are planned in: the edge's UPSTREAM text for legend-pure's, the pure/v1
+         *  route's for legend-engine's, the product's under lite's own rules. */
+        com.legend.database.PlanStyle style() {
+            return switch (this) {
+                case LEGEND_PURE -> com.legend.edge.PureText.UPSTREAM;
+                case LEGEND_ENGINE -> com.legend.edge.PureText.PURE_V1;
+                case LITE -> com.legend.database.PlanStyle.PRODUCT;
+            };
+        }
+
         /** Any error of a case, in this audience's words, every error alike: legend-pure's for legend-pure's and
          *  legend-engine's audiences (the edge's {@link com.legend.edge.PureMessages#compile}), lite's own message
          *  under lite's own rules. */
@@ -138,21 +148,16 @@ final class PctPlanRoute {
         RouteAudience.planned(audience == Audience.LEGEND_ENGINE && features.isEmpty());
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
-        // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        com.legend.edge.RaisedWords.Run<ExecutionPlan, IOException> runIn = style ->
-                com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
+        // planned in the audience's style; a raise says the one catalog's sentence on every audience (stage B's BE,
+        // 2026-11-21: until then RaisedWords reworded it for legend-pure's and legend-engine's)
+        ExecutionPlan plan = com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)
                 PctBackend.executionSource(),
                 PctBackend.planSessions(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features,
                 // the PCT compares against legend-pure's texts: the plan is spelled by the edge (phase D's D1.0)
-                style,
+                audience.style(),
                 new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY);
-        ExecutionPlan plan = switch (audience) {
-            case LEGEND_PURE -> com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, runIn);
-            case LEGEND_ENGINE -> com.legend.edge.RaisedWords.run(com.legend.edge.PureText.PURE_V1, runIn);
-            case LITE -> runIn.apply(com.legend.database.PlanStyle.PRODUCT);
-        };
         com.legend.result.Collector.Collected c = collector.collected();
         boolean relation = plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION;
         if (relation) {

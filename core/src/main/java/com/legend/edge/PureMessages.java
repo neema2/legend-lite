@@ -10,7 +10,7 @@ import com.legend.sql.SqlExpr;
  * of 2026-11-20 ~16:40, "we should do B to keep the PCT", and ~17:00, the plan carries the error's facts and no words):
  * a raised site's kind and its operands ({@code executionplan.Operand}, the literals the statement holds) worded as
  * legend-pure words them -- byte for byte where every printed operand is a literal (PCT's {@code assertError}s compare
- * legend-pure's text), and a computed operand {@link #WITHHELD} where legend-pure prints a value only the database knew
+ * legend-pure's text), and a computed operand {@code <computed>} where legend-pure prints a value only the database knew
  * (D1, register S389). Until B1 the edge wrote these sentences into its dialects' SQL where an operand was computed,
  * and recorded them at planning where none was ({@code SiteWords}); both are gone: every statement raises the
  * product's site token, on every door. Each arm cites its upstream line in the D0 inventory's reads
@@ -20,10 +20,6 @@ public final class PureMessages {
 
     private PureMessages() {
     }
-
-    /** What stands where legend-pure's sentence prints an operand whose value the plan does not carry (the database
-     *  computed it): register S389, the user's D1 of 2026-11-20 ~17:00. */
-    public static final String WITHHELD = "<computed>";
 
     /** A checked graph's defect cell, {@code CONSTRAINT_UNEVALUABLE}: not a raise but an ANSWER cell the edge's dialects
      *  write as legend-engine's sentence (its milestoning/constraint words). Stage B's B2 moves it to the edge's
@@ -37,141 +33,10 @@ public final class PureMessages {
                 + "]: data not available - check your mappings");
     }
 
-    /** legend-pure's sentence of a raised site, from its record ({@code executionplan.ExecutionPlan.Site}). */
+    /** A raised site's sentence: the one catalog's ({@code result.RaiseWords}, the user's ruling of 2026-11-21: lite
+     *  says legend-pure's sentence wherever legend-pure has one), the same the run says. */
     public static String worded(com.legend.executionplan.ExecutionPlan.Site site) {
-        return worded(site.kind(), site.operands());
-    }
-
-    /** legend-pure's sentence of a site of {@code kind} built from {@code o}, each operand at the place legend-pure's
-     *  sentence prints it. */
-    public static String worded(com.legend.sql.RaiseKind kind, java.util.List<com.legend.executionplan.Operand> o) {
-        return switch (kind) {
-            case USER_FAIL -> throw new IllegalStateException("a user's fail raises its own message, never a site");
-            // rem's and quotient's, the dividend its operand: 'Cannot divide 5 by zero' (legend-pure's
-            // CompiledSupport:1485); Integer / Integer's, no operand: the interpreter's BigDecimal 'Division by zero'
-            case DIVIDE_BY_ZERO -> o.isEmpty() ? "Division by zero" : "Cannot divide " + str(o, 0) + " by zero";
-            // engine's bitShiftLeft/Right.pure
-            case SHIFT_OUT_OF_RANGE -> "Unsupported number of bits to shift - max bits allowed is 62";
-            // [the part's label, the date]: legend-pure's 'Cannot get <part> for <date>'
-            case DATE_PART_ABSENT -> "Cannot get " + str(o, 0) + " for " + date(o, 1);
-            // [the offset, the size]: legend-pure's at() out of bounds
-            case INDEX_OUT_OF_BOUNDS -> "The system is trying to get an element at offset " + str(o, 0)
-                    + " where the collection is of size " + str(o, 1);
-            // lite's own sentence (no upstream text: the D0 inventory's 1.6), kept for the compatibility road
-            case INSERT_OUT_OF_BOUNDS -> "add(set, index, value): index out of bounds";
-            // [the value]: legend-pure's 'Unable to compute sqrt of <x>', <x> as Pure prints a Float (K2)
-            case SQRT_OF_NEGATIVE -> "Unable to compute sqrt of " + asFloat(o, 0);
-            // [the bound] (a size known empty) or [the bound, the size]
-            case SIZE_NOT_MULTIPLICITY -> o.size() == 1
-                    ? "Cannot cast a collection of size 0 to multiplicity " + str(o, 0)
-                    : "Cannot cast a collection of size " + str(o, 1) + " to multiplicity " + str(o, 0);
-            // [low, high]: legend-pure's slice
-            case SLICE_BOUNDS_INVERTED -> "The low bound (" + str(o, 0) + ") can't be higher than the high bound ("
-                    + str(o, 1) + ") in a slice operation";
-            case DATE_COMPONENT_INVALID -> dateComponent(o);
-            // lite's own refusals (S138, S181, the CSV width): no upstream text; the compatibility road writes the
-            // product's former sentence, its parts the operands, as main's edge did (PCT's expected failures pin them)
-            case VALUE_NOT_HELD, FRACTION_NOT_KEPT, CSV_TOO_WIDE -> {
-                StringBuilder parts = new StringBuilder();
-                for (int i = 0; i < o.size(); i++) {
-                    parts.append(str(o, i));
-                }
-                yield parts.toString();
-            }
-            // [the source type's name, the target's]
-            case CAST_IMPOSSIBLE -> "Cast exception: " + str(o, 0) + " cannot be cast to " + str(o, 1);
-            // [the value's run-time type's path, the needed type's]
-            case INSTANCE_NOT_OF -> "Cast exception: " + str(o, 0) + " is not a " + str(o, 1);
-            // legend-pure's Match.java, a value no branch takes; the resolver's run-time dispatch, its arms named
-            case MATCH_FAILURE -> str(o, 1).isEmpty() ? "Match failure: " + str(o, 0) + " matches no branch"
-                    : "Match failure: no arm of [" + str(o, 1) + "] accepts the row's run-time type";
-            case RANGE_STEP_ZERO -> "range step must not be 0";
-            // legend-pure's rows/_range assert, verbatim (#81's frame guard)
-            case WINDOW_FRAME_INVERTED -> "Invalid window frame boundary - lower bound of window"
-                    + " frame cannot be greater than the upper bound!";
-            // [the start, the end, the length]: legend-pure's String.substring raise, Java's own words (S383)
-            case SUBSTRING_OUT_OF_RANGE -> "Range [" + str(o, 0) + ", " + str(o, 1) + ") out of bounds for length "
-                    + str(o, 2);
-            // lite's own sentence (S170), kept for the compatibility road
-            case WINDOW_FRAME_OFFSET_INVALID -> "Invalid window frame boundary - a window frame"
-                    + " bound written -(n) is n before the current row and any other n after it, so a computed n must"
-                    + " be neither negative nor empty (docs/SEMANTICS_REGISTER.md S170)";
-            // [the native's name]: lite's own sentence, kept for the compatibility road
-            case LIST_LENGTHS_DIFFER -> str(o, 0) + ": the two value lists differ in length";
-            // [the constraint's id]: the engine's sentence (a raise of it; its defect cell is defectCell's)
-            case CONSTRAINT_UNEVALUABLE -> "Unable to evaluate constraint [" + str(o, 0)
-                    + "]: data not available - check your mappings";
-            // DuckDB's own words, which the reference database's other dialects raise (the D0 inventory's K3)
-            case MAP_KEYS_MISALIGNED -> "The map key list does not align with the map value list.";
-            case MAP_KEY_NULL -> "Map keys can not be NULL.";
-            case MAP_KEYS_NOT_UNIQUE -> "Map keys must be unique.";
-            // [the text]: DuckDB's cast errors
-            case TEXT_NOT_INTEGER -> "Could not convert string '" + str(o, 0) + "' to INT64";
-            case TEXT_NOT_FLOAT -> "Could not convert string '" + str(o, 0) + "' to DOUBLE";
-            case TEXT_NOT_DATE -> "Could not parse '" + str(o, 0) + "' as a date";
-        };
-    }
-
-    /** date(...)'s component out of range: [the component, its literal] as legend-pure writes it ('Invalid month: 13', a
-     *  fractional second's plain digits), [day, year, month, day] its attempted date ('Invalid day: 2016-12-32', the
-     *  month unpadded). */
-    private static String dateComponent(java.util.List<com.legend.executionplan.Operand> o) {
-        if (o.size() == 4) {
-            return "Invalid day: " + str(o, 1) + "-" + str(o, 2) + "-" + str(o, 3);
-        }
-        String head = "Invalid " + str(o, 0) + ": ";
-        return switch (o.get(1)) {
-            case com.legend.executionplan.Operand.Flt f -> head + java.math.BigDecimal.valueOf(f.value()).toPlainString();
-            case com.legend.executionplan.Operand.Dec d -> head + d.value().toPlainString();
-            case com.legend.executionplan.Operand.Text t -> head + t.value();
-            case com.legend.executionplan.Operand.Int n -> head + n.value();
-            case com.legend.executionplan.Operand.Bool b -> head + b.value();
-            case com.legend.executionplan.Operand.Day d -> head + d.iso();
-            case com.legend.executionplan.Operand.Instant t -> head + t.iso();
-            case com.legend.executionplan.Operand.Computed c -> head + WITHHELD;
-        };
-    }
-
-    /** Operand {@code i} as legend-pure's sentence prints it: a text itself, an Integer's digits, a date's ISO day, a
-     *  Float as legend-pure prints one, a Decimal's plain digits, a Boolean's word, a date-time as the statement holds
-     *  it; a computed one {@link #WITHHELD}. */
-    private static String str(java.util.List<com.legend.executionplan.Operand> o, int i) {
-        if (i >= o.size()) {
-            throw new IllegalStateException("a raise site built from " + o.size() + " operands, and its sentence prints"
-                    + " operand " + i);
-        }
-        return switch (o.get(i)) {
-            case com.legend.executionplan.Operand.Text x -> x.value();
-            case com.legend.executionplan.Operand.Int n -> Long.toString(n.value());
-            case com.legend.executionplan.Operand.Day d -> d.iso();
-            case com.legend.executionplan.Operand.Flt f -> Presenter.legendPure(f.value(), "Float");
-            case com.legend.executionplan.Operand.Dec d -> d.value().toPlainString();
-            case com.legend.executionplan.Operand.Bool b -> Boolean.toString(b.value());
-            case com.legend.executionplan.Operand.Instant ts -> ts.iso();
-            case com.legend.executionplan.Operand.Computed c -> WITHHELD;
-        };
-    }
-
-    /** Operand {@code i}, a date, as legend-pure's {@code DateFormat.append} prints one: a date LITERAL (the lowering
-     *  hands its text as written) at its own precision, {@code +0000} from a minute on ({@link EdgePureWords#pureText});
-     *  any other as {@link #str} prints it. */
-    private static String date(java.util.List<com.legend.executionplan.Operand> o, int i) {
-        return i < o.size() && o.get(i) instanceof com.legend.executionplan.Operand.Text x
-                ? EdgePureWords.pureText(com.legend.values.PureDateLiteral.parse(x.value())) : str(o, i);
-    }
-
-    /** Operand {@code i} as legend-pure prints a Float: a numeric literal's double; a computed one withheld. */
-    private static String asFloat(java.util.List<com.legend.executionplan.Operand> o, int i) {
-        return switch (o.get(i)) {
-            case com.legend.executionplan.Operand.Flt f -> Presenter.legendPure(f.value(), "Float");
-            case com.legend.executionplan.Operand.Int n -> Presenter.legendPure((double) n.value(), "Float");
-            case com.legend.executionplan.Operand.Dec d -> Presenter.legendPure(d.value().doubleValue(), "Float");
-            case com.legend.executionplan.Operand.Text t -> t.value();
-            case com.legend.executionplan.Operand.Bool b -> Boolean.toString(b.value());
-            case com.legend.executionplan.Operand.Day d -> d.iso();
-            case com.legend.executionplan.Operand.Instant t -> t.iso();
-            case com.legend.executionplan.Operand.Computed c -> WITHHELD;
-        };
+        return com.legend.result.RaiseWords.sentence(site);
     }
 
     /**

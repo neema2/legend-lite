@@ -198,7 +198,7 @@ class PostgresArmTest {
                             () -> com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),
                                     com.legend.testcases.PlanCases.Written.JSON::writer));
                     assertTrue(String.valueOf(parameter.getMessage()).contains(
-                            com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), parameter.getMessage());
+                            "fraction digits"), parameter.getMessage());
                     continue;
                 }
                 assertPlanAnswersAsToday(model, ctx, q, c);
@@ -216,7 +216,7 @@ class PostgresArmTest {
                             com.legend.testcases.PlanCases.Written.JSON::writer));
             // the statement's raise: its kind's sentence (phase D's D1.1, merged with main's #81 2026-11-14)
             assertTrue(String.valueOf(rounded.getMessage()).contains(
-                    com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), rounded.getMessage());
+                    "fraction digits"), rounded.getMessage());
             // an enumeration parameter, compared through a value table of the column's codes
             String enums = com.legend.testcases.PlanCases.enumModel(POSTGRES.connectionBody(), "PLAN_E");
             var enumCtx = com.legend.Compiler.compileModel(enums);

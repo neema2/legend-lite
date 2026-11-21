@@ -109,7 +109,7 @@ class RaiseTextTest {
                     select(rem)), type + ": rem's");
             String remWords = upstream(com.legend.edge.PureText.dialect(type), select(rem));
             if (remWords != null) {
-                assertEquals("Cannot divide " + com.legend.edge.PureMessages.WITHHELD + " by zero", remWords,
+                assertEquals("Cannot divide " + com.legend.result.RaiseWords.COMPUTED + " by zero", remWords,
                         type + ": rem's site");
             }
             // a site of literal operands: the product's token in SQL, upstream's sentence planned in its site (phase D's
@@ -136,8 +136,8 @@ class RaiseTextTest {
         }
         assertEquals(1, statement.sites().size(), dialect.getClass().getSimpleName() + ": " + statement.sites());
         RaiseSite site = statement.sites().get(0);
-        return com.legend.edge.PureMessages.worded(site.kind(),
-                site.operands().stream().map(com.legend.executionplan.Operand::of).toList());
+        return com.legend.result.RaiseWords.sentence(new com.legend.executionplan.ExecutionPlan.Site(1, site.kind(),
+                null, site.operands().stream().map(com.legend.executionplan.Operand::of).toList()));
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
@@ -237,7 +237,7 @@ class RaiseTextTest {
                 if (e.getValue() instanceof SqlExpr.StringLit sentence) {
                     assertEquals(sentence.value(), upstream, type + ": " + r);
                 } else {
-                    assertTrue(upstream.contains(com.legend.edge.PureMessages.WITHHELD), type + ": " + r + " -> "
+                    assertTrue(upstream.contains(com.legend.result.RaiseWords.COMPUTED), type + ": " + r + " -> "
                             + upstream);
                 }
             }

@@ -1807,6 +1807,11 @@ class JavaEvalLedgerTest {
                     // written-precision fact since 2026-10-28); digits chosen for a value held whole, no kind converted,
                     // no zone shifted, no null defaulted
                     "CellText.java",
+                    // a planned raise's words at the last step (stage B's BE, 2026-11-21, the one catalog): a site's
+                    // record and sentence, each operand printed as its kind's form names (CellText's Float text, a
+                    // date's legend-pure text, <computed> for a value only the database holds); the run and the edge
+                    // word a raise here alike, deciding nothing (its operations are WriterCarriageGuardTest's rows)
+                    "RaiseWords.java",
                     // the writers (phase 2, R4): legend-engine's exact answer (LEGACY), lite's JSON rows and CSV (LEAN),
                     // each a ResultSink spelling cells through CellText in its consumer's layout; nothing else
                     // (PureV1Writer.java left for com.legend.edge 2026-11-16, W8 of docs/records/d-plan-2026-11-16.md)
@@ -1929,10 +1934,6 @@ class JavaEvalLedgerTest {
                             // legend-engine's JSON without source information (J35's residue, 2026-11-18): moved from
                             // protocol.SourceInformation; cuts spans from text, decides nothing
                             "EngineSpans.java",
-                            // legend-pure's words of a raise where the edge runs the product's door (K10 of the edge
-                            // audit, 2026-11-18): a raise's site worded from its record (stage B's B1, 2026-11-20;
-                            // a recorder's words until then); decides nothing
-                            "RaisedWords.java",
                             // legend-engine's grammar where the edge reads its protocol (J21 of the edge audit,
                             // 2026-11-17, the user's "yes to the rule"): three delegations to the parse door's engine
                             // entries; parses, decides nothing

@@ -22,11 +22,11 @@ class LiteDataRefusalTest {
 
     @Test
     void aRaiseIsDataItsKindInRaiseAndItsSitesWhereInWhere() {
-        assertEquals("{\"kind\":\"data\",\"message\":\"collection size does not match the multiplicity\","
+        assertEquals("{\"kind\":\"data\",\"message\":\"Cannot cast a collection of size\","
                         + "\"where\":\"[1]\",\"raise\":\"sizeNotMultiplicity\"}",
                 LiteV1Api.refusal(new DataError(ErrorKind.SIZE_NOT_MULTIPLICITY, "[1]",
-                        ErrorKind.SIZE_NOT_MULTIPLICITY.sentence(), CAUSE)).json());
-        assertEquals("{\"kind\":\"data\",\"message\":\"division by zero\",\"raise\":\"divideByZero\"}",
+                        "Cannot cast a collection of size", CAUSE)).json());
+        assertEquals("{\"kind\":\"data\",\"message\":\"Division by zero\",\"raise\":\"divideByZero\"}",
                 LiteV1Api.refusal(new DataError(ErrorKind.DIVIDE_BY_ZERO, CAUSE)).json());
     }
 
@@ -49,7 +49,9 @@ class LiteDataRefusalTest {
 
     @Test
     void aLoadsRefusedFileIsDataItsPathInTheMessageNotWhere() {
-        assertEquals("{\"kind\":\"data\",\"message\":\"the file is larger than the load admits: /data/big.csv\"}",
+        // legend-pure's sentence, the one catalog's (stage B's BE, 2026-11-21: until then lite's own)
+        assertEquals("{\"kind\":\"data\",\"message\":\"Unable to read the CSV file '/data/big.csv' Execution error at ??,"
+                + " \\\"File is too large, file was 1.00 Mb, limit is 1 Mb\\\"\"}",
                 LiteV1Api.refusal(DataError.fileTooLarge("/data/big.csv", 1048577, 1048577, 1, CAUSE)).json());
     }
 

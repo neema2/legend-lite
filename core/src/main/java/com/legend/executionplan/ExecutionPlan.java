@@ -854,19 +854,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             operands = List.copyOf(operands);
         }
 
-        /** The product's sentence of this site: its kind's and its where ({@link #sentence}), written when the raise is
-         *  read back, never planned. */
-        public String productSentence() {
-            return sentence(kind, where);
-        }
-
-        /** The product's sentence of a site of {@code kind} placed by {@code where}: the error layer's
-         *  ({@link com.legend.error.ErrorKind#sentence}), then {@code ": "} and the where, as {@code error.DataError} has
-         *  spelled it. */
-        public static String sentence(com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where) {
-            return com.legend.error.ErrorKind.valueOf(kind.name()).sentence() + (where == null ? "" : ": " + where);
-        }
-
         /** {@code sites} as a statement holds them: numbered 1..k in order, refused by name otherwise. */
         static List<Site> numbered(List<Site> sites) {
             List<Site> out = List.copyOf(sites);

@@ -77,7 +77,7 @@ class PlannedFailureWordsTest {
     @Test
     void theRunsRefusalOfNoRowsIsWordedFromItsSite() {
         SizeRefusal refused = new SizeRefusal("[1]");
-        assertEquals(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": [1]", refused.getMessage());
+        assertEquals("Cannot cast a collection of size 0 to multiplicity [1]", refused.getMessage());
         assertEquals("Cannot cast a collection of size 0 to multiplicity [1]", PureMessages.compile(refused));
     }
 }

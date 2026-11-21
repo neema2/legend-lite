@@ -44,12 +44,12 @@ class Part1SemanticsTest {
     @Test
     void part1Semantics() throws Exception {
         try (Connection conn = TestBackends.platform().open()) {
-            // integer / integer by zero RAISES (pure's BigDecimal lane): the product's DIVIDE_BY_ZERO, in lite's own
-            // words (phase D's D1.1; legend-pure's sentence is the edge's)
+            // integer / integer by zero RAISES (pure's BigDecimal lane): the product's DIVIDE_BY_ZERO, in legend-pure's
+            // words (the one catalog, stage B's BE, 2026-11-21)
             Exception dz = assertThrows(Exception.class,
                     () -> scalar("{|1 / 0}", conn));
             assertTrue(String.valueOf(dz.getMessage())
-                            .contains("division by zero"),
+                            .contains("Division by zero"),
                     "integer 1/0 must raise: " + dz.getMessage());
             // the FLOAT lane keeps IEEE semantics (pure's double arm)
             assertEquals("Infinity",
@@ -71,7 +71,7 @@ class Part1SemanticsTest {
             Exception to = assertThrows(Exception.class,
                     () -> scalar("{|[]->first()->toOne()}", conn));
             assertTrue(String.valueOf(to.getMessage()).contains(
-                            com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
+                            "Cannot cast a collection of size"),
                     "value-lane toOne over empty must raise: "
                             + to.getMessage());
             assertEquals("1",

@@ -23,7 +23,7 @@ final class SizeRefusal extends IllegalStateException implements ExecutionPlan.R
     }
 
     private SizeRefusal(ExecutionPlan.Site site) {
-        super(site.productSentence());
+        super(com.legend.result.RaiseWords.sentence(site));
         this.site = site;
     }
 

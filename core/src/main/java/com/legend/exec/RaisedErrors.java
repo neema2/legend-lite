@@ -213,8 +213,7 @@ public final class RaisedErrors {
         ExecutionPlan.Site site = text == null ? null : siteOf(text, sites);
         if (text != null && site != null) {
             Raised raised = new Raised(text, site, null, new java.sql.SQLException(message, cause));
-            return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()), site.where(),
-                    site.productSentence(), raised);
+            return new com.legend.error.DataError(com.legend.result.RaiseWords.record(site), site.where(), raised);
         }
         if (text != null && !text.equals(message)) {
             // lite's envelope, no site: a user's fail
@@ -230,8 +229,7 @@ public final class RaisedErrors {
     static com.legend.error.DataError dataErrorOf(java.sql.SQLException un) {
         if (un instanceof Raised r && r.site() != null) {
             ExecutionPlan.Site site = r.site();
-            return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()), site.where(),
-                    site.productSentence(), un);
+            return new com.legend.error.DataError(com.legend.result.RaiseWords.record(site), site.where(), un);
         }
         if (un instanceof Raised) {
             // lite's envelope, no site: a user's fail (its own text) --

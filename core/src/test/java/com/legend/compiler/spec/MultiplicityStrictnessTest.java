@@ -104,7 +104,7 @@ class MultiplicityStrictnessTest {
             Exception e = assertThrows(Exception.class,
                     () -> Lean.run(StorelessRuntime.with("", Databases.PLATFORM), "{| [1,2]->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage())
-                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
+                            .contains("Cannot cast a collection of size"),
                     e.getMessage());
             edgeSize(c, "{| [1,2]->toOne() }", "2");
             // the singleton extracts — the guard is size-exact
@@ -119,10 +119,10 @@ class MultiplicityStrictnessTest {
         try (Connection c = TestBackends.platform().open()) {
             Exception e = assertThrows(Exception.class, () -> Lean.run(StorelessRuntime.with("", Databases.PLATFORM), "{| [1,2,3]->filter(x|$x > 10)->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage())
-                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
+                            .contains("Cannot cast a collection of size"),
                     e.getMessage());
             // a size only the database counted (0): <computed> in the edge's words (D1, register S389; B1, 2026-11-20)
-            edgeSize(c, "{| [1,2,3]->filter(x|$x > 10)->toOne() }", com.legend.edge.PureMessages.WITHHELD);
+            edgeSize(c, "{| [1,2,3]->filter(x|$x > 10)->toOne() }", com.legend.result.RaiseWords.COMPUTED);
         }
     }
 
@@ -138,7 +138,7 @@ class MultiplicityStrictnessTest {
                             + "->filter(r|$r.x > 5)->map(r|$r.x)->toOne() }", StorelessRuntime.RUNTIME,
                     c));
             assertTrue(String.valueOf(e.getMessage())
-                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
+                            .contains("Cannot cast a collection of size"),
                     e.getMessage());
             // control: a satisfied promise still flows
             var ok = Lean.run(StorelessRuntime.with("", Databases.PLATFORM),
@@ -151,7 +151,7 @@ class MultiplicityStrictnessTest {
                     "{| #TDS\n  x:Integer\n  1\n  2\n#"
                             + "->map(r|$r.x)->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e2.getMessage())
-                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
+                            .contains("Cannot cast a collection of size"),
                     e2.getMessage());
         }
     }
@@ -169,7 +169,7 @@ class MultiplicityStrictnessTest {
                             // the host judge's own shaping of an empty [1..*] result (testexec.SideShapes, the test road's
                             // registered JUDGE raise, D2), not a product raise: worded at planning by the product's style,
                             // lite's own sentence (C5's step E, 2026-11-17; legend-pure's is the edge style's)
-                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": [1..*]"),
+                            .contains("to multiplicity [1..*]"),
                     e.getMessage());
             // control: satisfied [1..*] still yields the collection
             var ok = Lean.run(StorelessRuntime.with("", Databases.PLATFORM),

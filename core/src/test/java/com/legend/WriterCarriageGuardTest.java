@@ -144,6 +144,16 @@ class WriterCarriageGuardTest {
                     Map.entry("contains(\"\")", 1),
                     Map.entry("endsWith(\"\")", 1),
                     Map.entry("startsWith(\"\")", 1))),
+            // added 2026-11-21 (stage B's BE, the one catalog, the user's ruling that day: upstream's sentence wherever
+            // upstream has one): a planned raise's sentence prints each operand as legend-pure's sentence prints it,
+            // the operations legend-pure's own printing performs and the edge's PureMessages performed until then (its
+            // helpers deleted) -- a Float's plain digits (BigDecimal.valueOf, exact: a PLAIN slot), a Decimal read as
+            // the Float a FLOAT slot prints (doubleValue), a date's own precision from a minute on (atLeast: legend-
+            // pure's +0000). It decides nothing: the kind's form names the slot
+            Map.entry("RaiseWords.java", Map.ofEntries(
+                    Map.entry("BigDecimal.valueOf", 1),
+                    Map.entry("doubleValue", 1),
+                    Map.entry("atLeast", 1))),
             Map.entry("ArrowWriter.java", Map.ofEntries(
                     // Arrow's representation of a value held whole (track A, 2026-10-29): a decimal's unscaled digits
                     // AT THE COLUMN'S SCALE (setScale adds zeros to a cell written at fewer places; a cell with more

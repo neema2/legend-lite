@@ -37,9 +37,10 @@ public final class EdgeServer {
     /** The run of an upstream execute: the product's door, planned in the edge's dialects, its file: sources fenced
      *  to {@code sources} as the server's own runner fences them. */
     public static Shipped runner(@com.legend.base.Nullable String sources) {
-        // planned in a fresh recorder of the style, a raise answered in legend-pure's words (K10, 2026-11-18)
-        return (query, runtime, output) -> RaisedWords.run(PureText.PURE_V1,
-                style -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources, style, output));
+        // planned in the edge's style; a raise says the one catalog's sentence, legend-pure's, as the product's run
+        // words it (stage B's BE, 2026-11-21: until then RaisedWords reworded it here)
+        return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources,
+                PureText.PURE_V1, output);
     }
 
     /** The shipped route's runner, by its type: what an edge golden net that claims to record pure/v1 must run

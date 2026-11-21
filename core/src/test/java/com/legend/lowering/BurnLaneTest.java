@@ -165,7 +165,7 @@ class BurnLaneTest {
                     "{|%2014-01-01->cast(@Integer)}"}) {
                 var ex = assertThrows(Exception.class,
                         () -> Lean.run(StorelessRuntime.with("", Databases.PLATFORM), q, StorelessRuntime.RUNTIME, conn));
-                assertTrue(ex.getMessage().contains(com.legend.error.ErrorKind.CAST_IMPOSSIBLE.sentence()),
+                assertTrue(ex.getMessage().contains("Cast exception: "),
                         q + " must raise pure's Cast exception, got: "
                                 + ex.getMessage());
             }

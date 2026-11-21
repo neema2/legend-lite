@@ -1180,7 +1180,8 @@ class ARaiseIsWorded(unittest.TestCase):
 
         with self.assertRaises(RuntimeError) as raised:
             Result(Failing(), 'SELECT 1 / 0').fetchall()
-        self.assertEqual(str(raised.exception), 'division by zero')
+        # legend-pure's words of an Integer divided by zero (the one catalog, stage B's BE, 2026-11-21)
+        self.assertEqual(str(raised.exception), 'Division by zero')
 
 if __name__ == '__main__':
     unittest.main()

@@ -29,8 +29,10 @@ class RaisedKindTest {
     /** A statement's site table: site 1 a division by zero, site 2 a fraction kept, placed. */
     private static final List<ExecutionPlan.Site> SITES = List.of(
             new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null, List.of()),
-            new ExecutionPlan.Site(2, RaiseKind.FRACTION_NOT_KEPT, "the DateTime parameter 't'", List.of()),
-            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, List.of()));
+            new ExecutionPlan.Site(2, RaiseKind.FRACTION_NOT_KEPT, "the DateTime parameter 't'",
+                    List.of(new com.legend.executionplan.Operand.Text("the DateTime parameter 't'"))),
+            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, List.of(
+                    new com.legend.executionplan.Operand.Int(5), com.legend.executionplan.Operand.Computed.IT)));
 
     @Test
     void aSitesTokenIsItsKindAndItsPlannedWords() {
@@ -41,9 +43,10 @@ class RaisedKindTest {
         assertEquals(7, r.column());
         var error = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "3"), SITES));
         assertEquals(ErrorKind.INDEX_OUT_OF_BOUNDS, error.kind());
-        // lite's message, the site's planned sentence (K10a/K10b, 2026-11-17: legend-pure's words of a site are the
-        // edge's records, looked up by its hearing -- the edge's test, AssertErrorNativeTest -- never exec's)
-        assertEquals("index out of bounds", error.getMessage(), "a site says its planned product message");
+        // the site's sentence, the one catalog's over its operands (stage B's BE, 2026-11-21: legend-pure's words,
+        // the database's value never read back)
+        assertEquals("The system is trying to get an element at offset 5 where the collection is of size <computed>",
+                error.getMessage(), "a site says its kind's sentence over its operands");
         assertEquals(ErrorKind.DIVIDE_BY_ZERO, RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + RaiseKind.TOKEN + "1"
                 + RaisedErrors.SENTINEL, new RuntimeException(), SITES).kind());
     }
@@ -54,7 +57,8 @@ class RaisedKindTest {
     void aSitesWhereIsWorded_andAUsersTextIsNeverAKind() {
         var placed = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "2"), SITES));
         assertEquals(ErrorKind.FRACTION_NOT_KEPT, placed.kind());
-        assertEquals("more fraction digits than this database keeps: the DateTime parameter 't'", placed.getMessage());
+        assertEquals("the DateTime parameter 't'", placed.getMessage(),
+                "lite's own sentence, its operand (BE-P makes it facts)");
         var users = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("DIVIDE_BY_ZERO"), SITES));
         assertEquals(null, users.kind());
         assertEquals("DIVIDE_BY_ZERO", users.getMessage());

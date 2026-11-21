@@ -3,9 +3,9 @@
 """A PRODUCT RAISE, WORDED (#104's M2(b), 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16): a statement lite
 planned raises a bare token ``LG#<n>`` inside an envelope (the dialect's raise), and Python reads it as Java's runner does
 (exec.RaisedErrors): site ``n`` of the statement it sent, from the sites the plans read here declared for that text
-(``sites`` of each statement, PlanJson v59) -- its kind and its where, worded HERE in lite's words (``RAISE_SENTENCES``,
-generated from error.ErrorKind: the plan carries a site's facts and no words since stage B's B1, 2026-11-20; legend-pure's
-words are the edge's to say). The envelope's marks are GENERATED from legend-lite (``_type_facts.py``), the
+(``sites`` of each statement, PlanJson v59) -- its kind and its operands, worded HERE in the one catalog's words
+(``RAISE_FORMS``, generated from error.ErrorKind: the plan carries a site's facts and no words since stage B's B1,
+2026-11-20; the catalog's words are upstream's wherever upstream has one, stage B's BE, 2026-11-21). The envelope's marks are GENERATED from legend-lite (``_type_facts.py``), the
 same as the tab's (engine-client/src/raised.ts); each answer's sites are declared here as it is read
 (:func:`declare_sites`) -- one source, never copied; a token no answer declared for the statement is refused by name."""
 
@@ -16,7 +16,7 @@ import json
 import re
 from typing import Any
 
-from ._type_facts import RAISE_POSITION_SEP, RAISE_QUOTE_MARK, RAISE_SENTENCES, RAISE_SENTINEL, RAISE_TOKEN
+from ._type_facts import RAISE_FORMS, RAISE_POSITION_SEP, RAISE_QUOTE_MARK, RAISE_SENTINEL, RAISE_TOKEN
 
 _DECLARED: dict[str, list[dict[str, Any]]] = {}
 
@@ -93,7 +93,7 @@ def raised_words(message: str, statement: str) -> str | None:
         declared = ', '.join(f"{RAISE_TOKEN}{s['n']} {s['kind']}" for s in sites) or 'none'
         raise ValueError(f'the database raised {inner}, which the statement does not declare (it declares {declared})')
     site = sites[n - 1]
-    return sentence(site['kind'], site.get('where'))
+    return sentence(site)
 
 
 def raised_site(message: str) -> int | None:
@@ -128,13 +128,89 @@ def engine_words(failure: BaseException, site_words: object) -> str | None:
     raise ValueError(f'the database raised {RAISE_TOKEN}{n}, which the answer words no site for')
 
 
-def sentence(kind: str, where: str | None) -> str:
-    """Lite's sentence of a site of ``kind`` placed by ``where``: its kind's, then ': ' and the where, as Java's runner
-    words it (ExecutionPlan.Site#sentence). A kind this host has no sentence for is refused by name."""
-    words = RAISE_SENTENCES.get(kind)
-    if words is None:
+_COMPUTED = '<computed>'
+_PLACEHOLDER = re.compile(r'%(\d+)\$s')
+_DATE_FROM_MINUTE = re.compile(r'T\d{2}:\d{2}')
+_NUMBER = re.compile(r'^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$')
+
+
+def sentence(site: dict[str, Any]) -> str:
+    """A site's sentence, the one catalog's (error.ErrorKind's forms, generated: ``RAISE_FORMS``): the first form that
+    takes the operands, each operand printed as the form's slot says, a value the database computed ``<computed>`` --
+    what Java's runner says (result.RaiseWords). A kind or a count of operands no form says is refused by name."""
+    kind = site['kind']
+    forms = RAISE_FORMS.get(kind)
+    if forms is None:
         raise ValueError(f'a raise of kind {kind}, which this host has no sentence for')
-    return words if where is None else f'{words}: {where}'
+    ops = site.get('operands') or []
+
+    def takes(form: dict[str, Any]) -> bool:
+        if form['arity'] >= 0 and form['arity'] != len(ops):
+            return False
+        slot = form['emptySlot']
+        return slot < 0 or (slot < len(ops) and ops[slot].get('string') == '')
+
+    form = next((f for f in forms if takes(f)), None)
+    if form is None:
+        raise ValueError(f'no sentence of {kind} says {len(ops)} values')
+    slots = form['slots']
+    values = [_print(o, slots[i] if i < len(slots) else 'TEXT') for i, o in enumerate(ops)]
+    if form['shape'] == 'JOINED':
+        return ''.join(values)
+    return _PLACEHOLDER.sub(lambda m: values[int(m.group(1)) - 1], form['template'])
+
+
+def _print(operand: dict[str, Any], slot: str) -> str:
+    key, value = next(iter(operand.items()))
+    if key == 'computed':
+        return _COMPUTED
+    if slot == 'DATE' and key == 'string':
+        return f'{value}+0000' if _DATE_FROM_MINUTE.search(value) else value
+    if slot == 'FLOAT' and key in ('float', 'integer', 'decimal'):
+        return _carried(float(value))
+    if slot == 'PLAIN' and key == 'float':
+        return _plain(str(value), True)
+    return _text(key, value)
+
+
+def _text(key: str, value: Any) -> str:
+    """As the program wrote it: a text itself, an Integer's digits, a Float as Pure prints one, a Decimal's plain
+    digits, a Boolean's word, a date's ISO text."""
+    if key == 'float':
+        return _carried(float(value))
+    if key == 'decimal':
+        return _plain(str(value), True)
+    if key == 'boolean':
+        return 'true' if value else 'false'
+    return str(value)
+
+
+def _carried(d: float) -> str:
+    """A Float as Pure prints one (result.CellText.carriedFloat): its shortest digits laid out with a point always,
+    never an exponent."""
+    p = _plain(repr(d), False)
+    return p if '.' in p else p + '.0'
+
+
+def _plain(s: str, keep: bool) -> str:
+    """``s``, a number's digits possibly with an exponent, laid out plainly: every digit kept where ``keep``
+    (BigDecimal.toPlainString), trailing fraction zeros dropped otherwise."""
+    m = _NUMBER.match(s)
+    if m is None:
+        return s
+    sign, whole, frac, exp = m.group(1), m.group(2), m.group(3) or '', int(m.group(4) or '0')
+    digits = whole + frac
+    point = len(whole) + exp
+    if point <= 0:
+        digits = '0' * (1 - point) + digits
+        point = 1
+    elif point > len(digits):
+        digits = digits + '0' * (point - len(digits))
+    head = digits[:point].lstrip('0') or '0'
+    tail = digits[point:]
+    if not keep:
+        tail = tail.rstrip('0')
+    return sign + head + ('.' + tail if tail else '')
 
 
 def raised_kind(message: str, statement: str) -> str | None:

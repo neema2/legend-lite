@@ -26,13 +26,20 @@ class RaiseEnvelopeConformanceTest {
         Json.Obj fixture = (Json.Obj) Json.parse(Files.readString(Runfile.property("raise.fixture"),
                 StandardCharsets.UTF_8));
         // the statement's site table (PlanJson v59's sites: facts, no words; stage B's B1, 2026-11-20): each reader
-        // words a site itself, from its kind's sentence and its where; the product's words read no operand
+        // words a site itself, the one catalog's sentence of its kind over its operands (stage B's BE, 2026-11-21)
         List<com.legend.executionplan.ExecutionPlan.Site> sites = new java.util.ArrayList<>();
         for (Json.Node n : fixture.getArr("sites").items()) {
             Json.Obj so = (Json.Obj) n;
             assertTrue(so.getOr("message", null) == null, "a v59 site carries no words: site " + so.getInt("n"));
+            List<com.legend.executionplan.Operand> operands = new java.util.ArrayList<>();
+            Json.Node os = so.getOr("operands", null);
+            if (os != null) {
+                for (Json.Node on : ((Json.Arr) os).items()) {
+                    operands.add(operand((Json.Obj) on));
+                }
+            }
             sites.add(new com.legend.executionplan.ExecutionPlan.Site(so.getInt("n"),
-                    com.legend.sql.RaiseKind.valueOf(so.getString("kind")), so.getStringOr("where", null), List.of()));
+                    com.legend.sql.RaiseKind.valueOf(so.getString("kind")), so.getStringOr("where", null), operands));
         }
         List<Json.Node> cases = fixture.getArr("cases").items();
         assertTrue(cases.size() > 5, "the fixture holds too few cases to prove anything: " + cases.size());
@@ -55,5 +62,20 @@ class RaiseEnvelopeConformanceTest {
             assertEquals(c.getStringOr("kind", null), kind, name + ": its kind");
             assertEquals(c.getStringOr("where", null), where, name + ": its where");
         }
+    }
+
+    /** A fixture site's operand, one key and its value (PlanJson v59's: the fixture's are texts, Integers and
+     *  computed values). */
+    private static com.legend.executionplan.Operand operand(Json.Obj o) {
+        if (o.getOr("string", null) != null) {
+            return new com.legend.executionplan.Operand.Text(o.getString("string"));
+        }
+        if (o.getOr("integer", null) != null) {
+            return new com.legend.executionplan.Operand.Int(o.getLong("integer"));
+        }
+        if (o.getOr("computed", null) != null) {
+            return com.legend.executionplan.Operand.Computed.IT;
+        }
+        throw new IllegalArgumentException("a fixture operand this test does not read: " + o);
     }
 }

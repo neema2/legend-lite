@@ -1,6 +1,6 @@
 {
   "_comment": "A raise's envelope, one set of cases Java's runner (exec.RaisedErrors), the tab's (engine-client/src/raised.ts) and Python's (legend_lite/_raised.py) each read and agree on: the words each says for 'message' (#104's M2(b), the narrow check's item 7, 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16: a raise is a bare token, the kind mark U+001C and LG#<n> (the mark so that a user's fail text is never read as a site: the D part 1 audit's S4), read through the site table its statement declares). A case marked 'refused' names a token the statement does not declare: each reader refuses it by name. A message with no envelope is the database's own failure: kind DATABASE_ERROR, its words the database's verbatim (phase D's Phase 2, item 4).",
-  "_aboutSites": "the site table of the one statement these cases raise from (PlanJson v59's 'sites' of a statement): each n, its kind, its where and its operands, FACTS, no words (stage B's B1, 2026-11-20); each reader words a site itself, lite's sentence its kind's (error.ErrorKind, generated for the hosts: lite-raise.ts and _type_facts.py's RAISE_SENTENCES) and its where -- the 'words' each case states",
+  "_aboutSites": "the site table of the one statement these cases raise from (PlanJson v59's 'sites' of a statement): each n, its kind, its where and its operands, FACTS, no words (stage B's B1, 2026-11-20); each reader words a site itself, the one catalog's sentence its kind's (upstream's words wherever upstream has them, stage B's BE, 2026-11-21) (error.ErrorKind, generated for the hosts: lite-raise.ts and _type_facts.py's RAISE_SENTENCES) and its where -- the 'words' each case states",
   "statement": "SELECT 1",
   "sites": [
     {
@@ -16,12 +16,22 @@
     {
       "n": 2,
       "kind": "SIZE_NOT_MULTIPLICITY",
-      "where": "[1]"
+      "where": "[1]",
+      "operands": [
+        {
+          "string": "[1]"
+        }
+      ]
     },
     {
       "n": 3,
       "kind": "FRACTION_NOT_KEPT",
-      "where": "ts keeps 6: of 9"
+      "where": "ts keeps 6: of 9",
+      "operands": [
+        {
+          "string": "ts keeps 6: of 9"
+        }
+      ]
     },
     {
       "n": 4,
@@ -47,33 +57,43 @@
     {
       "name": "a site's raise is its message",
       "message": "Invalid Input Error: \u001f\u001cLG#1\u001f",
-      "words": "division by zero",
+      "words": "Cannot divide 5 by zero",
       "kind": "DIVIDE_BY_ZERO"
     },
     {
       "name": "a site's raise with its where",
       "message": "x \u001f\u001cLG#2\u001f y",
-      "words": "collection size does not match the multiplicity: [1]",
+      "words": "Cannot cast a collection of size 0 to multiplicity [1]",
       "kind": "SIZE_NOT_MULTIPLICITY",
-      "where": "[1]"
+      "where": "[1]",
+      "operands": [
+        {
+          "string": "[1]"
+        }
+      ]
     },
     {
       "name": "a where that holds a colon and a space",
       "message": "\u001f\u001cLG#3\u001f",
-      "words": "more fraction digits than this database keeps: ts keeps 6: of 9",
+      "words": "ts keeps 6: of 9",
       "kind": "FRACTION_NOT_KEPT",
-      "where": "ts keeps 6: of 9"
+      "where": "ts keeps 6: of 9",
+      "operands": [
+        {
+          "string": "ts keeps 6: of 9"
+        }
+      ]
     },
     {
       "name": "a source position before its separator is dropped",
       "message": "\u001f3:7\u001e\u001cLG#1\u001f",
-      "words": "division by zero",
+      "words": "Cannot divide 5 by zero",
       "kind": "DIVIDE_BY_ZERO"
     },
     {
       "name": "a site's message is said (v58: legend-pure's words are the edge's, never the plan's)",
       "message": "\u001f\u001cLG#4\u001f",
-      "words": "index out of bounds",
+      "words": "The system is trying to get an element at offset 3 where the collection is of size <computed>",
       "kind": "INDEX_OUT_OF_BOUNDS"
     },
     {
@@ -89,13 +109,13 @@
     {
       "name": "a raise fired at fetch (duckdb's second line)",
       "message": "Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result\nError: Invalid Input Error: \u001f\u001cLG#1\u001f",
-      "words": "division by zero",
+      "words": "Cannot divide 5 by zero",
       "kind": "DIVIDE_BY_ZERO"
     },
     {
       "name": "the first envelope where the statement's text repeats it (H2)",
       "message": "\u001f\u001cLG#4\u001f; SQL statement: SELECT error(chr(31) || '\u001cLG#4' || chr(31)) \u001f\u001cLG#1\u001f",
-      "words": "index out of bounds",
+      "words": "The system is trying to get an element at offset 3 where the collection is of size <computed>",
       "kind": "INDEX_OUT_OF_BOUNDS"
     },
     {

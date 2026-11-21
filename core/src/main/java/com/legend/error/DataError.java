@@ -55,7 +55,7 @@ public final class DataError extends RuntimeException implements LegendError {
      *  digits a database keeps): its message the kind's sentence, then the where (the D part 1 audit's S4,
      *  2026-11-15: the user's "its kind and where it happened"). */
     public DataError(ErrorKind kind, @com.legend.base.Nullable String where, Throwable cause) {
-        this(recordOf(kind, where, cause), cause);
+        this(recordOf(kind, where, cause), where, cause);
     }
 
     /** {@code kind} at {@code where} as data. A file too large is refused here by name: its record carries its size's
@@ -77,10 +77,15 @@ public final class DataError extends RuntimeException implements LegendError {
     /** The error {@code record} states, its code a run's {@link ErrorKind} and its first value its place: its message
      *  the record's sentence (stage B's BE, 2026-11-21; a planned failure rebuilt from its record). */
     public DataError(ErrorRecord record) {
-        this(record, null);
+        this(record, record.values().isEmpty() ? null : record.values().get(0), null);
     }
 
-    private DataError(ErrorRecord record, @com.legend.base.Nullable Throwable cause) {
+    /** A raise of a planned site (stage B's BE, 2026-11-21, the one catalog): its record the site's kind and its
+     *  operands as the kind's sentence prints them ({@code result.RaiseWords}), its message the record's sentence --
+     *  the one catalog's, upstream's words -- and {@code where} the site's place, a fact lite's API answers (PR #118's
+     *  fix round, N3), never in the sentence. */
+    public DataError(ErrorRecord record, @com.legend.base.Nullable String where,
+            @com.legend.base.Nullable Throwable cause) {
         super(record.sentence(), cause);
         if (!(record.code() instanceof ErrorKind k)) {
             throw new IllegalArgumentException("a data error's record is a run's error: " + record.code());
@@ -88,7 +93,7 @@ public final class DataError extends RuntimeException implements LegendError {
         this.kind = k;
         this.sqlState = null;
         this.databaseMessage = null;
-        this.where = record.values().isEmpty() ? null : record.values().get(0);
+        this.where = where;
         this.record = record;
     }
 
@@ -96,7 +101,7 @@ public final class DataError extends RuntimeException implements LegendError {
      *  bytes and in characters, and the limit in megabytes, so an audience words the size as it does (stage B's BE,
      *  2026-11-21: until then its facts rode {@code base.DataSize.TooLarge}, its cause, alone). */
     public static DataError fileTooLarge(String path, long bytes, long characters, int limitMegabytes, Throwable cause) {
-        return new DataError(fileTooLargeRecord(path, bytes, characters, limitMegabytes), cause);
+        return new DataError(fileTooLargeRecord(path, bytes, characters, limitMegabytes), path, cause);
     }
 
     @Override
