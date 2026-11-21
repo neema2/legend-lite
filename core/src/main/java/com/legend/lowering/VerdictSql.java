@@ -128,12 +128,11 @@ public final class VerdictSql {
 
     /**
      * How a side is WRITTEN in the failure message, where its elements are of one known primitive {@code kind}
-     * (2026-11-04, the assert bar): each element as upstream's {@code toRepresentation} writes it (a String quoted, a
-     * date with its {@code %}, a Decimal with its {@code D}: {@link Repr}), never the canon the comparison reads.
-     * {@code sorted}: assertSameElements' form (essential/tests/assertSameElements.pure: {@code $expected->sort()->map(
-     * e | $e->toRepresentation())->joinStrings('[', ', ', ']')}) -- the elements in Pure's sort order, always in
-     * brackets; otherwise assertEquals' (assertEquals.pure: {@code %r} of each where both sides hold one element, else
-     * each side's elements in brackets, in their order).
+     * (2026-11-04, the assert bar): each element by lite's own rules ({@link LiteText}: a String quoted JSON-style,
+     * every other value its product text), never the canon the comparison reads; each side's elements in its own order
+     * (the orchestrator's ruling, 2026-11-17). {@code sorted}: assertSameElements' form, read by the frame (item 3's
+     * S0, 2026-11-21: legend-pure's sorted {@code toRepresentation} list went with the lite flag). {@code styled} is
+     * unread since then (it goes with the message SQL).
      */
     public record Message(Type kind, boolean sorted, @com.legend.base.Nullable String literal, boolean canon,
             @com.legend.base.Nullable String kindText, @com.legend.base.Nullable String canonClass, Styled styled) {
@@ -201,7 +200,8 @@ public final class VerdictSql {
     private static final String GRID_E = "__we";
     private static final String GRID_A = "__wa";
     private static final String V = "__v";
-    /** A row's element as the failure message writes it, and the value the sorted form orders by ({@link Message}). */
+    /** A row's element as the failure message writes it ({@link Message}); and {@code __o}, the value legend-pure's
+     *  sorted form ordered by, unread since item 3's S0 (2026-11-21; its projection goes with the message SQL, S4). */
     private static final String W = "__w";
     private static final String O = "__o";
 
@@ -1354,8 +1354,8 @@ public final class VerdictSql {
     }
 
     /** {@code message}: the side's elements also WRITTEN as the failure message writes them ({@link Message}), two
-     *  more columns of the facts row -- the one element's text, and the elements' bracketed list in the message's
-     *  order (Pure's sort for the sorted form: the rows' values ordered, else the side's own order). */
+     *  more columns of the facts row -- the one element's text, and the elements' bracketed list in the side's own
+     *  order. */
     private static SqlQuery sideFacts(String rowsCte, boolean many, boolean byCanonText,
             @com.legend.base.Nullable Message message) {
         OutputCol nOut = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
@@ -2319,8 +2319,8 @@ public final class VerdictSql {
                 : LiteText.of(m.kind(), value);
     }
 
-    /** A row's element as the failure message writes it ({@link Message}), and the value the sorted form orders by:
-     *  two more columns of a side's rows, where the side is written. */
+    /** A row's element as the failure message writes it ({@link Message}), and {@code __o} (unread since item 3's S0;
+     *  goes at S4): two more columns of a side's rows, where the side is written. */
     private static void written(Side s, SqlExpr valueRef, SqlExpr canon, @com.legend.base.Nullable OutputCol valueOut,
             List<SqlSelect.Projection> ps, List<OutputCol> outs) {
         if (s.message() == null) {

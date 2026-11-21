@@ -1322,9 +1322,7 @@ final class ArchitectureTest {
             // moving down only: approved by the user 2026-11-19 ~20:45 ("Approved to move guards down"))
             "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
             // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
-            // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
-            // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
-            // the frame's shape it reads, the canons
+            // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's String %r
             // (VerdictSql#represented gone 2026-11-21, item 3's S0, a shrink: the database judge's legend-pure message
             // default went, and the edge's last caller asks its own facet, EdgePureOnlyTexts)
             "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",

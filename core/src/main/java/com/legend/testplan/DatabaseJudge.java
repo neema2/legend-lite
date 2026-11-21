@@ -227,9 +227,8 @@ public final class DatabaseJudge {
         if (why != null) {
             return unjudged(name, why);
         }
-        // each side WRITTEN in the failure message as upstream writes it (VerdictSql.Message: toRepresentation, Pure's
-        // sort for assertSameElements' cell pool), where its elements are of one known primitive kind (2026-11-04, the
-        // assert bar: the message read the canons, Strings unquoted and assertSameElements in canon-text order)
+        // each side WRITTEN in the failure message by lite's own rules (VerdictSql.Message), where its elements are of
+        // one known primitive kind (2026-11-04, the assert bar: the message read the canons, Strings unquoted)
         com.legend.lowering.VerdictSql.Message me = written(re, ie, cellPool, java.util.Objects.requireNonNull(we).plan(), eSpec, env);
         com.legend.lowering.VerdictSql.Message ma = written(ra, ia, cellPool, java.util.Objects.requireNonNull(wa).plan(), aSpec, env);
         if (me != null && ma != null && !me.canon() && !ma.canon()) {
@@ -530,13 +529,13 @@ public final class DatabaseJudge {
         var sw = java.util.Objects.requireNonNull(side.side());
         // the elements written as lite's sentence writes them where the side's canon names one primitive kind
         com.legend.lowering.CanonRider r = side.rider();
-        com.legend.lowering.VerdictSql.Message listed = r == null || r.declined() != null || r.tdsWrapped()
+        com.legend.lowering.VerdictSql.Message written = r == null || r.declined() != null || r.tdsWrapped()
                 || r.kinds().isEmpty() ? null : com.legend.lowering.VerdictSql.Message.of(r.kinds().get(0), false,
                         env.plan().styled());
         com.legend.sql.SqlQuery vq = sw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.emptyOfGraph(sw.plan(), wantEmpty)
-                : listed != null ? com.legend.lowering.VerdictSql.empty(com.legend.lowering.VerdictSql.writtenRows(
-                        sw.plan(), "__canon0", java.util.Objects.requireNonNull(r).many(), listed), wantEmpty, true,
+                : written != null ? com.legend.lowering.VerdictSql.empty(com.legend.lowering.VerdictSql.writtenRows(
+                        sw.plan(), "__canon0", java.util.Objects.requireNonNull(r).many(), written), wantEmpty, true,
                         words(env))
                 : com.legend.lowering.VerdictSql.empty(side.countRows(), wantEmpty, false, words(env));
         return runVerdict(name, true, vq, side.on(env));
@@ -567,8 +566,8 @@ public final class DatabaseJudge {
         if (literal && (cr.literalIndex() < 0 || vr.literalIndex() < 0)) {
             return unjudged(name, "no literal channel");
         }
-        // both written as upstream's message writes them where each names one primitive kind (2026-11-04, the assert
-        // bar: the canons left a String unquoted)
+        // both written by lite's own rules where each names one primitive kind (2026-11-04, the assert bar: the canons
+        // left a String unquoted)
         com.legend.lowering.VerdictSql.Message cm = literal ? null
                 : written(cr, 0, false, java.util.Objects.requireNonNull(c.side()).plan(), coll, env);
         com.legend.lowering.VerdictSql.Message vm = literal ? null
