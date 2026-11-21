@@ -135,7 +135,10 @@ Measured against §1's rule, at the commit carrying this section.
 5. **Other stages'**: the edge's prose in test plans (`Appeal.contract`, `Appeal.Unlisted.message`,
    `EngineTextJudgment.decline`) and the edge appeal path's planned mapping and not-implemented errors (the audit 2's
    S4), both B3; the mapping errors upstream raises at run (compat-mapping-errors-followup-2026-11-21.md).
-6. **Known small divergences**, each a SEMANTICS_REGISTER row to rule (posted at the BE PR; the BE audit 5's M4): the TS host loses an Integer operand's digits above 2^53 (predates BE); a Decimal
+6. **Known small divergences**, each a SEMANTICS_REGISTER row to rule (posted at the BE PR; the BE audit 5's M4):
+   S394 (a Decimal second past an int), S395 (a duplicate at legend-engine's door), S396 (the TS host's large
+   Integers), all PROPOSED; the fourth, one table's name under two databases, is now exact (the model tells one
+   table from two, as upstream counts table objects). The full list: the TS host loses an Integer operand's digits above 2^53 (predates BE); a Decimal
    second whose `intValue` wraps into [0, 60) is valid upstream, refused by lite; one table name in two databases says
    inconsistent databases where upstream, for two declared tables, says no main table; where legend-engine words a
    compile error differently, its door prints legend-pure's (the ruling); the product plan's raise kinds changed within

@@ -1311,7 +1311,8 @@ public final class MappingNormalizer {
             return synthJsonSourceMapping(md, rcm, model);
         }
         if (rcm.mainTable() == null) {
-            LegacyMappingDefinition.TableReference inferred = resolvedMainTable(rcm);
+            // the model told, so one table's name under two databases is told one table from two (exact, as upstream)
+            LegacyMappingDefinition.TableReference inferred = inferMainTable(rcm, model);
             if (inferred == null) {
                 throw new NotImplementedException(
                         "Relational mapping without ~mainTable, sourceUrl, or an"
@@ -1394,6 +1395,16 @@ public final class MappingNormalizer {
      */
     static LegacyMappingDefinition.@com.legend.base.Nullable TableReference inferMainTable(
             ClassMapping.Relational rcm) {
+        return inferMainTable(rcm, null);
+    }
+
+    /** {@link #inferMainTable(ClassMapping.Relational)}, told by {@code model} (where given) whether one table's name
+     *  under two databases is ONE table, which a database includes from another (upstream's inconsistent databases),
+     *  or two tables, each database declaring its own (upstream's two tables: no main table). legend-pure's
+     *  RelationalInstanceSetImplementationProcessor collects table OBJECTS, then databases (the BE audit 5's M4(a),
+     *  2026-11-21: lite, comparing names alone, called both inconsistent databases). */
+    static LegacyMappingDefinition.@com.legend.base.Nullable TableReference inferMainTable(
+            ClassMapping.Relational rcm, @com.legend.base.Nullable ModelBuilder model) {
         List<LegacyMappingDefinition.TableReference> refs = new ArrayList<>();
         for (PropertyMapping pm : rcm.propertyMappings()) {
             collectMainTables(pm, refs);
@@ -1404,9 +1415,9 @@ public final class MappingNormalizer {
         // explicit one, so only NON-NULL databases enter the check.
         // the TABLES first, then the databases, as legend-pure's RelationalInstanceSetImplementationProcessor and
         // legend-engine's RelationalCompilerExtension decide (the BE audit 3's M5, 2026-11-21): two tables name no main
-        // table; one table's name under two databases is upstream's inconsistent definitions -- exact for a table one
-        // database includes from another, where upstream's table is the one object; two databases each declaring a
-        // table of that name upstream calls two tables, which the normalizer, reading no database, does not tell apart
+        // table; one table's name under two databases is upstream's inconsistent definitions where it is one table, one
+        // database including it from another, and two tables where each database declares its own (told by the model,
+        // below; a probe without one says inconsistent databases)
         Set<String> names = new LinkedHashSet<>();
         refs.forEach(r -> names.add(canonicalTable(r.table())));
         if (names.size() > 1) {
@@ -1420,6 +1431,21 @@ public final class MappingNormalizer {
                 dbs.add(r.database());
             }
         });
+        if (dbs.size() > 1 && model != null) {
+            // the tables the references reach, by identity: an included table is its database's one object
+            Set<DatabaseDefinition.TableDefinition> tables =
+                    java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            for (LegacyMappingDefinition.TableReference r : refs) {
+                if (r.database() != null) {
+                    model.findTableDefinition(r.database(), r.table()).ifPresent(tables::add);
+                }
+            }
+            if (tables.size() > 1) {
+                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        com.legend.error.CompileKind.MAIN_TABLE_UNNAMED,
+                        java.util.List.of(com.legend.protocol.Protocol.splitFqn(rcm.className())[1], names.toString()));
+            }
+        }
         if (dbs.size() > 1) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     com.legend.error.CompileKind.MAIN_TABLE_DATABASES_INCONSISTENT,

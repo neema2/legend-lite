@@ -4131,6 +4131,29 @@ class MappingNormalizerTest {
                 + " using the ~mainTable directive."), ex.getMessage());
     }
 
+    /** One table's name under two databases that each declare it is TWO tables, so no main table, as legend-pure's
+     *  processor counts table objects; one table a database includes from another is ONE table under two databases,
+     *  upstream's inconsistent definitions (the BE audit 5's M4(a), 2026-11-21: lite said the second for both). */
+    @Test
+    void oneTablesNameUnderTwoDatabases_isTwoTablesOrOne_asUpstreamCountsTables() {
+        String cls = "Class m::P { a: String[1]; b: String[1]; } ";
+        String map = "\n###Mapping\nMapping s::M ( m::P : Relational { a: [s::DB1]T.A, b: [s::DB2]T.B } )";
+        ParsedModel two = com.legend.testing.Own.model(cls + "\n###Relational\nDatabase s::DB1 ( Table T (A VARCHAR(10),"
+                + " B VARCHAR(10)) ) Database s::DB2 ( Table T (A VARCHAR(10), B VARCHAR(10)) ) " + map);
+        ParsedModel one = com.legend.testing.Own.model(cls + "\n###Relational\nDatabase s::DB1 ( Table T (A VARCHAR(10),"
+                + " B VARCHAR(10)) ) Database s::DB2 ( include s::DB1 ) " + map);
+        for (var c : List.of(java.util.Map.entry(two, "Please specify a main table using the ~mainTable directive."),
+                java.util.Map.entry(one, "Inconsistent database definitions for the mapping"))) {
+            var rcm = (com.legend.model.ClassMapping.Relational) firstMapping(c.getKey()).classMappings().get(0);
+            ModelBuilder model = ModelBuilder.from(new com.legend.model.ParsedModel(c.getKey().elements(),
+                    c.getKey().imports()));
+            com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.error.ModelException.class, () -> MappingNormalizer.inferMainTable(rcm, model));
+            assertTrue(ex.getMessage().contains("Can't find the main table for class 'P'. " + c.getValue()),
+                    ex.getMessage());
+        }
+    }
+
     /** Audit 2026-09-15 P0-1 (proven by probe): the validation verdict was
      * keyed by the ClassMapping OBJECT, and the multi-hop association
      * injection rebuilds the sets it injects into — so an invalid set with
