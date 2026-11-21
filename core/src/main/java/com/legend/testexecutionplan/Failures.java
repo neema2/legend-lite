@@ -19,6 +19,35 @@ public final class Failures {
     private Failures() {
     }
 
+    /** A TEST BODY'S PLANNING FAILURE, by where upstream raises it (the user's ruling of 2026-11-21, "D", the one
+     *  error model's §4): an error legend-pure raises when the expression RUNS is planned and raised at its turn --
+     *  a database's error found while planning ({@code DataError}), an assert lite decided at planning
+     *  ({@code AssertFailed}), a query's routing through its mapping ({@code MappingResolutionException}), and a
+     *  compile kind upstream raises at run ({@code CompileKind#atRun}: the window frames, a type the relation runtime
+     *  does not hold, {@code timeBucket}'s StrictDate unit, a row's cell offset).
+     *  Any other error -- a compile error upstream raises compiling, a refusal (lite cannot do it; legend-pure would
+     *  run it), a defect -- refuses the body at planning, as a query is refused: it is thrown, whether or not the run
+     *  would reach it. So a test plan holds run-time errors alone. */
+    public static Failure planned(RuntimeException e, String where) {
+        if (!atItsTurn(e)) {
+            throw e;
+        }
+        return of(e, where);
+    }
+
+    /** Whether {@code e} is an error upstream raises when the expression runs ({@link #planned}). A query's routing
+     *  through its mapping ({@code MappingResolutionException}, the store resolver's: a class the mapping does not
+     *  map, a runtime with no mapping for it) is one: legend-engine routes a query when its {@code execute} runs
+     *  ({@code meta::pure::router}), never when the test compiles. */
+    static boolean atItsTurn(RuntimeException e) {
+        if (e instanceof com.legend.error.DataError || e instanceof AssertFailed
+                || e instanceof com.legend.error.MappingResolutionException) {
+            return true;
+        }
+        com.legend.error.@Nullable ErrorRecord r = e instanceof com.legend.error.LegendError le ? le.record() : null;
+        return r != null && r.code() instanceof com.legend.error.CompileKind k && k.atRun();
+    }
+
     /** {@code e}, raised while {@code where} planned, as data: its class one of the closed list (any other fails the
      *  planning here, by name -- never recorded as a stand-in class); its record where it is a lite error with one
      *  (stage B's BE, 2026-11-21, the one error model: the record, and no message, rides the plan), else its message. */

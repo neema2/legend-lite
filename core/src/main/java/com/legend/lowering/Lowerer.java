@@ -3867,7 +3867,7 @@ public final class Lowerer {
                     // real relation runtime's verbatim rejection
                     throw new ModelException(
                             LegendCompileException.Phase.LOWER,
-                            "The type " + lc.fqn() + " is not supported yet!");
+                            com.legend.error.CompileKind.TYPE_NOT_SUPPORTED_YET, List.of(lc.fqn()));
                 }
                 yield p.info().multiplicity().isMany()
                         ? new SqlExpr.Cast(e,

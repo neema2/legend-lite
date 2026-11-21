@@ -139,7 +139,7 @@ final class CastPolicy {
             // extraction arm in scalar() fields them).
             throw new ModelException(
                     LegendCompileException.Phase.LOWER,
-                    "The type " + tc.fqn() + " is not supported yet!");
+                    com.legend.error.CompileKind.TYPE_NOT_SUPPORTED_YET, java.util.List.of(tc.fqn()));
         }
         // A Variant to STRING is its TEXT: fromJson('"Hello"')->to(@String)
         // is 'Hello' (variant/convert/to.pure testToString), never the JSON

@@ -287,7 +287,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             if (pendingLet != null) {
                 // the held let's error raised at this root's turn, after the roots before it reported (B1)
                 batch.open(AssertVerdicts.listenerName(bare));
-                batch.wall(com.legend.testexecutionplan.Failures.of(pendingLet, "DatabaseAsserts.plan: a let's model"
+                batch.wall(com.legend.testexecutionplan.Failures.planned(pendingLet, "DatabaseAsserts.plan: a let's model"
                         + " error"));
                 batch.close();
                 byStatement.put(i, List.of());
@@ -312,7 +312,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // the gate's own classification raised (a side's planning): the arm would raise the same at the
                 // assert's turn, after the roots before it reported -- a wall at the root's place
                 batch.open(AssertVerdicts.listenerName(bare));
-                batch.wall(com.legend.testexecutionplan.Failures.of(e, "DatabaseAsserts.plan: the gate's classification"));
+                batch.wall(com.legend.testexecutionplan.Failures.planned(e, "DatabaseAsserts.plan: the gate's classification"));
                 batch.close();
                 outcome = AssertVerdicts.DatabasePlan.WALLED;
             }

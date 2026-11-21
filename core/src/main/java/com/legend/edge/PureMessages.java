@@ -335,6 +335,11 @@ public final class PureMessages {
                     + o.get(2) + "' (" + o.get(3) + " of database '" + o.get(4) + "')";
             case MISSING_STORE_TABLE -> "The table '" + o.get(0) + "' can't be found in the database '" + o.get(1)
                     + "' (" + o.get(2) + ")";
+            // legend-engine's relation natives (AggregationShared, RelationNativeImplementation), byte for byte
+            case TYPE_NOT_SUPPORTED_YET -> "The type " + o.get(0) + " is not supported yet!";
+            // legend-engine's TimeBucketShared, byte for byte
+            case STRICT_DATE_BUCKET_UNIT -> "Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS,"
+                    + " MONTHS, WEEKS]";
         };
         return upstream;
     }

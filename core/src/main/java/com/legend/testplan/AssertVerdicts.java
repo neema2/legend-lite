@@ -89,13 +89,13 @@ public final class AssertVerdicts {
         try {
             v = adjudicate(bare, letPrefix, specs, env, rawHook);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-            batch.resolve(com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planDatabase: the arm decided at planning"));
+            batch.resolve(com.legend.testexecutionplan.Failures.planned(e, "AssertVerdicts.planDatabase: the arm decided at planning"));
             batch.close();
             return DatabasePlan.PLANNED;
         } catch (RuntimeException e) {
             // the wall's raise is counted at the root's turn (RootLoops), from the plan's data: planning counts no
             // verdict outcome (the slice 3 invariant audit, 2026-11-08)
-            batch.wall(com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planDatabase: the arm left through a wall"));
+            batch.wall(com.legend.testexecutionplan.Failures.planned(e, "AssertVerdicts.planDatabase: the arm left through a wall"));
             batch.close();
             return DatabasePlan.WALLED;
         }
@@ -811,7 +811,7 @@ public final class AssertVerdicts {
         } catch (RuntimeException e) {
             // the arm's classification raised under its family (none for a root arm): raised at the assert's turn,
             // the family counted first, as adjudicate counts it before the arm (N2)
-            return HostAssert.raising(listenerName(bare), name, com.legend.testexecutionplan.Failures.of(e, "AssertVerdicts.planHost: the arm's classification"));
+            return HostAssert.raising(listenerName(bare), name, com.legend.testexecutionplan.Failures.planned(e, "AssertVerdicts.planHost: the arm's classification"));
         }
         if (EngineTextGates.notAConstant(env, check)) {
             // a text side the arm would evaluate by a statement at the assert's turn: the walk's (the census names

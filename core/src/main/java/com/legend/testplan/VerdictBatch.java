@@ -394,7 +394,7 @@ public final class VerdictBatch {
             }
             Ahead a = planAhead(r.listenerName, r.message, java.util.Objects.requireNonNull(r.messageOn));
             if (a.refused() != null) {
-                messageRefusals.put(k, Failures.of(a.refused(), "VerdictBatch.plan: a caller's message the dialect cannot spell"));
+                messageRefusals.put(k, Failures.planned(a.refused(), "VerdictBatch.plan: a caller's message the dialect cannot spell"));
                 continue;
             }
             messages.put(k, sideOf(java.util.Objects.requireNonNull(a.plan())));
@@ -466,7 +466,7 @@ public final class VerdictBatch {
                 throw new IllegalStateException(u.name() + ": a member left out of its fused statement as unspelled"
                         + " whose own statement the dialect spells");
             }
-            refusals.put(u.ix(), Failures.of(refused, "VerdictBatch.plan: a member the dialect cannot spell"));
+            refusals.put(u.ix(), Failures.planned(refused, "VerdictBatch.plan: a member the dialect cannot spell"));
         }
         List<Group> placed = carried(batch, out, members, messages);
         return new Planned(placed, loop(batch, placed, members, refusals, messages, messageRefusals));

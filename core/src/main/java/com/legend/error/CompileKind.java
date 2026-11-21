@@ -26,15 +26,25 @@ public enum CompileKind implements ErrorCode {
     TYPE_ARGUMENTS_COUNT("%3$s takes another number of %1$s arguments than the %2$s given"),
     /** A type given another number of type variables than it declares: the number given, the type as declared. */
     TYPE_VARIABLES_COUNT("%2$s takes another number of type variables than the %1$s given"),
-    /** A row's cell read at an offset the row does not have: the offset, the row's size. */
-    ELEMENT_AT_OFFSET("offset %1$s is outside a row of %2$s cells"),
+    /** A row's cell read at an offset the row does not have: the offset, the row's size. legend-pure raises it at run
+     *  (its {@code at} native, {@code natives/essentials/collection/index/At.java}). */
+    ELEMENT_AT_OFFSET("offset %1$s is outside a row of %2$s cells", Upstream.AT_RUN),
     /** A window frame whose literal start is after its end (the P2 checkpoint audit's M4, 2026-11-16: legend-pure's
      *  sentence was the product's until then). */
-    WINDOW_FRAME_INVERTED("window frame starts after it ends"),
+    WINDOW_FRAME_INVERTED("window frame starts after it ends", Upstream.AT_RUN),
     /** A window frame whose computed bounds, read by how they are written (-(n) before the current row, any other n
      *  after it), start after they end (register S170). */
     WINDOW_FRAME_COMPUTED_INVERTED("window frame starts after it ends, its computed bounds read by how they are written:"
-            + " write a bound before the current row as -(n)"),
+            + " write a bound before the current row as -(n)", Upstream.AT_RUN),
+    /** A relation column, or a value cast to a class, of a type the relation runtime does not hold: the type. legend-
+     *  engine raises it at run, in its words (the relation natives, {@code AggregationShared}, {@code
+     *  RelationNativeImplementation}; PCT's {@code testVariantColumn_modelOutputNotSupported} asserts it inside
+     *  {@code assertError}). */
+    TYPE_NOT_SUPPORTED_YET("The type %1$s is not supported yet!", Upstream.AT_RUN),
+    /** A sub-day unit for {@code timeBucket} of a StrictDate. legend-engine raises it at run, in its words
+     *  ({@code TimeBucketShared}; PCT's {@code timeBucket::strictDate} tests assert it inside {@code assertError}). */
+    STRICT_DATE_BUCKET_UNIT("Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]",
+            Upstream.AT_RUN),
     /** Class mapping ids two sets of a mapping's include closure share: the ids (a list, each with its mappings), the
      *  mapping (J10 of the edge audit, 2026-11-17; legend-engine's MappingCompilerExtension). */
     DUPLICATE_CLASS_MAPPING_IDS("mapping '%2$s' has more than one class mapping with the ids %1$s"),
@@ -65,14 +75,34 @@ public enum CompileKind implements ErrorCode {
     MISSING_STORE_TABLE("database '%2$s' has no table '%1$s' (%3$s)");
 
     private final String sentence;
+    private final boolean atRun;
 
     CompileKind(String sentence) {
+        this(sentence, false);
+    }
+
+    CompileKind(String sentence, boolean atRun) {
         this.sentence = sentence;
+        this.atRun = atRun;
+    }
+
+    /** Whether legend-pure (or legend-engine's Pure) raises this error when the expression RUNS, not when the program
+     *  compiles -- read from the pinned sources, the kind's javadoc citing them. Lite finds it while planning; in a
+     *  test body it is planned as a failure and raised at its turn, where an {@code assertError} catches it as
+     *  upstream's does. Any other compile error in a test body refuses the body at planning (the user's ruling of
+     *  2026-11-21, "D"; {@code testexecutionplan.Failures#planned}). */
+    public boolean atRun() {
+        return atRun;
     }
 
     @Override
     public String family() {
         return "compile";
+    }
+
+    /** Names {@link #atRun}'s value where a kind declares it. */
+    private static final class Upstream {
+        static final boolean AT_RUN = true;
     }
 
     /** Lite's sentence of this kind over {@code operands}. */

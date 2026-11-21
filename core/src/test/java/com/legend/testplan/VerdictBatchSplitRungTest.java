@@ -21,12 +21,14 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * THE SPLIT RUNG AT PLANNING (the P1 milestone audit's 1, 2026-11-07): where the dialect cannot spell a session's
- * fused verdict statement, each member is planned its own statement, and only a member whose own statement the dialect
- * cannot spell is left out (refused at its place in the root loop). Until the audit the members the dialect spelled
- * alone were dropped from every group. The DuckDB corpus never reaches this rung (its fused statements all spell), so
+ * fused verdict statement, each member is planned its own statement. Until the audit the members the dialect spelled
+ * alone were dropped from every group. A member whose own statement the dialect cannot spell refuses the body at
+ * planning (the user's ruling of 2026-11-21, "D": until then it was left out and refused at its place in the root
+ * loop). The DuckDB corpus never reaches this rung (its fused statements all spell), so
  * the planner's pieces are stubs here: a fusion the dialect refuses, and one member it refuses alone.
  */
 class VerdictBatchSplitRungTest {
@@ -76,17 +78,17 @@ class VerdictBatchSplitRungTest {
         }
     };
 
+    private static VerdictBatch batch() {
+        return new VerdictBatch((members, frames) -> members.get(0), (row, name, wantEqual) -> row, RUNNER,
+                new VerdictIds(), com.legend.lowering.LiteVerdictWords.INSTANCE);
+    }
+
     @Test
     void membersTheDialectSpellsAloneAreEachPlannedTheirOwnStatement() {
-        VerdictBatch batch = new VerdictBatch((members, frames) -> members.get(0),
-                (row, name, wantEqual) -> row, RUNNER, new VerdictIds(),
-                com.legend.lowering.LiteVerdictWords.INSTANCE);
+        VerdictBatch batch = batch();
         batch.open("a");
         batch.defer("a1", true, member(1), ON);
         batch.defer("a2", true, member(2), ON);
-        batch.close();
-        batch.open("b");
-        batch.defer("b1", true, member(3), ON);
         batch.close();
         VerdictBatch.Planned planned = batch.plan();
         List<VerdictBatch.Group> groups = planned.groups();
@@ -95,7 +97,21 @@ class VerdictBatchSplitRungTest {
         assertFalse(own.keyed());
         assertNull(own.step().fused(), "no fused statement");
         assertEquals(List.of("a1", "a2"), own.step().verdicts().stream().map(TestPlan.Verdict::name).toList(),
-                "the members the dialect spells alone, each with its own statement; member 3 left out");
+                "the members the dialect spells alone, each with its own statement");
         own.step().verdicts().forEach(v -> assertEquals(ExecutionPlan.TdsResult.class, v.wrapper().getClass()));
+    }
+
+    @Test
+    void aMemberTheDialectCannotSpellAloneRefusesTheBodyAtPlanning() {
+        VerdictBatch batch = batch();
+        batch.open("a");
+        batch.defer("a1", true, member(1), ON);
+        batch.close();
+        batch.open("b");
+        batch.defer("b1", true, member(3), ON);
+        batch.close();
+        DialectCapability refused = assertThrows(DialectCapability.class, batch::plan,
+                "a refusal refuses the body, the run would reach it or not");
+        assertEquals("member 3 does not spell", refused.getMessage());
     }
 }

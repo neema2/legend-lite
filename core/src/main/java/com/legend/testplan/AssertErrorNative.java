@@ -78,7 +78,7 @@ final class AssertErrorNative {
         // lite's own message, and the kinded part as data: an audience's words of it are worded at the verdict's turn,
         // from the record (stage B's B1, 2026-11-20, errors as records: until then the plan's style worded it here, PlanStyle.errorWords)
         return e instanceof com.legend.error.DataError || e instanceof com.legend.error.ModelException
-                ? com.legend.testexecutionplan.Failures.of(e, where) : null;
+                ? com.legend.testexecutionplan.Failures.planned(e, where) : null;
     }
 
     /** {@code Integer[0..1]} argument: a literal, {@code []}, or absent

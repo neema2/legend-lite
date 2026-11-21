@@ -760,8 +760,7 @@ final class Scalars {
                                 "MICROSECONDS", "NANOSECONDS" ->
                             throw new ModelException(
                                     LegendCompileException.Phase.LOWER,
-                                    "Unsupported duration unit for StrictDate. Units"
-                                            + " can only be: [YEARS, DAYS, MONTHS, WEEKS]");
+                                    com.legend.error.CompileKind.STRICT_DATE_BUCKET_UNIT, List.of());
                         default -> { }
                     }
                 }

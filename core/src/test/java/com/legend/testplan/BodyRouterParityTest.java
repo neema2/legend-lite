@@ -383,17 +383,19 @@ class BodyRouterParityTest {
         assertNull(BodyClass.of(typed(ctx, body), RT), body);
     }
 
-    /** A side whose planning raises is a PLANNED RAISE at its assert's turn (R14; M6's audit, S1): the assert before it
-     *  ran and reported, the body fails with the planning's own error, on both roads. */
+    /** A side lite cannot plan REFUSES THE BODY AT PLANNING, whether or not the run would reach it (the user's ruling
+     *  of 2026-11-21, "D"; until then a planned raise at its assert's turn, R14, M6's audit S1): nothing runs, the
+     *  assert before it reports nothing, the body fails with the refusal itself, on both roads. */
     @ParameterizedTest
     @MethodSource("backends")
-    void aSidesPlanningRaisesAtItsTurn(TestBackend backend) throws Exception {
+    void aSideLiteCannotPlanRefusesTheBodyAtPlanning(TestBackend backend) throws Exception {
         String body = "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
                 + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}";
         ModelContext ctx = Compiler.compileModel(model(backend, false));
         Run run = run(backend, ctx, body, "select 1");
         assertEquals(true, run.outcome.startsWith("NotImplementedException: dynamic slicing bounds"), run.outcome);
-        assertEquals(1, run.verdicts.size(), "the first assert reported, the second raised: " + run.verdicts);
+        assertEquals(run.outcome, run.refused, "refused at planning");
+        assertEquals(0, run.verdicts.size(), "nothing ran, no assert reported: " + run.verdicts);
     }
 
     /** A store, a mapping and a runtime with NO test data on {@code backend} (a seeded runtime is left on the walk):
@@ -868,7 +870,7 @@ class BodyRouterParityTest {
                     com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
             // MOVED 2026-11-04 (the core program): the database planner plans these grid pairs -- names or widths
             // that differ decide false at planning, kinds that differ are spelled in the expected's
-            assertEquals(1, routed.moved, "the router moved the body: " + body);
+            assertMoved(routed, 1, "the router moved the body: " + body + " -> " + routed.outcome);
             if (body.contains("#TDS")) {
                 assertTrue(routed.outcome.startsWith("AssertFailed"), "the grid owner's verdict: " + body + " -> "
                         + routed.outcome);
@@ -1018,7 +1020,7 @@ class BodyRouterParityTest {
                 // the program has ONE target, the system database (M10a; systemRoutedPrograms' store-free case)
                 Run moved = run(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS, mode);
                 assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
-                assertEquals(1, moved.moved, "the router moved the body: " + c.getKey());
+                assertMoved(moved, 1, "the router moved the body: " + c.getKey() + " -> " + moved.outcome);
             }
         }
     }
@@ -1390,7 +1392,7 @@ class BodyRouterParityTest {
         for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
             Run moved = run(backend, ctx, "x::RT", storeFree, "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals("ok", moved.outcome, "outcome: " + storeFree);
-            assertEquals(1, moved.moved, "the router moved the body: " + storeFree);
+            assertMoved(moved, 1, "the router moved the body: " + storeFree + " -> " + moved.outcome);
         }
         // a user store's read beside a system read, each in a statement of its own (per-statement routing,
         // 2026-11-03): the system statement on the graph's system database, the user's on the body's, one program --
@@ -1701,7 +1703,7 @@ class BodyRouterParityTest {
             Run moved = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                     com.legend.testplan.PlanningOptions.JudgeMode.HOST);
             assertTrue(moved.outcome.startsWith(c.getValue()), body + " -> " + moved.outcome);
-            assertEquals(1, moved.moved, "the router moved the body: " + body);
+            assertMoved(moved, 1, "the router moved the body: " + body + " -> " + moved.outcome);
         }
         for (String a : List.of(appealed, deferredAppealed)) {
             Run matched = run(backend, ctx, "x::RT", a, "select count(*) from FIRM", FIRM_ROWS,
@@ -1856,7 +1858,7 @@ class BodyRouterParityTest {
                     com.legend.exec.PlanSessions.of(session), com.legend.exec.ProductRun.Establish.AS_GIVEN,
                     java.util.Set.of(), com.legend.edge.PureText.UPSTREAM, new com.legend.result.Output.Rows(capture),
                     com.legend.result.Batcher.DEFAULT_CAPACITY);
-            return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), "", 0));
+            return text(new Run("ok", null, List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), "", 0));
         }
     }
 
@@ -1949,12 +1951,13 @@ class BodyRouterParityTest {
             assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), RT, true), body);
             Run routed = run(backend, ctx, body, "select 1");
             // MOVED 2026-11-04 (the core program): each runs on the program road -- the nested quantification unrolled
-            // recursively by the host's planner; an assert no arm plans raises at its turn (HostAsserts: NoRule's "not
-            // as a scalar"), counted as a planned raise
-            assertEquals(1, routed.moved, "the router moved the body: " + body);
+            // recursively by the host's planner. An assert no arm plans (HostAsserts: NoRule's "not as a scalar")
+            // refuses the body at planning, nothing run and no raise planned (the user's ruling of 2026-11-21, "D";
+            // until then it raised at its turn, counted as a planned raise)
+            assertMoved(routed, 1, "the router moved the body: " + body + " -> " + routed.outcome);
             if (!routed.outcome.equals("ok")) {
-                assertEquals("{not-attempted (pre-arm) raised=1}", routed.census,
-                        "the program road's census of a planned raise: " + body);
+                assertEquals(routed.outcome, routed.refused, "refused at planning: " + body);
+                assertEquals("{}", routed.census, "no raise planned: " + body);
             }
         }
     }
@@ -2003,9 +2006,20 @@ class BodyRouterParityTest {
                 "the body is a moved class's under one judge: " + body);
         Run moved = run(backend, ctx, runtime, body, check, setup, mode);
         // BOTH plans the body once per judge, each alone (isolated BOTH, 2026-11-17); the edge's style one judge (A4)
-        assertEquals(judgeFor(body, mode) == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1, moved.moved,
-                "the router moved the body: " + body);
+        assertMoved(moved, judgeFor(body, mode) == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1,
+                "the router moved the body: " + body + " -> " + moved.outcome);
         return moved;
+    }
+
+    /** {@code run} moved {@code plans} times -- or, refused at planning, its outcome the refusal itself and at most
+     *  {@code plans} routings counted (the router counts a body as it routes it, before its planning ends). */
+    private static void assertMoved(Run run, int plans, String message) {
+        if (run.refused() != null) {
+            assertEquals(run.refused(), run.outcome, "a body refused at planning runs nothing: " + message);
+            assertTrue(run.moved <= plans, "a body refused at planning: " + message);
+            return;
+        }
+        assertEquals(plans, run.moved, message);
     }
 
     /** {@code body}, a MIXED body (a statement on the graph's system database beside the body's own: per-statement
@@ -2030,7 +2044,8 @@ class BodyRouterParityTest {
      *  @param sent       every statement the run sent on any session, counted by exec by origin: {@link #allRecorded}
      *                    holds the recorded list whole (the follow-up audit, 2026-11-09: a system-routed body's
      *                    statements go to the system session, which the recording does not see) */
-    private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,
+    /** {@code refused}: the body's refusal at planning (its outcome, nothing run, nothing moved), null where planned. */
+    private record Run(String outcome, @com.legend.base.Nullable String refused, List<String> ledger, String answer, String origins, long effects,
             String database, long moved, List<String> statements, List<String> verdicts, String census, long sent) {
     }
 
@@ -2100,6 +2115,14 @@ class BodyRouterParityTest {
             List<String> statements = new ArrayList<>();
             Sessions.Session session = Sessions.borrowed(com.legend.testbackend.RecordingConnection.wrap(c, statements));
             com.legend.edge.SqlReplayReferee referee = new StubReferee(c);
+            // a body lite cannot fully plan is refused at planning, nothing run (the user's ruling of 2026-11-21,
+            // "D"): the refusal itself, before the run's counters are read
+            String refused = null;
+            try {
+                TestExecution.planBody(q, runtime, options);
+            } catch (RuntimeException e) {
+                refused = e.getClass().getSimpleName() + ": " + e.getMessage();
+            }
             long[] before = StatementOrigin.snapshot();
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
@@ -2151,7 +2174,7 @@ class BodyRouterParityTest {
                     census.put(k, d);
                 }
             });
-            return new Run(outcome, ledger, capture.toString(), Arrays.toString(delta),
+            return new Run(outcome, refused, ledger, capture.toString(), Arrays.toString(delta),
                     Census.count(Census.Key.EFFECTS_IN_SCRIPT) - effectsBefore, database(c, check),
                     Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements, verdicts, census.toString(),
                     Arrays.stream(delta).sum());
