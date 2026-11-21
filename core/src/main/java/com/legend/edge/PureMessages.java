@@ -282,66 +282,10 @@ public final class PureMessages {
                 && c.kind() == com.legend.error.CompileKind.ELEMENT_AT_OFFSET;
     }
 
-    /** {@code c}'s sentence as upstream words its kind, after the driver's {@code [line:col]}. */
+    /** {@code kind}'s sentence over {@code o}: upstream's words are the kind's own (one catalog, the user's ruling of
+     *  2026-11-21; each kind's source cited on {@code error.CompileKind}), so the edge says what the product says. */
     private static String upstream(com.legend.error.CompileKind kind, java.util.List<String> o) {
-        String upstream = switch (java.util.Objects.requireNonNull(kind, "a kinded error")) {
-            // PureModel.getConnection, getMapping, getRuntime, getStore, getAssociation (legend-engine)
-            case MISSING -> "Can't find " + o.get(0) + " '" + o.get(1) + "'";
-            // PureModel.getProfile
-            case MISSING_PROFILE -> "Can't find the profile '" + o.get(0) + "'";
-            // HelperModelBuilder.resolveStereotype, resolveTag
-            case MISSING_PROFILE_MEMBER -> "Can't find " + o.get(0) + " '" + o.get(1) + "' in profile '" + o.get(2) + "'";
-            // ClassMappingSecondPassBuilder
-            case MISSING_CLASS_MAPPING -> "Can't find class mapping '" + o.get(0) + "' in mapping '" + o.get(1) + "'";
-            // RelationalCompilerExtension's main table rule, its exact text (legend-engine 4.145.0,
-            // RelationalCompilerExtension.java:350; F12, 2026-11-16: the tables the mappings span are lite's own words)
-            case MAIN_TABLE_UNNAMED -> "Can't find the main table for class '" + o.get(0)
-                    + "'. Please specify a main table using the ~mainTable directive.";
-            // ClassCompilerExtension
-            case INVALID_SUPERTYPE -> "Invalid supertype: '" + o.get(0) + "' cannot extend '" + o.get(1)
-                    + "' as it is not a class.";
-            // legend-pure's GenericType validation
-            case TYPE_ARGUMENTS_COUNT -> "Wrong " + o.get(0) + " arguments count (" + o.get(1) + ") for type: " + o.get(2);
-            case TYPE_VARIABLES_COUNT -> "Wrong type variables count (" + o.get(0) + ") for type: " + o.get(1);
-            // legend-pure's collection at()
-            case ELEMENT_AT_OFFSET -> "The system is trying to get an element at offset " + o.get(0)
-                    + " where the collection is of size " + o.get(1);
-            // legend-pure's rows()/_range() assert (the P2 checkpoint audit's M4, 2026-11-16)
-            case WINDOW_FRAME_INVERTED -> "Invalid window frame boundary - lower bound of window frame cannot be greater"
-                    + " than the upper bound!";
-            // lite's own refusal (register S170), as the edge has spelled it
-            case WINDOW_FRAME_COMPUTED_INVERTED -> "Invalid window frame boundary - a computed bound's direction is read"
-                    + " from how it is written (-(n) is n before the current row, any other n after it), and this frame"
-                    + " then starts after where it ends: write the bound before the current row as -(n)"
-                    + " (docs/SEMANTICS_REGISTER.md S170)";
-            // J10 of the edge audit, 2026-11-17: each the product's sentence until then, byte for byte
-            // MappingCompilerExtension (legend-engine)
-            case DUPLICATE_CLASS_MAPPING_IDS -> "Duplicated class mappings found with ID " + o.get(0) + " in mapping '"
-                    + o.get(1) + "'";
-            case DUPLICATE_MAPPING_INCLUDE -> "Duplicated mapping include '" + o.get(0) + "' in mapping '" + o.get(1)
-                    + "'";
-            // CompileContext.resolveStore (legend-engine)
-            case MISSING_STORE -> "The store '" + o.get(0) + "' can't be found.";
-            // PureModelBuilder (legend-engine)
-            case DUPLICATE_ELEMENT -> "Duplicated element '" + o.get(0) + "'";
-            // legend-engine's class and enumeration compilation
-            case DUPLICATE_PROPERTY -> "Found duplicated property '" + o.get(0) + "' in class '" + o.get(1) + "'";
-            case DUPLICATE_ENUM_VALUE -> "Found duplicated value '" + o.get(0) + "' in enumeration '" + o.get(1) + "'";
-            // legend-pure's PropertyValidator
-            case DEFAULT_ON_OPTIONAL -> "Default values are supported only for mandatory fields, and property '"
-                    + o.get(0) + "' is optional.";
-            // legend-engine's "can't be found" form of a store reference, lite's condition named after it
-            case MISSING_STORE_COLUMN -> "The column '" + o.get(0) + "' can't be found in the " + o.get(1) + " '"
-                    + o.get(2) + "' (" + o.get(3) + " of database '" + o.get(4) + "')";
-            case MISSING_STORE_TABLE -> "The table '" + o.get(0) + "' can't be found in the database '" + o.get(1)
-                    + "' (" + o.get(2) + ")";
-            // legend-engine's relation natives (AggregationShared, RelationNativeImplementation), byte for byte
-            case TYPE_NOT_SUPPORTED_YET -> "The type " + o.get(0) + " is not supported yet!";
-            // legend-engine's TimeBucketShared, byte for byte
-            case STRICT_DATE_BUCKET_UNIT -> "Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS,"
-                    + " MONTHS, WEEKS]";
-        };
-        return upstream;
+        return kind.sentence(o);
     }
 
     /** legend-pure's sentence of a load's file larger than the load admits (J25 of the edge audit, 2026-11-17: moved
