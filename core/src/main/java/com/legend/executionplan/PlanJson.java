@@ -1602,8 +1602,9 @@ public final class PlanJson {
             }
             texts.add(s.value());
         }
-        if (texts.size() != kind.arity()) {
-            throw new IllegalArgumentException("a project's refusal " + kind.name() + " has " + kind.arity()
+        if (texts.size() < kind.arity()) {
+            // at least its sentence's values, as a record's reader reads them (HostJson.rRecord; the BE audit 6's L-2)
+            throw new IllegalArgumentException("a project's refusal " + kind.name() + " has at least " + kind.arity()
                     + " values: " + node);
         }
         return com.legend.error.ErrorRecord.of(kind, texts);

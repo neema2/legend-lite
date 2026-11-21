@@ -204,8 +204,11 @@ final class HostJson {
         List<String> values = strings(field(o, "values", "ErrorRecord"));
         // its values its code's sentence's, refused here by name, never first where the sentence is said (the BE audit
         // 5's L6, 2026-11-21)
-        if (code instanceof com.legend.error.CompileKind c && values.size() != c.arity()) {
-            throw new IllegalArgumentException("a record of " + c.qualified() + " has " + c.arity() + " values: " + o);
+        // at least its sentence's: a compile kind may carry facts its sentence does not print (MAIN_TABLE_*'s second;
+        // the BE audit 6's L-2, 2026-11-21: an exact count refused a record lite builds)
+        if (code instanceof com.legend.error.CompileKind c && values.size() < c.arity()) {
+            throw new IllegalArgumentException("a record of " + c.qualified() + " has at least " + c.arity()
+                    + " values: " + o);
         }
         if (code instanceof com.legend.error.ErrorKind k) {
             try {

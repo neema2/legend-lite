@@ -7,7 +7,7 @@ package com.legend.sql;
  * THE KINDS OF A PRODUCT RAISE (phase D's D1.1; the user's ruling of 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md
  * §6.1: "a product error is its kind plus where it happened: a fixed text known at planning, never the value"): what a
  * statement's guard refuses, one closed list. A raise's message is a {@link SqlExpr.RaiseText} of one of these; the
- * product writes the kind's name behind its {@link #MARK}, and its where, the compatibility edge legend-pure's sentence
+ * product writes the kind's name behind its {@link #MARK} (its where went with BE's item 2), the compatibility edge legend-pure's sentence
  * from the kind and its operands. The product's WORDING of each is the error layer's {@code com.legend.error.ErrorKind}
  * (its sentence, held equal by name, both ways, by {@code ErrorKind}'s test), applied where exec reads the raise back
  * ({@code exec.RaisedErrors}), never SQL.

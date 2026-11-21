@@ -286,7 +286,7 @@ public abstract class SqlRewriter {
                     same &= x == c;
                     cs.add(x);
                 }
-                // its words as data and its where kept (2026-11-15: until then a rewritten operand dropped both)
+                // its words as data kept (2026-11-15: until then a rewritten operand dropped them)
                 yield same ? r : new SqlExpr.RaiseText(r.kind(), cs, r.asData());
             }
             case SqlExpr.Tagged t -> {

@@ -143,7 +143,8 @@ public enum CompileKind implements ErrorCode {
     }
 
     /** The number of values this kind's sentence names: its highest {@code %n$s} (the BE audit 5's L6, 2026-11-21: a
-     *  reader checks a record's values by it, never by String.format's failure). */
+     *  reader checks a record's values by it, never by String.format's failure). A record carries at least these; it
+     *  may carry more, facts its sentence does not print (the BE audit 6's L-2). */
     public int arity() {
         int most = 0;
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("%(\\d+)\\$s").matcher(sentence);

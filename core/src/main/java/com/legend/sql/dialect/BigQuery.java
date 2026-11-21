@@ -2391,7 +2391,7 @@ public class BigQuery extends AnsiSqlRenderer {
     /** A map's raise of {@code kind}, inside the platform's envelope (phase D's D1.1; until then these three raised a
      *  bare ERROR('...') outside it, which exec could not tell for a raise: the brief's defect). */
     private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
-        // its where the map's construction, a fixed text (the D part 1 audit's S4, 2026-11-15)
+        // a map construction's raise, its kind alone (the D part 1 audit's S4, 2026-11-15; its where went with BE's item 2)
         return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null)), "ERROR");
     }
 

@@ -55,14 +55,14 @@ class PlanJsonTest {
         assertEquals("the Data element proj::PartyData fills PARTY.NOPE, which no Database of the model declares",
                 ((Database.Declared) ((Sql) ((TdsResult) PlanJson.read(json).root()).sql()).target().database())
                         .project().refused().sentence());
-        // a sentence, an unknown or bare or other code, a value not a text, too few values or too many: each by name
+        // a sentence, an unknown or bare or other code, a value not a text, too few values: each by name (more values
+        // than the sentence prints are facts a record may carry: the BE audit 6's L-2)
         for (String bad : List.of("\"refused\":\"a sentence\"", "\"refused\":{\"code\":\"compile.NO_SUCH\",\"values\":[]}",
                 "\"refused\":{\"code\":\"DATA_TABLE_UNDECLARED\",\"values\":[\"a\",\"b\"]}",
                 "\"refused\":{\"code\":\"compile.MISSING_STORE\",\"values\":[\"a\"]}",
                 "\"refused\":{\"code\":\"run.DIVIDE_BY_ZERO\",\"values\":[\"a\"]}",
                 "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[1]}",
-                "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[\"one\"]}",
-                "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[\"a\",\"b\",\"c\"]}")) {
+                "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[\"one\"]}")) {
             String broken = json.replaceFirst("\"refused\":\\{[^}]*\\}", java.util.regex.Matcher.quoteReplacement(bad));
             assertTrue(!broken.equals(json), bad);
             assertThrows(IllegalArgumentException.class, () -> PlanJson.read(broken), bad);

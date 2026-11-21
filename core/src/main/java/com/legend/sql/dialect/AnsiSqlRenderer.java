@@ -1230,7 +1230,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /**
      * THE PRODUCT'S RAISE TEXT (phase D's D1.1; the user's ruling of 2026-11-10: "a product error is its kind plus where
      * it happened ... never the value"; phase D's Phase 2, raises as SITES, 2026-11-16): the bare token of the raise's
-     * site ({@link #site}), its kind, its where and its operands the statement's site table's, never its text -- no
+     * site ({@link #site}), its kind and its operands the statement's site table's, never its text -- no
      * value cast to text, no concatenation, no parameter bound for one -- except {@link com.legend.sql.RaiseKind#USER_FAIL}'s,
      * the user's own message. exec reads the token back through the plan's table ({@code exec.RaisedErrors}). Every
      * dialect, the compatibility edge's too, writes the site's token (stage B's B1, 2026-11-20); the edge overrides
@@ -1245,7 +1245,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
      * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
      * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
-     * with its kind, its where and its operands (no words: each audience words a site after the run from its record;
+     * with its kind and its operands (no words: each audience words a site after the run from its record;
      * stage B's B1, 2026-11-20). A raise written outside a statement's
      * render has no table to declare it, refused by name.
      */

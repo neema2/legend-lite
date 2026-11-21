@@ -1441,9 +1441,13 @@ public final class MappingNormalizer {
                 }
             }
             if (tables.size() > 1) {
+                // the record's second value the tables as found, each under its database (the BE audit 6's N-3: the
+                // name alone, "[T]", said one table for two)
+                Set<String> found = new LinkedHashSet<>();
+                refs.forEach(r -> found.add("[" + r.database() + "]" + canonicalTable(r.table())));
                 throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                         com.legend.error.CompileKind.MAIN_TABLE_UNNAMED,
-                        java.util.List.of(com.legend.protocol.Protocol.splitFqn(rcm.className())[1], names.toString()));
+                        java.util.List.of(com.legend.protocol.Protocol.splitFqn(rcm.className())[1], found.toString()));
             }
         }
         if (dbs.size() > 1) {

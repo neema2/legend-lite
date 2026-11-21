@@ -95,8 +95,8 @@ class PureMessagesWordedTest {
      *  the one error model removes (B1's fixes' review, 2026-11-20). */
     @Test
     void aMarkedMessageOffItsRecordReadsItsKindsName_asOnMain() {
-        assertEquals("DIVIDE_BY_ZERO", PureMessages.compile(new IllegalStateException(RaiseKind.MARK + "DIVIDE_BY_ZERO"
-                + RaiseKind.MARK + "the where")));
+        // the mark and the kind alone, as exec.RaisedErrors writes it (the second mark, before a where, went with BE's
+        // item 2; the BE audit 6's N-1, 2026-11-21: the edge no longer reads one)
         assertEquals("DIVIDE_BY_ZERO", PureMessages.compile(new IllegalStateException(RaiseKind.MARK + "DIVIDE_BY_ZERO")));
     }
 

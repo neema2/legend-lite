@@ -141,10 +141,10 @@ Measured against §1's rule, at the commit carrying this section.
    follow-up by the user's word ("put it on follow up": an Integer operand written into the plan as its digits'
    text); the fourth, one table's name under two databases, is now exact (the model tells one
    table from two, as upstream counts table objects). The full list: the TS host loses an Integer operand's digits above 2^53 (predates BE); a Decimal
-   second whose `intValue` wraps into [0, 60) is valid upstream, refused by lite; one table name in two databases says
-   inconsistent databases where upstream, for two declared tables, says no main table; where legend-engine words a
+   second whose `intValue` wraps into [0, 60) is valid in compiled legend-pure, refused by lite (and by interpreted
+   legend-pure, whose `Integer.parseInt` throws); where legend-engine words a
    compile error differently, its door prints legend-pure's (the ruling); the product plan's raise kinds changed within
-   v59 (an older plan naming a removed kind is refused by name); six prefix-only checks of "Cannot cast a collection of
+   v60 (an older plan naming a removed kind is refused by name); six prefix-only checks of "Cannot cast a collection of
    size" could pin the full sentence; a Match failure over a date literal prints `<computed>` where legend-pure prints
    the date's text by its precision (not yet read; the BE audit 5's L3).
 7. **BE-M**: the measurement round (the corpus, every PCT lane, channel B, stress, Postgres, warm sessions), the moved
@@ -155,3 +155,16 @@ Measured against §1's rule, at the commit carrying this section.
    `map()`, ...), where until D its leading statements planned and the run failed at the first it could not plan.
    Re-pinned on the user's word, 2026-11-21 ("Repin is okay"): `bazel run //spec:update_lean_sql_corpus_duckdb` and
    `_h2`, refused DuckDB 193 and H2 338.
+8. **Follow-ups after BE** (the BE audits 5 and 6, LOW; none prints a wrong answer):
+   - S396: an Integer operand written into the plan as its digits' text, so the TS host prints every digit (the user,
+     2026-11-21: "put it on follow up").
+   - S397: a match failure prints a date literal as legend-pure does, once PureDate's text by precision is read.
+   - The row's class of a failed cast where it is knowable at planning: the gate's candidates (the source class and
+     its subclasses, less the target and its subclasses) are one class, as `Person` for `cast(@Employee)` with no other
+     subclass; and the leaf read's, which needs the model in `Substitution` (the BE audit 6's L-1).
+   - The refusals that name a dialect's Java class rather than its database (`AnsiSqlRenderer.keptFraction`, the S181
+     literal twin of the parameter's, and five more refusals of that class): 37 PCT ledger entries pin "MariaDb",
+     "MySql" and "MongoDb keeps", on lanes this container and CI do not run (the BE audit 6's L-4).
+   - A `<computed>` operand is written as the text `<computed>` rather than `Operand.Computed` (the cast's and the match's;
+     the words are the same on every host; the BE audit 6's N-4).
+   - #31, named details in lite's error answers; #27, the mapping errors upstream raises at run as codes.
