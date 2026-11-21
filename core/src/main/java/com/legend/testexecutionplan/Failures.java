@@ -101,7 +101,8 @@ public final class Failures {
             case TYPE_INFERENCE -> new com.legend.error.TypeInferenceException(r);
             case SCHEMA_INVARIANT -> new com.legend.error.SchemaInvariantException(r);
             case DATA -> new com.legend.error.DataError(r);
-            case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, ASSERT_FAILED, DIALECT_CAPABILITY, NOT_A_CONSTANT ->
+            case ASSERT_FAILED -> new com.legend.error.AssertFailed(r);
+            case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, DIALECT_CAPABILITY, NOT_A_CONSTANT ->
                     throw new IllegalStateException("a failure of kind " + f.kind() + " carries no record (Failure"
                             + " refuses it)");
         };

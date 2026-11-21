@@ -10,12 +10,12 @@ package com.legend.error;
  * the same code its way (the compatibility edge's {@code edge.PureMessages}). Its name in JSON is its family and its
  * name ({@link #qualified}): two families may share a name.
  */
-public sealed interface ErrorCode permits CompileKind, ErrorKind, FrameKind {
+public sealed interface ErrorCode permits CompileKind, ErrorKind, FrameKind, AssertKind {
 
     /** The code's name within its family. */
     String name();
 
-    /** The family the code belongs to: {@code compile}, {@code run}, {@code frame}. */
+    /** The family the code belongs to: {@code compile}, {@code run}, {@code frame}, {@code assert}. */
     String family();
 
     /** Lite's sentence of this code over {@code values}. */
@@ -28,7 +28,8 @@ public sealed interface ErrorCode permits CompileKind, ErrorKind, FrameKind {
 
     /** The code {@code qualified} names ({@link #qualified}); refused by name where none does. */
     static ErrorCode named(String qualified) {
-        for (ErrorCode[] family : new ErrorCode[][] {CompileKind.values(), ErrorKind.values(), FrameKind.values()}) {
+        for (ErrorCode[] family : new ErrorCode[][] {CompileKind.values(), ErrorKind.values(), FrameKind.values(),
+                AssertKind.values()}) {
             for (ErrorCode c : family) {
                 if (c.qualified().equals(qualified)) {
                     return c;

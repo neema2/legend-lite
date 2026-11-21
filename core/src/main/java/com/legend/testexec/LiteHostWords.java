@@ -5,7 +5,7 @@ package com.legend.testexec;
 
 import com.legend.base.Nullable;
 import com.legend.testexecutionplan.TypedSide;
-import com.legend.error.AssertSentence;
+import com.legend.error.AssertKind;
 
 import java.util.List;
 
@@ -14,7 +14,7 @@ import static com.legend.testexec.HostJudgments.sentence;
 import static com.legend.testexec.HostJudgments.typeName;
 
 /**
- * THE PRODUCT'S FORM OF {@link HostWords} (census J29, 2026-11-18): lite's own sentences, the {@link AssertSentence}
+ * THE PRODUCT'S FORM OF {@link HostWords} (census J29, 2026-11-18): lite's own sentences, the {@link AssertKind}
  * table both judges share, each slot written as the product writes a value ({@link LiteWords}).
  */
 public final class LiteHostWords implements HostWords {
@@ -37,19 +37,19 @@ public final class LiteHostWords implements HostWords {
             boolean incidental) {
         // an incidental order compares the rows as a multiset: "in any order"
         return incidental ? sameElements(e, a, null, null)
-                : sentence(AssertSentence.EQUALS, "expected", LiteWords.pairSide(e, a, null), "actual",
+                : sentence(AssertKind.EQUALS, "expected", LiteWords.pairSide(e, a, null), "actual",
                         LiteWords.pairSide(a, e, null));
     }
 
     @Override
     public String notEqual(List<Object> e, List<Object> a, @Nullable String aClass) {
-        return sentence(AssertSentence.NOT_EQUALS, "actual", LiteWords.pairSide(a, e, aClass));
+        return sentence(AssertKind.NOT_EQUALS, "actual", LiteWords.pairSide(a, e, aClass));
     }
 
     @Override
     public String sameElements(List<Object> e, List<Object> a, @Nullable String eClass, @Nullable String aClass) {
         // each side's values in its own order: "in any order" is the sentence's (the orchestrator's ruling, 2026-11-17)
-        return sentence(AssertSentence.SAME_ELEMENTS, "expected", LiteWords.values(e, eClass), "actual",
+        return sentence(AssertKind.SAME_ELEMENTS, "expected", LiteWords.values(e, eClass), "actual",
                 LiteWords.values(a, aClass));
     }
 
@@ -61,58 +61,58 @@ public final class LiteHostWords implements HostWords {
     @Override
     public String notEquivalent(TypedSide.Tabular one, TypedSide.Tabular two, double delta,
             @Nullable String cellDiff) {
-        return sentence(AssertSentence.TDS_EQUIVALENT, "expected", liteRows(one), "delta", LiteWords.value(delta),
+        return sentence(AssertKind.TDS_EQUIVALENT, "expected", liteRows(one), "delta", LiteWords.value(delta),
                 "actual", liteRows(two));
     }
 
     @Override
     public String grids(TypedSide.Tabular te, TypedSide.Tabular ta, boolean wantEqual) {
-        return wantEqual ? sentence(AssertSentence.EQUALS, "expected", liteRows(te), "actual", liteRows(ta))
-                : sentence(AssertSentence.NOT_EQUALS, "actual", liteRows(ta));
+        return wantEqual ? sentence(AssertKind.EQUALS, "expected", liteRows(te), "actual", liteRows(ta))
+                : sentence(AssertKind.NOT_EQUALS, "actual", liteRows(ta));
     }
 
     @Override
     public String size(@Nullable Object expected, long actual) {
-        return sentence(AssertSentence.SIZE, "expected", LiteWords.value(expected), "actual", Long.toString(actual));
+        return sentence(AssertKind.SIZE, "expected", LiteWords.value(expected), "actual", Long.toString(actual));
     }
 
     @Override
     public String notContained(List<Object> collection, @Nullable Object value, @Nullable String collectionClass,
             @Nullable String valueClass) {
-        return sentence(AssertSentence.CONTAINS, "collection", LiteWords.values(collection, collectionClass), "value",
+        return sentence(AssertKind.CONTAINS, "collection", LiteWords.values(collection, collectionClass), "value",
                 LiteWords.value(value, valueClass));
     }
 
     @Override
     public String notWithin(Number expected, Number actual, Number delta) {
-        return sentence(AssertSentence.WITHIN_TOLERANCE, "expected", LiteWords.value(expected), "delta",
+        return sentence(AssertKind.WITHIN_TOLERANCE, "expected", LiteWords.value(expected), "delta",
                 LiteWords.value(delta), "actual", LiteWords.value(actual));
     }
 
     @Override
     public String negated(String kind, List<Object> first, List<Object> second) {
         return switch (kind) {
-            case "NOT_EQ" -> sentence(AssertSentence.NOT_EQUALS, "actual", LiteWords.side(second, null));
-            case "IS_NOT" -> sentence(AssertSentence.IS_NOT, "actual", LiteWords.side(second, null));
+            case "NOT_EQ" -> sentence(AssertKind.NOT_EQUALS, "actual", LiteWords.side(second, null));
+            case "IS_NOT" -> sentence(AssertKind.IS_NOT, "actual", LiteWords.side(second, null));
             // the sides are the collection's, then the value's (planContains)
-            case "NOT_CONTAINS" -> sentence(AssertSentence.NOT_CONTAINS, "collection", LiteWords.values(first, null),
+            case "NOT_CONTAINS" -> sentence(AssertKind.NOT_CONTAINS, "collection", LiteWords.values(first, null),
                     "value", LiteWords.side(second, null));
             // the sides are the size's, then the collection's (planSize)
-            case "NOT_SIZE" -> sentence(AssertSentence.NOT_SIZE, "size", LiteWords.side(first, null));
+            case "NOT_SIZE" -> sentence(AssertKind.NOT_SIZE, "size", LiteWords.side(first, null));
             default -> throw new IllegalStateException("a negated assert of kind '" + kind + "'");
         };
     }
 
     @Override
     public String condition(boolean wantTrue) {
-        return (wantTrue ? AssertSentence.TRUE : AssertSentence.FALSE).fill(java.util.Map.of());
+        return (wantTrue ? AssertKind.TRUE : AssertKind.FALSE).fill(java.util.Map.of());
     }
 
     @Override
     public String emptiness(boolean wantEmpty, TypedSide side, List<Object> values) {
-        return wantEmpty ? sentence(AssertSentence.EMPTY, "collection", side instanceof TypedSide.Tabular t
+        return wantEmpty ? sentence(AssertKind.EMPTY, "collection", side instanceof TypedSide.Tabular t
                 ? liteRows(t) : LiteWords.values(values, null))
-                : AssertSentence.NOT_EMPTY.fill(java.util.Map.of());
+                : AssertKind.NOT_EMPTY.fill(java.util.Map.of());
     }
 
     @Override
@@ -143,23 +143,23 @@ public final class LiteHostWords implements HostWords {
 
     @Override
     public String notInstanceOfClass(@Nullable Object v, String wireType, String type) {
-        return sentence(AssertSentence.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v, wireType));
+        return sentence(AssertKind.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v, wireType));
     }
 
     @Override
     public String notInstanceOf(@Nullable Object v, String type, String carrier) {
-        return sentence(AssertSentence.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v));
+        return sentence(AssertKind.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v));
     }
 
     @Override
     public String notSameInstance(String name) {
-        return AssertSentence.SAME_INSTANCE.fill(java.util.Map.of());
+        return AssertKind.SAME_INSTANCE.fill(java.util.Map.of());
     }
 
     @Override
     public String atIndex(String sentence, int index) {
         // lite's sentence names the element by Pure's zero-based index (the user's direction, 2026-11-17)
-        return sentence(AssertSentence.AT_INDEX, "sentence", sentence, "index", Integer.toString(index));
+        return com.legend.error.FrameKind.AT_INDEX.wrap(java.util.List.of(Integer.toString(index)), sentence);
     }
 
     @Override
@@ -184,30 +184,30 @@ public final class LiteHostWords implements HostWords {
 
     @Override
     public String jsonDiffers(String expected, String actual, boolean incidentalRoot, String diff) {
-        return sentence(AssertSentence.JSON_EQUALS, "expected", LiteWords.canonJson(expected, incidentalRoot),
+        return sentence(AssertKind.JSON_EQUALS, "expected", LiteWords.canonJson(expected, incidentalRoot),
                 "actual", LiteWords.canonJson(actual, incidentalRoot));
     }
 
     @Override
     public String noError(String expected) {
-        return sentence(AssertSentence.NO_ERROR, "expected", LiteWords.quoted(expected));
+        return sentence(AssertKind.NO_ERROR, "expected", LiteWords.quoted(expected));
     }
 
     @Override
     public String errorDiffers(String expected, String actual) {
-        return sentence(AssertSentence.ERROR, "expected", LiteWords.quoted(expected), "actual",
+        return sentence(AssertKind.ERROR, "expected", LiteWords.quoted(expected), "actual",
                 LiteWords.quoted(actual));
     }
 
     @Override
     public String lineDiffers(long expected, long actual) {
-        return sentence(AssertSentence.ERROR_LINE, "expected", Long.toString(expected), "actual",
+        return sentence(AssertKind.ERROR_LINE, "expected", Long.toString(expected), "actual",
                 Long.toString(actual));
     }
 
     @Override
     public String columnDiffers(long expected, long actual) {
-        return sentence(AssertSentence.ERROR_COLUMN, "expected", Long.toString(expected), "actual",
+        return sentence(AssertKind.ERROR_COLUMN, "expected", Long.toString(expected), "actual",
                 Long.toString(actual));
     }
 

@@ -206,6 +206,10 @@ final class HostJson {
         // 5's L6, 2026-11-21)
         // at least its sentence's: a compile kind may carry facts its sentence does not print (MAIN_TABLE_*'s second;
         // the BE audit 6's L-2, 2026-11-21: an exact count refused a record lite builds)
+        if (code instanceof com.legend.error.AssertKind k && values.size() != k.arity()) {
+            // an assert's record holds its sentence's slots exactly (item 3, 2026-11-21)
+            throw new IllegalArgumentException("a record of " + k.qualified() + " has " + k.arity() + " values: " + o);
+        }
         if (code instanceof com.legend.error.CompileKind c && values.size() < c.arity()) {
             throw new IllegalArgumentException("a record of " + c.qualified() + " has at least " + c.arity()
                     + " values: " + o);

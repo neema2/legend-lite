@@ -913,7 +913,7 @@ public final class DatabaseJudge {
                 TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
                         specs.ctx(), args.get(0), args.get(1));
                 return databaseCondition(name, cond, true, letPrefix, specs, env, hook,
-                        com.legend.lowering.VerdictSql.sentence(com.legend.error.AssertSentence.SAME_INSTANCE));
+                        com.legend.lowering.VerdictSql.sentence(com.legend.error.AssertKind.SAME_INSTANCE));
             }
             return unjudged(name, "is: neither an enum pair nor a tracked element pair");
         }

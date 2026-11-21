@@ -15,10 +15,26 @@ package com.legend.error;
  * by design — a verdict terminates in the runner, never in a data
  * flow, so no intermediate layer should be forced to declare it.
  */
-public final class AssertFailed extends RuntimeException {
+public final class AssertFailed extends RuntimeException implements LegendError {
 
     private final @com.legend.base.Nullable String unjudgedReason;
+    /** The failure as data (item 3, 2026-11-21): its {@link AssertKind} and values; null for the two failures that
+     *  are not yet records -- the database judge's decline ({@link #unjudged}) and the compatibility edge's appeal
+     *  words (B3's). */
+    private final @com.legend.base.Nullable ErrorRecord record;
 
+    /** A failed assert as a record (item 3, 2026-11-21): its message is the record's sentence in lite's words. */
+    public AssertFailed(ErrorRecord record) {
+        super(record.sentence());
+        if (!(record.code() instanceof AssertKind)) {
+            throw new IllegalArgumentException("a failed assert's record is an assert's code: "
+                    + record.code().qualified());
+        }
+        this.record = record;
+        this.unjudgedReason = null;
+    }
+
+    /** A failure worded elsewhere: the compatibility edge's appeal path (B3's, not yet records). */
     public AssertFailed(String message) {
         this(message, null);
     }
@@ -26,6 +42,7 @@ public final class AssertFailed extends RuntimeException {
     private AssertFailed(String message, @com.legend.base.Nullable String unjudgedReason) {
         super(message);
         this.unjudgedReason = unjudgedReason;
+        this.record = null;
     }
 
     /** The database judge DECLINED the assert's shape (leg 3.3): a failure
@@ -38,5 +55,10 @@ public final class AssertFailed extends RuntimeException {
     /** Non-null iff this failure is an UNJUDGED decline. */
     public @com.legend.base.Nullable String unjudgedReason() {
         return unjudgedReason;
+    }
+
+    @Override
+    public @com.legend.base.Nullable ErrorRecord record() {
+        return record;
     }
 }

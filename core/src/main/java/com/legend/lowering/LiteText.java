@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * LITE'S OWN TEXT of a value in an assert's message, in SQL (the user's judge model, 2026-11-17): the database judge's
- * half of the sentence table ({@code error.AssertSentence}), the host's being {@code testexec.LiteWords}; the two
+ * half of the sentence table ({@code error.AssertKind}), the host's being {@code testexec.LiteWords}; the two
  * judges write one text. Not legend-pure's print form: that is {@link Repr}'s, and leaves the product with the edge.
  */
 final class LiteText {

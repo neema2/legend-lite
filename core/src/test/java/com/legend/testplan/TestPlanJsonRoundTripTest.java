@@ -52,7 +52,25 @@ class TestPlanJsonRoundTripTest {
     private static final Failure FILE_FAILURE = new Failure(Failure.Kind.DATA, null, null, null, null,
             com.legend.error.ErrorRecord.of(com.legend.error.ErrorKind.FILE_TOO_LARGE,
                     List.of("/big.csv", "1048577", "1048577", "1")));
+    /** A planned assert failure's record (item 3, 2026-11-21): its kind and values, an element's inside its index's
+     *  frame; no message rides it. */
+    private static final Failure ASSERT_FAILURE = new Failure(Failure.Kind.ASSERT_FAILED, null, null, null, null,
+            com.legend.error.AssertKind.EQUALS.record(java.util.Map.of("expected", "1", "actual", "2")).framed(
+                    new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.AT_INDEX, List.of("0"))));
     private static final Assertion ASSERTION = new Assertion("assertEquals", "equality", true, null);
+
+    /** A planned assert failure is raised at its turn as the assert's failure over the same record, its message the
+     *  catalog's sentence (item 3, 2026-11-21). */
+    @Test
+    void aPlannedAssertFailureIsRaisedAsItsRecord() {
+        RuntimeException e = com.legend.testexecutionplan.Failures.raised(ASSERT_FAILURE);
+        org.junit.jupiter.api.Assertions.assertTrue(e instanceof com.legend.error.AssertFailed, e.getClass().getName());
+        org.junit.jupiter.api.Assertions.assertEquals(ASSERT_FAILURE.record(),
+                ((com.legend.error.AssertFailed) e).record());
+        org.junit.jupiter.api.Assertions.assertEquals("expected 1, got 2 at index 0", e.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals(ASSERT_FAILURE, com.legend.testexecutionplan.Failures.of(
+                (com.legend.error.AssertFailed) e, "the test"));
+    }
 
     @Test
     void everyRecordReadsBackEqual() {
@@ -135,6 +153,7 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Raise(FAILURE),
                 new HostJudgment.Raise(COMPILE_FAILURE),
                 new HostJudgment.Raise(FILE_FAILURE),
+                new HostJudgment.Raise(ASSERT_FAILURE),
                 new HostJudgment.EdgeJudged(new com.legend.edge.EngineTextJudgment("text", "golden", "ours", false, "decline"), 1,
                         "origin", true),
                 new HostJudgment.AssertError("expected", 3L, null, FAILURE, part),

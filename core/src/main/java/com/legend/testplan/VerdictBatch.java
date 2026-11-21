@@ -180,7 +180,7 @@ public final class VerdictBatch {
     }
 
     /** Rows deferred until the returned scope closes are an unrolled quantifier's element {@code index}: lite's
-     *  sentence names it ({@code AssertSentence.AT_INDEX}). */
+     *  sentence names it ({@code FrameKind.AT_INDEX}). */
     public Runnable atElement(int index) {
         Scope before = scope;
         scope = new Scope(index, before.isNot());

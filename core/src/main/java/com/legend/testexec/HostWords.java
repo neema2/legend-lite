@@ -12,7 +12,7 @@ import java.util.List;
  * THE HOST JUDGE'S WORDS OF A FAILED ASSERT (census J29, 2026-11-18, the orchestrator's order: "every legend-pure
  * sentence comes from an edge text hook; the product holds only lite's sentences"): one method per failure kind, over
  * the facts the verdict already decided -- a method words a failure, it never decides one. The run hook names them
- * ({@link HostForms#words}): lite's runs {@link LiteHostWords} (the product's {@code AssertSentence} table), the
+ * ({@link HostForms#words}): lite's runs {@link LiteHostWords} (the product's {@code AssertKind} table), the
  * compatibility edge's legend-pure's words ({@code edge.EdgeHostWords}). The judge asks; it never branches on whose
  * words they are. Signatures only (HookRulingTest).
  */

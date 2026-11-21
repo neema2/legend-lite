@@ -22,7 +22,10 @@ public enum FrameKind implements ErrorCode {
     INLINED_VIA("", " [inlined via %1$s]"),
     /** A relation function's body whose columns are not its declared type's: the function, the body's columns, the
      *  declared type, its columns. */
-    BODY_ANSWERS("the body of %1$s answers %2$s where its declared %3$s has %4$s: ", "");
+    BODY_ANSWERS("the body of %1$s answers %2$s where its declared %3$s has %4$s: ", ""),
+    /** A quantified assert's failing element (item 3, 2026-11-21: until then AssertSentence's AT_INDEX row, a sentence
+     *  inside a sentence): its zero-based index, the one {@code ->at(i)} takes, after the element's own failure. */
+    AT_INDEX("", " at index %1$s");
 
     private final String before;
     private final String after;

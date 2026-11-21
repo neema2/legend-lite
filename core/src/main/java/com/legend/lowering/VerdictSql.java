@@ -64,37 +64,37 @@ public final class VerdictSql {
      *  not hold. */
     public static final String MESSAGE = "__message";
     /** A planning-time hint the frame reads and drops: the sides were compared as MULTISETS, so lite's sentence is
-     *  {@code AssertSentence.SAME_ELEMENTS} ("in any order") whatever the assert's name. */
+     *  {@code AssertKind.SAME_ELEMENTS} ("in any order") whatever the assert's name. */
     private static final String MULTISET_HINT = "__multiset";
     /** A planning-time hint the frame reads and drops: the negated assert is {@code assertIsNot} (#28), its sentence
-     *  {@code AssertSentence.IS_NOT} (legend-pure's 'Should not be identical to: %r'), not the not-equal one. */
+     *  {@code AssertKind.IS_NOT} (legend-pure's 'Should not be identical to: %r'), not the not-equal one. */
     private static final String IS_NOT_HINT = "__isnot";
     /** A planning-time hint the frame reads and drops: the two sides are JSON documents, the sentence
-     *  {@code AssertSentence.JSON_EQUALS}. */
+     *  {@code AssertKind.JSON_EQUALS}. */
     private static final String JSON_HINT = "__json";
     /** Each side's kind as lite's sentence names it where the two texts tie: the frame's, dropped there. */
     private static final String EXPECTED_KIND = "__ekind";
     private static final String ACTUAL_KIND = "__akind";
 
     /** {@code row}'s sentence as SQL: its text pieces as literals and each slot the expression {@code slots} names, one
-     *  concatenation -- the database judge's twin of the host's {@code AssertSentence.fill} (the user's judge model,
+     *  concatenation -- the database judge's twin of the host's {@code AssertKind.fill} (the user's judge model,
      *  2026-11-17: one table for both judges). */
-    public static SqlExpr sentence(com.legend.error.AssertSentence row, java.util.Map<String, SqlExpr> slots) {
+    public static SqlExpr sentence(com.legend.error.AssertKind row, java.util.Map<String, SqlExpr> slots) {
         if (!slots.keySet().equals(new java.util.HashSet<>(row.slots()))) {
             throw new IllegalArgumentException(row.name() + ": slots " + row.slots() + ", given " + slots.keySet());
         }
         List<SqlExpr> parts = new ArrayList<>();
-        for (com.legend.error.AssertSentence.Piece p : row.pieces()) {
+        for (com.legend.error.AssertKind.Piece p : row.pieces()) {
             parts.add(switch (p) {
-                case com.legend.error.AssertSentence.Text t -> new SqlExpr.StringLit(t.text());
-                case com.legend.error.AssertSentence.Slot slot -> slots.get(slot.name());
+                case com.legend.error.AssertKind.Text t -> new SqlExpr.StringLit(t.text());
+                case com.legend.error.AssertKind.Slot slot -> slots.get(slot.name());
             });
         }
         return parts.size() == 1 ? parts.get(0) : new SqlExpr.Call(SqlFn.CONCAT, parts);
     }
 
     /** {@code row}'s sentence with no slot, as a literal. */
-    public static String sentence(com.legend.error.AssertSentence row) {
+    public static String sentence(com.legend.error.AssertKind row) {
         return row.fill(java.util.Map.of());
     }
 
@@ -148,7 +148,7 @@ public final class VerdictSql {
         }
 
         /** This message with the side's KIND as lite's sentence names it where two texts tie
-         *  ({@code AssertSentence.EQUALS_KINDS}). */
+         *  ({@code AssertKind.EQUALS_KINDS}). */
         public Message withKindText(String kindText) {
             return new Message(kind, sorted, literal, canon, kindText, canonClass, styled);
         }
@@ -780,7 +780,7 @@ public final class VerdictSql {
      * other pair canon-equal (the host rule, TdsCompare.tdsEquivalent); the
      * cell counts must match. {@code kinds} = the columns' declared kinds
      * (both grids share the schema — the names were checked statically). */
-    /** {@code lite}: lite's own sentence ({@code AssertSentence.TDS_EQUIVALENT}), each grid's rows written per cell
+    /** {@code lite}: lite's own sentence ({@code AssertKind.TDS_EQUIVALENT}), each grid's rows written per cell
      *  ({@code [[1]]}) and the delta its Float text. */
     public static SqlQuery gridTolerance(GridSide one, GridSide two, List<Type> kinds,
             SqlQuery deltaRows, SqlQuery timeDeltaRows, List<String> columns, VerdictWords words) {
@@ -1997,7 +1997,7 @@ public final class VerdictSql {
     }
 
     /** {@code row}, a self-contained verdict row, its message as {@code words} name an unrolled quantifier's element
-     *  {@code index} (lite's {@code AssertSentence.AT_INDEX}: the row's message, then the zero-based index). */
+     *  {@code index} (the {@code FrameKind.AT_INDEX} frame: the row's message, then the zero-based index). */
     public static SqlQuery atIndex(SqlQuery row, int index, VerdictWords words) {
         java.util.function.UnaryOperator<SqlSelect> at = sel -> {
             List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -2020,7 +2020,7 @@ public final class VerdictSql {
     static SqlExpr equalsOrKinds(SqlExpr e, SqlExpr a, SqlExpr expectedKind, SqlExpr actualKind,
             SqlExpr plain) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, e, a),
-                sentence(com.legend.error.AssertSentence.EQUALS_KINDS, java.util.Map.of("expected", e,
+                sentence(com.legend.error.AssertKind.EQUALS_KINDS, java.util.Map.of("expected", e,
                         "expectedKind", expectedKind, "actual", a, "actualKind", actualKind)))),
                 plain, SqlExpr.Reason.JUDGE);
     }

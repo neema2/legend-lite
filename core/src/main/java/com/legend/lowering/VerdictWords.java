@@ -15,7 +15,7 @@ import java.util.function.UnaryOperator;
  * two-form kind ({@code PlanStyle.twoForm}, {@code PlanStyleFacets.TWO_FORMS}; FailureWords' place, which named whose
  * words they were by a flag). One method per failure kind, each building the verdict row's message from the SQL pieces
  * the verdict already computed -- a method words a failure, it never decides one. The product's form is
- * {@link LiteVerdictWords} (lite's {@code AssertSentence} table); the compatibility edge's writes legend-pure's words.
+ * {@link LiteVerdictWords} (lite's {@code AssertKind} table); the compatibility edge's writes legend-pure's words.
  * {@link #reads} names the frame's shape the words need: lite's sentences read each side as WRITTEN (lite's own text,
  * a column the verdict adds), legend-pure's the CANONS (its framing writes from the canon and the representation
  * facet). Signatures only.

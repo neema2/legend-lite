@@ -37,7 +37,7 @@ final class HostJudgments {
     }
 
     /** {@code row} filled from slot/value-text pairs, in order. */
-    static String sentence(com.legend.error.AssertSentence row, String... slotsAndTexts) {
+    static String sentence(com.legend.error.AssertKind row, String... slotsAndTexts) {
         java.util.Map<String, String> slots = new java.util.LinkedHashMap<>();
         for (int i = 0; i < slotsAndTexts.length; i += 2) {
             slots.put(slotsAndTexts[i], slotsAndTexts[i + 1]);

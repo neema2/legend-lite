@@ -5,6 +5,7 @@ package com.legend.testdatagen;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.error.AssertFailed;
+import com.legend.error.AssertKind;
 import com.legend.error.NotImplementedException;
 import com.legend.lineage.ScanRelations;
 import com.legend.model.DatabaseDefinition;
@@ -758,21 +759,16 @@ public final class TestDataPlanner {
             Queries queries) {
         List<ScanRelations.Rel> roots = ScanRelations.relTree(ctx, query, mappingFqn);
         if (roots.size() != 1) {
-            throw new AssertFailed(viewRoot
-                    ? "Seed data generation currently supports queries with a single root table/view (unions are not"
-                            + " supported)"
-                    : "Seed data generation currently supports queries with a single root (got: " + roots.size()
-                            + ")");
+            throw new AssertFailed(viewRoot ? AssertKind.SEED_SINGLE_ROOT_VIEW.record()
+                    : AssertKind.SEED_SINGLE_ROOT.record(java.util.Map.of("count", Integer.toString(roots.size()))));
         }
         // a set operation at the query's root is two roots for upstream's relation tree (one per branch), whose
         // lineage lite's relation tree does not split: refused with upstream's words, its count the branches' (the
         // B2d.3 audit's L6, 2026-11-12 -- until then refused as keys that cannot be carried)
         SqlQuery lowered = queries.lowered(query);
         if (lowered instanceof com.legend.sql.SqlUnion u) {
-            throw new AssertFailed(viewRoot
-                    ? "Seed data generation currently supports queries with a single root table/view (unions are not"
-                            + " supported)"
-                    : "Seed data generation currently supports queries with a single root (got: " + branches(u) + ")");
+            throw new AssertFailed(viewRoot ? AssertKind.SEED_SINGLE_ROOT_VIEW.record()
+                    : AssertKind.SEED_SINGLE_ROOT.record(java.util.Map.of("count", Integer.toString(branches(u)))));
         }
         ScanRelations.Rel root = roots.get(0);
         String db = root.db();
@@ -781,8 +777,7 @@ public final class TestDataPlanner {
             if (!viewRoot) {
                 // upstream's words (the B2d.3 audit's L9): the root node's type()->makeString(), the relation tree
                 // node's class, whose name Pure's toString answers (TDG:222)
-                throw new AssertFailed("Seed data generation currently supports queries with a root table"
-                        + " (unions/views are not supported, got: RelationTree)");
+                throw new AssertFailed(AssertKind.SEED_ROOT_TABLE.record());
             }
             ScanRelations.Rel base = ScanRelations.viewExpansion(ctx, db, table).tree();
             db = base.db();
@@ -980,8 +975,7 @@ public final class TestDataPlanner {
         List<String> nonNull = def.columns().stream().filter(c -> c.notNull() && !long1000(c.dataType()))
                 .map(DatabaseDefinition.ColumnDefinition::name).toList();
         if (nonNull.isEmpty()) {
-            throw new AssertFailed("Table : " + table + " must have atleast 1 primary key or non-null column to"
-                    + " utilise this feature");
+            throw new AssertFailed(AssertKind.SEED_TABLE_KEYS.record(java.util.Map.of("table", table)));
         }
         return nonNull;
     }

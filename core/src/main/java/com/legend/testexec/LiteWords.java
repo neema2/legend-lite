@@ -4,7 +4,7 @@
 package com.legend.testexec;
 
 import com.legend.base.Nullable;
-import com.legend.error.AssertSentence;
+import com.legend.error.AssertKind;
 import com.legend.values.PureDateLiteral;
 
 import java.math.BigDecimal;
@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * THE HOST JUDGE'S OWN SENTENCES UNDER LITE'S RULES (the user's judge model, 2026-11-17: lite picks its own best
- * messages; the orchestrator's rulings of that day): a failed assert's message is its {@link AssertSentence} row, each
+ * messages; the orchestrator's rulings of that day): a failed assert's message is its {@link AssertKind} row, each
  * slot a value written as the PRODUCT writes it -- the same text the database judge's statement builds in SQL from the
  * same row, so the two isolated judges agree on the message as on the verdict (their comparison is the drift guard).
  * Test-side text, the judge's: never a writer of the product's output (R3).
@@ -83,7 +83,7 @@ public final class LiteWords {
     }
 
     /** {@code row}'s sentence filled: each slot's text by name. */
-    public static String sentence(AssertSentence row, Map<String, String> slots) {
+    public static String sentence(AssertKind row, Map<String, String> slots) {
         return row.fill(slots);
     }
 
@@ -126,7 +126,7 @@ public final class LiteWords {
     }
 
     /** A value's KIND as lite's sentence names it where two values' texts tie
-     *  ({@link com.legend.error.AssertSentence#EQUALS_KINDS}): Integer, Float, Decimal, String, Boolean, StrictDate,
+     *  ({@link com.legend.error.AssertKind#EQUALS_KINDS}): Integer, Float, Decimal, String, Boolean, StrictDate,
      *  DateTime, an instance's class; a collection its elements' one kind, else Any. */
     public static String kind(@Nullable Object v, @Nullable String instanceClass) {
         return switch (v) {
@@ -164,7 +164,7 @@ public final class LiteWords {
     public static String equalsSentence(String e, String a, java.util.function.Supplier<String> eKind,
             java.util.function.Supplier<String> aKind, @Nullable Object eValue, @Nullable Object aValue) {
         if (!e.equals(a)) {
-            return com.legend.error.AssertSentence.EQUALS.fill(Map.of("expected", e, "actual", a));
+            return com.legend.error.AssertKind.EQUALS.fill(Map.of("expected", e, "actual", a));
         }
         String ek = eKind.get();
         String ak = aKind.get();
@@ -173,7 +173,7 @@ public final class LiteWords {
             ek = ek + ", " + ed.precision().name().toLowerCase(java.util.Locale.ROOT);
             ak = ak + ", " + ad.precision().name().toLowerCase(java.util.Locale.ROOT);
         }
-        return com.legend.error.AssertSentence.EQUALS_KINDS.fill(Map.of("expected", e, "expectedKind", ek,
+        return com.legend.error.AssertKind.EQUALS_KINDS.fill(Map.of("expected", e, "expectedKind", ek,
                 "actual", a, "actualKind", ak));
     }
 
