@@ -42,17 +42,23 @@ public enum ErrorKind implements ErrorCode {
     SLICE_BOUNDS_INVERTED(Form.any("The low bound (%1$s) can't be higher than the high bound (%2$s) in a slice"
             + " operation")),
     /** [day, year, month, day] its attempted date (the month unpadded), or [the component, its literal] (a
-     *  fractional second's plain digits): legend-pure's date(). */
+     *  fractional second's whole part, as legend-pure validates it): legend-pure's date(). */
     DATE_COMPONENT_INVALID(Form.of(4, "Invalid day: %2$s-%3$s-%4$s"),
-            Form.any("Invalid %1$s: %2$s", Slot.TEXT, Slot.PLAIN)),
+            Form.any("Invalid %1$s: %2$s", Slot.TEXT, Slot.WHOLE)),
     /** [the source type's name, the target's]: legend-pure's cast. */
     CAST_IMPOSSIBLE(Form.any("Cast exception: %1$s cannot be cast to %2$s")),
-    /** [the value's run-time type's path, the needed type's]: legend-pure's cast. */
-    INSTANCE_NOT_OF(Form.any("Cast exception: %1$s is not a %2$s")),
-    /** [the value, the arms]: legend-pure's Match.java where no branch takes the value (no arms named); the resolver's
-     *  run-time dispatch, its arms named. */
-    MATCH_FAILURE(Form.whenEmpty(1, "Match failure: %1$s matches no branch"),
-            Form.any("Match failure: no arm of [%2$s] accepts the row's run-time type")),
+    /** [the value's run-time class's name, the needed class's]: legend-pure's cast (Cast.java's sentence of a failed
+     *  cast, the classes' names as GenericType.print writes them; the BE audit 2's S2, 2026-11-21: until then "is not
+     *  a", which neither upstream says; the audit 3's M3: the names, until then the paths). */
+    INSTANCE_NOT_OF(Form.any("Cast exception: %1$s cannot be cast to %2$s")),
+    /** [the value as legend-pure prints it (CompiledSupport.matchFailure: "42 instanceOf Integer", a collection's
+     *  "[..., ...]"; a value no plan holds {@code <computed>}), the arms]: legend-pure's where no branch takes the value
+     *  (no arms named; the BE audit 3's M4, 2026-11-21: until then its type and multiplicity); the resolver's
+     *  run-time dispatch, its arms named, where the value is the row only the database held, so legend-pure's
+     *  sentence prints it {@code <computed>} (D1, register S389; the BE audit 2's S9, 2026-11-21: until then lite's own
+     *  "no arm of [...] accepts the row's run-time type", where upstream has a sentence). */
+    MATCH_FAILURE(Form.whenEmpty(1, "Match failure: %1$s"),
+            Form.any("Match failure: <computed>")),
     /** legend-pure's Range native. */
     RANGE_STEP_ZERO(Form.any("range step must not be 0")),
     /** [the constraint's id]: legend-engine's. */
@@ -73,8 +79,9 @@ public enum ErrorKind implements ErrorCode {
     INVERSE_TRIG_NAN(Form.of(1, "%1$s of a value outside [-1, 1] is NaN, which this database cannot hold")),
     /** Lite's own (S138), parseFloat of the text NaN. */
     PARSED_NAN_NOT_HELD(Form.of(0, "parseFloat of NaN is NaN, which this database cannot hold")),
-    /** Lite's own (S138), a text read as a Float that is NaN or an infinity. */
-    NOT_FINITE_NOT_HELD(Form.of(0, "NaN or an infinity")),
+    /** [the database]: lite's own (S138), a text read as a Float that is NaN or an infinity (the BE audit 2's S7,
+     *  2026-11-21: until then the place alone, "NaN or an infinity"). */
+    NOT_FINITE_NOT_HELD(Form.of(1, "NaN or an infinity has no %1$s value")),
     /** [the last year, the database] or [the first year, the last, the database]: lite's own, a date the arithmetic
      *  carries past the years the database holds. */
     DATE_PAST_YEARS(Form.of(2, "a date past the year %1$s has no %2$s value"),
@@ -134,8 +141,10 @@ public enum ErrorKind implements ErrorCode {
         DATE,
         /** A number as Pure prints a Float (an Integer's too: {@code 4.0}); any other value as {@link #TEXT}. */
         FLOAT,
-        /** A Float's plain digits, never an exponent ({@code BigDecimal.toPlainString}); any other as {@link #TEXT}. */
-        PLAIN
+        /** A number's whole part, truncated toward zero, as legend-pure's date() validates a fractional second
+         *  ({@code second.intValue()}; the BE audit 2's S2, 2026-11-21: until then its plain digits); any other as
+         *  {@link #TEXT}. */
+        WHOLE
     }
 
     /**
@@ -181,7 +190,19 @@ public enum ErrorKind implements ErrorCode {
         }
 
         boolean takes(int size, java.util.function.IntPredicate empty) {
-            return (arity < 0 || arity == size) && (emptySlot < 0 || emptySlot < size && empty.test(emptySlot));
+            return (arity < 0 || arity == size) && size >= named()
+                    && (emptySlot < 0 || emptySlot < size && empty.test(emptySlot));
+        }
+
+        /** The values the template names: its highest {@code %n$s} (the BE audit 2's S5, 2026-11-21: a site with fewer
+         *  operands is no form's, refused by name, never a format's own error). */
+        int named() {
+            int n = 0;
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("%(\\d+)\\$s").matcher(template);
+            while (m.find()) {
+                n = Math.max(n, Integer.parseInt(m.group(1)));
+            }
+            return n;
         }
 
         String say(java.util.List<String> values) {
@@ -205,6 +226,9 @@ public enum ErrorKind implements ErrorCode {
     public boolean isRaise() {
         return !isDatabases() && this != FILE_TOO_LARGE;
     }
+
+    /** A value the database computed and no plan holds, as every audience prints it (D1, register S389). */
+    public static final String COMPUTED = "<computed>";
 
     private final java.util.List<Form> forms;
 

@@ -23,7 +23,7 @@ import java.util.List;
 public final class RaiseWords {
 
     /** A value the database computed and no plan holds (D1, register S389). */
-    public static final String COMPUTED = "<computed>";
+    public static final String COMPUTED = com.legend.error.ErrorKind.COMPUTED;
 
     private RaiseWords() {
     }
@@ -60,7 +60,14 @@ public final class RaiseWords {
                 case Operand.Instant t -> t.iso();
                 case Operand.Computed c -> COMPUTED;
             };
-            case PLAIN -> o instanceof Operand.Flt f ? java.math.BigDecimal.valueOf(f.value()).toPlainString() : text(o);
+            // a number's intValue, as legend-pure's date() validates a fractional second (CoreHelper.newDate): a
+            // Double's saturates at the int range, a BigDecimal's keeps the low 32 bits (the BE audit 3's S3,
+            // 2026-11-21: until then the exact whole part, which upstream never prints past the int range)
+            case WHOLE -> switch (o) {
+                case Operand.Flt f -> Integer.toString((int) f.value());
+                case Operand.Dec d -> Integer.toString(d.value().intValue());
+                default -> text(o);
+            };
         };
     }
 

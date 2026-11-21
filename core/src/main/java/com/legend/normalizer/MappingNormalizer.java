@@ -1402,6 +1402,18 @@ public final class MappingNormalizer {
         // different tables — table-name-only dedup would silently pick
         // refs.get(0)'s database. Null (scope-block) refs inherit the
         // explicit one, so only NON-NULL databases enter the check.
+        // the TABLES first, then the databases, as legend-pure's RelationalInstanceSetImplementationProcessor and
+        // legend-engine's RelationalCompilerExtension decide (the BE audit 3's M5, 2026-11-21): two tables name no main
+        // table; one table's name under two databases is upstream's inconsistent definitions -- exact for a table one
+        // database includes from another, where upstream's table is the one object; two databases each declaring a
+        // table of that name upstream calls two tables, which the normalizer, reading no database, does not tell apart
+        Set<String> names = new LinkedHashSet<>();
+        refs.forEach(r -> names.add(canonicalTable(r.table())));
+        if (names.size() > 1) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    com.legend.error.CompileKind.MAIN_TABLE_UNNAMED,
+                    java.util.List.of(com.legend.protocol.Protocol.splitFqn(rcm.className())[1], names.toString()));
+        }
         Set<String> dbs = new LinkedHashSet<>();
         refs.forEach(r -> {
             if (r.database() != null) {
@@ -1410,14 +1422,8 @@ public final class MappingNormalizer {
         });
         if (dbs.size() > 1) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "Inconsistent database definitions for the mapping of class '"
-                  + rcm.className() + "': " + dbs);
-        }
-        Set<String> names = new LinkedHashSet<>();
-        refs.forEach(r -> names.add(canonicalTable(r.table())));
-        if (names.size() > 1) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    com.legend.error.CompileKind.MAIN_TABLE_UNNAMED, java.util.List.of(rcm.className(), names.toString()));
+                    com.legend.error.CompileKind.MAIN_TABLE_DATABASES_INCONSISTENT,
+                    java.util.List.of(com.legend.protocol.Protocol.splitFqn(rcm.className())[1], dbs.toString()));
         }
         if (refs.isEmpty()) {
             return null;

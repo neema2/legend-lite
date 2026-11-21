@@ -92,17 +92,17 @@ RAISE_FORMS: dict[str, list[dict[str, object]]] = {
     ],
     'DATE_COMPONENT_INVALID': [
         {'arity': 4, 'emptySlot': -1, 'template': 'Invalid day: %2$s-%3$s-%4$s', 'slots': [], 'shape': 'TEMPLATE'},
-        {'arity': -1, 'emptySlot': -1, 'template': 'Invalid %1$s: %2$s', 'slots': ['TEXT', 'PLAIN'], 'shape': 'TEMPLATE'},
+        {'arity': -1, 'emptySlot': -1, 'template': 'Invalid %1$s: %2$s', 'slots': ['TEXT', 'WHOLE'], 'shape': 'TEMPLATE'},
     ],
     'CAST_IMPOSSIBLE': [
         {'arity': -1, 'emptySlot': -1, 'template': 'Cast exception: %1$s cannot be cast to %2$s', 'slots': [], 'shape': 'TEMPLATE'},
     ],
     'INSTANCE_NOT_OF': [
-        {'arity': -1, 'emptySlot': -1, 'template': 'Cast exception: %1$s is not a %2$s', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': -1, 'emptySlot': -1, 'template': 'Cast exception: %1$s cannot be cast to %2$s', 'slots': [], 'shape': 'TEMPLATE'},
     ],
     'MATCH_FAILURE': [
-        {'arity': -1, 'emptySlot': 1, 'template': 'Match failure: %1$s matches no branch', 'slots': [], 'shape': 'TEMPLATE'},
-        {'arity': -1, 'emptySlot': -1, 'template': 'Match failure: no arm of [%2$s] accepts the row\'s run-time type', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': -1, 'emptySlot': 1, 'template': 'Match failure: %1$s', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': -1, 'emptySlot': -1, 'template': 'Match failure: <computed>', 'slots': [], 'shape': 'TEMPLATE'},
     ],
     'RANGE_STEP_ZERO': [
         {'arity': -1, 'emptySlot': -1, 'template': 'range step must not be 0', 'slots': [], 'shape': 'TEMPLATE'},
@@ -138,7 +138,7 @@ RAISE_FORMS: dict[str, list[dict[str, object]]] = {
         {'arity': 0, 'emptySlot': -1, 'template': 'parseFloat of NaN is NaN, which this database cannot hold', 'slots': [], 'shape': 'TEMPLATE'},
     ],
     'NOT_FINITE_NOT_HELD': [
-        {'arity': 0, 'emptySlot': -1, 'template': 'NaN or an infinity', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': 1, 'emptySlot': -1, 'template': 'NaN or an infinity has no %1$s value', 'slots': [], 'shape': 'TEMPLATE'},
     ],
     'DATE_PAST_YEARS': [
         {'arity': 2, 'emptySlot': -1, 'template': 'a date past the year %1$s has no %2$s value', 'slots': [], 'shape': 'TEMPLATE'},

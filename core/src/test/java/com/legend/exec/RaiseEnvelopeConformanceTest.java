@@ -64,7 +64,7 @@ class RaiseEnvelopeConformanceTest {
         }
     }
 
-    /** A fixture site's operand, one key and its value (PlanJson v59's: the fixture's are texts, Integers and
+    /** A fixture site's operand, one key and its value (PlanJson v59's: the fixture's are texts, Integers, Floats and
      *  computed values). */
     private static com.legend.executionplan.Operand operand(Json.Obj o) {
         if (o.getOr("string", null) != null) {
@@ -72,6 +72,9 @@ class RaiseEnvelopeConformanceTest {
         }
         if (o.getOr("integer", null) != null) {
             return new com.legend.executionplan.Operand.Int(o.getLong("integer"));
+        }
+        if (o.getOr("float", null) != null) {
+            return new com.legend.executionplan.Operand.Flt(o.getDouble("float"));
         }
         if (o.getOr("computed", null) != null) {
             return com.legend.executionplan.Operand.Computed.IT;

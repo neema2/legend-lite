@@ -22,12 +22,14 @@ class LiteDataRefusalTest {
 
     @Test
     void aRaiseIsDataItsKindInRaiseAndItsSitesWhereInWhere() {
-        assertEquals("{\"kind\":\"data\",\"message\":\"Cannot cast a collection of size\","
+        // a raise is its record, its sentence the one catalog's (stage B's BE, 2026-11-21), its where the site's
+        assertEquals("{\"kind\":\"data\",\"message\":\"Cannot cast a collection of size 0 to multiplicity [1]\","
                         + "\"where\":\"[1]\",\"raise\":\"sizeNotMultiplicity\"}",
-                LiteV1Api.refusal(new DataError(ErrorKind.SIZE_NOT_MULTIPLICITY, "[1]",
-                        "Cannot cast a collection of size", CAUSE)).json());
+                LiteV1Api.refusal(new DataError(com.legend.error.ErrorRecord.of(ErrorKind.SIZE_NOT_MULTIPLICITY,
+                        java.util.List.of("[1]")), "[1]", CAUSE)).json());
         assertEquals("{\"kind\":\"data\",\"message\":\"Division by zero\",\"raise\":\"divideByZero\"}",
-                LiteV1Api.refusal(new DataError(ErrorKind.DIVIDE_BY_ZERO, CAUSE)).json());
+                LiteV1Api.refusal(new DataError(com.legend.error.ErrorRecord.of(ErrorKind.DIVIDE_BY_ZERO,
+                        java.util.List.of()), null, CAUSE)).json());
     }
 
     @Test

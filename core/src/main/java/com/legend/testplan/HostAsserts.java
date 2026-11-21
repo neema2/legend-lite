@@ -410,7 +410,8 @@ final class HostAsserts implements TestDoor.Asserts {
         try {
             args = AssertErrorNative.args(ae, letPrefix);
         } catch (com.legend.error.NotImplementedException e) {
-            // a shape the arm refuses: raised at the assert's turn, as the walk's arm raises it
+            // a shape the arm refuses: no error upstream raises at run, so Failures.planned refuses the body at
+            // planning (D, 2026-11-21; the BE audit 2's nit 2: until then this said it was raised at the assert's turn)
             return planned(AssertVerdicts.HostAssert.raising(name, null,
                     com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssertError: a shape the arm refuses")), HostSides.Planned.NONE, env);
         }
@@ -474,7 +475,8 @@ final class HostAsserts implements TestDoor.Asserts {
         } catch (RuntimeException e) {
             caught = AssertErrorNative.caught(e, "HostAsserts.planAssertError: f's sides");
             if (caught == null) {
-                // no error the arm takes (a wall): raised at the assert's turn, loud, as the walk's arm raises it
+                // no error the arm takes (a wall): planned at the assert's turn only if upstream raises it at run, else
+                // the body is refused at planning (D, 2026-11-21, as above)
                 return planned(AssertVerdicts.HostAssert.raising(name, null,
                         com.legend.testexecutionplan.Failures.planned(e, "HostAsserts.planAssertError: a wall f's sides raised")), HostSides.Planned.NONE,
                         env);

@@ -82,7 +82,9 @@ export function sentence(site: RaiseSiteFacts): string {
   if (forms === undefined) throw new Error(`a raise of kind ${site.kind}, which this tab has no sentence for`);
   const ops = site.operands ?? [];
   const empty = (i: number): boolean => ops[i]?.string === '';
-  const form = forms.find((f) => (f.arity < 0 || f.arity === ops.length)
+  // a form takes the operands its sentence names, at least (result.RaiseWords refuses fewer by name, as here)
+  const named = (t: string): number => Math.max(0, ...[...t.matchAll(/%(\d+)\$s/g)].map((m) => Number(m[1])));
+  const form = forms.find((f) => (f.arity < 0 || f.arity === ops.length) && ops.length >= named(f.template)
       && (f.emptySlot < 0 || (f.emptySlot < ops.length && empty(f.emptySlot))));
   if (form === undefined) throw new Error(`no sentence of ${site.kind} says ${ops.length} values`);
   const values = ops.map((o, i) => print(o, form.slots[i] ?? 'TEXT'));
@@ -92,15 +94,18 @@ export function sentence(site: RaiseSiteFacts): string {
 const COMPUTED = '<computed>';
 
 function print(o: Readonly<Record<string, unknown>>, slot: string): string {
-  const [key, value] = Object.entries(o)[0] ?? ['computed', true];
+  const entry = Object.entries(o)[0];
+  if (entry === undefined) throw new Error('a raise site operand is one key and its value: {}');
+  const [key, value] = entry;
   if (key === 'computed') return COMPUTED;
   switch (slot) {
     case 'DATE':
       return key === 'string' ? dated(String(value)) : text(key, value);
     case 'FLOAT':
       return key === 'float' || key === 'integer' || key === 'decimal' ? carried(Number(value)) : text(key, value);
-    case 'PLAIN':
-      return key === 'float' ? plain(String(value), true) : text(key, value);
+    case 'WHOLE':
+      return key === 'float' ? wholeOfDouble(Number(value)) : key === 'decimal' ? wholeOfDecimal(String(value))
+        : text(key, value);
     default:
       return text(key, value);
   }
@@ -124,8 +129,25 @@ function dated(literal: string): string {
 /** A Float as Pure prints one (result.CellText.carriedFloat): its shortest digits laid out with a point always, never
  *  an exponent. */
 function carried(d: number): string {
+  // Java's Double.toString for the values that have no digits, and negative zero (result.CellText.carriedFloat)
+  if (Number.isNaN(d)) return 'NaN';
+  if (!Number.isFinite(d)) return d > 0 ? 'Infinity' : '-Infinity';
+  if (Object.is(d, -0)) return '-0.0';
   const p = plain(String(d), false);
   return p.includes('.') ? p : `${p}.0`;
+}
+
+/** A Double's intValue, as legend-pure's date() validates a fractional second (Java's narrowing: toward zero,
+ *  saturated at the int range, NaN 0; the BE audit 3's S3). */
+function wholeOfDouble(x: number): string {
+  if (Number.isNaN(x)) return '0';
+  return String(Math.max(-2147483648, Math.min(2147483647, Math.trunc(x))) || 0);
+}
+
+/** A BigDecimal's intValue: its whole part's low 32 bits, two's complement (the BE audit 3's S3). */
+function wholeOfDecimal(s: string): string {
+  const w = plain(s, true).split('.')[0];
+  return String(BigInt.asIntN(32, BigInt(w === '-0' ? '0' : w)));
 }
 
 /** `s`, a number's digits possibly with an exponent, laid out plainly: every digit kept where `keep`

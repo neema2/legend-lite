@@ -187,7 +187,7 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("month"), new SqlExpr.IntLit(13))),
                 lit("Invalid month: 13"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("second"),
-                new SqlExpr.FloatLit(61.5))), lit("Invalid second: 61.5"));
+                new SqlExpr.FloatLit(61.5))), lit("Invalid second: 61"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_COMPONENT_INVALID, List.of(lit("hour"), a)),
                 cat(lit("Invalid hour: "), str(a)));
         moved.put(new SqlExpr.RaiseText(RaiseKind.CAST_IMPOSSIBLE, List.of(lit("Integer"), lit("Date"))),
@@ -218,7 +218,8 @@ class RaiseTextTest {
                 lit("acos of a value outside [-1, 1] is NaN, which this database cannot hold"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.PARSED_NAN_NOT_HELD, List.of()),
                 lit("parseFloat of NaN is NaN, which this database cannot hold"));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.NOT_FINITE_NOT_HELD, List.of()), lit("NaN or an infinity"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.NOT_FINITE_NOT_HELD, List.of(lit("MariaDB"))),
+                lit("NaN or an infinity has no MariaDB value"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_PAST_YEARS, List.of(lit("9999"), lit("MariaDB"))),
                 lit("a date past the year 9999 has no MariaDB value"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_PAST_YEARS, List.of(lit("0000"), lit("9999"), lit("SQLite"))),

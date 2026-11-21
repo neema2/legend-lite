@@ -100,7 +100,7 @@ class IncludeRulesTest {
         ModelException e = assertThrows(ModelException.class, () -> Compiler.compileModel(dupId));
         // the product's kind and lite's sentence (J10, 2026-11-17); legend-engine's words are the edge's
         assertEquals(com.legend.error.CompileKind.DUPLICATE_CLASS_MAPPING_IDS, e.kind(), e.getMessage());
-        assertTrue(e.getMessage().contains("Duplicated class mappings found with ID [p (w::A, w::B)] in mapping 'w::AB'"),
+        assertTrue(e.getMessage().contains("Duplicated class mappings found with ID 'p' in mapping 'w::AB'"),
                 e.getMessage());
         Compiler.BuiltModule module = Compiler.buildModule(Compiler.parseSources(List.of(
                 new Compiler.ModelSource("m.pure", dupId))).model());

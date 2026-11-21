@@ -34,16 +34,17 @@ class TerminalRowsFrozenTest {
      *  row). */
     static final Map<String, String> TERMINAL = Map.ofEntries(
             // the one catalog: upstream's compile sentences in error/CompileKind.java (stage B's BE)
-            Map.entry("error/CompileKind.java | Can't find | 5 | RULED", ONE_CATALOG),
+            // (5 -> 6, 2026-11-21, the BE audit 2's S2: MAIN_TABLE_DATABASES_INCONSISTENT; for the user's word)
+            Map.entry("error/CompileKind.java | Can't find | 6 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Default values are supported only | 1 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Duplicated class mappings | 1 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Duplicated element | 1 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Duplicated mapping include | 1 | RULED", ONE_CATALOG),
-            Map.entry("error/CompileKind.java | Found duplicated | 2 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Invalid supertype | 1 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | Invalid window frame boundary | 2 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | arguments count ( | 1 | RULED", ONE_CATALOG),
-            Map.entry("error/CompileKind.java | can't be found | 3 | RULED", ONE_CATALOG),
+            // (3 -> 4, 2026-11-21, the BE audit 3's S1: MISSING_STORE_SCHEMA; for the user's word)
+            Map.entry("error/CompileKind.java | can't be found | 4 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | trying to get an element at offset | 1 | RULED", ONE_CATALOG),
             Map.entry("error/CompileKind.java | variables count ( | 1 | RULED", ONE_CATALOG),
             Map.entry("error/ErrorKind.java | Cannot cast a collection of size | 2 | RULED", ONE_CATALOG),

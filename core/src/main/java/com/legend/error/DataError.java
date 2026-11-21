@@ -45,39 +45,20 @@ public final class DataError extends RuntimeException implements LegendError {
         this.record = null;
     }
 
-    /** A product raise of {@code kind}: its message the kind's sentence, spelled here, the error layer's
-     *  ({@link ErrorKind#sentence}). */
-    public DataError(ErrorKind kind, Throwable cause) {
-        this(kind, null, cause);
-    }
-
-    /** A product raise of {@code kind} placed by {@code where}, a fixed text known at planning (a parameter's name, the
-     *  digits a database keeps): its message the kind's sentence, then the where (the D part 1 audit's S4,
-     *  2026-11-15: the user's "its kind and where it happened"). */
-    public DataError(ErrorKind kind, @com.legend.base.Nullable String where, Throwable cause) {
-        this(recordOf(kind, where, cause), where, cause);
-    }
-
-    /** {@code kind} at {@code where} as data. A file too large is refused here by name: its record carries its size's
-     *  facts, which every audience words, so it is made by {@link #fileTooLarge} alone (this package imports nothing to
-     *  read them from a cause). */
-    private static ErrorRecord recordOf(ErrorKind kind, @com.legend.base.Nullable String where, Throwable cause) {
-        if (kind == ErrorKind.FILE_TOO_LARGE) {
-            throw new IllegalArgumentException("a file too large is raised with its size's facts, by"
-                    + " DataError.fileTooLarge: " + where);
-        }
-        return ErrorRecord.of(kind, where == null ? java.util.List.of() : java.util.List.of(where));
-    }
+    // (the constructors of a kind and its where -- (kind, cause), (kind, where, cause) and (kind, where, message,
+    // cause) -- gone 2026-11-21, the BE audit 2's S10: no product path made one, and a kind's sentence reads its
+    // operands, which they put in its first slot; a raise is its record, DataError(record, where, cause))
 
     private static ErrorRecord fileTooLargeRecord(String path, long bytes, long characters, int limitMegabytes) {
         return ErrorRecord.of(ErrorKind.FILE_TOO_LARGE, java.util.List.of(path, Long.toString(bytes),
                 Long.toString(characters), Integer.toString(limitMegabytes)));
     }
 
-    /** The error {@code record} states, its code a run's {@link ErrorKind} and its first value its place: its message
+    /** The error {@code record} states, its code a run's {@link ErrorKind}, with no place: its message
      *  the record's sentence (stage B's BE, 2026-11-21; a planned failure rebuilt from its record). */
     public DataError(ErrorRecord record) {
-        this(record, record.values().isEmpty() ? null : record.values().get(0), null);
+        // no place: a planned failure carries none (the BE audit 2's nit 4: its first value was taken for it)
+        this(record, null, null);
     }
 
     /** A raise of a planned site (stage B's BE, 2026-11-21, the one catalog): its record the site's kind and its
@@ -107,18 +88,6 @@ public final class DataError extends RuntimeException implements LegendError {
     @Override
     public @com.legend.base.Nullable ErrorRecord record() {
         return record;
-    }
-
-    /** A raise of a planned site of {@code kind} placed by {@code where} (phase D's Phase 2, raises as SITES,
-     *  2026-11-16): its message the site's words, RENDERED AT PLANNING and read back from the plan -- the product's
-     *  sentence, or legend-pure's in a plan the compatibility edge wrote -- never worded here. */
-    public DataError(ErrorKind kind, @com.legend.base.Nullable String where, String message, Throwable cause) {
-        super(message, cause);
-        this.kind = kind;
-        this.sqlState = null;
-        this.databaseMessage = null;
-        this.where = where;
-        this.record = null;
     }
 
     private DataError(ErrorKind kind, @com.legend.base.Nullable String sqlState, String databaseMessage, String message,

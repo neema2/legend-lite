@@ -48,7 +48,7 @@ class RaiseTextGuardTest {
             // Scalars.guarded)
             "lowering/PureSql.java", 2,
             "lowering/Scalars.java", 1,
-            // MongoDB's pipeline raises of a constant text (lite's own sentences, VALUE_NOT_HELD's family): D1.1 moves
+            // MongoDB's pipeline raises of a constant text (lite's own sentences, the S138 refusals' family): D1.1 moves
             // them; until then counted here
             "sql/dialect/MongoDb.java", 4);
     // (sql/dialect/FrameGuard.java, 1: exempt for one commit, the merge of main 3a217086a (#81), 2026-11-14; its two

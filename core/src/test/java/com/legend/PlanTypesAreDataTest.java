@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * GUARD 1: THE PLAN'S TYPES ARE DATA (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the design's step 3, 2026-11-08; the user,
@@ -171,18 +172,153 @@ class PlanTypesAreDataTest {
                 + " must not hold; a pin that no longer holds leaves PINNED with a dated note");
     }
 
-    /** The names a component holding prose goes by: a sentence lite wrote for a reader, never a fact (stage B's BE-P,
-     *  2026-11-21, the one error model's §5 step 4: no prose in a plan). A text component of any other name is a fact
-     *  -- a name, a type, SQL, a literal the program wrote, a code. */
-    private static final Set<String> PROSE_NAMES = Set.of("message", "where", "unplanned", "unjudgedReason", "reason",
-            "detail", "words", "sentence", "explanation", "prose");
-
     /** The prose a plan still holds, each "Record.component" with what it is and the step that removes it: shrink-only
-     *  (a component that leaves is deleted here with a dated note; a new one fails). Measured 2026-11-21. */
-    private static final java.util.Map<String, String> PROSE_RESIDUE = java.util.Map.of();
+     *  (a component that leaves is deleted here with a dated note; a new one fails). Measured 2026-11-21, default-deny
+     *  since the BE audit 3's M2 (every text component reviewed: a fact in {@link #FACTS}, or prose here). */
+    private static final java.util.Map<String, String> PROSE_RESIDUE = java.util.Map.ofEntries(
+            // a raise's place: a fixed fact (the bound [1], a native's name) or a composed text ("X to Y", Postgres's
+            // and BigQuery's "a map built from its key and value lists") -- each becomes an operand (BE's follow-up)
+            Map.entry("ExecutionPlan$Site.where", "a raise's place, a fact or a composed text -- to operands"),
+            Map.entry("SqlExpr$RaiseText.where", "the Site's where in the MIR -- with Site.where"),
+            // a checked graph's defect row: its kind's sentence as the answer's DATA (CheckedEnvelope), not a raise
+            Map.entry("SqlExpr$RaiseText.asData", "CONSTRAINT_UNEVALUABLE's sentence as a defect row's cell -- to a"
+                    + " code the answer's writer words (BE's follow-up)"),
+            // lite's descriptions of a load's and a payload's place, and a project's refusal sentence
+            Map.entry("ExecutionPlan$LoadStep$Statements.of", "lite's words of a load's place (\"the data of the table"
+                    + " PEOPLE\") -- to its table's name (BE's follow-up)"),
+            Map.entry("ExecutionPlan$Binding$Payload.label", "lite's words of a payload's statement -- to facts (BE's"
+                    + " follow-up)"),
+            Map.entry("ExecutionPlan$Project.refused", "a project data refusal's sentence -- to a code and its values"
+                    + " (BE's follow-up)"),
+            // a failure with no record (a record and a message never ride together, Failure's constructor)
+            Map.entry("Failure.message", "a failure with no record: an assert's words (the user's message or the"
+                    + " default words lite plans) -- the assert-words question to the user (BE-M)"),
+            Map.entry("Failure.unjudgedReason", "why an assert is unjudged: none on the planned road since D (an"
+                    + " unjudged decline refuses the body at planning) -- removed with the slot (BE's follow-up)"),
+            // the host judge's assert words decided at planning
+            Map.entry("HostJudgment$AllRows.message", "an assert's words decided at planning -- the assert-words"
+                    + " question (BE-M)"),
+            Map.entry("HostJudgment$Decided.message", "the same -- the assert-words question (BE-M)"),
+            Map.entry("HostJudgment$Messaged.unplanned", "a caller's message the plan could not evaluate, lite's words"
+                    + " around its reason -- the assert-words question (BE-M)"),
+            // the compatibility edge's records in a test plan, withdrawn from the run with E1 (B3)
+            Map.entry("Appeal$Unlisted.message", "an appeal's error message -- the edge's, B3"),
+            Map.entry("Appeal.contract", "an appeal's description (\"(sql-text, H2 -- text is the contract)\") -- B3"),
+            Map.entry("EngineTextJudgment.decline", "an engine-text comparison's decline reason -- the edge's, B3"));
 
-    /** NO PROSE IN A PLAN: every text component the plans' types reach (a String, or a list, set or map of them),
-     *  named as prose goes, is a named residue. */
+    /** THE TEXT A PLAN HOLDS THAT IS A FACT, every component reviewed (the BE audit 3's M2, 2026-11-21: until then
+     *  the guard flagged a component by its NAME alone, so prose under another name passed -- now default-deny: a text
+     *  component the plans reach is a fact listed here or prose listed in {@link #PROSE_RESIDUE}, nothing else). Each
+     *  set's key says what its texts are (secrets never: a connection's are vault references); a new text component
+     *  fails until it is reviewed into one of them. */
+    private static final java.util.Map<String, Set<String>> FACTS = java.util.Map.ofEntries(
+            Map.entry("SQL: a statement the plan sends, a database's pattern or format", Set.of(
+                    "Appeal$Rows.goldenPlan", "Appeal$Rows.replaySql", "DateFmt$Text.s",
+                    "EffectTexts$Statement.text", "EngineTextJudgment.golden", "EngineTextJudgment.ours",
+                    "ExecutionPlan$DatabaseSettings.readBack", "ExecutionPlan$Effect$Script.abort",
+                    "ExecutionPlan$Effect$Script.bracketed", "ExecutionPlan$Effect$Script.statements",
+                    "ExecutionPlan$LoadStep$Bound.sql", "ExecutionPlan$LoadStep$Delivery$Reads.after",
+                    "ExecutionPlan$LoadStep$Delivery$Reads.statements", "ExecutionPlan$LoadStep$Statement.sql",
+                    "ExecutionPlan$LoadStep$Stream.count", "ExecutionPlan$LoadStep$Stream.prepare",
+                    "ExecutionPlan$LoadStep$Stream.sql", "ExecutionPlan$RaiseReadBack.read",
+                    "ExecutionPlan$RaiseReadBack.reset", "ExecutionPlan$Region.empty", "ExecutionPlan$Region.lead",
+                    "ExecutionPlan$Region.separator", "ExecutionPlan$Sql.statement",
+                    "ExecutionPlan$Transaction.begin", "ExecutionPlan$Transaction.commit",
+                    "ExecutionPlan$Transaction.rollback", "SqlSource$Catalog.columnPattern",
+                    "SqlSource$Catalog.schemaPattern", "SqlSource$Catalog.tablePattern", "SqlSource$RawSql.sql",
+                    "TestPlan$Verdicts$Savepoint.release", "TestPlan$Verdicts$Savepoint.rollbackTo",
+                    "TestPlan$Verdicts$Savepoint.set")),
+            Map.entry("a value the program or its data wrote, an error record's values", Set.of(
+                    "Appeal$InListSeed.values", "Appeal$TempTable.values", "ErrorRecord$Frame.values",
+                    "ErrorRecord.position", "ErrorRecord.values", "ExecutionPlan$Constant.cells",
+                    "ExecutionPlan$Keyed.admitted", "ExecutionPlan$Load.content",
+                    "ExecutionPlan$LoadStep$Bind$Value.text", "ExecutionPlan$Parameter.enumValues",
+                    "ExecutionPlan$Sql.content", "HostJudgment$AssertError.expected",
+                    "HostJudgment$RowArg$Literal.text", "Operand$Day.iso", "Operand$Instant.iso",
+                    "Operand$Text.value", "RefereeLoad.content", "RootLoop.fragments", "SqlExpr$DateLit.iso",
+                    "SqlExpr$StringLit.value", "SqlExpr$TimeLit.iso", "SqlExpr$TimestampLit.iso",
+                    "TestPlan$Side$Constant.cells")),
+            Map.entry("a connection's or session's settings, a data reference's name or digest", Set.of(
+                    "AuthenticationSpec$ApiToken.apiToken",
+                    "AuthenticationSpec$DelegatedKerberos.kerberosRemoteServiceName",
+                    "AuthenticationSpec$DelegatedKerberos.serverPrincipal",
+                    "AuthenticationSpec$GcpWorkloadIdentityFederation.additionalGcpScopes",
+                    "AuthenticationSpec$GcpWorkloadIdentityFederation.serviceAccountEmail",
+                    "AuthenticationSpec$MiddleTierUserNamePassword.vaultReference",
+                    "AuthenticationSpec$OAuth.oauthKey", "AuthenticationSpec$OAuth.scopeName",
+                    "AuthenticationSpec$SnowflakePublic.passPhraseVaultReference",
+                    "AuthenticationSpec$SnowflakePublic.privateKeyVaultReference",
+                    "AuthenticationSpec$SnowflakePublic.publicUserName",
+                    "AuthenticationSpec$UsernamePassword.passwordVaultRef",
+                    "AuthenticationSpec$UsernamePassword.username",
+                    "AuthenticationSpec$VaultUserNamePassword.baseVaultReference",
+                    "AuthenticationSpec$VaultUserNamePassword.passwordVaultReference",
+                    "AuthenticationSpec$VaultUserNamePassword.userNameVaultReference", "Connection.qualifiedName",
+                    "Connection.storeName", "ConnectionSpecification$BigQuery.defaultDataset",
+                    "ConnectionSpecification$BigQuery.projectId", "ConnectionSpecification$Databricks.hostname",
+                    "ConnectionSpecification$Databricks.httpPath", "ConnectionSpecification$Databricks.port",
+                    "ConnectionSpecification$Databricks.protocol", "ConnectionSpecification$EmbeddedH2.databaseName",
+                    "ConnectionSpecification$EmbeddedH2.directory", "ConnectionSpecification$LocalFile.path",
+                    "ConnectionSpecification$LocalH2.url", "ConnectionSpecification$Snowflake.accountName",
+                    "ConnectionSpecification$Snowflake.accountType", "ConnectionSpecification$Snowflake.cloudType",
+                    "ConnectionSpecification$Snowflake.databaseName",
+                    "ConnectionSpecification$Snowflake.organization", "ConnectionSpecification$Snowflake.region",
+                    "ConnectionSpecification$Snowflake.role", "ConnectionSpecification$Snowflake.warehouseName",
+                    "ConnectionSpecification$Spanner.databaseId", "ConnectionSpecification$Spanner.instanceId",
+                    "ConnectionSpecification$Spanner.projectId", "ConnectionSpecification$StaticDatasource.database",
+                    "ConnectionSpecification$StaticDatasource.host", "ConnectionSpecification$Trino.catalog",
+                    "ConnectionSpecification$Trino.clientTags", "ConnectionSpecification$Trino.host",
+                    "ConnectionSpecification$Trino.schema", "DataRef.digest", "DataRef.name",
+                    "ExecutionPlan$Binding$Payload.digest", "ExecutionPlan$Binding$Source.location",
+                    "ExecutionPlan$Database$System.graphKey", "ExecutionPlan$Load.identity",
+                    "ExecutionPlan$Setting.name", "ExecutionPlan$Setting.value", "ExecutionPlan$Target.session")),
+            Map.entry("a code: a kind, a form, a type's spelling, a slot, a style's name", Set.of(
+                    "Appeal$Enums.decodes", "Appeal$InListSeed.kind", "Appeal$Rows.planBindings",
+                    "Appeal$Rows.sortKeys", "Appeal$TempTable.kind", "Assertion.family", "BodyFacts.shape",
+                    "ExecutionPlan$Binding$Array.elementSqlType", "ExecutionPlan$Binding$One.nullType",
+                    "ExecutionPlan$Column.slot", "ExecutionPlan$Column.type", "ExecutionPlan$LoadStep$Stream.plane",
+                    "ExecutionPlan$Parameter.type", "ExecutionPlan$Sql.stamp", "ExecutionPlan$Update.count",
+                    "HostJudgment$EdgeJudged.sideOrigin", "HostJudgment$Negated.kind", "HostJudgment$Rendered.aForm",
+                    "HostJudgment$Rendered.eForm", "HostJudgment$Rendered.form",
+                    "HostJudgment$RowArg$Literal.carrier", "HostJudgment$SideFacts.declared",
+                    "SideShape$Column.type", "SideShape.multiplicity", "SideShape.typeName",
+                    "SqlDdl$ColumnType$Scaled.kind", "SqlDdl$ColumnType$Sized.kind", "SqlExpr$Tagged$Candidate.kind",
+                    "SqlExpr$TaggedList$Channel.kind", "SqlExpr$WindowCall$Frame$Bound$IntervalFollowing.unit",
+                    "SqlExpr$WindowCall$Frame$Bound$IntervalPreceding.unit", "SqlSource$RawSql.writtenFor",
+                    "SqlSource$Table.storedTypes", "SqlType$Tagged$Slot.kind", "TestPlan$Verdict.arm",
+                    "TestPlan.words")),
+            Map.entry("a name: an element's, a column's, a table's, an alias, a path", Set.of(
+                    "Appeal$Enums.enums", "Appeal$Enums.properties", "Appeal$Rows.classFqn",
+                    "Appeal$Rows.mappingFqn", "Appeal$TempTable.name", "Appeal$Unlisted.simpleName", "Appeal.name",
+                    "Assertion.listenerName", "EngineTextJudgment.name", "ExecutionPlan$Column.name",
+                    "ExecutionPlan$Keyed$Fixed.field", "ExecutionPlan$Keyed$PerKey.field",
+                    "ExecutionPlan$Keyed.keyFields", "ExecutionPlan$LoadStep$Attach.as",
+                    "ExecutionPlan$LoadStep$Attach.held", "ExecutionPlan$LoadStep$Bind$Held.field",
+                    "ExecutionPlan$LoadStep$Bind$Held.name", "ExecutionPlan$LoadStep$Stream.schema",
+                    "ExecutionPlan$LoadStep$Stream.table", "ExecutionPlan$Parameter.name",
+                    "ExecutionPlan$Project.key", "ExecutionPlan$Slot.parameter", "Failure.element",
+                    "HostJudgment$AllRows.name", "HostJudgment$Condition.name", "HostJudgment$Equals.name",
+                    "HostJudgment$GridPair.name", "HostJudgment$InstanceOf.acceptedTypes",
+                    "HostJudgment$InstanceOf.typeName", "HostJudgment$Is.name", "HostJudgment$Keys.byClass",
+                    "HostJudgment$Rendered.name", "HostJudgment$RowArg$Field.name", "HostJudgment$Rows.actualClass",
+                    "HostJudgment$Rows.expectedClass", "HostJudgment$Rows.name", "HostJudgment$SideFacts.classFqn",
+                    "HostJudgment$SideFacts.typeName", "HostJudgment$Subset.name", "KeyTree$Key.declaredClass",
+                    "KeyTree$Key.name", "KeyTree.classFqn", "KindClass$Element.fqn", "KindClass$Enum.fqn",
+                    "KindClass$Instance.fqn", "OutputCol.name", "RootLoop$Root.listenerName", "RootLoop$Row.name",
+                    "SideShape$Column.name", "SqlExpr$CheckedDefects$Hoist.path", "SqlExpr$Column.name",
+                    "SqlExpr$Column.table", "SqlExpr$Lambda.params", "SqlExpr$PlanParam.name",
+                    "SqlExpr$RowOrder.table", "SqlExpr$Star.table", "SqlExpr$StarExcept.except",
+                    "SqlExpr$StarExcept.table", "SqlExpr$StructGet.field", "SqlExpr$StructLit$Field.name",
+                    "SqlSelect$Projection.alias", "SqlSelect$SortKey.outputName", "SqlSource$Catalog.alias",
+                    "SqlSource$Cte.alias", "SqlSource$Cte.name", "SqlSource$GridReport.alias",
+                    "SqlSource$Pivot$Using.alias", "SqlSource$Pivot.alias", "SqlSource$RawSql.alias",
+                    "SqlSource$SourceUrl.alias", "SqlSource$SourceUrl.url", "SqlSource$Subselect.alias",
+                    "SqlSource$Subselect.frameName", "SqlSource$Table.alias", "SqlSource$Table.name",
+                    "SqlSource$Values.alias", "SqlSource$Values.columns", "SqlType$Struct$Field.name",
+                    "SqlWith$Cte.name", "TestPlan$Verdict.name")));
+
+    /** NO PROSE IN A PLAN: every text component the plans' types reach (a String, or a list, set or map of them) is
+     *  a reviewed fact or a named residue -- default-deny (the BE audit 3's M2, 2026-11-21). */
     @Test
     void noComponentHoldsProse() {
         Set<String> prose = new TreeSet<>();
@@ -204,7 +340,7 @@ class PlanTypesAreDataTest {
                 todo.addAll(extensionImplementations());
             } else if (c.isRecord()) {
                 for (RecordComponent rc : c.getRecordComponents()) {
-                    if (holdsText(rc.getGenericType()) && PROSE_NAMES.contains(rc.getName())) {
+                    if (holdsText(rc.getGenericType())) {
                         prose.add(c.getName().substring(c.getPackageName().length() + 1) + "." + rc.getName());
                     }
                     todo.add(rc.getGenericType());
@@ -213,9 +349,16 @@ class PlanTypesAreDataTest {
                 todo.addAll(List.of(c.getPermittedSubclasses()));
             }
         }
-        assertEquals(new TreeSet<>(PROSE_RESIDUE.keySet()), prose, "a plan holds no prose (stage B's BE-P): a text"
-                + " component named as prose is a sentence in the plan -- make it a code and its values, or name it in"
-                + " PROSE_RESIDUE with the step that removes it; a component gone leaves PROSE_RESIDUE with a dated note");
+        Set<String> listed = new TreeSet<>(PROSE_RESIDUE.keySet());
+        for (Set<String> facts : FACTS.values()) {
+            for (String f : facts) {
+                assertTrue(listed.add(f), f + ": listed twice, a fact and prose or two facts");
+            }
+        }
+        assertEquals(listed, prose, "a plan holds no prose (stage B's BE-P): a text"
+                + " component is a fact reviewed into FACTS, or prose -- a sentence in the plan: make it a code and its values,"
+                + " or name it in PROSE_RESIDUE with the step that removes it; a component gone leaves its list with a"
+                + " dated note");
     }
 
     /** Whether {@code t} is a text, or a list, set or map holding texts. */

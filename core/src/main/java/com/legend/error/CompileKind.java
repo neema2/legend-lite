@@ -18,9 +18,16 @@ public enum CompileKind implements ErrorCode {
     MISSING_PROFILE_MEMBER("Can't find %1$s '%2$s' in profile '%3$s'", Raised.COMPILING),
     /** A class mapping a union names that its mapping does not have: the set id, the mapping. */
     MISSING_CLASS_MAPPING("Can't find class mapping '%1$s' in mapping '%2$s'", Raised.COMPILING),
-    /** A class mapping whose properties read several tables and names none as its main one: the class, the tables. */
+    /** A class mapping whose properties read several tables and names none as its main one: the class's name, the
+     *  tables (legend-pure's RelationalInstanceSetImplementationProcessor, {@code cls._name()}; the BE audit 2's S2,
+     *  2026-11-21: until then the class's path). */
     MAIN_TABLE_UNNAMED("Can't find the main table for class '%1$s'. Please specify a main table using the"
             + " ~mainTable directive.", Raised.COMPILING),
+    /** A class mapping whose properties read tables of several databases: the class's name, the databases (legend-pure's
+     *  RelationalInstanceSetImplementationProcessor; the BE audit 2's S2, 2026-11-21: until then lite's own prose,
+     *  "Inconsistent database definitions for the mapping of class"). */
+    MAIN_TABLE_DATABASES_INCONSISTENT("Can't find the main table for class '%1$s'. Inconsistent database definitions"
+            + " for the mapping", Raised.COMPILING),
     /** A class extending a type that is not a class: the class's name, the supertype. */
     INVALID_SUPERTYPE("Invalid supertype: '%1$s' cannot extend '%2$s' as it is not a class.", Raised.COMPILING),
     /** A generic type given another number of arguments than it declares: the arguments' kind (type, multiplicity),
@@ -53,36 +60,45 @@ public enum CompileKind implements ErrorCode {
      *  ({@code TimeBucketShared}; PCT's {@code timeBucket::strictDate} tests assert it inside {@code assertError}). */
     STRICT_DATE_BUCKET_UNIT("Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]",
             Raised.RUNNING),
-    /** Class mapping ids two sets of a mapping's include closure share: the ids (a list, each with its mappings), the
-     *  mapping (J10 of the edge audit, 2026-11-17; legend-engine's MappingCompilerExtension). */
-    DUPLICATE_CLASS_MAPPING_IDS("Duplicated class mappings found with ID %1$s in mapping '%2$s'", Raised.COMPILING),
+    /** A class mapping id two sets of a mapping's include closure share: the first such id, the mapping (legend-engine's
+     *  MappingValidator.validateMappingElementIds; the BE audit 2's M1, 2026-11-21: until then the ids listed with
+     *  their mappings, lite's own). */
+    DUPLICATE_CLASS_MAPPING_IDS("Duplicated class mappings found with ID '%1$s' in mapping '%2$s'", Raised.COMPILING),
     /** A mapping that lists one include twice: the include as written, the mapping (J10 of the edge audit, 2026-11-17;
      *  legend-engine's MappingCompilerExtension). */
     DUPLICATE_MAPPING_INCLUDE("Duplicated mapping include '%1$s' in mapping '%2$s'", Raised.COMPILING),
     /** A store the text names that the model does not have (J10 of the edge audit, 2026-11-17; legend-engine's
-     *  CompileContext.resolveStore). */
+     *  PureModel.getStore, PureModel.java:1241 at the pin; the BE audit 2's S8, 2026-11-21, corrected the citation). */
     MISSING_STORE("The store '%1$s' can't be found.", Raised.COMPILING),
     /** An element name the model defines more than once (J10 of the edge audit, 2026-11-17; legend-engine's
-     *  PureModelBuilder, "Duplicated element"). */
+     *  PureModelContextDataValidator, PureModelContextDataValidator.java:53 at the pin; the BE audit 2's S8,
+     *  2026-11-21, corrected the citation). */
     DUPLICATE_ELEMENT("Duplicated element '%1$s'", Raised.COMPILING),
-    /** A class declaring one stored property twice: the property, the class (J10 of the edge audit, 2026-11-17;
-     *  legend-engine's compiler, "Found duplicated property"). */
-    DUPLICATE_PROPERTY("Found duplicated property '%1$s' in class '%2$s'", Raised.COMPILING),
+    /** A class declaring one stored property twice: the class's name, the property (legend-pure's ClassValidator;
+     *  the BE audit 2's S1, 2026-11-21: legend-engine compiles the model with a warning, "Found duplicated property",
+     *  which lite said until then). */
+    DUPLICATE_PROPERTY("Property conflict on class %1$s: property '%2$s' defined more than once", Raised.COMPILING),
     /** A default value on an optional property: the property (J10 of the edge audit, 2026-11-17; legend-pure's
      *  PropertyValidator). */
     DEFAULT_ON_OPTIONAL("Default values are supported only for mandatory fields, and property '%1$s' is optional.",
             Raised.COMPILING),
-    /** An enumeration declaring one value twice: the value, the enumeration (J10 of the edge audit, 2026-11-17;
-     *  legend-engine's compiler, "Found duplicated value"). */
-    DUPLICATE_ENUM_VALUE("Found duplicated value '%1$s' in enumeration '%2$s'", Raised.COMPILING),
-    /** A database condition's column its table or view does not have: the column, the relation's noun (table, view),
-     *  its name, the condition (join, filter), the database (J10 of the edge audit, 2026-11-17; legend-engine's
-     *  "can't be found" form of a store reference). */
-    MISSING_STORE_COLUMN("The column '%1$s' can't be found in the %2$s '%3$s' (%4$s of database '%5$s')",
+    /** An enumeration declaring a value twice: the enumeration's path, its duplicated values sorted and joined by
+     *  ", " (legend-pure's EnumerationValidator; the BE audit 2's S1, 2026-11-21: legend-engine warns, "Found duplicated
+     *  value", which lite said until then). */
+    DUPLICATE_ENUM_VALUE("Enumeration %1$s has duplicate values: %2$s", Raised.COMPILING),
+    /** A database condition's column its table or view does not have: the column, the relation's name (legend-pure's
+     *  DatabaseProcessor, "in the table" for a view too; the BE audit 2's M1, 2026-11-21: until then lite added the
+     *  condition and the database). */
+    MISSING_STORE_COLUMN("The column '%1$s' can't be found in the table '%2$s'", Raised.COMPILING),
+    /** A database condition's table the database does not have: the table, its schema ("default" where none is
+     *  written), the database's name (legend-pure's DatabaseProcessor; the BE audit 2's M1, 2026-11-21: until then
+     *  lite gave no schema, the database's path and the condition). */
+    MISSING_STORE_TABLE("The table '%1$s' can't be found in the schema '%2$s' in the database '%3$s'",
             Raised.COMPILING),
-    /** A database condition's table the database does not have: the table, the database, the condition (J10 of the
-     *  edge audit, 2026-11-17; legend-engine's "can't be found" form of a store reference). */
-    MISSING_STORE_TABLE("The table '%1$s' can't be found in the database '%2$s' (%3$s)", Raised.COMPILING);
+    /** A database condition's schema the database and its includes do not declare: the schema, the database's name
+     *  (legend-pure's DatabaseProcessor.findTableForAlias, checked before the table; the BE audit 3's S1, 2026-11-21:
+     *  until then the table's sentence). */
+    MISSING_STORE_SCHEMA("The schema '%1$s' can't be found in the database '%2$s'", Raised.COMPILING);
 
     private final String sentence;
     private final Raised raised;
@@ -95,7 +111,7 @@ public enum CompileKind implements ErrorCode {
     /** WHERE UPSTREAM RAISES A KIND, stated on every kind -- no default (the user's ruling of 2026-11-21, "D", and
      *  the question of ~03:40: "is it just empirical ... or is it some knowable knowledge"): from how Pure works, read
      *  in the pinned sources. {@link #COMPILING}: legend-pure's compiler or legend-engine's (PureModel, its compiler
-     *  extensions, legend-pure's validators -- each kind's upstream sentence cited in {@code edge.PureMessages}): the
+     *  extensions, legend-pure's validators -- each kind's javadoc names its upstream source): the
      *  program does not load. {@link #RUNNING}: a function's evaluation -- a native's code, or an {@code assert} in a
      *  Pure function's body -- each kind citing its source. */
     public enum Raised {

@@ -33,7 +33,13 @@ final class AssertErrorRuns {
                     throw new com.legend.error.NotImplementedException(a.inner().assertion().name()
                             + " inside assertError: the host judge declined the sides it read");
                 }
-            } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {
+            } catch (com.legend.error.AssertFailed | com.legend.error.DataError
+                    | com.legend.error.LegendCompileException e) {
+                // the errors upstream's assertError catches, per code as the branch below decides (the BE audit 2's
+                // S3, 2026-11-21: by class until then, so a row's cell offset escaped the arm)
+                if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                    throw e;
+                }
                 message = run.caughtMessage(e);
             }
             return judged(a.expected(), a.line(), a.column(), message, null, run);

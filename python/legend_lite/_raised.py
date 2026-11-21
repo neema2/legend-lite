@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import re
 from typing import Any
 
@@ -147,6 +148,9 @@ def sentence(site: dict[str, Any]) -> str:
     def takes(form: dict[str, Any]) -> bool:
         if form['arity'] >= 0 and form['arity'] != len(ops):
             return False
+        # a form takes the operands its sentence names, at least (result.RaiseWords refuses fewer by name, as here)
+        if len(ops) < max([int(n) for n in _PLACEHOLDER.findall(form['template'])] or [0]):
+            return False
         slot = form['emptySlot']
         return slot < 0 or (slot < len(ops) and ops[slot].get('string') == '')
 
@@ -166,8 +170,16 @@ def _print(operand: dict[str, Any], slot: str) -> str:
         return f'{value}+0000' if _DATE_FROM_MINUTE.search(value) else value
     if slot == 'FLOAT' and key in ('float', 'integer', 'decimal'):
         return _carried(float(value))
-    if slot == 'PLAIN' and key == 'float':
-        return _plain(str(value), True)
+    if slot == 'WHOLE' and key == 'float':
+        # a Double's intValue, as legend-pure's date() validates a fractional second (Java's narrowing: toward zero,
+        # saturated at the int range, NaN 0; the BE audit 3's S3)
+        x = float(value)
+        return '0' if math.isnan(x) else str(max(-2147483648, min(2147483647, int(x) if math.isfinite(x)
+                                                              else (2147483647 if x > 0 else -2147483648))))
+    if slot == 'WHOLE' and key == 'decimal':
+        # a BigDecimal's intValue: its whole part's low 32 bits, two's complement
+        w = int(_plain(str(value), True).split('.')[0])
+        return str((w + 2 ** 31) % 2 ** 32 - 2 ** 31)
     return _text(key, value)
 
 
@@ -186,6 +198,11 @@ def _text(key: str, value: Any) -> str:
 def _carried(d: float) -> str:
     """A Float as Pure prints one (result.CellText.carriedFloat): its shortest digits laid out with a point always,
     never an exponent."""
+    # Java's Double.toString for the values that have no digits (result.CellText.carriedFloat)
+    if math.isnan(d):
+        return 'NaN'
+    if math.isinf(d):
+        return 'Infinity' if d > 0 else '-Infinity'
     p = _plain(repr(d), False)
     return p if '.' in p else p + '.0'
 

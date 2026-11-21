@@ -42,8 +42,8 @@ public final class PureMessages {
     /**
      * LEGEND-PURE'S AND LEGEND-ENGINE'S SENTENCE OF A COMPILE ERROR (phase D's D1.6, W7 of
      * docs/records/d-plan-2026-11-16.md, 2026-11-16): {@code e}'s message as upstream words it, where an upstream
-     * client reads it (pure/v1's routes, PCT, the corpus) -- the product words its kind its own way
-     * ({@link com.legend.error.CompileKind#sentence}). An error with no kind is its own message; the driver's
+     * client reads it (pure/v1's routes, PCT, the corpus) -- since the one catalog (BE, 2026-11-21) the product's own
+     * words too ({@link com.legend.error.CompileKind#sentence}, upstream's sentence). An error with no kind is its own message; the driver's
      * {@code [line:col]} stays in front.
      */
     public static String compile(Throwable e) {
@@ -117,9 +117,7 @@ public final class PureMessages {
     public static String upstream(com.legend.error.ErrorRecord record) {
         return record.sentence((code, values) -> switch (code) {
             case com.legend.error.CompileKind k -> upstream(k, values);
-            case com.legend.error.ErrorKind k when k == com.legend.error.ErrorKind.FILE_TOO_LARGE ->
-                    tooLarge(values.get(0), Long.parseLong(values.get(2)), Integer.parseInt(values.get(3)));
-            // a run's error with no site, upstream's words none: lite's (the ruled mapping)
+            // a run's error with no site: the catalog's sentence (a load's refused file legend-engine's, FILE_TOO_LARGE)
             case com.legend.error.ErrorKind k -> k.sentence(values);
             case com.legend.error.FrameKind f -> throw new IllegalStateException("an error's code is never a frame's: "
                     + f);
@@ -160,9 +158,10 @@ public final class PureMessages {
      *  at 5.99.0; the inner exception carries no source information, so "Execution error at ??, " and the info quoted:
      *  legend-pure's PureException.printMessage; the M1 correctness audit's C4, 2026-11-09). */
     static String tooLarge(String path, long characters, int limitMegabytes) {
-        return "Unable to read the CSV file '" + path + "' Execution error at ??, \"File is too large, file was "
-                + String.format(java.util.Locale.ROOT, "%.2f", characters * 1.0 / (1024 * 1024L)) + " Mb, limit is "
-                + limitMegabytes + " Mb\"";
+        // the catalog's one copy of legend-engine's sentence (the BE audit 2's nit 6, 2026-11-21: until then written
+        // here a second time): [the file, bytes, characters, limit], the bytes unread by the sentence
+        return com.legend.error.ErrorKind.FILE_TOO_LARGE.sentence(java.util.List.of(path, String.valueOf(characters),
+                String.valueOf(characters), String.valueOf(limitMegabytes)));
     }
 
     /** legend-pure's sentence of a test-data generation's starting table no identifier names (J7/K12 of the edge audit,

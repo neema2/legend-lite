@@ -202,8 +202,10 @@ final class ChainDispatch {
         TypedSpec test = new TypedNativeCall(instanceOfCallee(), List.of(var,
                 new TypedTypeRef(to, ExprType.one(to))),
                 boolOne);
-        // the product's raise of its kind (W5 of docs/records/d-plan-2026-11-16.md): legend-pure's sentence is the edge's
-        TypedSpec raise = typeRaise(com.legend.sql.RaiseKind.INSTANCE_NOT_OF, from.fqn(), to.fqn(), boolOne);
+        // the product's raise of its kind (W5 of docs/records/d-plan-2026-11-16.md), the two classes' NAMES as
+        // legend-pure's cast prints them (GenericType.print, fullPaths false; the BE audit 3's M3, 2026-11-21)
+        TypedSpec raise = typeRaise(com.legend.sql.RaiseKind.INSTANCE_NOT_OF, nameOf(from.fqn()), nameOf(to.fqn()),
+                boolOne);
         TypedSpec body = new TypedIf(test, new TypedCBoolean(true, boolOne),
                 Optional.of(raise), boolOne);
         TypedLambda pred = new TypedLambda(List.of(v), List.of(body),
@@ -218,6 +220,11 @@ final class ChainDispatch {
 
     /** {@code typeRaise(kind, from, to)} ({@link com.legend.builtin.Pure.Lite#TYPE_RAISE}): the product's raise of a
      *  run-time type check that failed, typed {@code as}. */
+    /** An element's name, its path's last part ({@code ux::A} is {@code A}). */
+    static String nameOf(String fqn) {
+        return fqn.substring(fqn.lastIndexOf(':') + 1);
+    }
+
     static TypedSpec typeRaise(com.legend.sql.RaiseKind kind, String from, String to, ExprType as) {
         ExprType text = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
         List<com.legend.compiler.element.TypedParameter> params = java.util.stream.Stream.of("kind", "from", "to")

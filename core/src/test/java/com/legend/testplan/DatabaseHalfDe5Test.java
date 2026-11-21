@@ -114,6 +114,24 @@ class DatabaseHalfDe5Test {
         }
     }
 
+    /** A let's error upstream raises AT RUN (a code stating RUNNING: timeBucket's StrictDate unit, legend-engine's
+     *  TimeBucketShared) is held for the next assert's turn under every judge: an assert before it runs and reports
+     *  first, and with a passing one before it the let's error is the body's at that turn (the PR1 re-review's B1;
+     *  the BE audit 2's S6, 2026-11-21: option 1 took the mapping case these tests had used). */
+    @Test
+    void aLetsRunTimeErrorIsHeldForTheNextAssertUnderEveryJudge() {
+        String let = " let d = %2024-01-31->meta::pure::functions::date::timeBucket(1,"
+                + " meta::pure::functions::date::DurationUnit.HOURS); assertEquals(%2024-01-31, $d);}";
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            String failedFirst = run("", "{| assertEquals(1, 2);" + let, mode);
+            assertTrue(failedFirst.startsWith("AssertFailed"), mode + ": the assert before the let reports first: "
+                    + failedFirst);
+            String raised = run("", "{| assertEquals(1, 1);" + let, mode);
+            assertTrue(raised.startsWith("ModelException") && raised.contains("Unsupported duration unit for StrictDate"),
+                    mode + ": the let's error at the next assert's turn: " + raised);
+        }
+    }
+
     /** The product's style plans no plan handle: {@code executionPlan}'s value is legend-engine's, the compatibility
      *  edge's alone, so on the product a body that binds one is refused BY NAME at that let, under every judge (D's
      *  hook fold, 2026-11-16: "executionPlan with no edge is refused by name"). */

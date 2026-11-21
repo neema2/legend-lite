@@ -94,3 +94,43 @@ Decided by upstream's answer, stated once per code from the pinned sources, neve
 - legend-pure's words at legend-engine's doors, where B1 gave them.
 - The phases (`LegendCompileException.Phase`) and the exception classes: a class stays the family of its codes, so the
   catches that decide by type are unchanged.
+
+## 7. What BE delivered, and what it defers (2026-11-21, after the audits 2 and 3)
+
+Measured against §1's rule, at the commit carrying this section.
+
+**Delivered.**
+- **Plans and test plans carry no error prose and no Java.** An error that rides a plan is a code and its values: a
+  raise site's kind and operands, a compile error legend-pure raises at run as its `CompileKind`. The test plan names no
+  Java exception class and no Java method (v36). The guard is default-deny: `PlanTypesAreDataTest.noComponentHoldsProse`
+  reviews all 240 text components the plans reach, 226 facts and 14 named prose, each with the step that removes it.
+- **Where an error is raised** (§4, "D"): a body lite cannot fully plan is refused whole at planning; an error upstream
+  raises at run is raised at its turn, decided per code. Mapping errors refuse at planning (option 1, S393).
+- **One catalog, upstream's words**: every kinded error, compile and run-time, says legend-pure's (or legend-engine's)
+  sentence where upstream has one, read from the pinned sources and audited twice. The hosts (TS, Python) print the
+  same, from generated tables.
+
+**Deferred, named.** In the order proposed:
+1. **The prose still in plans, BE's own** (the residue): a raise's `where` (`Site.where`, `RaiseText.where`) to
+   operands; `RaiseText.asData`; `Project.refused`; `LoadStep.Statements.of`; `Binding.Payload.label`;
+   `Failure.unjudgedReason` and the test plan's dead refusal slots (`RootLoop.Row.refusal`, `NO_VERDICT`,
+   `Message.refusal`), always empty since D.
+2. **The assert words** (`Failure.message`, `HostJudgment`'s `AllRows`/`Decided` messages, `Messaged.unplanned`): the
+   user's question -- records like errors (the database returning the values a failed verdict compares), or not.
+3. **The compile errors not yet kinded**: about 400 of the ~440 compile-error sites (`TypeInferenceException` 271,
+   `MappingResolutionException` 75, most of `ModelException`'s 146) still build lite's own sentence. They refuse at
+   planning, so no plan carries them; their words are not yet upstream's where an upstream client reads them
+   (pure/v1's compile route). §5's "kind by kind": the largest deferral.
+4. **The refusals** (`NotImplementedException` 661 sites, `DialectCapability` 545): no codes, as §4 already deferred
+   ("later polish for API clients"); then §5's second guard, no exception constructor taking a sentence.
+5. **Other stages'**: the edge's prose in test plans (`Appeal.contract`, `Appeal.Unlisted.message`,
+   `EngineTextJudgment.decline`) and the edge appeal path's planned mapping and not-implemented errors (the audit 2's
+   S4), both B3; the mapping errors upstream raises at run (compat-mapping-errors-followup-2026-11-21.md).
+6. **Known small divergences**: the TS host loses an Integer operand's digits above 2^53 (predates BE); a Decimal
+   second whose `intValue` wraps into [0, 60) is valid upstream, refused by lite; one table name in two databases says
+   inconsistent databases where upstream, for two declared tables, says no main table; where legend-engine words a
+   compile error differently, its door prints legend-pure's (the ruling); the product plan's raise kinds changed within
+   v59 (an older plan naming a removed kind is refused by name); six prefix-only checks of "Cannot cast a collection of
+   size" could pin the full sentence.
+7. **BE-M**: the measurement round (the corpus, every PCT lane, channel B, stress, Postgres, warm sessions), the moved
+   pins for the user's word, an independent audit, the PR and CI.

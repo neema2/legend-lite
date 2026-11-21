@@ -5,7 +5,6 @@ package com.legend.testplan;
 
 import com.legend.testexecutionplan.Failure;
 
-import com.legend.testexecutionplan.Failures;
 
 import com.legend.testexecutionplan.Row;
 
@@ -383,10 +382,10 @@ public final class VerdictBatch {
         // a caller's message that READS, planned now as a side of the plan (P1.2, the goals of record, 2026-11-07: exec
         // runs only the plan's statements): on its root's first verdict in the plan (Verdict.message, attached once
         // the groups are made: carried), read through the run's reader only where the root fails; a message the
-        // dialect cannot spell keeps its refusal, raised there
+        // dialect cannot spell refuses the body at planning (D, the user's ruling of 2026-11-21: a dialect's refusal is
+        // never an error upstream raises at run; the BE audit 2's nit 2: until then a map of refusals that stayed empty)
         // (by the root's place in the batch: the step 5 of 2026-11-08 deleted the batch's maps keyed by identity)
         Map<Integer, TestPlan.Side> messages = new HashMap<>();
-        Map<Integer, com.legend.testexecutionplan.Failure> messageRefusals = new HashMap<>();
         for (int k = 0; k < batch.size(); k++) {
             Root r = batch.get(k);
             if (r.message == null) {
@@ -394,8 +393,7 @@ public final class VerdictBatch {
             }
             Ahead a = planAhead(r.listenerName, r.message, java.util.Objects.requireNonNull(r.messageOn));
             if (a.refused() != null) {
-                messageRefusals.put(k, Failures.planned(a.refused(), "VerdictBatch.plan: a caller's message the dialect cannot spell"));
-                continue;
+                throw a.refused();
             }
             messages.put(k, sideOf(java.util.Objects.requireNonNull(a.plan())));
         }
@@ -456,28 +454,26 @@ public final class VerdictBatch {
                 }
             }
         }
-        // a member the dialect cannot spell is refused at its place in the root loop with the dialect's own words,
-        // planned here; nothing is sent for it (P1.2, 2026-11-07: the root loop sends nothing outside the plan -- the
-        // split rung's run-time retry and its statements planned outside the plan are deleted)
-        Map<Integer, com.legend.testexecutionplan.Failure> refusals = new HashMap<>();   // by the member's ix
+        // a member the dialect cannot spell refuses the body at planning, nothing sent (D, 2026-11-21, as above; P1.2,
+        // 2026-11-07: the root loop sends nothing outside the plan -- the split rung's run-time retry and its
+        // statements planned outside the plan are deleted)
         for (Pending u : unspelled) {
             com.legend.sql.DialectCapability refused = planAhead(u.name(), u.query(), u.on()).refused();
             if (refused == null) {
                 throw new IllegalStateException(u.name() + ": a member left out of its fused statement as unspelled"
                         + " whose own statement the dialect spells");
             }
-            refusals.put(u.ix(), Failures.planned(refused, "VerdictBatch.plan: a member the dialect cannot spell"));
+            throw refused;
         }
         List<Group> placed = carried(batch, out, members, messages);
-        return new Planned(placed, loop(batch, placed, members, refusals, messages, messageRefusals));
+        return new Planned(placed, loop(batch, placed, members, messages));
     }
 
     /** The segment's roots as the plan's data (the plan-as-data design's step 5, 2026-11-08): each root's rows by the
-     *  verdict that reads them (none for a member the dialect refused, its refusal kept), its decided outcomes, its
-     *  caller's message -- what {@link RootLoops} judges at run. */
+     *  verdict that reads them, its decided outcomes, its caller's message -- what {@link RootLoops} judges at run. A
+     *  row's and a message's refusal slots are empty since D (a dialect's refusal refuses the body at planning). */
     private RootLoop loop(List<Root> batch, List<Group> groups, Map<Integer, Pending> members,
-            Map<Integer, com.legend.testexecutionplan.Failure> refusals, Map<Integer, TestPlan.Side> messages,
-            Map<Integer, com.legend.testexecutionplan.Failure> messageRefusals) {
+            Map<Integer, TestPlan.Side> messages) {
         Map<Integer, Integer> verdictOf = new HashMap<>();   // a member's ix -> the id of the verdict reading its row
         members.forEach((id, p) -> verdictOf.put(p.ix(), id));
         List<RootLoop.Root> roots = new ArrayList<>(batch.size());
@@ -488,8 +484,8 @@ public final class VerdictBatch {
                 steps.add(switch (s) {
                     case Pending p -> {
                         Integer id = verdictOf.get(p.ix());
-                        yield new RootLoop.Row(p.name(), id == null ? RootLoop.NO_VERDICT : id,
-                                id == null ? refusals.get(p.ix()) : null);
+                        yield new RootLoop.Row(p.name(), java.util.Objects.requireNonNull(id,
+                                () -> p.name() + ": a member with no verdict reading its row"), null);
                     }
                     case Resolved rv -> new RootLoop.Decided(rv.failure(), rv.reported());
                     case Judged j -> new RootLoop.Judged();
@@ -497,11 +493,10 @@ public final class VerdictBatch {
             }
             RootLoop.Message message = null;
             if (r.message != null) {
-                com.legend.testexecutionplan.Failure refusal = messageRefusals.get(k);
-                TestPlan.Side side = messages.get(k);
-                message = refusal != null || side == null ? new RootLoop.Message(null, refusal, false)
-                        : new RootLoop.Message(side, null, groups.stream().flatMap(g -> g.step().verdicts().stream())
-                                .anyMatch(v -> side.equals(v.message())));
+                TestPlan.Side side = java.util.Objects.requireNonNull(messages.get(k), () -> r.listenerName
+                        + ": a caller's message with no planned side");
+                message = new RootLoop.Message(side, null, groups.stream().flatMap(g -> g.step().verdicts().stream())
+                        .anyMatch(v -> side.equals(v.message())));
             }
             roots.add(new RootLoop.Root(r.listenerName, steps, message));
         }

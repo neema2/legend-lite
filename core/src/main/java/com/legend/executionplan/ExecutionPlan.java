@@ -852,6 +852,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 throw new IllegalArgumentException("a user's fail is no raise site");
             }
             operands = List.copyOf(operands);
+            // its operands one of its kind's forms, refused when the site is made, never first at the raise (the BE
+            // audit 3's S2, 2026-11-21: a site no form says threw where the database's raise was read)
+            List<Operand> o = operands;
+            com.legend.error.ErrorKind.valueOf(kind.name()).form(o.size(),
+                    i -> o.get(i) instanceof Operand.Text t && t.value().isEmpty());
         }
 
         /** The error kind this site raises: its raise kind's twin of the one name (the catalog's, error.ErrorKind;

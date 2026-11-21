@@ -2051,6 +2051,21 @@ class BodyRouterParityTest {
             new Refused(null, "{| assertInstanceOf(1, type(2));}", "IllegalStateException: no scalar lowering registered"
                     + " for resolved overload 'meta::pure::functions::asserts::assertInstanceOf'"));
 
+    /** The rows of {@link #REFUSED_AT_PLANNING} a body met in this run. */
+    private static final java.util.Set<Refused> USED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** Every row of {@link #REFUSED_AT_PLANNING} names a body the class runs (the BE audit 2's nit 3, 2026-11-21: a
+     *  dead row passed in silence). Checked when the whole class ran, never under a filter or a shard. */
+    @org.junit.jupiter.api.AfterAll
+    static void everyRefusedRowIsABodysRow() {
+        String shards = System.getenv("TEST_TOTAL_SHARDS");
+        if (System.getenv("TESTBRIDGE_TEST_ONLY") != null || shards != null && !shards.equals("1")) {
+            return;
+        }
+        List<Refused> dead = REFUSED_AT_PLANNING.stream().filter(r -> !USED.contains(r)).toList();
+        assertTrue(dead.isEmpty(), "a row no body meets: " + dead);
+    }
+
     /** {@code run} of {@code body} on {@code backend}: refused at planning as {@link #REFUSED_AT_PLANNING} says, else
      *  PLANNED and moved {@code plans} times -- a body refused that the table does not name fails here (the BE audit's
      *  finding 8, 2026-11-21: this accepted any refusal, so a body a regression refused at planning passed every
@@ -2059,6 +2074,7 @@ class BodyRouterParityTest {
         Refused expected = REFUSED_AT_PLANNING.stream().filter(r -> body.contains(r.body())
                 && (r.database() == null || r.database().equals(backend.type().name()))).findFirst().orElse(null);
         if (expected != null) {
+            USED.add(expected);
             assertRefusedAtPlanning(run, expected.refusal(), message);
             return;
         }

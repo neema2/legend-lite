@@ -69,12 +69,25 @@ class PureMessagesWordedTest {
                 assertThrows(IllegalArgumentException.class, () -> worded(kind, new Operand.Text("mine")));
                 continue;
             }
-            List<Operand> computed = java.util.Collections.nCopies(4, Operand.Computed.IT);
-            String words = com.legend.result.RaiseWords.sentence(new ExecutionPlan.Site(1, kind, null,
-                    kind == RaiseKind.DATE_COMPONENT_INVALID ? List.of(new Operand.Text("hour"), Operand.Computed.IT)
-                            : computed));
-            assertFalse(words.isBlank(), kind.name());
-            assertFalse(words.contains(kind.name()), kind + ": the words are a sentence, never the kind's name: " + words);
+            // every form of the kind, given the values it names (the BE audit 2's S5, 2026-11-21: a form takes no
+            // fewer values than it names, an exact form its arity alone), a form chosen by an empty value given one
+            for (com.legend.error.ErrorKind.Form form : com.legend.error.ErrorKind.valueOf(kind.name()).forms()) {
+                int named = 0;
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("%(\\d+)\\$s").matcher(form.template());
+                while (m.find()) {
+                    named = Math.max(named, Integer.parseInt(m.group(1)));
+                }
+                int size = form.arity() >= 0 ? form.arity() : Math.max(named, form.emptySlot() + 1);
+                List<Operand> values = new java.util.ArrayList<>(java.util.Collections.nCopies(size,
+                        Operand.Computed.IT));
+                if (form.emptySlot() >= 0) {
+                    values.set(form.emptySlot(), new Operand.Text(""));
+                }
+                String words = com.legend.result.RaiseWords.sentence(new ExecutionPlan.Site(1, kind, null, values));
+                assertFalse(words.isBlank(), kind.name());
+                assertFalse(words.contains(kind.name()), kind + ": the words are a sentence, never the kind's name: "
+                        + words);
+            }
         }
     }
 

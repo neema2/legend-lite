@@ -245,7 +245,9 @@ class DateTimeFractionTest {
             String computed = answer(type, param, Map.of("s", 1.123456789));
             assertTrue(computed.contains("fraction digits"), type + ": " + computed);
             // its where: the digits a date()'s second keeps (the D part 1 audit's S5, 2026-11-15)
-            assertTrue(computed.contains("a date()'s second keeps 6 fraction digits"), type + ": " + computed);
+            // lite's own sentence (S181), its facts the operands (stage B's BE-P, 2026-11-21: until then the place's prose)
+            assertTrue(computed.contains("the second <computed> has more than 6 fraction digits, which a date()'s"
+                    + " fractional second keeps: refused, never cut (S181)"), type + ": " + computed);
         }
         var mongo = assertThrows(com.legend.sql.DialectCapability.class, () -> Databases.dialect(DatabaseType.MongoDB)
                 .render(com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Dual()).withWhere(
@@ -255,6 +257,28 @@ class DateTimeFractionTest {
                                 new com.legend.sql.SqlExpr.IntLit(10), new com.legend.sql.SqlExpr.IntLit(0),
                                 new com.legend.sql.SqlExpr.FloatLit(1.1234))))));
         assertTrue(mongo.getMessage().contains("MongoDb keeps 3"), mongo.getMessage());
+    }
+
+    /** A {@code date()}'s fractional second is validated by its WHOLE part and kept without its sign, as legend-pure's
+     *  CoreHelper.newDate does ({@code second.intValue()}, then the fraction's digits): -0.5 is the second 0.5, -1.5 is
+     *  "Invalid second: -1", 60.5 is "Invalid second: 60" (the BE audit 2's S2, 2026-11-21: until then lite refused
+     *  every negative second, -0.5 as "Invalid second: 0"). A literal and a computed second alike (DuckDB). */
+    @Test
+    void aDateConstructorsSecondIsValidatedByItsWholePartAsLegendPuresIs() {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.SQLite)) {
+            String half = answer(type, "|date(2024, 1, 2, 10, 0, -0.5)", Map.of());
+            assertTrue(half.contains("2024-01-02T10:00:00.5"), type + ": " + half);
+            String minus = answer(type, "|date(2024, 1, 2, 10, 0, -1.5)", Map.of());
+            assertTrue(minus.contains("Invalid second: -1"), type + ": " + minus);
+            String over = answer(type, "|date(2024, 1, 2, 10, 0, 60.5)", Map.of());
+            assertTrue(over.contains("Invalid second: 60"), type + ": " + over);
+        }
+        String param = "{s: Float[1]|date(2024, 1, 2, 10, 0, $s)}";
+        String half = answer(DatabaseType.DuckDB, param, Map.of("s", -0.5));
+        assertTrue(half.contains("2024-01-02T10:00:00.5"), half);
+        // a computed second the plan does not hold: legend-pure's sentence, the value <computed> (S389)
+        String minus = answer(DatabaseType.DuckDB, param, Map.of("s", -1.5));
+        assertTrue(minus.contains("Invalid second: <computed>"), minus);
     }
 
     /** A list of date-times is bound as the driver's timestamps, which no statement's raise reads (the A delta audit's 2,

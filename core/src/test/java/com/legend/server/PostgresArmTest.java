@@ -192,7 +192,7 @@ class PostgresArmTest {
                             () -> plan(ctx, q.withLets()));
                     assertTrue(String.valueOf(literal.getMessage()).contains("fraction digits; Postgres keeps 6"),
                             literal.getMessage());
-                    // the statement's raise writes its kind (FRACTION_NOT_KEPT), its sentence lite's own -- phase D's
+                    // the statement's raise writes its kind (PARAMETER_FRACTION_NOT_KEPT since BE-P, 2026-11-21), its sentence lite's own -- phase D's
                     // D1.1, merged with main's #81 2026-11-14; the former "Postgres keeps (6)" text is the edge's
                     var parameter = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                             () -> com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),

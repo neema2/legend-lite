@@ -1726,7 +1726,7 @@ public class MariaDb extends AnsiSqlRenderer {
                             + "([eE][+-]?[0-9]+)?[fF]?[[:space:]]*$' THEN CAST(").expr(v, 0).append(" AS DOUBLE) WHEN ")
                     .expr(v, 4).append(" REGEXP '^[[:space:]]*[+-]?(NaN|Infinity)[[:space:]]*$' THEN ")
                     .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.NOT_FINITE_NOT_HELD,
-                            java.util.List.of())), SqlType.Scalar.DOUBLE))
+                            java.util.List.of(new SqlExpr.StringLit(product())))), SqlType.Scalar.DOUBLE))
                     .append(" WHEN ").expr(v, 4).append(" IS NOT NULL THEN ")
                     .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, List.of(v))),
                             SqlType.Scalar.DOUBLE))

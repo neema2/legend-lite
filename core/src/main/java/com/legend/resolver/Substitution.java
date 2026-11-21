@@ -2315,8 +2315,10 @@ final class Substitution {
         // leaf's list is the aggregation above this CASE): its stamp is
         // the scalar position, never the read's list multiplicity
         return new TypedIf(witnessTest(fqn), leaf,
+                // the two classes' names, as legend-pure's cast prints them (the BE audit 3's M3, 2026-11-21)
                 Optional.of(ChainDispatch.typeRaise(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
-                        target.classFqn(), fqn, new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
+                        ChainDispatch.nameOf(target.classFqn()), ChainDispatch.nameOf(fqn),
+                        new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
                 pa.info());
     }
 
