@@ -21,6 +21,14 @@ the code at `dad8a710` and from the pinned upstream sources. It lives beside thi
 
 Plus **Q15 = A** (the user, 2026-11-20): lite's own assert-failure words on every route, so there is one catalog,
 lite's.
+- **Its condition** (`compat-stage-b-plan-2026-11-20.md`, Q15): provided no test's verdict moves. The re-record
+  changes words, never a verdict. A verdict that would move goes to the user first.
+- **The one exception to BE's rule.** BE's rule (ruled 2026-11-21 ~02:40, `compat-error-model-2026-11-21.md` §2) is
+  one catalog in legend-pure's words wherever legend-pure has a sentence. An assert's failure is the exception:
+  - it is worded by lite's catalog (`AssertKind`) on every route, the compatibility path included;
+  - `edge.PureMessages` never words an `AssertKind`;
+  - PCT matches expected failures by substring and the corpus compares no messages (upstream.md), so only lite's
+    own ledgers move (M2).
 
 ## 2. What "done" means
 
@@ -32,8 +40,10 @@ lite's.
 - **The database judge** returns the verdict and the compared values. It builds no sentence and no `__message`, and
   words nothing.
 - **The host judge** builds the same record from the values it holds. The two judges agree by construction:
-  `IsolatedRun` compares records, not texts.
-- **The rules are mechanical.** A guard fails the build when any of §1's rules is broken (§6).
+  `IsolatedRun` compares records, not texts. That holds under Q-A2's option 1; under option 2 it compares each
+  assert's verdict and identity (§8).
+- **The rules are mechanical.** A guard fails the build when any of §1's rules is broken (§6). The exception is R3's
+  guard (the compatibility edge prints only as the last step), which is B2's: item 3 names it and does not build it.
 - **What is deleted:** about 1,070 whole-file lines, plus about 650 lines inside `VerdictSql` and other fragments
   (code map F.1).
 
@@ -119,19 +129,26 @@ worded by the catalog. No "Assert failed" literal stays in the product plan.
 
 | # | Slice | What | Done when |
 |---|---|---|---|
-| S0 | Dead code out | delete `UpstreamVerdictWords`' SQL builders, `DatabaseAsserts.errorVerdictFor` (no caller), the `VerdictWords` two-form entry (`PlanStyleFacets.TWO_FORMS`, `PureText.twoForm`), `VerdictSql.Message`'s 5-argument constructor that defaults to legend-pure's words (an invariant-4 default) | nothing behaves differently; the guards in §6 R1 hold |
+| S0 | Dead code out, behaviour-neutral only | delete `DatabaseAsserts.errorVerdictFor` (no caller), `VerdictSql.Message`'s 5-argument constructor that defaults to legend-pure's words (an invariant-4 default), and `UpstreamVerdictWords`' 20 SQL builders. Deleting the builders splits `VerdictWords` in two: its two String methods (`conditionFailed`, `valuesDiffer`, live on the compatibility road through `AssertVerdicts.isDecided` and the `AllRows` message, until S3), and its SQL builders, which only the database judge calls (product only). The edge's form implements the String half alone. **The two-form entry stays until S3**: removing it in S0 would refuse `VerdictWords` by name under UPSTREAM and break compatibility planning. The guards S0 moves (code map E.1; shrink-only, each dated): `JavaEvalLedgerTest`, `HookRulingTest`'s exact two-form set (the entry's new interface name), `HookLambdasTest`, `EdgeAuditOpenTest`, `EdgeOnlyMembersTest`, `ProductFormsUseTheirArgumentsTest` | nothing behaves differently: every lane's verdicts and messages unchanged; the guards in §6 R1 hold |
 | S1 | The catalog | `AssertKind` from `AssertSentence`; `AssertFailed` carries an `ErrorRecord`; `LiteHostWords` becomes the catalog's renderer; `Failures.of` and `rebuilt` read the record | one sentence function, covered by a table test over every kind |
 | S2 | The host judge | every host verdict raises `AssertFailed(record)`; `HostWords`' two forms and `EdgeHostWords`/`EdgePureWords` go (Q15 = A); the compatibility ledgers re-record (§7, M2) | core and every compatibility lane green, the moved rows listed by name |
-| S3 | Planned decisions | `Decided`, `AllRows` and `Messaged` as in §4 | the planned half carries no prose |
+| S3 | Planned decisions | `Decided`, `AllRows` and `Messaged` as in §4. The `VerdictWords` two-form entry (`PlanStyleFacets.TWO_FORMS`, `PureText.twoForm`) and its String half go here, once no planned decision carries a sentence. The compatibility road's planned decisions are then worded by lite's catalog (Q15 = A); the moved ledger rows are listed by name (M2) | the planned half carries no prose; no verdict moved |
 | S4 | The database judge | each member decides over typed values (Q-A); the fused row carries the verdict and the two values for the report; `VerdictWords`, `LiteVerdictWords`, `LiteText` and VerdictSql's sentence members go; `RootLoops` builds the record | core's judge_database and judge_both lanes and the LITE-PCT lane green; `IsolatedRun` compares records; the ladder re-pinned leaner (M1) |
 | S5 | Codec and guards | test plan v38; `PlanTypesAreDataTest` drops `AllRows.message`, `Decided.message`, `Messaged.unplanned` and `TestPlan.words`, and narrows `Failure.message` to the edge's appeal records (B3); the new guards in §6 | the guards fail on a planted violation |
 | S6 | In-body asserts | the raise kind; `LambdaBodies`' hard-coded literal and `LoweringForms.assertFailed`'s two forms go | the product plan carries no "Assert failed" |
-| S7 | Rule 4 | `Literals.fold`'s four uses, per Q-D | the fold computes no value a program reads |
+| S7 | Rule 4 | `Literals.fold`'s uses, per Q-D; and the two other rule-4 candidates (§3.5): `HostJudgment.RowArg.Literal` (a literal round-tripped through Java text) and `Verdicts.constantValue` (a constant cell parsed in Java) | the fold computes no value a program reads; the R2/R4 census (§6) holds with neither candidate on it |
 | S8 | `assertError` | the no-error edge cases, per Q-B | verdicts match upstream's |
 | S9 | Re-pins and audit | JavaEvalLedgerTest's pins (`AssertVerdicts`, `DatabaseJudge`, `HostJudgments`, …), the 12 ladder `*.current.sql`, the PCT judge-SQL ratchets, the lean baselines, the moved ledger rows; then an independent audit and the PR | the PR's pins table, each move dated |
 
-S0 can start before the rulings in §8. S1 to S3 need only Q15 = A, already ruled. S4 waits for Q-A, S6 for Q-C, S7 for
-Q-D and S8 for Q-B.
+S0 can start at once. Every ruling below is in §8:
+
+| Slice | Needs | Status |
+|---|---|---|
+| S1 to S3 | Q15 = A | ruled |
+| S4 | Q-A, and Q-A2 | Q-A ruled; **Q-A2 open** |
+| S6 | Q-C | ruled |
+| S7 | Q-D | **open** |
+| S8 | Q-B | ruled |
 
 ## 6. The guards that make the rules mechanical
 
@@ -190,7 +207,9 @@ Q-D and S8 for Q-B.
   last step (rule 3).
 - **Q-B, RULED: the same on every road** ("whatever easiest I'm fine with"). Upstream's verdicts, worded by lite's
   catalog, with no product-versus-compatibility switch (one road, and B5 deletes switches).
-- **Q-C, RULED: C1.**
+- **Q-C, RULED: C1** ("agreed C1"). C1 is the recommendation under "Q-C" below: an in-body assert lowers to a run-time
+  raise kind, `ErrorKind.ASSERT_FAILED`, worded by the catalog. The other option was to keep upstream's "Assert
+  failed" text in the product plan.
 - **Q-D: measure first (M4)**, by road and by caller. The direction the user set:
   - the product path needs no Java folding: the database computes a value the program uses;
   - the compatibility path's host judge may do in Java what is a final print, which covers joining a printed message
@@ -232,6 +251,33 @@ out.
   gaps show), the member compares lite's own canonical text of the value, never legend-pure's. A database that can do
   neither refuses that assert by name.
 - M1 measures it.
+
+**Q-A2, the database judge's report values and the fallback: OPEN, S4 waits for it** (found by the handoff's cold
+read, 2026-11-21).
+
+- **The conflict.** §4 has `LiteWords` print the report's values in Java from typed values, for both judges. §8 Q-A
+  and M1 instead carry the database's own `CAST(... AS VARCHAR)` text.
+- **Why it matters.** The two spellings differ:
+  - DuckDB prints `[a, b, c]` where `LiteWords` quotes each string;
+  - Float text differs too, which is why `LiteText.javaExponent` exists.
+  
+  `IsolatedRun` compares messages, so the two judges would disagree on every failing assert.
+- **Option 1, recommended: one typed row per statement.** Each assert gets its own columns (`__v<k>`, `__e<k>`,
+  `__a<k>`), and each column keeps its type, because no `UNION ALL` has to unify them.
+  - `LiteWords` prints both judges' values after the run, so the messages agree by construction.
+  - A collection's values come back as the dialect's list type (DuckDB `LIST`, H2 `ARRAY`), or as JSON where the
+    database has no list type; the result reader decodes them to typed values, as it already does for rows.
+  - It costs one more shape for the verdict statement.
+- **Option 2: keep M1's text columns.** `IsolatedRun` then compares each assert's verdict and identity, not its
+  value text, and the database judge's report prints the database's spelling.
+  - It is simpler.
+  - The two judges' messages then differ.
+- **The fallback.** Q-A's "lite's own canonical text" fallback is dropped under either option:
+  - an ordered collection compares by position and value;
+  - an unordered one compares by M1's grouped form, which is portable to H2;
+  - a value with no typed equality (a class instance, a tree) is not judged by the database judge. It is reported
+    UNJUDGED, as a tree cell is today, and the host judges it.
+  - So no text comparison remains, and `LiteText` can go in S4.
 
 **Q-B, `assertError` when nothing is raised.**
 - **Recommended:** match upstream's verdicts exactly. Compare the expected text against "No error was thrown", which

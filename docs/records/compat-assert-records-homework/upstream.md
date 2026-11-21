@@ -211,7 +211,7 @@ The consequences, each read from those lines:
    - With the native matcher form, a matcher that asserts nothing (e.g. `{msg, si | true}`) **passes when `f` raises
      nothing**.
    - Lite's `EdgeHostWords.noError`
-     (`/tmp/claude-0/-home-user-legend-lite/bac9cad1-7b39-541e-a564-b40aca3dcae2/scratchpad/next/core/src/main/java/com/legend/edge/EdgeHostWords.java:193-196`)
+     (`core/src/main/java/com/legend/edge/EdgeHostWords.java:193-196`)
      and `UpstreamVerdictWords.java:127-128` report `"No error was thrown"` as the final message. That differs from
      upstream in both wording and verdict for these two edge cases.
 2. The matcher sees **`getInfo()`**, the raw message without the `Execution error at (...)` frame. A null info becomes `""`.
@@ -453,6 +453,6 @@ Found by grep only, not analysed:
 - `…/lowering/VerdictSql.java:1681`
 - `…/testexec/AssertErrorRuns.java:21`
 
-All are under `/tmp/claude-0/-home-user-legend-lite/bac9cad1-7b39-541e-a564-b40aca3dcae2/scratchpad/next/core/src/main/java/`.
+All are under lite's `core/src/main/java/`.
 Section 2.3 is the one verdict-relevant mismatch already visible there: `"No error was thrown"` is reported as the final
 message, where upstream wraps it in the mismatch wording and passes when the expected message is that literal.

@@ -1,16 +1,30 @@
 # Item 3 code map: assert verdicts as records, and the judge rules
 
-Read-only survey of the checkout at `dad8a710` (scratchpad/next), 2026-11-21. Nothing was built or run.
+Read-only survey of the checkout at `dad8a710`, 2026-11-21. Nothing was built or run.
 Path prefixes: `main/` = `core/src/main/java/com/legend/`, `test/` = `core/src/test/java/com/legend/`.
 "LOC" = `wc -l` (raw lines). "stripped" = JavaEvalLedgerTest's comment-stripped pin.
+
+
+> **Line numbers at `main` `2942e983`** (BE merged; its tree equals `9fa42018`): this map was read at `dad8a710`, so
+> find each site by its symbol. The handoff's cold read (2026-11-21) spot-checked about 70 symbols: all exist. These
+> lines moved:
+>
+> | Site | This map says | At `2942e983` |
+> |---|---|---|
+> | `RootLoop`'s columns | :28-34 | :36-42 |
+> | `LiteHostForms.words` | :59-62 | :32-35 (36 lines) |
+> | `Failures.of` | :34-84 | :59 |
+> | `Failures.atItsTurn` | :48-50 | :36 and :45 |
+>
+> **Also re-count `PlanTypesAreDataTest.PROSE_RESIDUE`** at your base. This map says 7 entries; the cold read found 9.
 
 ## 0. Four facts that change the design note's premises
 
 1. **Rule 1 is already enforced by a check since A4 (2026-11-19).** `main/testplan/TestPlanner.java:73-80`
    (`refuseTheDatabaseJudgeInCompatibility`) refuses a DATABASE or BOTH judge for any style but `PlanStyle.PRODUCT`. It is
    called first in `TestPlanner.plan` (:36). The guard test is `test/testplan/HostOnlyCompatibilityTest.java` (119 LOC).
-   Every compatibility road already plans with the host judge only (see B.4). So the design's §4.1 measure ("rows only
-   the database judge passes on the compatibility lanes") and §4.2 measure ("lane run time under the host alone")
+   Every compatibility road already plans with the host judge only (see B.4). So the draft's measures 4.1 ("rows only
+   the database judge passes on the compatibility lanes") and 4.2 ("lane run time under the host alone"; both dropped, design §3.1)
    compare against a state that no longer runs. Both are zero or no-ops at this commit. What is left of rule 1 is
    **dead compatibility code still wired to the database judge's types** (B.5). No live compatibility verdict reaches
    the database judge's SQL.
@@ -178,7 +192,7 @@ form).
 - `javaExponent` is SQL that **emulates Java's `Double.toString` exponent** so the database judge's message matches the
   host's. It uses `LOWER`, `STRPOS`, `SUBSTRING`, `LENGTH`, `CAST BIGINT/VARCHAR` and `CASE`.
 - A DateTime goes through `toTheMinute` and `DATETIME_TO_TEXT`. Anything else goes through `Scalars.pureToString`.
-- **Only callers:** `LiteVerdictWords` (8 calls) and `VerdictSql` (2). The design's option (b) deletes the whole file.
+- **Only callers:** `LiteVerdictWords` (8 calls) and `VerdictSql` (2). The design's typed-values target (design §4, Q-A) deletes the whole file.
 
 ### A.7 `AssertMessages` (`main/compiler/spec/AssertMessages.java`, 134 LOC)
 
@@ -460,7 +474,7 @@ String unjudgedReason, ErrorRecord record)` (:29-30).
 
 - BOTH plans each judge alone: `TestPlanner.planIsolated` :96-108 builds `TestPlan.Isolated(host, database)`.
 - `main/testexec/IsolatedRun.java` (195 LOC) compares the two plans' verdicts **and message texts**, and fails with
-  `JudgesDisagree` (:189-193). Under option (b), records compare by construction.
+  `JudgesDisagree` (:189-193). Under the typed-values target (design §4, Q-A2's option 1), records compare by construction.
 
 ### B.5 Where compatibility semantics still touch the database judge's code (rule 1)
 
@@ -491,8 +505,8 @@ or dead.
    - The **rules** that differed (CrossKindNumbers, VerdictNumbers, RenderedTextRule, DateLiteralTexts, GoldenNullWord,
      JsonGrammar's read) left with A4 (`PlanStyleFacets.java:32-35`).
    - So this is a legend-pure **spelling** used as lite's equality proxy, not a legend-pure equality **rule**. Whether
-     rule 1's "no legend-pure equality canons" covers it is the owner's call. The design's option (b), typed values
-     returned, removes it from the message path. Removing it from the comparison is the design's open §4.3 question.
+     rule 1's "no legend-pure equality canons" covers it is the owner's call. The design's typed-values target (design §4)
+     removes it from the message path. Removing it from the comparison is Q-A2 (design §8).
 5. **Dead agreement code.** `DatabaseAsserts.errorVerdictFor` (:415-434, about 18 lines) has **no caller anywhere** in
    the repo. Its javadoc says "for the agreement judge", whose fused path was deleted 2026-11-17.
 
@@ -733,7 +747,7 @@ Proposal: a check that no `AssertSentence` template text appears in a planned st
 | `main/lowering/VerdictWords.java` | 101 | the database judge's hook |
 | `main/lowering/LiteVerdictWords.java` | 175 | |
 | `main/edge/UpstreamVerdictWords.java` | 192 | its SQL already dead |
-| `main/lowering/LiteText.java` | 106 | only VerdictWords/VerdictSql call it; goes with option (b) |
+| `main/lowering/LiteText.java` | 106 | only VerdictWords/VerdictSql call it; goes with the typed-values target (S4) |
 | **subtotal (database judge's words)** | **574** | |
 | `main/testexec/HostWords.java` | 109 | if the catalog renders records directly (Q15 = A) |
 | `main/edge/EdgeHostWords.java` | 233 | Q15 = A |
@@ -783,4 +797,4 @@ VerdictSql and fragments**.
 - In VerdictSql SQL: 1 inline prose literal (the assertError line/column text), 3 unjudged reasons and 5 descriptor
   texts.
 - **About 145 distinct places that word an assert failure.** After item 3 the target is **one**: the catalog over an
-  `AssertKind` record, rendered in Java from typed values (option (b)).
+  `AssertKind` record, rendered in Java from typed values (design §4).

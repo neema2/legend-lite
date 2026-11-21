@@ -39,7 +39,13 @@ on another account (§0).
   - do not redo them. M2 and M6 are measured during S2 and S4.
 - **The rulings:**
   - Q15 = A, Q-A, Q-B and Q-C are ruled (design §8, verbatim in `compat-program-log-2026-11-19.md`).
-  - **Q-D is measured but not yet ruled.** The proposal is in design §8. Ask the user before S7.
+  - **Q15's condition:** no test's verdict moves; only words do. An assert's failure is lite's words on every route,
+    the one exception to BE's "legend-pure's words wherever it has a sentence" (design §1).
+  - **Two are open, each with a recommendation in design §8:**
+    - Q-A2, the database judge's report values. S4 waits for it.
+    - Q-D, measured but not ruled. S7 waits for it.
+    
+    Ask the user when you reach each slice.
 - **Single-shot verdicts** (one statement per segment for both judges) are a brainstorm, not part of item 3. Design §8,
   "Not part of item 3", says what was found. Do not build it without the user's word.
 - **BE** (PR #131, the error model this builds on) MERGED into `main` on 2026-11-21 as `2942e983`, on the user's word.
@@ -61,12 +67,12 @@ on another account (§0).
 
 ## 2. Where to build
 
-- **The base.** Build on `main` once PR #131 (BE) has merged. Until then, build on `claude/compat-error-model`
-  (BE's head, `9fa42018`), because item 3 changes BE's record types.
+- **The base** is `main` at `2942e983` or later (BE, PR #131, merged 2026-11-21; its tree equals `9fa42018`). Item 3
+  changes BE's record types.
 - **The branch name** is the repository owner's to give. Ask before you push. The program's own records live on
   `claude/compat-program`.
-- **The code map's line numbers** are at `dad8a710`. BE's later commits touched `HostJson`, `Failure`, `PlanJson`,
-  `MappingNormalizer`, `ChainDispatch`, `Substitution` and the dialects. Find each site by its symbol, not its line.
+- **The code map's line numbers** are at `dad8a710`. Find each site by its symbol, not its line. The map's header
+  lists the lines the cold read found moved.
 - **Do not push to `main`, open a PR, or merge** without the owner's word in your session (AGENTS.md, "Pushing to
   main").
 
@@ -92,11 +98,13 @@ on another account (§0).
 
 - **One Bazel run at a time.** Two at once run out of memory in a cloud container. Run the PCT lanes alone. Do not
   edit the tree while Bazel runs in it.
-- **Postgres in a root container.** `initdb` refuses root. Copy `tools/postgres/as_unprivileged.sh` outside the
-  workspace and pass `--strategy=TestRunner=standalone --run_under="<copy> ubuntu"`. A target whose data files
+- **Postgres in a root container.** `initdb` refuses root. Once, run `chmod o+x /root` (the user must pass through
+  the Bazel output base's parent). Then copy `tools/postgres/as_unprivileged.sh` outside the workspace and pass `--strategy=TestRunner=standalone --run_under="<copy> ubuntu"`. A target whose data files
   cannot be reached that way fails with "not in this test's runfiles"; CI runs it as non-root.
-- **The local fast round** (about 25 minutes): `bazel test --keep_going $(cat
-  docs/records/compat-assert-records-homework/fast-round-targets.txt)`. That is every core target including the
+- **First, in a fresh cloud container:** `tools/cloud-distdir.sh` (GitHub archives), then
+  `tools/cloud-maven-distdir.sh <targets>` if Maven Central answers 404 (`docs/CLOUD_SESSIONS.md`).
+- **The local fast round** (about 25 minutes), run in your branch's checkout with the program worktree at `../program`
+  (§0): `bazel test --keep_going $(cat ../program/docs/records/compat-assert-records-homework/fast-round-targets.txt)`. That is every core target including the
   `_judge_database` and `_judge_both` variants, the engine-client and Python suites, the strict typecheck and the
   WASM routes.
 - **The lanes item 3 moves**, run before each commit that touches them:
@@ -118,6 +126,9 @@ on another account (§0).
   - `//spec:update_edge_corpus_{duckdb,h2}`
   - `//core:update_ladder`
   - `//docs:update_dialect_capability`
+  - `//engine-client:update_generated` and `//python:update_generated`, the hosts' generated tables (`lite-raise.ts`,
+    `RAISE_SENTENCES`). S6's `ErrorKind.ASSERT_FAILED` and its `sql.RaiseKind` twin (the two are held equal by name)
+    land there; so does S1's catalog, if the hosts print assert failures.
 - **Lanes this container cannot run.** The database servers (MariaDB, MySQL, SQLite, Trino, ClickHouse, MongoDB) and
   the cloud databases (BigQuery, Snowflake, Databricks, whose credentials only warm sessions hold) run in warm sessions
   the user gives you. Do not assume they pass.
