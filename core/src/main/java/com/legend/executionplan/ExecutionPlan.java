@@ -854,6 +854,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             operands = List.copyOf(operands);
         }
 
+        /** The error kind this site raises: its raise kind's twin of the one name (the catalog's, error.ErrorKind;
+         *  stage B's BE, 2026-11-21), so a reader of the plan's errors words it without reading the SQL layer. */
+        public com.legend.error.ErrorKind errorKind() {
+            return com.legend.error.ErrorKind.valueOf(kind.name());
+        }
+
         /** {@code sites} as a statement holds them: numbered 1..k in order, refused by name otherwise. */
         static List<Site> numbered(List<Site> sites) {
             List<Site> out = List.copyOf(sites);

@@ -48,9 +48,11 @@ final class AssertErrorRuns {
         RuntimeException raised = null;
         try {
             sides.get();
-        } catch (RuntimeException e) {
-            // the errors the arm takes, caught's (an error upstream raises at run, as upstream's assertError catches
-            // it: the BE audit's finding 6, 2026-11-21): any other is a wall and stays loud, raised as it was
+        } catch (com.legend.error.DataError | com.legend.error.AssertFailed
+                | com.legend.error.LegendCompileException e) {
+            // the errors the arm takes, caught's: lite's error families, each taken where upstream raises it at run, as
+            // upstream's assertError catches it (the BE audit's finding 6, 2026-11-21; until then a DataError or a
+            // ModelException alone); any other is a wall and stays loud, raised as it was
             if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
                 throw e;
             }

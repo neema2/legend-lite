@@ -302,12 +302,11 @@ public final class AssertVerdicts {
      *  {@code IllegalStateException} in the refusal's place). */
     private static com.legend.testexecutionplan.Failure plannedOrDropped(VerdictBatch batch, RuntimeException e,
             String where) {
-        try {
-            return com.legend.testexecutionplan.Failures.planned(e, where);
-        } catch (RuntimeException refused) {
+        if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
             batch.discard();
-            throw refused;
+            throw e;
         }
+        return com.legend.testexecutionplan.Failures.planned(e, where);
     }
 
     /** A statement-root HELPER call: a user function that is neither a root engine-text arm nor a verdict native

@@ -232,8 +232,9 @@ class BodyRouterParityTest {
                 "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1);}",
-                // a side whose planning raises (a computed bound the lowering refuses by name): raised at its turn,
-                // after the assert before it ran and reported, counted under its family
+                // a side whose planning raises (a computed bound the lowering refuses by name): the body refused at
+                // planning, nothing run (the user's ruling of 2026-11-21, "D": until then raised at its turn, after the
+                // assert before it ran; REFUSED_AT_PLANNING)
                 "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
                         + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}",
                 // the M8a audit's E: a type identity decided with no side (held, failed with its message), the TDS
@@ -872,7 +873,7 @@ class BodyRouterParityTest {
                     com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
             // MOVED 2026-11-04 (the core program): the database planner plans these grid pairs -- names or widths
             // that differ decide false at planning, kinds that differ are spelled in the expected's
-            assertMoved(routed, 1, "the router moved the body: " + body + " -> " + routed.outcome);
+            assertMoved(backend, body, routed, 1, "the router moved the body: " + body + " -> " + routed.outcome);
             if (body.contains("#TDS")) {
                 assertTrue(routed.outcome.startsWith("AssertFailed"), "the grid owner's verdict: " + body + " -> "
                         + routed.outcome);
@@ -1022,7 +1023,8 @@ class BodyRouterParityTest {
                 // the program has ONE target, the system database (M10a; systemRoutedPrograms' store-free case)
                 Run moved = run(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS, mode);
                 assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
-                assertMoved(moved, 1, "the router moved the body: " + c.getKey() + " -> " + moved.outcome);
+                assertMoved(backend, c.getKey(), moved, 1, "the router moved the body: " + c.getKey() + " -> "
+                        + moved.outcome);
             }
         }
     }
@@ -1394,7 +1396,7 @@ class BodyRouterParityTest {
         for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
             Run moved = run(backend, ctx, "x::RT", storeFree, "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals("ok", moved.outcome, "outcome: " + storeFree);
-            assertMoved(moved, 1, "the router moved the body: " + storeFree + " -> " + moved.outcome);
+            assertMoved(backend, storeFree, moved, 1, "the router moved the body: " + storeFree + " -> " + moved.outcome);
         }
         // a user store's read beside a system read, each in a statement of its own (per-statement routing,
         // 2026-11-03): the system statement on the graph's system database, the user's on the body's, one program --
@@ -1705,7 +1707,7 @@ class BodyRouterParityTest {
             Run moved = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                     com.legend.testplan.PlanningOptions.JudgeMode.HOST);
             assertTrue(moved.outcome.startsWith(c.getValue()), body + " -> " + moved.outcome);
-            assertMoved(moved, 1, "the router moved the body: " + body + " -> " + moved.outcome);
+            assertMoved(backend, body, moved, 1, "the router moved the body: " + body + " -> " + moved.outcome);
         }
         for (String a : List.of(appealed, deferredAppealed)) {
             Run matched = run(backend, ctx, "x::RT", a, "select count(*) from FIRM", FIRM_ROWS,
@@ -1956,11 +1958,7 @@ class BodyRouterParityTest {
             // recursively by the host's planner. An assert no arm plans (HostAsserts: NoRule's "not as a scalar")
             // refuses the body at planning, nothing run and no raise planned (the user's ruling of 2026-11-21, "D";
             // until then it raised at its turn, counted as a planned raise)
-            assertMoved(routed, 1, "the router moved the body: " + body + " -> " + routed.outcome);
-            if (!routed.outcome.equals("ok")) {
-                assertEquals(routed.outcome, routed.refused, "refused at planning: " + body);
-                assertEquals("{}", routed.census, "no raise planned: " + body);
-            }
+            assertMoved(backend, body, routed, 1, "the router moved the body: " + body + " -> " + routed.outcome);
         }
     }
 
@@ -2008,15 +2006,62 @@ class BodyRouterParityTest {
                 "the body is a moved class's under one judge: " + body);
         Run moved = run(backend, ctx, runtime, body, check, setup, mode);
         // BOTH plans the body once per judge, each alone (isolated BOTH, 2026-11-17); the edge's style one judge (A4)
-        assertMoved(moved, judgeFor(body, mode) == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1,
+        assertMoved(backend, body, moved, judgeFor(body, mode) == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1,
                 "the router moved the body: " + body + " -> " + moved.outcome);
         return moved;
     }
 
-    /** {@code run} PLANNED and moved {@code plans} times: a body refused at planning fails here (the BE audit's finding
-     *  8, 2026-11-21: this accepted a refusal, so a body a regression refused at planning passed every caller); a body
-     *  refused at planning is asserted so at its call site ({@link #assertRefusedAtPlanning}). */
-    private static void assertMoved(Run run, int plans, String message) {
+    /** A body refused at planning on a database (null: on every one): its text holds {@code body}, its refusal opens
+     *  {@code refusal}. */
+    private record Refused(@com.legend.base.Nullable String database, String body, String refusal) {
+    }
+
+    /** THE BODIES THIS SUITE EXPECTS REFUSED AT PLANNING, each by name with its refusal (the user's ruling of
+     *  2026-11-21, "D": a body lite cannot fully plan is refused before it runs; until then each was planned, the
+     *  refusal raised at its turn). Stated, so a body a regression refuses fails, and so does one of these planned
+     *  (the BE audit's finding 8, 2026-11-21: the check took any refusal). H2's are its dialect's list gaps. */
+    private static final String LIST_GET = "DialectCapability: LIST_GET reached a dialect without a list encoding";
+    private static final String UNNEST = "DialectCapability: UNNEST reached a dialect without an unnest placement";
+
+    private static final List<Refused> REFUSED_AT_PLANNING = List.of(
+            // H2's dialect holds no list encoding: a class instance compared reads its properties as a list
+            new Refused("H2", "{| assertEq(^x::Lit(value=1), ^x::Lit(value=1));}", LIST_GET),
+            new Refused("H2", "{| assertEquals(^x::Call(name='f', args=[^x::Lit(value=1), ^x::Lit(value=2)]), ^x::Call(name='f', args=[^x::Lit(value=1), ^x::Lit(value=2)]));}", LIST_GET),
+            new Refused("H2", "{| assertEquals(^x::Call(name='f', args=[^x::Lit(value=1)]), ^x::Call(name='f', args=[^x::Lit(value=2)]));}", LIST_GET),
+            new Refused("H2", "{| assertEquals(^x::Lit(value=1), ^x::Lit(value=1));}", LIST_GET),
+            new Refused("H2", "{| assertEquals(list([^x::Lit(value=1), 'x']), list([^x::Lit(value=1), 'x']));}", LIST_GET),
+            new Refused("H2", "{| assertNotEquals(^x::Lit(value=1), ^x::Lit(value=2));}", LIST_GET),
+            new Refused("H2", "{| assertSameElements([^x::Lit(value=1), ^x::Lit(value=2)], [^x::Lit(value=2), ^x::Lit(value=1)]);}", LIST_GET),
+            new Refused("H2", "{| let e = ^x::Key(k='c', v=3); x::assertSame($e, ^x::Key(k='c', v=4));}", LIST_GET),
+            new Refused("H2", "{| x::assertSame(^x::Key(k='a', v=1), ^x::Key(k='a', v=2));}", LIST_GET),
+            new Refused("H2", "{| x::assertSame(^x::Key(k='a', v=1), ^x::Key(k='b', v=1));}", LIST_GET),
+            // and no unnest placement: a literal collection mapped, quantified or sorted
+            new Refused("H2", "{| [1, -2]->forAll(x| assert($x > 0, 'positive'));}", UNNEST),
+            new Refused("H2", "{| [1, -2]->map(x| assert($x > 0, 'positive'));}", UNNEST),
+            new Refused("H2", "{| [1, 2, 3]->map(x| assert($x > 0, 'positive'));}", UNNEST),
+            new Refused("H2", "{| [1, 2, 3]->map(x|$x * 2);}", UNNEST),
+            new Refused("H2", "{| [1, 2]->forAll(x| assert($x > 0, 'positive'));}", UNNEST),
+            new Refused("H2", "{| [1, 2]->map(x| assertFalse($x > 5, 'small'));}", UNNEST),
+            new Refused("H2", "{| let n = 2; assertEquals(['a', 'b'], ['b', 'a']->sort()); assertEquals($n, 1 + 1);}", UNNEST),
+            // on every database: a computed slice bound, DB2's missing dialect, and a lite defect (an assert native
+            // reaching the scalar lowering), loud: each refused as itself
+            new Refused(null, "#->limit('1'->parseInteger())", "NotImplementedException: dynamic slicing bounds"),
+            new Refused(null, "DatabaseType.DB2", "NotImplementedException: SQL dialect for database type 'DB2' is not"
+                    + " implemented yet"),
+            new Refused(null, "{| assertInstanceOf(1, type(2));}", "IllegalStateException: no scalar lowering registered"
+                    + " for resolved overload 'meta::pure::functions::asserts::assertInstanceOf'"));
+
+    /** {@code run} of {@code body} on {@code backend}: refused at planning as {@link #REFUSED_AT_PLANNING} says, else
+     *  PLANNED and moved {@code plans} times -- a body refused that the table does not name fails here (the BE audit's
+     *  finding 8, 2026-11-21: this accepted any refusal, so a body a regression refused at planning passed every
+     *  caller). */
+    private static void assertMoved(TestBackend backend, String body, Run run, int plans, String message) {
+        Refused expected = REFUSED_AT_PLANNING.stream().filter(r -> body.contains(r.body())
+                && (r.database() == null || r.database().equals(backend.type().name()))).findFirst().orElse(null);
+        if (expected != null) {
+            assertRefusedAtPlanning(run, expected.refusal(), message);
+            return;
+        }
         assertNull(run.refused(), "planned, never refused at planning: " + message + " (refused: " + run.refused() + ")");
         assertEquals(plans, run.moved, message);
     }

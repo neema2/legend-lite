@@ -10,6 +10,7 @@ import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -93,45 +94,23 @@ class DatabaseHalfDe5Test {
         }
     }
 
+    /** A let's mapping error -- the corpus's plan-handle idiom (testModelConnectionJoin's `let res = executionPlan(...)`)
+     *  over a class the mapping does not map -- refuses the body at planning under every judge, nothing run, an assert
+     *  before it reporting nothing (the user's option 1 of 2026-11-21, register S393: a mapping error is refused at
+     *  planning until its codes land, docs/records/compat-mapping-errors-followup-2026-11-21.md; until then the error
+     *  was held for the next assert's turn, the PR1 re-review's B1). */
     @Test
-    void aLetsModelErrorFailsTheBodyUnderEveryJudge() {
-        // the corpus's plan-handle idiom (testModelConnectionJoin's `let res = executionPlan(...)`), over a class the
-        // mapping does not map: the let raises its model error as it is planned
-        String body = "{| let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project([b|$b.x], ['x']),"
+    void aLetsMappingErrorRefusesTheBodyAtPlanningUnderEveryJudge() {
+        String let = " let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project([b|$b.x], ['x']),"
                 + " p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
-        String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
-        for (PlanningOptions.JudgeMode mode : EDGE_JUDGES) {
-            String got = onTheEdge(UNMAPPED, body, mode);
-            assertTrue(got.startsWith("MappingResolutionException"), mode + ": " + got);
-            assertEquals(host, got, mode + ": the host's own error");
-        }
-    }
-
-    /** The PR1 re-review's B1 (G2): an assert BEFORE the let runs and reports first, under every judge as under the
-     *  host: the let's model error is held for the next assert's turn, never raised at planning ahead of it. */
-    @Test
-    void anAssertBeforeALetsModelErrorReportsFirstUnderEveryJudge() {
-        String body = "{| assertEquals(1, 2); let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project("
-                + "[b|$b.x], ['x']), p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
-                + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
-        String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
-        assertTrue(host.startsWith("AssertFailed"), "HOST: " + host);
-        for (PlanningOptions.JudgeMode mode : EDGE_JUDGES) {
-            assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode + ": the earlier assert's failure first");
-        }
-    }
-
-    /** B1's other half: a passing assert before the let, then the let's model error at the next assert's turn. */
-    @Test
-    void aLetsModelErrorAfterAPassingAssertRaisesAtTheNextAssertUnderEveryJudge() {
-        String body = "{| assertEquals(1, 1); let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project("
-                + "[b|$b.x], ['x']), p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
-                + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
-        String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
-        assertTrue(host.startsWith("MappingResolutionException"), "HOST: " + host);
-        for (PlanningOptions.JudgeMode mode : EDGE_JUDGES) {
-            assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode.toString());
+        for (String before : List.of("{|", "{| assertEquals(1, 2);", "{| assertEquals(1, 1);")) {
+            String body = before + let;
+            String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
+            assertTrue(host.startsWith("MappingResolutionException"), "HOST, " + before + ": " + host);
+            for (PlanningOptions.JudgeMode mode : EDGE_JUDGES) {
+                assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode + ", " + before + ": the host's own refusal");
+            }
         }
     }
 

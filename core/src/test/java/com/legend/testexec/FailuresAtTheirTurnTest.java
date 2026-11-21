@@ -74,6 +74,12 @@ class FailuresAtTheirTurnTest {
                 "a refusal: legend-pure would run it, lite cannot plan it -- refused, reached or not");
         RuntimeException capability = new DialectCapability("LIST_FILTER reached a dialect without a list encoding");
         assertSame(capability, assertThrows(DialectCapability.class, () -> Failures.planned(capability, "the test")));
+        // a mapping error, by no class rule: refused at planning until its run-time codes land (the user's option 1 of
+        // 2026-11-21, register S393; the BE audit's finding 3)
+        RuntimeException unmapped = new com.legend.error.MappingResolutionException(
+                "class 'p::B' is not mapped in mapping 'p::M'", "p::B");
+        assertSame(unmapped, assertThrows(com.legend.error.MappingResolutionException.class,
+                () -> Failures.planned(unmapped, "the test")));
         RuntimeException defect = new IllegalStateException("a defect");
         assertSame(defect, assertThrows(IllegalStateException.class, () -> Failures.planned(defect, "the test")),
                 "a defect fails loud");

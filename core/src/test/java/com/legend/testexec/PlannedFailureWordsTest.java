@@ -62,12 +62,13 @@ class PlannedFailureWordsTest {
     void aFileTooLargeIsWordedFromItsRecord_plannedAsLive() {
         RuntimeException live = com.legend.error.DataError.fileTooLarge("/big.csv", 1048577, 1048577, 1,
                 com.legend.base.DataSize.refusal("/big.csv", 1048577, 1048577, 1));
-        assertEquals("the file is larger than the load admits: /big.csv", live.getMessage());
+        String upstream = "Unable to read the CSV file '/big.csv' Execution error at ??, \"File is too large, file was"
+                + " 1.00 Mb, limit is 1 Mb\"";
+        // the one catalog (stage B's BE, 2026-11-21): legend-pure's sentence on the product too
+        assertEquals(upstream, live.getMessage());
         Failure planned = Failures.of(live, "the test");
         assertNotNull(planned.record());
         assertNull(planned.ownMessage());
-        String upstream = "Unable to read the CSV file '/big.csv' Execution error at ??, \"File is too large, file was"
-                + " 1.00 Mb, limit is 1 Mb\"";
         assertEquals(upstream, PureMessages.compile(live));
         RuntimeException rebuilt = Failures.raised(planned);
         assertEquals(live.getMessage(), rebuilt.getMessage());

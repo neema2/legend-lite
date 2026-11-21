@@ -23,12 +23,15 @@ public final class Failures {
      *  error model's §4): an error legend-pure raises when the expression RUNS is planned and raised at its turn --
      *  a database's error found while planning ({@code DataError}), an assert lite decided at planning
      *  ({@code AssertFailed}; not the database judge's decline of an assert's shape, {@code unjudgedReason}, which is
-     *  lite's own refusal: the BE audit's finding 3, 2026-11-21), a query's routing through its mapping ({@code MappingResolutionException}), and a
-     *  compile kind upstream raises at run ({@code CompileKind#atRun}: the window frames, a type the relation runtime
-     *  does not hold, {@code timeBucket}'s StrictDate unit, a row's cell offset).
+     *  lite's own refusal: the BE audit's finding 3, 2026-11-21), and a code upstream raises at run
+     *  ({@code CompileKind#atRun}: the window frames, a type the relation runtime does not hold, {@code timeBucket}'s
+     *  StrictDate unit, a row's cell offset).
      *  Any other error -- a compile error upstream raises compiling, a refusal (lite cannot do it; legend-pure would
      *  run it), a defect -- refuses the body at planning, as a query is refused: it is thrown, whether or not the run
-     *  would reach it. So a test plan holds run-time errors alone. */
+     *  would reach it. So a test plan holds run-time errors alone. A mapping error ({@code MappingResolutionException})
+     *  is among the refused, under no code yet: the user's option 1 of 2026-11-21 (register S393; the ~14 that
+     *  legend-engine's router raises at run become codes in a follow-up,
+     *  docs/records/compat-mapping-errors-followup-2026-11-21.md). */
     public static Failure planned(RuntimeException e, String where) {
         if (!atItsTurn(e)) {
             throw e;
@@ -36,15 +39,14 @@ public final class Failures {
         return of(e, where);
     }
 
-    /** Whether {@code e} is an error upstream raises when the expression runs ({@link #planned}). A query's routing
-     *  through its mapping ({@code MappingResolutionException}, the store resolver's: a class the mapping does not
-     *  map, a runtime with no mapping for it) is one: legend-engine routes a query when its {@code execute} runs
-     *  ({@code meta::pure::router}), never when the test compiles. */
+    /** Whether {@code e} is an error upstream raises when the expression runs ({@link #planned}), decided per code,
+     *  never by the exception's class (the BE audit's finding 3, 2026-11-21: a mapping error was kept by its class
+     *  until then; the user's option 1 refuses it at planning, register S393). */
     public static boolean atItsTurn(RuntimeException e) {
         if (e instanceof AssertFailed f) {
             return f.unjudgedReason() == null;
         }
-        if (e instanceof com.legend.error.DataError || e instanceof com.legend.error.MappingResolutionException) {
+        if (e instanceof com.legend.error.DataError) {
             return true;
         }
         com.legend.error.@Nullable ErrorRecord r = e instanceof com.legend.error.LegendError le ? le.record() : null;

@@ -72,10 +72,10 @@ final class AssertErrorNative {
     }
 
     /** The error {@code f} raised, as the arm catches it: an error upstream raises when {@code f} runs
-     *  ({@code Failures.atItsTurn}: a database's error, an assert's failure, a query's routing, a compile kind raised at
-     *  run), as upstream's assertError catches it (the BE audit's finding 6, 2026-11-21: until then a DataError or a
-     *  ModelException alone, so a routing error or a row's cell offset escaped the arm); any other is null here, and
-     *  refuses the body where its caller plans it. */
+     *  ({@code Failures.atItsTurn}: a database's error, an assert's failure, a code raised at run), as upstream's
+     *  assertError catches it (the BE audit's finding 6, 2026-11-21: until then a DataError or a ModelException alone,
+     *  so a row's cell offset escaped the arm); any other is null here, and refuses the body where its caller plans
+     *  it (a mapping error among them: the user's option 1, register S393). */
     static com.legend.testexecutionplan.@com.legend.base.Nullable Failure caught(RuntimeException e, String where) {
         // the kinded part as data: an audience's words of it are worded at the verdict's turn, from the record (stage
         // B's B1, 2026-11-20, errors as records: until then the plan's style worded it here, PlanStyle.errorWords)

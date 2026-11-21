@@ -65,6 +65,11 @@ Decided by upstream's answer, stated once per code from the pinned sources, neve
   side), a register row; a failing test's reason may name the first refusal found in planning (about 5 corpus rows
   on DuckDB, 6 on H2). Measured before landing on the stress lanes, core's suites, the corpus, PCT and Postgres;
   anything beyond these comes back to the user first.
+- **Mapping errors (the user's option 1, 2026-11-21 ~06:45; the D audit's finding 3):** D first kept every
+  `MappingResolutionException` at its turn by its class, against the rule above. Of its 73 sites, ~14 are errors
+  legend-engine's router raises at run; until those have codes in its words, every mapping error refuses the body at
+  planning (register S393). The codes, and the rest of that research, are a follow-up:
+  docs/records/compat-mapping-errors-followup-2026-11-21.md.
 
 ## 5. The order of work
 

@@ -57,21 +57,21 @@ class PlanStyleFacetsTest {
         assertTrue(edge.contains(upstream), edge);
     }
 
-    /** A load's file larger than the load admits (J25 of the edge audit, 2026-11-17): the product's words are its kind and
-     *  where; legend-pure's sentence, the text's megabytes against the limit, is the edge's. */
+    /** A load's file larger than the load admits (J25 of the edge audit, 2026-11-17): the product's kind and where, and
+     *  legend-pure's sentence, the text's megabytes against the limit, on the product and at the edge alike (the one
+     *  catalog, stage B's BE, 2026-11-21: until then lite's own on the product). */
     @Test
-    void aFileTooLargeIsTheProductsKindAndTheEdgesSentence() {
+    void aFileTooLargeIsTheProductsKindInLegendPuresSentence() {
         byte[] big = new byte[1024 * 1024 + 1];
         java.util.Arrays.fill(big, (byte) 'a');
         com.legend.base.DataSize.TooLarge tooLarge = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.base.DataSize.TooLarge.class, () -> com.legend.base.DataSize.requireSize("/big.csv", big, 1));
         RuntimeException refused = com.legend.error.DataError.fileTooLarge(tooLarge.path(), tooLarge.bytes(),
                 tooLarge.characters(), tooLarge.limitMegabytes(), tooLarge);
-        org.junit.jupiter.api.Assertions.assertEquals("the file is larger than the load admits: /big.csv",
-                refused.getMessage());
-        org.junit.jupiter.api.Assertions.assertEquals("Unable to read the CSV file '/big.csv' Execution error at ??,"
-                + " \"File is too large, file was 1.00 Mb, limit is 1 Mb\"",
-                com.legend.edge.PureMessages.compile(refused));
+        String upstream = "Unable to read the CSV file '/big.csv' Execution error at ??, \"File is too large, file was"
+                + " 1.00 Mb, limit is 1 Mb\"";
+        org.junit.jupiter.api.Assertions.assertEquals(upstream, refused.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals(upstream, com.legend.edge.PureMessages.compile(refused));
     }
 
     /** A parameter value its parameter does not take (J8 of the edge audit, 2026-11-17): the product's words are lite's

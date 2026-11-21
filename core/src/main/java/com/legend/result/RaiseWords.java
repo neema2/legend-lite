@@ -30,7 +30,7 @@ public final class RaiseWords {
 
     /** {@code site}'s record: its kind, and each operand as the form that says them prints it. */
     public static ErrorRecord record(ExecutionPlan.Site site) {
-        ErrorKind kind = ErrorKind.valueOf(site.kind().name());
+        ErrorKind kind = site.errorKind();
         List<Operand> o = site.operands();
         ErrorKind.Form form = kind.form(o.size(), i -> o.get(i) instanceof Operand.Text t && t.value().isEmpty());
         List<String> values = new ArrayList<>(o.size());

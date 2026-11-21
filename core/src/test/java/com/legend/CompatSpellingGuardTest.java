@@ -161,6 +161,28 @@ class CompatSpellingGuardTest {
             "error/CompileKind.java | can't be found | 3 | RULED",
             "error/CompileKind.java | trying to get an element at offset | 1 | RULED",
             "error/CompileKind.java | variables count ( | 1 | RULED",
+            // the run-time kinds' sentences, the same ruling: upstream's in error/ErrorKind.java, a raise's sentence
+            // printed by result/RaiseWords.java, legend-pure's date text from a minute on (+0000) among its prints
+            "error/ErrorKind.java | Cannot cast a collection of size | 2 | RULED",
+            "error/ErrorKind.java | Cannot divide  | 1 | RULED",
+            "error/ErrorKind.java | Cast exception:  | 2 | RULED",
+            "error/ErrorKind.java | Could not convert string ' | 2 | RULED",
+            "error/ErrorKind.java | Could not parse ' | 1 | RULED",
+            "error/ErrorKind.java | Division by zero | 1 | RULED",
+            "error/ErrorKind.java | Invalid day:  | 1 | RULED",
+            "error/ErrorKind.java | Invalid window frame boundary | 2 | RULED",
+            "error/ErrorKind.java | Map keys can not be NULL | 1 | RULED",
+            "error/ErrorKind.java | Map keys must be unique | 1 | RULED",
+            "error/ErrorKind.java | Match failure: | 2 | RULED",
+            "error/ErrorKind.java | The map key list does not align | 1 | RULED",
+            "error/ErrorKind.java | Unable to compute sqrt of | 1 | RULED",
+            "error/ErrorKind.java | Unable to evaluate constraint | 1 | RULED",
+            "error/ErrorKind.java | Unsupported number of bits to shift | 1 | RULED",
+            "error/ErrorKind.java | add(set, index, value): index out of bounds | 1 | RULED",
+            "error/ErrorKind.java | can't be higher than the high bound | 1 | RULED",
+            "error/ErrorKind.java | range step must not be 0 | 1 | RULED",
+            "error/ErrorKind.java | trying to get an element at offset | 1 | RULED",
+            "result/RaiseWords.java | +0000 | 1 | RULED",
             // census J29 (2026-11-18): "Assert failed", legend-pure's assert.pure default, as the compiler plans an in-body
             // guard's message where the guard gives none -- RULED STAYS by the orchestrator at J29 (the GUARD stream's
             // re-cut triage). The user's R1 (2026-11-18, PR #118, "For 118 r1-r3 are fine") covers `assert`: its default

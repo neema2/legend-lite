@@ -518,11 +518,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     // an error upstream would not raise at run -- a refusal, a compile error, a defect -- refuses the
                     // body here, as itself (the BE audit's finding 5, 2026-11-21: any class but a model error left the
                     // body to the deleted walk, refused in the generic words, a DataError D keeps among them).
-                    // One upstream raises at run (a class its mapping does not map), as the host judge's planner holds
-                    // it (HostAsserts' pendingLet): raised at the next assert's turn, after the asserts before it ran
-                    // and reported -- the main pass plans it as that root's wall; with no assert after it, raised
-                    // here, for the body (DE5's second group, 2026-11-16; the PR1 re-review's B1: an assert before the
-                    // let reports first under every judge, G2)
+                    // One upstream raises at run (a code stating it), as the host judge's planner holds it (HostAsserts'
+                    // pendingLet): raised at the next assert's turn, after the asserts before it ran and reported --
+                    // the main pass plans it as that root's wall; with no assert after it, raised here, for the body
+                    // (DE5's second group, 2026-11-16; the PR1 re-review's B1: an assert before the let reports first
+                    // under every judge, G2). A class its mapping does not map is refused here since the user's
+                    // option 1 (2026-11-21, register S393)
                     if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
                         throw e;
                     }
