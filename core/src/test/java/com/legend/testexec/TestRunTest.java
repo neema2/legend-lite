@@ -93,20 +93,37 @@ final class TestRunTest {
                 + "' AS actual, CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient", verdictColumns());
     }
 
+    /** A fused statement of two members: ONE row, each member's verdict columns under its prefix (item 3's S4,
+     *  2026-11-21: until then a row per member, its index first). */
     private static ExecutionPlan.TdsResult fused(String sql) {
+        List<ExecutionPlan.Column> columns = new ArrayList<>();
+        for (int m = 0; m < 2; m++) {
+            for (ExecutionPlan.Column c : verdictColumns()) {
+                columns.add(new ExecutionPlan.Column("m" + m + "__" + c.name(), c.type(), c.multiplicity(), c.slot(),
+                        null, null));
+            }
+        }
+        return relation(sql, columns);
+    }
+
+    /** The HOST judge's side batch (HostSideBatch): its rows, each its side's index first -- a statement of its own,
+     *  not the database judge's fused row. */
+    private static ExecutionPlan.TdsResult hostBatch() {
         List<ExecutionPlan.Column> columns = new ArrayList<>();
         columns.add(col("ix", "Integer", "INTEGER"));
         columns.addAll(verdictColumns());
-        return relation(sql, columns);
+        return relation("SELECT 0 AS ix, TRUE AS verdict, 'x' AS expected, 'x' AS actual,"
+                + " CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient", columns);
     }
 
     /** A hand-made plan's body facts (C5-J item 2, 2026-11-15: the plan carries them): no effects, no seeds, verdicts. */
     private static final com.legend.testexecutionplan.BodyFacts FACTS =
             new com.legend.testexecutionplan.BodyFacts(false, false, true, "A");
 
-    private static final String FUSED = "SELECT 0 AS ix, TRUE AS verdict, 'x' AS expected, 'x' AS actual,"
-            + " CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient"
-            + " UNION ALL SELECT 1, FALSE, 'a', 'b', CAST(NULL AS VARCHAR), FALSE";
+    private static final String FUSED = "SELECT TRUE AS m0__verdict, 'x' AS m0__expected, 'x' AS m0__actual,"
+            + " CAST(NULL AS VARCHAR) AS m0__unjudged, FALSE AS m0__lenient,"
+            + " FALSE AS m1__verdict, 'a' AS m1__expected, 'b' AS m1__actual, CAST(NULL AS VARCHAR) AS m1__unjudged,"
+            + " FALSE AS m1__lenient";
 
     /** Two asserts: one holding, one not; each with a base of one rows side and one constant side. */
     private static TestPlan.Verdicts group(ExecutionPlan.TdsResult fused) {
@@ -308,7 +325,7 @@ final class TestRunTest {
     @DisplayName("host judging: each verdict's sides as typed rows, a constant side its text cells; nothing fused is sent")
     void hostJudgingHandsTheSides() throws IOException {
         Recording sink = new Recording();
-        run(plan(TestPlan.Judge.HOST, group(fused(FUSED))), sessions(), sink);
+        run(plan(TestPlan.Judge.HOST, group(hostBatch())), sessions(), sink);
         assertEquals(List.of("sides assertEquals@2", "sides assertEquals@3"), sink.events);
         List<PlanRunner.Rows> first = sink.sides.get(0);
         assertEquals(2, first.size());

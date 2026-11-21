@@ -53,13 +53,18 @@ WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
       SELECT (SELECT COUNT(1) FROM frame_r AS frame_r_t0 WHERE frame_r_t0.AMOUNT > 0.0E0) AS value
     ) AS side ON TRUE
   ) AS __once)
-SELECT 0 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('expected ', coalesce(CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), '[]'), ', got ', coalesce(CAST(p.__c_n AS VARCHAR), '[]')) AS __message
-FROM __p_0 AS p
-UNION ALL
-SELECT 1 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('expected the elements ', e.__listw, ' in any order, got ', a.__listw) AS __message
-FROM __sa_1 AS a
-CROSS JOIN __se_1 AS e
-UNION ALL
-SELECT 2 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, CASE WHEN CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END = CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END THEN concat('expected ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ' (', 'Integer', '), got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END, ' (', 'Integer', ')') ELSE concat('expected ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ', got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END) END AS __message
-FROM __sa_2 AS a
-CROSS JOIN __se_2 AS e
+SELECT m0.__verdict AS m0__verdict, m0.__expected AS m0__expected, m0.__actual AS m0__actual, m0.__unjudged AS m0__unjudged, m0.__lenient AS m0__lenient, m0.__holds AS m0__holds, m0.__message AS m0__message, m1.__verdict AS m1__verdict, m1.__expected AS m1__expected, m1.__actual AS m1__actual, m1.__unjudged AS m1__unjudged, m1.__lenient AS m1__lenient, m1.__holds AS m1__holds, m1.__message AS m1__message, m2.__verdict AS m2__verdict, m2.__expected AS m2__expected, m2.__actual AS m2__actual, m2.__unjudged AS m2__unjudged, m2.__lenient AS m2__lenient, m2.__holds AS m2__holds, m2.__message AS m2__message
+FROM (
+  SELECT coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('expected ', coalesce(CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), '[]'), ', got ', coalesce(CAST(p.__c_n AS VARCHAR), '[]')) AS __message
+  FROM __p_0 AS p
+) AS m0
+CROSS JOIN (
+  SELECT (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('expected the elements ', e.__listw, ' in any order, got ', a.__listw) AS __message
+  FROM __sa_1 AS a
+  CROSS JOIN __se_1 AS e
+) AS m1
+CROSS JOIN (
+  SELECT (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, CASE WHEN CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END = CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END THEN concat('expected ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ' (', 'Integer', '), got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END, ' (', 'Integer', ')') ELSE concat('expected ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ', got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END) END AS __message
+  FROM __sa_2 AS a
+  CROSS JOIN __se_2 AS e
+) AS m2
