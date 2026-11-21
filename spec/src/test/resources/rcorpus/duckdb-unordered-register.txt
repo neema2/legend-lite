@@ -117,11 +117,9 @@ unordered-chain meta::relational::tests::functions::pureToSqlQuery::calendarAggr
 unordered-chain meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testUnionWithWtdAndPwa
 unordered-chain meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testWtdValue
 unordered-chain meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYtdValue
-unordered-chain meta::relational::tests::functions::sqlstring::testDayOfYear
 unordered-chain meta::relational::tests::functions::sqlstring::testEnumPropertyEqualityIsNotNullSafe
 unordered-chain meta::relational::tests::functions::sqlstring::testEqualityInFilterOnOptionalProperties
 unordered-chain meta::relational::tests::functions::sqlstring::testHashFunctions
-unordered-chain meta::relational::tests::functions::sqlstring::testIsDistinctSQLGeneration
 unordered-chain meta::relational::tests::functions::sqlstring::testNonExecutableSQLString
 unordered-chain meta::relational::tests::functions::sqlstring::testNotEqualityForOptionalProperties
 unordered-chain meta::relational::tests::functions::sqlstring::testNotEqualityInFilterOnOptionalProperties
@@ -134,19 +132,11 @@ unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringAs
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringChar
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringJoinStrings
-unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat
-unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringReverse
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSplitPart
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringToNumericCasts
-unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock
-unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithLength
-unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithRepeatString
-unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfMonth
-unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfThisYear
 unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek
-unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfYear
 unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationMonth
 unordered-chain meta::relational::tests::groupBy::datePeriods::testDayOfWeek
 unordered-chain meta::relational::tests::groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath
@@ -198,7 +188,6 @@ unordered-chain meta::relational::tests::map::testSubAggregationAverageInQualifi
 unordered-chain meta::relational::tests::map::testSubAggregationAverageWithOperation
 unordered-chain meta::relational::tests::map::testSubAggregationMaxInQualifier
 unordered-chain meta::relational::tests::map::testSubAggregationMultiLevel
-unordered-chain meta::relational::tests::map::testSubAggregationMultiLevelJoinString
 unordered-chain meta::relational::tests::map::testSubAggregationSumInQualifier
 unordered-chain meta::relational::tests::map::testSubAggregationSumWithOperation
 unordered-chain meta::relational::tests::map::testSubAggregationUsingIf
@@ -502,7 +491,6 @@ unordered-chain meta::relational::tests::mapping::sqlFunction::tan::testProject
 unordered-chain meta::relational::tests::mapping::sqlFunction::testAdjustDateTranslationInMappingAndQuery
 unordered-chain meta::relational::tests::mapping::sqlFunction::toString::testFilter
 unordered-chain meta::relational::tests::mapping::sqlFunction::toString::testProject
-unordered-chain meta::relational::tests::mapping::sqlFunction::trim::testTriminNotSybaseASE
 unordered-chain meta::relational::tests::mapping::sqlFunction::upper::testFilter
 unordered-chain meta::relational::tests::mapping::sqlFunction::upper::testProject
 unordered-chain meta::relational::tests::mapping::subType::testSubTypeMappingValidWhenMappedExplicitly

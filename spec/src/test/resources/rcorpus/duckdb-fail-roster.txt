@@ -209,6 +209,8 @@ meta::relational::tests::m2m2r::testProp2
 meta::relational::tests::m2m2r::testProp3
 meta::relational::tests::m2m2r::testProp4
 meta::relational::tests::map::testSubAggregationMultiLevelJoinString
+meta::relational::tests::mapping::inheritance::relational::testGetAll
+meta::relational::tests::mapping::inheritance::relational::union::testGetAll
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
