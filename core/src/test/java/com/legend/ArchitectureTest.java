@@ -1325,8 +1325,8 @@ final class ArchitectureTest {
             // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
             // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
             // the frame's shape it reads, the canons
-            "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
-                    + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            // (VerdictSql#represented gone 2026-11-21, item 3's S0, a shrink: the database judge's legend-pure message
+            // default went, and the edge's last caller asks its own facet, EdgePureOnlyTexts)
             "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             // (VerdictWords$Reads#CANONS until 2026-11-18, then VerdictReads#CANONS -- the enum left the two-form kind
             // for its own type, the GUARD stream's re-cut on train 15 1931d419b1 -- deleted with legend-pure's canon
