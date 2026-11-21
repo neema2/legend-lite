@@ -242,6 +242,10 @@ public class MinimalCorpusTest {
                     System.clearProperty("legend.test.current");
                 }
                 ran.add(r.fqn());
+                if (com.legend.testexecutionplan.Failures.PROBE) {   // PROBE (claude/compat-planned-failure-census)
+                    System.err.println("[failure-probe]\tVERDICT\ttest=" + t.fqn() + "\tstatus=" + r.status()
+                            + "\tdetail=" + com.legend.testexecutionplan.Failures.clip(r.reason()));
+                }
                 long movedNow = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BODIES_MOVED);
                 if (movedNow > movedBefore) {
                     // the tests whose run the body router moved bodies of, and how many (a test's setup program and

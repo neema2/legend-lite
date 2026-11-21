@@ -19,6 +19,34 @@ public final class Failures {
     private Failures() {
     }
 
+    // ---- PROBE (branch claude/compat-planned-failure-census, 2026-11-21; never for main): one stderr line per planned
+    // failure and per raised one, under -Dlegend.probe.failures=true or LEGEND_PROBE_FAILURES=true ----
+    public static final boolean PROBE = Boolean.getBoolean("legend.probe.failures")
+            || "true".equals(System.getenv("LEGEND_PROBE_FAILURES"));
+    /** Depth of the assertError arm's own reading of its f's sides (AssertErrorRuns), on this thread. */
+    public static final ThreadLocal<int[]> IN_ASSERT_ERROR = ThreadLocal.withInitial(() -> new int[1]);
+
+    public static String clip(@Nullable String s) {
+        if (s == null) {
+            return "null";
+        }
+        String one = s.replace('\t', ' ').replace('\r', ' ').replace('\n', ' ');
+        return one.length() > 200 ? one.substring(0, 200) : one;
+    }
+
+    private static void probe(String event, String kind, String cls, String where, @Nullable String message,
+            String extra) {
+        System.err.println("[failure-probe]\t" + event + "\ttest=" + System.getProperty("legend.test.current", "?")
+                + "\tkind=" + kind + "\tclass=" + cls + "\twhere=" + clip(where) + extra + "\tmessage="
+                + clip(message));
+    }
+
+    private static String caller() {
+        return StackWalker.getInstance().walk(st -> st.skip(2).findFirst()
+                .map(f -> f.getClassName().substring(f.getClassName().lastIndexOf('.') + 1) + "#" + f.getMethodName()
+                        + ":" + f.getLineNumber()).orElse("?"));
+    }
+
     /** {@code e}, raised while {@code where} planned, as data: its class one of the closed list (any other fails the
      *  planning here, by name -- never recorded as a stand-in class). */
     public static Failure of(RuntimeException e, String where) {
@@ -27,6 +55,9 @@ public final class Failures {
         String message = e.getMessage();
         Failure.Kind kind = e instanceof Failure.Kinded k ? k.failureKind() : Failure.Kind.named(e.getClass().getName());
         if (kind == null) {
+            if (PROBE) {
+                probe("UNNAMED", "null", e.getClass().getName(), where, e.getMessage(), "\tsite=" + caller());
+            }
             throw new IllegalStateException("a planning failure of a class the test plan does not name ("
                     + e.getClass().getName() + ", planned at " + where + "): " + e.getMessage(), e);
         }
@@ -40,6 +71,9 @@ public final class Failures {
         String element = e instanceof LegendCompileException c
                 && (kind == Failure.Kind.MODEL || kind == Failure.Kind.MAPPING_RESOLUTION) ? c.element() : null;
         String unjudged = e instanceof AssertFailed f ? f.unjudgedReason() : null;
+        if (PROBE) {
+            probe("PLANNED", kind.name(), e.getClass().getName(), where, message, "\tsite=" + caller());
+        }
         return new Failure(kind, message, phase, element, unjudged, where, factOf(e, kind));
     }
 
@@ -88,6 +122,13 @@ public final class Failures {
      *  own refusal -- so an audience's words of a caught error word it from the data (stage B's B1, 2026-11-20, errors as records). */
     public static RuntimeException raised(Failure f) {
         RuntimeException raised = rebuilt(f);
+        if (PROBE) {
+            String site = caller();
+            boolean caught = site.startsWith("AssertErrorRuns#");
+            probe("RAISED", f.kind().name(), raised.getClass().getName(), f.where(), f.message(),
+                    "\tsite=" + site + "\tassertErrorArm=" + caught + "\tinAssertErrorSides="
+                            + (IN_ASSERT_ERROR.get()[0] > 0));
+        }
         Throwable cause = switch (f.fact()) {
             case null -> null;
             case Failure.Compile c -> new Planned(c);

@@ -29,9 +29,14 @@ final class AssertErrorRuns {
             String message = null;
             try {
                 // the inner assert's sides were read with the step's, its caller's message among them: no reader
-                if (com.legend.testexec.HostJudgments.judge(a.inner().judgment(), sides, null, run) == null) {
-                    throw new com.legend.error.NotImplementedException(a.inner().assertion().name()
-                            + " inside assertError: the host judge declined the sides it read");
+                com.legend.testexecutionplan.Failures.IN_ASSERT_ERROR.get()[0]++;   // PROBE
+                try {
+                    if (com.legend.testexec.HostJudgments.judge(a.inner().judgment(), sides, null, run) == null) {
+                        throw new com.legend.error.NotImplementedException(a.inner().assertion().name()
+                                + " inside assertError: the host judge declined the sides it read");
+                    }
+                } finally {
+                    com.legend.testexecutionplan.Failures.IN_ASSERT_ERROR.get()[0]--;   // PROBE
                 }
             } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {
                 message = run.caughtMessage(e);
@@ -47,7 +52,12 @@ final class AssertErrorRuns {
         }
         RuntimeException raised = null;
         try {
-            sides.get();
+            com.legend.testexecutionplan.Failures.IN_ASSERT_ERROR.get()[0]++;   // PROBE
+            try {
+                sides.get();
+            } finally {
+                com.legend.testexecutionplan.Failures.IN_ASSERT_ERROR.get()[0]--;   // PROBE
+            }
         } catch (com.legend.error.DataError | com.legend.error.ModelException e) {
             // the errors the arm takes (caught's): any other is a wall and stays loud, raised as it was
             raised = e;

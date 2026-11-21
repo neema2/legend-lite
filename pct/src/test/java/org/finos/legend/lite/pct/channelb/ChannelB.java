@@ -237,7 +237,12 @@ public final class ChannelB {
         // the measurement's one attribution label (2026-11-09: five per-census hooks until then)
         com.legend.base.Attribution.to(fqn);
         // (the dual-verdict and decline attribution prints went with the host judge's byte channel, 2026-11-07)
-        return runOneInner(fd, module, ctx, fqn);
+        Outcome o = runOneInner(fd, module, ctx, fqn);
+        if (com.legend.testexecutionplan.Failures.PROBE) {   // PROBE (claude/compat-planned-failure-census)
+            System.err.println("[failure-probe]\tVERDICT\ttest=" + fqn + "\tstatus=" + o.status() + "\tdetail="
+                    + com.legend.testexecutionplan.Failures.clip(o.detail()));
+        }
+        return o;
     }
 
     private static Outcome runOneInner(FunctionDefinition fd,
