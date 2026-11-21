@@ -1475,23 +1475,23 @@ public final class VerdictSql {
                 false, src, null, List.of(), null, null, List.of(), null, null, List.of(out));
     }
 
-    /** The assert's position column of a fused batch statement. */
-    public static final String INDEX = "__ix";
+    /** A member's column of a fused statement: its own column under the member's prefix ({@code m3__verdict}). */
+    public static String memberColumn(int member, String column) {
+        return "m" + member + column;
+    }
 
     /** LEG 3.4: several verdict statements as ONE. Every statement's CTEs
      * are hoisted to ONE top-level {@code WITH} under per-statement names
      * ({@code __e} of statement 3 is {@code __e_3}; the CTE's own alias is
-     * unchanged, so its column references stand), and each verdict row is
-     * a branch of a {@code UNION ALL} carrying its index — the per-assert
-     * statement's exact shape, flattened. (A {@code WITH} inside a derived
-     * table is NOT that shape: H2 blew its heap on one such branch, a
-     * metamodel read with JSON aggregation — the Linux-independent catch of
-     * 2026-09-20.) The caller reads each assert's row by its index (a
-     * union's row order is not a contract). */
+     * unchanged, so its column references stand), and the statement is ONE ROW: each member's verdict row a one-row
+     * derived table, CROSS JOINed, its columns under the member's prefix ({@link #memberColumn}) -- so each member's
+     * columns are its own and typed as its own (item 3's S4, 2026-11-21: until then each verdict row was a branch of a
+     * {@code UNION ALL} carrying its index, every member's columns one shared schema of text). (A {@code WITH} inside a
+     * derived table is NOT this shape: H2 blew its heap on one such branch, a metamodel read with JSON aggregation --
+     * the Linux-independent catch of 2026-09-20; the members' CTEs are hoisted.) The caller reads each member's columns
+     * by their prefix. */
     public static SqlQuery batch(List<SqlQuery> statements,
             java.util.Map<String, SqlQuery> frames) {
-        List<OutputCol> outs = batchOutputs();
-
         // leg 3.4 step 2: the frames the sides reference, DEFINED once at the
         // head (MATERIALIZED: every side sees the same rows), ahead of all
         List<SqlWith.Cte> ctes = new ArrayList<>();
@@ -1511,7 +1511,9 @@ public final class VerdictSql {
         // order makes it compound: once two grids are one, the cell stacks over
         // them are identical too. Frames stay as they are (named, materialized).
         java.util.Map<SqlQuery, String> hoisted = new java.util.HashMap<>();
-        List<SqlQuery> branches = new ArrayList<>(statements.size());
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        List<OutputCol> outs = new ArrayList<>();
+        SqlSource from = null;
         for (int i = 0; i < statements.size(); i++) {
             SqlQuery st = statements.get(i);
             SqlQuery body = st;
@@ -1532,51 +1534,21 @@ public final class VerdictSql {
                 }
                 body = rename.rewriteRoot(w.body());
             }
-            branches.add(indexed(i, body, outs));
-        }
-        SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
-        return ctes.isEmpty() ? union : new SqlWith(ctes, union);
-    }
-
-    /** {@code SELECT i AS __ix, <the row's columns>}: the verdict row's own
-     * select with the index prepended (its projections matched to the batch
-     * columns by label); any other body shape rides a derived table. */
-    private static SqlQuery indexed(int i, SqlQuery body, List<OutputCol> outs) {
-        List<OutputCol> base = outs;
-        List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
-        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, base.get(0)));
-        if (body instanceof SqlSelect sel && !sel.distinct() && sel.orderBy().isEmpty()
-                && sel.limit() == null && sel.projections().size() == base.size() - 1) {
-            java.util.Map<String, SqlSelect.Projection> byLabel = new java.util.HashMap<>();
-            for (SqlSelect.Projection pr : sel.projections()) {
-                byLabel.put(pr.alias(), pr);
+            String alias = "m" + i;
+            // the verdict row's columns, in the schema's order, by name (a member may carry more: its hints)
+            for (var c : schema().columns()) {
+                OutputCol o = body.outputs().stream().filter(x -> x.name().equals(c.name())).findFirst()
+                        .orElseThrow(() -> new IllegalStateException("a verdict row without its " + c.name()));
+                OutputCol out = new OutputCol(memberColumn(i, o.name()), o.type(), o.nullable());
+                ps.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, body.outputs(), o.name()), out.name(), out));
+                outs.add(out);
             }
-            if (byLabel.size() == base.size() - 1) {
-                for (int c = 1; c < base.size(); c++) {
-                    SqlSelect.Projection pr = byLabel.get(base.get(c).name());
-                    if (pr == null) {
-                        return derived(i, body, outs);
-                    }
-                    ps.add(new SqlSelect.Projection(pr.expr(), pr.alias(), base.get(c)));
-                }
-                return new SqlSelect(ps, false, sel.from(), sel.where(), sel.groupBy(),
-                        sel.having(), sel.qualify(), List.of(), null, null, outs);
-            }
+            SqlSource member = new SqlSource.Subselect(body, alias, null);
+            from = from == null ? member : new SqlSource.Join(from, member, SqlSource.Join.Kind.CROSS, null);
         }
-        return derived(i, body, outs);
-    }
-
-    private static SqlQuery derived(int i, SqlQuery body, List<OutputCol> outs) {
-        List<OutputCol> base = outs;
-        List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
-        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, base.get(0)));
-        for (int c = 1; c < base.size(); c++) {
-            String name = base.get(c).name();
-            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("v", body.outputs(), name),
-                    name, base.get(c)));
-        }
-        return new SqlSelect(ps, false, new SqlSource.Subselect(body, "v", null), null,
-                List.of(), null, null, List.of(), null, null, outs);
+        SqlQuery row = new SqlSelect(ps, false, java.util.Objects.requireNonNull(from, "a fused statement of no member"),
+                null, List.of(), null, null, List.of(), null, null, outs);
+        return ctes.isEmpty() ? row : new SqlWith(ctes, row);
     }
 
     /** CTE references renamed (a table source named after a CTE; the
@@ -1605,17 +1577,6 @@ public final class VerdictSql {
      *  ({@code SideOrdinal.inBranchOrder}, 2026-11-06); {@code side} itself otherwise. */
     public static SqlQuery inBranchOrder(SqlQuery side) {
         return SideOrdinal.inBranchOrder(side);
-    }
-
-    private static List<OutputCol> batchOutputs() {
-        return List.of(new OutputCol(INDEX, SqlType.Scalar.BIGINT, false),
-                new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false),
-                new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false),
-                new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false),
-                new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true),
-                new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false),
-                new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false),
-                new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true));
     }
 
     /**
@@ -2030,14 +1991,16 @@ public final class VerdictSql {
                 plain, SqlExpr.Reason.JUDGE);
     }
 
-    /** The relation a fused batch statement returns: the index, then
-     * {@link #schema}'s columns. */
-    public static com.legend.compiler.element.type.Type.RelationType batchSchema() {
+    /** The relation a fused batch statement of {@code members} returns: one row, each member's {@link #schema} columns
+     *  under its prefix ({@link #memberColumn}). */
+    public static com.legend.compiler.element.type.Type.RelationType batchSchema(int members) {
         List<com.legend.compiler.element.type.Type.RelationType.Column> cols = new ArrayList<>();
-        cols.add(new com.legend.compiler.element.type.Type.RelationType.Column(INDEX,
-                com.legend.compiler.element.type.Type.Primitive.INTEGER,
-                new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1)));
-        cols.addAll(schema().columns());
+        for (int i = 0; i < members; i++) {
+            for (var c : schema().columns()) {
+                cols.add(new com.legend.compiler.element.type.Type.RelationType.Column(memberColumn(i, c.name()),
+                        c.type(), c.multiplicity()));
+            }
+        }
         return new com.legend.compiler.element.type.Type.RelationType(cols);
     }
 

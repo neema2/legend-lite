@@ -76,7 +76,7 @@ public final class VerdictBatch {
          *  target the database of the session {@code on} it runs on (the body's, or the graph's system database beside
          *  it: per-statement routing, 2026-11-03 -- until then a verdict over the system store on a server engine was
          *  planned against the body's target, so the database judge left such a body to the walk). */
-        ExecutionPlan.Node plan(SqlQuery statement, boolean fused, ExecutionPlan.Target on);
+        ExecutionPlan.Node plan(SqlQuery statement, int fusedMembers, ExecutionPlan.Target on);
 
         /** Whether {@code statement} reads a raw grid's report, so its wrapper is keyed and never fused (the keys are
          *  one grid's columns; the planner-driver seam program's S3c, 2026-10-30). */
@@ -591,7 +591,7 @@ public final class VerdictBatch {
 
     private Ahead planAhead(String name, SqlQuery query, ExecutionPlan.Target on) {
         try {
-            return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), false, on), null);
+            return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), 0, on), null);
         } catch (com.legend.sql.DialectCapability e) {
             return new Ahead(null, e);
         }
@@ -632,7 +632,7 @@ public final class VerdictBatch {
         for (Pending p : keyed) {
             try {
                 TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
-                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false, on));
+                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), 0, on));
                 verdicts.add(v);
                 members.put(v.id(), p);
             } catch (com.legend.sql.DialectCapability e) {
@@ -708,7 +708,7 @@ public final class VerdictBatch {
         for (Pending p : ps) {
             ms.add(p.query());
         }
-        return typed(runner.plan(fusion.fuse(ms, frames), true, on));
+        return typed(runner.plan(fusion.fuse(ms, frames), ms.size(), on));
     }
 
     private static ExecutionPlan.TdsResult typed(ExecutionPlan.Node plan) {

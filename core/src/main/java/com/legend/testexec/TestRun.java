@@ -289,16 +289,21 @@ final class TestRun {
             if (fused != null) {
                 // no savepoint guards it: a rejection fails the program, whose transaction is rolled back whole
                 try {
-                    for (List<Object> row : open.read(fused, null, Map.of()).rows()) {
-                        if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
-                            throw new IllegalStateException("a fused verdict row's first cell is the verdict's index:"
-                                    + " " + (row.isEmpty() ? "no cell" : row.get(0)));
-                        }
-                        rows.put(index.intValue(), row.subList(1, row.size()));
+                    // ONE row, each member's columns under its prefix, m<i>__... (item 3's S4, 2026-11-21: until then a
+                    // row per member, its index first)
+                    List<List<Object>> answered = open.read(fused, null, Map.of()).rows();
+                    if (answered.size() != 1) {
+                        throw new IllegalStateException("the fused verdict statement answered " + answered.size()
+                                + " rows for one");
+                    }
+                    List<Object> one = answered.get(0);
+                    for (int c = 0; c < fused.columns().size(); c++) {
+                        rows.computeIfAbsent(member(fused.columns().get(c).name()), k -> new ArrayList<>())
+                                .add(one.get(c));
                     }
                     if (rows.size() != group.verdicts().size()) {
                         throw new IllegalStateException("the fused verdict statement answered " + rows.size()
-                                + " rows for " + group.verdicts().size() + " verdicts");
+                                + " members for " + group.verdicts().size() + " verdicts");
                     }
                     judges.fused(group, null);
                 } catch (DataError e) {
@@ -331,6 +336,15 @@ final class TestRun {
                 judges.verdict(each, row);
             }
         }
+    }
+
+    /** The member a fused statement's column belongs to: its prefix's number ({@code m3__verdict} is member 3's). */
+    private static int member(String column) {
+        int end = column.indexOf('_');
+        if (!column.startsWith("m") || end < 2) {
+            throw new IllegalStateException("a fused verdict column of no member: " + column);
+        }
+        return Integer.parseInt(column.substring(1, end));
     }
 
     /** {@code group}'s savepoint where the program's session is inside a transaction; else none. */

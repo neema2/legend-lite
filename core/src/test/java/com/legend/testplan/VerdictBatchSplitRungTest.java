@@ -51,8 +51,8 @@ class VerdictBatchSplitRungTest {
     /** The dialect refuses every fused statement, and member 3's own statement. */
     private static final VerdictBatch.Runner RUNNER = new VerdictBatch.Runner() {
         @Override
-        public ExecutionPlan.Node plan(SqlQuery statement, boolean fused, ExecutionPlan.Target on) {
-            if (fused) {
+        public ExecutionPlan.Node plan(SqlQuery statement, int fusedMembers, ExecutionPlan.Target on) {
+            if (fusedMembers > 0) {
                 throw new DialectCapability("no fused statement on this dialect");
             }
             if (literal(statement) == 3) {
