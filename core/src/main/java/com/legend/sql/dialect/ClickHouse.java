@@ -1090,6 +1090,9 @@ public class ClickHouse extends AnsiSqlRenderer {
     @Override
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
+            // a raise reaches its writer with its site's values, before its text is the site's token ({@link #error}
+            // reads them; the base rewrites the call first, raised)
+            case SqlExpr.Call c when c.fn() == SqlFn.ERROR -> error(writer, c);
             // an Int64: a bare literal is typed by its magnitude (1 is UInt8)
             case SqlExpr.IntLit i -> writer.append("toInt64(" + i.value() + ")");
             // the empty list whose element type is known is that type's empty array, not one of no type
@@ -2162,6 +2165,14 @@ public class ClickHouse extends AnsiSqlRenderer {
         return writer;
     }
 
+    /** Whether the database computes {@code operand} (no literal the statement writes). */
+    private static boolean computed(SqlExpr operand) {
+        return !(operand instanceof SqlExpr.StringLit || operand instanceof SqlExpr.IntLit
+                || operand instanceof SqlExpr.FloatLit || operand instanceof SqlExpr.DecimalLit
+                || operand instanceof SqlExpr.BoolLit || operand instanceof SqlExpr.DateLit
+                || operand instanceof SqlExpr.TimestampLit);
+    }
+
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
         // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence; D1.1), in
         // main's unfoldable form (each raise its own rand(n), #81; merged 2026-11-14)
@@ -2191,7 +2202,21 @@ public class ClickHouse extends AnsiSqlRenderer {
         // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
         writer.append("replaceAll(toString(").expr(a.get(0), 0)
                 .append("), '\\'', char(29)), char(31), substring(toString(rand(" + (++raises[0])
-                        + ")), 1, 0))");
+                        + ")), 1, 0)");
+        // each value the database computes for the raise, read and kept empty, never NULL (a NULL concat raises
+        // nothing): a raise that reads no column, in a CASE after an ARRAY JOIN, is evaluated on every row, its
+        // guard's false ones too (measured on 26.3.60.2 for PR #130, 2026-11-21: flatten's
+        // testFlatten_LateralJoin_Nested_Extend raised its at() check on rows whose collection holds its element;
+        // with the read it answers its ten rows. Until B1 the edge's sentence read these values) -- no words, no value
+        // in the text
+        if (c.args().get(0) instanceof SqlExpr.RaiseText rt) {
+            for (SqlExpr operand : rt.operands()) {
+                if (computed(operand)) {
+                    writer.append(", substring(coalesce(toString(").expr(operand, 0).append("), ''), 1, 0)");
+                }
+            }
+        }
+        writer.append(")");
         return writer.append(guarded ? ", '0'))" : ")");
     }
 

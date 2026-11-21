@@ -77,8 +77,28 @@ final class PctPlanRoute {
      *  UPSTREAM text, under the substring flag: S130); legend-engine's ({@code -Dpct.audience=engine}, the ENGINE lane,
      *  H7: the pure/v1 route's text, no feature flag, as its own PCT adapters run a case); or lite's own rules
      *  ({@code -Dpct.channela.rules=LITE}, the LITE-PCT lane's channel A, the compatibility program's A4 gate: the
-     *  product's style and default features, a raise in lite's own words). */
-    enum Audience { LEGEND_PURE, LEGEND_ENGINE, LITE }
+     *  product's style and default features, every error in lite's own words). The lane chooses its audience
+     *  ONCE, and the audience is the one place a run's style and an error's words are chosen ({@link #current},
+     *  {@link #words}: stage B's B1, 2026-11-21, the user's ruling on PR #130 -- no second test of the lane, none by
+     *  the error's kind). */
+    enum Audience {
+        LEGEND_PURE, LEGEND_ENGINE, LITE;
+
+        /** The lane's audience, as its JVM's two properties name it ({@link PctPlanRoute#audience}). */
+        static Audience current() {
+            return audience(System.getProperty("pct.audience"), System.getProperty("pct.channela.rules", "COMPAT"));
+        }
+
+        /** Any error of a case, in this audience's words, every error alike: legend-pure's for legend-pure's and
+         *  legend-engine's audiences (the edge's {@link com.legend.edge.PureMessages#compile}), lite's own message
+         *  under lite's own rules. */
+        String words(Throwable e) {
+            return switch (this) {
+                case LEGEND_PURE, LEGEND_ENGINE -> com.legend.edge.PureMessages.compile(e);
+                case LITE -> String.valueOf(e.getMessage());
+            };
+        }
+    }
 
     /** The audience the two properties name ({@code audience}: {@code -Dpct.audience}, absent or {@code engine};
      *  {@code rules}: {@code -Dpct.channela.rules}, COMPAT or LITE): any other value, and legend-engine's audience under
@@ -108,8 +128,7 @@ final class PctPlanRoute {
         // THE AUDIENCE, one of three (audience, above): legend-pure's by default, legend-engine's under
         // -Dpct.audience=engine (the ENGINE lane, H7), lite's own rules under -Dpct.channela.rules=LITE (the LITE-PCT
         // lane's channel A); a combination refused by name
-        Audience audience = audience(System.getProperty("pct.audience"),
-                System.getProperty("pct.channela.rules", "COMPAT"));
+        Audience audience = Audience.current();
         // no feature flag for any audience (A3 of the compatibility program, piece 2, 2026-11-19: substring is Pure's by
         // default; S130), as upstream's own PCT adapters set none. Until then legend-pure's audience set
         // CORRECT_SQL_SUBSTRING_INDEXING; piece 2's change applied to #124's audience at the stage-A batch's merge,
