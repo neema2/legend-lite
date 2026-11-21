@@ -27,8 +27,8 @@ on another account (§0).
   Two kinds of file, two places:
   - **On `claude/compat-program`:** the program's records (this file, the design, the homework, the stage B plan,
     the program log).
-  - **On your base** (BE's branch, or `main` once #131 merges): BE's record
-    (`docs/records/compat-error-model-2026-11-21.md`) and the register rows S392 to S397.
+  - **On `main`** (since #131 merged): BE's record (`docs/records/compat-error-model-2026-11-21.md`) and the
+    register rows S392 to S397.
 
   Do not push to `claude/compat-program`; the program's owner session writes there. Keep your own progress notes in
   your branch, as `docs/records/compat-assert-records-progress.md`, and tell the user what you would add to the
@@ -42,11 +42,9 @@ on another account (§0).
   - **Q-D is measured but not yet ruled.** The proposal is in design §8. Ask the user before S7.
 - **Single-shot verdicts** (one statement per segment for both judges) are a brainstorm, not part of item 3. Design §8,
   "Not part of item 3", says what was found. Do not build it without the user's word.
-- **BE** (PR #131, the error model this builds on) was green on every check at `9fa42018` and waited for the user's
-  merge word.
-- **Your branch:** the user names it; ask if they have not. It starts from `main` if #131 has merged, else from
-  `claude/compat-error-model`. Item 3 lands as ONE pull request to `main`, stacked on #131 if #131 is still open, after
-  every slice is green and audited, and merges only on the user's word.
+- **BE** (PR #131, the error model this builds on) MERGED into `main` on 2026-11-21 as `2942e983`, on the user's word.
+- **Your branch:** the user names it; ask if they have not. It starts from `main` (at `2942e983` or later). Item 3
+  lands as ONE pull request to `main`, after every slice is green and audited, and merges only on the user's word.
 - **Warm lanes:** the user gives you your account's warm sessions for the databases this container cannot run. §4
   lists what to ask them to run.
 
