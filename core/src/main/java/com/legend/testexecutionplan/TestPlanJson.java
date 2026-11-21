@@ -65,8 +65,10 @@ public final class TestPlanJson {
      *  ({@code SideShape.sizeWords}, {@code answerSizeWords}: the run raises the refusal as its record); and the
      *  product's version 59 (a raise site's facts, no words); 35 (stage B's BE, 2026-11-21, the one error model): a
      *  planned failure carries its error's {@code record} (a code, its values, its position, its frames) and, where it
-     *  has one, no message -- B1's {@code fact} and lite's wrapper texts gone. */
-    public static final int VERSION = 35;
+     *  has one, no message -- B1's {@code fact} and lite's wrapper texts gone; 36 (stage B's BE-P, 2026-11-21): no Java
+     *  in the test plan -- a planned failure carries no {@code where} (a planner method's name) and no kind of Java's
+     *  own exceptions (a defect fails loud, never planned). */
+    public static final int VERSION = 36;
 
     private TestPlanJson() {
     }

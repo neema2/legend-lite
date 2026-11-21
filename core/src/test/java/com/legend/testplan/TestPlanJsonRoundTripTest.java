@@ -38,18 +38,18 @@ import org.junit.jupiter.api.Test;
 class TestPlanJsonRoundTripTest {
 
     private static final ExecutionPlan.Multiplicity ONE = new ExecutionPlan.Multiplicity(1, 1);
-    private static final Failure FAILURE = new Failure(Failure.Kind.ILLEGAL_STATE, "refused", null, null, null, "here");
+    private static final Failure FAILURE = new Failure(Failure.Kind.NOT_IMPLEMENTED, "refused", null, null, null);
 
     /** A planned failure's record round-trips, and no message rides it (stage B's BE, 2026-11-21, the one error model):
      *  a compile error inside two frames at a position, and a file's size against a load's limit. */
     private static final Failure COMPILE_FAILURE = new Failure(Failure.Kind.MODEL, null,
-            com.legend.error.LegendCompileException.Phase.TYPE, null, null, "there", new com.legend.error.ErrorRecord(
+            com.legend.error.LegendCompileException.Phase.TYPE, null, null, new com.legend.error.ErrorRecord(
                     com.legend.error.CompileKind.WINDOW_FRAME_INVERTED, List.of(), "[2:3]", List.of(
                             new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.INLINED_VIA,
                                     List.of("a", "b")),
                             new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.IN_FUNCTION,
                                     List.of("f")))));
-    private static final Failure FILE_FAILURE = new Failure(Failure.Kind.DATA, null, null, null, null, "elsewhere",
+    private static final Failure FILE_FAILURE = new Failure(Failure.Kind.DATA, null, null, null, null,
             com.legend.error.ErrorRecord.of(com.legend.error.ErrorKind.FILE_TOO_LARGE,
                     List.of("/big.csv", "1048577", "1048577", "1")));
     private static final Assertion ASSERTION = new Assertion("assertEquals", "equality", true, null);

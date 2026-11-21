@@ -20,14 +20,14 @@ export const RAISE = {
  * wherever upstream has one): error.ErrorKind's, by the kind's name, in the order tried -- the first form
  * whose arity takes the site's operands (any, where negative) and, where emptySlot is not negative, whose
  * operand there is an empty text, says them: template over the operands (%1$s, ...), each printed as its
- * slot says (TEXT past the last), or JOINED, the operands joined. As result.RaiseWords words a site.
+ * slot says (TEXT past the last). As result.RaiseWords words a site.
  */
 export interface RaiseForm {
   readonly arity: number;
   readonly emptySlot: number;
   readonly template: string;
   readonly slots: readonly string[];
-  readonly shape: 'TEMPLATE' | 'JOINED' | 'FILE_SIZE';
+  readonly shape: 'TEMPLATE' | 'FILE_SIZE';
 }
 
 export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
@@ -98,14 +98,37 @@ export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
   TEXT_NOT_DATE: [
     { arity: -1, emptySlot: -1, template: 'Could not parse \'%1$s\' as a date', slots: [], shape: 'TEMPLATE' },
   ],
-  VALUE_NOT_HELD: [
-    { arity: -1, emptySlot: -1, template: '', slots: [], shape: 'JOINED' },
+  INVERSE_TRIG_NAN: [
+    { arity: 1, emptySlot: -1, template: '%1$s of a value outside [-1, 1] is NaN, which this database cannot hold', slots: [], shape: 'TEMPLATE' },
   ],
-  FRACTION_NOT_KEPT: [
-    { arity: -1, emptySlot: -1, template: '', slots: [], shape: 'JOINED' },
+  PARSED_NAN_NOT_HELD: [
+    { arity: 0, emptySlot: -1, template: 'parseFloat of NaN is NaN, which this database cannot hold', slots: [], shape: 'TEMPLATE' },
+  ],
+  NOT_FINITE_NOT_HELD: [
+    { arity: 0, emptySlot: -1, template: 'NaN or an infinity', slots: [], shape: 'TEMPLATE' },
+  ],
+  DATE_PAST_YEARS: [
+    { arity: 2, emptySlot: -1, template: 'a date past the year %1$s has no %2$s value', slots: [], shape: 'TEMPLATE' },
+    { arity: 3, emptySlot: -1, template: 'a date past the years %1$s-%2$s has no %3$s value', slots: [], shape: 'TEMPLATE' },
+  ],
+  DATE_OUTSIDE_YEARS: [
+    { arity: 3, emptySlot: -1, template: 'a date outside the years %1$s to %2$s has no %3$s value (it clamps one to the end it passed)', slots: [], shape: 'TEMPLATE' },
+  ],
+  INTEGER_PAST_64_BITS: [
+    { arity: 1, emptySlot: -1, template: 'an integer past 64 bits has no %1$s value', slots: [], shape: 'TEMPLATE' },
+  ],
+  MIXED_RANK_INEXACT: [
+    { arity: 0, emptySlot: -1, template: 'an Integer beyond 2^53 in a mixed list\'s order: its DOUBLE rank does not hold it exactly (refused until the kinds-kept carrier ranks numbers exactly)', slots: [], shape: 'TEMPLATE' },
+  ],
+  PARAMETER_FRACTION_NOT_KEPT: [
+    { arity: 4, emptySlot: -1, template: 'the %1$s parameter \'%2$s\' has more fraction digits than %3$s keeps (%4$s): refused, never cut (S181)', slots: [], shape: 'TEMPLATE' },
+    { arity: 3, emptySlot: -1, template: 'a %1$s parameter has more fraction digits than %2$s keeps (%3$s): refused, never cut (S181)', slots: [], shape: 'TEMPLATE' },
+  ],
+  SECOND_FRACTION_NOT_KEPT: [
+    { arity: 2, emptySlot: -1, template: 'the second %1$s has more than %2$s fraction digits, which a date()\'s fractional second keeps: refused, never cut (S181)', slots: [], shape: 'TEMPLATE' },
   ],
   CSV_TOO_WIDE: [
-    { arity: -1, emptySlot: -1, template: '', slots: [], shape: 'JOINED' },
+    { arity: 1, emptySlot: -1, template: 'a record of the CSV file has more cells than its table\'s %1$s column(s)', slots: [], shape: 'TEMPLATE' },
   ],
   WINDOW_FRAME_INVERTED: [
     { arity: -1, emptySlot: -1, template: 'Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!', slots: [], shape: 'TEMPLATE' },

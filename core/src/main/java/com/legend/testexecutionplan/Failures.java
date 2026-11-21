@@ -81,7 +81,7 @@ public final class Failures {
         String element = e instanceof LegendCompileException c
                 && (kind == Failure.Kind.MODEL || kind == Failure.Kind.MAPPING_RESOLUTION) ? c.element() : null;
         String unjudged = e instanceof AssertFailed f ? f.unjudgedReason() : null;
-        return new Failure(kind, message, phase, element, unjudged, where, record);
+        return new Failure(kind, message, phase, element, unjudged, record);
     }
 
     /** The exception {@code f} names, raised at the verdict's turn: rebuilt from its record where it has one, so its
@@ -101,11 +101,9 @@ public final class Failures {
             case TYPE_INFERENCE -> new com.legend.error.TypeInferenceException(r);
             case SCHEMA_INVARIANT -> new com.legend.error.SchemaInvariantException(r);
             case DATA -> new com.legend.error.DataError(r);
-            case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, ASSERT_FAILED, DIALECT_CAPABILITY, NOT_A_CONSTANT,
-                    ILLEGAL_STATE, ILLEGAL_ARGUMENT, UNSUPPORTED_OPERATION, ARITHMETIC, NUMBER_FORMAT, NULL_POINTER,
-                    CLASS_CAST, INDEX_OUT_OF_BOUNDS, NO_SUCH_ELEMENT, DATE_TIME, UNCHECKED_IO ->
+            case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, ASSERT_FAILED, DIALECT_CAPABILITY, NOT_A_CONSTANT ->
                     throw new IllegalStateException("a failure of kind " + f.kind() + " carries no record (Failure"
-                            + " refuses it): " + f.where());
+                            + " refuses it)");
         };
     }
 
@@ -129,29 +127,16 @@ public final class Failures {
             }
             case DIALECT_CAPABILITY -> new com.legend.sql.DialectCapability(text(f));
             case NOT_A_CONSTANT -> new IllegalStateException("a text side that is not a constant of the plan is"
-                    + " refused at planning, never raised at run (" + f.where() + "): " + m);
-            case ILLEGAL_STATE -> new IllegalStateException(m);
-            case ILLEGAL_ARGUMENT -> new IllegalArgumentException(m);
-            case UNSUPPORTED_OPERATION -> new UnsupportedOperationException(m);
-            case ARITHMETIC -> new ArithmeticException(m);
-            case NUMBER_FORMAT -> new NumberFormatException(m);
-            case NULL_POINTER -> new NullPointerException(m);
-            case CLASS_CAST -> new ClassCastException(m);
-            case INDEX_OUT_OF_BOUNDS -> new IndexOutOfBoundsException(m);
-            case NO_SUCH_ELEMENT -> new java.util.NoSuchElementException(m);
-            case DATE_TIME -> new java.time.DateTimeException(text(f));
-            // the message as planned; the I/O cause it wrapped is lost with the planning's stack (2.4)
-            case UNCHECKED_IO -> new java.io.UncheckedIOException(m, new java.io.IOException(m));
+                    + " refused at planning, never raised at run: " + m);
         };
     }
 
     /** The kinds whose constructor takes a message that is not null. */
     private static boolean needsMessage(Failure.Kind kind) {
         return switch (kind) {
-            case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, RESOLUTION, ISLAND_SYNTAX, TYPE_INFERENCE, SCHEMA_INVARIANT, DATA,
-                    ASSERT_FAILED, DIALECT_CAPABILITY, NOT_A_CONSTANT, DATE_TIME -> true;
-            case MODEL, MAPPING_RESOLUTION, ILLEGAL_STATE, ILLEGAL_ARGUMENT, UNSUPPORTED_OPERATION, ARITHMETIC,
-                    NUMBER_FORMAT, NULL_POINTER, CLASS_CAST, INDEX_OUT_OF_BOUNDS, NO_SUCH_ELEMENT, UNCHECKED_IO -> false;
+            case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, RESOLUTION, ISLAND_SYNTAX, TYPE_INFERENCE,
+                    SCHEMA_INVARIANT, DATA, ASSERT_FAILED, DIALECT_CAPABILITY, NOT_A_CONSTANT -> true;
+            case MODEL, MAPPING_RESOLUTION -> false;
         };
     }
 

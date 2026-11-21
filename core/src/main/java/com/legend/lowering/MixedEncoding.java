@@ -1038,9 +1038,7 @@ final class MixedEncoding {
         for (SqlExpr x : computedIntegers.subList(1, computedIntegers.size())) {
             beyond = SqlExpr.Call.of(SqlFn.OR, beyond, beyondAnExactDouble(x));
         }
-        return Scalars.guarded(beyond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
-                List.of(new SqlExpr.StringLit("an Integer beyond 2^53 in a mixed list's order: its DOUBLE rank does"
-                        + " not hold it exactly (refused until the kinds-kept carrier ranks numbers exactly)"))),
+        return Scalars.guarded(beyond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.MIXED_RANK_INEXACT, List.of()),
                 ranks);
     }
 

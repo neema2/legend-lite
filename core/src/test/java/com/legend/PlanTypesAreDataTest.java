@@ -170,4 +170,60 @@ class PlanTypesAreDataTest {
         assertEquals(new TreeSet<>(PINNED), violations, "the plans' types are data: a new violation is a type a plan"
                 + " must not hold; a pin that no longer holds leaves PINNED with a dated note");
     }
+
+    /** The names a component holding prose goes by: a sentence lite wrote for a reader, never a fact (stage B's BE-P,
+     *  2026-11-21, the one error model's §5 step 4: no prose in a plan). A text component of any other name is a fact
+     *  -- a name, a type, SQL, a literal the program wrote, a code. */
+    private static final Set<String> PROSE_NAMES = Set.of("message", "where", "unplanned", "unjudgedReason", "reason",
+            "detail", "words", "sentence", "explanation", "prose");
+
+    /** The prose a plan still holds, each "Record.component" with what it is and the step that removes it: shrink-only
+     *  (a component that leaves is deleted here with a dated note; a new one fails). Measured 2026-11-21. */
+    private static final java.util.Map<String, String> PROSE_RESIDUE = java.util.Map.of();
+
+    /** NO PROSE IN A PLAN: every text component the plans' types reach (a String, or a list, set or map of them),
+     *  named as prose goes, is a named residue. */
+    @Test
+    void noComponentHoldsProse() {
+        Set<String> prose = new TreeSet<>();
+        Set<Type> seen = new HashSet<>();
+        Deque<Type> todo = new ArrayDeque<>(List.of(ExecutionPlan.class, TestPlan.class));
+        while (!todo.isEmpty()) {
+            Type type = todo.poll();
+            if (!seen.add(type)) {
+                continue;
+            }
+            if (type instanceof ParameterizedType p) {
+                todo.addAll(List.of(p.getActualTypeArguments()));
+                continue;
+            }
+            if (!(type instanceof Class<?> c) || !DATA_PACKAGES.contains(c.getPackageName())) {
+                continue;
+            }
+            if (c == com.legend.testexecutionplan.Extension.class) {
+                todo.addAll(extensionImplementations());
+            } else if (c.isRecord()) {
+                for (RecordComponent rc : c.getRecordComponents()) {
+                    if (holdsText(rc.getGenericType()) && PROSE_NAMES.contains(rc.getName())) {
+                        prose.add(c.getName().substring(c.getPackageName().length() + 1) + "." + rc.getName());
+                    }
+                    todo.add(rc.getGenericType());
+                }
+            } else if (c.isSealed()) {
+                todo.addAll(List.of(c.getPermittedSubclasses()));
+            }
+        }
+        assertEquals(new TreeSet<>(PROSE_RESIDUE.keySet()), prose, "a plan holds no prose (stage B's BE-P): a text"
+                + " component named as prose is a sentence in the plan -- make it a code and its values, or name it in"
+                + " PROSE_RESIDUE with the step that removes it; a component gone leaves PROSE_RESIDUE with a dated note");
+    }
+
+    /** Whether {@code t} is a text, or a list, set or map holding texts. */
+    private static boolean holdsText(Type t) {
+        if (t == String.class) {
+            return true;
+        }
+        return t instanceof ParameterizedType p && List.of(p.getActualTypeArguments()).stream()
+                .anyMatch(PlanTypesAreDataTest::holdsText);
+    }
 }

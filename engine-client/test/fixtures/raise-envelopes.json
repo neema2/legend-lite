@@ -25,11 +25,20 @@
     },
     {
       "n": 3,
-      "kind": "FRACTION_NOT_KEPT",
-      "where": "ts keeps 6: of 9",
+      "kind": "PARAMETER_FRACTION_NOT_KEPT",
+      "where": "t: s",
       "operands": [
         {
-          "string": "ts keeps 6: of 9"
+          "string": "DateTime"
+        },
+        {
+          "string": "t: s"
+        },
+        {
+          "string": "DuckDb"
+        },
+        {
+          "integer": 6
         }
       ]
     },
@@ -65,24 +74,14 @@
       "message": "x \u001f\u001cLG#2\u001f y",
       "words": "Cannot cast a collection of size 0 to multiplicity [1]",
       "kind": "SIZE_NOT_MULTIPLICITY",
-      "where": "[1]",
-      "operands": [
-        {
-          "string": "[1]"
-        }
-      ]
+      "where": "[1]"
     },
     {
       "name": "a where that holds a colon and a space",
       "message": "\u001f\u001cLG#3\u001f",
-      "words": "ts keeps 6: of 9",
-      "kind": "FRACTION_NOT_KEPT",
-      "where": "ts keeps 6: of 9",
-      "operands": [
-        {
-          "string": "ts keeps 6: of 9"
-        }
-      ]
+      "words": "the DateTime parameter 't: s' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)",
+      "kind": "PARAMETER_FRACTION_NOT_KEPT",
+      "where": "t: s"
     },
     {
       "name": "a source position before its separator is dropped",

@@ -147,12 +147,12 @@ class ProductRaiseProbeTest {
             }
         }
         // 5b. NaN's text (S311, ruled 2026-11-10: NaN): "NaN" where the database holds it, else the kind by name
-        // (S138's VALUE_NOT_HELD: a database that holds no NaN), never another text (the P2 checkpoint audit's case)
+        // (S138's NaN kinds: a database that holds no NaN), never another text (the P2 checkpoint audit's case)
         Object nan = run(backend, "NaN's text", "|#TDS\n  x:String\n  NaN\n#->extend(~t: r|"
                 + "$r.x->toOne()->parseFloat()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
         if (!(nan instanceof String n5 && n5.contains("NaN"))) {
             if (nan instanceof Throwable) {
-                expectKind(wrong, "NaN's text", nan, com.legend.error.ErrorKind.VALUE_NOT_HELD, null);
+                expectKindIn(wrong, "NaN's text", nan, NOT_HELD);
             } else {
                 wrong.add("NaN's text: " + describe(nan));
             }
@@ -297,8 +297,8 @@ class ProductRaiseProbeTest {
         assertEquals(List.of(), wrong, backend.name());
     }
 
-    /** A parse's expected answer: a number (legend-pure's), a raise, NaN or Infinity (the value, or VALUE_NOT_HELD
-     *  where the database holds none), or either (a follow-up's open case, printed). */
+    /** A parse's expected answer: a number (legend-pure's), a raise, NaN or Infinity (the value, or one of
+     *  {@link #NOT_HELD} where the database holds none), or either (a follow-up's open case, printed). */
     private record Parse(String fn, String text, String expect) {
     }
 
@@ -360,9 +360,10 @@ class ProductRaiseProbeTest {
                         ? com.legend.error.ErrorKind.TEXT_NOT_FLOAT : com.legend.error.ErrorKind.TEXT_NOT_INTEGER, null);
                 case "NaN", "Infinity" -> {
                     if (got instanceof Throwable) {
-                        expectKind(wrong, label, got, com.legend.error.ErrorKind.VALUE_NOT_HELD, null);
+                        expectKindIn(wrong, label, got, NOT_HELD);
                     } else if (cell == null || !cell.contains(p.expect())) {
-                        wrong.add(label + ": expected " + p.expect() + " or VALUE_NOT_HELD, answered " + describe(got));
+                        wrong.add(label + ": expected " + p.expect() + " or one of " + NOT_HELD + ", answered "
+                                + describe(got));
                     }
                 }
                 default -> {
@@ -424,6 +425,26 @@ class ProductRaiseProbeTest {
                 ? java.util.regex.Pattern.compile("-?[0-9][0-9.eE+-]*").matcher(s) : null;
         if (m == null || !m.find() || Double.parseDouble(m.group()) != want) {
             wrong.add(label + ": expected the double " + want + ", got " + describe(answered));
+        }
+    }
+
+    /** The kinds of a NaN or an infinity a database holds none of (S138; stage B's BE-P, 2026-11-21: until then one
+     *  kind, VALUE_NOT_HELD, its place prose). */
+    private static final java.util.Set<com.legend.error.ErrorKind> NOT_HELD = java.util.EnumSet.of(
+            com.legend.error.ErrorKind.PARSED_NAN_NOT_HELD, com.legend.error.ErrorKind.NOT_FINITE_NOT_HELD);
+
+    /** {@code answered}, a raise of one of {@code kinds}. */
+    private static void expectKindIn(List<String> wrong, String label, Object answered,
+            java.util.Set<com.legend.error.ErrorKind> kinds) {
+        com.legend.error.DataError error = null;
+        for (Throwable t = answered instanceof Throwable th ? th : null; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.error.DataError d) {
+                error = d;
+                break;
+            }
+        }
+        if (error == null || !kinds.contains(error.kind())) {
+            wrong.add(label + ": expected one of " + kinds + ", got " + describe(answered));
         }
     }
 

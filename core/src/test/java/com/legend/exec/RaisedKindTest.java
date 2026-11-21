@@ -29,8 +29,9 @@ class RaisedKindTest {
     /** A statement's site table: site 1 a division by zero, site 2 a fraction kept, placed. */
     private static final List<ExecutionPlan.Site> SITES = List.of(
             new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null, List.of()),
-            new ExecutionPlan.Site(2, RaiseKind.FRACTION_NOT_KEPT, "the DateTime parameter 't'",
-                    List.of(new com.legend.executionplan.Operand.Text("the DateTime parameter 't'"))),
+            new ExecutionPlan.Site(2, RaiseKind.PARAMETER_FRACTION_NOT_KEPT, "t", List.of(
+                    new com.legend.executionplan.Operand.Text("DateTime"), new com.legend.executionplan.Operand.Text("t"),
+                    new com.legend.executionplan.Operand.Text("DuckDb"), new com.legend.executionplan.Operand.Int(6))),
             new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, List.of(
                     new com.legend.executionplan.Operand.Int(5), com.legend.executionplan.Operand.Computed.IT)));
 
@@ -56,9 +57,9 @@ class RaisedKindTest {
     @Test
     void aSitesWhereIsWorded_andAUsersTextIsNeverAKind() {
         var placed = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "2"), SITES));
-        assertEquals(ErrorKind.FRACTION_NOT_KEPT, placed.kind());
-        assertEquals("the DateTime parameter 't'", placed.getMessage(),
-                "lite's own sentence, its operand (BE-P makes it facts)");
+        assertEquals(ErrorKind.PARAMETER_FRACTION_NOT_KEPT, placed.kind());
+        assertEquals("the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut"
+                + " (S181)", placed.getMessage(), "lite's own sentence over its facts (stage B's BE-P, 2026-11-21)");
         var users = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("DIVIDE_BY_ZERO"), SITES));
         assertEquals(null, users.kind());
         assertEquals("DIVIDE_BY_ZERO", users.getMessage());

@@ -155,8 +155,6 @@ def sentence(site: dict[str, Any]) -> str:
         raise ValueError(f'no sentence of {kind} says {len(ops)} values')
     slots = form['slots']
     values = [_print(o, slots[i] if i < len(slots) else 'TEXT') for i, o in enumerate(ops)]
-    if form['shape'] == 'JOINED':
-        return ''.join(values)
     return _PLACEHOLDER.sub(lambda m: values[int(m.group(1)) - 1], form['template'])
 
 

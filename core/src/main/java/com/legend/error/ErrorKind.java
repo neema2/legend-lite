@@ -15,8 +15,10 @@ package com.legend.error;
  * only the database computed {@code <computed>} (D1, register S389; the SQL never reads it back, the lean-SQL rule).
  * Every audience says the same words: lite's API, the hosts (generated from these forms), legend-pure's PCT and
  * legend-engine's door (which adds its own {@code Raised:} wrapper). Lite's own words only where upstream has none:
- * {@code INSERT_OUT_OF_BOUNDS}, {@code LIST_LENGTHS_DIFFER}, the S170 window frame, and the three refusals of a value a
- * database cannot hold ({@link Form#joined}: the place the plan states).
+ * {@code INSERT_OUT_OF_BOUNDS}, {@code LIST_LENGTHS_DIFFER}, the S170 window frame, and the refusals of a value a
+ * database cannot hold (S138, S181, a load's width): each its own kind and sentence, its facts the operands -- a
+ * database's name, a function's, a count (stage B's BE-P, 2026-11-21: until then three kinds whose operand was the
+ * place's prose).
  */
 public enum ErrorKind implements ErrorCode {
     /** rem's and quotient's, the dividend its operand (legend-pure's CompiledSupport); Integer / Integer's, no operand:
@@ -67,11 +69,35 @@ public enum ErrorKind implements ErrorCode {
     TEXT_NOT_INTEGER(Form.any("Could not convert string '%1$s' to INT64")),
     TEXT_NOT_FLOAT(Form.any("Could not convert string '%1$s' to DOUBLE")),
     TEXT_NOT_DATE(Form.any("Could not parse '%1$s' as a date")),
-    /** Lite's own refusals of a value a database cannot hold (S138, S181, the CSV width): no upstream text; the place
-     *  the plan states, its parts the operands ({@link Form#joined}). */
-    VALUE_NOT_HELD(Form.joined()),
-    FRACTION_NOT_KEPT(Form.joined()),
-    CSV_TOO_WIDE(Form.joined()),
+    /** [the function (acos, asin)]: lite's own (S138: the database holds no NaN, the engine's answer). */
+    INVERSE_TRIG_NAN(Form.of(1, "%1$s of a value outside [-1, 1] is NaN, which this database cannot hold")),
+    /** Lite's own (S138), parseFloat of the text NaN. */
+    PARSED_NAN_NOT_HELD(Form.of(0, "parseFloat of NaN is NaN, which this database cannot hold")),
+    /** Lite's own (S138), a text read as a Float that is NaN or an infinity. */
+    NOT_FINITE_NOT_HELD(Form.of(0, "NaN or an infinity")),
+    /** [the last year, the database] or [the first year, the last, the database]: lite's own, a date the arithmetic
+     *  carries past the years the database holds. */
+    DATE_PAST_YEARS(Form.of(2, "a date past the year %1$s has no %2$s value"),
+            Form.of(3, "a date past the years %1$s-%2$s has no %3$s value")),
+    /** [the first year, the last, the database]: lite's own, a date outside the years a database holds, which clamps
+     *  one to the end it passed (ClickHouse). */
+    DATE_OUTSIDE_YEARS(Form.of(3, "a date outside the years %1$s to %2$s has no %3$s value (it clamps one to the end it"
+            + " passed)")),
+    /** [the database]: lite's own, an Integer past 64 bits. */
+    INTEGER_PAST_64_BITS(Form.of(1, "an integer past 64 bits has no %1$s value")),
+    /** Lite's own: a mixed list's DOUBLE rank of an Integer beyond 2^53. */
+    MIXED_RANK_INEXACT(Form.of(0, "an Integer beyond 2^53 in a mixed list's order: its DOUBLE rank does not hold it"
+            + " exactly (refused until the kinds-kept carrier ranks numbers exactly)")),
+    /** [Date or DateTime, the parameter's name, the database, the digits it keeps], or the same without the name:
+     *  lite's own (S181, never cut). */
+    PARAMETER_FRACTION_NOT_KEPT(Form.of(4, "the %1$s parameter '%2$s' has more fraction digits than %3$s keeps (%4$s):"
+            + " refused, never cut (S181)"), Form.of(3, "a %1$s parameter has more fraction digits than %2$s keeps"
+            + " (%3$s): refused, never cut (S181)")),
+    /** [the second, the digits kept]: lite's own (S181), a date()'s fractional second. */
+    SECOND_FRACTION_NOT_KEPT(Form.of(2, "the second %1$s has more than %2$s fraction digits, which a date()'s fractional"
+            + " second keeps: refused, never cut (S181)")),
+    /** [the table's column count]: lite's own, a CSV record wider than its table (a load). */
+    CSV_TOO_WIDE(Form.of(1, "a record of the CSV file has more cells than its table's %1$s column(s)")),
     /** legend-engine's rows()/_range() assert, verbatim (#81's frame guard). */
     WINDOW_FRAME_INVERTED(Form.any("Invalid window frame boundary - lower bound of window frame cannot be greater than"
             + " the upper bound!")),
@@ -124,8 +150,6 @@ public enum ErrorKind implements ErrorCode {
         public enum Shape {
             /** {@code template} over the values. */
             TEMPLATE,
-            /** The values joined, nothing between: the place a plan states, its parts the operands. */
-            JOINED,
             /** A load's file larger than its limit: [the file, bytes, characters, limit in megabytes]. */
             FILE_SIZE
         }
@@ -146,10 +170,6 @@ public enum ErrorKind implements ErrorCode {
             return new Form(-1, slot, template, java.util.List.of(slots), Shape.TEMPLATE);
         }
 
-        static Form joined() {
-            return new Form(-1, -1, "", java.util.List.of(), Shape.JOINED);
-        }
-
         static Form fileSize() {
             return new Form(4, -1, "Unable to read the CSV file '%1$s' Execution error at ??, \"File is too large, file"
                     + " was %2$s Mb, limit is %3$s Mb\"", java.util.List.of(), Shape.FILE_SIZE);
@@ -167,7 +187,6 @@ public enum ErrorKind implements ErrorCode {
         String say(java.util.List<String> values) {
             return switch (shape) {
                 case TEMPLATE -> String.format(java.util.Locale.ROOT, template, values.toArray());
-                case JOINED -> String.join("", values);
                 case FILE_SIZE -> String.format(java.util.Locale.ROOT, template, values.get(0),
                         String.format(java.util.Locale.ROOT, "%.2f",
                                 Long.parseLong(values.get(2)) * 1.0 / (1024 * 1024L)), values.get(3));

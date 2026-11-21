@@ -38,4 +38,15 @@ class FailureKindsTest {
             assertTrue(RuntimeException.class.isAssignableFrom(c), kind + " names " + name + ", no RuntimeException");
         }
     }
+
+    /** No Java in the test plan (stage B's BE-P, 2026-11-21): a planned failure's kind is one of lite's error families,
+     *  never one of Java's own exceptions -- a defect of lite's fails loud, never planned (the user's "defects def fail
+     *  loud", and "D"). */
+    @Test
+    void noKindIsOneOfJavasOwnExceptions() {
+        for (Failure.Kind kind : Failure.Kind.values()) {
+            String name = kind.className();
+            assertTrue(name == null || name.startsWith("com.legend."), kind + " names Java's own " + name);
+        }
+    }
 }

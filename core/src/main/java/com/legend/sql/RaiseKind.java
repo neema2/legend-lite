@@ -38,8 +38,18 @@ public enum RaiseKind {
     /** Text that is not a Float, read as one (parseFloat; Phase 8, 2026-11-16). */
     TEXT_NOT_FLOAT,
     TEXT_NOT_DATE,
-    VALUE_NOT_HELD,
-    FRACTION_NOT_KEPT,
+    /** Lite's refusals of a value a database cannot hold (S138, S181, a load's width), each its own kind with its facts
+     *  the operands (stage B's BE-P, 2026-11-21: until then VALUE_NOT_HELD, FRACTION_NOT_KEPT and CSV_TOO_WIDE, whose
+     *  operand was the place's prose). */
+    INVERSE_TRIG_NAN,
+    PARSED_NAN_NOT_HELD,
+    NOT_FINITE_NOT_HELD,
+    DATE_PAST_YEARS,
+    DATE_OUTSIDE_YEARS,
+    INTEGER_PAST_64_BITS,
+    MIXED_RANK_INEXACT,
+    PARAMETER_FRACTION_NOT_KEPT,
+    SECOND_FRACTION_NOT_KEPT,
     CSV_TOO_WIDE,
     /** A window frame whose computed start comes after its end (merged with #81's frame guard, 2026-11-14). */
     WINDOW_FRAME_INVERTED,

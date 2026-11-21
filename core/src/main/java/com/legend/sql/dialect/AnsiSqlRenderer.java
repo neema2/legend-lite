@@ -2093,12 +2093,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
         int past = 9 - kept;
         String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
-        // FRACTION_NOT_KEPT: lite's own sentence the operand, written by the edge alone (D1.1)
-        // its where the parameter's name and the digits this database keeps: planning text (the D part 1 audit's S4)
-        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
-                com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, "the " + kind
-                + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
-                + " keeps (" + kept + "): refused, never cut (S181)"));
+        // PARAMETER_FRACTION_NOT_KEPT: lite's own sentence, its facts the operands -- the kind, the parameter's name,
+        // the database, the digits it keeps -- its where the parameter (stage B's BE-P, 2026-11-21: until then the
+        // sentence itself was the operand)
+        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(new SqlExpr.StringLit(kind),
+                        new SqlExpr.StringLit(p.name()), new SqlExpr.StringLit(getClass().getSimpleName()),
+                        new SqlExpr.IntLit(kept)), null, p.name()));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
                 .append(" AS " + text + ")");
         java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");
@@ -2491,9 +2492,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected String csvRecordCheck(int width) {
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                 SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
-                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
-                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, "a record of the CSV"
-                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true), SqlExpr.Reason.RAISE);
+                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, List.of(new SqlExpr.IntLit(width)))))), new SqlExpr.BoolLit(true), SqlExpr.Reason.RAISE);
         SqlWriter where = newWriter().expr(check, 0);
         if (where.bound() != 0) {
             throw new IllegalStateException("a CSV load's record check binds no value");

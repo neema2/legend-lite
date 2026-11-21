@@ -22,14 +22,14 @@ import com.legend.error.LegendCompileException;
  * @param phase          a {@link Kind#MODEL} error's phase; null for every other kind (each has its one phase)
  * @param element        the model element a compile error names ({@link Kind#MODEL}, {@link Kind#MAPPING_RESOLUTION})
  * @param unjudgedReason an {@link Kind#ASSERT_FAILED} that is an UNJUDGED decline: why
- * @param where          the planning site that recorded it, for debugging (ruled 2026-11-08): stable across runs
  * @param record         the error as data ({@link com.legend.error.ErrorRecord}: its code, values, position and frames;
  *                       stage B's BE, 2026-11-21, the one error model): what every audience words it from; null where
  *                       its site states none yet
  */
 public record Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
-        @Nullable String element, @Nullable String unjudgedReason, String where,
-        com.legend.error.@Nullable ErrorRecord record) {
+        @Nullable String element, @Nullable String unjudgedReason, com.legend.error.@Nullable ErrorRecord record) {
+    // (where: the planning site that recorded it, a Java method's name in the plan -- gone 2026-11-21, stage B's
+    // BE-P: no Java in the test plan; a planning failure names its site in the exception that refuses it instead)
 
     /** The kinds of failure a record rides: the classes that are lite's errors with a record (stage B's BE,
      *  2026-11-21; one list for the record's check and {@link Failures#of}'s reading of it). */
@@ -38,8 +38,8 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
 
     /** A failure with no record, its message its own. */
     public Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
-            @Nullable String element, @Nullable String unjudgedReason, String where) {
-        this(kind, message, phase, element, unjudgedReason, where, null);
+            @Nullable String element, @Nullable String unjudgedReason) {
+        this(kind, message, phase, element, unjudgedReason, null);
     }
 
     public Failure {
@@ -101,19 +101,12 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         /** the engine-text arm's refusal of a text side that is not a constant: answered at planning (the body is
          *  refused by name), never raised at run. Named by the exception itself ({@link Kinded}), never by its class's
          *  name (the class moved twice; census C1, 2026-11-17: the edge's call failed on a stale name) */
-        NOT_A_CONSTANT(null),
-        ILLEGAL_STATE("java.lang.IllegalStateException"),
-        ILLEGAL_ARGUMENT("java.lang.IllegalArgumentException"),
-        UNSUPPORTED_OPERATION("java.lang.UnsupportedOperationException"),
-        ARITHMETIC("java.lang.ArithmeticException"),
-        NUMBER_FORMAT("java.lang.NumberFormatException"),
-        NULL_POINTER("java.lang.NullPointerException"),
-        CLASS_CAST("java.lang.ClassCastException"),
-        INDEX_OUT_OF_BOUNDS("java.lang.IndexOutOfBoundsException"),
-        // the slice 1 audit (2026-11-08): raisable by planning's folds and reads, raised as they were
-        NO_SUCH_ELEMENT("java.util.NoSuchElementException"),
-        DATE_TIME("java.time.DateTimeException"),
-        UNCHECKED_IO("java.io.UncheckedIOException");
+        NOT_A_CONSTANT(null);
+        // (Java's own exceptions -- IllegalStateException, IllegalArgumentException, UnsupportedOperationException,
+        // ArithmeticException, NumberFormatException, NullPointerException, ClassCastException,
+        // IndexOutOfBoundsException, NoSuchElementException, DateTimeException, UncheckedIOException -- gone 2026-11-21,
+        // stage B's BE-P: a defect of lite's fails loud, never a planned failure (the user's "defects def fail loud"
+        // and "D"), so no Java class rides the test plan)
 
         /** The exception class's binary name; null where the exception names its kind itself ({@link Kinded}). */
         private final @Nullable String className;

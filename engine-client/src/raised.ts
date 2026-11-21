@@ -86,7 +86,6 @@ export function sentence(site: RaiseSiteFacts): string {
       && (f.emptySlot < 0 || (f.emptySlot < ops.length && empty(f.emptySlot))));
   if (form === undefined) throw new Error(`no sentence of ${site.kind} says ${ops.length} values`);
   const values = ops.map((o, i) => print(o, form.slots[i] ?? 'TEXT'));
-  if (form.shape === 'JOINED') return values.join('');
   return form.template.replace(/%(\d+)\$s/g, (_, n: string) => values[Number(n) - 1]);
 }
 

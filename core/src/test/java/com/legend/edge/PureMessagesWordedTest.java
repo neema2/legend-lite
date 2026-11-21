@@ -96,10 +96,9 @@ class PureMessagesWordedTest {
         assertEquals("Invalid month: 13", PureMessages.worded(site));
         // one catalog (stage B's BE, 2026-11-21): the product says the same sentence, its place a fact apart
         assertEquals("Invalid month: 13", com.legend.result.RaiseWords.sentence(site));
-        // a kind with no upstream text: the product's former sentence, its parts the operands (PCT pins it)
+        // a kind with no upstream text: lite's own sentence over its facts (stage B's BE-P, 2026-11-21)
         com.legend.executionplan.ExecutionPlan.Site own = new com.legend.executionplan.ExecutionPlan.Site(1,
-                RaiseKind.VALUE_NOT_HELD, "an integer past 64 bits has no SQLite value",
-                List.of(new Operand.Text("an integer past 64 bits has no SQLite value")));
+                RaiseKind.INTEGER_PAST_64_BITS, null, List.of(new Operand.Text("SQLite")));
         assertEquals("an integer past 64 bits has no SQLite value", PureMessages.worded(own));
     }
 }

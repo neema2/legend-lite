@@ -159,7 +159,6 @@ final class HostJson {
         o.put("phase", x.phase() == null ? null : x.phase().name());
         o.put("element", x.element() == null ? null : x.element());
         o.put("unjudgedReason", x.unjudgedReason() == null ? null : x.unjudgedReason());
-        o.put("where", x.where());
         o.put("record", x.record() == null ? null : wRecord(x.record()));
         return o;
     }
@@ -187,8 +186,7 @@ final class HostJson {
         com.legend.error.LegendCompileException.@Nullable Phase v_phase = absent(o, "phase", "Failure") ? null : com.legend.error.LegendCompileException.Phase.valueOf(str(o.get("phase")));
         @Nullable String v_element = absent(o, "element", "Failure") ? null : str(o.get("element"));
         @Nullable String v_unjudgedReason = absent(o, "unjudgedReason", "Failure") ? null : str(o.get("unjudgedReason"));
-        String v_where = str(field(o, "where", "Failure"));
-        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where,
+        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason,
                 absent(o, "record", "Failure") ? null : rRecord(obj(o.get("record"))));
     }
 

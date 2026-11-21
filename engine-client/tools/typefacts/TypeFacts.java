@@ -119,14 +119,14 @@ public final class TypeFacts {
                 .append(" * wherever upstream has one): error.ErrorKind's, by the kind's name, in the order tried -- the first form\n")
                 .append(" * whose arity takes the site's operands (any, where negative) and, where emptySlot is not negative, whose\n")
                 .append(" * operand there is an empty text, says them: template over the operands (%1$s, ...), each printed as its\n")
-                .append(" * slot says (TEXT past the last), or JOINED, the operands joined. As result.RaiseWords words a site.\n")
+                .append(" * slot says (TEXT past the last). As result.RaiseWords words a site.\n")
                 .append(" */\n")
                 .append("export interface RaiseForm {\n")
                 .append("  readonly arity: number;\n")
                 .append("  readonly emptySlot: number;\n")
                 .append("  readonly template: string;\n")
                 .append("  readonly slots: readonly string[];\n")
-                .append("  readonly shape: 'TEMPLATE' | 'JOINED' | 'FILE_SIZE';\n")
+                .append("  readonly shape: 'TEMPLATE' | 'FILE_SIZE';\n")
                 .append("}\n\n")
                 .append("export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {\n");
         for (Map.Entry<String, java.util.List<com.legend.error.ErrorKind.Form>> e : forms().entrySet()) {

@@ -210,12 +210,35 @@ class RaiseTextTest {
                 lit("Could not convert string '"), a, lit("' to INT64")));
         moved.put(new SqlExpr.RaiseText(RaiseKind.TEXT_NOT_DATE, List.of(a)), SqlExpr.Call.of(SqlFn.CONCAT,
                 lit("Could not parse '"), a, lit("' as a date")));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.VALUE_NOT_HELD, List.of(lit("an integer past 64 bits has no SQLite"
-                + " value"))), lit("an integer past 64 bits has no SQLite value"));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.FRACTION_NOT_KEPT, List.of(lit("the second "), a, lit(" has more"))),
-                cat(lit("the second "), str(a), lit(" has more")));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.CSV_TOO_WIDE, List.of(lit("a record of the CSV file is wide"))),
-                lit("a record of the CSV file is wide"));
+        // lite's own refusals of a value a database cannot hold, their facts the operands, each sentence as it read when
+        // its place was the operand (stage B's BE-P, 2026-11-21)
+        moved.put(new SqlExpr.RaiseText(RaiseKind.INTEGER_PAST_64_BITS, List.of(lit("SQLite"))),
+                lit("an integer past 64 bits has no SQLite value"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.INVERSE_TRIG_NAN, List.of(lit("acos"))),
+                lit("acos of a value outside [-1, 1] is NaN, which this database cannot hold"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.PARSED_NAN_NOT_HELD, List.of()),
+                lit("parseFloat of NaN is NaN, which this database cannot hold"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.NOT_FINITE_NOT_HELD, List.of()), lit("NaN or an infinity"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_PAST_YEARS, List.of(lit("9999"), lit("MariaDB"))),
+                lit("a date past the year 9999 has no MariaDB value"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_PAST_YEARS, List.of(lit("0000"), lit("9999"), lit("SQLite"))),
+                lit("a date past the years 0000-9999 has no SQLite value"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.DATE_OUTSIDE_YEARS, List.of(lit("1900"), lit("2299"),
+                lit("ClickHouse"))), lit("a date outside the years 1900 to 2299 has no ClickHouse value (it clamps one to"
+                + " the end it passed)"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.MIXED_RANK_INEXACT, List.of()), lit("an Integer beyond 2^53 in a"
+                + " mixed list's order: its DOUBLE rank does not hold it exactly (refused until the kinds-kept carrier"
+                + " ranks numbers exactly)"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"), lit("t"),
+                lit("DuckDb"), new SqlExpr.IntLit(6))), lit("the DateTime parameter 't' has more fraction digits than"
+                + " DuckDb keeps (6): refused, never cut (S181)"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"),
+                lit("ClickHouse"), new SqlExpr.IntLit(6))), lit("a DateTime parameter has more fraction digits than"
+                + " ClickHouse keeps (6): refused, never cut (S181)"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.SECOND_FRACTION_NOT_KEPT, List.of(a, new SqlExpr.IntLit(6))),
+                cat(lit("the second "), str(a), lit(" has more than 6 fraction digits")));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.CSV_TOO_WIDE, List.of(new SqlExpr.IntLit(3))),
+                lit("a record of the CSV file has more cells than its table's 3 column(s)"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.LIST_LENGTHS_DIFFER, List.of(lit("zip"))),
                 lit("zip: the two value lists differ in length"));
         for (DatabaseType type : Databases.implemented()) {
