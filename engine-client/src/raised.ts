@@ -16,17 +16,16 @@ import { QueryError } from './engine.ts';
 import { declaredSites } from './declared-raises.ts';
 import { RAISE, RAISE_FORMS } from './generated/lite-raise.ts';
 
-/** A product raise a plan's statement made: its kind, its where (a fixed text known at planning, or none), and its
- *  planned words as its message. A QueryError, as every failure of a send is. */
+/** A product raise a plan's statement made: its kind, and its words, worded from its site, as its message. A
+ *  QueryError, as every failure of a send is. (Its `where`, a site's fixed text, went with PlanJson v60, stage B's BE,
+ *  2026-11-21: a site's facts are its operands.) */
 export class PlanRaise extends QueryError {
   readonly kind: string;
-  readonly where: string | undefined;
 
-  constructor(kind: string, words: string, where: string | undefined, sql: string, options?: { cause?: unknown }) {
+  constructor(kind: string, words: string, sql: string, options?: { cause?: unknown }) {
     super(words, sql, options);
     this.name = 'PlanRaise';
     this.kind = kind;
-    this.where = where;
   }
 }
 
@@ -64,10 +63,10 @@ export function failure(message: string, sql: string, options: { cause?: unknown
   // its own
   const site = declaredSites(sql)?.[raise.site - 1];
   if (!site) return new QueryError(`the database raised ${raise.text}, which the statement does not declare`, sql, options);
-  return new PlanRaise(site.kind, sentence(site), site.where ?? undefined, sql, options);
+  return new PlanRaise(site.kind, sentence(site), sql, options);
 }
 
-/** A site of a plan's statement as the tab reads it (PlanJson v59): its kind and its operands, each one key -- a literal
+/** A site of a plan's statement as the tab reads it (PlanJson v60): its kind and its operands, each one key -- a literal
  *  by its Pure kind (string, integer, float, decimal, boolean, date, dateTime) or computed. */
 export interface RaiseSiteFacts {
   readonly kind: string;
@@ -88,7 +87,11 @@ export function sentence(site: RaiseSiteFacts): string {
       && (f.emptySlot < 0 || (f.emptySlot < ops.length && empty(f.emptySlot))));
   if (form === undefined) throw new Error(`no sentence of ${site.kind} says ${ops.length} values`);
   const values = ops.map((o, i) => print(o, form.slots[i] ?? 'TEXT'));
-  return form.template.replace(/%(\d+)\$s/g, (_, n: string) => values[Number(n) - 1]);
+  return form.template.replace(/%(\d+)\$s/g, (_, n: string) => {
+    const v = values[Number(n) - 1];
+    if (v === undefined) throw new Error(`a sentence of ${site.kind} names value ${n}, which its site lacks`);
+    return v;
+  });
 }
 
 const COMPUTED = '<computed>';
@@ -146,7 +149,7 @@ function wholeOfDouble(x: number): string {
 
 /** A BigDecimal's intValue: its whole part's low 32 bits, two's complement (the BE audit 3's S3). */
 function wholeOfDecimal(s: string): string {
-  const w = plain(s, true).split('.')[0];
+  const w = plain(s, true).replace(/\..*$/, '');
   return String(BigInt.asIntN(32, BigInt(w === '-0' ? '0' : w)));
 }
 
@@ -156,6 +159,7 @@ function plain(s: string, keep: boolean): string {
   const m = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(s);
   if (m === null) return s;
   const [, sign, int, frac = '', exp = '0'] = m;
+  if (int === undefined) throw new Error(`not a number's digits: ${s}`);
   let digits = int + frac;
   let point = int.length + Number(exp);
   if (point <= 0) {

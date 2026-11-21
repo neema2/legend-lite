@@ -29,9 +29,9 @@ class RootLoopsRejectionTest {
 
     private static RootLoops.Run run() {
         return new RootLoops.Run(new RootLoop(List.of(
-                new RootLoop.Root("assertEquals@1", List.of(new RootLoop.Row("assertEquals@1", 1, null)),
+                new RootLoop.Root("assertEquals@1", List.of(new RootLoop.Row("assertEquals@1", 1)),
                         null),
-                new RootLoop.Root("assertEquals@2", List.of(new RootLoop.Row("assertEquals@2", 2, null)),
+                new RootLoop.Root("assertEquals@2", List.of(new RootLoop.Row("assertEquals@2", 2)),
                         null)), Map.of()));
     }
 

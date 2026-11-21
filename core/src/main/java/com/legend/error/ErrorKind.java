@@ -95,11 +95,10 @@ public enum ErrorKind implements ErrorCode {
     /** Lite's own: a mixed list's DOUBLE rank of an Integer beyond 2^53. */
     MIXED_RANK_INEXACT(Form.of(0, "an Integer beyond 2^53 in a mixed list's order: its DOUBLE rank does not hold it"
             + " exactly (refused until the kinds-kept carrier ranks numbers exactly)")),
-    /** [Date or DateTime, the parameter's name, the database, the digits it keeps], or the same without the name:
-     *  lite's own (S181, never cut). */
+    /** [Date or DateTime, the parameter's name, the database, the digits it keeps]: lite's own (S181, never cut;
+     *  the unnamed form went 2026-11-21, the BE audit 4's M1: every site names its parameter). */
     PARAMETER_FRACTION_NOT_KEPT(Form.of(4, "the %1$s parameter '%2$s' has more fraction digits than %3$s keeps (%4$s):"
-            + " refused, never cut (S181)"), Form.of(3, "a %1$s parameter has more fraction digits than %2$s keeps"
-            + " (%3$s): refused, never cut (S181)")),
+            + " refused, never cut (S181)")),
     /** [the second, the digits kept]: lite's own (S181), a date()'s fractional second. */
     SECOND_FRACTION_NOT_KEPT(Form.of(2, "the second %1$s has more than %2$s fraction digits, which a date()'s fractional"
             + " second keeps: refused, never cut (S181)")),
@@ -129,7 +128,15 @@ public enum ErrorKind implements ErrorCode {
     /** A load's file larger than the load admits (J25 of the edge audit, 2026-11-17): [the file, its bytes, its
      *  characters, the limit in megabytes], legend-pure's CsvReader.readCsv words ({@link Form#fileSize}: the text's
      *  length in megabytes to two places). The run refuses it before any statement reads it. Not a raise kind. */
-    FILE_TOO_LARGE(Form.fileSize());
+    FILE_TOO_LARGE(Form.fileSize()),
+    /** A load's statement the database refused: [the table it fills, the database's own message], lite's own words
+     *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5: a refusal names its data). Not a raise kind (stage B's BE,
+     *  2026-11-21: until then the plan carried "the data of the table ..." as a load step's prose). */
+    LOAD_REFUSED(Form.of(2, "the data of the table %1$s: %2$s")),
+    /** A statement binding a data: payload the database refused: [the payload digest's head, its characters, the
+     *  database's own message], lite's own words (the B checkpoint's tenets audit, LOW 4). Not a raise kind (stage B's
+     *  BE, 2026-11-21: until then the plan carried the payload's label as prose). */
+    PAYLOAD_REFUSED(Form.of(3, "the statement reading the data: payload %1$s (%2$s characters) was refused: %3$s"));
 
     /** How a form prints one value of a site's operands (the site's record's values are these prints). */
     public enum Slot {
@@ -221,10 +228,12 @@ public enum ErrorKind implements ErrorCode {
         return this == DATABASE_ERROR || this == CONNECTION_ERROR;
     }
 
-    /** Whether a statement raises the kind ({@code sql.RaiseKind} names it): every kind but the database's own failures
-     *  and a load's refused file ({@link #FILE_TOO_LARGE}, refused by the run before a statement). */
+    /** Whether a statement raises the kind ({@code sql.RaiseKind} names it): every kind but the database's own
+     *  failures, a load's refused file ({@link #FILE_TOO_LARGE}, refused by the run before a statement) and a load's or
+     *  a payload's statement the database refused ({@link #LOAD_REFUSED}, {@link #PAYLOAD_REFUSED}: its words around
+     *  the database's). */
     public boolean isRaise() {
-        return !isDatabases() && this != FILE_TOO_LARGE;
+        return !isDatabases() && this != FILE_TOO_LARGE && this != LOAD_REFUSED && this != PAYLOAD_REFUSED;
     }
 
     /** A value the database computed and no plan holds, as every audience prints it (D1, register S389). */

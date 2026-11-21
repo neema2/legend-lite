@@ -38,8 +38,9 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
     }
 
     /** {@code statements} as one step reading them from a content blob (none for no statement): the form all model
-     *  data takes, named by the blob's SHA-256; {@code of} names the data, as a refusal of a statement names it. */
-    public static LoadSteps blob(List<String> statements, String of) {
+     *  data takes, named by the blob's SHA-256; {@code table} the table it fills, which a refusal of a statement
+     *  names. */
+    public static LoadSteps blob(List<String> statements, String table) {
         if (statements.isEmpty()) {
             return NONE;
         }
@@ -48,7 +49,7 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
         String digest = com.legend.cache.Hash.ofUtf8(json).hex();
         DataRef ref = new DataRef(DataRef.Namespace.CONTENT, "statements/" + digest + ".json", digest,
                 json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length, DataRef.Statements.JSON);
-        return new LoadSteps(List.of(new ExecutionPlan.LoadStep.Statements(ref, of)), Map.of(digest, json));
+        return new LoadSteps(List.of(new ExecutionPlan.LoadStep.Statements(ref, table)), Map.of(digest, json));
     }
 
     /** A CSV file's reading as the plan carries it: {@code load}'s statements, its undoing statements and its raise
@@ -56,7 +57,7 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
      *  2026-11-16; stage B's B1, 2026-11-20). */
     public static ExecutionPlan.LoadStep.Delivery.Reads reads(com.legend.sql.dialect.SqlDialect.CsvLoad load) {
         return new ExecutionPlan.LoadStep.Delivery.Reads(load.statements(), load.after(), load.sites().stream()
-                .map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
+                .map(w -> new ExecutionPlan.Site(w.n(), w.kind(),
                         w.operands().stream().map(com.legend.executionplan.Operand::of).toList())).toList());
     }
 
@@ -118,7 +119,7 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
     /** {@code load}'s rows as {@code dialect} writes them, in one blob ({@link #blob}) named as the table's data: none
      *  for a load of no row. */
     public static LoadSteps rows(RowLoad load, com.legend.sql.dialect.SqlDialect dialect) {
-        return blob(load.statements(dialect), "the data of the table " + load.where());
+        return blob(load.statements(dialect), load.where());
     }
 
     /** These steps, then {@code next}'s, reading both bundles. */

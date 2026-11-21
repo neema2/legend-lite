@@ -75,11 +75,12 @@ class TestPlanJsonRoundTripTest {
             id++;
         }
         RootLoop roots = new RootLoop(List.of(
-                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, null),
-                        new RootLoop.Row("refused", RootLoop.NO_VERDICT, FAILURE)),
-                        new RootLoop.Message(constant(), null, true)),
+                // (a refused row and a refused message went 2026-11-21, stage B's BE: a dialect's refusal refuses the
+                // body at planning, D)
+                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1), new RootLoop.Row("second", 2)),
+                        new RootLoop.Message(constant(), true)),
                 new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
-                        new RootLoop.Message(null, FAILURE, false))),
+                        new RootLoop.Message(constant(), false))),
                 Map.of("fragment", "reason"));
         TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
@@ -172,7 +173,7 @@ class TestPlanJsonRoundTripTest {
      *  referee's own statements. */
     private static RefereeLoad refereeLoad() {
         com.legend.setup.LoadSteps rows = com.legend.setup.LoadSteps.blob(List.of("INSERT INTO T VALUES (1)"),
-                "the data of the table T");
+                "T");
         List<com.legend.executionplan.ExecutionPlan.LoadStep> steps = new java.util.ArrayList<>();
         steps.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement("create table t"));
         steps.addAll(rows.steps());

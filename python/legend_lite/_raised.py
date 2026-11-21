@@ -3,7 +3,7 @@
 """A PRODUCT RAISE, WORDED (#104's M2(b), 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16): a statement lite
 planned raises a bare token ``LG#<n>`` inside an envelope (the dialect's raise), and Python reads it as Java's runner does
 (exec.RaisedErrors): site ``n`` of the statement it sent, from the sites the plans read here declared for that text
-(``sites`` of each statement, PlanJson v59) -- its kind and its operands, worded HERE in the one catalog's words
+(``sites`` of each statement, PlanJson v60) -- its kind and its operands, worded HERE in the one catalog's words
 (``RAISE_FORMS``, generated from error.ErrorKind: the plan carries a site's facts and no words since stage B's B1,
 2026-11-20; the catalog's words are upstream's wherever upstream has one, stage B's BE, 2026-11-21). The envelope's marks are GENERATED from legend-lite (``_type_facts.py``), the
 same as the tab's (engine-client/src/raised.ts); each answer's sites are declared here as it is read
@@ -46,7 +46,7 @@ def declare_statement_sites(text: str, sites: list[dict[str, Any]], what: str) -
 def declare_sites(answer: object, what: str) -> None:
     """Every statement's sites a planner's answer carries (a plan, a text plan), declared: wherever an object of it
     holds ``sites``, each statement text beside them (``statement``, ``sql``, ``run``, ``statements``). Refused by name
-    where the answer carries no ``raises``, the kinds its statements can send (a plan of PlanJson v59 always does)."""
+    where the answer carries no ``raises``, the kinds its statements can send (a plan of PlanJson v60 always does)."""
     if not isinstance(answer, dict) or not isinstance(answer.get('raises'), list):
         raise ValueError(f"{what} carries no raises (PlanJson's ``raises`` and each statement's ``sites``)")
 

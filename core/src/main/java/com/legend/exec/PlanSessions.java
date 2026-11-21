@@ -222,7 +222,7 @@ public final class PlanSessions {
                     + " does not run: a database the platform makes runs them (the project's databases), never skipped");
         }
         if (project != null && project.refused() != null) {
-            throw new IllegalArgumentException(project.refused());
+            throw new IllegalArgumentException(project.refused().sentence());
         }
     }
 
@@ -477,7 +477,7 @@ public final class PlanSessions {
             case ExecutionPlan.Database.System s -> null;
         };
         if (project != null && project.refused() != null) {
-            throw new IllegalArgumentException(project.refused());
+            throw new IllegalArgumentException(project.refused().sentence());
         }
     }
 

@@ -30,7 +30,8 @@ class RaiseEnvelopeConformanceTest {
         List<com.legend.executionplan.ExecutionPlan.Site> sites = new java.util.ArrayList<>();
         for (Json.Node n : fixture.getArr("sites").items()) {
             Json.Obj so = (Json.Obj) n;
-            assertTrue(so.getOr("message", null) == null, "a v59 site carries no words: site " + so.getInt("n"));
+            assertTrue(so.getOr("message", null) == null && so.getOr("where", null) == null,
+                    "a v60 site carries no words and no where: site " + so.getInt("n"));
             List<com.legend.executionplan.Operand> operands = new java.util.ArrayList<>();
             Json.Node os = so.getOr("operands", null);
             if (os != null) {
@@ -39,7 +40,7 @@ class RaiseEnvelopeConformanceTest {
                 }
             }
             sites.add(new com.legend.executionplan.ExecutionPlan.Site(so.getInt("n"),
-                    com.legend.sql.RaiseKind.valueOf(so.getString("kind")), so.getStringOr("where", null), operands));
+                    com.legend.sql.RaiseKind.valueOf(so.getString("kind")), operands));
         }
         List<Json.Node> cases = fixture.getArr("cases").items();
         assertTrue(cases.size() > 5, "the fixture holds too few cases to prove anything: " + cases.size());
@@ -58,13 +59,18 @@ class RaiseEnvelopeConformanceTest {
             java.sql.SQLException read = RaisedErrors.unwrapped(failed, sites);
             com.legend.error.ErrorKind told = RaisedErrors.dataErrorOf(read).kind();
             String kind = told == null ? null : told.name();
-            String where = read instanceof RaisedErrors.Raised r ? r.where() : null;
             assertEquals(c.getStringOr("kind", null), kind, name + ": its kind");
-            assertEquals(c.getStringOr("where", null), where, name + ": its where");
+            // a site carries no where since v60 (stage B's BE, 2026-11-21): its facts are its operands
+            assertTrue(so(c) == null, name + ": a case states no where");
         }
     }
 
-    /** A fixture site's operand, one key and its value (PlanJson v59's: the fixture's are texts, Integers, Floats and
+    /** A case's where, which none states since v60. */
+    private static Json.@com.legend.base.Nullable Node so(Json.Obj c) {
+        return c.getOr("where", null);
+    }
+
+    /** A fixture site's operand, one key and its value (PlanJson v60's: the fixture's are texts, Integers, Floats and
      *  computed values). */
     private static com.legend.executionplan.Operand operand(Json.Obj o) {
         if (o.getOr("string", null) != null) {

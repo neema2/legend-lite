@@ -28,11 +28,11 @@ class RaisedKindTest {
 
     /** A statement's site table: site 1 a division by zero, site 2 a fraction kept, placed. */
     private static final List<ExecutionPlan.Site> SITES = List.of(
-            new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null, List.of()),
-            new ExecutionPlan.Site(2, RaiseKind.PARAMETER_FRACTION_NOT_KEPT, "t", List.of(
+            new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, List.of()),
+            new ExecutionPlan.Site(2, RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(
                     new com.legend.executionplan.Operand.Text("DateTime"), new com.legend.executionplan.Operand.Text("t"),
                     new com.legend.executionplan.Operand.Text("DuckDb"), new com.legend.executionplan.Operand.Int(6))),
-            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, List.of(
+            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, List.of(
                     new com.legend.executionplan.Operand.Int(5), com.legend.executionplan.Operand.Computed.IT)));
 
     @Test
@@ -50,6 +50,22 @@ class RaisedKindTest {
                 error.getMessage(), "a site says its kind's sentence over its operands");
         assertEquals(ErrorKind.DIVIDE_BY_ZERO, RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + RaiseKind.TOKEN + "1"
                 + RaisedErrors.SENTINEL, new RuntimeException(), SITES).kind());
+    }
+
+    /** A raise's position in the query, its envelope's [line:col], reaches its DataError (the API's where) beside its
+     *  record and never in its sentence -- through a statement's failure and a driver's text alike (MongoDB's); a raise
+     *  whose envelope carries none has none (the BE audit 4's M3 and its SHOULD, 2026-11-21). */
+    @Test
+    void aRaisesPositionReachesItsErrorBesideItsRecord() {
+        var positioned = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(
+                failure("3:7" + RaisedErrors.POSITION_SEP + RaiseKind.TOKEN + "1"), SITES));
+        assertEquals("[3:7]", positioned.position());
+        assertEquals("Division by zero", positioned.getMessage(), "the position is never in the sentence");
+        var text = RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + "3:7" + RaisedErrors.POSITION_SEP
+                + RaiseKind.TOKEN + "1" + RaisedErrors.SENTINEL, new RuntimeException(), SITES);
+        assertEquals("[3:7]", text.position());
+        assertEquals(null, RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "1"), SITES))
+                .position());
     }
 
     /** A site's where, a fixed text known at planning, follows its kind's sentence in its planned message; a user's

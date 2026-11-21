@@ -98,7 +98,16 @@ public enum CompileKind implements ErrorCode {
     /** A database condition's schema the database and its includes do not declare: the schema, the database's name
      *  (legend-pure's DatabaseProcessor.findTableForAlias, checked before the table; the BE audit 3's S1, 2026-11-21:
      *  until then the table's sentence). */
-    MISSING_STORE_SCHEMA("The schema '%1$s' can't be found in the database '%2$s'", Raised.COMPILING);
+    MISSING_STORE_SCHEMA("The schema '%1$s' can't be found in the database '%2$s'", Raised.COMPILING),
+    /** A Data element's table of no rows, not even a header: the element, the table (lite's own words: a project's
+     *  data, no upstream sentence; stage B's BE, 2026-11-21: until then the plan carried the sentence). */
+    DATA_TABLE_EMPTY("the Data element %1$s fills %2$s with no rows, not even a header", Raised.COMPILING),
+    /** A Data element's table no Database of the model declares: the element, the table (lite's own words). */
+    DATA_TABLE_UNDECLARED("the Data element %1$s fills %2$s, which no Database of the model declares",
+            Raised.COMPILING),
+    /** A Data element's table more than one Database declares: the element, the table, the Databases (lite's own). */
+    DATA_TABLE_DECLARED_TWICE("the Data element %1$s fills %2$s, which more than one Database declares %3$s",
+            Raised.COMPILING);
 
     private final String sentence;
     private final Raised raised;

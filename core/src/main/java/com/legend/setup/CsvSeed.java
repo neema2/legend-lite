@@ -154,7 +154,7 @@ public final class CsvSeed {
                     // an author's statements as written: the referee runs the engine's H2 text
                     case Step.Sql blob -> com.legend.sql.RawSql.splitStatements(blob.text()).forEach(copy::statement);
                     case Step.Rows rows -> copy.add(LoadSteps.blob(rows.load().refereeStatements(referee),
-                            "the data of the table " + rows.load().where()));
+                            rows.load().where()));
                     case Step.Schema d -> step.texts(referee).forEach(copy::statement);
                     case Step.Clear c -> step.texts(referee).forEach(copy::statement);
                 }

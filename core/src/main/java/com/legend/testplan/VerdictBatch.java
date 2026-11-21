@@ -485,7 +485,7 @@ public final class VerdictBatch {
                     case Pending p -> {
                         Integer id = verdictOf.get(p.ix());
                         yield new RootLoop.Row(p.name(), java.util.Objects.requireNonNull(id,
-                                () -> p.name() + ": a member with no verdict reading its row"), null);
+                                () -> p.name() + ": a member with no verdict reading its row"));
                     }
                     case Resolved rv -> new RootLoop.Decided(rv.failure(), rv.reported());
                     case Judged j -> new RootLoop.Judged();
@@ -495,7 +495,7 @@ public final class VerdictBatch {
             if (r.message != null) {
                 TestPlan.Side side = java.util.Objects.requireNonNull(messages.get(k), () -> r.listenerName
                         + ": a caller's message with no planned side");
-                message = new RootLoop.Message(side, null, groups.stream().flatMap(g -> g.step().verdicts().stream())
+                message = new RootLoop.Message(side, groups.stream().flatMap(g -> g.step().verdicts().stream())
                         .anyMatch(v -> side.equals(v.message())));
             }
             roots.add(new RootLoop.Root(r.listenerName, steps, message));

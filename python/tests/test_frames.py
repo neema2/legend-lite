@@ -545,14 +545,15 @@ class Refusals(unittest.TestCase):
 
 
 class ARaiseIsWorded(unittest.TestCase):
-    """A product raise reaches Python in lite's words (#104's M2(b), 2026-11-15): its kind's sentence (error.ErrorKind,
-    generated into _type_facts.py), then its where -- never the database's envelope or the value."""
+    """A product raise reaches Python in the one catalog's words (#104's M2(b), 2026-11-15; stage B's BE, 2026-11-21:
+    legend-pure's sentence wherever upstream has one, until then lite's "division by zero"): its kind's sentence
+    (error.ErrorKind, generated into _type_facts.py) -- never the database's envelope or the value."""
 
     def test_a_divide_by_zero_raises_its_kinds_sentence(self):
         table = ll.Frames().register('trades', trades())
         with self.assertRaises(Exception) as raised:
             table.execute('->extend(~[r: x|$x.id->toOne() / ($x.id->toOne() - 1)])->select(~r)')
-        self.assertEqual(str(raised.exception), 'division by zero')
+        self.assertEqual(str(raised.exception), 'Division by zero')
 
 
 if __name__ == '__main__':

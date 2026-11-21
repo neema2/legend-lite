@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PureMessagesWordedTest {
 
     private static String worded(RaiseKind kind, Operand... operands) {
-        return com.legend.result.RaiseWords.sentence(new ExecutionPlan.Site(1, kind, null, List.of(operands)));
+        return com.legend.result.RaiseWords.sentence(new ExecutionPlan.Site(1, kind, List.of(operands)));
     }
 
     @Test
@@ -83,7 +83,7 @@ class PureMessagesWordedTest {
                 if (form.emptySlot() >= 0) {
                     values.set(form.emptySlot(), new Operand.Text(""));
                 }
-                String words = com.legend.result.RaiseWords.sentence(new ExecutionPlan.Site(1, kind, null, values));
+                String words = com.legend.result.RaiseWords.sentence(new ExecutionPlan.Site(1, kind, values));
                 assertFalse(words.isBlank(), kind.name());
                 assertFalse(words.contains(kind.name()), kind + ": the words are a sentence, never the kind's name: "
                         + words);
@@ -105,13 +105,13 @@ class PureMessagesWordedTest {
     @Test
     void aSitesWordsAreAFunctionOfItsRecordAlone() {
         com.legend.executionplan.ExecutionPlan.Site site = new com.legend.executionplan.ExecutionPlan.Site(1,
-                RaiseKind.DATE_COMPONENT_INVALID, "month", List.of(new Operand.Text("month"), new Operand.Int(13)));
+                RaiseKind.DATE_COMPONENT_INVALID, List.of(new Operand.Text("month"), new Operand.Int(13)));
         assertEquals("Invalid month: 13", PureMessages.worded(site));
         // one catalog (stage B's BE, 2026-11-21): the product says the same sentence, its place a fact apart
         assertEquals("Invalid month: 13", com.legend.result.RaiseWords.sentence(site));
         // a kind with no upstream text: lite's own sentence over its facts (stage B's BE-P, 2026-11-21)
         com.legend.executionplan.ExecutionPlan.Site own = new com.legend.executionplan.ExecutionPlan.Site(1,
-                RaiseKind.INTEGER_PAST_64_BITS, null, List.of(new Operand.Text("SQLite")));
+                RaiseKind.INTEGER_PAST_64_BITS, List.of(new Operand.Text("SQLite")));
         assertEquals("an integer past 64 bits has no SQLite value", PureMessages.worded(own));
     }
 }

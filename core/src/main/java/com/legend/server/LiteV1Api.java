@@ -428,7 +428,10 @@ public final class LiteV1Api {
             return new Refusal(Kind.INTERNAL, message, null, null);
         }
         if (kind != null && kind.isRaise()) {
-            return new Refusal(Kind.DATA, message, d.where(), lowerCamel(kind.name()));
+            // its where the raise's position in the query, as a compile refusal's is (the user's ruling of
+            // 2026-11-15, "its kind and where it happened in the query"; stage B's BE, 2026-11-21: until then a site's
+            // fixed text, which repeated its facts)
+            return new Refusal(Kind.DATA, message, d.position(), lowerCamel(kind.name()));
         }
         return new Refusal(Kind.DATA, message, null, null);
     }

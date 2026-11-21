@@ -1054,7 +1054,6 @@ describe('a raise, worded', () => {
       }
       assert.equal(e.message, c.words, c.name);
       assert.equal(e instanceof PlanRaise || e instanceof DatabaseError ? e.kind : undefined, c.kind, c.name);
-      assert.equal(e instanceof PlanRaise ? e.where : undefined, c.where, c.name);
     }
   });
 
@@ -1076,7 +1075,7 @@ describe('a raise, worded', () => {
     // the envelope a product statement raises, sent as the database's own error() writes it: read through the sites
     // the plans the tab read declared for that text
     const sent = "SELECT error(chr(31) || chr(28) || 'LG#1' || chr(31))";
-    declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO', where: null }], 'a test');
+    declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO' }], 'a test');
     await assert.rejects(() => inRun('a test', () => asTest(engine).run(unplanned(sent), 0)),
       (e: unknown) => e instanceof PlanRaise && e.message === 'Division by zero' && e.kind === 'DIVIDE_BY_ZERO');
   });

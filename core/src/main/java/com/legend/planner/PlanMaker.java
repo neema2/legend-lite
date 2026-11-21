@@ -1024,7 +1024,7 @@ public final class PlanMaker {
                 String digest = com.legend.cache.Hash.ofUtf8(payload.json()).hex();
                 content.put(digest, payload.json());
                 slots.add(new ExecutionPlan.Slot(b.parameter(), new ExecutionPlan.Binding.Payload(digest,
-                        payloadLabel(digest, payload.json()))));
+                        payload.json().length())));
             } else {
                 slots.add(new ExecutionPlan.Slot(b.parameter(), binding(b.binding())));
             }
@@ -1045,18 +1045,8 @@ public final class PlanMaker {
      *  Phase 2, raises as SITES, 2026-11-16): each one's kind, where and operands, the facts its audiences word after
      *  the run (stage B's B1, 2026-11-20: no words planned, none recorded). */
     public static List<ExecutionPlan.Site> sites(List<com.legend.sql.dialect.RaiseSite> written) {
-        return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
+        return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(),
                 w.operands().stream().map(com.legend.executionplan.Operand::of).toList())).toList();
-    }
-
-    /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database
-     *  refuses it ({@link ExecutionPlan.Binding.Payload#label}: the database splits the payload itself, so its refusal --
-     *  a malformed element, a statement or packet limit -- names which payload it was, as a load's names what it loads;
-     *  planned, the runner writing nothing from the value it binds: the B checkpoint's tenets audit, LOW 4,
-     *  2026-11-11). */
-    static String payloadLabel(String digest, String json) {
-        return "the statement reading the data: payload " + digest.substring(0, 16) + " (" + json.length()
-                + " characters)";
     }
 
     /**
@@ -1328,7 +1318,7 @@ public final class PlanMaker {
                     // a model whose Data rows cannot make the database: the refusal is the plan's, raised where the
                     // database is made (slice 5, 2026-11-09: refused here, at planning, it failed every query of the
                     // model, those on another database too -- the stress lanes' 5,795 bodies)
-                    String refused = platform ? null : com.legend.setup.ProjectData.refusal(ctx);
+                    com.legend.error.ErrorRecord refused = platform ? null : com.legend.setup.ProjectData.refusal(ctx);
                     // the platform's DDL, then each table's rows as a content blob of inserts (A2: the markets fill
                     // is 1.87 MB; where its bytes travel is the plan writer's)
                     com.legend.setup.LoadSteps fill = platform || refused != null ? com.legend.setup.LoadSteps.NONE

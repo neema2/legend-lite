@@ -287,7 +287,7 @@ public abstract class SqlRewriter {
                     cs.add(x);
                 }
                 // its words as data and its where kept (2026-11-15: until then a rewritten operand dropped both)
-                yield same ? r : new SqlExpr.RaiseText(r.kind(), cs, r.asData(), r.where());
+                yield same ? r : new SqlExpr.RaiseText(r.kind(), cs, r.asData());
             }
             case SqlExpr.Tagged t -> {
                 java.util.List<SqlExpr> cs = new java.util.ArrayList<>();

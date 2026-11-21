@@ -4,8 +4,9 @@
 /**
  * THE RAISE SITES THE PLANS DECLARE (phase D's Phase 2, raises as SITES, 2026-11-16; option (D) of 2026-11-15 before
  * it): a statement lite planned raises a bare token `LG#<n>`, and the plan carries what it means -- each statement's
- * `sites` (PlanJson v59: `n`, `kind`, `where`, `operands` -- facts, no words since stage B's B1, 2026-11-20; the tab
- * words a site itself, its kind's sentence from lite-raise.ts and its where). Each reader of a planner's answer declares them here as it reads it, by the statement's text, and a send's
+ * `sites` (PlanJson v60: `n`, `kind`, `operands` -- facts, no words since stage B's B1, 2026-11-20, no `where` since
+ * stage B's BE, 2026-11-21; the tab words a site itself, its kind's sentence from lite-raise.ts). Each reader of a
+ * planner's answer declares them here as it reads it, by the statement's text, and a send's
  * failure is read through the sites of the statement it sent (raised.ts) -- so the tab holds no table of words of its
  * own: a token no answer it read declared for that text is refused by name. A text two answers declare differently is
  * refused by name. Small, and outside raised.ts, so a reader that declares carries none of the failure path's code.
@@ -15,7 +16,6 @@
 export interface Site {
   readonly n: number;
   readonly kind: string;
-  readonly where?: string | null;
   /** The literals the statement holds for the raise, one key each (`integer`, `string`, ... or `computed`). */
   readonly operands?: readonly Readonly<Record<string, unknown>>[];
 }

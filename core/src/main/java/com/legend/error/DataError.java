@@ -28,10 +28,11 @@ public final class DataError extends RuntimeException implements LegendError {
     /** The database's own message, verbatim, where the error is the database's ({@link ErrorKind#isDatabases}). */
     private final @com.legend.base.Nullable String databaseMessage;
 
-    /** Where the raise happened, as its constructor was given it (a site's where: a parameter's name, the digits a
-     *  database keeps), or null. Kept since PR #118's fix round (2026-11-18, N3): until then it was taken and dropped,
-     *  so lite's API could not answer it. */
-    private final @com.legend.base.Nullable String where;
+    /** Where in the query the raise happened, the driver's {@code [line:col]} its statement's envelope carried, or
+     *  null (stage B's BE, 2026-11-21: until then a {@code where}, a site's fixed text that repeated its facts, kept
+     *  since PR #118's fix round, N3, so lite's API could answer where; it answers this instead). Beside the record,
+     *  never in its sentence. */
+    private final @com.legend.base.Nullable String position;
     /** The error as data where its kind and place are its facts (stage B's BE, 2026-11-21): null for a database's own
      *  failure and an error of no kind, whose words are their own. */
     private final @com.legend.base.Nullable ErrorRecord record;
@@ -41,13 +42,13 @@ public final class DataError extends RuntimeException implements LegendError {
         this.kind = null;
         this.sqlState = null;
         this.databaseMessage = null;
-        this.where = null;
+        this.position = null;
         this.record = null;
     }
 
     // (the constructors of a kind and its where -- (kind, cause), (kind, where, cause) and (kind, where, message,
     // cause) -- gone 2026-11-21, the BE audit 2's S10: no product path made one, and a kind's sentence reads its
-    // operands, which they put in its first slot; a raise is its record, DataError(record, where, cause))
+    // operands, which they put in its first slot; a raise is its record, DataError(record, position, cause))
 
     private static ErrorRecord fileTooLargeRecord(String path, long bytes, long characters, int limitMegabytes) {
         return ErrorRecord.of(ErrorKind.FILE_TOO_LARGE, java.util.List.of(path, Long.toString(bytes),
@@ -63,9 +64,8 @@ public final class DataError extends RuntimeException implements LegendError {
 
     /** A raise of a planned site (stage B's BE, 2026-11-21, the one catalog): its record the site's kind and its
      *  operands as the kind's sentence prints them ({@code result.RaiseWords}), its message the record's sentence --
-     *  the one catalog's, upstream's words -- and {@code where} the site's place, a fact lite's API answers (PR #118's
-     *  fix round, N3), never in the sentence. */
-    public DataError(ErrorRecord record, @com.legend.base.Nullable String where,
+     *  the one catalog's, upstream's words -- and {@code position} where in the query it happened, or null. */
+    public DataError(ErrorRecord record, @com.legend.base.Nullable String position,
             @com.legend.base.Nullable Throwable cause) {
         super(record.sentence(), cause);
         if (!(record.code() instanceof ErrorKind k)) {
@@ -74,7 +74,7 @@ public final class DataError extends RuntimeException implements LegendError {
         this.kind = k;
         this.sqlState = null;
         this.databaseMessage = null;
-        this.where = where;
+        this.position = position;
         this.record = record;
     }
 
@@ -82,7 +82,7 @@ public final class DataError extends RuntimeException implements LegendError {
      *  bytes and in characters, and the limit in megabytes, so an audience words the size as it does (stage B's BE,
      *  2026-11-21: until then its facts rode {@code base.DataSize.TooLarge}, its cause, alone). */
     public static DataError fileTooLarge(String path, long bytes, long characters, int limitMegabytes, Throwable cause) {
-        return new DataError(fileTooLargeRecord(path, bytes, characters, limitMegabytes), path, cause);
+        return new DataError(fileTooLargeRecord(path, bytes, characters, limitMegabytes), null, cause);
     }
 
     @Override
@@ -100,7 +100,7 @@ public final class DataError extends RuntimeException implements LegendError {
         this.kind = kind;
         this.sqlState = sqlState;
         this.databaseMessage = databaseMessage;
-        this.where = null;
+        this.position = null;
         this.record = null;
     }
 
@@ -123,9 +123,9 @@ public final class DataError extends RuntimeException implements LegendError {
         return databaseMessage;
     }
 
-    /** Where the raise happened, as its constructor was given it, or null. */
-    public @com.legend.base.Nullable String where() {
-        return where;
+    /** Where in the query the raise happened ({@code [line:col]}), or null. */
+    public @com.legend.base.Nullable String position() {
+        return position;
     }
 
     /** The product raise's kind, or null where the error is not one ({@link #DataError(String, Throwable)}). */
@@ -140,7 +140,7 @@ public final class DataError extends RuntimeException implements LegendError {
         this.kind = null;
         this.sqlState = null;
         this.databaseMessage = null;
-        this.where = null;
+        this.position = null;
         this.record = null;
     }
 }

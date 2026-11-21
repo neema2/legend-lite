@@ -300,7 +300,9 @@ interface Sql {
 // compatibility edge's records, never the product plan's
 // 59 since 2026-11-20 (stage B's B1, errors as records): a site carries its `operands` and no `message`, and the
 // plan's `raises` is the list of the kinds its statements can send -- the tab words a raise itself (raised.ts)
-const PLAN_VERSION = 59;
+// 60 since 2026-11-21 (stage B's BE, the one error model): a site carries no `where` (its facts are its operands), and
+// the raise kinds whose operand was prose are replaced by kinds whose operands are facts
+const PLAN_VERSION = 60;
 // the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
 // declaration above stays one line, as PlanVersionsAgreeTest reads it
 export { PLAN_VERSION };
@@ -326,7 +328,7 @@ interface Load {
 }
 type LoadStep =
   | { readonly _type: 'statement'; readonly sql: string }
-  | { readonly _type: 'statements'; readonly ref: DataRef; readonly of: string }
+  | { readonly _type: 'statements'; readonly ref: DataRef; readonly table: string }
   | { readonly _type: 'file'; readonly ref: DataRef }
   | BoundStep
   | StreamStep
@@ -580,7 +582,10 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
     if (step._type === 'statement') {
       await session.run(fromPlan((step as { readonly sql: string }).sql), []);
     } else if (step._type === 'statements') {
-      const { ref, of } = step as Extract<LoadStep, { _type: 'statements' }>;
+      const { ref, table } = step as Extract<LoadStep, { _type: 'statements' }>;
+      // the data named by its table, in the words Java's runner says (ErrorKind.LOAD_REFUSED; v60: the plan carries
+      // the table's name, no prose)
+      const of = `the data of the table ${table}`;
       const text = load.content?.[ref.digest];
       if (text === undefined) throw new PlanRefusal(`the load ${load.identity} reads the content ${ref.digest}, which its plan does not carry`);
       const held = await digestOf(text);

@@ -105,14 +105,8 @@ public final class RaisedErrors {
         // the recorder: stage B's B1, 2026-11-20, the edge words a site from its record)
         Raised(String text, ExecutionPlan.@com.legend.base.Nullable Site site, @com.legend.base.Nullable String sqlState,
                 java.sql.SQLException cause) {
-            super(site == null ? text : com.legend.sql.RaiseKind.MARK + site.kind().name()
-                            + (site.where() == null ? "" : com.legend.sql.RaiseKind.MARK + site.where()), sqlState, cause);
+            super(site == null ? text : com.legend.sql.RaiseKind.MARK + site.kind().name(), sqlState, cause);
             this.site = site;
-        }
-
-        /** Where the product raise happened, a fixed text known at planning; null where none was written. */
-        public @com.legend.base.Nullable String where() {
-            return site == null ? null : site.where();
         }
 
         /** The kind of the site the raise named ({@link #siteOf}); null for the edge's sentence or a user's message. */
@@ -198,6 +192,11 @@ public final class RaisedErrors {
         return new Raised(clean, site, e.getSQLState(), e);
     }
 
+    /** Where in the query {@code raised} happened, the {@code [line:col]} its envelope carried, or null. */
+    private static @com.legend.base.Nullable String positionOf(java.sql.SQLException raised) {
+        return raised instanceof Positioned p ? "[" + p.line() + ":" + p.column() + "]" : null;
+    }
+
     /** A failed open's or close's error (no statement, so no site it can name) as the
      *  {@link com.legend.error.DataError} the platform tells: its raise unwrapped. Here since D70 (2026-10-30; the plan
      *  sessions' until then): the one class that constructs from a {@code SQLException}. */
@@ -212,8 +211,9 @@ public final class RaisedErrors {
         String text = unwrap(message);
         ExecutionPlan.Site site = text == null ? null : siteOf(text, sites);
         if (text != null && site != null) {
-            Raised raised = new Raised(text, site, null, new java.sql.SQLException(message, cause));
-            return new com.legend.error.DataError(com.legend.result.RaiseWords.record(site), site.where(), raised);
+            // unwrapped as a statement's failure is, so the envelope's position (its [line:col]) is read too (the BE
+            // audit 4's M3, 2026-11-21: a Raised built from the stripped text had none, so MongoDB's had no where)
+            return dataErrorOf(unwrapped(new java.sql.SQLException(message, cause), sites));
         }
         if (text != null && !text.equals(message)) {
             // lite's envelope, no site: a user's fail
@@ -229,7 +229,7 @@ public final class RaisedErrors {
     static com.legend.error.DataError dataErrorOf(java.sql.SQLException un) {
         if (un instanceof Raised r && r.site() != null) {
             ExecutionPlan.Site site = r.site();
-            return new com.legend.error.DataError(com.legend.result.RaiseWords.record(site), site.where(), un);
+            return new com.legend.error.DataError(com.legend.result.RaiseWords.record(site), positionOf(un), un);
         }
         if (un instanceof Raised) {
             // lite's envelope, no site: a user's fail (its own text) --

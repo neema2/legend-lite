@@ -25,8 +25,6 @@ import java.util.Objects;
  */
 public record RootLoop(List<Root> roots, Map<String, String> fragments) {
 
-    /** No verdict: a row the dialect cannot spell, planned with no statement. */
-    public static final int NO_VERDICT = -1;
 
     /** No appeal: a host engine-text comparison's failure is the assert's ({@code HostJudgment.EdgeJudged}; a database
      *  row names none since A4 of the compatibility program, stage A ratified by the user 2026-11-19). */
@@ -63,19 +61,16 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
     }
 
     /**
-     * A root's caller's message that reads: the side the plan reads for it, or the dialect's refusal of it (raised where
-     * the root fails, nothing sent).
+     * A root's caller's message that reads: the side the plan reads for it (a message the dialect cannot spell refuses
+     * the body at planning, D: its refusal slot went 2026-11-21, stage B's BE, always empty since D).
      *
-     * @param side    the message's statement, a side of the plan; null where refused
-     * @param refusal the dialect's refusal; null where the side is planned
-     * @param carried whether a verdict of the plan carries the side (a root every member of which was refused or
-     *                decided at planning has no statement to carry it: its message is refused by name)
+     * @param side    the message's statement, a side of the plan
+     * @param carried whether a verdict of the plan carries the side (a root every member of which was decided at
+     *                planning has no statement to carry it: its message is refused by name)
      */
-    public record Message(TestPlan.@Nullable Side side, @Nullable Failure refusal, boolean carried) {
+    public record Message(TestPlan.Side side, boolean carried) {
         public Message {
-            if ((side == null) == (refusal == null)) {
-                throw new IllegalArgumentException("a caller's message is a side or a refusal, one of the two");
-            }
+            Objects.requireNonNull(side, "a caller's message's side");
         }
     }
 
@@ -96,9 +91,8 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      * A verdict row the database computes.
      *
      * @param name    the row's assert name (the row's own message names it)
-     * @param verdict the id of the plan's verdict whose row this is; {@link #NO_VERDICT} where the dialect cannot spell
-     *                the row's statement, planned with none
-     * @param refusal the dialect's refusal of the row's statement, raised at its place (nothing sent); null where spelled
+     * @param verdict the id of the plan's verdict whose row this is (a row the dialect cannot spell refuses the body at
+     *                planning, D: its refusal slot and NO_VERDICT went 2026-11-21, stage B's BE, always empty since D)
      *
      * <p>(Three fields went with A4 of the compatibility program, stage A ratified by the user 2026-11-19, the test
      * plan's version 33: {@code orElse}, the row's ruled comparison -- the rendered-text rule's rows fallback,
@@ -106,12 +100,11 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      * engine-text arm's reason decided before its texts were compared. The host judge is the only judge in
      * compatibility, so no database row carries any of them.)
      */
-    public record Row(String name, int verdict, @Nullable Failure refusal) implements Step {
+    public record Row(String name, int verdict) implements Step {
         public Row {
             Objects.requireNonNull(name, "name");
-            if ((verdict == NO_VERDICT) != (refusal != null)) {
-                throw new IllegalArgumentException(name + ": a row has a verdict or the dialect's refusal, one of the"
-                        + " two");
+            if (verdict < 0) {
+                throw new IllegalArgumentException(name + ": a row's verdict is an id of the plan's: " + verdict);
             }
         }
     }

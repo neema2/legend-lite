@@ -96,7 +96,7 @@ class EdgeRefereeLoadTest {
     /** A seed's copy: a statement, a blob of two inserts, a file by its reference read by its own statements. */
     private static LoadSteps copy(String digest) {
         LoadSteps rows = LoadSteps.blob(List.of("INSERT INTO T VALUES (1)", "INSERT INTO T VALUES (2)"),
-                "the data of the table T");
+                "T");
         List<ExecutionPlan.LoadStep> steps = new ArrayList<>();
         steps.add(new ExecutionPlan.LoadStep.Statement("CREATE TABLE T (ID INTEGER)"));
         steps.addAll(rows.steps());

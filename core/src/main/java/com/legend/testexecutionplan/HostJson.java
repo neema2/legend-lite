@@ -818,32 +818,28 @@ final class HostJson {
 
     static Map<String, Object> wRlMessage(RootLoop.Message x) {
         Map<String, Object> o = new LinkedHashMap<>();
-        o.put("side", x.side() == null ? null : TestPlanJson.side(x.side()));
-        o.put("refusal", x.refusal() == null ? null : wFailure(x.refusal()));
+        o.put("side", TestPlanJson.side(x.side()));
         o.put("carried", x.carried());
         return o;
     }
 
     static RootLoop.Message rRlMessage(Json.Obj o) {
-        TestPlan.@Nullable Side v_side = absent(o, "side", "Message") ? null : TestPlanJson.readSide(obj(o.get("side")));
-        @Nullable Failure v_refusal = absent(o, "refusal", "Message") ? null : rFailure(obj(o.get("refusal")));
+        TestPlan.Side v_side = TestPlanJson.readSide(obj(field(o, "side", "Message")));
         boolean v_carried = bool(field(o, "carried", "Message"));
-        return new RootLoop.Message(v_side, v_refusal, v_carried);
+        return new RootLoop.Message(v_side, v_carried);
     }
 
     static Map<String, Object> wRsRow(RootLoop.Row x) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("verdict", x.verdict());
-        o.put("refusal", x.refusal() == null ? null : wFailure(x.refusal()));
         return o;
     }
 
     static RootLoop.Row rRsRow(Json.Obj o) {
         String v_name = str(field(o, "name", "Row"));
         int v_verdict = Math.toIntExact(num(field(o, "verdict", "Row")));
-        @Nullable Failure v_refusal = absent(o, "refusal", "Row") ? null : rFailure(obj(o.get("refusal")));
-        return new RootLoop.Row(v_name, v_verdict, v_refusal);
+        return new RootLoop.Row(v_name, v_verdict);
     }
 
     static Map<String, Object> wRsDecided(RootLoop.Decided x) {

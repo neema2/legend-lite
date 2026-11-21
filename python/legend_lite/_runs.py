@@ -25,7 +25,7 @@ from ._runframe import in_run, runs
 # held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
 # runs (test_engine) -- so the two cannot drift apart unseen
 # 59 since 2026-11-20 (stage B's B1): a site's facts, no words; the plan's raises its kinds
-PLAN_VERSION = 59
+PLAN_VERSION = 60
 
 
 class LoadRefused(ValueError):
@@ -68,7 +68,9 @@ def run_load(plan: PlanText, execute: Callable[[PlannedSql], Any]) -> None:
         if kind == 'statement':
             execute(from_plan(step['sql']))
         elif kind == 'statements':
-            ref, of = step['ref'], step['of']
+            # the data named by its table, in the words Java's runner says (ErrorKind.LOAD_REFUSED; v60: the plan
+            # carries the table's name, no prose)
+            ref, of = step['ref'], f"the data of the table {step['table']}"
             text = content.get(ref['digest'])
             if text is None:
                 raise LoadRefused(f"the load {root['identity']} reads the content {ref['digest']}, which its plan does not carry")

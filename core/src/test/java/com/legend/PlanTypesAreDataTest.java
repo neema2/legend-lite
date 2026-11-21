@@ -176,31 +176,25 @@ class PlanTypesAreDataTest {
      *  (a component that leaves is deleted here with a dated note; a new one fails). Measured 2026-11-21, default-deny
      *  since the BE audit 3's M2 (every text component reviewed: a fact in {@link #FACTS}, or prose here). */
     private static final java.util.Map<String, String> PROSE_RESIDUE = java.util.Map.ofEntries(
-            // a raise's place: a fixed fact (the bound [1], a native's name) or a composed text ("X to Y", Postgres's
-            // and BigQuery's "a map built from its key and value lists") -- each becomes an operand (BE's follow-up)
-            Map.entry("ExecutionPlan$Site.where", "a raise's place, a fact or a composed text -- to operands"),
-            Map.entry("SqlExpr$RaiseText.where", "the Site's where in the MIR -- with Site.where"),
-            // a checked graph's defect row: its kind's sentence as the answer's DATA (CheckedEnvelope), not a raise
-            Map.entry("SqlExpr$RaiseText.asData", "CONSTRAINT_UNEVALUABLE's sentence as a defect row's cell -- to a"
-                    + " code the answer's writer words (BE's follow-up)"),
-            // lite's descriptions of a load's and a payload's place, and a project's refusal sentence
-            Map.entry("ExecutionPlan$LoadStep$Statements.of", "lite's words of a load's place (\"the data of the table"
-                    + " PEOPLE\") -- to its table's name (BE's follow-up)"),
-            Map.entry("ExecutionPlan$Binding$Payload.label", "lite's words of a payload's statement -- to facts (BE's"
-                    + " follow-up)"),
-            Map.entry("ExecutionPlan$Project.refused", "a project data refusal's sentence -- to a code and its values"
-                    + " (BE's follow-up)"),
+            // (gone 2026-11-21, stage B's BE, item 2: a raise's where -- Site.where, RaiseText.where -- its facts its
+            // operands and its position; a load step's "of", now its table's name; a payload's label, now its
+            // characters; a project's refusal sentence, now a record's code and values)
+            // a checked graph's defect row: its kind's sentence as the answer's DATA (CheckedEnvelope builds the
+            // envelope in SQL), not a raise -- the answer's writer words it once B2 writes the envelope from typed rows
+            Map.entry("SqlExpr$RaiseText.asData", "CONSTRAINT_UNEVALUABLE's sentence as a defect row's cell, the"
+                    + " checked envelope built in SQL -- B2 (upstream's printed text in Java from typed rows)"),
             // a failure with no record (a record and a message never ride together, Failure's constructor)
             Map.entry("Failure.message", "a failure with no record: an assert's words (the user's message or the"
-                    + " default words lite plans) -- the assert-words question to the user (BE-M)"),
-            Map.entry("Failure.unjudgedReason", "why an assert is unjudged: none on the planned road since D (an"
-                    + " unjudged decline refuses the body at planning) -- removed with the slot (BE's follow-up)"),
+                    + " default words lite plans) -- assert verdicts as records (item 3, the user's go of 2026-11-21)"),
+            Map.entry("Failure.unjudgedReason", "why an assert is unjudged: none on the product's planned road since D"
+                    + " (an unjudged decline refuses the body at planning); the edge's appeal path still records one"
+                    + " (SqlTextVerdicts' Failures.of) -- removed with that path (B3)"),
             // the host judge's assert words decided at planning
-            Map.entry("HostJudgment$AllRows.message", "an assert's words decided at planning -- the assert-words"
-                    + " question (BE-M)"),
-            Map.entry("HostJudgment$Decided.message", "the same -- the assert-words question (BE-M)"),
+            Map.entry("HostJudgment$AllRows.message", "an assert's words decided at planning -- assert verdicts as"
+                    + " records (item 3)"),
+            Map.entry("HostJudgment$Decided.message", "the same -- item 3"),
             Map.entry("HostJudgment$Messaged.unplanned", "a caller's message the plan could not evaluate, lite's words"
-                    + " around its reason -- the assert-words question (BE-M)"),
+                    + " around its reason -- item 3 (a body lite cannot fully plan is refused, D)"),
             // the compatibility edge's records in a test plan, withdrawn from the run with E1 (B3)
             Map.entry("Appeal$Unlisted.message", "an appeal's error message -- the edge's, B3"),
             Map.entry("Appeal.contract", "an appeal's description (\"(sql-text, H2 -- text is the contract)\") -- B3"),
@@ -295,7 +289,8 @@ class PlanTypesAreDataTest {
                     "ExecutionPlan$Keyed.keyFields", "ExecutionPlan$LoadStep$Attach.as",
                     "ExecutionPlan$LoadStep$Attach.held", "ExecutionPlan$LoadStep$Bind$Held.field",
                     "ExecutionPlan$LoadStep$Bind$Held.name", "ExecutionPlan$LoadStep$Stream.schema",
-                    "ExecutionPlan$LoadStep$Stream.table", "ExecutionPlan$Parameter.name",
+                    "ExecutionPlan$LoadStep$Stream.table", "ExecutionPlan$LoadStep$Statements.table",
+                    "ExecutionPlan$Parameter.name",
                     "ExecutionPlan$Project.key", "ExecutionPlan$Slot.parameter", "Failure.element",
                     "HostJudgment$AllRows.name", "HostJudgment$Condition.name", "HostJudgment$Equals.name",
                     "HostJudgment$GridPair.name", "HostJudgment$InstanceOf.acceptedTypes",

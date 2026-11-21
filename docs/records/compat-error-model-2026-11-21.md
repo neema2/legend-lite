@@ -111,12 +111,17 @@ Measured against §1's rule, at the commit carrying this section.
   same, from generated tables.
 
 **Deferred, named.** In the order proposed:
-1. **The prose still in plans, BE's own** (the residue): a raise's `where` (`Site.where`, `RaiseText.where`) to
-   operands; `RaiseText.asData`; `Project.refused`; `LoadStep.Statements.of`; `Binding.Payload.label`;
-   `Failure.unjudgedReason` and the test plan's dead refusal slots (`RootLoop.Row.refusal`, `NO_VERDICT`,
-   `Message.refusal`), always empty since D.
-2. **The assert words** (`Failure.message`, `HostJudgment`'s `AllRows`/`Decided` messages, `Messaged.unplanned`): the
-   user's question -- records like errors (the database returning the values a failed verdict compares), or not.
+1. **The prose still in plans, BE's own: DONE (item 2, the user's go of 2026-11-21, plan v60).** A raise's `where`
+   went (its facts are its operands, its place its position in the query: lite's API answers a data refusal's `where`
+   as that `[line:col]`, as it does a compile refusal's); a load step names its table and a payload its characters, the
+   refusals worded after the run (`ErrorKind.LOAD_REFUSED`, `PAYLOAD_REFUSED`, the same sentences); a project's refusal
+   is a record (`CompileKind.DATA_TABLE_*`); the test plan's refusal slots, empty since D, went. Two stay named:
+   `Failure.unjudgedReason` (the edge's appeal path still records one: B3) and `RaiseText.asData` (a checked graph's
+   defect cell, an answer's value built in SQL: B2).
+2. **The assert words** (`Failure.message`, `HostJudgment`'s `AllRows`/`Decided` messages, `Messaged.unplanned`):
+   assert verdicts as records, item 3 (the user's go of 2026-11-21, with the three judge rules: the database judge on
+   lite's flow only; the host judge on the product path decides and prints its report; on the compatibility path it
+   may print a final `toString` in Java), its design note and measurements first.
 3. **The compile errors not yet kinded**: about 400 of the ~440 compile-error sites (`TypeInferenceException` 271,
    `MappingResolutionException` 75, most of `ModelException`'s 146) still build lite's own sentence. They refuse at
    planning, so no plan carries them; their words are not yet upstream's where an upstream client reads them

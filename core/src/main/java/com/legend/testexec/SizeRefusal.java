@@ -19,7 +19,7 @@ final class SizeRefusal extends IllegalStateException implements ExecutionPlan.R
     private final transient ExecutionPlan.Site site;
 
     SizeRefusal(String bound) {
-        this(new ExecutionPlan.Site(1, RaiseKind.SIZE_NOT_MULTIPLICITY, bound, java.util.List.of(new Operand.Text(bound))));
+        this(new ExecutionPlan.Site(1, RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new Operand.Text(bound))));
     }
 
     private SizeRefusal(ExecutionPlan.Site site) {

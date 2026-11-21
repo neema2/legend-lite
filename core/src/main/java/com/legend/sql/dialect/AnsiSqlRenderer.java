@@ -827,8 +827,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new SqlExpr.StringLit(bound),
                         co.statedSize() != null ? new SqlExpr.IntLit(co.statedSize())
-                                : SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null,
-                bound));
+                                : SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
             return writer.expr(new SqlExpr.Case(
@@ -1253,11 +1252,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             throw new IllegalStateException("a raise of " + r.kind() + " written outside a statement's render: no"
                     + " statement's site table declares it (" + getClass().getSimpleName() + ")");
         }
-        RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.where(), r.operands());
+        RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.operands());
         for (RaiseSite held : raiseSites) {
             // the same raise written again in the statement (a guard a dialect writes twice, a CASE copied): its one
             // site, said once -- the copies' text stays identical, so the database and the lean measure see one repeat
-            if (held.kind() == written.kind() && java.util.Objects.equals(held.where(), written.where())
+            if (held.kind() == written.kind()
                     && held.operands().equals(written.operands())) {
                 return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(held.n()));
             }
@@ -2099,7 +2098,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.PARAMETER_FRACTION_NOT_KEPT, java.util.List.of(new SqlExpr.StringLit(kind),
                         new SqlExpr.StringLit(p.name()), new SqlExpr.StringLit(getClass().getSimpleName()),
-                        new SqlExpr.IntLit(kept)), null, p.name()));
+                        new SqlExpr.IntLit(kept)), null));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
                 .append(" AS " + text + ")");
         java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");

@@ -90,7 +90,7 @@ class RaiseTextTest {
     void aRaisesMessageIsOnlyItsKindAndOperands() {
         // its kind, its operands, and its product words where it is data, a fixed text worded at planning -- never a
         // value (the D part 1 audit's S3 and its nit, 2026-11-15: the type the constructor discarded went)
-        assertEquals(List.of("kind", "operands", "asData", "where"), Arrays.stream(SqlExpr.RaiseText.class.getRecordComponents())
+        assertEquals(List.of("kind", "operands", "asData"), Arrays.stream(SqlExpr.RaiseText.class.getRecordComponents())
                 .map(java.lang.reflect.RecordComponent::getName).toList());
     }
 
@@ -137,7 +137,7 @@ class RaiseTextTest {
         assertEquals(1, statement.sites().size(), dialect.getClass().getSimpleName() + ": " + statement.sites());
         RaiseSite site = statement.sites().get(0);
         return com.legend.result.RaiseWords.sentence(new com.legend.executionplan.ExecutionPlan.Site(1, site.kind(),
-                null, site.operands().stream().map(com.legend.executionplan.Operand::of).toList()));
+                site.operands().stream().map(com.legend.executionplan.Operand::of).toList()));
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
@@ -233,9 +233,10 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"), lit("t"),
                 lit("DuckDb"), new SqlExpr.IntLit(6))), lit("the DateTime parameter 't' has more fraction digits than"
                 + " DuckDb keeps (6): refused, never cut (S181)"));
-        moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"),
-                lit("ClickHouse"), new SqlExpr.IntLit(6))), lit("a DateTime parameter has more fraction digits than"
-                + " ClickHouse keeps (6): refused, never cut (S181)"));
+        // (ClickHouse's names its parameter since the BE audit 4's M1, 2026-11-21: the unnamed form went)
+        moved.put(new SqlExpr.RaiseText(RaiseKind.PARAMETER_FRACTION_NOT_KEPT, List.of(lit("DateTime"), lit("t"),
+                lit("ClickHouse"), new SqlExpr.IntLit(6))), lit("the DateTime parameter 't' has more fraction digits"
+                + " than ClickHouse keeps (6): refused, never cut (S181)"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.SECOND_FRACTION_NOT_KEPT, List.of(a, new SqlExpr.IntLit(6))),
                 cat(lit("the second "), str(a), lit(" has more than 6 fraction digits")));
         moved.put(new SqlExpr.RaiseText(RaiseKind.CSV_TOO_WIDE, List.of(new SqlExpr.IntLit(3))),

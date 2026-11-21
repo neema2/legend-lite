@@ -122,7 +122,6 @@ export const RAISE_FORMS: Readonly<Record<string, readonly RaiseForm[]>> = {
   ],
   PARAMETER_FRACTION_NOT_KEPT: [
     { arity: 4, emptySlot: -1, template: 'the %1$s parameter \'%2$s\' has more fraction digits than %3$s keeps (%4$s): refused, never cut (S181)', slots: [], shape: 'TEMPLATE' },
-    { arity: 3, emptySlot: -1, template: 'a %1$s parameter has more fraction digits than %2$s keeps (%3$s): refused, never cut (S181)', slots: [], shape: 'TEMPLATE' },
   ],
   SECOND_FRACTION_NOT_KEPT: [
     { arity: 2, emptySlot: -1, template: 'the second %1$s has more than %2$s fraction digits, which a date()\'s fractional second keeps: refused, never cut (S181)', slots: [], shape: 'TEMPLATE' },
