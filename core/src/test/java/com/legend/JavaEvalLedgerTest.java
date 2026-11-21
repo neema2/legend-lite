@@ -118,7 +118,7 @@ class JavaEvalLedgerTest {
             // crossing measured both ways, Pure's TDS text and the engine's JSON read by its own adapter's steps; the
             // loser's lines leave with the switch); 99 -> 94 (2026-10-28, the switch: every lane measured the
             // engine's crossing exact, and the TDS text crossing is deleted with PureTdsText)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 99),   // 94 -> 99 (2026-11-21, PR #130's gate round, stage B's B1, FOR THE USER'S WORD: under lite's own rules a raise keeps lite's sentence, the LITE-PCT lane's -- one test of the lane's audience and the error's site; nothing evaluated)   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 94),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
