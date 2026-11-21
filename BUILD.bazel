@@ -16,6 +16,8 @@ exports_files(
         "//datacube:__pkg__",
         "//python:__pkg__",
         "//site:__pkg__",
+        # the engine module's package for a host outside this repository (//wasm:engine_planner_package)
+        "//wasm:__pkg__",
     ],
 )
 

@@ -1,0 +1,35 @@
+{
+  "name": "@legend-lite/data-cube-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Legend DataCube plugin which contributes legend-lite as a planner for cached sources, local files and cached Iceberg tables: legend-lite's engine module (@legend-lite/planner-wasm) answers generatePlan in the browser, in a worker, instead of the engine server.",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "module": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc --project ./tsconfig.build.json",
+    "clean": "rimraf lib build"
+  },
+  "dependencies": {
+    "@legend-lite/planner-wasm": "0.1.0"
+  },
+  "peerDependencies": {
+    "@finos/legend-application-data-cube": "*",
+    "@finos/legend-data-cube": "*",
+    "@finos/legend-graph": "*",
+    "@finos/legend-shared": "*"
+  }
+}
