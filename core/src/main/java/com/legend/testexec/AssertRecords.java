@@ -122,11 +122,11 @@ final class AssertRecords {
         return record(AssertKind.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v, wireType));
     }
 
-    static ErrorRecord notInstanceOf(@Nullable Object v, String type, String carrier) {
+    static ErrorRecord notInstanceOf(@Nullable Object v, String type) {
         return record(AssertKind.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v));
     }
 
-    static ErrorRecord notSameInstance(String name) {
+    static ErrorRecord notSameInstance() {
         return AssertKind.SAME_INSTANCE.record();
     }
 

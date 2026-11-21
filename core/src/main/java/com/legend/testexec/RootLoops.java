@@ -222,7 +222,12 @@ public final class RootLoops {
                 return;
             }
             RootLoop.Message message = r.message();
-            if (messages && message != null && failure instanceof com.legend.error.AssertFailed af
+            if (r.unplanned() != null && failure instanceof com.legend.error.AssertFailed af
+                    && af.unjudgedReason() == null) {
+                // computing the caller's message raises: that error is the outcome, as upstream's (item 3, the user's
+                // lazy rule; the host judge's HostJudgment.Messaged#unplanned)
+                failure = Failures.raised(r.unplanned());
+            } else if (messages && message != null && failure instanceof com.legend.error.AssertFailed af
                     && af.unjudgedReason() == null) {
                 failure = messaged(r.listenerName(), message, reader);
             }

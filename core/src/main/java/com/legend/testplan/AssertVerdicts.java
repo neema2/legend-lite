@@ -430,23 +430,26 @@ public final class AssertVerdicts {
         com.legend.compiler.spec.AssertMessages.Split split = env.options().judgeMode() == PlanningOptions.JudgeMode.HOST
                 ? null : com.legend.compiler.spec.AssertMessages.split(bare, specs);
         if (split != null) {
-            DatabaseJudge.PlannedMessage message;
+            DatabaseJudge.@com.legend.base.Nullable PlannedMessage message = null;
+            com.legend.testplan.VerdictBatch batch = env.verdictBatch();
             try {
                 message = DatabaseJudge.plannedMessage(split.message(), letPrefix, specs, env, hook);
             } catch (RuntimeException e) {
-                if (!com.legend.testexecutionplan.Failures.atItsTurn(e)) {
+                if (!com.legend.testexecutionplan.Failures.atItsTurn(e) || batch == null || !batch.active()) {
                     // a refusal, a compile error, a defect: the body is refused at planning, as itself (the BE
                     // audit's finding 4, 2026-11-21), as the host judge's HostSides.planChecked refuses it
                     throw e;
                 }
-                // an error upstream raises where the message runs: the assert fails naming it, as the host judge's
-                // does (HostJudgment.Messaged#unplanned) -- upstream evaluates the message only where the assert fails
-                message = new DatabaseJudge.PlannedMessage(new com.legend.lowering.VerdictSql.FailureMessage(
-                        com.legend.compiler.spec.AssertMessages.unevaluated(e.getMessage()), null), env.target());
+                // an error upstream raises where the message runs: planned as data and raised in place of the
+                // assert's failure where its root fails, and only there (item 3, 2026-11-21, the user's lazy rule; the
+                // host judge's HostJudgment.Messaged#unplanned; the S2+S3 audit's HIGH: until then lite's sentence
+                // around the error's text, AssertMessages.unevaluated, and the two judges disagreed under BOTH)
+                batch.unplanned(com.legend.testexecutionplan.Failures.planned(e, "an assert's message"));
             }
-            com.legend.testplan.VerdictBatch batch = env.verdictBatch();
-            com.legend.sql.SqlQuery read = message.message().row();
-            if (read != null && batch != null && batch.active()) {
+            com.legend.sql.SqlQuery read = message == null ? null : message.message().row();
+            if (message == null) {
+                // no message to plan: its error rides the root
+            } else if (read != null && batch != null && batch.active()) {
                 // a message that READS: the batch sends its row at the assert's place only where the assert fails
                 // (upstream evaluates it only there), the verdict row failing with the family's own text until then
                 batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName(), DatabaseJudge.words(env)), message.on());

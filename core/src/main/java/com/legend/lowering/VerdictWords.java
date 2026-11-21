@@ -11,16 +11,12 @@ import java.util.function.UnaryOperator;
 
 /**
  * THE DATABASE JUDGE'S WORDS OF A FAILED ASSERT, PLANNED (census J29's planning half, 2026-11-18, the orchestrator's
- * order: "every legend-pure sentence comes from an edge text hook; the product holds only lite's sentences"): a
- * two-form kind ({@code PlanStyle.twoForm}, {@code PlanStyleFacets.TWO_FORMS}; FailureWords' place, which named whose
- * words they were by a flag). One method per failure kind, each building the verdict row's message from the SQL pieces
- * the verdict already computed -- a method words a failure, it never decides one. Its one form is
- * {@link LiteVerdictWords} (lite's {@code AssertKind} table): since item 3's S3 (2026-11-21) it is no two-form kind --
- * the database judge plans for lite's flow alone, and legend-pure's form (the edge's UpstreamVerdictWords) went whole.
- * Goes at S4, when the database judge carries its values to the record.
- * {@link #reads} names the frame's shape the words need: lite's sentences read each side as WRITTEN (lite's own text,
- * a column the verdict adds), legend-pure's the CANONS (its framing writes from the canon and the representation
- * facet). Signatures only.
+ * order: "every legend-pure sentence comes from an edge text hook; the product holds only lite's sentences"). One method
+ * per failure kind, each building the verdict row's message from the SQL pieces the verdict already computed -- a method
+ * words a failure, it never decides one. Its one form is {@link LiteVerdictWords} (lite's {@code AssertKind} table):
+ * until item 3's S3 (2026-11-21) a two-form kind with legend-pure's form at the edge (UpstreamVerdictWords, gone); the
+ * database judge plans for lite's flow alone. Goes at S4, when the database judge carries its values to the record.
+ * Signatures only.
  */
 public interface VerdictWords {
 

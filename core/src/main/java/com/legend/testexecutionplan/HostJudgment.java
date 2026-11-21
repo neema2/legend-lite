@@ -88,6 +88,9 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
      *  a record of the one catalog (item 3, 2026-11-21: until then the default's sentence, planned in the plan's
      *  audience's words). */
     record AllRows(String name, boolean wantTrue, com.legend.error.ErrorRecord failure) implements HostJudgment {
+        public AllRows {
+            assertsRecord(failure);
+        }
     }
 
     /** A quantified {@code assertEquals} / {@code assertEqWithinTolerance} over a source's ROWS, judged row by row as
@@ -177,6 +180,9 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
             if (held != (failure == null)) {
                 throw new IllegalArgumentException("a decided verdict carries its failure exactly where it fails");
             }
+            if (failure != null) {
+                assertsRecord(failure);
+            }
         }
     }
 
@@ -261,5 +267,14 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
      *  ({@code counted}). The product runs none: its run refuses it by name ({@code NoEdgeRun}). */
     record EdgeJudged(Extension judgment, int appeal, @Nullable String sideOrigin, boolean counted)
             implements HostJudgment {
+    }
+
+    /** A planned assert failure's record is an assert's code: refused by name as the plan is made or read, never first
+     *  where the assert fails (the S2+S3 audit's LOW, 2026-11-21). */
+    private static void assertsRecord(com.legend.error.ErrorRecord failure) {
+        if (!(failure.code() instanceof com.legend.error.AssertKind)) {
+            throw new IllegalArgumentException("a planned assert failure's record is an assert's code: "
+                    + failure.code().qualified());
+        }
     }
 }

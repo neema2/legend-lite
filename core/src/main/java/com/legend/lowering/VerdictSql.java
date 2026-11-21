@@ -1892,7 +1892,7 @@ public final class VerdictSql {
         return sel.withProjections(ps);
     }
 
-    /** {@code words}: the frame's sentence (lite's own, or the edge's). */
+    /** {@code words}: the frame's sentence, lite's (the database judge plans for lite's flow alone). */
     public static SqlQuery selfContained(SqlQuery row, String name, boolean wantEqual, VerdictWords words) {
         boolean cells = joinsCells(row);
         if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {

@@ -455,13 +455,13 @@ final class HostJudgments {
         Number e = (Number) com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(three.get(0)), "tolerance expected");
         Number a = (Number) com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(three.get(1)), "tolerance actual");
         Number delta = (Number) com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(three.get(2)), "tolerance delta");
-        com.legend.error.ErrorRecord d = toleranceMessage(e, a, delta, rules, run);
+        com.legend.error.ErrorRecord d = toleranceMessage(e, a, delta);
         return d == null ? com.legend.testexecutionplan.Verdicts.ok() : com.legend.testexecutionplan.Verdicts.fail(d);
     }
 
     /** {@code assertEqWithinTolerance}'s failure, or null where it holds. */
-    private static com.legend.error.@com.legend.base.Nullable ErrorRecord toleranceMessage(Number e, Number a, Number delta,
-            HostRules rules, BodyRun run) {
+    private static com.legend.error.@com.legend.base.Nullable ErrorRecord toleranceMessage(Number e, Number a,
+            Number delta) {
         if (com.legend.testexec.PureAsserts.withinTolerance(e, a, delta)) {
             return null;
         }
@@ -502,12 +502,11 @@ final class HostJudgments {
             }
             return com.legend.testexecutionplan.Verdicts.ok();
         }
-        return com.legend.testexecutionplan.Verdicts.fail(negatedWords(n.kind(), sides, rules, run));
+        return com.legend.testexecutionplan.Verdicts.fail(negatedWords(n.kind(), sides));
     }
 
     /** A default-message negated assert's failure (assertNotEq, assertIsNot, assertNotContains, assertNotSize). */
-    private static com.legend.error.ErrorRecord negatedWords(String kind, List<TypedSide> sides,
-            HostRules rules, BodyRun run) {
+    private static com.legend.error.ErrorRecord negatedWords(String kind, List<TypedSide> sides) {
         List<Object> first = com.legend.testexec.AssertRuns.decodeSide(sides.get(0));
         List<Object> second = sides.size() > 1 ? com.legend.testexec.AssertRuns.decodeSide(sides.get(1)) : List.of();
         return AssertRecords.negated(kind, first, second);
@@ -522,7 +521,6 @@ final class HostJudgments {
     }
 
     private static TypedSide subsetOf(HostJudgment.Subset j, List<TypedSide> pair, HostRules rules) {
-        String name = j.name();
         boolean wantTrue = j.wantTrue();
         List<Object> need = com.legend.testexec.AssertRuns.decodeSide(pair.get(0));
         List<Object> have = com.legend.testexec.AssertRuns.decodeSide(pair.get(1));
@@ -535,8 +533,13 @@ final class HostJudgments {
         if (subsetHolds == wantTrue) {
             return com.legend.testexecutionplan.Verdicts.ok();
         }
-        return com.legend.testexecutionplan.Verdicts.fail(name + " (forAll-contains subset):"
-                + " missing " + missing);
+        // a catalog record (the S2+S3 audit's MEDIUM, 2026-11-21: until then a sentence of its own, "name (forAll-contains
+        // subset): missing [..]"): the haves, and the needed elements they miss, or with a subset unwanted, the needs
+        return com.legend.testexecutionplan.Verdicts.fail(wantTrue
+                ? record(com.legend.error.AssertKind.CONTAINS, "collection", LiteWords.values(have, null), "value",
+                        LiteWords.values(missing, null))
+                : record(com.legend.error.AssertKind.NOT_CONTAINS, "collection", LiteWords.values(have, null),
+                        "value", LiteWords.values(need, null)));
     }
 
     private static TypedSide emptyOf(HostJudgment.Empty j, TypedSide er,
@@ -587,14 +590,14 @@ final class HostJudgments {
         }
         String carrier = com.legend.testexec.PureAsserts.notAnInstanceOf(v, type);
         return carrier == null ? com.legend.testexecutionplan.Verdicts.ok()
-                : com.legend.testexecutionplan.Verdicts.fail(AssertRecords.notInstanceOf(v, type, carrier));
+                : com.legend.testexecutionplan.Verdicts.fail(AssertRecords.notInstanceOf(v, type));
     }
 
     private static TypedSide isOf(HostJudgment.Is j, List<TypedSide> one,
             HostRules rules) {
         Object c2 = com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(one.get(0)), j.name() + " condition");
         return Boolean.TRUE.equals(c2) ? com.legend.testexecutionplan.Verdicts.ok()
-                : com.legend.testexecutionplan.Verdicts.fail(AssertRecords.notSameInstance(j.name()));
+                : com.legend.testexecutionplan.Verdicts.fail(AssertRecords.notSameInstance());
     }
 
     private static TypedSide sameElementsOf(HostJudgment.SameElements j, List<TypedSide> pair,
@@ -623,7 +626,7 @@ final class HostJudgments {
                 typedSide(e, j.e()), typedSide(a, j.a()), rules)
                 // the failed TYPED comparison's message, never a second, untyped one (the ledger audit's D4, 2026-11-16:
                 // an untyped re-compare that held here returned null, and the failed assert passed)
-                ? null : sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn(), rules, run);
+                ? null : sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn());
         com.legend.testexec.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -716,7 +719,7 @@ final class HostJudgments {
             List<Object> as = java.util.Collections.singletonList(a);
             com.legend.error.ErrorRecord d = j.tolerance()
                     ? toleranceMessage(number(e, j.name()), number(a, j.name()),
-                            number(rowArgValue(j.args().get(2), row, j.name()), j.name()), rules, run)
+                            number(rowArgValue(j.args().get(2), row, j.name()), j.name()))
                     : com.legend.testexec.PureAsserts.holds(es, as, rules) ? null
                     : AssertRecords.rowNotEqual(e, a, j.expectedClass(), j.actualClass());
             if (d != null) {
@@ -819,15 +822,14 @@ final class HostJudgments {
         // where the typed one failed (the ledger audit's D4, 2026-11-16)
         return finish(name, wantEqual, equal,
                 () -> incidental
-                        ? sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn(), rules, run)
+                        ? sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn())
                         : AssertRecords.sidesNotEqual(e, a, ef.values(), af.values(), j.e().classFqn(), j.a().classFqn()),
                 () -> AssertRecords.notEqual(e, a, j.a().classFqn()));
     }
 
     /** assertSameElements' failure over two sides a verdict has failed, each side's values in its own order. */
-    private static com.legend.error.ErrorRecord sameElementsWords(List<Object> e, List<Object> a, @com.legend.base.Nullable String eClass,
-            @com.legend.base.Nullable String aClass, HostRules rules,
-            BodyRun run) {
+    private static com.legend.error.ErrorRecord sameElementsWords(List<Object> e, List<Object> a,
+            @com.legend.base.Nullable String eClass, @com.legend.base.Nullable String aClass) {
         return AssertRecords.sameElements(e, a, eClass, aClass);
     }
 

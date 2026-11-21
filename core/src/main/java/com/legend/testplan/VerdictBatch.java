@@ -133,6 +133,8 @@ public final class VerdictBatch {
         /** The caller's message where it READS ({@link #message}): its row, sent only where the root fails. */
         @com.legend.base.Nullable SqlQuery message;
         ExecutionPlan.@com.legend.base.Nullable Target messageOn;
+        /** The caller's message's error where computing it raises ({@link #unplanned}). */
+        com.legend.testexecutionplan.@com.legend.base.Nullable Failure unplanned;
 
         Root(String listenerName) {
             this.listenerName = listenerName;
@@ -239,6 +241,13 @@ public final class VerdictBatch {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         r.message = row;
         r.messageOn = on;
+    }
+
+    /** The open root's caller's message raises {@code error} where it is computed, an error upstream raises at run:
+     *  raised in place of the root's failure where the root fails, and only there (item 3, 2026-11-21, the user's lazy
+     *  rule; until then lite's sentence around the error's text as the verdict row's message). */
+    public void unplanned(com.legend.testexecutionplan.Failure error) {
+        java.util.Objects.requireNonNull(current, "verdict batch: no open root").unplanned = error;
     }
 
     /** {@code query}, the open root's verdict row. (Its overload with an appeal and a decline, the edge's engine-text
@@ -498,7 +507,7 @@ public final class VerdictBatch {
                 message = new RootLoop.Message(side, groups.stream().flatMap(g -> g.step().verdicts().stream())
                         .anyMatch(v -> side.equals(v.message())));
             }
-            roots.add(new RootLoop.Root(r.listenerName, steps, message));
+            roots.add(new RootLoop.Root(r.listenerName, steps, message, r.unplanned));
         }
         return new RootLoop(roots, fragments);
     }

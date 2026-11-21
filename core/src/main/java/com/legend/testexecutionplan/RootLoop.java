@@ -52,11 +52,23 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
      * @param listenerName the name the test listener hears its verdict under
      * @param steps        its rows and decided outcomes, in the order they decide (an unrolled assert is several rows)
      * @param message      its caller's message where it READS (a side read only where the assert fails), or null
+     * @param unplanned    computing its caller's message raises an error upstream raises at run, found while planning:
+     *                     that error, raised in place of the assert's failure where the root fails and only there (item
+     *                     3, 2026-11-21, the user's ruling: the message lazy, its error the outcome; the host judge's
+     *                     {@code HostJudgment.Messaged#unplanned}); null where the message planned, or there is none
      */
-    public record Root(String listenerName, List<Step> steps, @Nullable Message message) {
+    public record Root(String listenerName, List<Step> steps, @Nullable Message message, @Nullable Failure unplanned) {
         public Root {
             Objects.requireNonNull(listenerName, "listenerName");
             steps = List.copyOf(steps);
+            if (message != null && unplanned != null) {
+                throw new IllegalArgumentException(listenerName + ": a message that planned and one that did not");
+            }
+        }
+
+        /** A root whose message, if any, planned. */
+        public Root(String listenerName, List<Step> steps, @Nullable Message message) {
+            this(listenerName, steps, message, null);
         }
     }
 

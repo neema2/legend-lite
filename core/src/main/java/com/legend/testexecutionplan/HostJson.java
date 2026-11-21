@@ -827,6 +827,7 @@ final class HostJson {
         o.put("listenerName", x.listenerName());
         o.put("steps", list(x.steps(), e0 -> wRootStep(e0)));
         o.put("message", x.message() == null ? null : wRlMessage(x.message()));
+        o.put("unplanned", x.unplanned() == null ? null : wFailure(x.unplanned()));
         return o;
     }
 
@@ -834,7 +835,8 @@ final class HostJson {
         String v_listenerName = str(field(o, "listenerName", "Root"));
         List<RootLoop.Step> v_steps = readList(field(o, "steps", "Root"), n0 -> rRootStep(obj(n0)));
         RootLoop.@Nullable Message v_message = absent(o, "message", "Root") ? null : rRlMessage(obj(o.get("message")));
-        return new RootLoop.Root(v_listenerName, v_steps, v_message);
+        @Nullable Failure v_unplanned = absent(o, "unplanned", "Root") ? null : rFailure(obj(o.get("unplanned")));
+        return new RootLoop.Root(v_listenerName, v_steps, v_message, v_unplanned);
     }
 
     static Map<String, Object> wRlMessage(RootLoop.Message x) {

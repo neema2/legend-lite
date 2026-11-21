@@ -184,9 +184,10 @@ class PlanTypesAreDataTest {
             Map.entry("SqlExpr$RaiseText.asData", "CONSTRAINT_UNEVALUABLE's sentence as a defect row's cell, the"
                     + " checked envelope built in SQL -- B2 (upstream's printed text in Java from typed rows)"),
             // a failure with no record (a record and a message never ride together, Failure's constructor)
-            Map.entry("Failure.message", "a failure with no record: the edge's prose failures alone since item 3's S3"
-                    + " (an assert's failure is a record, AssertKind) -- the appeal path's (SqlTextVerdicts' NOT_A_CONSTANT"
-                    + " and Appeal.Read.failure) -- B3"),
+            Map.entry("Failure.message", "a failure with no record: an assert's failure is a record since item 3's S3"
+                    + " (AssertKind); what remains is a lite error whose site states no record yet (the one error model's"
+                    + " families still being converted) and the edge's prose failures (SqlTextVerdicts' NOT_A_CONSTANT and"
+                    + " Appeal.Read.failure, B3)"),
             Map.entry("Failure.unjudgedReason", "why an assert is unjudged: none on the product's planned road since D"
                     + " (an unjudged decline refuses the body at planning); the edge's appeal path still records one"
                     + " (SqlTextVerdicts' Failures.of) -- removed with that path (B3)"),
