@@ -18,4 +18,9 @@ public class TypeInferenceException extends LegendCompileException {
     public TypeInferenceException(String message, Throwable cause) {
         super(Phase.TYPE, message, cause);
     }
+
+    /** A wrapper of {@code wrapped}, its texts before and after it stated (stage B's B1, 2026-11-20, errors as records). */
+    public TypeInferenceException(String prefix, TypeInferenceException wrapped, String suffix) {
+        super(Phase.TYPE, wrapped, prefix, suffix);
+    }
 }

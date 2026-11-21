@@ -55,21 +55,12 @@ public interface PlanStyle {
      *  quoted (D1.2). */
     String graphKeyString(String value);
 
-    /** An error's message as the style's reader reads it, where a test plans it as data (an {@code assertError}'s f
-     *  failing while it is planned): the product's, its own message; the edge's, upstream's sentence of a compile
-     *  error's kind ({@code edge.PureMessages.compile}; the first stage-linux run's PCT regression, 2026-11-16: M4's
-     *  window-frame kinds reached PCT in lite's sentence). */
-    @com.legend.base.Nullable
-    String errorWords(RuntimeException e);
+    // (errorWords, an error's message in the style's words where a test plans it as data: deleted 2026-11-20
+    // with stage B's B1 -- a planned failure carries lite's message and its kinded part as data, and every audience
+    // words it after the run)
 
-    /** THE WORDS OF A STATEMENT'S RAISE SITES, OFFERED AT PLANNING (phase D's Phase 2, raises as SITES, 2026-11-16;
-     *  reshaped by K10b of the edge audit, 2026-11-17: the words are no component of the product's plan): the planner
-     *  offers each statement it makes, {@code text}, with the raise sites its render wrote, {@code sites}, numbered 1..k
-     *  as {@code text} raises their tokens. It answers nothing. The product's answer is lite's own form -- no upstream
-     *  words: a site says its kind's sentence ({@code ExecutionPlan.Site#message}) and nothing is recorded; the
-     *  compatibility edge's recorder ({@code edge.PureText#recording}, one per planning call) records legend-pure's
-     *  words of each site as its own data, which the door that minted it reads once after planning. */
-    void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites);
+    // (siteWords, the words of a statement's raise sites offered at planning to the edge's recorder: deleted 2026-11-20
+    // with stage B's B1 -- a site's record carries its operands, and every audience words it after the run)
 
     /** A TEST-PLANNING FACET of the style (W9's judge half, the orchestrator's ruling of 2026-11-16): the one hook's
      *  typed accessor for the parts of a test's planning that are upstream's -- an engine-text assert's arm. The kinds
@@ -97,20 +88,6 @@ public interface PlanStyle {
             return Databases.dialect(type);
         }
 
-
-        @Override
-        public @com.legend.base.Nullable String errorWords(RuntimeException e) {
-            return e.getMessage();
-        }
-
-        /** LITE'S FORM, BY NAME (K10b, 2026-11-17; the hook criterion (b): the product answers its own form): a
-         *  product site says its kind's sentence ({@code ExecutionPlan.Site#message}), so the product records NO
-         *  upstream words of any statement -- the plan carries none, and nothing is kept. */
-        @Override
-        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
-            java.util.Objects.requireNonNull(text, "the offered statement's text");
-            java.util.Objects.requireNonNull(sites, "the offered statement's raise sites");
-        }
 
         @Override
         public boolean judgesEngineText() {

@@ -24,7 +24,8 @@ from ._runframe import in_run, runs
 # the plan format this host runs: the planner's (PlanJson.VERSION), as the tab's runner's is (plan-runner.ts PLAN_VERSION,
 # held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
 # runs (test_engine) -- so the two cannot drift apart unseen
-PLAN_VERSION = 58
+# 59 since 2026-11-20 (stage B's B1): a site's facts, no words; the plan's raises its kinds
+PLAN_VERSION = 59
 
 
 class LoadRefused(ValueError):

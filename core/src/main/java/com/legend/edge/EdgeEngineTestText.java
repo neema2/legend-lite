@@ -156,28 +156,5 @@ final class EdgeEngineTestText implements EngineTestText {
                 com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs), letPrefix, specs);
     }
 
-    /** A fresh recorder over {@code template} ({@link PureText#recording}). */
-    @Override
-    public com.legend.database.PlanStyle recording(com.legend.database.PlanStyle template) {
-        return PureText.recording(template);
-    }
-
-    /** The door's one read of {@code recording}, a recorder this facet minted; any other style refused by name. */
-    @Override
-    public java.util.Map<String, java.util.Map<Integer, String>> siteWords(
-            com.legend.database.PlanStyle recording) {
-        if (!(recording instanceof SiteWordsRecorder r)) {
-            throw new IllegalStateException("the raise sites' words of a body planned in "
-                    + recording.getClass().getName() + ", which records none: a test body under the compatibility"
-                    + " edge's style is planned in a fresh recorder (EngineTestText.recording)");
-        }
-        return r.read();
-    }
-
-    /** legend-pure's sentence of a SIZE_NOT_MULTIPLICITY site whose bound is {@code multiplicity}. */
-    @Override
-    public String sizeWords(String multiplicity) {
-        return PureMessages.words(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                List.of(new com.legend.sql.SqlExpr.StringLit(multiplicity)));
-    }
+    // (sizeWords: deleted with stage B's B1, 2026-11-20, errors as records -- the run's refusal is a record PureMessages words)
 }

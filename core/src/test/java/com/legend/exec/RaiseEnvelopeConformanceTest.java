@@ -25,18 +25,14 @@ class RaiseEnvelopeConformanceTest {
     void javasRunnerReadsEachEnvelopeAsTheHostsDo() throws Exception {
         Json.Obj fixture = (Json.Obj) Json.parse(Files.readString(Runfile.property("raise.fixture"),
                 StandardCharsets.UTF_8));
-        // the statement's site table (PlanJson's sites): each message error.ErrorKind's sentence and its where, the one
-        // source (phase D's Phase 2, raises as SITES, 2026-11-16); a site's upstream words are no component of it
-        // (K10b, 2026-11-17: the edge's records), so a fixture's are not read
+        // the statement's site table (PlanJson v59's sites: facts, no words; stage B's B1, 2026-11-20): each reader
+        // words a site itself, from its kind's sentence and its where; the product's words read no operand
         List<com.legend.executionplan.ExecutionPlan.Site> sites = new java.util.ArrayList<>();
         for (Json.Node n : fixture.getArr("sites").items()) {
             Json.Obj so = (Json.Obj) n;
-            var site = new com.legend.executionplan.ExecutionPlan.Site(so.getInt("n"),
-                    com.legend.sql.RaiseKind.valueOf(so.getString("kind")), so.getStringOr("where", null),
-                    so.getString("message"));
-            assertEquals(com.legend.executionplan.ExecutionPlan.Site.sentence(site.kind(), site.where()),
-                    site.message(), "the fixture's site " + site.n() + " is ErrorKind's sentence and its where");
-            sites.add(site);
+            assertTrue(so.getOr("message", null) == null, "a v59 site carries no words: site " + so.getInt("n"));
+            sites.add(new com.legend.executionplan.ExecutionPlan.Site(so.getInt("n"),
+                    com.legend.sql.RaiseKind.valueOf(so.getString("kind")), so.getStringOr("where", null), List.of()));
         }
         List<Json.Node> cases = fixture.getArr("cases").items();
         assertTrue(cases.size() > 5, "the fixture holds too few cases to prove anything: " + cases.size());

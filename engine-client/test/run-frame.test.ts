@@ -327,7 +327,7 @@ describe("the tab's DuckDB starts alongside the planner's asks", () => {
 // sample) -- each asks its planner outside any run, then sends the answer's statements inside one, on Node's frame.
 describe("the pages' doors ask outside a run and send inside one", () => {
   /** A one-statement load, as a planner answers one (a ONCE load at the plan's root). */
-  const loadPlan = unplannedPlan(JSON.stringify({ format: 'legend-lite-plan', version: PLAN_VERSION, raises: {}, root: {
+  const loadPlan = unplannedPlan(JSON.stringify({ format: 'legend-lite-plan', version: PLAN_VERSION, raises: [], root: {
     _type: 'load', identity: "the test's rows", cadence: 'ONCE', steps: [{ _type: 'statement', sql: 'CREATE TABLE t (n INT)' }],
   } }));
   /** A DuckDB engine over a connection that records each statement it is sent, and the run it was sent in. */

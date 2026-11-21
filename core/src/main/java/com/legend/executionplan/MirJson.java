@@ -437,6 +437,9 @@ public final class MirJson {
                 o.put("list", expr(c.list()));
                 o.put("scalarCarrier", c.scalarCarrier());
                 o.put("atLeastOnly", c.atLeastOnly());
+                if (c.statedSize() != null) {
+                    o.put("statedSize", c.statedSize());
+                }
             }
             case SqlExpr.CompactList c -> {
                 tag(o, ExprTag.compactList, c.type());
@@ -1031,7 +1034,8 @@ public final class MirJson {
                     readQuery(o.getObj("subquery")), type);
             case scalarSubquery -> new SqlExpr.ScalarSubquery(readQuery(o.getObj("subquery")), type);
             case checkedOne -> new SqlExpr.CheckedOne(readExpr(o.getObj("list")), o.getBool("scalarCarrier"),
-                    o.getBool("atLeastOnly"), type);
+                    o.getBool("atLeastOnly"), o.getOr("statedSize", null) instanceof Json.Num n
+                            ? Integer.valueOf(Math.toIntExact(n.longValue())) : null, type);
             case compactList -> new SqlExpr.CompactList(readExpr(o.getObj("list")), type);
             case jsonObject -> new SqlExpr.JsonObject(readExprs(o.getArr("kv")), type);
             case jsonArray -> new SqlExpr.JsonArray(readExprs(o.getArr("elements")), type);

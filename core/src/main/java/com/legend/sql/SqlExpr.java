@@ -298,8 +298,7 @@ public sealed interface SqlExpr
             case CheckedDefects cd -> cd.withChildList(cs);
             case CheckedChildValue cv -> new CheckedChildValue(cs.get(0), cv.toMany());
             case Quantified q -> new Quantified(cs.get(0), q.comparison(), q.quantifier(), q.subquery());
-            case CheckedOne co2 -> new CheckedOne(cs.get(0),
-                    co2.scalarCarrier(), co2.atLeastOnly());
+            case CheckedOne co2 -> co2.withList(cs.get(0));
             case CompactList ignored -> new CompactList(cs.get(0));
             case Tagged t -> {
                 java.util.List<Tagged.Candidate> candidates = new java.util.ArrayList<>();
@@ -1193,9 +1192,15 @@ public sealed interface SqlExpr
      * size N to multiplicity [1]", 1 yields the element, 0/NULL flows
      * the engine-noOp empty); the engine-TEXT channel renders the
      * INNER value verbatim (the engine's processNoOp view — the
-     * NULLS-suppression precedent). */
+     * NULLS-suppression precedent). {@code statedSize}: the list's size
+     * where its typed multiplicity states one number ({@code [2]}),
+     * read by the lowering from the frontend's annotation -- the raise's
+     * size operand, a literal its site's record carries (stage B's B1,
+     * 2026-11-20, H13 section 22); null where only the database knows
+     * it (the guard counts in every case). */
     record CheckedOne(SqlExpr list, boolean scalarCarrier,
-            boolean atLeastOnly, TypeFact type) implements SqlExpr {
+            boolean atLeastOnly, @com.legend.base.Nullable Integer statedSize,
+            TypeFact type) implements SqlExpr {
         public CheckedOne {
             // toOneMany (atLeastOnly) KEEPS the collection — the value
             // is the guarded list itself, so its fact transports; only
@@ -1207,13 +1212,23 @@ public sealed interface SqlExpr
         }
 
         public CheckedOne(SqlExpr list, boolean scalarCarrier,
+                boolean atLeastOnly, @com.legend.base.Nullable Integer statedSize) {
+            this(list, scalarCarrier, atLeastOnly, statedSize, SqlTyping.UNKNOWN);
+        }
+
+        public CheckedOne(SqlExpr list, boolean scalarCarrier,
                 boolean atLeastOnly) {
-            this(list, scalarCarrier, atLeastOnly, SqlTyping.UNKNOWN);
+            this(list, scalarCarrier, atLeastOnly, null);
         }
 
         /** The original exactly-one LIST form. */
         public CheckedOne(SqlExpr list) {
             this(list, false, false);
+        }
+
+        /** This check over {@code other}, its flags and stated size kept. */
+        public CheckedOne withList(SqlExpr other) {
+            return new CheckedOne(other, scalarCarrier, atLeastOnly, statedSize);
         }
     }
 

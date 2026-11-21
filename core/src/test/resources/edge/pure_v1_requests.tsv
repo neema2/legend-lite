@@ -12,6 +12,10 @@ raise.toOneOverMany	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(
 raise.sqrtOfNegative	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~s: r|sqrt(-2.0))->select(~[s])->from(trades::h2::RT)
 raise.parseInteger	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~p: r|'abc'->parseInteger())->select(~[p])->from(trades::h2::RT)
 raise.toOneOfEmpty	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~o: r|[]->cast(@Integer)->toOne())->select(~[o])->from(trades::h2::RT)
+# raise.datePartAbsent and compile.windowFrameInverted (stage B's B1, 2026-11-20; H13 section 17): a raise SITE with a
+# literal operand, worded after the run from its record, and a kinded compile error worded from its record
+raise.datePartAbsent	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~h: r|%2017->hour())->select(~[h])->from(trades::h2::RT)
+compile.windowFrameInverted	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->extend(over(~[region], ~year->ascending(), rows(4, 2)), ~s:{p,w,r|$r.qty}:y|$y->plus())->select(~[s])->from(trades::h2::RT)
 cell.dateTimeCoarse	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~t: r|%2024-01-02T10:30:00)->select(~[t])->from(trades::h2::RT)
 cell.dateTimeSubMicro	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~t: r|%2024-01-02T10:30:00.123456789)->select(~[t])->from(trades::h2::RT)
 cell.float	|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~f: r|1.0 / 3.0)->select(~[f])->from(trades::h2::RT)

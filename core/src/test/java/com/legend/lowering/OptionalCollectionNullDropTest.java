@@ -68,12 +68,15 @@ class OptionalCollectionNullDropTest {
         return r.value();
     }
 
-    /** {@code query}'s size error at the edge, whose sentence carries the size the database counted (the D part 1 audit's S5, 2026-11-15). */
-    private static void edgeSize(String query, int size) {
+    /** {@code query}'s size error at the edge, in its formatter's words after the run (stage B's B1, 2026-11-20): a
+     *  size only the database counted prints {@code <computed>} (D1, register S389; until B1 the edge's SQL wrote the
+     *  size the database counted, the D part 1 audit's S5, 2026-11-15). */
+    private static void edgeSize(String query) {
         var ex = assertThrows(Exception.class, () -> Lean.runInStyle(MODEL, query, "m::RT", conn,
                 com.legend.edge.PureText.UPSTREAM));
-        assertTrue(ex.getMessage().contains("Cannot cast a collection of size " + size + " to"),
-                "expected pure's size-" + size + " cast error at the edge, got: " + ex.getMessage());
+        String words = com.legend.edge.PureMessages.compile(ex);
+        assertTrue(words.contains("Cannot cast a collection of size " + com.legend.edge.PureMessages.WITHHELD + " to"),
+                "expected pure's cast error at the edge, got: " + words);
     }
 
     @Test
@@ -112,7 +115,7 @@ class OptionalCollectionNullDropTest {
                 () -> run("{| m::P.all().nick->toOne();}"));
         assertTrue(ex.getMessage().contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                 "expected pure's size-2 cast error, got: " + ex.getMessage());
-        edgeSize("{| m::P.all().nick->toOne();}", 2);
+        edgeSize("{| m::P.all().nick->toOne();}");
     }
 
     @Test
@@ -131,7 +134,7 @@ class OptionalCollectionNullDropTest {
                 () -> run("{| #>{s::DB.P}#->map(r|$r.NICK)->toOne();}"));
         assertTrue(ex.getMessage().contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                 "expected pure's size-2 cast error, got: " + ex.getMessage());
-        edgeSize("{| #>{s::DB.P}#->map(r|$r.NICK)->toOne();}", 2);
+        edgeSize("{| #>{s::DB.P}#->map(r|$r.NICK)->toOne();}");
     }
 
     @Test

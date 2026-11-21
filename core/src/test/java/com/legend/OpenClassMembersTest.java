@@ -95,16 +95,10 @@ class OpenClassMembersTest {
                     // deleted, NARROWS A HOOK THE USER RULED -- A4 of the compatibility program, stage A ratified by
                     // the user 2026-11-19; moved down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move
                     // guards down"))
-                    "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)",
-                    // K10b of the edge audit (the orchestrator's ruling (A) of 2026-11-17; host train, pinned 2026-11-18
-                    // for train 19): a fresh recorder of one body's planning call, the test door's one read of its
-                    // raise-site words, and a required side's no-rows refusal in legend-pure's words (moved here from
-                    // the style: a site's words are no member of the product's style)
-                    "public abstract com.legend.database.PlanStyle recording(com.legend.database.PlanStyle)",
-                    // (siteWords' records keyed by the step-local index, no statement text: the host train's K10 trim,
-                    // 1a96dbd2d, 2026-11-18)
-                    "public abstract java.util.Map<java.lang.String, java.util.Map<java.lang.Integer, java.lang.String>> siteWords(com.legend.database.PlanStyle)",
-                    "public abstract java.lang.String sizeWords(java.lang.String)")),
+                    "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)")),
+                    // (K10b's members: recording and siteWords, a fresh recorder of one body's planning call and the
+                    // test door's one read of its raise-site words; sizeWords, a required side's no-rows refusal in
+                    // legend-pure's words -- deleted, stage B's B1, 2026-11-20, errors as records: the run raises the refusal as its record; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             // (EngineTextPlanning's active, defer, planSide, scalarRow, both textEquals, verdictBatch and why: the
             // edge's engine-text rows under the database judge, deleted with its appeal path -- A4 of the compatibility

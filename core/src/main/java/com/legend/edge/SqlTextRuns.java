@@ -137,8 +137,9 @@ final class SqlTextRuns {
             throw e;
         } catch (RuntimeException e) {
             // the rows leg is underivable -- counted, text stays the contract (§3.7: a counted decline, visible, never
-            // silent; DataError joined RuntimeException at the seam)
-            return underivable(listener, name, e.getClass().getSimpleName(), e.getMessage(), textEqual, golden, ours);
+            // silent; DataError joined RuntimeException at the seam); in legend-pure's words, worded from the error's
+            // record (stage B's B1, 2026-11-20: a raise's message is lite's sentence)
+            return underivable(listener, name, e.getClass().getSimpleName(), PureMessages.compile(e), textEqual, golden, ours);
         }
         SqlReplayReferee.ReplayFacts facts = new SqlReplayReferee.ReplayFacts(r.extentSubset(), r.ordered(),
                 r.sortKeys());

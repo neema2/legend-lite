@@ -74,24 +74,9 @@ final class EngineTextGates {
         }
     }
 
-    /** THE STYLE OF ONE TEST BODY'S PLANNING CALL (K10b of the edge audit, 2026-11-17): where {@code style} judges
-     *  engine text (the compatibility edge's), a fresh recorder of its raise sites' words, minted by its facet; the
-     *  product's style itself, which records none (its answer, lite's form). */
-    static com.legend.database.PlanStyle planningCall(com.legend.database.PlanStyle style) {
-        return style.judgesEngineText() ? style.facet(EngineTestText.class).recording(style) : style;
-    }
+    // (planningCall and siteWords, a test body's recorder of its raise sites' words and the door's read of it:
+    // deleted 2026-11-20 with stage B's B1 -- a body is planned in its style itself)
 
-    /** The test door's one read of the raise sites' words {@code style} recorded ({@link #planningCall}'s): none where
-     *  the style judges no engine text (the product's records none). */
-    static java.util.Map<String, java.util.Map<Integer, String>> siteWords(
-            com.legend.database.PlanStyle style) {
-        return style.judgesEngineText() ? style.facet(EngineTestText.class).siteWords(style) : java.util.Map.of();
-    }
-
-    /** A required side's refusal of no rows as {@code style} words it: legend-pure's where it judges engine text (the
-     *  edge's facet), else the product's own -- its kind's sentence and the bound. */
-    static String sizeWords(com.legend.database.PlanStyle style, String multiplicity) {
-        return style.judgesEngineText() ? style.facet(EngineTestText.class).sizeWords(multiplicity)
-                : com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + multiplicity;
-    }
+    // (sizeWords, a required side's refusal of no rows in the style's words: deleted with stage B's B1, 2026-11-20, errors as records --
+    // the run raises the refusal as its record, worded by each audience after the run)
 }

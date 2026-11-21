@@ -47,13 +47,13 @@ class HookRulingTest {
             Map.entry(com.legend.testexec.EdgeRun.class, List.of(
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
-                    () -> productHearing().judged(null, List.of(), false),
+                    () -> productHearing().judged(null, List.of(), false))),
                     // (rowAppealed, the database judge's row appeal: the member deleted with its path, NARROWS A HOOK
                     // THE USER RULED -- A4 of the compatibility program, stage A ratified by the user 2026-11-19; moved
                     // down by the user's ruling of 2026-11-19 ~20:45 ("Approved to move guards down"))
-                    // K10b, 2026-11-17 (the orchestrator's ruling (A)): legend-pure's words of a planned raise site, looked
-                    // up in the plan's edge records -- the hearing's member, refused by the product's by name
-                    () -> productHearing().raisedWords("SELECT 1", 1))),
+                    // (raisedWords, legend-pure's words of a planned raise site looked up in the plan's edge records,
+                    // K10b of 2026-11-17: the member deleted 2026-11-20 with stage B's B1 -- the edge words a raise
+                    // from its site's record after the run; NARROWS A HOOK, a down move, the user's ~20:45 ruling)
             // (com.legend.testexec.PureWords, C5's step B's hook: deleted 2026-11-18, census J29 -- the host judge's
             // words are the run's HostWords, lite's form the product's and legend-pure's the edge's, never refused)
             // census C1, 2026-11-17 (the orchestrator's ruling that day: the edge hook typed, the product's refusal
@@ -62,9 +62,9 @@ class HookRulingTest {
                     () -> com.legend.testexecutionplan.NoEdge.NONE.effect(List.of(), List.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seed(List.of(), Map.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seeded(List.of(), List.of()),
-                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()),
-                    // a raise site's words, planned by the edge (K10 of the edge audit, 2026-11-18)
-                    () -> com.legend.testexecutionplan.NoEdge.NONE.siteWords(0, java.util.Map.of()))),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()))),
+                    // (siteWords, a raise site's words planned by the edge, K10 of 2026-11-18: the member deleted
+                    // 2026-11-20 with stage B's B1, NARROWS A HOOK, a down move)
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
@@ -260,7 +260,7 @@ class HookRulingTest {
         var step = new com.legend.testexecutionplan.TestPlan.Verdicts(List.of(verdict), null, null);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
-                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null,
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"),
                 com.legend.testexecutionplan.TestPlan.LITE_WORDS);
     }
 
@@ -334,23 +334,9 @@ class HookRulingTest {
                 "pure/v1 writes legend-engine's unchecked raises plain");
     }
 
-    /** THE RAISE SITES' WORDS (K10b of the edge audit, the orchestrator's ruling (A) of 2026-11-17): the product's style
-     *  answers its own form BY NAME -- an offered statement's sites say lite's message, and nothing is recorded (a call
-     *  returns, keeping nothing) -- and the edge's template records nothing either; only a fresh recorder of the edge
-     *  ({@code edge.PureText.recording}) keeps legend-pure's words, as its own data, read once and sealed. */
-    @Test
-    void theRaiseSitesWordsAreTheProductsNoneAndTheEdgesRecordersAlone() {
-        List<com.legend.sql.dialect.RaiseSite> sites = List.of(new com.legend.sql.dialect.RaiseSite(1,
-                com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, null, List.of()));
-        PlanStyle.PRODUCT.siteWords("SELECT 1", sites);
-        com.legend.edge.PureText.UPSTREAM.siteWords("SELECT 1", sites);
-        com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
-                com.legend.edge.PureText.UPSTREAM);
-        recording.siteWords("SELECT 1", sites);
-        assertEquals(java.util.Map.of(1, "Division by zero"), recording.read().get("SELECT 1"));
-        assertThrows(NotImplementedException.class, () -> com.legend.edge.PureText.recording(PlanStyle.PRODUCT),
-                "a recorder over the product's style");
-    }
+    // (theRaiseSitesWordsAreTheProductsNoneAndTheEdgesRecordersAlone, the product's and the edge's answers to
+    // PlanStyle.siteWords and the edge's recorder: deleted 2026-11-20 with the hook, stage B's B1 -- no words are
+    // recorded at planning; the edge words a raise after the run, PureMessagesWordedTest)
 
     /** PlanStyle.twoForm (the orchestrator's ruling of 2026-11-17, census B9): its kinds are a CLOSED list, pinned here
      *  as an exact set (empty until the first family adds its kind, with a dated reason); the product's style answers the

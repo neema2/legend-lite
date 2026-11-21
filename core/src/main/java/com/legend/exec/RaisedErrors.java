@@ -76,8 +76,8 @@ public final class RaisedErrors {
     /**
      * The site a raise's text names (phase D's Phase 2, raises as SITES, 2026-11-16): a text that is a site's token
      * ({@code LG#<n>}, {@link com.legend.sql.RaiseKind#token}) is site {@code n} of the statement that raised it, read
-     * from the sites its plan declares for it; null for any other text -- a user's {@code fail} message, the edge's
-     * sentence written in SQL (the interim). A token the statement does not declare is refused by name: the database
+     * from the sites its plan declares for it; null for any other text -- a user's {@code fail} message. A token the
+     * statement does not declare is refused by name: the database
      * reported what the plan did not plan.
      */
     static ExecutionPlan.@com.legend.base.Nullable Site siteOf(String text, List<ExecutionPlan.Site> sites) {
@@ -96,27 +96,18 @@ public final class RaisedErrors {
     /** A failure that IS a raise (pure's own error, its text the platform's: the sentinel envelope unwrapped), told by
      *  its type wherever a caller asks whether a failure was raised (the B checkpoint's tenets audit, LOW 4,
      *  2026-11-11: until then the seam compared a failure's message with its database's to tell). A raise of a site
-     *  carries the site's kind, where and words; its message the kind behind its mark and the where behind a second
-     *  (K10a of the edge audit, 2026-11-17: never the plan's upstream words, which are the edge's) (the text an upstream reader has read since PR1:
-     *  {@code edge.PureMessages.compile}). */
-    public static class Raised extends java.sql.SQLException {
+     *  carries the site's record (its kind, where and operands; no words: stage B's B1, 2026-11-20); its message the
+     *  kind behind its mark and the where behind a second, lite's carriage, never words. */
+    public static class Raised extends java.sql.SQLException implements ExecutionPlan.RaisedAtSite {
         private final ExecutionPlan.@com.legend.base.Nullable Site site;
-        /** The plan's text of the statement that raised it (K10b, 2026-11-17: a site is keyed by it and its number),
-         *  null where no statement is known. */
-        private final @com.legend.base.Nullable String statement;
 
+        // (its statement's text, carried beside its site for the edge's recorded words (K10b, 2026-11-17), went with
+        // the recorder: stage B's B1, 2026-11-20, the edge words a site from its record)
         Raised(String text, ExecutionPlan.@com.legend.base.Nullable Site site, @com.legend.base.Nullable String sqlState,
-                java.sql.SQLException cause, @com.legend.base.Nullable String statement) {
+                java.sql.SQLException cause) {
             super(site == null ? text : com.legend.sql.RaiseKind.MARK + site.kind().name()
                             + (site.where() == null ? "" : com.legend.sql.RaiseKind.MARK + site.where()), sqlState, cause);
             this.site = site;
-            this.statement = statement;
-        }
-
-        /** The plan's text of the statement that raised it (its {@code PlannedSql#planned}), beside its site: product
-         *  data, what a site's words are looked up by with its number; null where no statement is known. */
-        public @com.legend.base.Nullable String statement() {
-            return statement;
         }
 
         /** Where the product raise happened, a fixed text known at planning; null where none was written. */
@@ -130,6 +121,7 @@ public final class RaisedErrors {
         }
 
         /** The site the raise named, null where its text named none. */
+        @Override
         public ExecutionPlan.@com.legend.base.Nullable Site site() {
             return site;
         }
@@ -143,9 +135,8 @@ public final class RaisedErrors {
         private final int column;
 
         Positioned(String message, ExecutionPlan.@com.legend.base.Nullable Site site,
-                @com.legend.base.Nullable String sqlState, java.sql.SQLException cause, int line, int column,
-                @com.legend.base.Nullable String statement) {
-            super(message, site, sqlState, cause, statement);
+                @com.legend.base.Nullable String sqlState, java.sql.SQLException cause, int line, int column) {
+            super(message, site, sqlState, cause);
             this.line = line;
             this.column = column;
         }
@@ -165,37 +156,18 @@ public final class RaisedErrors {
      *  session is asked only then: a failure whose text carries its raise costs no read. */
     public static java.sql.SQLException unwrapped(java.sql.SQLException e, List<ExecutionPlan.Site> sites,
             java.util.function.Supplier<@com.legend.base.Nullable String> held) {
-        return unwrapped(e, sites, null, held);
-    }
-
-    /** {@link #unwrapped(java.sql.SQLException, List, java.util.function.Supplier)} of the plan's {@code statement}: its
-     *  sites, and its text carried by the raise. */
-    static java.sql.SQLException unwrapped(java.sql.SQLException e,
-            com.legend.executionplan.PlannedSql statement,
-            java.util.function.Supplier<@com.legend.base.Nullable String> held) {
-        return unwrapped(e, statement.sites(), statement.planned(), held);
-    }
-
-    private static java.sql.SQLException unwrapped(java.sql.SQLException e, List<ExecutionPlan.Site> sites,
-            @com.legend.base.Nullable String statement,
-            java.util.function.Supplier<@com.legend.base.Nullable String> held) {
-        java.sql.SQLException un = unwrapped(e, sites, statement);
+        java.sql.SQLException un = unwrapped(e, sites);
         if (un != e) {
             return un;
         }
         String text = held.get();
-        return text == null ? e : unwrapped(new java.sql.SQLException(text, e.getSQLState(), e), sites, statement);
+        return text == null ? e : unwrapped(new java.sql.SQLException(text, e.getSQLState(), e), sites);
     }
 
     /** Funnel rethrow: a raised-message SQLException re-surfaces with the clean text (state and cause preserved), a
      *  site's token read through {@code sites}, the sites the plan declares for the statement that raised it -- as
      *  {@link Positioned} when the emission carried its source span; everything else returns as-is. */
     public static java.sql.SQLException unwrapped(java.sql.SQLException e, List<ExecutionPlan.Site> sites) {
-        return unwrapped(e, sites, (String) null);
-    }
-
-    private static java.sql.SQLException unwrapped(java.sql.SQLException e, List<ExecutionPlan.Site> sites,
-            @com.legend.base.Nullable String statement) {
         String msg = e.getMessage();
         if (msg == null) {
             return e;
@@ -208,7 +180,7 @@ public final class RaisedErrors {
         String inner = msg.substring(first + 1, last).replace(QUOTE_MARK, '\'');
         int sep = inner.indexOf(POSITION_SEP);
         if (sep < 0) {
-            return new Raised(inner, siteOf(inner, sites), e.getSQLState(), e, statement);
+            return new Raised(inner, siteOf(inner, sites), e.getSQLState(), e);
         }
         String pos = inner.substring(0, sep);
         String clean = inner.substring(sep + 1);
@@ -218,12 +190,12 @@ public final class RaisedErrors {
             try {
                 return new Positioned(clean, site, e.getSQLState(), e,
                         Integer.parseInt(pos.substring(0, colon)),
-                        Integer.parseInt(pos.substring(colon + 1)), statement);
+                        Integer.parseInt(pos.substring(colon + 1)));
             } catch (NumberFormatException ignored) {
                 // a malformed prefix falls through to the plain strip
             }
         }
-        return new Raised(clean, site, e.getSQLState(), e, statement);
+        return new Raised(clean, site, e.getSQLState(), e);
     }
 
     /** A failed open's or close's error (no statement, so no site it can name) as the
@@ -237,27 +209,15 @@ public final class RaisedErrors {
      *  platform's typed error: its raise unwrapped, a site's token read through {@code sites} (the statement's), else
      *  the text (or the message). */
     public static com.legend.error.DataError dataError(String message, Throwable cause, List<ExecutionPlan.Site> sites) {
-        return dataError(message, cause, sites, null);
-    }
-
-    /** {@link #dataError(String, Throwable, List)} of the plan's {@code statement} (MongoDB's command): a site's raise
-     *  carried as its {@link Raised}, the statement's text beside its site (K10b, 2026-11-17). */
-    public static com.legend.error.DataError dataError(String message, Throwable cause,
-            com.legend.executionplan.PlannedSql statement) {
-        return dataError(message, cause, statement.sites(), statement.planned());
-    }
-
-    private static com.legend.error.DataError dataError(String message, Throwable cause,
-            List<ExecutionPlan.Site> sites, @com.legend.base.Nullable String statement) {
         String text = unwrap(message);
         ExecutionPlan.Site site = text == null ? null : siteOf(text, sites);
         if (text != null && site != null) {
-            Raised raised = new Raised(text, site, null, new java.sql.SQLException(message, cause), statement);
+            Raised raised = new Raised(text, site, null, new java.sql.SQLException(message, cause));
             return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()), site.where(),
-                    site.message(), raised);
+                    site.productSentence(), raised);
         }
         if (text != null && !text.equals(message)) {
-            // lite's envelope, no site: a user's fail, or the edge's sentence written in SQL (the interim)
+            // lite's envelope, no site: a user's fail
             return new com.legend.error.DataError(text, cause);
         }
         // no envelope: the database's own failure, its message verbatim (a document store's: no SQLSTATE)
@@ -271,10 +231,10 @@ public final class RaisedErrors {
         if (un instanceof Raised r && r.site() != null) {
             ExecutionPlan.Site site = r.site();
             return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()), site.where(),
-                    site.message(), un);
+                    site.productSentence(), un);
         }
         if (un instanceof Raised) {
-            // lite's envelope, no site: a user's fail (its own text), or the edge's sentence in SQL (the interim) --
+            // lite's envelope, no site: a user's fail (its own text) --
             // never the database's (phase D's Phase 2, item 4)
             return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
         }
@@ -307,11 +267,4 @@ public final class RaisedErrors {
         return dataErrorOf(unwrapped(e, sites, held));
     }
 
-    /** A failed statement's error, the statement the plan's ({@code statement}: its sites, and its text carried by a
-     *  site's raise beside the site, K10b of the edge audit, 2026-11-17), with the raise the session holds read back
-     *  where the error carries none. */
-    static com.legend.error.DataError dataError(java.sql.SQLException e, com.legend.executionplan.PlannedSql statement,
-            java.util.function.Supplier<@com.legend.base.Nullable String> held) {
-        return dataErrorOf(unwrapped(e, statement, held));
-    }
 }

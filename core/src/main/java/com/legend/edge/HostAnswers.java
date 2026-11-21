@@ -149,19 +149,51 @@ public final class HostAnswers {
         return PureV1Writer.ColumnType.spelled(tds, relational);
     }
 
-    /** THE EDGE'S TABLE OF LEGEND-PURE'S WORDS of the raise sites {@code statement} declares, kept beside the plan it
-     *  answers (K10b of the edge audit, 2026-11-17: the product plan's sites carry the product's message alone): each
-     *  site's {@code n} and its {@code words}, in order; none where the statement declares none or the planning call
-     *  worded none of its sites. */
-    private static List<Map<String, Object>> siteWordsOf(Map<String, Map<Integer, String>> words, String statement) {
+    /** THE EDGE'S TABLE OF LEGEND-PURE'S WORDS of the raise sites {@code statement} declares in {@code plan}, kept
+     *  beside the plan it answers (K10b of the edge audit, 2026-11-17: the product plan's sites carry no upstream words):
+     *  each site's {@code n} and its {@code words}, worded in Java from the site's record (stage B's B1, 2026-11-20:
+     *  {@link PureMessages#worded}; until then a recorder of the planning call kept them), in order; none where the
+     *  statement declares none. */
+    private static List<Map<String, Object>> siteWordsOf(com.legend.executionplan.ExecutionPlan plan,
+            String statement) {
+        List<com.legend.executionplan.ExecutionPlan.Site> sites = new java.util.ArrayList<>();
+        sitesOf(plan.root(), statement, sites);
         List<Map<String, Object>> out = new java.util.ArrayList<>();
-        words.getOrDefault(statement, Map.of()).forEach((n, w) -> {
+        for (com.legend.executionplan.ExecutionPlan.Site site : sites) {
             Map<String, Object> o = new LinkedHashMap<>();
-            o.put("n", n);
-            o.put("words", w);
+            o.put("n", site.n());
+            o.put("words", PureMessages.worded(site));
             out.add(o);
-        });
+        }
         return out;
+    }
+
+    /** The sites of the first statement of {@code node} whose text is {@code statement}, into {@code into}. */
+    private static void sitesOf(com.legend.executionplan.ExecutionPlan.Node node, String statement,
+            List<com.legend.executionplan.ExecutionPlan.Site> into) {
+        java.util.function.Consumer<com.legend.executionplan.ExecutionPlan.Sql> each = sql -> {
+            if (into.isEmpty() && sql.statement().equals(statement)) {
+                into.addAll(sql.sites());
+            }
+        };
+        switch (node) {
+            case com.legend.executionplan.ExecutionPlan.Sequence s -> s.steps().forEach(st -> sitesOf(st, statement,
+                    into));
+            case com.legend.executionplan.ExecutionPlan.TdsResult t -> each.accept(t.sql());
+            case com.legend.executionplan.ExecutionPlan.Keyed k -> {
+                each.accept(k.keys());
+                each.accept(k.body());
+            }
+            case com.legend.executionplan.ExecutionPlan.Update u -> each.accept(u.sql());
+            case com.legend.executionplan.ExecutionPlan.Check c -> each.accept(c.sql());
+            case com.legend.executionplan.ExecutionPlan.Effect e -> each.accept(e.sql());
+            case com.legend.executionplan.ExecutionPlan.Load l -> {
+                // a load's statements are no statement a host runs as its text
+            }
+            case com.legend.executionplan.ExecutionPlan.Constant c -> {
+                // rows, no statement
+            }
+        }
     }
 
     /**
@@ -180,11 +212,7 @@ public final class HostAnswers {
             com.legend.database.PlanStyle style) {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
-            // the plan made in a fresh recorder of the style, read once after it (K10b, 2026-11-17): the raise sites'
-            // words, the edge's table kept beside the plan
-            SiteWordsRecorder recording = PureText.recording(style);
-            QueryPlan plan = hosted.query().plan(hosted.runtime(), recording);
-            Map<String, Map<Integer, String>> words = recording.read();
+            QueryPlan plan = hosted.query().plan(hosted.runtime(), style);
             String refused = plan.beyondItsText();
             if (refused != null) {
                 throw new com.legend.error.NotImplementedException("a host runs a plan's statement itself, and this"
@@ -205,11 +233,11 @@ public final class HostAnswers {
             metadata.put("legend.columns", Json.toCompact(columnNames(plan)));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", plan.sql());
-            // the raises the text can send, by kind, to their sentences (PlanJson.raises; phase D's option (D), 2026-11-15)
-            out.put("raises", com.legend.executionplan.PlanJson.raises(plan.plan()));
+            // the raises the text can send, their kinds (PlanJson.raises; phase D's option (D), 2026-11-15; no words since v59)
+            out.put("raises", List.copyOf(com.legend.executionplan.PlanJson.raises(plan.plan())));
             // the raise sites its text declares (v56): a token it raises read through them (phase D's Phase 2)
             out.put("sites", com.legend.executionplan.PlanJson.sitesOf(plan.plan(), plan.sql()));
-            out.put("siteWords", siteWordsOf(words, plan.sql()));
+            out.put("siteWords", siteWordsOf(plan.plan(), plan.sql()));
             out.put("metadata", metadata);
             if (!plan.textAlone()) {
                 // what runs the text: the execution plan it renders from (B3, 2026-11-11), its target's loads
@@ -235,11 +263,8 @@ public final class HostAnswers {
             com.legend.database.PlanStyle style) {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
-            // the plan made in a fresh recorder of the style, read once after it (K10b, 2026-11-17)
-            SiteWordsRecorder recording = PureText.recording(style);
             com.legend.executionplan.ExecutionPlan plan = hosted.query().executionPlan(hosted.runtime(),
-                    java.util.Set.of(), recording);
-            Map<String, Map<Integer, String>> words = recording.read();
+                    java.util.Set.of(), style);
             if (plan.answerShape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
                 // as the server's execute refuses it (Output.Engine): a value's answer is not one the engine was
                 // measured on
@@ -272,11 +297,11 @@ public final class HostAnswers {
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", statement);
             out.put("run", statement);
-            // the raises `run` can send, by kind, to their sentences (PlanJson.raises; phase D's option (D), 2026-11-15)
-            out.put("raises", com.legend.executionplan.PlanJson.raises(plan));
+            // the raises `run` can send, their kinds (PlanJson.raises; phase D's option (D), 2026-11-15; no words since v59)
+            out.put("raises", List.copyOf(com.legend.executionplan.PlanJson.raises(plan)));
             // the raise sites `run` declares (v56): a token it raises read through them (phase D's Phase 2)
             out.put("sites", com.legend.executionplan.PlanJson.sitesOf(plan, statement));
-            out.put("siteWords", siteWordsOf(words, statement));
+            out.put("siteWords", siteWordsOf(plan, statement));
             if (!result.sql().slots().isEmpty()) {
                 // what the host binds to `run`'s `?`s: the plan, its payloads its statement's content by digest
                 out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan)));

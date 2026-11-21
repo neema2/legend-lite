@@ -183,10 +183,9 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: the query's execution target (Compiler.Target), lite's own"),
             Map.entry("com.legend.arrowipc.ZstdFrame#of([B)",
                     "2026-11-18: lite's own Arrow IPC zstd frame; its product caller lands with the host train (J36)"),
-            Map.entry("com.legend.base.DataSize$TooLarge#characters()",
-                    "2026-11-18: lite's size-limit refusal's own facts, which the edge words as upstream does"),
-            Map.entry("com.legend.base.DataSize$TooLarge#limitMegabytes()",
-                    "2026-11-18: lite's size-limit refusal's own facts, which the edge words as upstream does"),
+            // (DataSize$TooLarge#characters() and #limitMegabytes(), the size limit's refusal's facts: the product reads
+            // them since stage B's B1, 2026-11-20 -- a planned failure carries them, Failures.factOf -- so they are no
+            // longer the edge's alone; a down move)
             Map.entry("com.legend.base.RunScope#judging()",
                     "2026-11-18: the run witness's post-run judging scope (lite's G4 proof), opened by the edge's appeals"),
             Map.entry("com.legend.compiler.StoreLookups#findOwnTableDefinition(java.lang.String, java.lang.String)",
@@ -236,8 +235,20 @@ class EdgeOnlyMembersTest {
             // caller only wording each error -- legend-engine's compile route its one caller; J40.Compiler closes
             Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function)",
                     "2026-11-18: lite's compiler door over its own protocol records, the caller wording each error (the orchestrator's ruling)"),
-            Map.entry("com.legend.exec.RaisedErrors$Raised#statement()",
-                    "2026-11-18: the plan's own text of the statement that raised, a fact of the product's run (the orchestrator's ruling)"),
+            // stage B's B1 (2026-11-20, errors as records; D2, the user's pre-approval of B1's guard moves, ~17:00): a raised
+            // error's site record, read by type (the edge's WebAssembly planner holds no exec class) -- the edge words
+            // legend-pure's sentence from it after the run
+            Map.entry("com.legend.executionplan.ExecutionPlan$RaisedAtSite#site()",
+                    "2026-11-20: a raised error's site, lite's own record of the raise (stage B's B1)"),
+            // the same (B1's planning half): a planned failure's kinded part and lite's wrapper, riding the failure the
+            // run rebuilds -- the edge words legend-pure's sentence from it; and a plan's answer columns, read by the
+            // product's TestDoor until its answer's size words were deleted with B1 (the edge's routes read them)
+            Map.entry("com.legend.testexecutionplan.Failures$Planned#compile()",
+                    "2026-11-20: a planned failure's record, lite's own (stage B's B1)"),
+            Map.entry("com.legend.executionplan.ExecutionPlan#answerColumns()",
+                    "2026-11-20: a plan's own answer columns (its product reader went with B1's size words)"),
+            // (RaisedErrors$Raised#statement(), the statement's text the edge keyed its recorded words on: deleted
+            // with the recorder, stage B's B1, 2026-11-20, errors as records: the edge words a site from its record after the run; a down move, the user's standing approval and D2 of 2026-11-20 ~17:00)
             Map.entry("com.legend.plan.QueryPlan#columns()",
                     "2026-11-18: lite's query plan's own columns and shape"),
             // the class's ruling, extended 2026-11-18 on train 19's trial by the GUARD stream: the product's own plan and

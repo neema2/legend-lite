@@ -22,12 +22,9 @@ public final class Failures {
     /** {@code e}, raised while {@code where} planned, as data: its class one of the closed list (any other fails the
      *  planning here, by name -- never recorded as a stand-in class). */
     public static Failure of(RuntimeException e, String where) {
-        return of(e, where, e.getMessage());
-    }
-
-    /** {@link #of(RuntimeException, String)}, its message as {@code message} words it (a plan style's words of the
-     *  error, {@code PlanStyle.errorWords}: 2026-11-16). */
-    public static Failure of(RuntimeException e, String where, @Nullable String message) {
+        // its own message, and its kinded part as data (stage B's B1, 2026-11-20, errors as records: until then a plan style's words of
+        // the error, PlanStyle.errorWords, 2026-11-16)
+        String message = e.getMessage();
         Failure.Kind kind = e instanceof Failure.Kinded k ? k.failureKind() : Failure.Kind.named(e.getClass().getName());
         if (kind == null) {
             throw new IllegalStateException("a planning failure of a class the test plan does not name ("
@@ -43,11 +40,88 @@ public final class Failures {
         String element = e instanceof LegendCompileException c
                 && (kind == Failure.Kind.MODEL || kind == Failure.Kind.MAPPING_RESOLUTION) ? c.element() : null;
         String unjudged = e instanceof AssertFailed f ? f.unjudgedReason() : null;
-        return new Failure(kind, message, phase, element, unjudged, where);
+        return new Failure(kind, message, phase, element, unjudged, where, factOf(e, kind));
     }
 
-    /** The exception {@code f} names, its message as planned: raised at the verdict's turn. */
+    /** {@code e}'s facts for its words, read only where a failure of {@code kind} carries them: a compile error's kinded
+     *  part ({@link #compileOf}), or a data error's load file larger than its limit, in its chain; null where it holds
+     *  neither (stage B's B1, 2026-11-20, errors as records; the fixes' review: never a fact the record refuses). */
+    static Failure.@Nullable Fact factOf(Throwable e, Failure.Kind kind) {
+        if (Failure.COMPILE_FACTS.contains(kind)) {
+            return compileOf(e);
+        }
+        if (kind != Failure.Kind.DATA) {
+            return null;
+        }
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.base.DataSize.TooLarge big) {
+                return new Failure.FileTooLarge(big.path(), big.bytes(), big.characters(), big.limitMegabytes());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * {@code e}'s kinded compile error and lite's wrapper around it, as data (stage B's B1, 2026-11-20, errors as records): the first
+     * error of {@code e}'s chain that has a {@link com.legend.error.CompileKind}, reached through wrappers that state
+     * their texts ({@link LegendCompileException#wraps}) -- each wrapper's prefix before and suffix after. Null where the
+     * chain holds no kinded error, or reaches it through any other error (nothing to state: no text is searched).
+     */
+    public static Failure.@Nullable Compile compileOf(Throwable e) {
+        StringBuilder prefix = new StringBuilder();
+        String suffix = "";
+        for (Throwable t = e; t instanceof LegendCompileException c; t = t.getCause()) {
+            if (c.kind() != null) {
+                return new Failure.Compile(prefix.toString(), c.kind(), c.operands(), c.position(), suffix);
+            }
+            if (!c.wraps()) {
+                return null;
+            }
+            prefix.append(c.prefix());
+            suffix = c.suffix() + suffix;
+        }
+        return null;
+    }
+
+    /** The exception {@code f} names, its message as planned: raised at the verdict's turn, its facts
+     *  ({@link Failure#fact}) riding it as its cause -- a kinded part as {@link Planned}, a file's size as the size's
+     *  own refusal -- so an audience's words of a caught error word it from the data (stage B's B1, 2026-11-20, errors as records). */
     public static RuntimeException raised(Failure f) {
+        RuntimeException raised = rebuilt(f);
+        Throwable cause = switch (f.fact()) {
+            case null -> null;
+            case Failure.Compile c -> new Planned(c);
+            case Failure.FileTooLarge t -> com.legend.base.DataSize.refusal(t.path(), t.bytes(), t.characters(),
+                    t.limitMegabytes());
+        };
+        if (cause != null) {
+            try {
+                raised.initCause(cause);
+            } catch (IllegalStateException held) {
+                throw new IllegalStateException("a planned failure of kind " + f.kind() + " is rebuilt with a cause, so"
+                        + " its facts cannot ride it", held);
+            }
+        }
+        return raised;
+    }
+
+    /** A planned failure's kinded part and lite's wrapper ({@link Failure.Compile}), riding the exception
+     *  {@link #raised} rebuilds: its message lite's own sentence of the kinded part. */
+    public static final class Planned extends RuntimeException {
+        private final transient Failure.Compile compile;
+
+        Planned(Failure.Compile compile) {
+            super(compile.own());
+            this.compile = compile;
+        }
+
+        /** The kinded part and the wrapper, as planned. */
+        public Failure.Compile compile() {
+            return compile;
+        }
+    }
+
+    private static RuntimeException rebuilt(Failure f) {
         String m = f.message();
         return switch (f.kind()) {
             case NOT_IMPLEMENTED -> new com.legend.error.NotImplementedException(text(f));

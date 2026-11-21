@@ -28,7 +28,7 @@ from .. import _json, compiler
 from .._home import THIS_USER, locked, queries_folder
 from .._planned import from_plan
 from .._pool import _on_compiler_threads, _workers
-from .._raised import declare_sites
+from .._raised import declare_sites, engine_words
 from .._reads import run_arrow, run_rows_json
 from ..frames import redact_held
 from ._engine import engine_library
@@ -222,7 +222,13 @@ class EngineRoutes:
                 # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
                 # value this engine holds (a bearer URL: M2) -- the plan read here, then handed to its run
                 sql, params = from_plan(planned['sql']), compiler.plan_params(planned.get('plan'))
-                rows = run_arrow(connection, sql, engine.frames.held_values(), params)
+                try:
+                    rows = run_arrow(connection, sql, engine.frames.held_values(), params)
+                except duckdb.Error as failure:
+                    said = self._raised(engine, failure, planned)
+                    if said is None:
+                        raise
+                    return said
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
                       {'x-legend-response-format': 'FormatNotSet'})
@@ -243,8 +249,26 @@ class EngineRoutes:
                 declare_sites(said, 'an execute plan')
                 # the plan read here, then handed to its run, which hands its rows back as the driver read them
                 sql, params = from_plan(said['run']), compiler.plan_params(said.get('plan'))
-                rows = run_rows_json(connection, sql, engine.frames.held_values(), params)
+                try:
+                    rows = run_rows_json(connection, sql, engine.frames.held_values(), params)
+                except duckdb.Error as failure:
+                    raised = self._raised(engine, failure, said)
+                    if raised is None:
+                        raise
+                    return raised
         answer = execute_json_answer(planned.body, rows)
+        return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
+
+    @staticmethod
+    def _raised(engine: Engine, failure: BaseException, planned: dict) -> Answer | None:
+        """A raise of the statement the compiler planned, answered as legend-lite's server answers it at legend-engine's
+        door (EngineEnvelope: ``Raised:`` and legend-pure's sentence of its site, worded by the edge beside the plan,
+        ``siteWords``; stage B's B1, 2026-11-20); None for any other failure, which ``_api`` answers as before."""
+        from ..engine import Answer
+        words = engine_words(failure, planned.get('siteWords'))
+        if words is None:
+            return None
+        answer = refusal(redact_held(f'Raised: {words}', engine.frames.held_values()))
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 
     @contextlib.contextmanager

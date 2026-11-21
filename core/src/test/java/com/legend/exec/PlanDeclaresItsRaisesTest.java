@@ -46,8 +46,8 @@ class PlanDeclaresItsRaisesTest {
     void aDivisionsRaiseIsDeclaredOnEveryRelationalDatabase() {
         for (DatabaseType type : com.legend.database.Databases.relational()) {
             ExecutionPlan plan = planned(type, "|#>{s::DB.T}#->extend(~r: r|$r.ID / $r.D)->select(~r)");
-            Map<String, String> raises = PlanJson.raises(plan);
-            assertTrue(raises.containsKey(RaiseKind.DIVIDE_BY_ZERO.name()), type + ": " + raises);
+            java.util.SortedSet<String> raises = PlanJson.raises(plan);
+            assertTrue(raises.contains(RaiseKind.DIVIDE_BY_ZERO.name()), type + ": " + raises);
             // the JSON carries each statement's kinds and the plan's map, and reads back the same
             ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
             assertEquals(plan, back, type.toString());
@@ -82,7 +82,7 @@ class PlanDeclaresItsRaisesTest {
                 } catch (com.legend.sql.DialectCapability | com.legend.error.NotImplementedException refused) {
                     continue;
                 }
-                if (q.getValue().isPresent() && !PlanJson.raises(plan).containsKey(q.getValue().get().name())) {
+                if (q.getValue().isPresent() && !PlanJson.raises(plan).contains(q.getValue().get().name())) {
                     wrong.add(type + " " + q.getKey() + ": " + q.getValue().get() + " undeclared " + PlanJson.raises(plan));
                 }
                 plans.add(Map.entry(type + " " + q.getKey(), plan));
@@ -173,7 +173,8 @@ class PlanDeclaresItsRaisesTest {
     @Test
     void aPlanThatRaisesNothingDeclaresNothing() {
         for (DatabaseType type : com.legend.database.Databases.relational()) {
-            assertEquals(Map.of(), PlanJson.raises(planned(type, "|#>{s::DB.T}#->select(~[ID])")), type.toString());
+            assertEquals(java.util.Set.of(), PlanJson.raises(planned(type, "|#>{s::DB.T}#->select(~[ID])")),
+                    type.toString());
         }
     }
 }

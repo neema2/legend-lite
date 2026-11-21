@@ -167,8 +167,13 @@ public final class PlanJson {
      *  decimal's digits data, its {@code decimal: {precision, scale}} (absent for any other type: omitted when null, read back as null -- a codec form, not a format change, 2026-11-18, the orchestrator's ruling (A) after the host train's gate pass found {@code "decimal":null} on every column against lean SQL's shrink-only G3) -- a v56 plan, whose types may carry arguments, is
      *  refused by its version. 58 since 2026-11-18 (K10 of the edge audit, riding the host train after 57): a site carries no
      *  {@code upstream} -- legend-pure's words of a site are the compatibility edge's records, never the product plan's
-     *  -- a v57 plan, whose edge sites carry them, is refused by its version. */
-    public static final int VERSION = 58;
+     *  -- a v57 plan, whose edge sites carry them, is refused by its version. 59 since 2026-11-20 (stage B's B1, errors as
+     *  records: the user's rulings of ~16:40 and ~17:00, the plan carries the error's facts and no words): a site carries
+     *  its {@code operands} ({@link Operand}: one key each, a literal by its Pure kind or {@code computed}) and no
+     *  {@code message}, and the plan's {@code raises} is the sorted list of the kinds its statements can send, no
+     *  sentence -- each audience words a raise in its own code after the run (the product's sentence:
+     *  {@code ExecutionPlan.Site#sentence}); a v58 plan, which carries the product's words, is refused by its version. */
+    public static final int VERSION = 59;
 
     private PlanJson() {
     }
@@ -247,17 +252,18 @@ public final class PlanJson {
      * source: ErrorKind through the planner"): each product raise a statement of {@code plan} can send -- a text opening
      * with {@link com.legend.sql.RaiseKind#MARK} and a kind's name, as the renderer writes it
      * ({@code AnsiSqlRenderer.raiseMessage}), in a statement, a script, a load's step or its bundle, or a MongoDB
-     * pipeline's JSON (the mark escaped there) -- by the kind's name, to its sentence, the error layer's
-     * ({@link com.legend.error.ErrorKind#sentence}): derived from the statements' sites since v56 (a site's own words,
-     * upstream's in an edge plan, are the site's). A site the edge words in SQL (the interim) is no site, and has none. The hosts read it from the plan's JSON ({@code raises}); exec, which holds the plan, asks
-     * here when a statement fails (a raise the plan does not declare is refused by name).
+     * pipeline's JSON (the mark escaped there) -- by the kind's name, sorted: derived from the statements' sites since v56.
+     * No sentence since v59 (stage B's B1, 2026-11-20): the kind's words are each audience's, written after the run.
+     * The hosts read it from the plan's JSON
+     * ({@code raises}); exec, which holds the plan, asks here when a statement fails (a raise the plan does not declare
+     * is refused by name).
      */
-    public static java.util.SortedMap<String, String> raises(ExecutionPlan plan) {   // a fresh map each call
+    public static java.util.SortedSet<String> raises(ExecutionPlan plan) {   // a fresh set each call
         java.util.Set<com.legend.sql.RaiseKind> kinds = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
         raisesOf(plan.root(), kinds);
-        java.util.SortedMap<String, String> out = new java.util.TreeMap<>();
+        java.util.SortedSet<String> out = new java.util.TreeSet<>();
         for (com.legend.sql.RaiseKind kind : kinds) {
-            out.put(kind.name(), com.legend.error.ErrorKind.valueOf(kind.name()).sentence());
+            out.add(kind.name());
         }
         return out;
     }
@@ -1053,11 +1059,11 @@ public final class PlanJson {
         ExecutionPlan plan = new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
         // the raises the plan carries are its statements' (v53, phase D's option (D)): a map that says otherwise is
         // refused by name, never trusted over the statements
-        Map<String, String> carried = new java.util.TreeMap<>();
-        for (Map.Entry<String, Json.Node> e : o.getObj("raises").fields().entrySet()) {
-            carried.put(e.getKey(), ((Json.Str) e.getValue()).value());
+        java.util.SortedSet<String> carried = new java.util.TreeSet<>();
+        for (Json.Node e : o.getArr("raises").items()) {
+            carried.add(((Json.Str) e).value());
         }
-        java.util.SortedMap<String, String> stated = raises(plan);
+        java.util.SortedSet<String> stated = raises(plan);
         if (!stated.equals(carried)) {
             throw new IllegalArgumentException("a plan's raises are its statements' raises " + stated
                     + ", and this one carries " + carried);
@@ -1400,8 +1406,9 @@ public final class PlanJson {
         }
     }
 
-    /** A statement's raise sites as JSON (v57): each {@code n}, {@code kind}, its {@code where} where it has one, and its
-     *  {@code message}. */
+    /** A statement's raise sites as JSON (v59): each {@code n}, {@code kind}, its {@code where} where it has one, and its
+     *  {@code operands} where it has any, each one key ({@link Operand#key}) and its value (a Float, a Decimal, a date
+     *  and a date-time as text, so no digit is lost to a JSON number; a computed operand {@code true}). */
     private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites) {
         List<Map<String, Object>> out = new ArrayList<>(sites.size());
         for (ExecutionPlan.Site site : sites) {
@@ -1411,14 +1418,65 @@ public final class PlanJson {
             if (site.where() != null) {
                 so.put("where", site.where());
             }
-            so.put("message", site.message());
+            if (!site.operands().isEmpty()) {
+                so.put("operands", site.operands().stream().map(PlanJson::operandJson).toList());
+            }
             out.add(so);
         }
         return out;
     }
 
-    /** The raise sites {@code o} carries ({@link #sitesJson}), none where it has none; a site's product sentence that is
-     *  not its kind's (and its where) refused by name: the words are the error layer's, never trusted over it. */
+    private static Map<String, Object> operandJson(Operand o) {
+        Object value = switch (o) {
+            case Operand.Text t -> t.value();
+            case Operand.Int i -> i.value();
+            case Operand.Flt f -> Double.toString(f.value());
+            case Operand.Dec d -> d.value().toString();
+            case Operand.Bool b -> b.value();
+            case Operand.Day d -> d.iso();
+            case Operand.Instant t -> t.iso();
+            case Operand.Computed c -> true;
+        };
+        return Map.of(o.key(), value);
+    }
+
+    /** Each operand's reader by its one JSON key ({@link Operand#key}): a table, keyed by the operand's own key, so the
+     *  wire names are the record's, written once. */
+    private static final Map<String, java.util.function.Function<Json.Node, Operand>> OPERAND_READERS = operandReaders();
+
+    private static Map<String, java.util.function.Function<Json.Node, Operand>> operandReaders() {
+        Map<String, java.util.function.Function<Json.Node, Operand>> m = new LinkedHashMap<>();
+        m.put(new Operand.Text("").key(), v -> new Operand.Text(((Json.Str) v).value()));
+        m.put(new Operand.Int(0).key(), v -> new Operand.Int(((Json.Num) v).longValue()));
+        m.put(new Operand.Flt(0).key(), v -> new Operand.Flt(Double.parseDouble(((Json.Str) v).value())));
+        m.put(new Operand.Dec(java.math.BigDecimal.ZERO).key(),
+                v -> new Operand.Dec(new java.math.BigDecimal(((Json.Str) v).value())));
+        m.put(new Operand.Bool(false).key(), v -> new Operand.Bool(((Json.Bool) v).value()));
+        m.put(new Operand.Day("").key(), v -> new Operand.Day(((Json.Str) v).value()));
+        m.put(new Operand.Instant("").key(), v -> new Operand.Instant(((Json.Str) v).value()));
+        m.put(Operand.Computed.IT.key(), v -> {
+            if (!(v instanceof Json.Bool b) || !b.value()) {
+                throw new IllegalArgumentException("a computed operand's value is true: " + v);
+            }
+            return Operand.Computed.IT;
+        });
+        return java.util.Collections.unmodifiableMap(m);
+    }
+
+    private static Operand readOperand(Json.Node n) {
+        if (!(n instanceof Json.Obj o) || o.fields().size() != 1) {
+            throw new IllegalArgumentException("a raise site's operand is one key and its value: " + n);
+        }
+        Map.Entry<String, Json.Node> e = o.fields().entrySet().iterator().next();
+        java.util.function.Function<Json.Node, Operand> reader = OPERAND_READERS.get(e.getKey());
+        if (reader == null) {
+            throw new IllegalArgumentException("unknown raise site operand '" + e.getKey() + "'");
+        }
+        return reader.apply(e.getValue());
+    }
+
+    /** The raise sites {@code o} carries ({@link #sitesJson}), none where it has none; a key a site does not have (a
+     *  v58 site's {@code message}) refused by name: a site carries no words. */
     private static List<ExecutionPlan.Site> readSites(Json.Obj o) {
         Json.Node ss = o.getOr("sites", null);
         if (ss == null) {
@@ -1427,15 +1485,16 @@ public final class PlanJson {
         List<ExecutionPlan.Site> out = new ArrayList<>();
         for (Json.Node n : ((Json.Arr) ss).items()) {
             Json.Obj so = (Json.Obj) n;
-            only(so, "a raise site", "n", "kind", "where", "message");
-            ExecutionPlan.Site site = new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
-                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"));
-            String sentence = ExecutionPlan.Site.sentence(site.kind(), site.where());
-            if (!sentence.equals(site.message())) {
-                throw new IllegalArgumentException("raise site " + site.n() + " of " + site.kind() + " says '"
-                        + site.message() + "', and its kind's sentence is '" + sentence + "'");
+            only(so, "a raise site", "n", "kind", "where", "operands");
+            List<Operand> operands = new ArrayList<>();
+            Json.Node os = so.getOr("operands", null);
+            if (os != null) {
+                for (Json.Node on : ((Json.Arr) os).items()) {
+                    operands.add(readOperand(on));
+                }
             }
-            out.add(site);
+            out.add(new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
+                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), operands));
         }
         return out;
     }

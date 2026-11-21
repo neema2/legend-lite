@@ -187,7 +187,7 @@ final class TestRunTest {
 
     /** {@code steps} as a test plan judged by {@code judge}, read back from its JSON as written. */
     private static TestPlan plan(TestPlan.Judge judge, TestPlan.TestStep... steps) {
-        TestPlan plan = new TestPlan(List.of(), List.of(steps), judge, Map.of(), Map.of(), false, target, FACTS, null, TestPlan.LITE_WORDS);
+        TestPlan plan = new TestPlan(List.of(), List.of(steps), judge, Map.of(), Map.of(), false, target, FACTS, TestPlan.LITE_WORDS);
         assertEquals(plan, TestPlanJson.read(TestPlanJson.write(plan)), "the plan reads back as written");
         return plan;
     }
@@ -363,7 +363,7 @@ final class TestRunTest {
                 new TestPlan.Run(new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", target))),
                 new TestPlan.Verdicts(List.of(g.verdicts().get(0), g.verdicts().get(1), third), g.fused()),
                 new TestPlan.Run(relation("SELECT 7 AS value", List.of(col("value", "Integer", "INTEGER"))))),
-                TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target, FACTS, null, TestPlan.LITE_WORDS);
+                TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target, FACTS, TestPlan.LITE_WORDS);
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"verdicts\"") && json.contains("\"_type\":\"keyedRows\"")
@@ -437,7 +437,7 @@ final class TestRunTest {
         TestPlan plan = new TestPlan(List.of(), List.of(
                 new TestPlan.Branch(condition, List.of(oneVerdict("then@1", "SELECT 1 AS value"), inner),
                         List.of(oneVerdict("else@1", "SELECT 2 AS value")))), TestPlan.Judge.HOST, Map.of(), Map.of(),
-                false, target, FACTS, null, TestPlan.LITE_WORDS);
+                false, target, FACTS, TestPlan.LITE_WORDS);
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"branch\""), json);

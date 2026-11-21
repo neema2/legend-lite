@@ -103,10 +103,9 @@ public final class PlanRunner {
             // a user's fail, the database's own failure, or a load's refused file (J25): no raise of the plan's
             return e;
         }
-        String sentence = com.legend.executionplan.PlanJson.raises(plan).get(kind.name());
-        if (!kind.sentence().equals(sentence)) {
+        if (!com.legend.executionplan.PlanJson.raises(plan).contains(kind.name())) {
             throw new IllegalStateException("the database raised " + kind.name() + ", which this plan does not declare"
-                    + " (it declares " + com.legend.executionplan.PlanJson.raises(plan).keySet() + ")", e);
+                    + " (it declares " + com.legend.executionplan.PlanJson.raises(plan) + ")", e);
         }
         return e;
     }

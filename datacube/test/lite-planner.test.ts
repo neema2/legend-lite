@@ -16,7 +16,7 @@ import { frameKept, inRun } from '../../engine-client/src/run-frame.ts';
 
 /** A module's query/plan answer: lite's plan of one statement, `sql`, typed by `columns` (here, typing nothing). */
 function ok(sql: string, columns: readonly { name: string; type: string }[] = []): string {
-  return `OK\n${JSON.stringify({ plan: { format: 'legend-lite-plan', version: 56, parameters: [], raises: {},
+  return `OK\n${JSON.stringify({ plan: { format: 'legend-lite-plan', version: 56, parameters: [], raises: [],
     root: { _type: 'tdsResult', shape: 'RELATION', columns, sql: { statement: sql, slots: [],
       target: { database: { _type: 'platform', databaseType: 'DuckDB' } } } } } })}`;
 }

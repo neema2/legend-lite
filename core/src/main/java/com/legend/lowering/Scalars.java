@@ -1245,9 +1245,13 @@ final class Scalars {
                     PureDateLiteral.Precision prec =
                             datePrecisionOrUnknown(n.args().get(0));
                     if (prec != null && !prec.atLeast(needed)) {
-                        // the part's label and the date, the edge's sentence's operands (D1.1)
+                        // the part's label and the date, the edge's sentence's operands (D1.1): a date LITERAL its text
+                        // as written (the typed node the precision was read from, as toString's rule reads it), so
+                        // the site's record carries the literal; any other date the value lowered (stage B's B1, H13 §11)
+                        SqlExpr literal = dateLiteralText(n.args().get(0));
                         return PureSql.raise(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DATE_PART_ABSENT,
-                                List.of(new SqlExpr.StringLit(label), args.get(0))), n.pos());
+                                List.of(new SqlExpr.StringLit(label), literal != null ? literal : args.get(0))),
+                                n.pos());
                     }
                     // A PARTIAL date that HAS the component carries as its
                     // print-form string ('2015-04') — the component is a
@@ -1610,7 +1614,7 @@ final class Scalars {
                 // same message
                 SqlExpr.TaggedList mixedAt = asTaggedList(n.args().get(0), args.get(0));
                 if (mixedAt != null) {
-                    return TaggedLists.at(mixedAt, args.get(1), n.pos());
+                    return TaggedLists.at(mixedAt, args.get(1), n.args().get(0), n.pos());
                 }
                 // OUT-OF-BOUNDS raises pure's message in the database;
                 // §5: the positional read consumes the COMPACTED carrier
@@ -1623,7 +1627,7 @@ final class Scalars {
                 // the offset and the size, the edge's sentence's operands (D1.1)
                 return guarded(oob,
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.INDEX_OUT_OF_BOUNDS,
-                                List.of(args.get(1), size)),
+                                List.of(args.get(1), statedSize(n.args().get(0), size))),
                         new SqlExpr.Call(SqlFn.LIST_GET,
                                 List.of(op, plusOne(args.get(1)))),
                         n.pos());
@@ -1961,7 +1965,7 @@ final class Scalars {
                 return guarded(
                         SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
                         // the value, the edge's sentence's operand, printed there as Pure prints a Float (D1.1)
-                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(x)),
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(args.get(0))),
                         SqlExpr.Call.of(SqlFn.SQRT, args.get(0)), styled);
             });
         }
@@ -3651,6 +3655,22 @@ final class Scalars {
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)
                         && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t))
                 || (t instanceof Type.GenericType && !Type.isRelation(t));
+    }
+
+    /** A collection's size as its typed multiplicity states it, where the bounds are one number (a literal list's
+     *  {@code [2]}); {@code counted}, the database's count, otherwise. Read from the frontend's annotation (invariant 2
+     *  MAY: read type annotations), never computed here; a raise's operand only, its guard keeps the count (stage B's
+     *  B1, H13 §11: the site's record then carries the size as a literal). */
+    static SqlExpr statedSize(TypedSpec arg, SqlExpr counted) {
+        Integer k = exactSize(arg);
+        return k != null ? new SqlExpr.IntLit(k) : counted;
+    }
+
+    /** {@code arg}'s size where its typed multiplicity states one number ({@code [2]}), else null: the frontend's
+     *  annotation read, never counted ({@link #statedSize}; {@code SqlExpr.CheckedOne#statedSize}). */
+    static @com.legend.base.Nullable Integer exactSize(TypedSpec arg) {
+        return arg.info().multiplicity() instanceof Multiplicity.Bounded b && b.upper() != null
+                && b.upper().equals(b.lower()) ? b.lower() : null;
     }
 
     /** The static text of a date literal that is no DateTime (a StrictDate, a year, a month): components padded, as

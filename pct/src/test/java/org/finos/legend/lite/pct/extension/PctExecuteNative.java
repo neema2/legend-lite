@@ -182,10 +182,9 @@ public class PctExecuteNative extends NativeFunction {
             // from platform-raised text (provenance-sentinel scoped).
             // remapErrorMessage — the last adapter arm that ever touched
             // a message — is DELETED; native errors cross whole.
-            // a compile error of a kind in legend-pure's words: PCT is legend-pure's suite, read through the edge
-            // (edge.PureMessages.compile; the first stage-linux run's regression, 2026-11-16: M4's window-frame kinds
-            // crossed in lite's sentence)
-            throw new PureExecutionException(src, com.legend.edge.PureMessages.compile(e), e);
+            // the error in the lane's audience's words, every error alike (PctPlanRoute.Audience#words: legend-pure's
+            // for legend-pure's suite, read through the edge; lite's own under lite's rules; 2026-11-21, PR #130)
+            throw new PureExecutionException(src, PctPlanRoute.Audience.current().words(e), e);
         }
     }
 }

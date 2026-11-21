@@ -90,16 +90,6 @@ class EdgeSpellingHookTest {
         }
 
         @Override
-        public String errorWords(RuntimeException e) {
-            return e.getMessage();
-        }
-
-        @Override
-        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
-            PlanStyle.PRODUCT.siteWords(text, sites);
-        }
-
-        @Override
         public boolean judgesEngineText() {
             return PlanStyle.PRODUCT.judgesEngineText();
         }

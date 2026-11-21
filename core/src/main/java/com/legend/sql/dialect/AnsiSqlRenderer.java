@@ -821,10 +821,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
                 co.list());
         // placed by the bound, a fixed text known at planning (2026-11-15, the orchestrator under the user's ruling of
-        // 2026-11-10); the edge's operands, the bound and the size, as before
+        // 2026-11-10); its operands the bound and the size: the size the typed multiplicity states where it states one
+        // (a literal the site's record carries: stage B's B1, 2026-11-20), else the database's count; the guard
+        // counts in every case
         SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new SqlExpr.StringLit(bound),
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null, bound));
+                        co.statedSize() != null ? new SqlExpr.IntLit(co.statedSize())
+                                : SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0))), null,
+                bound));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
             return writer.expr(new SqlExpr.Case(
@@ -1220,10 +1224,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * it happened ... never the value"; phase D's Phase 2, raises as SITES, 2026-11-16): the bare token of the raise's
      * site ({@link #site}), its kind, its where and its operands the statement's site table's, never its text -- no
      * value cast to text, no concatenation, no parameter bound for one -- except {@link com.legend.sql.RaiseKind#USER_FAIL}'s,
-     * the user's own message. exec reads the token back through the plan's table ({@code exec.RaisedErrors}). The
-     * compatibility edge's dialects override this alone: a site whose upstream sentence they can word at planning
-     * keeps its token, worded upstream's way in the table; any other writes legend-pure's sentence in SQL, the interim
-     * ({@code edge.PureMessages}).
+     * the user's own message. exec reads the token back through the plan's table ({@code exec.RaisedErrors}). Every
+     * dialect, the compatibility edge's too, writes the site's token (stage B's B1, 2026-11-20); the edge overrides
+     * this only for a checked graph's defect cell, an answer's text ({@code edge.PureMessages#defectCell}).
      */
     @SpellingArm
     protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
@@ -1234,8 +1237,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
      * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
      * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
-     * with its kind, its where and its operands (no words: the plan's style is offered the statement's sites where the
-     * planner makes it, {@code database.PlanStyle#siteWords}; K10b, 2026-11-17). A raise written outside a statement's
+     * with its kind, its where and its operands (no words: each audience words a site after the run from its record;
+     * stage B's B1, 2026-11-20). A raise written outside a statement's
      * render has no table to declare it, refused by name.
      */
     protected final SqlExpr site(SqlExpr.RaiseText r) {

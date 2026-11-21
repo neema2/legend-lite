@@ -32,8 +32,8 @@ final class BodyRun {
 
     /** THE MESSAGE an assertError matches a caught error by (K10b of the edge audit, the orchestrator's ruling (A) of
      *  2026-11-17): under lite's own rules its own message; under the compatibility rules (the run hook's words), a raise of a
-     *  planned site is legend-pure's words of that site, looked up in the plan's records by the raising statement's text
-     *  and the site's number ({@link EdgeHearing#raisedWords}); any other error its own message. */
+     *  planned site is legend-pure's words of that site, worded from its record after the run (stage B's B1,
+     *  2026-11-20); any other error its own message. */
     String caughtMessage(RuntimeException e) {
         // whose words: the run hook's (census J29, 2026-11-18), never a branch of the judge's
         return hearing.hostForms().words().caught(e, hearing);

@@ -128,9 +128,8 @@ final class FoldToListReduce extends SqlRewriter {
             // class as SqlRewriter's CheckedOne arm, fixed b0a163af):
             // an elem ref under a value-lane toOne guard inside a fold
             // body must unwrap like any other ref.
-            case SqlExpr.CheckedOne co -> new SqlExpr.CheckedOne(
-                    unwrapElemRefs(co.list(), elem),
-                    co.scalarCarrier(), co.atLeastOnly());
+            case SqlExpr.CheckedOne co -> co.withList(
+                    unwrapElemRefs(co.list(), elem));
             case SqlExpr.CompactList cl -> new SqlExpr.CompactList(
                     unwrapElemRefs(cl.list(), elem));
             case SqlExpr.Tagged tg -> tg.withChildren(

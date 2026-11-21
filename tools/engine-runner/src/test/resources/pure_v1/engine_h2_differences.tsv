@@ -6,6 +6,8 @@ raise.toOneOverMany	differs	-$.errorType, $.message, +$.trace
 raise.sqrtOfNegative	same	
 raise.parseInteger	differs	$.message, +$.trace
 raise.toOneOfEmpty	differs	$.builder.columns[0].relationalType
+raise.datePartAbsent	differs	$.message, +$.trace
+compile.windowFrameInverted	differs	-$.errorType, $.message, +$.trace
 cell.dateTimeCoarse	same	
 cell.dateTimeSubMicro	same	
 cell.float	differs	$.result.rows[0].values[0]
@@ -24,6 +26,8 @@ plan.raise.sqrtOfNegative	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
 plan.raise.parseInteger	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
 activities.raise.toOneOfEmpty	differs	$[0].sql
 plan.raise.toOneOfEmpty	differs	$.rootExecutionNode.executionNodes[0].sqlQuery, $.rootExecutionNode.resultType.tdsColumns[0].relationalType
+plan.raise.datePartAbsent	differs	status 200/500, -$._type, -$.authDependent, -$.rootExecutionNode, -$.serializer, -$.templateFunctions, +$.code, +$.message, +$.status, +$.trace
+plan.compile.windowFrameInverted	differs	-$.errorType, $.message, +$.trace
 activities.cell.dateTimeCoarse	differs	$[0].sql
 plan.cell.dateTimeCoarse	differs	$.rootExecutionNode.executionNodes[0].sqlQuery
 activities.cell.dateTimeSubMicro	differs	$[0].sql

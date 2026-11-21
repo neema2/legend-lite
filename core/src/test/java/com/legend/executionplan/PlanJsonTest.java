@@ -135,6 +135,25 @@ class PlanJsonTest {
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
 
+    /** A raise site's every operand kind reads back as written (stage B's B1, 2026-11-20): a literal by its Pure kind,
+     *  a Float and a Decimal as text (never a JSON number), and a computed one as its position alone. */
+    @Test
+    void aSitesOperandsOfEveryKindReadBack() {
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
+                List.of(), List.of(), null, null, null);
+        List<Operand> every = List.of(new Operand.Text("label"), new Operand.Int(-7), new Operand.Flt(0.1 + 0.2),
+                new Operand.Dec(new java.math.BigDecimal("12.3400")), new Operand.Bool(true), new Operand.Day("2016-12-32"),
+                new Operand.Instant("2017-01-01T10:30:00+0000"), Operand.Computed.IT);
+        Sql sql = new Sql("select 1", List.of(), t, null).raising(List.of(
+                new ExecutionPlan.Site(1, com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, "rem", every),
+                new ExecutionPlan.Site(2, com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, null, List.of())));
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.VALUE,
+                List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), sql));
+        assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+        assertTrue(PlanJson.write(plan).contains("{\"float\":\"0.30000000000000004\"}"), PlanJson.write(plan));
+        assertTrue(PlanJson.write(plan).contains("{\"decimal\":\"12.3400\"}"), PlanJson.write(plan));
+    }
+
     /** The settings a target's database must have (the C checkpoint's SHOULD-FIX 3, 2026-11-12: H2's MODE and null
      *  ordering, the database's, whose SET would commit a caller's transaction) are the plan's data: each a name and a
      *  value, with the statement that reads them back; written only where a target declares them. */
@@ -216,23 +235,24 @@ class PlanJsonTest {
         // every cast's and case's reason; 54 since 2026-11-15: a plan's raises, each kind its statements can send to its
         // sentence (phase D's option (D), its number after E's); 55 since 2026-11-16: each statement's raises (S1); 56 since 2026-11-16: each statement's raise
         // sites, a raise a bare token (phase D's Phase 2); 57 since 2026-11-17: a decimal column's digits (the host train); 58 since 2026-11-18: a site carries no upstream
-        // words (K10)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":58,"), json);
+        // words (K10); 59 since 2026-11-20: a site carries its operands and no words, the plan's raises its kinds (B1)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":59,"), json);
     }
 
     /** A v55 plan (each statement's raises a kind's name in its text) is refused by its version, never read as a v56
      *  one whose statements declare no site (the P2 checkpoint audit's S1, 2026-11-16; phase D's Phase 2, the same
-     *  day); a v56 plan (an edge site's upstream words in it) likewise, never read as a v58 one (K10, 2026-11-18). */
+     *  day); a v56 plan (an edge site's upstream words in it) likewise, never read as a v58 one (K10, 2026-11-18); a v58
+     *  plan (each site's product words in it) likewise, never read as a v59 one (stage B's B1, 2026-11-20). */
     @Test
     void aV55PlanIsRefusedByItsVersion() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        for (int old : List.of(55, 56, 57)) {
-            String older = json.replace("\"version\":58,", "\"version\":" + old + ",");
+        for (int old : List.of(55, 56, 57, 58)) {
+            String older = json.replace("\"version\":59,", "\"version\":" + old + ",");
             assertTrue(!older.equals(json), json);
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(older));
-            assertTrue(refused.getMessage().contains("not a legend-lite-plan v58 plan (format legend-lite-plan, version "
+            assertTrue(refused.getMessage().contains("not a legend-lite-plan v59 plan (format legend-lite-plan, version "
                     + old + ")"), refused.getMessage());
         }
     }
@@ -254,7 +274,7 @@ class PlanJsonTest {
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v58 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v59 plan"), refused.getMessage());
     }
 
     /**

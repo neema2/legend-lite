@@ -109,21 +109,21 @@ meta::pure::functions::collection::tests::zip::testZipSecondListEmpty	PASS
 meta::pure::functions::collection::tests::zip::testZipSecondListLonger	PASS	
 meta::pure::functions::collection::tests::zip::testZipSecondListsIsOfPairs	PASS	
 meta::pure::functions::date::tests::testAdjustByDays	PASS	
-meta::pure::functions::date::tests::testAdjustByDaysBigNumber	ERROR	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+meta::pure::functions::date::tests::testAdjustByDaysBigNumber	ERROR	DataError: a date past the years 0000-9999 has no SQLite value
 meta::pure::functions::date::tests::testAdjustByHours	PASS	
-meta::pure::functions::date::tests::testAdjustByHoursBigNumber	ERROR	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+meta::pure::functions::date::tests::testAdjustByHoursBigNumber	ERROR	DataError: a date past the years 0000-9999 has no SQLite value
 meta::pure::functions::date::tests::testAdjustByMicroseconds	PASS	
 meta::pure::functions::date::tests::testAdjustByMicrosecondsBigNumber	PASS	
 meta::pure::functions::date::tests::testAdjustByMilliseconds	PASS	
 meta::pure::functions::date::tests::testAdjustByMillisecondsBigNumber	PASS	
 meta::pure::functions::date::tests::testAdjustByMinutes	PASS	
-meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	ERROR	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	ERROR	DataError: a date past the years 0000-9999 has no SQLite value
 meta::pure::functions::date::tests::testAdjustByMonths	PASS	
-meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	ERROR	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	ERROR	DataError: a date past the years 0000-9999 has no SQLite value
 meta::pure::functions::date::tests::testAdjustBySeconds	PASS	
 meta::pure::functions::date::tests::testAdjustBySecondsBigNumber	PASS	
 meta::pure::functions::date::tests::testAdjustByWeeks	PASS	
-meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	ERROR	DataError: the value is outside the range this database can hold: a date past the years 0000-9999 has no SQLite value
+meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	ERROR	DataError: a date past the years 0000-9999 has no SQLite value
 meta::pure::functions::date::tests::testAdjustByYears	PASS	
 meta::pure::functions::date::tests::testDateDiffDays	PASS	
 meta::pure::functions::date::tests::testDateDiffHours	PASS	

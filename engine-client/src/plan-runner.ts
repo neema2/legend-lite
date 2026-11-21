@@ -298,7 +298,9 @@ interface Sql {
 // decimal's digits are data (its column's decimal: {precision, scale})
 // 58 since 2026-11-18 (K10 of the edge audit, with H9): a site carries no upstream words -- legend-pure's words are the
 // compatibility edge's records, never the product plan's
-const PLAN_VERSION = 58;
+// 59 since 2026-11-20 (stage B's B1, errors as records): a site carries its `operands` and no `message`, and the
+// plan's `raises` is the list of the kinds its statements can send -- the tab words a raise itself (raised.ts)
+const PLAN_VERSION = 59;
 // the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
 // declaration above stays one line, as PlanVersionsAgreeTest reads it
 export { PLAN_VERSION };

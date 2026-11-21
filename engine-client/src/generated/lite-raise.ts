@@ -14,3 +14,38 @@ export const RAISE = {
   QUOTE_MARK: '\u001d',
   TOKEN: '\u001cLG#',
 } as const;
+
+/**
+ * LITE'S SENTENCE OF EACH RAISE KIND (stage B's B1, 2026-11-20: the plan carries a site's facts and no words):
+ * error.ErrorKind's, by the kind's name. A site says its kind's sentence, then ': ' and its where where it
+ * has one, as exec.RaisedErrors words it (ExecutionPlan.Site#sentence).
+ */
+export const RAISE_SENTENCES: Readonly<Record<string, string>> = {
+  DIVIDE_BY_ZERO: 'division by zero',
+  SHIFT_OUT_OF_RANGE: 'bit shift outside 0..62',
+  DATE_PART_ABSENT: 'the date has no such part: it is coarser',
+  INDEX_OUT_OF_BOUNDS: 'index out of bounds',
+  INSERT_OUT_OF_BOUNDS: 'insert position out of bounds',
+  SQRT_OF_NEGATIVE: 'square root of a negative number',
+  SIZE_NOT_MULTIPLICITY: 'collection size does not match the multiplicity',
+  SLICE_BOUNDS_INVERTED: 'slice start is after its end',
+  DATE_COMPONENT_INVALID: 'invalid date component',
+  CAST_IMPOSSIBLE: 'the value cannot be cast to the requested type',
+  INSTANCE_NOT_OF: 'the value is not an instance of the requested type',
+  MATCH_FAILURE: 'no match arm accepts the value',
+  RANGE_STEP_ZERO: 'range step is zero',
+  CONSTRAINT_UNEVALUABLE: 'constraint not evaluable: data not available',
+  LIST_LENGTHS_DIFFER: 'the two lists differ in length',
+  MAP_KEYS_MISALIGNED: 'map keys do not align with values',
+  MAP_KEY_NULL: 'map key is null',
+  MAP_KEYS_NOT_UNIQUE: 'map keys are not unique',
+  TEXT_NOT_INTEGER: 'text is not an integer',
+  TEXT_NOT_FLOAT: 'text is not a float',
+  TEXT_NOT_DATE: 'text is not a date',
+  VALUE_NOT_HELD: 'the value is outside the range this database can hold',
+  FRACTION_NOT_KEPT: 'more fraction digits than this database keeps',
+  CSV_TOO_WIDE: 'CSV record wider than its table',
+  WINDOW_FRAME_INVERTED: 'window frame starts after it ends',
+  WINDOW_FRAME_OFFSET_INVALID: 'window frame offset is negative or empty',
+  SUBSTRING_OUT_OF_RANGE: 'substring range is out of the text\'s bounds',
+};

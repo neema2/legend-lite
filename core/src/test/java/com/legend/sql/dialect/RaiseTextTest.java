@@ -55,8 +55,18 @@ class RaiseTextTest {
                     List.of(OPERAND, new SqlExpr.StringLit("by")))));
             String without = text(Databases.dialect(type), select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO,
                     List.of())));
-            assertEquals(without, with, type.name());
-            assertFalse(with.contains("operand_col"), type + ": " + with);
+            if (type == DatabaseType.ClickHouse) {
+                // ClickHouse reads a computed value of the raise, kept empty and never NULL, so the server holds the
+                // raise back where its guard is false (PR #130, 2026-11-21: a raise reading no column was evaluated on
+                // every row after an ARRAY JOIN) -- the value is read, never in the raise's text
+                String read = ", substring(coalesce(toString(";
+                assertTrue(with.contains(read) && with.contains("operand_col"), with);
+                assertEquals(without, with.replaceAll(java.util.regex.Pattern.quote(read) + ".*?operand_col.*?\\), ''\\), 1,"
+                        + " 0\\)", ""), type.name());
+            } else {
+                assertEquals(without, with, type.name());
+                assertFalse(with.contains("operand_col"), type + ": " + with);
+            }
             if (!with.startsWith("refused: ")) {
                 // the site's bare token alone (phase D's Phase 2, raises as SITES, 2026-11-16): no kind's name
                 assertTrue(with.contains("LG#1"), type + ": " + with);
@@ -84,16 +94,24 @@ class RaiseTextTest {
                 .map(java.lang.reflect.RecordComponent::getName).toList());
     }
 
-    /** The edge writes TODAY's message of each moved family, byte for byte, on every database: its SQL is what the
-     *  product wrote before the move (PCT's assertErrors compare legend-pure's text). */
+    /** The edge words legend-pure's sentence of each site after the run, from its record, on every database: its SQL
+     *  is the product's (stage B's B1, 2026-11-20: until then the edge's SQL wrote the sentence where an operand was
+     *  computed, byte for byte what the product wrote before the move -- PCT's assertErrors compare legend-pure's
+     *  text). */
     @Test
     void theEdgeWritesLegendPuresSentence() {
         SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT, SqlExpr.Reason.USER);
-        SqlExpr before = SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(
-                "Cannot divide "), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)), new SqlExpr.StringLit(" by zero"));
         for (DatabaseType type : Databases.implemented()) {
-            assertEquals(text(Databases.dialect(type), select(before)), text(com.legend.edge.PureText.dialect(type),
-                    select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(a)))), type + ": rem's");
+            // rem's, its dividend computed: the product's token in SQL, the dividend <computed> in the words (D1,
+            // register S389)
+            SqlExpr rem = new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(a));
+            assertEquals(text(Databases.dialect(type), select(rem)), text(com.legend.edge.PureText.dialect(type),
+                    select(rem)), type + ": rem's");
+            String remWords = upstream(com.legend.edge.PureText.dialect(type), select(rem));
+            if (remWords != null) {
+                assertEquals("Cannot divide " + com.legend.edge.PureMessages.WITHHELD + " by zero", remWords,
+                        type + ": rem's site");
+            }
             // a site of literal operands: the product's token in SQL, upstream's sentence planned in its site (phase D's
             // Phase 2, 2026-11-16)
             SqlExpr bare = new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of());
@@ -106,8 +124,8 @@ class RaiseTextTest {
         }
     }
 
-    /** The upstream words of {@code q}'s one raise site, as {@code dialect} writes the statement and the edge's recorder
-     *  words its site (K10b, 2026-11-17: the words are the edge's records, offered the statement's sites); null where
+    /** legend-pure's words of {@code q}'s one raise site, as {@code dialect} writes the statement and the edge words
+     *  its site after the run, from its record (stage B's B1, 2026-11-20: {@code edge.PureMessages#worded}); null where
      *  the dialect refuses the statement. */
     private static @com.legend.base.Nullable String upstream(SqlDialect dialect, SqlSelect q) {
         RenderedStatement statement;
@@ -117,12 +135,9 @@ class RaiseTextTest {
             return null;
         }
         assertEquals(1, statement.sites().size(), dialect.getClass().getSimpleName() + ": " + statement.sites());
-        com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
-                com.legend.edge.PureText.UPSTREAM);
-        recording.siteWords(statement.sql(), statement.sites());
-        java.util.Map<Integer, String> words = recording.read().get(statement.sql());
-        assertEquals(1, words.size(), dialect.getClass().getSimpleName() + ": " + words);
-        return words.values().iterator().next();
+        RaiseSite site = statement.sites().get(0);
+        return com.legend.edge.PureMessages.worded(site.kind(),
+                site.operands().stream().map(com.legend.executionplan.Operand::of).toList());
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
@@ -206,21 +221,25 @@ class RaiseTextTest {
         for (DatabaseType type : Databases.implemented()) {
             for (var e : moved.entrySet()) {
                 SqlExpr.RaiseText r = (SqlExpr.RaiseText) e.getKey();
-                if (com.legend.edge.PureMessages.wordable(r)) {
-                    // a site of literal operands (phase D's Phase 2, 2026-11-16): the product's token in SQL, and
-                    // upstream's sentence, byte for byte the one the SQL wrote, planned in the site
-                    assertEquals(text(Databases.dialect(type), select(r)), text(com.legend.edge.PureText.dialect(type),
-                            select(r)), type + ": " + r);
-                    String upstream = upstream(com.legend.edge.PureText.dialect(type), select(r));
-                    if (upstream != null) {
-                        assertEquals(((SqlExpr.StringLit) e.getValue()).value(), upstream, type + ": " + r);
-                    }
+                // every raise is the product's site on every door (stage B's B1, 2026-11-20): the edge's SQL the
+                // product's token, and legend-pure's sentence worded after the run from the site's record -- byte for
+                // byte the one the SQL wrote until then where its operands are literals, a computed one printed
+                // <computed> (register S389)
+                assertEquals(text(Databases.dialect(type), select(r)), text(com.legend.edge.PureText.dialect(type),
+                        select(r)), type + ": " + r);
+                if (r.kind() == RaiseKind.USER_FAIL) {
+                    continue;   // a user's fail is its own message, no site (aUsersFailMessageIsWritten)
+                }
+                String upstream = upstream(com.legend.edge.PureText.dialect(type), select(r));
+                if (upstream == null) {
                     continue;
                 }
-                // the interim (a computed operand): both through the edge, a raise nested in the old message's own SQL
-                // (SQLite's Float print) is the edge's sentence on both sides
-                assertEquals(text(com.legend.edge.PureText.dialect(type), select(e.getValue())),
-                        text(com.legend.edge.PureText.dialect(type), select(r)), type + ": " + r);
+                if (e.getValue() instanceof SqlExpr.StringLit sentence) {
+                    assertEquals(sentence.value(), upstream, type + ": " + r);
+                } else {
+                    assertTrue(upstream.contains(com.legend.edge.PureMessages.WITHHELD), type + ": " + r + " -> "
+                            + upstream);
+                }
             }
         }
     }

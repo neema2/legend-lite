@@ -158,6 +158,26 @@ final class HostJson {
         o.put("element", x.element() == null ? null : x.element());
         o.put("unjudgedReason", x.unjudgedReason() == null ? null : x.unjudgedReason());
         o.put("where", x.where());
+        // the facts an audience words the failure from (stage B's B1, 2026-11-20, errors as records): one key, its variant's
+        Map<String, Object> k = new LinkedHashMap<>();
+        switch (x.fact()) {
+            case null -> o.put("fact", null);
+            case Failure.Compile c -> {
+                k.put("prefix", c.prefix());
+                k.put("kind", c.kind().name());
+                k.put("operands", c.operands());
+                k.put("position", c.position());
+                k.put("suffix", c.suffix());
+                o.put("fact", Map.of("compile", k));
+            }
+            case Failure.FileTooLarge t -> {
+                k.put("path", t.path());
+                k.put("bytes", t.bytes());
+                k.put("characters", t.characters());
+                k.put("limitMegabytes", t.limitMegabytes());
+                o.put("fact", Map.of("fileTooLarge", k));
+            }
+        }
         return o;
     }
 
@@ -168,7 +188,27 @@ final class HostJson {
         @Nullable String v_element = absent(o, "element", "Failure") ? null : str(o.get("element"));
         @Nullable String v_unjudgedReason = absent(o, "unjudgedReason", "Failure") ? null : str(o.get("unjudgedReason"));
         String v_where = str(field(o, "where", "Failure"));
-        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where);
+        return new Failure(v_kind, v_message, v_phase, v_element, v_unjudgedReason, v_where,
+                absent(o, "fact", "Failure") ? null : rFact(obj(o.get("fact"))));
+    }
+
+    private static Failure.Fact rFact(Json.Obj o) {
+        if (o.getOr("compile", null) instanceof Json.Obj c) {
+            List<String> operands = new ArrayList<>();
+            for (Json.Node n : ((Json.Arr) field(c, "operands", "Failure.Compile")).items()) {
+                operands.add(str(n));
+            }
+            return new Failure.Compile(str(field(c, "prefix", "Failure.Compile")),
+                    com.legend.error.CompileKind.valueOf(str(field(c, "kind", "Failure.Compile"))), operands,
+                    absent(c, "position", "Failure.Compile") ? null : str(c.get("position")),
+                    str(field(c, "suffix", "Failure.Compile")));
+        }
+        if (o.getOr("fileTooLarge", null) instanceof Json.Obj t) {
+            return new Failure.FileTooLarge(str(field(t, "path", "Failure.FileTooLarge")),
+                    num(field(t, "bytes", "Failure.FileTooLarge")), num(field(t, "characters", "Failure.FileTooLarge")),
+                    Math.toIntExact(num(field(t, "limitMegabytes", "Failure.FileTooLarge"))));
+        }
+        throw new IllegalArgumentException("a failure's fact is compile or fileTooLarge: " + o);
     }
 
     static Map<String, Object> wSideShape(SideShape x) {
@@ -184,7 +224,6 @@ final class HostJson {
         o.put("tdsNullRoot", x.tdsNullRoot());
         o.put("nullableRoot", x.nullableRoot());
         o.put("listCarrier", x.listCarrier());
-        o.put("sizeWords", x.sizeWords() == null ? null : x.sizeWords());
         return o;
     }
 
@@ -200,8 +239,7 @@ final class HostJson {
         boolean v_tdsNullRoot = bool(field(o, "tdsNullRoot", "SideShape"));
         boolean v_nullableRoot = bool(field(o, "nullableRoot", "SideShape"));
         boolean v_listCarrier = bool(field(o, "listCarrier", "SideShape"));
-        @Nullable String v_sizeWords = absent(o, "sizeWords", "SideShape") ? null : str(o.get("sizeWords"));
-        return new SideShape(v_kind, v_typeName, v_columns, v_templates, v_oneCarrier, v_scalar, v_lower, v_multiplicity, v_tdsNullRoot, v_nullableRoot, v_listCarrier, v_sizeWords);
+        return new SideShape(v_kind, v_typeName, v_columns, v_templates, v_oneCarrier, v_scalar, v_lower, v_multiplicity, v_tdsNullRoot, v_nullableRoot, v_listCarrier);
     }
 
     static Map<String, Object> wSideShapeColumn(SideShape.Column x) {

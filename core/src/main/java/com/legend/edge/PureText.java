@@ -46,14 +46,8 @@ public final class PureText {
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}): a plan in legend-pure's words,
-     *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). A planning
-     *  call's recorder of the sites' words ({@link #recording}, K10b) is its template's style: a test body under the
-     *  edge's style is planned in one (train 19, 2026-11-18: the identity test alone numbered no appeal for it, and
-     *  the edge's hook then heard number 0). */
+     *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
     public static boolean isEdgeStyle(PlanStyle style) {
-        if (style instanceof SiteWordsRecorder r) {
-            return isEdgeStyle(r.template());
-        }
         return style == UPSTREAM || style == PURE_V1;
     }
 
@@ -66,21 +60,6 @@ public final class PureText {
 
 
         /** The closed list's kinds ({@code testplan.PlanStyleFacets.KINDS}), each the edge's own; any other by name. */
-        @Override
-        public String errorWords(RuntimeException e) {
-            return PureMessages.compile(e);
-        }
-
-        /** The TEMPLATE records nothing (K10b, 2026-11-17): a plan made in it directly is one no edge door reads
-         *  back -- a query's, whose run says each site's product message (K10a) -- so no words are kept for it. A door
-         *  that answers legend-pure's words of its sites plans in a fresh recorder of this style instead
-         *  ({@link #recording}), and reads it once. */
-        @Override
-        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
-            java.util.Objects.requireNonNull(text, "the offered statement's text");
-            java.util.Objects.requireNonNull(sites, "the offered statement's raise sites");
-        }
-
         @Override
         public boolean judgesEngineText() {
             return true;
@@ -237,17 +216,6 @@ public final class PureText {
         }
 
         @Override
-        public @com.legend.base.Nullable String errorWords(RuntimeException e) {
-            return UPSTREAM.errorWords(e);
-        }
-
-        /** UPSTREAM's template answer: nothing recorded ({@link #recording} makes the recorder a door reads). */
-        @Override
-        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
-            UPSTREAM.siteWords(text, sites);
-        }
-
-        @Override
         public <F> F facet(Class<F> kind) {
             return UPSTREAM.facet(kind);
         }
@@ -269,19 +237,9 @@ public final class PureText {
         }
     };
 
-    /** A FRESH RECORDER of legend-pure's words of the raise sites of one planning call (K10b of the edge audit, the
-     *  orchestrator's ruling (A) of 2026-11-17): {@code template} ({@link #UPSTREAM} or {@link #PURE_V1}) in every
-     *  answer, but each statement the planner offers recorded with its sites' words ({@link SiteWordsRecorder}). Minted
-     *  per planning call by the door that reads it -- never held in a static, a long-lived field or a cache -- and read
-     *  by that door exactly once, after which it is sealed. Any other template refused by name. */
-    public static SiteWordsRecorder recording(PlanStyle template) {
-        if (template != UPSTREAM && template != PURE_V1) {
-            throw new com.legend.error.NotImplementedException("a recorder of raise sites' words over the plan style "
-                    + template.getClass().getName() + ": the compatibility edge records over its own templates alone"
-                    + " (PureText.UPSTREAM, PureText.PURE_V1), never over a recorder or the product's style");
-        }
-        return new SiteWordsRecorder(template);
-    }
+    // (recording, a fresh recorder of legend-pure's words of one planning call's raise sites (K10b): deleted
+    // 2026-11-20 with stage B's B1 -- legend-pure's words are worded after the run from a site's record,
+    // PureMessages#worded)
 
     /** The edge's dialect of {@code type}; a database the product has no dialect for refused by name, as the
      *  product's own source refuses it. */
@@ -344,13 +302,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -382,13 +339,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x, PurePrintForms.FloatLiteral.PRINT_AS_FLOAT), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -428,13 +384,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -460,13 +415,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -485,13 +439,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -510,13 +463,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -543,13 +495,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -568,13 +519,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -593,13 +543,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -625,13 +574,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -650,13 +598,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 
@@ -681,13 +628,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
-         *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
-         *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
+        /** A raise is the product's site, on every door (stage B's B1, 2026-11-20: legend-pure's sentence is worded
+         *  after the run from the site's record, {@link PureMessages#worded}); a checked graph's defect cell is
+         *  legend-engine's text ({@link PureMessages#defectCell}, B2's). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r)
-                    : PureMessages.sentence(r);
+            return r.asData() != null ? PureMessages.defectCell(r) : site(r);
         }
     }
 }

@@ -22,7 +22,7 @@ public final class EdgeCodec implements ExtensionCodec {
     private static final String TAG = "_type";
 
     /** The tags of the edge's records, one spelling for the writer and the reader. */
-    private enum Tag { effectTexts, refereeLoad, appeal, engineText, siteWords }
+    private enum Tag { effectTexts, refereeLoad, appeal, engineText }
 
     @Override
     public @Nullable Map<String, Object> write(Extension e) {
@@ -58,14 +58,6 @@ public final class EdgeCodec implements ExtensionCodec {
                 // an engine-text assert's comparison, held by its verdict's EdgeJudged judgment (census C3, 2026-11-17)
                 o.put(TAG, Tag.engineText.name());
                 o.putAll(AppealJson.wEngineTextJudgment(j));
-            }
-            case SiteWords w -> {
-                // legend-pure's words of a raise site, planned (K10b, 2026-11-17): the hearing's lookup by the step's
-                // sent text at index `at` and the site's n (the K10 trim, 2026-11-18: no statement's text copied)
-                o.put(TAG, Tag.siteWords.name());
-                o.put("at", w.at());
-                o.put("n", w.n());
-                o.put("words", w.words());
             }
             default -> {
                 return null;   // another codec's record
@@ -104,7 +96,6 @@ public final class EdgeCodec implements ExtensionCodec {
             }
             case appeal -> AppealJson.rAppeal(o);
             case engineText -> AppealJson.rEngineTextJudgment(o);
-            case siteWords -> new SiteWords(o.getInt("at"), o.getInt("n"), o.getString("words"));
         };
     }
 }

@@ -106,7 +106,7 @@ meta::pure::functions::math::tests::divide::testSimpleDivide	PASS
 meta::pure::functions::math::tests::minus::testComplexMinus	PASS	
 meta::pure::functions::math::tests::minus::testDecimalMinus	PASS	
 meta::pure::functions::math::tests::minus::testFloatMinus	PASS	
-meta::pure::functions::math::tests::minus::testLargeMinus	ERROR	DataError: the value is outside the range this database can hold: an integer past 64 bits has no SQLite value
+meta::pure::functions::math::tests::minus::testLargeMinus	ERROR	DataError: an integer past 64 bits has no SQLite value
 meta::pure::functions::math::tests::minus::testSimpleMinus	PASS	
 meta::pure::functions::math::tests::minus::testSingleExpressionMinus	PASS	
 meta::pure::functions::math::tests::minus::testSingleMinus	PASS	
@@ -114,7 +114,7 @@ meta::pure::functions::math::tests::minus::testSingleMinusType	PASS
 meta::pure::functions::math::tests::plus::testComplexPlus	PASS	
 meta::pure::functions::math::tests::plus::testDecimalPlus	PASS	
 meta::pure::functions::math::tests::plus::testFloatPlus	PASS	
-meta::pure::functions::math::tests::plus::testLargePlus	ERROR	DataError: the value is outside the range this database can hold: an integer past 64 bits has no SQLite value
+meta::pure::functions::math::tests::plus::testLargePlus	ERROR	DataError: an integer past 64 bits has no SQLite value
 meta::pure::functions::math::tests::plus::testNegativePlus	PASS	
 meta::pure::functions::math::tests::plus::testPlusFloat	PASS	
 meta::pure::functions::math::tests::plus::testPlusInteger	PASS	
@@ -126,7 +126,7 @@ meta::pure::functions::math::tests::plus::testSinglePlusType	PASS
 meta::pure::functions::math::tests::times::testComplexTimes	PASS	
 meta::pure::functions::math::tests::times::testDecimalTimes	PASS	
 meta::pure::functions::math::tests::times::testFloatTimes	PASS	
-meta::pure::functions::math::tests::times::testLargeTimes	ERROR	DataError: the value is outside the range this database can hold: an integer past 64 bits has no SQLite value
+meta::pure::functions::math::tests::times::testLargeTimes	ERROR	DataError: an integer past 64 bits has no SQLite value
 meta::pure::functions::math::tests::times::testNegativeTimes	PASS	
 meta::pure::functions::math::tests::times::testSimpleTimes	PASS	
 meta::pure::functions::string::tests::plus::testMultiPlus	PASS	

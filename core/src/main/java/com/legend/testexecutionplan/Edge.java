@@ -37,11 +37,6 @@ public interface Edge {
     /** An effect step ran, {@code planned} the records planned at it. */
     void effectRan(List<Extension> planned);
 
-    /** legend-pure's words of a statement's raise sites by number, as the planning call's style recorded them
-     *  ({@code words}): the records to plan at the step that sends the statement, {@code at} the statement's index among
-     *  the texts the step sends ({@code TestPlan.sentTexts}; the K10 trim, 2026-11-18), which the run's hearing reads
-     *  when an assertError matches a raise under the compatibility rules (K10 of the edge audit, the orchestrator's
-     *  ruling (A) of 2026-11-17). The compatibility edge plans its own records; the product's {@link NoEdge#NONE}
-     *  refuses by name. */
-    List<Extension> siteWords(int at, java.util.Map<Integer, String> words);
+    // (siteWords, legend-pure's words of a statement's raise sites planned as the edge's records (K10): deleted
+    // 2026-11-20 with stage B's B1 -- the edge words a raise after the run, from its site's record)
 }

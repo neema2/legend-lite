@@ -284,9 +284,8 @@ final class MongoDbStatements implements Statements {
 
     /** The server's failure as the platform's data error: a raise's message unwrapped from the server's text. */
     private static com.legend.error.DataError failure(MongoException e, PlannedSql statement) {
-        // a site's token read through the sites the plan declares for the statement (phase D's Phase 2, 2026-11-16),
-        // its raise carried beside the statement's text (K10b, 2026-11-17)
-        return RaisedErrors.dataError(String.valueOf(e.getMessage()), e, statement);
+        // a site's token read through the sites the plan declares for the statement (phase D's Phase 2, 2026-11-16)
+        return RaisedErrors.dataError(String.valueOf(e.getMessage()), e, statement.sites());
     }
 
     /** A key slot's value: the key's text, as the runner's expansion gives it (J7, 2026-11-12). */

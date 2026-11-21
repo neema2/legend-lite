@@ -1019,8 +1019,8 @@ class PureV1ApiTest {
             String sql = answer.getString("sql");
             assertFalse(sql.contains("DIVIDE_BY_ZERO"), "no bare kind name in pure/v1's statement: " + sql);
             // the statement raises its site's bare token (phase D's Phase 2, raises as SITES, 2026-11-16); the site
-            // carries the product's message alone, and legend-pure's words are the edge's table beside the plan,
-            // planned in a fresh recorder (K10b, 2026-11-17)
+            // carries its facts and no words, and legend-pure's words are the edge's table beside the plan, worded
+            // from each site's record (stage B's B1, 2026-11-20; a fresh recorder until then, K10b)
             assertTrue(sql.contains("LG#1"), sql);
             Json.Obj site = (Json.Obj) answer.getArr("sites").items().get(0);
             assertFalse(site.has("upstream"), "a plan's site carries no upstream words: " + a.json());

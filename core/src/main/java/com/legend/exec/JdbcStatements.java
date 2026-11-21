@@ -78,10 +78,9 @@ final class JdbcStatements implements Statements {
         return turned(RaisedErrors.dataError(e, sites, () -> heldBy(e)));
     }
 
-    /** {@link #failed(SQLException)} of the plan's {@code statement}: a token it raised read through its sites, the
-     *  raise carrying the statement's text beside its site (K10b of the edge audit, 2026-11-17). */
+    /** {@link #failed(SQLException)} of the plan's {@code statement}: a token it raised read through its sites. */
     private com.legend.error.DataError failed(SQLException e, PlannedSql statement) {
-        return turned(RaisedErrors.dataError(e, statement, () -> heldBy(e)));
+        return failed(e, statement.sites());
     }
 
     /** {@code failure}, the turn rolled back first where the database aborted it. */

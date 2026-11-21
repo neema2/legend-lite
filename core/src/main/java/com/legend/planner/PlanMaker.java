@@ -1035,22 +1035,18 @@ public final class PlanMaker {
         // the typed tree carried beside the statement names each payload by its digest, never its text or rows (the
         // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
         SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
-        // the raise sites its render wrote, planned: each token's kind, where and product words (phase D's Phase 2,
-        // 2026-11-16), the statement and its sites offered to the plan's style (K10b, 2026-11-17)
+        // the raise sites its render wrote, planned: each token's kind, where and operands, no words (phase D's Phase 2,
+        // 2026-11-16; stage B's B1, 2026-11-20)
         return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content)
-                .raising(sites(rendered.sql(), rendered.sites(), style));
+                .raising(sites(rendered.sites()));
     }
 
-    /** The raise sites a dialect's render wrote into the statement {@code text} ({@code sql.dialect.RaiseSite}),
-     *  PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16): each one's product sentence its kind's and its where
-     *  ({@link ExecutionPlan.Site#sentence}). The statement and its sites are offered to {@code style}, the plan's
-     *  ({@code database.PlanStyle#siteWords}: the product's records nothing; the compatibility edge's recorder words
-     *  them as its own data; K10b of the edge audit, 2026-11-17). */
-    public static List<ExecutionPlan.Site> sites(String text, List<com.legend.sql.dialect.RaiseSite> written,
-            com.legend.database.PlanStyle style) {
-        style.siteWords(text, written);
+    /** The raise sites a dialect's render wrote into a statement ({@code sql.dialect.RaiseSite}), PLANNED (phase D's
+     *  Phase 2, raises as SITES, 2026-11-16): each one's kind, where and operands, the facts its audiences word after
+     *  the run (stage B's B1, 2026-11-20: no words planned, none recorded). */
+    public static List<ExecutionPlan.Site> sites(List<com.legend.sql.dialect.RaiseSite> written) {
         return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
-                ExecutionPlan.Site.sentence(w.kind(), w.where()))).toList();
+                w.operands().stream().map(com.legend.executionplan.Operand::of).toList())).toList();
     }
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database

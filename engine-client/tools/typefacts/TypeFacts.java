@@ -113,8 +113,36 @@ public final class TypeFacts {
                 .append("  QUOTE_MARK: '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("',\n")
                 .append("  TOKEN: '").append(unicode(com.legend.sql.RaiseKind.TOKEN.charAt(0)))
                 .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("',\n")
-                .append("} as const;\n");
+                .append("} as const;\n\n")
+                .append("/**\n")
+                .append(" * LITE'S SENTENCE OF EACH RAISE KIND (stage B's B1, 2026-11-20: the plan carries a site's facts and no words):\n")
+                .append(" * error.ErrorKind's, by the kind's name. A site says its kind's sentence, then ': ' and its where where it\n")
+                .append(" * has one, as exec.RaisedErrors words it (ExecutionPlan.Site#sentence).\n")
+                .append(" */\n")
+                .append("export const RAISE_SENTENCES: Readonly<Record<string, string>> = {\n");
+        for (Map.Entry<String, String> e : sentences().entrySet()) {
+            out.append("  ").append(e.getKey()).append(": '").append(quoted(e.getValue())).append("',\n");
+        }
+        out.append("};\n");
         return out.toString();
+    }
+
+    /** Lite's sentence of each raise kind (a site's kind: {@code sql.RaiseKind}), error.ErrorKind's, in the kind's
+     *  order. */
+    private static Map<String, String> sentences() {
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        for (com.legend.sql.RaiseKind k : com.legend.sql.RaiseKind.values()) {
+            if (k == com.legend.sql.RaiseKind.USER_FAIL) {
+                continue;   // a user's own message, never a site
+            }
+            out.put(k.name(), com.legend.error.ErrorKind.valueOf(k.name()).sentence());
+        }
+        return out;
+    }
+
+    /** {@code s} inside single quotes, in TypeScript and Python alike: a backslash and a quote escaped. */
+    private static String quoted(String s) {
+        return s.replace("\\", "\\\\").replace("'", "\\'");
     }
 
     private static String python(Map<String, String[]> facts) {
@@ -141,7 +169,15 @@ public final class TypeFacts {
                 .append("RAISE_POSITION_SEP = '").append(unicode(com.legend.exec.RaisedErrors.POSITION_SEP)).append("'\n")
                 .append("RAISE_QUOTE_MARK = '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("'\n")
                 .append("RAISE_TOKEN = '").append(unicode(com.legend.sql.RaiseKind.TOKEN.charAt(0)))
-                .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("'\n");
+                .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("'\n\n")
+                .append("# LITE'S SENTENCE OF EACH RAISE KIND (stage B's B1, 2026-11-20: the plan carries a site's facts and no\n")
+                .append("# words): error.ErrorKind's, by the kind's name. A site says its kind's sentence, then ': ' and its where\n")
+                .append("# where it has one, as exec.RaisedErrors words it. The same as the tab's (lite-raise.ts RAISE_SENTENCES).\n")
+                .append("RAISE_SENTENCES: dict[str, str] = {\n");
+        for (Map.Entry<String, String> e : sentences().entrySet()) {
+            out.append("    '").append(e.getKey()).append("': '").append(quoted(e.getValue())).append("',\n");
+        }
+        out.append("}\n");
         return out.toString();
     }
 
