@@ -54,6 +54,51 @@ final class DatabaseVerdicts {
         return com.legend.testexecutionplan.Verdicts.fail(String.valueOf(row.get(com.legend.testexecutionplan.RootLoop.MESSAGE_COLUMN)));
     }
 
+    /**
+     * The verdict of one TYPED row (item 3's S4, 2026-11-21, the user's Q-A): {@code [verdict, expected, actual]}, the
+     * verdict the database's over the typed values, each side a list in its own order, written where the verdict
+     * fails. Where it holds, nothing; where it fails, the failure is recorded by the HOST judge's own builders
+     * ({@link AssertRecords}) over the values the database computed -- one record for one failure on both judges.
+     */
+    static TypedSide typedVerdictOf(String name, List<Object> row, RootLoop.Report report) {
+        if (!(row.get(0) instanceof Boolean holds)) {
+            throw new IllegalStateException(name + ": a typed row's verdict is not a boolean: " + row.get(0));
+        }
+        com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+        if (holds) {
+            return com.legend.testexecutionplan.Verdicts.ok();
+        }
+        com.legend.error.ErrorRecord failure = report.fixed() != null ? report.fixed() : switch (report.family()) {
+            case EQUALS -> report.want()
+                    ? AssertRecords.sidesNotEqual(side(row, 1), side(row, 2), side(row, 1), side(row, 2),
+                            classOf(report.e()), classOf(report.a()))
+                    : AssertRecords.notEqual(side(row, 1), side(row, 2), classOf(report.a()));
+            case SAME_ELEMENTS -> report.want()
+                    ? AssertRecords.sameElements(side(row, 1), side(row, 2), classOf(report.e()), classOf(report.a()))
+                    : AssertRecords.notEqual(side(row, 1), side(row, 2), classOf(report.a()));
+            case IS_NOT -> AssertRecords.negated("IS_NOT", side(row, 1), side(row, 2));
+        };
+        return com.legend.testexecutionplan.Verdicts.fail(report.index() >= 0
+                ? AssertRecords.atIndex(failure, report.index()) : failure);
+    }
+
+    /** A typed row's side at {@code column}: the list the database wrote (an empty side's none, written NULL). */
+    private static List<Object> side(List<Object> row, int column) {
+        Object v = row.get(column);
+        if (v == null) {
+            return List.of();
+        }
+        if (!(v instanceof List<?> l)) {
+            throw new IllegalStateException("a typed row's side is a list, not " + v.getClass().getSimpleName());
+        }
+        return java.util.Collections.unmodifiableList(new java.util.ArrayList<>(l));
+    }
+
+    private static @com.legend.base.Nullable String classOf(
+            com.legend.testexecutionplan.HostJudgment.@com.legend.base.Nullable SideFacts f) {
+        return f == null ? null : f.classFqn();
+    }
+
     /** A verdict row's UNJUDGED reason raised as the assert's failure, its evidence in the message (the run's copy of
      *  the planner's own three lines). */
     private static TypedSide unjudged(String name, String why, String detail) {

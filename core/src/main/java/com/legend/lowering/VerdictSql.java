@@ -235,6 +235,133 @@ public final class VerdictSql {
                 ? withKinds(written, e.message().kindText(), a.message().kindText()) : written;
     }
 
+    /** A TYPED verdict row and the schema of its columns (item 3's S4, 2026-11-21): what the database judge defers. */
+    public record TypedRow(SqlQuery row, Type.RelationType schema) {
+    }
+
+    /** A typed member's expected values: a list in the side's own order, written where the verdict fails. */
+    public static final String TYPED_EXPECTED = "__e";
+    /** A typed member's actual values. */
+    public static final String TYPED_ACTUAL = "__a";
+    private static final String LISTED = "__l";
+    private static final String SORTED = "__s";
+
+    /**
+     * {@code assertEquals}'s and {@code assertSameElements}' TYPED member (item 3's S4, 2026-11-21, the user's Q-A: the
+     * database decides over typed values): each side's values as its plan types them ({@link #valueRows}), folded to ONE
+     * list in the side's own order; the verdict their {@code IS NOT DISTINCT FROM} -- two sorted lists where the order is
+     * incidental ({@code multiset}) -- under the assert's polarity; each side's list written only where the verdict
+     * fails, for the failure's record, which the run builds with the host judge's builders. The expected side is read
+     * before the actual, as the host's side batch reads them. Null where a side's value has no type the row can carry.
+     */
+    public static @com.legend.base.Nullable TypedRow typedEquals(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
+            Type aKind, boolean multiset, boolean wantEqual) {
+        SqlQuery eRows = valueRows(eWrapped);
+        SqlQuery aRows = valueRows(aWrapped);
+        if (eRows == null || aRows == null) {
+            return null;
+        }
+        SqlQuery eList = listed("__e", eRows, multiset);
+        SqlQuery aList = listed("__a", aRows, multiset);
+        String compared = multiset ? SORTED : LISTED;
+        SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("e", eList.outputs(), compared),
+                SqlExpr.Column.of("a", aList.outputs(), compared));
+        SqlExpr holds = wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same);
+        OutputCol vOut = new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false);
+        OutputCol eOut = new OutputCol(TYPED_EXPECTED, eList.outputs().get(0).type(), true);
+        OutputCol aOut = new OutputCol(TYPED_ACTUAL, aList.outputs().get(0).type(), true);
+        List<SqlSelect.Projection> ps = List.of(
+                new SqlSelect.Projection(holds, VERDICT, vOut),
+                new SqlSelect.Projection(whereFails(holds, SqlExpr.Column.of("e", eList.outputs(), LISTED)),
+                        TYPED_EXPECTED, eOut),
+                new SqlSelect.Projection(whereFails(holds, SqlExpr.Column.of("a", aList.outputs(), LISTED)),
+                        TYPED_ACTUAL, aOut));
+        SqlSource from = new SqlSource.Join(new SqlSource.Subselect(aList, "a", null),
+                new SqlSource.Subselect(eList, "e", null), SqlSource.Join.Kind.CROSS, null);
+        SqlSelect row = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null,
+                List.of(vOut, eOut, aOut));
+        var many = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY;
+        Type.RelationType schema = new Type.RelationType(List.of(
+                new Type.RelationType.Column(VERDICT, Type.Primitive.BOOLEAN,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
+                new Type.RelationType.Column(TYPED_EXPECTED, eKind, many),
+                new Type.RelationType.Column(TYPED_ACTUAL, aKind, many)));
+        return new TypedRow(new SqlWith(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)), row),
+                schema);
+    }
+
+    /** {@code value} where the verdict {@code holds} not, else NULL: a typed member's values ride its failure alone. */
+    private static SqlExpr whereFails(SqlExpr holds, SqlExpr value) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(holds, new SqlExpr.NullLit())), value,
+                SqlExpr.Reason.JUDGE);
+    }
+
+    /** A side's typed rows ({@code cte}: {@code __o}, {@code __rn}) folded to one row: {@code __l}, its values in its own
+     *  order, and where {@code sorted}, {@code __s}, its values sorted (a multiset's comparable form). An empty side's
+     *  lists are NULL. */
+    private static SqlQuery listed(String cte, SqlQuery rows, boolean sorted) {
+        OutputCol o = rows.outputs().get(0);
+        SqlExpr value = SqlExpr.Column.of(cte, rows.outputs(), O);
+        SqlType list = new SqlType.Array(o.type());
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        List<OutputCol> outs = new ArrayList<>();
+        OutputCol l = new OutputCol(LISTED, list, true);
+        ps.add(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(value, SqlExpr.Column.of(cte, rows.outputs(), RN)),
+                LISTED, l));
+        outs.add(l);
+        if (sorted) {
+            OutputCol so = new OutputCol(SORTED, list, true);
+            ps.add(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(value, value), SORTED, so));
+            outs.add(so);
+        }
+        return new SqlSelect(ps, false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
+                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, outs);
+    }
+
+    /**
+     * A side's TYPED rows (item 3's S4): {@code __o}, each value as the side's plan types it, and {@code __rn}, its place
+     * in the side's own order -- numbered as {@link #canonRows} numbers them, with no canon; a NULL value dropped (Pure
+     * has no null value). Null where the value's column states no type.
+     */
+    private static @com.legend.base.Nullable SqlQuery valueRows(SqlQuery wrapped) {
+        if (!(wrapped instanceof SqlSelect ws) || ws.projections().isEmpty()) {
+            return null;
+        }
+        SqlSelect.Projection value = ws.projections().get(0);
+        OutputCol valueOut = value.out();
+        if (valueOut == null || value.alias() == null) {
+            return null;
+        }
+        OutputCol oOut = new OutputCol(O, valueOut.type(), false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        if (!plainProjection(ws)) {
+            // a wrap that stays a layer (an aggregate value, a filtered or capped wrap): its value, its own order
+            SqlSelect trimmed = new SqlSelect(List.of(value), ws.distinct(), ws.from(), ws.where(), ws.groupBy(),
+                    ws.having(), ws.qualify(), ws.orderBy(), ws.limit(), ws.offset(), List.of(valueOut));
+            SqlQuery read = ws.orderBy().isEmpty() ? trimmed : SideOrdinal.withOrdinal(trimmed);
+            SqlExpr valueRef = SqlExpr.Column.of("w", read.outputs(), value.alias());
+            return new SqlSelect(List.of(new SqlSelect.Projection(valueRef, O, oOut),
+                    new SqlSelect.Projection(rowNumber(read.outputs()), RN, rnOut)), false,
+                    new SqlSource.Subselect(read, "w", null), SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef),
+                    List.of(), null, null, List.of(), null, null, List.of(oOut, rnOut));
+        }
+        SqlExpr valueRef = value.expr();
+        List<SqlSelect.SortKey> order = ws.orderBy();
+        SqlSource from = ws.from();
+        if (order.isEmpty() && from instanceof SqlSource.Subselect sub
+                && SideOrdinal.defined(sub.inner()) instanceof SqlQuery ordered) {
+            // the order the side's own plan defines, numbered inside it (SideOrdinal), as canonRows numbers it
+            from = new SqlSource.Subselect(ordered, sub.alias(), sub.frameName());
+            order = List.of(new SqlSelect.SortKey(SqlExpr.Column.of(sub.alias(), ordered.outputs(), SideOrdinal.ORD),
+                    true, null, null));
+        }
+        SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), order,
+                null);
+        return new SqlSelect(List.of(new SqlSelect.Projection(valueRef, O, oOut), new SqlSelect.Projection(rn, RN,
+                rnOut)), false, from, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), List.of(), null, null, List.of(),
+                null, null, List.of(oOut, rnOut));
+    }
+
     /** {@code row} carrying each side's kind for the frame (lite's sentence where the two texts tie). */
     private static SqlQuery withKinds(SqlQuery row, String expectedKind, String actualKind) {
         SqlWith w = (SqlWith) row;
@@ -1490,7 +1617,7 @@ public final class VerdictSql {
      * derived table is NOT this shape: H2 blew its heap on one such branch, a metamodel read with JSON aggregation --
      * the Linux-independent catch of 2026-09-20; the members' CTEs are hoisted.) The caller reads each member's columns
      * by their prefix. */
-    public static SqlQuery batch(List<SqlQuery> statements,
+    public static SqlQuery batch(List<SqlQuery> statements, List<List<String>> columns,
             java.util.Map<String, SqlQuery> frames) {
         // leg 3.4 step 2: the frames the sides reference, DEFINED once at the
         // head (MATERIALIZED: every side sees the same rows), ahead of all
@@ -1535,10 +1662,10 @@ public final class VerdictSql {
                 body = rename.rewriteRoot(w.body());
             }
             String alias = "m" + i;
-            // the verdict row's columns, in the schema's order, by name (a member may carry more: its hints)
-            for (var c : schema().columns()) {
-                OutputCol o = body.outputs().stream().filter(x -> x.name().equals(c.name())).findFirst()
-                        .orElseThrow(() -> new IllegalStateException("a verdict row without its " + c.name()));
+            // the member's own columns, in its schema's order, by name (a seven-column row may carry more: its hints)
+            for (String c : columns.get(i)) {
+                OutputCol o = body.outputs().stream().filter(x -> x.name().equals(c)).findFirst()
+                        .orElseThrow(() -> new IllegalStateException("a verdict row without its " + c));
                 OutputCol out = new OutputCol(memberColumn(i, o.name()), o.type(), o.nullable());
                 ps.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, body.outputs(), o.name()), out.name(), out));
                 outs.add(out);
@@ -1991,12 +2118,13 @@ public final class VerdictSql {
                 plain, SqlExpr.Reason.JUDGE);
     }
 
-    /** The relation a fused batch statement of {@code members} returns: one row, each member's {@link #schema} columns
-     *  under its prefix ({@link #memberColumn}). */
-    public static com.legend.compiler.element.type.Type.RelationType batchSchema(int members) {
+    /** The relation a fused batch statement returns: one row, each member's columns ({@code members}' schemas, in
+     *  order) under its prefix ({@link #memberColumn}). */
+    public static com.legend.compiler.element.type.Type.RelationType batchSchema(
+            List<com.legend.compiler.element.type.Type.RelationType> members) {
         List<com.legend.compiler.element.type.Type.RelationType.Column> cols = new ArrayList<>();
-        for (int i = 0; i < members; i++) {
-            for (var c : schema().columns()) {
+        for (int i = 0; i < members.size(); i++) {
+            for (var c : members.get(i).columns()) {
                 cols.add(new com.legend.compiler.element.type.Type.RelationType.Column(memberColumn(i, c.name()),
                         c.type(), c.multiplicity()));
             }

@@ -246,6 +246,20 @@ final class TestRun {
                 throw (RuntimeException) e;
             });
             RuntimeException raised = caught[0];
+            if (raised == null && each.inner() != null) {
+                // the asserted function IS one assert read as a typed row (item 3's S4): where it fails, its failure,
+                // recorded from the row's values by the host's builders, is what the function raised
+                List<List<Object>> rows = java.util.Objects.requireNonNull(sides).get(0).rows();
+                if (rows.size() != 1) {
+                    throw new IllegalStateException(each.name() + ": an inner assert's row answered " + rows.size()
+                            + " rows");
+                }
+                try {
+                    DatabaseVerdicts.typedVerdictOf(each.name(), rows.get(0), each.inner());
+                } catch (com.legend.error.AssertFailed e) {
+                    raised = e;
+                }
+            }
             TestPlan.Judge judge = plan.judge();
             if (judge == TestPlan.Judge.HOST) {
                 if (raised != null) {

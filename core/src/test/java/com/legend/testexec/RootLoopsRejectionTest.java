@@ -45,7 +45,7 @@ class RootLoopsRejectionTest {
         run.fused(REFUSED);
         List<Object> judged = new java.util.ArrayList<>();
         DataError raised = assertThrows(DataError.class, () -> run.judgeRejected(REFUSED, null, null, false,
-                (name, row) -> judged.add(name)));
+                (name, row, report) -> judged.add(name)));
         assertSame(REFUSED, raised);
         // the first assert was judged on its row before the second raised the database's error
         assertEquals(List.of("assertEquals@1"), judged);
@@ -59,7 +59,7 @@ class RootLoopsRejectionTest {
         run.received(SECOND, List.of(true));
         List<Object> judged = new java.util.ArrayList<>();
         assertSame(REFUSED, assertThrows(DataError.class, () -> run.judgeRejected(REFUSED, null, null, false,
-                (name, row) -> judged.add(name))));
+                (name, row, report) -> judged.add(name))));
         assertEquals(List.of("assertEquals@1", "assertEquals@2"), judged);
     }
 
@@ -68,6 +68,6 @@ class RootLoopsRejectionTest {
         RootLoops.Run run = run();
         run.received(FIRST, List.of(true));
         run.received(SECOND, List.of(true));
-        assertDoesNotThrow(() -> run.judge(null, null, false, (name, row) -> { }));
+        assertDoesNotThrow(() -> run.judge(null, null, false, (name, row, report) -> { }));
     }
 }

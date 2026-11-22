@@ -856,13 +856,37 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("verdict", x.verdict());
+        o.put("report", x.report() == null ? null : wRsReport(x.report()));
         return o;
     }
 
     static RootLoop.Row rRsRow(Json.Obj o) {
         String v_name = str(field(o, "name", "Row"));
         int v_verdict = Math.toIntExact(num(field(o, "verdict", "Row")));
-        return new RootLoop.Row(v_name, v_verdict);
+        RootLoop.@Nullable Report v_report = absent(o, "report", "Row") ? null : rRsReport(obj(o.get("report")));
+        return new RootLoop.Row(v_name, v_verdict, v_report);
+    }
+
+    static Map<String, Object> wRsReport(RootLoop.Report x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("family", x.family().name());
+        o.put("want", x.want());
+        o.put("e", x.e() == null ? null : wSideFacts(x.e()));
+        o.put("a", x.a() == null ? null : wSideFacts(x.a()));
+        o.put("fixed", x.fixed() == null ? null : wRecord(x.fixed()));
+        o.put("index", x.index());
+        return o;
+    }
+
+    static RootLoop.Report rRsReport(Json.Obj o) {
+        RootLoop.Family v_family = RootLoop.Family.valueOf(str(field(o, "family", "Report")));
+        boolean v_want = bool(field(o, "want", "Report"));
+        HostJudgment.@Nullable SideFacts v_e = absent(o, "e", "Report") ? null : rSideFacts(obj(o.get("e")));
+        HostJudgment.@Nullable SideFacts v_a = absent(o, "a", "Report") ? null : rSideFacts(obj(o.get("a")));
+        com.legend.error.@Nullable ErrorRecord v_fixed = absent(o, "fixed", "Report") ? null
+                : rRecord(obj(o.get("fixed")));
+        int v_index = Math.toIntExact(num(field(o, "index", "Report")));
+        return new RootLoop.Report(v_family, v_want, v_e, v_a, v_fixed, v_index);
     }
 
     static Map<String, Object> wRsDecided(RootLoop.Decided x) {

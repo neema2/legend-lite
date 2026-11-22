@@ -74,8 +74,11 @@ public final class TestPlanJson {
      *  code and its values), a decided verdict's failure ({@code Decided.failure}) and a vector's ({@code
      *  AllRows.failure}) are records, an unplanned message is its error's planned failure ({@code Messaged.unplanned}, and a database root's
      *  {@code RootLoop.Root.unplanned}, required, null where none),
-     *  and the plan names no audience's words ({@code words} gone: one catalog). */
-    public static final int VERSION = 38;
+     *  and the plan names no audience's words ({@code words} gone: one catalog); 39 (item 3's S4, 2026-11-21, the
+     *  database judge over typed values): a database root's row carries its typed report ({@code RootLoop.Row.report},
+     *  required, null for a seven-column row), and a fused verdict statement is one row, each member's columns under its
+     *  prefix. */
+    public static final int VERSION = 39;
 
     private TestPlanJson() {
     }
@@ -193,6 +196,10 @@ public final class TestPlanJson {
                     if (each.host() != null) {
                         // the host judge's facts, the judgment and the side shapes: the test plan's own codec
                         vo.put("host", HostJson.wHost(each.host()));
+                    }
+                    if (each.inner() != null) {
+                        // an inner assert's typed row's report (item 3's S4)
+                        vo.put("inner", HostJson.wRsReport(each.inner()));
                     }
                     verdicts.add(vo);
                 }
@@ -392,10 +399,11 @@ public final class TestPlanJson {
                     Json.Obj w = vo.getObjOr("wrapper", null);
                     Json.Obj m = vo.getObjOr("message", null);
                     Json.Obj h = vo.getObjOr("host", null);
+                    Json.Obj in = vo.getObjOr("inner", null);
                     verdicts.add(new TestPlan.Verdict(vo.getInt("id"), vo.getString("name"), vo.getString("arm"),
                             base, w == null ? null : PlanJson.nodeOf(w), m == null ? null : readSide(m),
                             vo.getBoolOr("raises", false),
-                            h == null ? null : HostJson.rHost(h)));
+                            h == null ? null : HostJson.rHost(h), in == null ? null : HostJson.rRsReport(in)));
                 }
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);

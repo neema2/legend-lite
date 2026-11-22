@@ -368,6 +368,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         com.legend.lowering.VerdictSql.Raised raised;
         List<TestPlan.Side> base;
         boolean raises;
+        com.legend.testexecutionplan.RootLoop.@Nullable Report inner = null;
         if (ae.inner() != null) {
             // f IS one assert: its own verdict row, planned by the database judge, as a statement that RAISES its failure
             // (VerdictSql.raisingRow) -- the base the runner reads and catches as any f's; a failure decided at planning
@@ -378,6 +379,16 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                         null);
                 base = List.of();
                 raises = false;
+            } else if (sole instanceof com.legend.testplan.VerdictBatch.Sole.Row r && r.on().equals(env.target())
+                    && r.report() != null) {
+                // a TYPED row (item 3's S4): the base is the row itself, read as any typed result; where its verdict
+                // fails, the run records its failure from its values (the verdict's inner report) and that is what f
+                // raised -- the database decides, the record is the host's builders', no sentence in the statement
+                base = List.of(JudgePlans.sideOf(JudgePlans.rowsPlan(r.query(), r.schema(), env)));
+                raised = com.legend.lowering.VerdictSql.Raised.bound(TestPlan.Verdict.RAISED_MESSAGE,
+                        TestPlan.Verdict.RAISED_LINE, TestPlan.Verdict.RAISED_COLUMN);
+                raises = true;
+                inner = r.report();
             } else if (sole instanceof com.legend.testplan.VerdictBatch.Sole.Row r && r.on().equals(env.target())) {
                 var one = new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1);
                 var schema = new com.legend.compiler.element.type.Type.RelationType(List.of(
@@ -409,6 +420,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         TestPlan.Verdict v = new TestPlan.Verdict(step.verdict().id(), step.verdict().name(),
                 step.verdict().arm(), base, wrapper,
                 null, raises).withHost(step.verdict().host());
+        if (inner != null) {
+            v = v.withInner(inner);
+        }
         return new TestPlan.Verdicts(List.of(v), null, host.savepoint());
     }
 

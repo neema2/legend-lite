@@ -274,9 +274,14 @@ public final class TestRunner {
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }
 
-        /** The database judge's verdict arm over one root's row. */
-        private void databaseVerdict(String name, List<Object> row) {
-            com.legend.testexec.DatabaseVerdicts.verdictOf(name, row);
+        /** The database judge's verdict arm over one root's row: a typed row by its report (item 3's S4). */
+        private void databaseVerdict(String name, List<Object> row,
+                com.legend.testexecutionplan.RootLoop.@Nullable Report report) {
+            if (report != null) {
+                com.legend.testexec.DatabaseVerdicts.typedVerdictOf(name, row, report);
+            } else {
+                com.legend.testexec.DatabaseVerdicts.verdictOf(name, row);
+            }
         }
 
         /** A fused statement's word, counted; a rejected one's segment judged at once on the rejection, handed to the

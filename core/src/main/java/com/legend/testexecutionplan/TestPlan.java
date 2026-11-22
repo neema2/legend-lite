@@ -460,10 +460,13 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * function's sides, under the group's savepoint and binds what reading them RAISED (its message, line and column,
      * each absent where it raised nothing or carried no position) to the parameters {@link #RAISED_MESSAGE},
      * {@link #RAISED_LINE} and {@link #RAISED_COLUMN} before it runs the wrapper, the verdict statement comparing them.
+     * {@code inner}: where the asserted function IS one assert the database judge reads as a typed row (item 3's S4,
+     * 2026-11-21), that row's report -- the base is its row, and where its verdict fails, its failure, recorded from the
+     * row's values, is what the function raised; null otherwise.
      */
     public record Verdict(int id, String name, String arm, List<Side> base,
             @com.legend.base.Nullable Node wrapper, @com.legend.base.Nullable Side message, boolean raises,
-            @com.legend.base.Nullable Host host) {
+            @com.legend.base.Nullable Host host, RootLoop.@com.legend.base.Nullable Report inner) {
         /** The parameter a raising verdict's statement reads the message its base raised from (absent: none). */
         public static final String RAISED_MESSAGE = "__raised_message";
         /** The parameter a raising verdict's statement reads the raise's line from (absent: none or no position). */
@@ -494,6 +497,15 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                 throw new IllegalArgumentException("a raising verdict's statement compares what its base raised: it"
                         + " has one, and its message is the statement's");
             }
+            if (inner != null && (!raises || base.size() != 1)) {
+                throw new IllegalArgumentException("an inner assert's typed row is a raising verdict's one base side");
+            }
+        }
+
+        /** A verdict with its host facts and no inner typed row. */
+        public Verdict(int id, String name, String arm, List<Side> base, @com.legend.base.Nullable Node wrapper,
+                @com.legend.base.Nullable Side message, boolean raises, @com.legend.base.Nullable Host host) {
+            this(id, name, arm, base, wrapper, message, raises, host, null);
         }
 
         /** A verdict that reads its base as any assert does. */
@@ -510,7 +522,12 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
         /** This verdict judged by the HOST judge with {@code h}'s facts. */
         public Verdict withHost(@com.legend.base.Nullable Host h) {
-            return new Verdict(id, name, arm, base, wrapper, message, raises, h);
+            return new Verdict(id, name, arm, base, wrapper, message, raises, h, inner);
+        }
+
+        /** This raising verdict's base an inner assert's typed row, recorded by {@code report} where it fails. */
+        public Verdict withInner(RootLoop.Report report) {
+            return new Verdict(id, name, arm, base, wrapper, message, raises, host, report);
         }
 
         /** A verdict whose failure message is its judge's own (the family's, or one the plan spelled). */

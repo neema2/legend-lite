@@ -213,7 +213,7 @@ public final class DatabaseJudge {
         int ie = -1;
         int ia = -1;
         if (why == null) {
-            boolean literal = !anyNil && (anyAny || re.literalOnly() || ra.literalOnly());
+            boolean literal = literal(re, ra, anyNil, anyAny);
             ie = literal ? re.literalIndex() : 0;
             ia = literal ? ra.literalIndex() : 0;
             int bareE = re.kinds().size() - (re.literalIndex() >= 0 ? 1 : 0);
@@ -226,6 +226,22 @@ public final class DatabaseJudge {
         }
         if (why != null) {
             return unjudged(name, why);
+        }
+        // TYPED (item 3's S4, 2026-11-21, the user's Q-A): two sides of one scalar kind the database answers as the
+        // host reads it are compared as typed values, their failure recorded by the host's builders from the values
+        com.legend.compiler.element.type.Type tke = re.kinds().get(ie);
+        if (!literal(re, ra, anyNil, anyAny) && !renderedStrings && typedKind(tke) && tke.equals(ra.kinds().get(ia))
+                && !(eSpec instanceof com.legend.compiler.spec.typed.TypedCDate)
+                && !(aSpec instanceof com.legend.compiler.spec.typed.TypedCDate)) {
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEquals(
+                    java.util.Objects.requireNonNull(we).plan(), tke, java.util.Objects.requireNonNull(wa).plan(),
+                    tke, canonicalOrder, wantEqual);
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(canonicalOrder
+                        ? com.legend.testexecutionplan.RootLoop.Family.SAME_ELEMENTS
+                        : com.legend.testexecutionplan.RootLoop.Family.EQUALS, wantEqual,
+                        JudgmentFacts.sideFacts(eSpec), JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
+            }
         }
         // each side WRITTEN in the failure message by lite's own rules (VerdictSql.Message), where its elements are of
         // one known primitive kind (2026-11-04, the assert bar: the message read the canons, Strings unquoted)
@@ -264,6 +280,12 @@ public final class DatabaseJudge {
             vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
         }
         return runVerdict(name, wantEqual, message.apply(vq), runOn);
+    }
+
+    /** Whether the pair compares in the literal channel (a mixed-kind or Any-stamped side). */
+    private static boolean literal(com.legend.lowering.CanonRider re, com.legend.lowering.CanonRider ra, boolean anyNil,
+            boolean anyAny) {
+        return !anyNil && (anyAny || re.literalOnly() || ra.literalOnly());
     }
 
     /** How a side's canon {@code i} is written in the failure message, by lite's own rules (A4 of the compatibility
@@ -413,6 +435,38 @@ public final class DatabaseJudge {
         // a verdict statement is a step of its body's plan, deferred on the body's batch and judged at its verdict step
         // (I2, 2026-11-07: the walk's verdict sent on its own, outside a batch, deleted -- measured unreached)
         throw new IllegalStateException(name + ": a verdict statement outside its body's verdict batch");
+    }
+
+    /** A TYPED member deferred on the body's verdict batch (item 3's S4, 2026-11-21): its row and schema, its failure
+     *  recorded at run by {@code report} -- a caller's literal message its failure fixed at planning. */
+    static TypedSide runTyped(String name, com.legend.lowering.VerdictSql.TypedRow member,
+            com.legend.testexecutionplan.RootLoop.Report report, BodyDriver.ExecEnv runOn) {
+        com.legend.lowering.VerdictSql.FailureMessage m = runOn.failureMessage();
+        if (m != null) {
+            if (m.literal() == null) {
+                throw new IllegalStateException(name + ": a caller's message that reads is the batch's (VerdictBatch"
+                        + ".message), never the row's");
+            }
+            report = report.withFixed(com.legend.error.AssertKind.MESSAGE.record(
+                    java.util.Map.of("message", m.literal())));
+        }
+        com.legend.testplan.VerdictBatch batch = runOn.verdictBatch();
+        if (batch != null && batch.active()) {
+            batch.deferTyped(name, member.row(), member.schema(), report, runOn.target());
+            return com.legend.testexecutionplan.Verdicts.ok();
+        }
+        throw new IllegalStateException(name + ": a verdict statement outside its body's verdict batch");
+    }
+
+    /** Whether the database judge compares {@code kind}'s values as typed values today (item 3's S4, phase 1: the
+     *  scalar kinds whose value the database answers as the host reads it; a date's written precision, an enum, an
+     *  instance and a table stay the seven-column row until S4 converts them). */
+    private static boolean typedKind(com.legend.compiler.element.type.Type kind) {
+        return kind == com.legend.compiler.element.type.Type.Primitive.STRING
+                || kind == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || kind == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                || kind == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || kind == com.legend.compiler.element.type.Type.Primitive.BOOLEAN;
     }
 
     static SideRows planSide(TypedSpec spec, boolean expected, List<TypedSpec> letPrefix,

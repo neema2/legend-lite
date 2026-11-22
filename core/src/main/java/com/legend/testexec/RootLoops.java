@@ -39,7 +39,9 @@ public final class RootLoops {
      * 5, 2026-11-08: the batch no longer holds it; here since slice 5, 2026-11-09). */
     @FunctionalInterface
     public interface Judge {
-        void judge(String name, List<Object> row);
+        /** {@code row} judged: a typed row by its {@code report} (item 3's S4), else the seven-column row by its own
+         *  message. */
+        void judge(String name, List<Object> row, RootLoop.@com.legend.base.Nullable Report report);
     }
 
     // (RowAppeal, a verdict row's APPEAL -- block-compiler rung 2a, consulted when the row failed: deleted with the
@@ -260,7 +262,7 @@ public final class RootLoops {
                 // an absent row is the runner's defect (a member the dialect cannot spell refuses the body at planning)
                 throw new IllegalStateException(p.name() + ": the runner answered no row for a verdict of the plan");
             }
-            judge.judge(p.name(), row);
+            judge.judge(p.name(), row, p.report());
         }
     }
 

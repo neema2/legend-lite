@@ -116,8 +116,7 @@ public final class JudgePlans {
     static com.legend.testplan.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
         return new com.legend.testplan.VerdictBatch.Runner() {
             @Override
-            public ExecutionPlan.Node plan(SqlQuery statement, int fusedMembers, ExecutionPlan.Target on) {
-                Type.RelationType schema = fusedMembers > 0 ? VerdictSql.batchSchema(fusedMembers) : VerdictSql.schema();
+            public ExecutionPlan.Node plan(SqlQuery statement, Type.RelationType schema, ExecutionPlan.Target on) {
                 return rowsPlan(statement, schema, env.withTarget(on));
             }
 

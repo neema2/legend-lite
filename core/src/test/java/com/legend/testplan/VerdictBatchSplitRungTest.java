@@ -51,8 +51,9 @@ class VerdictBatchSplitRungTest {
     /** The dialect refuses every fused statement, and member 3's own statement. */
     private static final VerdictBatch.Runner RUNNER = new VerdictBatch.Runner() {
         @Override
-        public ExecutionPlan.Node plan(SqlQuery statement, int fusedMembers, ExecutionPlan.Target on) {
-            if (fusedMembers > 0) {
+        public ExecutionPlan.Node plan(SqlQuery statement,
+                com.legend.compiler.element.type.Type.RelationType schema, ExecutionPlan.Target on) {
+            if (schema.columns().stream().anyMatch(c -> c.name().startsWith("m0"))) {
                 throw new DialectCapability("no fused statement on this dialect");
             }
             if (literal(statement) == 3) {
@@ -79,7 +80,7 @@ class VerdictBatchSplitRungTest {
     };
 
     private static VerdictBatch batch() {
-        return new VerdictBatch((members, frames) -> members.get(0), (row, name, wantEqual) -> row, RUNNER,
+        return new VerdictBatch((members, columns, frames) -> members.get(0), (row, name, wantEqual) -> row, RUNNER,
                 new VerdictIds(), com.legend.lowering.LiteVerdictWords.INSTANCE);
     }
 

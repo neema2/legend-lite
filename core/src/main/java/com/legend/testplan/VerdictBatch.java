@@ -51,8 +51,9 @@ public final class VerdictBatch {
      * the frame definitions the sides reference at its head. */
     @FunctionalInterface
     public interface Fusion {
-        /** {@code members}' rows as one statement, {@code frames} at its head. */
-        SqlQuery fuse(List<SqlQuery> members, Map<String, SqlQuery> frames);
+        /** {@code members}' rows as one statement, {@code frames} at its head; each member's {@code columns} its own,
+         *  under its prefix (item 3's S4: one row). */
+        SqlQuery fuse(List<SqlQuery> members, List<List<String>> columns, Map<String, SqlQuery> frames);
     }
 
     // (Either, the lowering's one row over a generic verdict row and its ruled row -- 2026-11-06, VerdictSql.either --
@@ -76,7 +77,8 @@ public final class VerdictBatch {
          *  target the database of the session {@code on} it runs on (the body's, or the graph's system database beside
          *  it: per-statement routing, 2026-11-03 -- until then a verdict over the system store on a server engine was
          *  planned against the body's target, so the database judge left such a body to the walk). */
-        ExecutionPlan.Node plan(SqlQuery statement, int fusedMembers, ExecutionPlan.Target on);
+        ExecutionPlan.Node plan(SqlQuery statement, com.legend.compiler.element.type.Type.RelationType schema,
+                ExecutionPlan.Target on);
 
         /** Whether {@code statement} reads a raw grid's report, so its wrapper is keyed and never fused (the keys are
          *  one grid's columns; the planner-driver seam program's S3c, 2026-10-30). */
@@ -118,7 +120,11 @@ public final class VerdictBatch {
 
     /** A deferred verdict row. (Its ruled comparison {@code orElse}, its appeal and its decline went with A4 of the compatibility program, stage A ratified by the user 2026-11-19:
      *  the rendered-text rule's rows fallback and the edge's engine-text rows left the database judge.) */
-    private record Pending(int ix, String name, SqlQuery query, ExecutionPlan.Target on) implements Step {
+    /** A deferred verdict row: its statement, its columns' schema (the seven-column verdict schema, or a typed
+     *  member's own), and a typed member's report (item 3's S4; null for a seven-column row). */
+    private record Pending(int ix, String name, SqlQuery query, ExecutionPlan.Target on,
+            com.legend.compiler.element.type.Type.RelationType schema, RootLoop.@com.legend.base.Nullable Report report)
+            implements Step {
     }
 
     /** A root resolved before any row: a static decision, an unjudged raise, a planned raise ({@code reported}: the
@@ -288,7 +294,34 @@ public final class VerdictBatch {
             // an unrolled quantifier's element, named as the words name it (lite's: by its zero-based index)
             row = com.legend.lowering.VerdictSql.atIndex(row, scope.elementIndex(), words);
         }
-        r.steps.add(new Pending(ix, name, row, on));
+        r.steps.add(new Pending(ix, name, row, on, com.legend.lowering.VerdictSql.schema(), null));
+    }
+
+    /**
+     * A TYPED verdict member (item 3's S4, 2026-11-21, the user's Q-A): {@code row}, one row of the columns
+     * {@code schema} declares -- its verdict, under the assert's polarity, then the typed values its {@code report}'s
+     * family reads, written where the verdict fails -- deferred on the open root. Nothing wraps it: the run records its
+     * failure from its values (RootLoops, by the report). An unrolled quantifier's element frames the report at its
+     * index.
+     */
+    public void deferTyped(String name, SqlQuery row, com.legend.compiler.element.type.Type.RelationType schema,
+            RootLoop.Report report, ExecutionPlan.Target on) {
+        Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
+        if (scope.isNot()) {
+            // assertIsNot's (#28): its failure the IS_NOT record of the actual side, as the host's negated judgment's
+            report = new RootLoop.Report(RootLoop.Family.IS_NOT, report.want(), report.e(), report.a(), report.fixed(),
+                    report.index());
+        }
+        int ix = 0;
+        for (Root x : roots) {
+            for (Step s : x.steps) {
+                if (s instanceof Pending) {
+                    ix++;
+                }
+            }
+        }
+        r.steps.add(new Pending(ix, name, row, on, schema,
+                scope.elementIndex() >= 0 ? report.atElement(scope.elementIndex()) : report));
     }
 
     /** The batch's one root as ONE statement (the user's ruling S135, 2026-11-05: an assert inside assertError is a
@@ -311,7 +344,8 @@ public final class VerdictBatch {
             // spell: no one row decides it, so the assertError is refused by name (the S2+S3 fixes' audit, HIGH,
             // 2026-11-21: until then the row raised its own failure and the error was dropped)
             return unplanned != null ? null
-                    : new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on());
+                    : new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on(), p.schema(),
+                            p.report());
         }
         if (step instanceof Resolved r && r.reported() && r.failure().kind() == com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED
                 && r.failure().unjudgedReason() == null) {
@@ -325,7 +359,8 @@ public final class VerdictBatch {
     /** {@link #sole}'s answer: a verdict row the database computes, or a failure decided at planning. */
     public sealed interface Sole permits Sole.Row, Sole.Decided {
         /** The verdict row ({@code VerdictSql.schema}'s columns) and the session it reads. */
-        record Row(SqlQuery query, ExecutionPlan.Target on) implements Sole {
+        record Row(SqlQuery query, ExecutionPlan.Target on, com.legend.compiler.element.type.Type.RelationType schema,
+                RootLoop.@com.legend.base.Nullable Report report) implements Sole {
         }
 
         /** The assert's failure, decided at planning. */
@@ -426,7 +461,8 @@ public final class VerdictBatch {
             if (r.message == null) {
                 continue;
             }
-            Ahead a = planAhead(r.listenerName, r.message, java.util.Objects.requireNonNull(r.messageOn));
+            Ahead a = planAhead(r.listenerName, r.message, com.legend.lowering.VerdictSql.schema(),
+                    java.util.Objects.requireNonNull(r.messageOn));
             if (a.refused() != null) {
                 throw a.refused();
             }
@@ -493,7 +529,7 @@ public final class VerdictBatch {
         // 2026-11-07: the root loop sends nothing outside the plan -- the split rung's run-time retry and its
         // statements planned outside the plan are deleted)
         for (Pending u : unspelled) {
-            com.legend.sql.DialectCapability refused = planAhead(u.name(), u.query(), u.on()).refused();
+            com.legend.sql.DialectCapability refused = planAhead(u.name(), u.query(), u.schema(), u.on()).refused();
             if (refused == null) {
                 throw new IllegalStateException(u.name() + ": a member left out of its fused statement as unspelled"
                         + " whose own statement the dialect spells");
@@ -520,7 +556,7 @@ public final class VerdictBatch {
                     case Pending p -> {
                         Integer id = verdictOf.get(p.ix());
                         yield new RootLoop.Row(p.name(), java.util.Objects.requireNonNull(id,
-                                () -> p.name() + ": a member with no verdict reading its row"));
+                                () -> p.name() + ": a member with no verdict reading its row"), p.report());
                     }
                     case Resolved rv -> new RootLoop.Decided(rv.failure(), rv.reported());
                     case Judged j -> new RootLoop.Judged();
@@ -589,9 +625,10 @@ public final class VerdictBatch {
             com.legend.sql.@com.legend.base.Nullable DialectCapability refused) {
     }
 
-    private Ahead planAhead(String name, SqlQuery query, ExecutionPlan.Target on) {
+    private Ahead planAhead(String name, SqlQuery query, com.legend.compiler.element.type.Type.RelationType schema,
+            ExecutionPlan.Target on) {
         try {
-            return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), 0, on), null);
+            return new Ahead(runner.plan(com.legend.sql.FrameCtes.attach(query, frames), schema, on), null);
         } catch (com.legend.sql.DialectCapability e) {
             return new Ahead(null, e);
         }
@@ -632,7 +669,7 @@ public final class VerdictBatch {
         for (Pending p : keyed) {
             try {
                 TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
-                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), 0, on));
+                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), p.schema(), on));
                 verdicts.add(v);
                 members.put(v.id(), p);
             } catch (com.legend.sql.DialectCapability e) {
@@ -705,10 +742,16 @@ public final class VerdictBatch {
     /** {@code ps}'s fused statement. */
     private ExecutionPlan.TdsResult fusedOf(List<Pending> ps, ExecutionPlan.Target on) {
         List<SqlQuery> ms = new ArrayList<>(ps.size());
+        List<List<String>> columns = new ArrayList<>(ps.size());
+        List<com.legend.compiler.element.type.Type.RelationType> schemas = new ArrayList<>(ps.size());
         for (Pending p : ps) {
             ms.add(p.query());
+            columns.add(p.schema().columns().stream()
+                    .map(com.legend.compiler.element.type.Type.RelationType.Column::name).toList());
+            schemas.add(p.schema());
         }
-        return typed(runner.plan(fusion.fuse(ms, frames), ms.size(), on));
+        return typed(runner.plan(fusion.fuse(ms, columns, frames), com.legend.lowering.VerdictSql.batchSchema(schemas),
+                on));
     }
 
     private static ExecutionPlan.TdsResult typed(ExecutionPlan.Node plan) {
