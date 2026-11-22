@@ -170,7 +170,16 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
         /** {@code assertSameElements} and an incidental equals: {@code [verdict, expected, actual]}, each in its order. */
         SAME_ELEMENTS,
         /** {@code assertIsNot} over values its equality decides: {@code [verdict, expected, actual]}. */
-        IS_NOT
+        IS_NOT,
+        /** {@code assert} / {@code assertFalse} (and a condition of the planner's making): {@code [verdict]}, its record
+         *  fixed at planning, or the polarity's. */
+        CONDITION,
+        /** {@code assertSize} / {@code assertNotSize}: {@code [verdict, size, count]}. */
+        SIZE,
+        /** {@code assertEmpty} / {@code assertNotEmpty}: {@code [verdict, values]}. */
+        EMPTY,
+        /** {@code assertContains} / {@code assertNotContains}: {@code [verdict, collection, value]}. */
+        CONTAINS
     }
 
     /**

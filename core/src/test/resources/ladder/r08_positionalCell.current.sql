@@ -1,32 +1,38 @@
 WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.ID AS id, frame_r__t0.NAME AS name
   FROM T AS frame_r__t0
-  ORDER BY frame_r__t0.ID NULLS LAST), __se_0 AS (SELECT coalesce(__once.__oc, '[]') AS __text, CASE WHEN __once.__ov IS NOT NULL AND __once.__oc IS NULL THEN 1 ELSE 0 END AS __nulls, CASE WHEN strpos(__once.__oc, 'tree') > 0 THEN 1 ELSE 0 END AS __trees, CASE WHEN __once.__ov IS NOT NULL THEN 1 ELSE 0 END AS __n, concat('"', replace(replace(replace(replace(replace(CAST(__once.__ov AS VARCHAR), '\', '\\'), '"', '\"'), '
-', '\n'), '	', '\t'), '
-', '\r'), '"') AS __onew, CASE WHEN __once.__ov IS NULL THEN '[]' ELSE concat('[', '"', replace(replace(replace(replace(replace(CAST(__once.__ov AS VARCHAR), '\', '\\'), '"', '\"'), '
-', '\n'), '	', '\t'), '
-', '\r'), '"', ']') END AS __listw
+  ORDER BY frame_r__t0.ID NULLS LAST), __e_0 AS (SELECT value AS __o, ROW_NUMBER() OVER () AS __rn
   FROM (
-    SELECT CAST(value AS VARCHAR) AS __oc, value AS __ov
-    FROM (
-      SELECT 1 AS __one
-    ) AS __one
-    LEFT OUTER JOIN (
-      SELECT 'a' AS value
-    ) AS side ON TRUE
-  ) AS __once), __sa_0 AS (SELECT coalesce(__once.__oc, '[]') AS __text, CASE WHEN __once.__ov IS NOT NULL AND __once.__oc IS NULL THEN 1 ELSE 0 END AS __nulls, CASE WHEN strpos(__once.__oc, 'tree') > 0 THEN 1 ELSE 0 END AS __trees, CASE WHEN __once.__ov IS NOT NULL THEN 1 ELSE 0 END AS __n, concat('"', replace(replace(replace(replace(replace(CAST(__once.__ov AS VARCHAR), '\', '\\'), '"', '\"'), '
-', '\n'), '	', '\t'), '
-', '\r'), '"') AS __onew, CASE WHEN __once.__ov IS NULL THEN '[]' ELSE concat('[', '"', replace(replace(replace(replace(replace(CAST(__once.__ov AS VARCHAR), '\', '\\'), '"', '\"'), '
-', '\n'), '	', '\t'), '
-', '\r'), '"', ']') END AS __listw
+    SELECT 'a' AS value
+  ) AS side
+  WHERE value IS NOT NULL), __a_0 AS (SELECT value AS __o, ROW_NUMBER() OVER () AS __rn
   FROM (
-    SELECT CAST(value AS VARCHAR) AS __oc, value AS __ov
+    SELECT (SELECT t1.name FROM ( SELECT frame_r_t0.id AS id, frame_r_t0.name AS name FROM frame_r AS frame_r_t0 ORDER BY frame_r_t0.id NULLS LAST LIMIT 1 ) AS t1) AS value
+  ) AS side
+  WHERE value IS NOT NULL)
+SELECT q.__same AS m0__verdict, CASE WHEN q.__same THEN NULL ELSE e.__l END AS m0__e, CASE WHEN q.__same THEN NULL ELSE a.__l END AS m0__a
+FROM (
+  SELECT LIST(__a.__o ORDER BY __a.__rn ASC) AS __l
+  FROM __a_0 AS __a
+) AS a
+CROSS JOIN (
+  SELECT LIST(__e.__o ORDER BY __e.__rn ASC) AS __l
+  FROM __e_0 AS __e
+) AS e
+CROSS JOIN (
+  SELECT d.__k = 0 AS __same
+  FROM (
+    SELECT COUNT(*) AS __k
     FROM (
-      SELECT 1 AS __one
-    ) AS __one
-    LEFT OUTER JOIN (
-      SELECT (SELECT t1.name FROM ( SELECT frame_r_t0.id AS id, frame_r_t0.name AS name FROM frame_r AS frame_r_t0 ORDER BY frame_r_t0.id NULLS LAST LIMIT 1 ) AS t1) AS value
-    ) AS side ON TRUE
-  ) AS __once)
-SELECT (e.__text IS NOT DISTINCT FROM a.__text) AS m0__verdict, e.__text AS m0__expected, a.__text AS m0__actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS m0__unjudged, FALSE AS m0__lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS m0__holds, concat('expected the elements ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ' in any order, got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END) AS m0__message
-FROM __sa_0 AS a
-CROSS JOIN __se_0 AS e
+      SELECT u.__o AS __o
+      FROM (
+        SELECT __e.__o AS __o, 1 AS __g
+        FROM __e_0 AS __e
+        UNION ALL
+        SELECT __a.__o AS __o, -1 AS __g
+        FROM __a_0 AS __a
+      ) AS u
+      GROUP BY u.__o
+      HAVING SUM(u.__g) <> 0
+    ) AS h
+  ) AS d
+) AS q

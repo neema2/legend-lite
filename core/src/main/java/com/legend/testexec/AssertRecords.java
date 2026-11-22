@@ -58,25 +58,31 @@ final class AssertRecords {
         if (!Boolean.FALSE.equals(row.get(0))) {
             throw new IllegalStateException("a failed typed row's verdict is false, not " + row.get(0));
         }
-        List<Object> e = typedSide(row.get(1));
-        List<Object> a = typedSide(row.get(2));
+        List<Object> e = row.size() > 1 ? typedSide(row.get(1)) : List.of();
+        List<Object> a = row.size() > 2 ? typedSide(row.get(2)) : List.of();
         @Nullable String eClass = report.e() == null ? null : report.e().classFqn();
         @Nullable String aClass = report.a() == null ? null : report.a().classFqn();
         ErrorRecord failure = report.fixed() != null ? report.fixed() : switch (report.family()) {
             case EQUALS -> equality(false, report.want(), e, a, e, a, eClass, aClass);
             case SAME_ELEMENTS -> equality(true, report.want(), e, a, e, a, eClass, aClass);
             case IS_NOT -> negated("IS_NOT", e, a);
+            case CONDITION -> condition(report.want());
+            case SIZE -> report.want() ? size(row.get(1), ((Number) row.get(2)).longValue())
+                    : negated("NOT_SIZE", e, a);
+            case EMPTY -> emptiness(report.want(), null, e);
+            case CONTAINS -> report.want() ? notContained(e, a.isEmpty() ? null : a.get(0), eClass, aClass)
+                    : negated("NOT_CONTAINS", e, a);
         };
         return report.index() >= 0 ? atIndex(failure, report.index()) : failure;
     }
 
-    /** A typed row's side: the list the database wrote (an empty side's none, written NULL). */
+    /** A typed row's side: the list the database wrote (an empty side's none, written NULL); one value its own. */
     private static List<Object> typedSide(@Nullable Object v) {
         if (v == null) {
             return List.of();
         }
         if (!(v instanceof List<?> l)) {
-            throw new IllegalStateException("a typed row's side is a list, not " + v.getClass().getSimpleName());
+            return List.of(v);
         }
         return java.util.Collections.unmodifiableList(new java.util.ArrayList<>(l));
     }
@@ -133,7 +139,7 @@ final class AssertRecords {
         return (wantTrue ? AssertKind.TRUE : AssertKind.FALSE).record();
     }
 
-    static ErrorRecord emptiness(boolean wantEmpty, TypedSide side, List<Object> values) {
+    static ErrorRecord emptiness(boolean wantEmpty, @Nullable TypedSide side, List<Object> values) {
         return wantEmpty ? record(AssertKind.EMPTY, "collection", side instanceof TypedSide.Tabular t
                 ? liteRows(t) : LiteWords.values(values, null))
                 : AssertKind.NOT_EMPTY.record();

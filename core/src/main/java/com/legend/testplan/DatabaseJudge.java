@@ -555,6 +555,18 @@ public final class DatabaseJudge {
         if (negated && cw.shape() == com.legend.plan.ResultShape.GRAPH) {
             return unjudged(name, "assertNotSize over a graph: no negated form planned");
         }
+        com.legend.lowering.CanonRider nr = n.rider();
+        if (cw.shape() != com.legend.plan.ResultShape.GRAPH && !envelope && nr != null && !nr.literalOnly()
+                && nr.kinds().size() == 1 && nr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                && n.side() != null) {
+            // TYPED (item 3's S4): the collection's count against the size's one Integer, both riding the failure
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedSize(coll.countRows(),
+                    n.side().plan(), !negated);
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.SIZE, !negated, null, null, null, -1), coll.on(env));
+            }
+        }
         com.legend.sql.SqlQuery vq = cw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.sizeOfGraph(cw.plan(), n.scalarRow(false))
                 : com.legend.lowering.VerdictSql.size(coll.countRows(), n.scalarRow(false), envelope, words(env),
@@ -572,6 +584,17 @@ public final class DatabaseJudge {
         var sw = java.util.Objects.requireNonNull(side.side());
         // the elements written as lite's sentence writes them where the side's canon names one primitive kind
         com.legend.lowering.CanonRider r = side.rider();
+        if (sw.shape() != com.legend.plan.ResultShape.GRAPH && r != null && r.declined() == null && !r.tdsWrapped()
+                && !r.literalOnly() && r.kinds().size() == 1 && typedKind(r.kinds().get(0))) {
+            // TYPED (item 3's S4): the side's values as one list, its emptiness the verdict, the list its failure's
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEmpty(sw.plan(),
+                    r.kinds().get(0), wantEmpty);
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.EMPTY, wantEmpty, null, null, null, -1),
+                        side.on(env));
+            }
+        }
         com.legend.lowering.VerdictSql.Message written = r == null || r.declined() != null || r.tdsWrapped()
                 || r.kinds().isEmpty() ? null : com.legend.lowering.VerdictSql.Message.of(r.kinds().get(0), false);
         com.legend.sql.SqlQuery vq = sw.shape() == com.legend.plan.ResultShape.GRAPH
@@ -607,6 +630,18 @@ public final class DatabaseJudge {
         boolean literal = cr.literalOnly() || vr.literalOnly();
         if (literal && (cr.literalIndex() < 0 || vr.literalIndex() < 0)) {
             return unjudged(name, "no literal channel");
+        }
+        if (!literal && !cr.tdsWrapped() && cr.kinds().size() == 1 && typedKind(cr.kinds().get(0))
+                && cr.kinds().equals(vr.kinds())) {
+            // TYPED (item 3's S4): some element of the collection IS NOT DISTINCT FROM the value, both of one kind
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedContains(
+                    java.util.Objects.requireNonNull(c.side()).plan(), cr.kinds().get(0),
+                    java.util.Objects.requireNonNull(v.side()).plan(), vr.kinds().get(0), !negated);
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.CONTAINS, !negated, JudgmentFacts.sideFacts(coll),
+                        JudgmentFacts.sideFacts(val), null, -1), c.on(env));
+            }
         }
         // both written by lite's own rules where each names one primitive kind (2026-11-04, the assert bar: the canons
         // left a String unquoted)
@@ -679,11 +714,14 @@ public final class DatabaseJudge {
         return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook, null);
     }
 
-    /** {@code message}: the failure's text where the assert has its own (an {@code assert}'s), the host's words;
-     *  null, the condition's canons framed (an assert judged by a condition of its own making). */
+    /** {@code failure}: the failure's record where the assert fixes it (an {@code assert}'s, an element pair's
+     *  {@code assertIs}), the host's; null, the condition's canons framed (an assert judged by a condition of its own
+     *  making). */
     static TypedSide databaseCondition(String name, TypedSpec cond, boolean wantTrue,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, @com.legend.base.Nullable String message) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook,
+            com.legend.error.@com.legend.base.Nullable ErrorRecord failure) {
+        @com.legend.base.Nullable String message = failure == null ? null : failure.sentence();
         TypedSpec[] fc = AssertVerdicts.forAllContains(cond);
         if (fc != null) {
             SideRows need = planSide(fc[0], false, letPrefix, specs, env, hook);
@@ -704,6 +742,18 @@ public final class DatabaseJudge {
         SideRows side = planSide(cond, false, letPrefix, specs, env, hook);
         if (side.why() != null) {
             return unjudged(name, side.why());
+        }
+        com.legend.lowering.CanonRider cr = side.rider();
+        if (failure != null && cr != null && !cr.literalOnly() && cr.kinds().size() == 1
+                && cr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.BOOLEAN && side.side() != null) {
+            // TYPED (item 3's S4): the condition's one Boolean, its failure the record fixed here
+            com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedCondition(
+                    side.side().plan(), wantTrue);
+            if (typed != null) {
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(
+                        com.legend.testexecutionplan.RootLoop.Family.CONDITION, wantTrue, null, null, failure, -1),
+                        side.on(env));
+            }
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.condition(side.scalarRow(false), wantTrue,
                 message), side.on(env));
@@ -957,7 +1007,7 @@ public final class DatabaseJudge {
                 TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
                         specs.ctx(), args.get(0), args.get(1));
                 return databaseCondition(name, cond, true, letPrefix, specs, env, hook,
-                        com.legend.lowering.VerdictSql.sentence(com.legend.error.AssertKind.SAME_INSTANCE));
+                        com.legend.error.AssertKind.SAME_INSTANCE.record());
             }
             return unjudged(name, "is: neither an enum pair nor a tracked element pair");
         }
@@ -1026,7 +1076,7 @@ public final class DatabaseJudge {
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // the host's words (com.legend.testexec.HostJudgments.conditionOf): the catalog's, until S4 carries the record
             return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook,
-                    AssertVerdicts.defaultConditionMessage(wantTrue));
+                    com.legend.error.AssertKind.condition(wantTrue, null));
         }
         @Override public TypedSide empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

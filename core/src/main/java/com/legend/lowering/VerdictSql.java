@@ -244,7 +244,6 @@ public final class VerdictSql {
     /** A typed member's actual values. */
     public static final String TYPED_ACTUAL = "__a";
     private static final String LISTED = "__l";
-    private static final String SORTED = "__s";
 
     /**
      * {@code assertEquals}'s and {@code assertSameElements}' TYPED member (item 3's S4, 2026-11-21, the user's Q-A: the
@@ -261,33 +260,223 @@ public final class VerdictSql {
         if (eRows == null || aRows == null) {
             return null;
         }
-        SqlQuery eList = listed("__e", eRows, multiset);
-        SqlQuery aList = listed("__a", aRows, multiset);
-        String compared = multiset ? SORTED : LISTED;
-        SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("e", eList.outputs(), compared),
-                SqlExpr.Column.of("a", aList.outputs(), compared));
-        SqlExpr holds = wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same);
+        SqlQuery eList = listed("__e", eRows);
+        SqlQuery aList = listed("__a", aRows);
+        // the comparison over the typed values themselves, portable (H2 has no list equality, no EXCEPT ALL, no FULL
+        // OUTER JOIN; M1): in order, the same count and every place's values IS NOT DISTINCT FROM; in any order, no
+        // value whose signed count differs
+        SqlQuery same = multiset ? multisetSame(eRows, aRows) : orderedSame(eRows, aRows);
+        SqlExpr holds = SqlExpr.Column.of("q", same.outputs(), SAME);
+        return typedRow(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
+                cross(cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null)),
+                        new SqlSource.Subselect(same, "q", null)),
+                wantEqual ? holds : SqlExpr.Call.of(SqlFn.NOT, holds), List.of(
+                        listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
+    }
+
+    private static final String SAME = "__same";
+    private static final String K = "__k";
+
+    /** Two typed rows CTEs ({@code __e}, {@code __a}) the same in order: one row, {@link #SAME}, true where they count
+     *  alike and every place's two values are not distinct. */
+    private static SqlQuery orderedSame(SqlQuery eRows, SqlQuery aRows) {
+        SqlQuery ce = counted("__e", eRows);
+        SqlQuery ca = counted("__a", aRows);
+        SqlSource pairs = new SqlSource.Join(
+                new SqlSource.Table("__e", "x", eRows.outputs(), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE),
+                new SqlSource.Table("__a", "y", aRows.outputs(), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE), SqlSource.Join.Kind.INNER,
+                SqlExpr.Call.of(SqlFn.AND,
+                        SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of("x", eRows.outputs(), RN),
+                                SqlExpr.Column.of("y", aRows.outputs(), RN)),
+                        SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("x", eRows.outputs(), O),
+                                SqlExpr.Column.of("y", aRows.outputs(), O))));
+        OutputCol kOut = new OutputCol(K, SqlType.Scalar.BIGINT, false);
+        SqlSelect cm = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
+                List.of(SqlExpr.Column.of("x", eRows.outputs(), RN)), false, List.of()), K, kOut)), false, pairs, null,
+                List.of(), null, null, List.of(), null, null, List.of(kOut));
+        SqlExpr kE = SqlExpr.Column.of("ce", ce.outputs(), K);
+        SqlExpr sameFlag = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.EQUAL, kE, SqlExpr.Column.of("ca", ca.outputs(), K)),
+                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of("cm", cm.outputs(), K), kE));
+        OutputCol sOut = new OutputCol(SAME, SqlType.Scalar.BOOLEAN, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(sameFlag, SAME, sOut)), false,
+                cross(cross(new SqlSource.Subselect(ce, "ce", null), new SqlSource.Subselect(ca, "ca", null)),
+                        new SqlSource.Subselect(cm, "cm", null)),
+                null, List.of(), null, null, List.of(), null, null, List.of(sOut));
+    }
+
+    /** Two typed rows CTEs the same in any order: one row, {@link #SAME}, true where no value's count on one side
+     *  differs from the other's -- one signed {@code UNION ALL} grouped by value (M1's portable form). */
+    private static SqlQuery multisetSame(SqlQuery eRows, SqlQuery aRows) {
+        OutputCol oOut = eRows.outputs().get(0);
+        OutputCol sgn = new OutputCol("__g", SqlType.Scalar.BIGINT, false);
+        java.util.function.BiFunction<String, Long, SqlSelect> signed = (cte, sign) -> {
+            SqlQuery rows = cte.equals("__e") ? eRows : aRows;
+            return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of(cte, rows.outputs(), O), O,
+                    new OutputCol(O, oOut.type(), true)), new SqlSelect.Projection(new SqlExpr.IntLit(sign), "__g",
+                    sgn)), false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
+                    com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
+                    List.of(new OutputCol(O, oOut.type(), true), sgn));
+        };
+        List<OutputCol> uOuts = List.of(new OutputCol(O, oOut.type(), true), sgn);
+        SqlUnion u = new SqlUnion(List.of(signed.apply("__e", 1L), signed.apply("__a", -1L)), true, uOuts);
+        SqlExpr g = SqlExpr.Column.of("u", uOuts, O);
+        OutputCol gOut = new OutputCol(O, oOut.type(), true);
+        SqlSelect differing = new SqlSelect(List.of(new SqlSelect.Projection(g, O, gOut)), false,
+                new SqlSource.Subselect(u, "u", null), null, List.of(g),
+                SqlExpr.Call.of(SqlFn.NOT_EQUAL, new SqlAgg.Reducer(SqlAgg.Fn.SUM,
+                        List.of(SqlExpr.Column.of("u", uOuts, "__g")), false, List.of()), new SqlExpr.IntLit(0)),
+                null, List.of(), null, null, List.of(gOut));
+        OutputCol kOut = new OutputCol(K, SqlType.Scalar.BIGINT, false);
+        SqlSelect d = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
+                false, List.of()), K, kOut)), false, new SqlSource.Subselect(differing, "h", null), null, List.of(),
+                null, null, List.of(), null, null, List.of(kOut));
+        OutputCol sOut = new OutputCol(SAME, SqlType.Scalar.BOOLEAN, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.EQUAL,
+                SqlExpr.Column.of("d", d.outputs(), K), new SqlExpr.IntLit(0)), SAME, sOut)), false,
+                new SqlSource.Subselect(d, "d", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(sOut));
+    }
+
+    /** A typed rows CTE's count ({@link #K}): its rows. */
+    private static SqlQuery counted(String cte, SqlQuery rows) {
+        OutputCol kOut = new OutputCol(K, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
+                List.of(SqlExpr.Column.of(cte, rows.outputs(), RN)), false, List.of()), K, kOut)), false,
+                new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
+                null, List.of(), null, null, List.of(), null, null, List.of(kOut));
+    }
+
+    /** {@code assert} / {@code assertFalse}'s TYPED member (item 3's S4): the condition's one Boolean as the side's plan
+     *  types it, the verdict its {@code IS NOT DISTINCT FROM} the wanted truth; no value rides the failure (its record
+     *  is fixed at planning). Null where the side has no typed value column. */
+    public static @com.legend.base.Nullable TypedRow typedCondition(SqlQuery condWrapped, boolean wantTrue) {
+        SqlQuery rows = valueRows(condWrapped);
+        if (rows == null) {
+            return null;
+        }
+        SqlQuery one = single("__c", rows);
+        return typedRow(List.of(new SqlWith.Cte("__c", rows)), new SqlSource.Subselect(one, "c", null),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("c", one.outputs(), SINGLE),
+                        new SqlExpr.BoolLit(wantTrue)), List.of());
+    }
+
+    /** {@code assertSize}'s TYPED member (item 3's S4): {@code countRows}' count (its {@code __rn}s) against the size
+     *  side's one Integer; {@code wantSize} false, {@code assertNotSize}. Each rides the failure: the size, then the
+     *  count. Null where the size side has no typed value column. */
+    public static @com.legend.base.Nullable TypedRow typedSize(SqlQuery countRows, SqlQuery nWrapped,
+            boolean wantSize) {
+        SqlQuery nRows = valueRows(nWrapped);
+        if (nRows == null) {
+            return null;
+        }
+        SqlQuery counted = counted("__a", countRows);
+        SqlQuery size = single("__n", nRows);
+        SqlExpr wanted = new SqlExpr.Cast(SqlExpr.Column.of("n", size.outputs(), SINGLE), SqlType.Scalar.BIGINT,
+                SqlExpr.Reason.JUDGE);
+        SqlExpr count = SqlExpr.Column.of("k", counted.outputs(), K);
+        SqlExpr same = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, wanted);
+        return typedRow(List.of(new SqlWith.Cte("__a", countRows), new SqlWith.Cte("__n", nRows)),
+                cross(new SqlSource.Subselect(counted, "k", null), new SqlSource.Subselect(size, "n", null)),
+                wantSize ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
+                        new Valued(TYPED_EXPECTED, wanted, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false),
+                        new Valued(TYPED_ACTUAL, count, SqlType.Scalar.BIGINT, Type.Primitive.INTEGER, false)));
+    }
+
+    /** {@code assertEmpty} / {@code assertNotEmpty}'s TYPED member (item 3's S4): the side's values as one list (an empty
+     *  side's NULL); the verdict its emptiness under {@code wantEmpty}; the list rides the failure. */
+    public static @com.legend.base.Nullable TypedRow typedEmpty(SqlQuery wrapped, Type kind, boolean wantEmpty) {
+        SqlQuery rows = valueRows(wrapped);
+        if (rows == null) {
+            return null;
+        }
+        SqlQuery list = listed("__a", rows);
+        SqlExpr empty = SqlExpr.Call.of(SqlFn.IS_NULL, SqlExpr.Column.of("a", list.outputs(), LISTED));
+        return typedRow(List.of(new SqlWith.Cte("__a", rows)), new SqlSource.Subselect(list, "a", null),
+                wantEmpty ? empty : SqlExpr.Call.of(SqlFn.NOT, empty),
+                List.of(listValue(TYPED_ACTUAL, "a", list, kind)));
+    }
+
+    /** {@code assertContains} / {@code assertNotContains}' TYPED member (item 3's S4): the collection's values and the
+     *  value's, typed; the verdict whether some element {@code IS NOT DISTINCT FROM} the value, under {@code want}; both
+     *  lists ride the failure, the collection's first. */
+    public static @com.legend.base.Nullable TypedRow typedContains(SqlQuery collWrapped, Type collKind,
+            SqlQuery valWrapped, Type valKind, boolean want) {
+        SqlQuery cRows = valueRows(collWrapped);
+        SqlQuery vRows = valueRows(valWrapped);
+        if (cRows == null || vRows == null) {
+            return null;
+        }
+        SqlQuery cList = listed("__c", cRows);
+        SqlQuery vList = listed("__v", vRows);
+        OutputCol mOut = new OutputCol("__m", SqlType.Scalar.BIGINT, false);
+        SqlSource matched = new SqlSource.Join(
+                new SqlSource.Table("__c", "__c", cRows.outputs(), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE),
+                new SqlSource.Table("__v", "__v", vRows.outputs(), false, java.util.Map.of(),
+                        com.legend.sql.NameQuoting.BARE), SqlSource.Join.Kind.INNER,
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("__c", cRows.outputs(), O),
+                        SqlExpr.Column.of("__v", vRows.outputs(), O)));
+        SqlSelect m = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
+                false, List.of()), "__m", mOut)), false, matched, null, List.of(), null, null, List.of(), null, null,
+                List.of(mOut));
+        SqlExpr some = SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Column.of("m", m.outputs(), "__m"),
+                new SqlExpr.IntLit(0));
+        return typedRow(List.of(new SqlWith.Cte("__c", cRows), new SqlWith.Cte("__v", vRows)),
+                cross(cross(new SqlSource.Subselect(m, "m", null), new SqlSource.Subselect(cList, "c", null)),
+                        new SqlSource.Subselect(vList, "v", null)),
+                want ? some : SqlExpr.Call.of(SqlFn.NOT, some), List.of(
+                        listValue(TYPED_EXPECTED, "c", cList, collKind), listValue(TYPED_ACTUAL, "v", vList, valKind)));
+    }
+
+    /** A typed member's value: its column, its expression, its SQL and Pure types, a list or one. */
+    private record Valued(String name, SqlExpr expr, SqlType type, Type kind, boolean many) {
+    }
+
+    /** A listed side's list ({@link #listed}) as a typed member's value. */
+    private static Valued listValue(String name, String alias, SqlQuery listed, Type kind) {
+        return new Valued(name, SqlExpr.Column.of(alias, listed.outputs(), LISTED), listed.outputs().get(0).type(), kind,
+                true);
+    }
+
+    /**
+     * A TYPED member's row (item 3's S4): its verdict {@code holds}, then each of {@code values}, written only where
+     * the verdict fails -- one row over {@code from}, the members' CTEs at its head -- and the schema of its columns.
+     */
+    private static TypedRow typedRow(List<SqlWith.Cte> ctes, SqlSource from, SqlExpr holds, List<Valued> values) {
         OutputCol vOut = new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false);
-        OutputCol eOut = new OutputCol(TYPED_EXPECTED, eList.outputs().get(0).type(), true);
-        OutputCol aOut = new OutputCol(TYPED_ACTUAL, aList.outputs().get(0).type(), true);
-        List<SqlSelect.Projection> ps = List.of(
-                new SqlSelect.Projection(holds, VERDICT, vOut),
-                new SqlSelect.Projection(whereFails(holds, SqlExpr.Column.of("e", eList.outputs(), LISTED)),
-                        TYPED_EXPECTED, eOut),
-                new SqlSelect.Projection(whereFails(holds, SqlExpr.Column.of("a", aList.outputs(), LISTED)),
-                        TYPED_ACTUAL, aOut));
-        SqlSource from = new SqlSource.Join(new SqlSource.Subselect(aList, "a", null),
-                new SqlSource.Subselect(eList, "e", null), SqlSource.Join.Kind.CROSS, null);
-        SqlSelect row = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null,
-                List.of(vOut, eOut, aOut));
-        var many = com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY;
-        Type.RelationType schema = new Type.RelationType(List.of(
-                new Type.RelationType.Column(VERDICT, Type.Primitive.BOOLEAN,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
-                new Type.RelationType.Column(TYPED_EXPECTED, eKind, many),
-                new Type.RelationType.Column(TYPED_ACTUAL, aKind, many)));
-        return new TypedRow(new SqlWith(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)), row),
-                schema);
+        List<SqlSelect.Projection> ps = new ArrayList<>(List.of(new SqlSelect.Projection(holds, VERDICT, vOut)));
+        List<OutputCol> outs = new ArrayList<>(List.of(vOut));
+        List<Type.RelationType.Column> cols = new ArrayList<>(List.of(new Type.RelationType.Column(VERDICT,
+                Type.Primitive.BOOLEAN, com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+        for (Valued v : values) {
+            OutputCol o = new OutputCol(v.name(), v.type(), true);
+            ps.add(new SqlSelect.Projection(whereFails(holds, v.expr()), v.name(), o));
+            outs.add(o);
+            cols.add(new Type.RelationType.Column(v.name(), v.kind(), v.many()
+                    ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY
+                    : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE));
+        }
+        SqlSelect row = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null, outs);
+        return new TypedRow(ctes.isEmpty() ? row : new SqlWith(ctes, row), new Type.RelationType(cols));
+    }
+
+    private static SqlSource cross(SqlSource left, SqlSource right) {
+        return new SqlSource.Join(left, right, SqlSource.Join.Kind.CROSS, null);
+    }
+
+    private static final String SINGLE = "__v";
+
+    /** A side's typed rows ({@code cte}) as its one value: {@code __v}, the least of its values (a one-valued side's
+     *  value; NULL where it has none). */
+    private static SqlQuery single(String cte, SqlQuery rows) {
+        OutputCol o = new OutputCol(SINGLE, rows.outputs().get(0).type(), true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.MIN,
+                List.of(SqlExpr.Column.of(cte, rows.outputs(), O)), false, List.of()), SINGLE, o)), false,
+                new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE),
+                null, List.of(), null, null, List.of(), null, null, List.of(o));
     }
 
     /** {@code value} where the verdict {@code holds} not, else NULL: a typed member's values ride its failure alone. */
@@ -297,25 +486,16 @@ public final class VerdictSql {
     }
 
     /** A side's typed rows ({@code cte}: {@code __o}, {@code __rn}) folded to one row: {@code __l}, its values in its own
-     *  order, and where {@code sorted}, {@code __s}, its values sorted (a multiset's comparable form). An empty side's
-     *  lists are NULL. */
-    private static SqlQuery listed(String cte, SqlQuery rows, boolean sorted) {
+     *  order -- the LIST reducer, which each database carries as it carries a list (H2: a JSON array) and exec decodes
+     *  as any list result. An empty side's list is NULL. The list rides the failure's record; no verdict reads it. */
+    private static SqlQuery listed(String cte, SqlQuery rows) {
         OutputCol o = rows.outputs().get(0);
-        SqlExpr value = SqlExpr.Column.of(cte, rows.outputs(), O);
-        SqlType list = new SqlType.Array(o.type());
-        List<SqlSelect.Projection> ps = new ArrayList<>();
-        List<OutputCol> outs = new ArrayList<>();
-        OutputCol l = new OutputCol(LISTED, list, true);
-        ps.add(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(value, SqlExpr.Column.of(cte, rows.outputs(), RN)),
-                LISTED, l));
-        outs.add(l);
-        if (sorted) {
-            OutputCol so = new OutputCol(SORTED, list, true);
-            ps.add(new SqlSelect.Projection(new SqlExpr.OrderedListAgg(value, value), SORTED, so));
-            outs.add(so);
-        }
-        return new SqlSelect(ps, false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
-                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, outs);
+        OutputCol l = new OutputCol(LISTED, new SqlType.Array(o.type()), true);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.LIST,
+                List.of(SqlExpr.Column.of(cte, rows.outputs(), O)), false,
+                List.of(new SqlSelect.SortKey(SqlExpr.Column.of(cte, rows.outputs(), RN), true, null, null))),
+                LISTED, l)), false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
+                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of(l));
     }
 
     /**

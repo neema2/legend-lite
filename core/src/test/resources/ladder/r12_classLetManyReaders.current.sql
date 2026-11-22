@@ -12,59 +12,83 @@ WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
     LEFT OUTER JOIN (
       SELECT 3 AS value
     ) AS side ON TRUE
-  ) AS n), __e_1 AS (SELECT CAST(value AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn, concat('"', replace(replace(replace(replace(replace(CAST(value AS VARCHAR), '\', '\\'), '"', '\"'), '
-', '\n'), '	', '\t'), '
-', '\r'), '"') AS __w, value AS __o
+  ) AS n), __e_1 AS (SELECT value AS __o, ROW_NUMBER() OVER () AS __rn
   FROM (
     SELECT UNNEST(list_filter(['a', 'b', 'c'], x -> x IS NOT NULL)) AS value
   ) AS side
-  WHERE value IS NOT NULL), __a_1 AS (SELECT CAST(u_map__name AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn, concat('"', replace(replace(replace(replace(replace(CAST(u_map__name AS VARCHAR), '\', '\\'), '"', '\"'), '
-', '\n'), '	', '\t'), '
-', '\r'), '"') AS __w, u_map__name AS __o
+  WHERE value IS NOT NULL), __a_1 AS (SELECT u_map__name AS __o, ROW_NUMBER() OVER () AS __rn
   FROM (
     SELECT frame_r_t0.NAME AS u_map__name
     FROM frame_r AS frame_r_t0
     WHERE frame_r_t0.NAME IS NOT NULL
   ) AS side
-  WHERE u_map__name IS NOT NULL), __se_1 AS (SELECT CASE WHEN s.__n = 0 THEN '[]' WHEN s.__n = 1 THEN s.__one ELSE concat('[', s.__joined, ']') END AS __text, s.__nulls AS __nulls, s.__trees AS __trees, s.__n AS __n, s.__onew AS __onew, concat('[', coalesce(s.__joinedw, ''), ']') AS __listw
+  WHERE u_map__name IS NOT NULL), __e_2 AS (SELECT value AS __o, ROW_NUMBER() OVER () AS __rn
   FROM (
-    SELECT COUNT(__e.__rn) AS __n, MIN(CASE WHEN __e.__rn = 1 THEN __e.__c END) AS __one, STRING_AGG(__e.__c, ', ' ORDER BY __e.__c ASC) AS __joined, COUNT(CASE WHEN __e.__c IS NULL THEN 1 END) AS __nulls, COUNT(CASE WHEN strpos(__e.__c, 'tree') > 0 THEN 1 END) AS __trees, MIN(CASE WHEN __e.__rn = 1 THEN __e.__w END) AS __onew, STRING_AGG(__e.__w, ', ' ORDER BY __e.__rn ASC) AS __joinedw
-    FROM __e_1 AS __e
-  ) AS s), __sa_1 AS (SELECT CASE WHEN s.__n = 0 THEN '[]' WHEN s.__n = 1 THEN s.__one ELSE concat('[', s.__joined, ']') END AS __text, s.__nulls AS __nulls, s.__trees AS __trees, s.__n AS __n, s.__onew AS __onew, concat('[', coalesce(s.__joinedw, ''), ']') AS __listw
+    SELECT 3 AS value
+  ) AS side
+  WHERE value IS NOT NULL), __a_2 AS (SELECT value AS __o, ROW_NUMBER() OVER () AS __rn
   FROM (
-    SELECT COUNT(__a.__rn) AS __n, MIN(CASE WHEN __a.__rn = 1 THEN __a.__c END) AS __one, STRING_AGG(__a.__c, ', ' ORDER BY __a.__c ASC) AS __joined, COUNT(CASE WHEN __a.__c IS NULL THEN 1 END) AS __nulls, COUNT(CASE WHEN strpos(__a.__c, 'tree') > 0 THEN 1 END) AS __trees, MIN(CASE WHEN __a.__rn = 1 THEN __a.__w END) AS __onew, STRING_AGG(__a.__w, ', ' ORDER BY __a.__rn ASC) AS __joinedw
-    FROM __a_1 AS __a
-  ) AS s), __se_2 AS (SELECT coalesce(__once.__oc, '[]') AS __text, CASE WHEN __once.__ov IS NOT NULL AND __once.__oc IS NULL THEN 1 ELSE 0 END AS __nulls, CASE WHEN strpos(__once.__oc, 'tree') > 0 THEN 1 ELSE 0 END AS __trees, CASE WHEN __once.__ov IS NOT NULL THEN 1 ELSE 0 END AS __n, CAST(__once.__ov AS VARCHAR) AS __onew, CASE WHEN __once.__ov IS NULL THEN '[]' ELSE concat('[', CAST(__once.__ov AS VARCHAR), ']') END AS __listw
-  FROM (
-    SELECT CAST(value AS VARCHAR) AS __oc, value AS __ov
-    FROM (
-      SELECT 1 AS __one
-    ) AS __one
-    LEFT OUTER JOIN (
-      SELECT 3 AS value
-    ) AS side ON TRUE
-  ) AS __once), __sa_2 AS (SELECT coalesce(__once.__oc, '[]') AS __text, CASE WHEN __once.__ov IS NOT NULL AND __once.__oc IS NULL THEN 1 ELSE 0 END AS __nulls, CASE WHEN strpos(__once.__oc, 'tree') > 0 THEN 1 ELSE 0 END AS __trees, CASE WHEN __once.__ov IS NOT NULL THEN 1 ELSE 0 END AS __n, CAST(__once.__ov AS VARCHAR) AS __onew, CASE WHEN __once.__ov IS NULL THEN '[]' ELSE concat('[', CAST(__once.__ov AS VARCHAR), ']') END AS __listw
-  FROM (
-    SELECT CAST(value AS VARCHAR) AS __oc, value AS __ov
-    FROM (
-      SELECT 1 AS __one
-    ) AS __one
-    LEFT OUTER JOIN (
-      SELECT (SELECT COUNT(1) FROM frame_r AS frame_r_t0 WHERE frame_r_t0.AMOUNT > 0.0E0) AS value
-    ) AS side ON TRUE
-  ) AS __once)
-SELECT m0.__verdict AS m0__verdict, m0.__expected AS m0__expected, m0.__actual AS m0__actual, m0.__unjudged AS m0__unjudged, m0.__lenient AS m0__lenient, m0.__holds AS m0__holds, m0.__message AS m0__message, m1.__verdict AS m1__verdict, m1.__expected AS m1__expected, m1.__actual AS m1__actual, m1.__unjudged AS m1__unjudged, m1.__lenient AS m1__lenient, m1.__holds AS m1__holds, m1.__message AS m1__message, m2.__verdict AS m2__verdict, m2.__expected AS m2__expected, m2.__actual AS m2__actual, m2.__unjudged AS m2__unjudged, m2.__lenient AS m2__lenient, m2.__holds AS m2__holds, m2.__message AS m2__message
+    SELECT (SELECT COUNT(1) FROM frame_r AS frame_r_t0 WHERE frame_r_t0.AMOUNT > 0.0E0) AS value
+  ) AS side
+  WHERE value IS NOT NULL)
+SELECT m0.__verdict AS m0__verdict, m0.__expected AS m0__expected, m0.__actual AS m0__actual, m0.__unjudged AS m0__unjudged, m0.__lenient AS m0__lenient, m0.__holds AS m0__holds, m0.__message AS m0__message, m1.__verdict AS m1__verdict, m1.__e AS m1__e, m1.__a AS m1__a, m2.__verdict AS m2__verdict, m2.__e AS m2__e, m2.__a AS m2__a
 FROM (
   SELECT coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('expected ', coalesce(CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), '[]'), ', got ', coalesce(CAST(p.__c_n AS VARCHAR), '[]')) AS __message
   FROM __p_0 AS p
 ) AS m0
 CROSS JOIN (
-  SELECT (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('expected the elements ', e.__listw, ' in any order, got ', a.__listw) AS __message
-  FROM __sa_1 AS a
-  CROSS JOIN __se_1 AS e
+  SELECT q.__same AS __verdict, CASE WHEN q.__same THEN NULL ELSE e.__l END AS __e, CASE WHEN q.__same THEN NULL ELSE a.__l END AS __a
+  FROM (
+    SELECT LIST(__a.__o ORDER BY __a.__rn ASC) AS __l
+    FROM __a_1 AS __a
+  ) AS a
+  CROSS JOIN (
+    SELECT LIST(__e.__o ORDER BY __e.__rn ASC) AS __l
+    FROM __e_1 AS __e
+  ) AS e
+  CROSS JOIN (
+    SELECT d.__k = 0 AS __same
+    FROM (
+      SELECT COUNT(*) AS __k
+      FROM (
+        SELECT u.__o AS __o
+        FROM (
+          SELECT __e.__o AS __o, 1 AS __g
+          FROM __e_1 AS __e
+          UNION ALL
+          SELECT __a.__o AS __o, -1 AS __g
+          FROM __a_1 AS __a
+        ) AS u
+        GROUP BY u.__o
+        HAVING SUM(u.__g) <> 0
+      ) AS h
+    ) AS d
+  ) AS q
 ) AS m1
 CROSS JOIN (
-  SELECT (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, CASE WHEN CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END = CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END THEN concat('expected ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ' (', 'Integer', '), got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END, ' (', 'Integer', ')') ELSE concat('expected ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ', got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END) END AS __message
-  FROM __sa_2 AS a
-  CROSS JOIN __se_2 AS e
+  SELECT q.__same AS __verdict, CASE WHEN q.__same THEN NULL ELSE e.__l END AS __e, CASE WHEN q.__same THEN NULL ELSE a.__l END AS __a
+  FROM (
+    SELECT LIST(__a.__o ORDER BY __a.__rn ASC) AS __l
+    FROM __a_2 AS __a
+  ) AS a
+  CROSS JOIN (
+    SELECT LIST(__e.__o ORDER BY __e.__rn ASC) AS __l
+    FROM __e_2 AS __e
+  ) AS e
+  CROSS JOIN (
+    SELECT ce.__k = ca.__k AND cm.__k = ce.__k AS __same
+    FROM (
+      SELECT COUNT(__e.__rn) AS __k
+      FROM __e_2 AS __e
+    ) AS ce
+    CROSS JOIN (
+      SELECT COUNT(__a.__rn) AS __k
+      FROM __a_2 AS __a
+    ) AS ca
+    CROSS JOIN (
+      SELECT COUNT(x.__rn) AS __k
+      FROM __e_2 AS x
+      JOIN __a_2 AS y ON x.__rn = y.__rn AND (x.__o IS NOT DISTINCT FROM y.__o)
+    ) AS cm
+  ) AS q
 ) AS m2
