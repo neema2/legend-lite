@@ -60,11 +60,13 @@ final class JudgmentFacts {
 
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
             Type aKind, com.legend.sql.SqlQuery aPlan) {
-        if (tagged(ePlan) || tagged(aPlan)) {
-            // a value whose kind the database decides among candidates (a Number's max, a mixed list): each value its
-            // kind and its value, against a side of one typed class or another tagged one (VerdictSql.typedTagged)
-            return (tagged(ePlan) || sideKind(eSpec, eKind, ePlan) != null)
-                    && (tagged(aPlan) || sideKind(aSpec, aKind, aPlan) != null)
+        boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan);
+        boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan);
+        if (eMixed || aMixed) {
+            // a value whose kind the database decides among candidates (a Number's max, a mixed list), or a Date
+            // written as its text (a partial date, a Date the egress writes): each value its kind and its value,
+            // against a side of one typed class or another such side (VerdictSql.typedTagged)
+            return (eMixed || sideKind(eSpec, eKind, ePlan) != null) && (aMixed || sideKind(aSpec, aKind, aPlan) != null)
                     ? new TypedPair(eKind, aKind, TypedPair.Form.TAGGED) : null;
         }
         if (PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind)) {
@@ -90,6 +92,14 @@ final class JudgmentFacts {
      *  database decided among candidates). */
     private static boolean tagged(com.legend.sql.SqlQuery plan) {
         return !plan.outputs().isEmpty() && plan.outputs().get(0).type() instanceof com.legend.sql.SqlType.Tagged;
+    }
+
+    /** Whether a side is a {@code Date} carried as its written text (a partial date's literal, a Date the egress
+     *  writes as text): each value's kind is its text's -- a year, a year-month, a day, a date-time (S399). */
+    private static boolean writtenDate(Type kind, com.legend.sql.SqlQuery plan) {
+        return kind == Type.Primitive.DATE && !plan.outputs().isEmpty()
+                && (plan.outputs().get(0).type() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
+                        || plan.outputs().get(0).type() == com.legend.sql.SqlType.Scalar.VARCHAR);
     }
 
     /** A side's typed kind: its date kind ({@link #dateKind}), else its typed class; null where it has neither. */

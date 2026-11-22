@@ -552,6 +552,22 @@ class AssertBarTest {
                 "{|assertEquals([2, 10.125D], [1, 1.5D])}",
                 "{|assertEquals([1, 1.5D, 10.125D], [1, 1.5D, 10.12D])}",
                 "{|assertEquals([3, 1.0, 2]->sort(), [1.0, 2, 3])}",
+                // dates at the judge's instant (register S399; the dates round, 2026-11-22): one instant whatever its
+                // written precision, to the microsecond, SQLite's date-time texts included
+                "{|assertEquals(%2020-01-01T10:00:00.5, %2020-01-01T10:00:00.500)}",
+                "{|assertNotEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)}",
+                "{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456)}",
+                "{|assertEquals(%2020-01-01T10, %2020-01-01T10:00:00)}",
+                "{|assertContains([%2020-01-01T10:00:00.5, %2020-01-02T00:00:00.5], %2020-01-01T10:00:00.50)}",
+                "{|assertEquals(%2020-01-01T10:00:00.123456789, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())}",
+                "{|assertEquals(%2020-01-01T10:00, [%2019-01-01, %2020-01-01T10:00:00]->max())}",
+                // a Date written as its text (a partial date, a mixed Date list's element): each value its kind, as
+                // its text says, and its value (the dates audit's HIGH 2)
+                "{|assertEquals(%2020-01, [%2020-01, %2021-01]->at(0))}",
+                "{|assertEquals(%2020, [%2020, %2021]->at(1))}",
+                "{|assertEquals(%2020-01, [%2020-01-01, %2021-01]->at(0))}",
+                "{|assertEquals(%2020-01-01T10:00:00, [%2019-01, %2020-01-01T10:00:00.000]->at(1))}",
+                "{|assertNotEquals(%2020-01-01, [%2019-01, %2020-01-01]->at(1))}",
                 // assertIsNot over a tagged value: its record un-tagged (batch 3's audit, H2)
                 "{|assertIsNot(3, [1, 2.0, 3]->max())}",
                 "{|assertIsNot(4, [1, 2.0, 3]->max())}");

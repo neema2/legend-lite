@@ -1326,6 +1326,18 @@ public class SQLite extends AnsiSqlRenderer {
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         SqlType target = c.target();
         SqlExpr v = c.value();
+        if (target == SqlType.Scalar.TIMESTAMP && c.reason() == SqlExpr.Reason.JUDGE) {
+            // a judge's instant (register S399): a date-time is held here as its text, so it is read at the
+            // microsecond in one form, 'YYYY-MM-DD HH:MM:SS.ffffff', and two texts of one instant compare equal (the
+            // dates audit's HIGH 3, 2026-11-22: until then '10:00:00.5' was not '10:00:00.50'); a digit past the sixth
+            // is not compared, as the TIMESTAMP of every other database holds none
+            SqlType from = typeOf(v);
+            SqlWriter.Piece t = from == SqlType.Scalar.DATE ? w -> w.append("(").expr(v, 0).append(" || ' 00:00:00')")
+                    : from == SqlType.Scalar.TIMESTAMP ? w -> w.expr(v, 0) : padded(dateTimeText(w -> w.expr(v, 0)));
+            return writer.append("(SELECT CASE WHEN __it.t IS NULL THEN NULL ELSE strftime('%Y-%m-%d %H:%M:%S', __it.t)"
+                    + " || '.' || substr(CASE WHEN instr(__it.t, '.') > 0 THEN substr(__it.t, instr(__it.t, '.') + 1)"
+                    + " ELSE '' END || '000000', 1, 6) END FROM (SELECT ").piece(t).append(" AS t) AS __it)");
+        }
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
             return writer.expr(v, 0);
         }

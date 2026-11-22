@@ -1329,6 +1329,11 @@ public class H2 extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && c.reason() == SqlExpr.Reason.JUDGE) {
+            // a judge's instant (register S399): truncated to the microsecond -- H2 holds nine subsecond digits in a
+            // literal and a TIMESTAMP(9), and its cast to TIMESTAMP rounds them; the host and DuckDB truncate
+            return writer.append("DATE_TRUNC('MICROSECOND', CAST(").expr(c.value(), 0).append(" AS TIMESTAMP(9)))");
+        }
         // a double's Float literal is H2's double already (floatLiteral: CAST(x AS DOUBLE PRECISION)): its cast to a
         // double is the identity, never written again (S20's waste look, 2026-11-17)
         if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.value() instanceof SqlExpr.FloatLit f && f.isDouble()

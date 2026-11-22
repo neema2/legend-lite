@@ -294,6 +294,10 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   against its own column (73 expected failures in its relational PCT manifests). **read**
 - **Lite's product** compares a date by its kind and its instant, as the database does: equal. A day is never a
   date-time, and a year never a year-month, as in Pure. **measured** (`AssertBarTest`)
+- **The other face:** `assertNotEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)` fails in lite's product,
+  where legend-pure passes it; so do `assertNotEq` and `assertNotContains` of such a pair.
+- **The instant is the microsecond** a database's TIMESTAMP holds: a seventh subsecond digit and beyond is not compared,
+  on either judge.
 - **On legend-engine's and legend-pure's doors** lite keeps Pure's answer (the host judge's compatibility forms).
 - Register S399.
 

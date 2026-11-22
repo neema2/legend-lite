@@ -340,7 +340,16 @@ public final class VerdictSql {
                 if (MixedEncoding.enumerationKind(slot.kind()) != null) {
                     return false;
                 }
-                into.putIfAbsent(kindKey(slot.kind(), slot.type(), byType), slot.type());
+                // a DateTime compared at the judge's instant (S399): its compare column a TIMESTAMP whatever its slot
+                into.putIfAbsent(kindKey(slot.kind(), slot.type(), byType), !byType && instant(slot.kind())
+                        ? SqlType.Scalar.TIMESTAMP : slot.type());
+            }
+            return true;
+        }
+        if (writtenDate(kind, wrapped)) {
+            // a Date written as its text: each value one of the four date kinds, as its text says (S399)
+            for (java.util.Map.Entry<String, SqlType> k : DATE_KINDS.entrySet()) {
+                into.putIfAbsent(kindKey(k.getKey(), k.getValue(), byType), k.getValue());
             }
             return true;
         }
@@ -353,11 +362,43 @@ public final class VerdictSql {
         return true;
     }
 
+    /** The kinds a Date written as its text may be, each with the SQL type its value is compared in: a year's and a
+     *  year-month's their text (one text each), a day a DATE, a date-time the judge's instant. */
+    private static final java.util.Map<String, SqlType> DATE_KINDS = java.util.Map.of("Year",
+            SqlType.Scalar.TEMPORAL_TEXT, "YearMonth", SqlType.Scalar.TEMPORAL_TEXT, "StrictDate", SqlType.Scalar.DATE,
+            "DateTime", SqlType.Scalar.TIMESTAMP);
+
+    /** Whether a side is a {@code Date} carried as its written text ({@code JudgmentFacts}' the same rule). */
+    private static boolean writtenDate(Type kind, SqlQuery wrapped) {
+        return kind == Type.Primitive.DATE && !wrapped.outputs().isEmpty()
+                && (wrapped.outputs().get(0).type() == SqlType.Scalar.TEMPORAL_TEXT
+                        || wrapped.outputs().get(0).type() == SqlType.Scalar.VARCHAR);
+    }
+
+    /** The kind a Date's written text names, by its shape (a year's four digits, a year-month's seven characters, a
+     *  day's ten, a date-time's more), as the kind key's name. */
+    private static SqlExpr dateKindOfText(SqlExpr text, java.util.function.Function<String, Integer> index) {
+        SqlExpr len = SqlExpr.Call.of(SqlFn.LENGTH, text);
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(4)),
+                        new SqlExpr.IntLit(index.apply("Year"))),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(7)),
+                        new SqlExpr.IntLit(index.apply("YearMonth"))),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(10)),
+                        new SqlExpr.IntLit(index.apply("StrictDate")))),
+                new SqlExpr.IntLit(index.apply("DateTime")), SqlExpr.Reason.JUDGE);
+    }
+
     /** The SQL type a typed side's values are compared in: a date's the database's DATE or TIMESTAMP ({@link #instants}
      *  reads a written one), any other its column's. */
     private static SqlType heldType(SqlQuery wrapped, Type t) {
         return t == Type.Primitive.DATE_TIME ? SqlType.Scalar.TIMESTAMP
                 : t == Type.Primitive.STRICT_DATE ? SqlType.Scalar.DATE : wrapped.outputs().get(0).type();
+    }
+
+    /** Whether a slot's kind is a DateTime's (of any written precision), compared at the judge's instant. */
+    private static boolean instant(String slotKind) {
+        return MixedEncoding.writtenDigits(slotKind) != null || slotKind.equals("DateTime");
     }
 
     /** A kind's column key: its name (a DateTime of any written precision one kind, register S399), and where the
@@ -408,12 +449,49 @@ public final class VerdictSql {
                 for (int i = 0; i < tg.slots().size(); i++) {
                     SqlType.Tagged.Slot slot = tg.slots().get(i);
                     if (kindKey(slot.kind(), slot.type(), byType).equals(key)) {
+                        SqlExpr held = SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1));
                         vs.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
-                                SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1))));
+                                !byType && instant(slot.kind()) ? new SqlExpr.Cast(held, SqlType.Scalar.TIMESTAMP,
+                                        SqlExpr.Reason.JUDGE) : held));
                     }
                 }
                 return vs.isEmpty() ? null : new SqlExpr.Case(vs, nullOf(java.util.Objects.requireNonNull(
                         columns.get(key), "a kind's SQL type")), SqlExpr.Reason.JUDGE);
+            };
+        } else if (writtenDate(kind, wrapped)) {
+            rows = valueRows(wrapped);
+            if (rows == null) {
+                return null;
+            }
+            SqlQuery r = rows;
+            SqlExpr text = SqlExpr.Column.of("r", r.outputs(), O);
+            SqlExpr len = SqlExpr.Call.of(SqlFn.LENGTH, text);
+            kOf = dateKindOfText(text, name -> order.indexOf(kindKey(name, java.util.Objects.requireNonNull(
+                    DATE_KINDS.get(name)), byType)));
+            valueOf = key -> {
+                for (java.util.Map.Entry<String, SqlType> k : DATE_KINDS.entrySet()) {
+                    if (!kindKey(k.getKey(), k.getValue(), byType).equals(key)) {
+                        continue;
+                    }
+                    SqlExpr when = switch (k.getKey()) {
+                        case "Year" -> SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(4));
+                        case "YearMonth" -> SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(7));
+                        case "StrictDate" -> SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(10));
+                        default -> SqlExpr.Call.of(SqlFn.GREATER, len, new SqlExpr.IntLit(10));
+                    };
+                    SqlExpr value = switch (k.getKey()) {
+                        case "StrictDate" -> new SqlExpr.Cast(text, SqlType.Scalar.DATE, SqlExpr.Reason.JUDGE);
+                        case "DateTime" -> new SqlExpr.Cast(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, text,
+                                        new SqlExpr.StringLit(":")), new SqlExpr.IntLit(0)),
+                                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit(":00")))), text,
+                                SqlExpr.Reason.JUDGE), SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE);
+                        default -> text;
+                    };
+                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(when, value)), nullOf(k.getValue()),
+                            SqlExpr.Reason.JUDGE);
+                }
+                return null;
             };
         } else {
             Type t = java.util.Objects.requireNonNull(typedClass(kind), "a typed side's class");
@@ -468,11 +546,12 @@ public final class VerdictSql {
             return rows;
         }
         SqlType carried = rows.outputs().get(0).type();
-        if (carried == SqlType.Scalar.DATE || carried == SqlType.Scalar.TIMESTAMP
-                || carried == SqlType.Scalar.TIMESTAMPTZ) {
+        if (carried == SqlType.Scalar.DATE || carried == SqlType.Scalar.TIMESTAMPTZ
+                || carried == SqlType.Scalar.TIMESTAMP && kind != Type.Primitive.DATE_TIME) {
             return rows;
         }
-        if (carried != SqlType.Scalar.TEMPORAL_TEXT && carried != SqlType.Scalar.VARCHAR) {
+        if (carried != SqlType.Scalar.TEMPORAL_TEXT && carried != SqlType.Scalar.VARCHAR
+                && carried != SqlType.Scalar.TIMESTAMP) {
             // a date the side carries in no form the database reads as one (a JSON carrier: the dates audit's LOW 6,
             // 2026-11-22): no typed member
             return null;
@@ -487,9 +566,13 @@ public final class VerdictSql {
                     List.of(dOut, rows.outputs().get(1)));
         }
         SqlExpr v = SqlExpr.Column.of("t", rows.outputs(), O);
-        // an hour's text read at its minute; a day's text (a DateTime over a column that holds days: the egress writes
-        // its day alone, the dates audit's MEDIUM 4) read at its midnight, as it is
-        SqlExpr written = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND,
+        // every date-time read as the judge's instant (the dialect's JUDGE cast to TIMESTAMP: a database whose
+        // TIMESTAMP is a type, as it is; SQLite's, a text, in one form at the microsecond; S399's text, 2026-11-22) --
+        // a stored one as it is held, a written one from its text: an hour's text read at its minute; a day's text (a
+        // DateTime over a column that holds days: the egress writes its day alone, the dates audit's MEDIUM 4) read
+        // at its midnight, as it is
+        SqlExpr written = carried == SqlType.Scalar.TIMESTAMP ? v : new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.AND,
                 SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, v, new SqlExpr.StringLit(":")),
                         new SqlExpr.IntLit(0)), SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.LENGTH, v),
                         new SqlExpr.IntLit(10))),
