@@ -33,11 +33,23 @@ final class JudgmentFacts {
      *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair stays the seven-column row:
      *  a side with no typed class, or a partial date's literal. A Decimal literal is typed: its written scale rides its
      *  SQL type, which the reader restores where a driver drops it (SQLite's, as BigQuery's). */
-    record TypedPair(Type e, Type a, Form form) {
+    record TypedPair(Type e, Type a, Form form, @Nullable EqualityKeys keys) {
         /** How the pair's values compare: as typed values, dates (by kind and instant), the same only where both are
-         *  empty (an empty side, Nil), tagged values (each its kind and its value). An instance carried as a struct
-         *  stays the seven-column row: a JSON carrier compares its written text, not its values (batch 4's audit, H1). */
-        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED }
+         *  empty (an empty side, Nil), tagged values (each its kind and its value), instances of one class (each a row
+         *  of its typed leaves: its keys, {@code keys}, or its identity where it has none; item 3's S4, instances). */
+        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES }
+
+        TypedPair(Type e, Type a, Form form) {
+            this(e, a, form, null);
+        }
+
+        /** The family whose record the host's builders write: an instance's identity assert ({@code assertEq},
+         *  {@code assertIs}) names it by its class and identity, as the host's does; else the equality's. */
+        com.legend.testexecutionplan.RootLoop.Family family(boolean multiset, String name) {
+            return form == Form.INSTANCES && (name.equals("assertEq") || name.equals("assertIs"))
+                    ? com.legend.testexecutionplan.RootLoop.Family.EQ
+                    : com.legend.testexecutionplan.RootLoop.Family.equality(multiset, tagged());
+        }
 
         boolean dates() {
             return form == Form.DATES;
@@ -52,6 +64,8 @@ final class JudgmentFacts {
                 com.legend.sql.SqlQuery aPlan, boolean multiset, boolean wantEqual) {
             return switch (form) {
                 case TAGGED -> com.legend.lowering.VerdictSql.typedTagged(ePlan, e, aPlan, a, multiset, wantEqual);
+                case INSTANCES -> com.legend.lowering.VerdictSql.typedInstances(ePlan, e, aPlan, a, keys, multiset,
+                        wantEqual);
                 case VALUES, DATES, EMPTY_ONLY -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e, aPlan, a,
                         multiset, wantEqual, form == Form.EMPTY_ONLY);
             };
@@ -59,7 +73,7 @@ final class JudgmentFacts {
     }
 
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
-            Type aKind, com.legend.sql.SqlQuery aPlan) {
+            Type aKind, com.legend.sql.SqlQuery aPlan, ModelContext ctx) {
         boolean eMixed = tagged(ePlan) || writtenDate(eKind, ePlan);
         boolean aMixed = tagged(aPlan) || writtenDate(aKind, aPlan);
         if (eMixed || aMixed) {
@@ -85,7 +99,15 @@ final class JudgmentFacts {
         }
         e = com.legend.lowering.VerdictSql.typedClass(eKind);
         a = com.legend.lowering.VerdictSql.typedClass(aKind);
-        return e == null || a == null ? null : new TypedPair(e, a, TypedPair.Form.VALUES);
+        if (e != null && a != null) {
+            return new TypedPair(e, a, TypedPair.Form.VALUES);
+        }
+        // instances of ONE class -- a model class's or a Pair's -- its keys read here, at planning (a subtype pair
+        // restricts by the classifiers its run carries, which the host reads)
+        String ef = EqualityKeys.fqnOf(eSpec.info().type());
+        return ef != null && ef.equals(EqualityKeys.fqnOf(aSpec.info().type()))
+                ? new TypedPair(eKind, aKind, TypedPair.Form.INSTANCES, EqualityKeys.resolve(ctx, eSpec.info().type()))
+                : null;
     }
 
     /** Whether a side's plan carries a tagged value (its first column a {@code SqlType.Tagged}: the kind the

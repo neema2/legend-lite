@@ -159,6 +159,10 @@ RAISE_FORMS: dict[str, list[dict[str, object]]] = {
     'SECOND_FRACTION_NOT_KEPT': [
         {'arity': 2, 'emptySlot': -1, 'template': 'the second %1$s has more than %2$s fraction digits, which a date()\'s fractional second keeps: refused, never cut (S181)', 'slots': [], 'shape': 'TEMPLATE'},
     ],
+    'JUDGED_INSTANT_NOT_HELD': [
+        {'arity': 2, 'emptySlot': -1, 'template': 'a date-time an assert compares has more fraction digits than %1$s reads in it (%2$s): refused, never cut (S181)', 'slots': [], 'shape': 'TEMPLATE'},
+        {'arity': 3, 'emptySlot': -1, 'template': 'a date-time an assert compares to the nanosecond is outside the days %1$s holds to the nanosecond (%2$s to %3$s): refused (S181)', 'slots': [], 'shape': 'TEMPLATE'},
+    ],
     'CSV_TOO_WIDE': [
         {'arity': 1, 'emptySlot': -1, 'template': 'a record of the CSV file has more cells than its table\'s %1$s column(s)', 'slots': [], 'shape': 'TEMPLATE'},
     ],

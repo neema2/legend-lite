@@ -238,21 +238,17 @@ public final class Equality {
         return true;
     }
 
-    /** The engine's {@code assertSameElements}: sort both sides by the
-     * value order, then ordered. */
+    /** The engine's {@code assertSameElements}: sort both sides by the value order, then ordered -- legend-pure's
+     *  {@code assertEquals($expected->sort(), $actual->sort())} (assertSameElements.pure:11). An instance or a map has
+     *  no value order: those are matched as a multiset, each expected one to an equal actual one, never lined up by
+     *  their text (the instances design's HIGH, 2026-11-22: two instances whose fields are one value written two ways,
+     *  {@code 1.5D} and {@code 1.50D}, sorted apart by their text and failed a pair the database judge holds). */
     public static boolean sameElements(List<Typed> e, List<Typed> a, HostRules rules) {
-        return ordered(sorted(e), sorted(a), rules);
-    }
-
-    /** True when every element of {@code needle} has an equal in
-     * {@code hay} (membership, the contains / forAll family). */
-    public static boolean contains(List<Typed> hay, Typed needle, HostRules rules) {
-        for (Typed h : hay) {
-            if (same(needle, h, rules)) {
-                return true;
-            }
-        }
-        return false;
+        List<Typed> es = sorted(e), as = sorted(a);
+        int k = (int) es.stream().takeWhile(t -> !(t.value() instanceof Map<?, ?>)).count();
+        return e.size() == a.size() && k == as.stream().takeWhile(t -> !(t.value() instanceof Map<?, ?>)).count()
+                && ordered(es.subList(0, k), as.subList(0, k), rules)
+                && rowMultiset(es.subList(k, es.size()), as.subList(k, as.size()), 1, rules);
     }
 
     /** A grid's flat cells paired with their COLUMN kinds (cycling per
@@ -323,7 +319,7 @@ public final class Equality {
             case String s -> s;
             case Boolean b -> b;
             case com.legend.values.PureDateLiteral d -> d.toInstantFloor();
-            default -> String.valueOf(v);   // maps: stable text order
+            default -> "";   // instances and maps: no order of their own (sameElements matches them)
         };
     }
 

@@ -442,6 +442,8 @@ class AssertBarTest {
             ###Pure
             Class p::P { id: Integer[1]; d: Decimal[1]; }
             Class p::Q { id: Integer[1]; e: Decimal[1]; }
+            Class p::K { <<equality.Key>> id: Integer[1]; <<equality.Key>> at: DateTime[1]; note: String[1]; }
+            Class p::KN { <<equality.Key>> k: p::K[1]; <<equality.Key>> f: Float[1]; }
             ###Relational
             Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER) Table U (ID INTEGER PRIMARY KEY, E DECIMAL(10,2)) )
             ###Mapping
@@ -658,6 +660,24 @@ class AssertBarTest {
         // an assert with no nanoseconds is read to the microsecond in every year (legend-pure's adjust tests' years)
         want.put("{|assertEquals(%2407-05-19T19:15:12, %2407-05-19T19:15:12.000)}", "pass");
         want.put("{|assertEquals(%1624-12-10T04:44:48, %1624-12-10T04:44:49)}", "AssertFailed");
+        // the precision audit (2026-11-22): a written Date's kind by its structure, in every year (H1); a date-time
+        // outside SQLite's 0000 to 9999 (H2); a nanosecond assert beside another assert's year past 2262 (H3); a tenth
+        // digit refused at planning (M1); a String that spells a date-time no nanosecond (M2); a record as written (M4)
+        want.put("{|assertEquals(%0999, %0998)}", "AssertFailed");
+        want.put("{|assertEquals(%25489, %25488)}", "AssertFailed");
+        want.put("{|assertEquals(%-2020, %-2021)}", "AssertFailed");
+        want.put("{|assertEquals(%25489-01, %25489-02)}", "AssertFailed");
+        want.put("{|assertNotEquals(%25489, %25488)}", "pass");
+        want.put("{|assertEquals(%0999, %0999)}", "pass");
+        want.put("{|assertEquals(%25489-01-01T10:00:00, %25488-01-01T10:00:00)}", "AssertFailed");
+        want.put("{|assertEquals(%25489-01-01T10:00:00, %25489-01-01T10:00:00.000)}", "pass");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456789);"
+                + " assertEquals(%2407-01-01T10:00:00, %2407-01-01T10:00:01);}", "AssertFailed");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.0000000001, %2020-01-01T10:00:00.0000000002)}",
+                "DialectCapability");
+        want.put("{|assertEquals(%2407-05-19T19:15:12, if('2020-01-01T10:00:00.1234567' == 'x', |%2000-01-01T00:00:00,"
+                + " |%2407-05-19T19:15:12))}", "pass");
+        want.put("{|assertEquals(%2020-01-01T10:30, %2020-01-01T10:30:00.000000001)}", "AssertFailed");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             var database = backend.type();
@@ -685,6 +705,62 @@ class AssertBarTest {
             }
         }
         assertTrue(wrong.isEmpty(), "every digit compared:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** Instances of one class compared as rows of typed leaves on every database the platform runs in-process, under
+     *  every judge (item 3's S4, instances, 2026-11-22): a keyed class by its classifier and its keys (a nested keyed
+     *  instance's keys in its place; a non-key property no part of it), a keyless class by its identity (S111), a Pair
+     *  by its two values; in order, or as a multiset where the elements are the same in any order. */
+    @Test
+    void instancesAreComparedByTheirKeysOrTheirIdentity() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        // (a model class's instance is refused by name on H2 today, under every judge: its dialect has no list encoding
+        // for the instance's carrier -- a gap of the dialect, docs/DIFFERENCES_FROM_LEGEND_ENGINE.md)
+        String k1 = "^p::K(id=1, at=%2020-01-01T10:00:00.5, note='a')";
+        want.put("{|assertEquals(" + k1 + ", ^p::K(id=1, at=%2020-01-01T10:00:00.500, note='b'))}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(" + k1 + ", ^p::K(id=2, at=%2020-01-01T10:00:00.5, note='a'))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(" + k1 + ", ^p::K(id=1, at=%2020-01-01T10:00:00.6, note='a'))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertNotEquals(" + k1 + ", ^p::K(id=2, at=%2020-01-01T10:00:00.5, note='a'))}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(^p::KN(k=" + k1 + ", f=1.5), ^p::KN(k=^p::K(id=1, at=%2020-01-01T10:00:00.5,"
+                + " note='z'), f=1.5))}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(^p::KN(k=" + k1 + ", f=1.5), ^p::KN(k=" + k1 + ", f=2.5))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertSameElements([" + k1 + ", ^p::K(id=2, at=%2020-01-01T10:00:00, note='c')], [^p::K(id=2,"
+                + " at=%2020-01-01T10:00:00.000, note='d'), " + k1 + "])}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|let x = ^p::P(id=1, d=1.5D); assertEquals($x, $x);}", "pass|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(^p::P(id=1, d=1.5D), ^p::P(id=1, d=1.5D))}", "AssertFailed|H2=DialectCapability: LIST_GET");
+        want.put("{|assertEquals(pair(1, 'a'), pair(1, 'a'))}", "pass");
+        want.put("{|assertEquals(pair(1, 2.5), pair(1, 2.5))}", "pass");
+        want.put("{|assertEquals(pair(1, true), pair(1, false))}", "AssertFailed");
+        want.put("{|assertEquals(pair(1, 1.50D), pair(1, 1.5D))}", "pass");
+        want.put("{|assertEquals(pair(pair(1, 'a'), 2), pair(pair(1, 'b'), 2))}", "AssertFailed");
+        want.put("{|assertSameElements([pair(1, 'a'), pair(2, 'b')], [pair(2, 'b'), pair(1, 'a')])}", "pass");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    String expected = e.getValue();
+                    int other = expected.indexOf("|" + database + "=");
+                    expected = other >= 0 ? expected.substring(other + database.toString().length() + 2)
+                            : expected.contains("|") ? expected.substring(0, expected.indexOf('|')) : expected;
+                    if (!got.startsWith(expected)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "instances by keys or identity:\n  " + String.join("\n  ", wrong));
     }
 
     /** Two tables compared (assertTdsEquivalent, assertEquals, assertNotEquals) on every database the platform runs

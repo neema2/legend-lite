@@ -1322,6 +1322,13 @@ public class SQLite extends AnsiSqlRenderer {
                 .expr(args.get(0), 0).append(" END)");
     }
 
+    /** A judged date-time text's second where SQLite's date functions read none -- a year outside 0000 to 9999, which
+     *  they answer NULL (the precision audit's H2, 2026-11-22: two such NULLs compared equal) -- its own day and time
+     *  as written, to the second ({@code __it.t}: the text, its 'T' a space and its day's fields padded). */
+    private static final String WIDE_YEAR_SECOND = "CASE WHEN instr(__it.t, ' ') = 0 THEN __it.t || ' 00:00:00' ELSE"
+            + " substr(__it.t, 1, instr(__it.t, ' ') + 5) || CASE WHEN substr(__it.t, instr(__it.t, ' ') + 6, 1) = ':'"
+            + " THEN substr(__it.t, instr(__it.t, ' ') + 6, 3) ELSE ':00' END END";
+
     /** {@inheritDoc} Never here: a date-time is held as its text, which the judge's own arm reads in one form
      *  ({@link #variantAwareCast}). */
     @Override
@@ -1346,10 +1353,18 @@ public class SQLite extends AnsiSqlRenderer {
             // digit past its ninth refused, never cut
             String f = "substr(__i0.t, instr(__i0.t, '.') + 1)";
             return writer.append("(SELECT CASE WHEN __it.t IS NULL THEN NULL WHEN length(__it.d) > 9 AND ltrim(substr("
-                    + "__it.d, 10), '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE strftime('%Y-%m-%d %H:%M:%S',"
-                    + " __it.t) || '.' || substr(__it.d || '000000000', 1, 9) END FROM (SELECT __i0.t AS t, CASE WHEN"
+                    + "__it.d, 10), '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE coalesce(strftime("
+                    + "'%Y-%m-%d %H:%M:%S', __it.t), " + WIDE_YEAR_SECOND + ") || '.' || substr(__it.d || '000000000', 1,"
+                    + " 9) END FROM (SELECT __i0.t AS t, CASE WHEN"
                     + " instr(__i0.t, '.') > 0 THEN substr(" + f + ", 1, length(" + f + ") - length(ltrim(" + f
                     + ", '0123456789'))) ELSE '' END AS d FROM (SELECT ").piece(t).append(" AS t) AS __i0) AS __it)");
+        }
+        if (target == SqlType.Scalar.DATE && judged(c)) {
+            // a judged day: SQLite's date() of its text, or, for a year outside 0000 to 9999 where date() answers NULL,
+            // the text's own day (the precision audit's H2, 2026-11-22)
+            SqlWriter.Piece t = typeOf(v) == SqlType.Scalar.DATE ? w -> w.expr(v, 0) : padded(dateTimeText(w -> w.expr(v, 0)));
+            return writer.append("(SELECT coalesce(date(__dd.t), CASE WHEN instr(__dd.t, ' ') > 0 THEN substr(__dd.t, 1,"
+                    + " instr(__dd.t, ' ') - 1) ELSE __dd.t END) FROM (SELECT ").piece(t).append(" AS t) AS __dd)");
         }
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
             return writer.expr(v, 0);

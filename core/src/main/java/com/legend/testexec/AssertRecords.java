@@ -79,6 +79,8 @@ final class AssertRecords {
             case EQUALS -> equality(false, report.want(), e, a, List.of(), List.of(), report.e(), report.a());
             case SAME_ELEMENTS -> equality(true, report.want(), e, a, List.of(), List.of(), report.e(), report.a());
             case IS_NOT -> negated("IS_NOT", e, a);
+            case EQ -> notEq(e.isEmpty() ? null : e.get(0), a.isEmpty() ? null : a.get(0), eClass, aClass,
+                    report.e() == null ? null : report.e().declared(), report.a() == null ? null : report.a().declared());
             case CONDITION -> condition(report.want());
             case SIZE -> report.want() ? size(row.get(1), ((Number) row.get(2)).longValue())
                     : negated("NOT_SIZE", e, a);

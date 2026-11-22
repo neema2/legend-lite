@@ -394,3 +394,45 @@ it (scratchpad/research/next-phase-design.md). Step 1 (the wide row) at 545fa65a
   constants, allowed); three stale javadocs; the guard row's label RULED where Q-S8 said STAYS (both final); an
   assertError expected text joined with + still folds in Java (S7's to refuse).
 - Separate, pre-existing: CommonSubexpressions walks an identity map, so its SQL's order can differ run to run (G10).
+
+## The precision round's audit (1978e89d + b7b00e31, 2026-11-22) and its fixes
+- HIGH 1 (fixed): a written Date's kind was read from its text's LENGTH, so a year below 1000, of five digits or
+  negative took another kind and compared equal. Now from its structure (a time after the day; else the dashes after
+  the year's sign), a year and a year-month compared as integers of their components (a year-month its year times
+  twelve plus its month), a mixed list's Date slot read the same way.
+- HIGH 2 (fixed): SQLite's date functions answer NULL for a year outside 0000 to 9999, and two NULLs compared equal;
+  such a date-time or day is read from its own text.
+- HIGH 3 (fixed): a nanosecond assert's TIMESTAMP_NS value shared a fused column with another assert's year past 2262
+  (DuckDB's own conversion error): a nanosecond member's columns are its own (VerdictSql.batch's Slot.nanos), and the
+  records carry each side's values as it holds them. DuckDB's microsecond reading of a typed value is its TIMESTAMP,
+  a nanosecond one with a digit past the sixth refused by name (it was compared as held, and DuckDB promoted the other
+  value).
+- MEDIUM 1 (fixed in part): a date-time literal with a nonzero tenth digit is refused at planning, under every judge
+  (RootLiterals: the text carrier had passed it to a host that cut it). Open, S9: Postgres, MariaDB, BigQuery and
+  Databricks read a date-time text with a cast to their microsecond type, ClickHouse to DateTime64(6).
+- MEDIUM 2 (fixed in part): nanoseconds are read from a date-time literal alone (a typed one, or its TEMPORAL_TEXT
+  carrier), never a String that spells one. Open: a stored TIMESTAMP_NS column's value with nanoseconds in an assert
+  with no nanosecond literal is refused by name (DuckDB could compare it).
+- MEDIUM 3 (fixed): the engine client's and Python's raise catalogs regenerated; their checks join the wide round.
+- MEDIUM 4 (fixed but S312): the records carry the values as held, not the instants compared (a record named another
+  precision than the host's; SQLite's Year printed as a Julian day). The six-digit text is S312, the user's.
+- MEDIUM 5 (open, recorded in S399): a refusal at run is the database judge's; under both judges it is their
+  disagreement, naming it.
+- The per-assert nanosecond reading is the session's reading of the user's rule (posted 2026-11-22), not a ruling.
+- Probes: the dates probe gains every body the audit measured (years 0999, 25489, -2020, year-months, wide date-times,
+  the fused pair, a tenth digit, a String that spells a date-time, a minute against a nanosecond).
+
+## Instances and Pairs typed (item 3's S4, 2026-11-22)
+- VerdictSql.typedInstances: each value one row of typed leaves, as the host restricts it -- a keyed class its
+  __type and its keys (a nested keyed instance's leaves in its place), a keyless class its __type and identity (S111,
+  tracked or raised by name), a Pair its two values -- compared by the one list node, in order or as a multiset;
+  each leaf read by its layout's type (H2 reads a JSON-carried field through its text; a date-time through the judge's
+  instant). Refused (the seven-column row, for now): to-many keys, polymorphic/Any key slots, JSON fields, a keyless
+  class with no identity, layouts whose leaf kinds differ.
+- The record: a keyed instance restricted to its classifier and keys, as the host's (restrictOne); assertEq and
+  assertIs name an instance by class and identity (RootLoop.Family.EQ, AssertRecords.notEq).
+- The host's assertSameElements matches instances and maps as a multiset (sorted by text, two equal instances whose
+  fields are one value written two ways were lined up apart); scalars keep upstream's sort.
+- Measured (DuckDB lanes): 5,499 typed members, 108 seven-column (175 before).
+- Probe: AssertBarTest.instancesAreComparedByTheirKeysOrTheirIdentity (keyed, nested keyed, keyless, Pairs, nested
+  Pairs, multisets; H2 refuses a model class's construction today, under every judge -- a dialect gap).

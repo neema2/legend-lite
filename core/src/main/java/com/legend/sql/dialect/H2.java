@@ -1327,14 +1327,29 @@ public class H2 extends AnsiSqlRenderer {
         return w -> w.append("CASE WHEN ").piece(matches).append(" THEN ").expr(x, 0).append(" END");
     }
 
+    /** Whether {@code v} navigates a value H2 carries as JSON (a variant's path, a struct's field): its result is JSON,
+     *  read as a typed value only through a cast ({@link #variantAwareCast}). */
+    private static boolean navigation(SqlExpr v) {
+        return v instanceof SqlExpr.Call call && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
+                || v instanceof SqlExpr.StructGet;
+    }
+
+    /** {@inheritDoc} Not a navigation's: H2 holds it as JSON ({@link #navigation}). */
+    @Override
+    protected boolean judgesAsHeld(SqlExpr.Cast c) {
+        return super.judgesAsHeld(c) && !navigation(c.value());
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && judged(c)) {
             // a judge's instant written as its text (register S399; S181, the user's rule of 2026-11-22): read as a
             // TIMESTAMP(9), every digit a literal here keeps -- H2's cast to TIMESTAMP rounds a seventh -- and a text
             // with a nonzero digit past the ninth refused, never rounded (a value H2 types as a date-time is compared
-            // as it holds it: judgesAsHeld)
-            SqlExpr v = c.value();
+            // as it holds it: judgesAsHeld); a field of a struct H2 carries as JSON read as its text first
+            SqlExpr v = navigation(c.value())
+                    ? new SqlExpr.Cast(c.value(), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
+                    : c.value();
             return judgedText(writer, v, 9, w -> w.append("REGEXP_LIKE(").expr(v, 0).append(", '" + digitPast(9) + "')"),
                     w -> w.append("CAST(").expr(v, 0).append(" AS TIMESTAMP(9))"));
         }
@@ -1369,10 +1384,7 @@ public class H2 extends AnsiSqlRenderer {
         // with them). H2 has no JSON_VALUE. A number or a boolean is its text; a JSON null is SQL's NULL (its text the
         // word null, where a JSON string "null" is quoted); a decimal target takes the text as a scalar one does (the
         // lane round 33's stress finding, 2026-11-10)
-        boolean navigation = c.value() instanceof SqlExpr.Call call
-                && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
-                || c.value() instanceof SqlExpr.StructGet;
-        if (navigation && (c.target() instanceof com.legend.sql.SqlType.Scalar
+        if (navigation(c.value()) && (c.target() instanceof com.legend.sql.SqlType.Scalar
                 || c.target() instanceof com.legend.sql.SqlType.Decimal)) {
             writer.append("CAST(CASE WHEN CAST(").expr(c.value(), 0).append(" AS VARCHAR) LIKE '\"%' THEN STRINGDECODE(")
                     .append("SUBSTRING(CAST(").expr(c.value(), 0).append(" AS VARCHAR), 2, LENGTH(CAST(")

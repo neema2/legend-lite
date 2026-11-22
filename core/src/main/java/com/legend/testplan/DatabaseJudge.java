@@ -229,12 +229,12 @@ public final class DatabaseJudge {
         // the pair's typed kinds (JudgmentFacts.typedPair: two number kinds unequal unless empty, S127; a date by its
         // kind and its instant, S399)
         JudgmentFacts.TypedPair tp = JudgmentFacts.typedPair(eSpec, re.kinds().get(ie), java.util.Objects.requireNonNull(we)
-                .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan());
+                .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan(), env.ctx());
         if (tp != null && (tp.dates() || tp.tagged() || !literal(re, ra, anyNil, anyAny))) {
             com.legend.lowering.VerdictSql.TypedRow typed = tp.row(we.plan(), wa.plan(), canonicalOrder, wantEqual);
             if (typed != null) {
-                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(com.legend
-                        .testexecutionplan.RootLoop.Family.equality(canonicalOrder, tp.tagged()), wantEqual,
+                return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(tp.family(canonicalOrder,
+                        name), wantEqual,
                         JudgmentFacts.sideFacts(eSpec), JudgmentFacts.sideFacts(aSpec), null, -1), runOn);
             }
         }

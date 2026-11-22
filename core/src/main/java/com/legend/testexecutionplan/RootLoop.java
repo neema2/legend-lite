@@ -185,6 +185,10 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
         SAME_ELEMENTS,
         /** {@code assertIsNot} over values its equality decides: {@code [verdict, expected, actual]}. */
         IS_NOT,
+        /** {@code assertEq} / {@code assertIs} over instances: {@code [verdict, expected, actual]}, each a one-value list,
+         *  recorded as the host's identity assert names its values -- an instance its class and its identity (item 3's
+         *  S4, instances, 2026-11-22). */
+        EQ,
         /** {@code assert} / {@code assertFalse} (and a condition of the planner's making): {@code [verdict]}, its record
          *  fixed at planning, or the polarity's. */
         CONDITION,

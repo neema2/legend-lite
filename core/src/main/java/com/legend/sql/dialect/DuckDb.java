@@ -1253,11 +1253,12 @@ public class DuckDb extends AnsiSqlRenderer {
                 .append("\" := ").expr(args.get(2), 0).append(")");
     }
 
-    /** {@inheritDoc} To the microsecond only: an assert whose values carry nanoseconds reads each as DuckDB's
-     *  nanosecond timestamp, its days checked ({@link #variantAwareCast}). */
+    /** {@inheritDoc} A literal only: a TIMESTAMP literal is microseconds, a nanosecond one makes its assert a
+     *  nanosecond one (VerdictSql.nanos); any other value DuckDB types as a date-time may be a {@code TIMESTAMP_NS} its
+     *  type does not say (a column of one, a nanosecond adjust), read by {@link #variantAwareCast}. */
     @Override
     protected boolean judgesAsHeld(SqlExpr.Cast c) {
-        return c.reason() == SqlExpr.Reason.JUDGE && super.judgesAsHeld(c);
+        return c.reason() == SqlExpr.Reason.JUDGE && c.value() instanceof SqlExpr.TimestampLit && super.judgesAsHeld(c);
     }
 
     /** The days DuckDB's {@code TIMESTAMP_NS} holds, whole (measured on 1.5.6, 2026-11-22: 1677-09-22 00:00 and
@@ -1278,6 +1279,14 @@ public class DuckDb extends AnsiSqlRenderer {
             // as DuckDB's TIMESTAMP, which holds microseconds and every year, a text with a nonzero digit past the
             // sixth refused, never cut (an assert whose values carry nanoseconds is read to the nanosecond, below)
             SqlExpr v = c.value();
+            if (v.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == com.legend.sql.SqlType.Scalar.TIMESTAMP) {
+                // a value DuckDB types as a date-time: read as its TIMESTAMP, every year, a nanosecond one with a digit
+                // past the sixth refused by name (the precision audit's H3, 2026-11-22: compared as held, DuckDB
+                // promoted the other value to TIMESTAMP_NS and refused a year past 2262 with its own conversion error)
+                return writer.append("(CASE WHEN ").expr(v, 4).append(" IS NULL THEN NULL WHEN CAST(").expr(v, 0)
+                        .append(" AS TIMESTAMP) <> ").expr(v, 4).append(" THEN ").piece(judgedRaise(6))
+                        .append(" ELSE CAST(").expr(v, 0).append(" AS TIMESTAMP) END)");
+            }
             return judgedText(writer, v, 6, w -> w.append("regexp_matches(").expr(v, 0).append(", '" + digitPast(6)
                     + "')"), w -> w.append("CAST(").expr(v, 0).append(" AS TIMESTAMP)"));
         }

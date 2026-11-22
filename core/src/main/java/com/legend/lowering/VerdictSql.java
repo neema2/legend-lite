@@ -255,8 +255,12 @@ public final class VerdictSql {
      */
     public static @com.legend.base.Nullable TypedRow typedEquals(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
             Type aKind, boolean multiset, boolean wantEqual, boolean emptyOnly) {
-        SqlQuery eRows = instants(valueRows(eWrapped), eKind);
-        SqlQuery aRows = instants(valueRows(aWrapped), aKind);
+        SqlQuery eRaw = valueRows(eWrapped);
+        SqlQuery aRaw = valueRows(aWrapped);
+        // each side computed once: where its values are read as instants, the instants read its rows' table (__xe,
+        // __xa), which the record lists
+        SqlQuery eRows = readOnce("__xe", eRaw, eKind);
+        SqlQuery aRows = readOnce("__xa", aRaw, aKind);
         boolean bothEmptyOnly = emptyOnly || !eKind.equals(aKind);
         // the carriers matter only where the values are compared: two kinds lite never calls equal compare no value
         if (eRows == null || aRows == null || !bothEmptyOnly && !oneCarrier(eRows, aRows)) {
@@ -276,10 +280,53 @@ public final class VerdictSql {
                 ? SqlExpr.Call.of(SqlFn.AND, noRows("__e", eRows), noRows("__a", aRows))
                 : SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER, eL, aL,
                         new SqlExpr.ScalarSubquery(rowsOf("__e", eRows)), new SqlExpr.ScalarSubquery(rowsOf("__a", aRows)));
-        return typedRow(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
-                cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null)),
-                wantEqual ? holds : SqlExpr.Call.of(SqlFn.NOT, holds), List.of(
-                        listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
+        // the record's values as each side carries them, not the instants compared (the precision audit's M4: a
+        // record of the instant named another precision than the host's; H3: a nanosecond instant shared a fused
+        // column with another assert's year past 2262)
+        List<SqlWith.Cte> ctes = new ArrayList<>();
+        SqlSource from = cross(new SqlSource.Subselect(aList, "a", null), new SqlSource.Subselect(eList, "e", null));
+        SqlQuery eHeld = eList;
+        SqlQuery aHeld = aList;
+        String eAt = "e";
+        String aAt = "a";
+        if (eRows != eRaw && eRaw != null) {
+            ctes.add(new SqlWith.Cte("__xe", eRaw));
+            eHeld = listed("__xe", eRaw);
+            eAt = "xe";
+            from = cross(from, new SqlSource.Subselect(eHeld, eAt, null));
+        }
+        if (aRows != aRaw && aRaw != null) {
+            ctes.add(new SqlWith.Cte("__xa", aRaw));
+            aHeld = listed("__xa", aRaw);
+            aAt = "xa";
+            from = cross(from, new SqlSource.Subselect(aHeld, aAt, null));
+        }
+        ctes.add(new SqlWith.Cte("__e", eRows));
+        ctes.add(new SqlWith.Cte("__a", aRows));
+        return typedRow(ctes, from, wantEqual ? holds : SqlExpr.Call.of(SqlFn.NOT, holds), List.of(
+                listValue(TYPED_EXPECTED, eAt, eHeld, eKind), listValue(TYPED_ACTUAL, aAt, aHeld, aKind)));
+    }
+
+    /** {@code raw}, a side's typed rows, as the values compared: itself, or, where {@link #instants} reads them as
+     *  the judge's instants, those instants over the rows' table {@code cte} (which the caller defines and the record
+     *  lists), so the side's plan is computed once (the precision fix's round: a second copy made the database compute
+     *  each side twice, its errors in another order). */
+    private static @com.legend.base.Nullable SqlQuery readOnce(String cte,
+            @com.legend.base.Nullable SqlQuery raw, Type kind) {
+        if (raw == null || instants(raw, kind) == raw) {
+            return raw == null ? null : instants(raw, kind);
+        }
+        return instants(cteRows(cte, raw), kind);
+    }
+
+    /** The rows of {@code cte}, a side's typed rows ({@code __o}, {@code __rn}), read back. */
+    private static SqlQuery cteRows(String cte, SqlQuery rows) {
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (OutputCol o : rows.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of(cte, rows.outputs(), o.name()), o.name(), o));
+        }
+        return new SqlSelect(ps, false, new SqlSource.Table(cte, cte, rows.outputs(), false, java.util.Map.of(),
+                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, rows.outputs());
     }
 
     /**
@@ -329,6 +376,203 @@ public final class VerdictSql {
                         listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
     }
 
+    /**
+     * {@code assertEquals}' and {@code assertSameElements}' TYPED member over two sides of instances of one class -- a
+     * model class's or a Pair's, each value a struct (item 3's S4, instances, 2026-11-22; the user's Q-A): each value
+     * ONE row of typed leaves, as the host restricts it ({@code HostJudgments.restrictOne}: the classifier, then the
+     * keys, upstream's {@code EqualityUtilities}) -- a keyed class its {@code __type} where it carries one and each key
+     * property, a nested keyed instance's leaves in its place; a keyless class its {@code __type} and its identity,
+     * {@code __id} (register S111; read where the product tracks it, else raised by name: {@link
+     * CanonicalRenderSql#trackedId}) -- compared by the one list node as the grids are, in order or as a multiset of
+     * rows. Each leaf is read as its layout types it (a dialect carrying a struct as JSON reads the field by its type), a
+     * date-time through the judge's instant. Where the verdict fails, each side's instances ride back as they are for the
+     * host's record. Null where a side carries no struct, the two layouts' leaves differ in kind, or a leaf has no typed
+     * reading here: a to-many key, a key slot of a polymorphic or Any class, a JSON field, a keyless class with no
+     * identity.
+     */
+    public static @com.legend.base.Nullable TypedRow typedInstances(SqlQuery eWrapped, Type eKind, SqlQuery aWrapped,
+            Type aKind, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys, boolean multiset,
+            boolean wantEqual) {
+        SqlQuery eRows = valueRows(eWrapped);
+        SqlQuery aRows = valueRows(aWrapped);
+        if (eRows == null || aRows == null || !(eRows.outputs().get(0).type() instanceof SqlType.Struct es)
+                || !(aRows.outputs().get(0).type() instanceof SqlType.Struct as)) {
+            return null;
+        }
+        List<Leaf> eLeaves = new ArrayList<>();
+        List<Leaf> aLeaves = new ArrayList<>();
+        if (!leaves(es, keys, List.of(), eLeaves) || !leaves(as, keys, List.of(), aLeaves)
+                || eLeaves.size() != aLeaves.size() || eLeaves.isEmpty()) {
+            return null;
+        }
+        for (int i = 0; i < eLeaves.size(); i++) {
+            Leaf el = eLeaves.get(i);
+            Leaf al = aLeaves.get(i);
+            if (!el.path().equals(al.path()) || !java.util.Objects.equals(leafClass(el.type()), leafClass(al.type()))) {
+                return null;
+            }
+        }
+        SqlQuery ce = leafRows("__ie", eRows, eLeaves);
+        SqlQuery ca = leafRows("__ia", aRows, aLeaves);
+        SqlQuery eCmp = listed("__ke", structRows(rowsOf("__ce", ce)));
+        SqlQuery aCmp = listed("__ka", structRows(rowsOf("__ca", ca)));
+        // the record's instances as the host's reads them: a keyed class restricted to its classifier and its keys
+        // (HostJudgments.restrictOne), a keyless one whole
+        SqlQuery eHeld = keys == null ? eRows : restrictedRows("__ie", eRows, es, keys);
+        SqlQuery aHeld = keys == null ? aRows : restrictedRows("__ia", aRows, as, keys);
+        SqlQuery eList = listed("__re", eHeld);
+        SqlQuery aList = listed("__ra", aHeld);
+        SqlExpr same = SqlExpr.Call.of(multiset ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
+                SqlExpr.Column.of("ke", eCmp.outputs(), LISTED), SqlExpr.Column.of("ka", aCmp.outputs(), LISTED),
+                new SqlExpr.ScalarSubquery(rowsOf("__ce", ce)), new SqlExpr.ScalarSubquery(rowsOf("__ca", ca)));
+        return typedRow(List.of(new SqlWith.Cte("__ie", eRows), new SqlWith.Cte("__ia", aRows),
+                        new SqlWith.Cte("__re", eHeld), new SqlWith.Cte("__ra", aHeld),
+                        new SqlWith.Cte("__ce", ce), new SqlWith.Cte("__ca", ca),
+                        new SqlWith.Cte("__ke", structRows(rowsOf("__ce", ce))),
+                        new SqlWith.Cte("__ka", structRows(rowsOf("__ca", ca)))),
+                cross(cross(cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null)),
+                        new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a", null)),
+                wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
+                        listValue(TYPED_EXPECTED, "e", eList, eKind), listValue(TYPED_ACTUAL, "a", aList, aKind)));
+    }
+
+    /** A side's keyed instances ({@code rows}, read as {@code cte}) each restricted to its classifier and its keys, a
+     *  nested keyed instance restricted in its place -- the value the host's record writes
+     *  ({@code HostJudgments.restrictOne}). */
+    private static SqlQuery restrictedRows(String cte, SqlQuery rows, SqlType.Struct layout,
+            com.legend.compiler.element.EqualityKeys keys) {
+        SqlExpr held = restricted(SqlExpr.Column.of("i", rows.outputs(), O), layout, keys);
+        OutputCol oOut = new OutputCol(O, held.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : layout,
+                false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(held, O, oOut), new SqlSelect.Projection(
+                SqlExpr.Column.of("i", rows.outputs(), RN), RN, rnOut)), false, new SqlSource.Table(cte, "i",
+                rows.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null,
+                null, List.of(), null, null, List.of(oOut, rnOut));
+    }
+
+    /** {@code v}, an instance of layout {@code st}, as a struct of its classifier and its key properties. */
+    private static SqlExpr restricted(SqlExpr v, SqlType.Struct st, com.legend.compiler.element.EqualityKeys keys) {
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
+        SqlType type = fieldType(st, com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE);
+        if (type != null) {
+            fields.add(new SqlExpr.StructLit.Field(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE,
+                    new SqlExpr.StructGet(v, com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE), type));
+        }
+        for (com.legend.compiler.element.EqualityKeys.Key k : keys.keys()) {
+            SqlType ft = java.util.Objects.requireNonNull(fieldType(st, k.name()), "a key's field (leaves read it)");
+            SqlExpr field = new SqlExpr.StructGet(v, k.name());
+            SqlExpr value = ft instanceof SqlType.Struct nested && k.nested() != null
+                    ? restricted(field, nested, k.nested()) : field;
+            SqlType vt = value.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : ft;
+            fields.add(new SqlExpr.StructLit.Field(k.name(), value, vt));
+        }
+        return new SqlExpr.StructLit(fields);
+    }
+
+    /** One typed leaf of an instance: the field path from the instance down to it, and its layout's SQL type. */
+    private record Leaf(List<String> path, SqlType type) {
+    }
+
+    /** The leaves of a struct of layout {@code st} as the host restricts it, into {@code out} (path-prefixed by
+     *  {@code at}); false where one has no typed reading. */
+    private static boolean leaves(SqlType.Struct st, com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
+            keys, List<String> at, List<Leaf> out) {
+        SqlType type = fieldType(st, com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE);
+        if (type != null) {
+            out.add(new Leaf(append(at, com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE), type));
+        }
+        if (keys == null) {
+            // a keyless class: its identity, tracked where the product tracks it (S111)
+            SqlType id = fieldType(st, com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID);
+            if (id == null || type == null) {
+                return false;
+            }
+            out.add(new Leaf(append(at, com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID), id));
+            return true;
+        }
+        for (com.legend.compiler.element.EqualityKeys.Key k : keys.keys()) {
+            SqlType ft = fieldType(st, k.name());
+            if (ft == null || k.many()) {
+                return false;
+            }
+            if (ft instanceof SqlType.Struct nested) {
+                // a nested keyed instance's own leaves; a slot whose class is keyless, polymorphic or Any has none here
+                if (k.nested() == null || !leaves(nested, k.nested(), append(at, k.name()), out)) {
+                    return false;
+                }
+            } else if (leafClass(ft) == null) {
+                return false;
+            } else {
+                out.add(new Leaf(append(at, k.name()), ft));
+            }
+        }
+        return true;
+    }
+
+    /** The kind a leaf's SQL type holds, as the host reads it, or null where it has no typed reading here (a JSON
+     *  value, a list, a map, a struct). Two leaves compare only where their classes agree. */
+    private static @com.legend.base.Nullable String leafClass(SqlType t) {
+        return switch (t) {
+            case SqlType.Decimal d -> "Decimal";
+            case SqlType.Scalar sc -> switch (sc) {
+                case BOOLEAN -> "Boolean";
+                case INTEGER, BIGINT, HUGEINT -> "Integer";
+                case DOUBLE -> "Float";
+                case VARCHAR -> "String";
+                case DATE -> "StrictDate";
+                case TIMESTAMP -> "DateTime";
+                default -> null;
+            };
+            default -> null;
+        };
+    }
+
+    private static @com.legend.base.Nullable SqlType fieldType(SqlType.Struct st, String name) {
+        for (SqlType.Struct.Field f : st.fields()) {
+            if (f.name().equals(name)) {
+                return f.type();
+            }
+        }
+        return null;
+    }
+
+    private static List<String> append(List<String> at, String name) {
+        List<String> out = new ArrayList<>(at);
+        out.add(name);
+        return out;
+    }
+
+    /** A side's instances ({@code rows}, read as {@code cte}) as rows of their typed leaves ({@code c0, c1, ...,
+     *  __rn}): each leaf the field read down its path, cast to its layout's type (a dialect carrying a struct as JSON
+     *  reads the field by it), a date-time as the judge's instant, an identity where the product tracks it. */
+    private static SqlQuery leafRows(String cte, SqlQuery rows, List<Leaf> leaves) {
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        List<OutputCol> outs = new ArrayList<>();
+        for (int i = 0; i < leaves.size(); i++) {
+            Leaf leaf = leaves.get(i);
+            SqlExpr v = SqlExpr.Column.of("i", rows.outputs(), O);
+            for (String step : leaf.path()) {
+                v = new SqlExpr.StructGet(v, step);
+            }
+            String last = leaf.path().get(leaf.path().size() - 1);
+            SqlExpr read = last.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
+                    ? new SqlExpr.Cast(CanonicalRenderSql.trackedId(((SqlExpr.StructGet) v).source()),
+                            SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
+                    : new SqlExpr.Cast(v, leaf.type(), SqlExpr.Reason.JUDGE);
+            SqlType type = last.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID) ? SqlType.Scalar.VARCHAR
+                    : leaf.type();
+            OutputCol out = new OutputCol("c" + i, type, true);
+            ps.add(new SqlSelect.Projection(read, out.name(), out));
+            outs.add(out);
+        }
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        ps.add(new SqlSelect.Projection(SqlExpr.Column.of("i", rows.outputs(), RN), RN, rnOut));
+        outs.add(rnOut);
+        return new SqlSelect(ps, false, new SqlSource.Table(cte, "i", rows.outputs(), false, java.util.Map.of(),
+                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, outs);
+    }
+
     /** Whether a tagged side ({@code wrapped}'s first column a {@link SqlType.Tagged}) or a side of one typed class
      *  states its kinds, each with the SQL type that holds it, into {@code into}, keyed by {@link #kindKey}. */
     private static boolean kindsOf(SqlQuery wrapped, Type kind, java.util.Map<String, SqlType> into, boolean byType) {
@@ -340,6 +584,13 @@ public final class VerdictSql {
                 if (MixedEncoding.enumerationKind(slot.kind()) != null) {
                     return false;
                 }
+                if (!byType && slot.kind().equals("Date")) {
+                    // a Date slot holds its value written: each one of the four date kinds, as a written side's
+                    for (java.util.Map.Entry<String, SqlType> k : DATE_KINDS.entrySet()) {
+                        into.putIfAbsent(kindKey(k.getKey(), k.getValue(), false), k.getValue());
+                    }
+                    continue;
+                }
                 // a DateTime compared at the judge's instant (S399): its compare column a TIMESTAMP whatever its slot
                 into.putIfAbsent(kindKey(slot.kind(), slot.type(), byType), !byType && instant(slot.kind())
                         ? SqlType.Scalar.TIMESTAMP : slot.type());
@@ -347,9 +598,11 @@ public final class VerdictSql {
             return true;
         }
         if (writtenDate(kind, wrapped)) {
-            // a Date written as its text: each value one of the four date kinds, as its text says (S399)
+            // a Date written as its text: each value one of the four date kinds, as its text says (S399), compared as
+            // its kind's value and recorded as it is written
+            SqlType carried = wrapped.outputs().get(0).type();
             for (java.util.Map.Entry<String, SqlType> k : DATE_KINDS.entrySet()) {
-                into.putIfAbsent(kindKey(k.getKey(), k.getValue(), byType), k.getValue());
+                into.putIfAbsent(writtenKey(k.getKey(), carried, byType), byType ? carried : k.getValue());
             }
             return true;
         }
@@ -357,16 +610,17 @@ public final class VerdictSql {
         if (t == null || t instanceof Type.EnumType || PlatformTypes.isNil(t)) {
             return false;
         }
-        SqlType held = heldType(wrapped, t);
+        SqlType held = byType ? wrapped.outputs().get(0).type() : heldType(wrapped, t);
         into.putIfAbsent(kindKey(kindText(t), held, byType), held);
         return true;
     }
 
-    /** The kinds a Date written as its text may be, each with the SQL type its value is compared in: a year's and a
-     *  year-month's their text (one text each), a day a DATE, a date-time the judge's instant. */
-    private static final java.util.Map<String, SqlType> DATE_KINDS = java.util.Map.of("Year",
-            SqlType.Scalar.TEMPORAL_TEXT, "YearMonth", SqlType.Scalar.TEMPORAL_TEXT, "StrictDate", SqlType.Scalar.DATE,
-            "DateTime", SqlType.Scalar.TIMESTAMP);
+    /** The kinds a Date written as its text may be, each with the SQL type its value is compared in (S399): a year and
+     *  a year-month by their components, typed as integers (a year itself; a year-month its year times twelve plus its
+     *  month), a day the database's DATE, a date-time the judge's instant (the precision audit's H1, 2026-11-22: a
+     *  year's and a year-month's text were compared as text). */
+    private static final java.util.Map<String, SqlType> DATE_KINDS = java.util.Map.of("Year", SqlType.Scalar.BIGINT,
+            "YearMonth", SqlType.Scalar.BIGINT, "StrictDate", SqlType.Scalar.DATE, "DateTime", SqlType.Scalar.TIMESTAMP);
 
     /** Whether a side is a {@code Date} carried as its written text ({@code JudgmentFacts}' the same rule). */
     private static boolean writtenDate(Type kind, SqlQuery wrapped) {
@@ -375,18 +629,76 @@ public final class VerdictSql {
                         || wrapped.outputs().get(0).type() == SqlType.Scalar.VARCHAR);
     }
 
-    /** The kind a Date's written text names, by its shape (a year's four digits, a year-month's seven characters, a
-     *  day's ten, a date-time's more), as the kind key's name. */
+    /** The kind a Date's written text names, read from its STRUCTURE -- a time after the day (a {@code T} or a space)
+     *  a date-time; else by its dashes after the year's sign: none a year, one a year-month, two a day -- as the kind
+     *  key's index. Never its length (the precision audit's H1, 2026-11-22: a year of three or five digits, or a
+     *  negative one, took another kind's length). */
     private static SqlExpr dateKindOfText(SqlExpr text, java.util.function.Function<String, Integer> index) {
-        SqlExpr len = SqlExpr.Call.of(SqlFn.LENGTH, text);
-        return new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(4)),
-                        new SqlExpr.IntLit(index.apply("Year"))),
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(7)),
-                        new SqlExpr.IntLit(index.apply("YearMonth"))),
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(10)),
-                        new SqlExpr.IntLit(index.apply("StrictDate")))),
-                new SqlExpr.IntLit(index.apply("DateTime")), SqlExpr.Reason.JUDGE);
+        List<SqlExpr.Case.When> whens = new ArrayList<>();
+        for (String k : List.of("DateTime", "Year", "YearMonth")) {
+            whens.add(new SqlExpr.Case.When(writtenKindIs(k, text), new SqlExpr.IntLit(index.apply(k))));
+        }
+        return new SqlExpr.Case(whens, new SqlExpr.IntLit(index.apply("StrictDate")), SqlExpr.Reason.JUDGE);
+    }
+
+    /** Whether a Date's written {@code text} is of {@code kind} ({@link #dateKindOfText}). */
+    private static SqlExpr writtenKindIs(String kind, SqlExpr text) {
+        SqlExpr body = unsignedYear(text);
+        SqlExpr time = SqlExpr.Call.of(SqlFn.OR,
+                SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.STRPOS, body, new SqlExpr.StringLit("T")),
+                        new SqlExpr.IntLit(0)),
+                SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.STRPOS, body, new SqlExpr.StringLit(" ")),
+                        new SqlExpr.IntLit(0)));
+        SqlExpr dashes = SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, body), SqlExpr.Call.of(SqlFn.LENGTH,
+                SqlExpr.Call.of(SqlFn.REPLACE, body, new SqlExpr.StringLit("-"), new SqlExpr.StringLit(""))));
+        return switch (kind) {
+            case "DateTime" -> time;
+            case "Year" -> SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, time),
+                    SqlExpr.Call.of(SqlFn.EQUAL, dashes, new SqlExpr.IntLit(0)));
+            case "YearMonth" -> SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, time),
+                    SqlExpr.Call.of(SqlFn.EQUAL, dashes, new SqlExpr.IntLit(1)));
+            case "StrictDate" -> SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, time),
+                    SqlExpr.Call.of(SqlFn.EQUAL, dashes, new SqlExpr.IntLit(2)));
+            default -> throw new IllegalArgumentException("no written date's kind is " + kind);
+        };
+    }
+
+    /** {@code text} without the sign before its year. */
+    private static SqlExpr unsignedYear(SqlExpr text) {
+        SqlExpr first = SqlExpr.Call.of(SqlFn.LEFT, text, new SqlExpr.IntLit(1));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR,
+                SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("-")),
+                SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("+"))),
+                SqlExpr.Call.of(SqlFn.SUBSTRING, text, new SqlExpr.IntLit(2)))), text, SqlExpr.Reason.JUDGE);
+    }
+
+    /** A Date's written {@code text} of {@code kind} as the value it is compared as ({@link #DATE_KINDS}): a year its
+     *  number; a year-month its year times twelve plus its month; a day the database's DATE; a date-time the judge's
+     *  instant (an hour's text read at its minute). */
+    private static SqlExpr writtenDateValue(String kind, SqlExpr text) {
+        return switch (kind) {
+            case "Year" -> new SqlExpr.Cast(text, SqlType.Scalar.BIGINT, SqlExpr.Reason.JUDGE);
+            case "YearMonth" -> {
+                SqlExpr body = unsignedYear(text);
+                SqlExpr dash = SqlExpr.Call.of(SqlFn.STRPOS, body, new SqlExpr.StringLit("-"));
+                // the year with its sign: the text up to the dash that ends it
+                SqlExpr year = SqlExpr.Call.of(SqlFn.SUBSTRING, text, new SqlExpr.IntLit(1), SqlExpr.Call.of(
+                        SqlFn.MINUS, SqlExpr.Call.of(SqlFn.PLUS, SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(
+                                SqlFn.LENGTH, text), SqlExpr.Call.of(SqlFn.LENGTH, body)), dash), new SqlExpr.IntLit(1)));
+                SqlExpr month = SqlExpr.Call.of(SqlFn.SUBSTRING, body, SqlExpr.Call.of(SqlFn.PLUS, dash,
+                        new SqlExpr.IntLit(1)));
+                yield SqlExpr.Call.of(SqlFn.PLUS, SqlExpr.Call.of(SqlFn.TIMES,
+                        new SqlExpr.Cast(year, SqlType.Scalar.BIGINT, SqlExpr.Reason.JUDGE), new SqlExpr.IntLit(12)),
+                        new SqlExpr.Cast(month, SqlType.Scalar.BIGINT, SqlExpr.Reason.JUDGE));
+            }
+            case "StrictDate" -> new SqlExpr.Cast(text, SqlType.Scalar.DATE, SqlExpr.Reason.JUDGE);
+            case "DateTime" -> new SqlExpr.Cast(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, text, new SqlExpr.StringLit(":")),
+                            new SqlExpr.IntLit(0)),
+                    SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit(":00")))), text, SqlExpr.Reason.JUDGE),
+                    SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE);
+            default -> throw new IllegalArgumentException("no written date's kind is " + kind);
+        };
     }
 
     /** The SQL type a typed side's values are compared in: a date's the database's DATE or TIMESTAMP ({@link #instants}
@@ -399,6 +711,12 @@ public final class VerdictSql {
     /** Whether a slot's kind is a DateTime's (of any written precision), compared at the judge's instant. */
     private static boolean instant(String slotKind) {
         return MixedEncoding.writtenDigits(slotKind) != null || slotKind.equals("DateTime");
+    }
+
+    /** A written Date's kind's column key: its compared kind's ({@link #DATE_KINDS}), and where the column is the
+     *  record's, the text it is written in. */
+    private static String writtenKey(String kind, SqlType carried, boolean byType) {
+        return kindKey(kind, byType ? carried : java.util.Objects.requireNonNull(DATE_KINDS.get(kind)), byType);
     }
 
     /** A kind's column key: its name (a DateTime of any written precision one kind, register S399), and where the
@@ -440,7 +758,18 @@ public final class VerdictSql {
             List<SqlExpr.Case.When> ks = new ArrayList<>();
             for (int i = 0; i < tg.slots().size(); i++) {
                 SqlType.Tagged.Slot slot = tg.slots().get(i);
-                ks.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
+                SqlExpr at = SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i));
+                if (!byType && slot.kind().equals("Date")) {
+                    // a Date slot's kind is its written value's (dateKindOfText)
+                    SqlExpr text = SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1));
+                    for (String k : List.of("DateTime", "Year", "YearMonth", "StrictDate")) {
+                        ks.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, at, writtenKindIs(k, text)),
+                                new SqlExpr.IntLit(order.indexOf(kindKey(k, java.util.Objects.requireNonNull(
+                                        DATE_KINDS.get(k)), false)))));
+                    }
+                    continue;
+                }
+                ks.add(new SqlExpr.Case.When(at,
                         new SqlExpr.IntLit(order.indexOf(kindKey(slot.kind(), slot.type(), byType)))));
             }
             kOf = new SqlExpr.Case(ks, null, SqlExpr.Reason.JUDGE);
@@ -448,6 +777,17 @@ public final class VerdictSql {
                 List<SqlExpr.Case.When> vs = new ArrayList<>();
                 for (int i = 0; i < tg.slots().size(); i++) {
                     SqlType.Tagged.Slot slot = tg.slots().get(i);
+                    if (!byType && slot.kind().equals("Date")) {
+                        for (String k : DATE_KINDS.keySet()) {
+                            if (kindKey(k, java.util.Objects.requireNonNull(DATE_KINDS.get(k)), false).equals(key)) {
+                                SqlExpr text = SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1));
+                                vs.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.EQUAL,
+                                        tag, new SqlExpr.IntLit(i)), writtenKindIs(k, text)),
+                                        writtenDateValue(k, text)));
+                            }
+                        }
+                        continue;
+                    }
                     if (kindKey(slot.kind(), slot.type(), byType).equals(key)) {
                         SqlExpr held = SqlExpr.Column.of("r", r.outputs(), "__s" + (i + 1));
                         vs.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
@@ -465,42 +805,29 @@ public final class VerdictSql {
             }
             SqlQuery r = rows;
             SqlExpr text = SqlExpr.Column.of("r", r.outputs(), O);
-            SqlExpr len = SqlExpr.Call.of(SqlFn.LENGTH, text);
-            kOf = dateKindOfText(text, name -> order.indexOf(kindKey(name, java.util.Objects.requireNonNull(
-                    DATE_KINDS.get(name)), byType)));
+            SqlType carried = r.outputs().get(0).type();
+            kOf = dateKindOfText(text, name -> order.indexOf(writtenKey(name, carried, byType)));
             valueOf = key -> {
-                for (java.util.Map.Entry<String, SqlType> k : DATE_KINDS.entrySet()) {
-                    if (!kindKey(k.getKey(), k.getValue(), byType).equals(key)) {
-                        continue;
+                for (String k : DATE_KINDS.keySet()) {
+                    if (writtenKey(k, carried, byType).equals(key)) {
+                        // compared as its kind's value; recorded as it is written
+                        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(writtenKindIs(k, text),
+                                byType ? text : writtenDateValue(k, text))), nullOf(java.util.Objects.requireNonNull(
+                                columns.get(key), "a kind's SQL type")), SqlExpr.Reason.JUDGE);
                     }
-                    SqlExpr when = switch (k.getKey()) {
-                        case "Year" -> SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(4));
-                        case "YearMonth" -> SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(7));
-                        case "StrictDate" -> SqlExpr.Call.of(SqlFn.EQUAL, len, new SqlExpr.IntLit(10));
-                        default -> SqlExpr.Call.of(SqlFn.GREATER, len, new SqlExpr.IntLit(10));
-                    };
-                    SqlExpr value = switch (k.getKey()) {
-                        case "StrictDate" -> new SqlExpr.Cast(text, SqlType.Scalar.DATE, SqlExpr.Reason.JUDGE);
-                        case "DateTime" -> new SqlExpr.Cast(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, text,
-                                        new SqlExpr.StringLit(":")), new SqlExpr.IntLit(0)),
-                                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit(":00")))), text,
-                                SqlExpr.Reason.JUDGE), SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE);
-                        default -> text;
-                    };
-                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(when, value)), nullOf(k.getValue()),
-                            SqlExpr.Reason.JUDGE);
                 }
                 return null;
             };
         } else {
             Type t = java.util.Objects.requireNonNull(typedClass(kind), "a typed side's class");
-            rows = instants(valueRows(wrapped), t);
+            // compared at the judge's instant; recorded as it is held (the precision audit's M4)
+            rows = byType ? valueRows(wrapped) : instants(valueRows(wrapped), t);
             if (rows == null) {
                 return null;
             }
             SqlQuery r = rows;
-            String own = kindKey(kindText(t), heldType(wrapped, t), byType);
+            String own = kindKey(kindText(t), byType ? wrapped.outputs().get(0).type() : heldType(wrapped, t),
+                    byType);
             kOf = new SqlExpr.IntLit(order.indexOf(own));
             valueOf = key -> key.equals(own) ? SqlExpr.Column.of("r", r.outputs(), O) : null;
         }
@@ -697,13 +1024,16 @@ public final class VerdictSql {
     public static @com.legend.base.Nullable TypedRow typedContains(SqlQuery collWrapped, Type collKind,
             SqlQuery valWrapped, Type valKind, boolean want) {
         // a date-time compared by its instant (register S399), as equality's sides are (the dates audit, 2026-11-22)
-        SqlQuery cRows = instants(valueRows(collWrapped), collKind);
-        SqlQuery vRows = instants(valueRows(valWrapped), valKind);
-        if (cRows == null || vRows == null || !oneCarrier(cRows, vRows)) {
+        SqlQuery cRaw = valueRows(collWrapped);
+        SqlQuery vRaw = valueRows(valWrapped);
+        SqlQuery cRows = cRaw == null ? null : instants(cteRows("__xc", cRaw), collKind);
+        SqlQuery vRows = vRaw == null ? null : instants(cteRows("__xv", vRaw), valKind);
+        if (cRaw == null || vRaw == null || cRows == null || vRows == null || !oneCarrier(cRows, vRows)) {
             return null;
         }
-        SqlQuery cList = listed("__c", cRows);
-        SqlQuery vList = listed("__v", vRows);
+        // the record's values as each side carries them, not the instants compared (the precision audit's M4)
+        SqlQuery cList = listed("__xc", cRaw);
+        SqlQuery vList = listed("__xv", vRaw);
         OutputCol mOut = new OutputCol("__m", SqlType.Scalar.BIGINT, false);
         SqlSource matched = new SqlSource.Join(
                 new SqlSource.Table("__c", "__c", cRows.outputs(), false, java.util.Map.of(),
@@ -717,7 +1047,8 @@ public final class VerdictSql {
                 List.of(mOut));
         SqlExpr some = SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Column.of("m", m.outputs(), "__m"),
                 new SqlExpr.IntLit(0));
-        return typedRow(List.of(new SqlWith.Cte("__c", cRows), new SqlWith.Cte("__v", vRows)),
+        return typedRow(List.of(new SqlWith.Cte("__xc", cRaw), new SqlWith.Cte("__xv", vRaw),
+                        new SqlWith.Cte("__c", cRows), new SqlWith.Cte("__v", vRows)),
                 cross(cross(new SqlSource.Subselect(m, "m", null), new SqlSource.Subselect(cList, "c", null)),
                         new SqlSource.Subselect(vList, "v", null)),
                 want ? some : SqlExpr.Call.of(SqlFn.NOT, some), List.of(
@@ -949,15 +1280,13 @@ public final class VerdictSql {
         }.rewrite(member);
     }
 
-    /** A date-time's text as a literal writes it: a day, a time, a fraction. */
-    private static final java.util.regex.Pattern DATE_TIME_TEXT = java.util.regex.Pattern.compile(
-            "[+-]?\\d{4,}-\\d{1,2}-\\d{1,2}[T ]\\d{1,2}(:\\d{1,2}(:\\d{1,2}(\\.\\d+)?)?)?.*");
-
-    /** Whether {@code e} is a date-time literal -- typed, or its text -- with a nonzero digit of a second past the
-     *  sixth. */
+    /** Whether {@code e} is a date-time literal -- typed, or its text carrier ({@code TEMPORAL_TEXT}, a root literal's
+     *  written precision: RootLiterals) -- with a nonzero digit of a second past the sixth. A String literal is none,
+     *  whatever it spells (the precision audit's M2, 2026-11-22: a filter's text switched an assert to nanoseconds). */
     private static boolean digitsPastMicros(SqlExpr e) {
         String text = e instanceof SqlExpr.TimestampLit t ? t.iso()
-                : e instanceof SqlExpr.StringLit s && DATE_TIME_TEXT.matcher(s.value()).matches() ? s.value() : null;
+                : e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.TEMPORAL_TEXT
+                        && c.value() instanceof SqlExpr.StringLit s ? s.value() : null;
         if (text == null || text.indexOf('.') < 0) {
             return false;
         }
@@ -2393,8 +2722,24 @@ public final class VerdictSql {
     }
 
     /** A fused statement's shared column: the members' values at {@code position} of one SQL type and one Pure type
-     *  share it. */
-    private record Slot(int position, SqlType sql, Type kind, com.legend.compiler.element.type.Multiplicity many) {
+     *  share it -- a member read to the nanosecond ({@code nanos}: {@link #nanos}) only with another such, so a
+     *  nanosecond date-time never shares a column with another assert's year past what a nanosecond timestamp holds
+     *  (the precision audit's H3, 2026-11-22: DuckDB unified the column to TIMESTAMP_NS and refused the year). */
+    private record Slot(int position, SqlType sql, Type kind, com.legend.compiler.element.type.Multiplicity many,
+            boolean nanos) {
+    }
+
+    /** Whether {@code member} reads a date-time to the nanosecond ({@code JUDGE_NANOS}, {@link #nanos}). */
+    private static boolean readsNanos(SqlQuery member) {
+        boolean[] found = {false};
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                found[0] |= e instanceof SqlExpr.Cast c && c.reason() == SqlExpr.Reason.JUDGE_NANOS;
+                return e;
+            }
+        }.rewrite(member);
+        return found[0];
     }
 
     /** LEG 3.4: several verdict statements as ONE. Every statement's CTEs are hoisted to ONE top-level {@code WITH}
@@ -2459,12 +2804,13 @@ public final class VerdictSql {
             // each in the shared column of its position and types
             List<OutputCol> mine = new ArrayList<>();
             List<Integer> at = new ArrayList<>();
+            boolean nanos = readsNanos(st);
             List<Type.RelationType.Column> cols = schemas.get(i).columns();
             for (int j = 0; j < cols.size(); j++) {
                 Type.RelationType.Column c = cols.get(j);
                 OutputCol o = body.outputs().stream().filter(x -> x.name().equals(c.name())).findFirst()
                         .orElseThrow(() -> new IllegalStateException("a verdict row without its " + c.name()));
-                Slot slot = new Slot(j, o.type(), c.type(), c.multiplicity());
+                Slot slot = new Slot(j, o.type(), c.type(), c.multiplicity(), nanos);
                 int k = slots.indexOf(slot);
                 if (k < 0) {
                     slots.add(slot);
