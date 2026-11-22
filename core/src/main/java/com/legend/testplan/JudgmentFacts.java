@@ -35,9 +35,9 @@ final class JudgmentFacts {
      *  SQL type, which the reader restores where a driver drops it (SQLite's, as BigQuery's). */
     record TypedPair(Type e, Type a, Form form) {
         /** How the pair's values compare: as typed values, dates (by kind and instant), the same only where both are
-         *  empty (an empty side, Nil), tagged values (each its kind and its value), a generic class's instances (each by
-         *  its fields, the struct the database compares). */
-        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED, INSTANCES }
+         *  empty (an empty side, Nil), tagged values (each its kind and its value). An instance carried as a struct
+         *  stays the seven-column row: a JSON carrier compares its written text, not its values (batch 4's audit, H1). */
+        enum Form { VALUES, DATES, EMPTY_ONLY, TAGGED }
 
         boolean dates() {
             return form == Form.DATES;
@@ -52,8 +52,8 @@ final class JudgmentFacts {
                 com.legend.sql.SqlQuery aPlan, boolean multiset, boolean wantEqual) {
             return switch (form) {
                 case TAGGED -> com.legend.lowering.VerdictSql.typedTagged(ePlan, e, aPlan, a, multiset, wantEqual);
-                case VALUES, DATES, EMPTY_ONLY, INSTANCES -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e,
-                        aPlan, a, multiset, wantEqual, form == Form.EMPTY_ONLY);
+                case VALUES, DATES, EMPTY_ONLY -> com.legend.lowering.VerdictSql.typedEquals(ePlan, e, aPlan, a,
+                        multiset, wantEqual, form == Form.EMPTY_ONLY);
             };
         }
     }
@@ -80,12 +80,6 @@ final class JudgmentFacts {
             // a date literal's side rides the literal channel (its written text), its value column still the
             // database's DATE or TIMESTAMP, which the pair compares (S399)
             return new TypedPair(e, a, TypedPair.Form.DATES);
-        }
-        if (eKind.equals(aKind) && com.legend.lowering.VerdictSql.instances(ePlan)
-                && com.legend.lowering.VerdictSql.instances(aPlan)) {
-            // two sides of one generic class carried as structs (a Pair): each instance by its fields, the database
-            // comparing the structs (VerdictSql.instances)
-            return new TypedPair(eKind, aKind, TypedPair.Form.INSTANCES);
         }
         e = com.legend.lowering.VerdictSql.typedClass(eKind);
         a = com.legend.lowering.VerdictSql.typedClass(aKind);

@@ -538,10 +538,11 @@ class AssertBarTest {
                 "{|assertEquals(1.0, max([1, 0.5]))}",
                 "{|assertEquals(0.5, min([1, 0.5]))}",
                 "{|assertNotEquals(1, max([1, 0.5]))}",
-                // a side the types say holds nothing, its plan no value: decided at planning
+                // a side the types say holds nothing
                 "{|assertEmpty([]->limit(2))}",
                 "{|assertNotEmpty([]->drop(1))}",
-                // instances carried as structs: a generic one by its fields, a class's by its equality canon
+                // Pairs, on the seven-column row (a JSON carrier compares written text: batch 4's audit, H1; a Pair with
+                // a DateTime or a Decimal field fails on H2's seven-column row, pre-existing, the remaining shapes)
                 "{|assertEquals(pair(1, 'a'), pair(1, 'a'))}",
                 "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
                 "{|assertEquals([pair(1, 'a'), pair(2, 'b')], [pair(1, 'b'), pair(2, 'b')])}",

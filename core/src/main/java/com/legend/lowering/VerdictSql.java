@@ -378,10 +378,18 @@ public final class VerdictSql {
         OutputCol kOut = new OutputCol("k", SqlType.Scalar.BIGINT, false);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         SqlQuery rows;
-        java.util.function.IntFunction<SqlExpr> kOf;
-        java.util.function.BiFunction<Integer, String, @com.legend.base.Nullable SqlExpr> valueOf;
+        SqlExpr kOf;
+        java.util.function.Function<String, @com.legend.base.Nullable SqlExpr> valueOf;
         if (wrapped.outputs().get(0).type() instanceof SqlType.Tagged tg) {
-            // the tag and its slots, in the side's own order (valueRows: a wrap's ORDER BY numbered, never lost)
+            // the tag and its slots, in the side's own order (valueRows: a wrap's ORDER BY numbered, never lost), each
+            // slot the column its name says (batch 4's audit, L2: read by position, so checked by name)
+            String tagName = wrapped.outputs().get(0).name();
+            for (int i = 0; i < tg.slots().size(); i++) {
+                if (wrapped.outputs().size() <= i + 1
+                        || !wrapped.outputs().get(i + 1).name().equals(SqlType.Tagged.slotColumn(tagName, i))) {
+                    return null;
+                }
+            }
             rows = valueRows(wrapped, 1 + tg.slots().size());
             if (rows == null) {
                 return null;
@@ -394,8 +402,8 @@ public final class VerdictSql {
                 ks.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
                         new SqlExpr.IntLit(order.indexOf(kindKey(slot.kind(), slot.type(), byType)))));
             }
-            kOf = j -> new SqlExpr.Case(ks, null, SqlExpr.Reason.JUDGE);
-            valueOf = (j, key) -> {
+            kOf = new SqlExpr.Case(ks, null, SqlExpr.Reason.JUDGE);
+            valueOf = key -> {
                 List<SqlExpr.Case.When> vs = new ArrayList<>();
                 for (int i = 0; i < tg.slots().size(); i++) {
                     SqlType.Tagged.Slot slot = tg.slots().get(i);
@@ -415,14 +423,14 @@ public final class VerdictSql {
             }
             SqlQuery r = rows;
             String own = kindKey(kindText(t), heldType(wrapped, t), byType);
-            kOf = j -> new SqlExpr.IntLit(order.indexOf(own));
-            valueOf = (j, key) -> key.equals(own) ? SqlExpr.Column.of("r", r.outputs(), O) : null;
+            kOf = new SqlExpr.IntLit(order.indexOf(own));
+            valueOf = key -> key.equals(own) ? SqlExpr.Column.of("r", r.outputs(), O) : null;
         }
-        ps.add(new SqlSelect.Projection(kOf.apply(0), "k", kOut));
+        ps.add(new SqlSelect.Projection(kOf, "k", kOut));
         outs.add(kOut);
         for (int j = 0; j < order.size(); j++) {
             SqlType vt = java.util.Objects.requireNonNull(columns.get(order.get(j)), "a kind's SQL type");
-            SqlExpr v = valueOf.apply(j, order.get(j));
+            SqlExpr v = valueOf.apply(order.get(j));
             OutputCol out = new OutputCol("v" + j, vt, true);
             ps.add(new SqlSelect.Projection(v == null ? nullOf(vt) : v, out.name(), out));
             outs.add(out);
@@ -431,14 +439,6 @@ public final class VerdictSql {
         outs.add(rnOut);
         return new SqlSelect(ps, false, new SqlSource.Subselect(rows, "r", null), null, List.of(), null, null,
                 List.of(), null, null, outs);
-    }
-
-    /** Whether a side's plan carries instances of a GENERIC class (a Pair) as structs whose fields are each a
-     *  primitive: the database compares them by their fields (item 3's S4; a class's instance, compared by its key or
-     *  its identity, stays the seven-column row). */
-    public static boolean instances(SqlQuery plan) {
-        return plan instanceof SqlSelect ps && primitiveStruct(ps) != null && plan.outputs().get(0).type()
-                instanceof SqlType.Struct st && st.fields().stream().noneMatch(f -> f.name().startsWith("__"));
     }
 
     /** The kind the database judge compares {@code kind}'s values as, typed (item 3's S4), or null where it does not
@@ -581,13 +581,6 @@ public final class VerdictSql {
      *  side's NULL); the verdict its emptiness under {@code wantEmpty}; the list rides the failure. */
     public static @com.legend.base.Nullable TypedRow typedEmpty(SqlQuery wrapped, Type kind, boolean wantEmpty) {
         SqlQuery rows = valueRows(wrapped);
-        if (rows == null && PlatformTypes.isNil(kind)) {
-            // a side the types say holds nothing (Nil) and whose plan carries no value: empty, a fact of the types --
-            // the verdict decided at planning, no value to ride its failure
-            return typedRow(List.of(), new SqlSource.Dual(), new SqlExpr.BoolLit(wantEmpty), List.of(new Valued(
-                    TYPED_ACTUAL, nullOf(new SqlType.Array(SqlType.Scalar.VARCHAR)), new SqlType.Array(
-                            SqlType.Scalar.VARCHAR), kind, true)));
-        }
         if (rows == null) {
             return null;
         }
