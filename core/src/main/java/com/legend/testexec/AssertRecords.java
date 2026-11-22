@@ -90,6 +90,7 @@ final class AssertRecords {
                     ((Number) row.get(3)).intValue());
             case TDS_EQUIVALENT -> notEquivalent(gridRows(row.get(1)), gridRows(row.get(2)), row.get(3));
             case GRIDS -> grids(gridRows(row.get(1)), gridRows(row.get(2)), report.want());
+            case INSTANCE_OF -> notInstanceOf(e.isEmpty() ? null : e.get(0), (String) row.get(2));
         };
         return report.index() >= 0 ? atIndex(failure, report.index()) : failure;
     }

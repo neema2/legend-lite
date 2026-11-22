@@ -80,7 +80,8 @@ final class SameValuesForm {
         for (int i = 0; i < ev.size(); i++) {
             by.add(SqlExpr.Column.of("u", uOuts, uOuts.get(i).name()));
         }
-        SqlSelect differing = new SqlSelect(List.of(new SqlSelect.Projection(by.get(0), O, uOuts.get(0))), false,
+        SqlSelect differing = new SqlSelect(List.of(new SqlSelect.Projection(by.get(0), uOuts.get(0).name(),
+                uOuts.get(0))), false,
                 new SqlSource.Subselect(u, "u", null), null, by,
                 SqlExpr.Call.of(SqlFn.NOT_EQUAL, new SqlAgg.Reducer(SqlAgg.Fn.SUM,
                         List.of(SqlExpr.Column.of("u", uOuts, "__g")), false, List.of()), new SqlExpr.IntLit(0)),

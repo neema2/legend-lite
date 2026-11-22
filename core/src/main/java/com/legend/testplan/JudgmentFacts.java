@@ -31,27 +31,36 @@ final class JudgmentFacts {
     /** An equality pair's TYPED kinds (item 3's S4): the kinds the database judge compares its two sides as -- each
      *  side's typed class ({@code VerdictSql.typedClass}; two number kinds then the same only where both are empty,
      *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair stays the seven-column row:
-     *  a side with no typed class, a partial date's literal, or a Decimal LITERAL, whose written scale is part of how it
-     *  prints and a database round trip may not keep (SQLite keeps no Decimal: the S4 kinds round, 2026-11-22). */
-    record TypedPair(Type e, Type a, boolean dates) {
+     *  a side with no typed class, or a partial date's literal. A Decimal literal is typed: its written scale rides its
+     *  SQL type, which the reader restores where a driver drops it (SQLite's, as BigQuery's). */
+    record TypedPair(Type e, Type a, boolean dates, boolean emptyOnly) {
     }
 
     static @Nullable TypedPair typedPair(TypedSpec eSpec, Type eKind, com.legend.sql.SqlQuery ePlan, TypedSpec aSpec,
             Type aKind, com.legend.sql.SqlQuery aPlan) {
-        if (eSpec instanceof com.legend.compiler.spec.typed.TypedCDecimal
-                || aSpec instanceof com.legend.compiler.spec.typed.TypedCDecimal) {
-            return null;
+        if (PlatformTypes.isNil(eKind) || PlatformTypes.isNil(aKind)) {
+            // an empty side (Nil, the empty collection's kind): the two the same only where both are empty, the other
+            // side's values typed by its own kind for the record
+            Type e = PlatformTypes.isNil(eKind) ? eKind : sideKind(eSpec, eKind, ePlan);
+            Type a = PlatformTypes.isNil(aKind) ? aKind : sideKind(aSpec, aKind, aPlan);
+            return e == null || a == null ? null : new TypedPair(e, a, false, true);
         }
         Type e = dateKind(eSpec, eKind, ePlan);
         Type a = dateKind(aSpec, aKind, aPlan);
         if (e != null && a != null) {
             // a date literal's side rides the literal channel (its written text), its value column still the
             // database's DATE or TIMESTAMP, which the pair compares (S399)
-            return new TypedPair(e, a, true);
+            return new TypedPair(e, a, true, false);
         }
         e = com.legend.lowering.VerdictSql.typedClass(eKind);
         a = com.legend.lowering.VerdictSql.typedClass(aKind);
-        return e == null || a == null ? null : new TypedPair(e, a, false);
+        return e == null || a == null ? null : new TypedPair(e, a, false, false);
+    }
+
+    /** A side's typed kind: its date kind ({@link #dateKind}), else its typed class; null where it has neither. */
+    private static @Nullable Type sideKind(TypedSpec spec, Type kind, com.legend.sql.SqlQuery plan) {
+        Type d = dateKind(spec, kind, plan);
+        return d != null ? d : com.legend.lowering.VerdictSql.typedClass(kind);
     }
 
     /** A date side's kind under register S399 (the user's ruling of 2026-11-22: the product compares a date by its

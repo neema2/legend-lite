@@ -41,10 +41,6 @@ public interface VerdictWords {
     /** An assertContains that failed, the collection's canons as a list and the value's canon. */
     SqlExpr notContainedCanons(SqlExpr list, SqlExpr value);
 
-    /** An assertInstanceOf decided false at planning: the value's text ({@code quote}: a String, quoted as written),
-     *  the type's name, and the value's own type's. */
-    SqlExpr notInstanceOf(SqlExpr text, boolean quote, String type, String actual);
-
     /** A quantified assert's element written: {@code value} of {@code kind}. */
     SqlExpr elementText(Type kind, SqlExpr value, Styled styled);
 

@@ -279,11 +279,7 @@ final class JdbcDecode {
                 if (v instanceof String s && !com.legend.result.RowDecode.numericPure(type)) {
                     return s;
                 }
-                BigDecimal d = decimal(v, c);
-                // a driver that drops a decimal's trailing zeros (BigQuery's): the slot's declared scale is the
-                // value's own, its digits padded back -- setScale to a greater scale never rounds
-                int scale = driver.dropsDecimalZeros() ? declaredScale(c) : -1;
-                return scale > d.scale() ? d.setScale(scale) : d;
+                return declaredScaleOf(decimal(v, c), c, driver);
             }
             case BOOLEAN -> {
                 return bool(v, c);
@@ -429,6 +425,13 @@ final class JdbcDecode {
     }
 
     /** The scale a {@code DECIMAL(p,s)} slot declares; -1 for a slot that declares none. */
+    /** {@code d} as its slot declares it where the driver drops a decimal's trailing zeros (BigQuery's, SQLite's): the
+     *  slot's declared scale is the value's own, its digits padded back -- setScale to a greater scale never rounds. */
+    private static BigDecimal declaredScaleOf(BigDecimal d, ExecutionPlan.Column c, DatabaseConnector.Decoding driver) {
+        int scale = driver.dropsDecimalZeros() ? declaredScale(c) : -1;
+        return scale > d.scale() ? d.setScale(scale) : d;
+    }
+
     private static int declaredScale(ExecutionPlan.Column c) {
         String slot = c.slot() == null ? "" : c.slot();
         int comma = slot.indexOf(',');
@@ -491,13 +494,15 @@ final class JdbcDecode {
             }
             return out;
         }
-        // a list the database carries as JSON text (the list-less carrier: H2's), each element by the element slot
+        // a list the database carries as JSON text (the list-less carrier: H2's), each element by the element slot, a
+        // decimal its declared scale where the driver drops its trailing zeros (as decode's)
         if (v instanceof String || v instanceof byte[]) {
             Json.Node node = Json.parse(jsonText(v, c));
             if (node instanceof Json.Arr arr) {
                 List<Object> out = new ArrayList<>(arr.items().size());
                 for (Json.Node item : arr.items()) {
-                    out.add(com.legend.result.RowDecode.cell(item, element));
+                    Object cell = com.legend.result.RowDecode.cell(item, element);
+                    out.add(cell instanceof BigDecimal d ? declaredScaleOf(d, element, driver) : cell);
                 }
                 return out;
             }

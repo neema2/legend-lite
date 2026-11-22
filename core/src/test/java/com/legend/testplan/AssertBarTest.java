@@ -244,6 +244,19 @@ class AssertBarTest {
             new Probe("subset-datetime-by-instant", "{|assert([%2020-01-01T10:00:00.5]->forAll(e |"
                     + " [%2020-01-01T10:00:00.50, %2020-01-02T10]->contains($e)))}", null),
             new Probe("contains-strictdate", "{|assertContains([%2020-01-01, %2020-01-02], %2020-01-02)}", null),
+            // an empty side (Nil) against a typed one: the same only where both are empty (item 3's S4, 2026-11-22)
+            new Probe("empty-against-filtered-empty", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
+            new Probe("empty-against-filtered-values", "{|assertEquals([], [1, 2]->filter(x | $x > 1))}",
+                    "expected [], got [2]"),
+            new Probe("empty-against-strings", "{|assertEquals([], ['a', 'b']->filter(x | $x == 'c'))}", null),
+            new Probe("empty-against-dates", "{|assertEquals([], [%2020-01-01]->filter(d | $d > %2021-01-01))}", null),
+            // assertInstanceOf decided by the value's static type: the value and the type ride the failure, the
+            // host's record (item 3's S4)
+            new Probe("instanceOf-decided-holds", "{|assertInstanceOf(1 + 1, Integer)}", null),
+            new Probe("instanceOf-decided-fails", "{|assertInstanceOf('x', Integer)}",
+                    "expected an instance of Integer, got \"x\""),
+            new Probe("instanceOf-decided-fails-number", "{|assertInstanceOf(2.5, String)}",
+                    "expected an instance of String, got 2.5"),
             // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
             // '<id instanceOf path>', its path the raw class's
             new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
@@ -484,6 +497,41 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** A Decimal literal's typed member on every database the platform runs in-process (item 3's S4, 2026-11-22): its
+     *  written scale rides its SQL type and the reader restores it where the driver drops it (SQLite holds a REAL), so
+     *  the record writes {@code 1.50} on every database; two Decimals compare by value (register S139). */
+    @Test
+    void aDecimalLiteralIsOneOutcomeOnEveryDatabase() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals([1.50D, 2.0D], [1.50D, 2.0D])}", "pass");
+        want.put("{|assertEquals(1.50D, 1.5D)}", "pass");
+        want.put("{|assertEquals([1.50D], [2.50D])}", "AssertFailed: expected 1.50, got 2.50");
+        want.put("{|assertEquals([1.50D, 2.25D], [1.50D])}", "AssertFailed: expected [1.50, 2.25], got [1.50]");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!e.getValue().equals(got)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one outcome under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
     /** Two tables compared (assertTdsEquivalent, assertEquals, assertNotEquals) on every database the platform runs
      *  in-process (item 3's S4, tables, 2026-11-22): the database's verdict over the typed cells, each grid's rows riding
      *  a failure as its database carries a list of rows (DuckDB's LIST of STRUCT; H2's and SQLite's JSON) for the host's
@@ -509,6 +557,8 @@ class AssertBarTest {
         want.put("{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  1.0\n#)}",
                 "AssertFailed: expected [[1]], got [[1.0]]");
         want.put("{|assertNotEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  2\n#)}", "pass");
+        // a Float cell written as its carrier holds it, the host's rows' carrier (the table slice's audit, M1)
+        want.put("{|assertEquals(#TDS\n  v\n  2.50\n#, #TDS\n  v\n  2.6\n#)}", "AssertFailed: expected [[2.5]], got [[2.6]]");
         List<String> wrong = new ArrayList<>();
         for (var backend : TestBackends.inProcess()) {
             var database = backend.type();

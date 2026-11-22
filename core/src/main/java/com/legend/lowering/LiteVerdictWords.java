@@ -65,13 +65,6 @@ public final class LiteVerdictWords implements VerdictWords {
     }
 
     @Override
-    public SqlExpr notInstanceOf(SqlExpr text, boolean quote, String type, String actual) {
-        SqlExpr value = SqlExpr.Call.of(SqlFn.COALESCE, quote ? LiteText.of(Type.Primitive.STRING, text) : text,
-                lit("[]"));
-        return sentence(AssertKind.INSTANCE_OF, Map.of("type", lit(type), "actual", value));
-    }
-
-    @Override
     public SqlExpr elementText(Type kind, SqlExpr value, Styled styled) {
         return LiteText.of(kind, value);
     }

@@ -232,7 +232,7 @@ public final class DatabaseJudge {
                 .plan(), aSpec, ra.kinds().get(ia), java.util.Objects.requireNonNull(wa).plan());
         if (tp != null && (tp.dates() || !literal(re, ra, anyNil, anyAny))) {
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEquals(we.plan(),
-                    tp.e(), wa.plan(), tp.a(), canonicalOrder, wantEqual);
+                    tp.e(), wa.plan(), tp.a(), canonicalOrder, wantEqual, tp.emptyOnly());
             if (typed != null) {
                 return runTyped(name, typed, new com.legend.testexecutionplan.RootLoop.Report(canonicalOrder
                         ? com.legend.testexecutionplan.RootLoop.Family.SAME_ELEMENTS
@@ -667,10 +667,9 @@ public final class DatabaseJudge {
             return unjudged(name, "tdsEquivalent: a side is not a grid");
         }
         List<com.legend.compiler.element.type.Type> kinds = kinds(s1);
-        List<Boolean> floats = kinds.stream().map(k -> k == com.legend.compiler.element.type.Type.Primitive.FLOAT)
-                .toList();
-        var g1 = new com.legend.lowering.VerdictSql.GridSide(w1.plan(), s1.columns().size(), floats);
-        var g2 = new com.legend.lowering.VerdictSql.GridSide(w2.plan(), s2.columns().size(), floats);
+        // the cells by each grid's own kinds (toleranceCells); no grid-against-peer leniency reads its Float columns
+        var g1 = new com.legend.lowering.VerdictSql.GridSide(w1.plan(), s1.columns().size(), List.of());
+        var g2 = new com.legend.lowering.VerdictSql.GridSide(w2.plan(), s2.columns().size(), List.of());
         SideRows delta = planSide(targs.get(2), false, letPrefix, specs, env, hook);
         SideRows timeDelta = planSide(targs.size() == 4 ? targs.get(3)
                 : com.legend.compiler.spec.VerdictQueries.zeroLiteral(), false, letPrefix, specs, env, hook);
@@ -680,9 +679,10 @@ public final class DatabaseJudge {
         }
         // TYPED (item 3's S4, tables): the verdict over the typed cells, each grid's rows riding a failure for the
         // host's record (until then the row's sentence, and a sentence of its own where the columns differ)
-        return runTyped(name, com.legend.lowering.VerdictSql.typedTdsEquivalent(g1, g2, kinds, kinds(s2),
-                delta.rows(false), timeDelta.rows(false), AssertVerdicts.gridSchemasDiffer(s1, s2), s1, s2),
-                new com.legend.testexecutionplan.RootLoop.Report(
+        var typed = com.legend.lowering.VerdictSql.typedTdsEquivalent(g1, g2, kinds, kinds(s2), delta.rows(false),
+                timeDelta.rows(false), AssertVerdicts.gridSchemasDiffer(s1, s2), s1, s2);
+        return typed == null ? unjudged(name, "tdsEquivalent: a grid whose plan names no cells") : runTyped(name,
+                typed, new com.legend.testexecutionplan.RootLoop.Report(
                 com.legend.testexecutionplan.RootLoop.Family.TDS_EQUIVALENT, true, null, null, null, -1),
                 env.withTarget(w1.storeFree() ? w2.target() : w1.target()));
     }
@@ -1064,14 +1064,13 @@ public final class DatabaseJudge {
                 if (side.why() != null) {
                     return unjudged(name, side.why());
                 }
-                // a primitive type is named as upstream's elementToPath names it, by its name alone (the type's own
-                // declaration read, never its spelling)
-                String typePath = java.util.Arrays.stream(com.legend.compiler.element.type.Type.Primitive.values())
-                        .filter(q -> q.qualifiedName().equals(type)).findFirst()
-                        .map(com.legend.compiler.element.type.Type.Primitive::typeName).orElse(type);
-                return runVerdict(name, true, com.legend.lowering.VerdictSql.instanceOfDecided(side.scalarRow(false),
-                        decided.value(), typePath, p.typeName(),
-                        p == com.legend.compiler.element.type.Type.Primitive.STRING, words(env)), side.on(env));
+                // TYPED (item 3's S4): the decided verdict, the value and the type's name riding its failure, the
+                // record the host's (AssertRecords.notInstanceOf: the type named by its name alone)
+                var typed = com.legend.lowering.VerdictSql.typedInstanceOf(java.util.Objects.requireNonNull(side.side())
+                        .plan(), p, decided.value(), type);
+                return typed == null ? unjudged(name, "instanceOf: a value with no typed column") : runTyped(name, typed,
+                        new com.legend.testexecutionplan.RootLoop.Report(com.legend.testexecutionplan.RootLoop.Family
+                                .INSTANCE_OF, true, null, null, null, -1), side.on(env));
             }
             return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
         }

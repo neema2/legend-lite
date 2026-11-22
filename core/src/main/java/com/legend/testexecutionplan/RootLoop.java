@@ -204,7 +204,10 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
         TDS_EQUIVALENT,
         /** {@code assertEquals} or {@code assertNotEquals} over two grids: {@code [verdict, expected rows, actual
          *  rows]}, each grid's rows a list of row structs in its order (item 3's S4, tables). */
-        GRIDS
+        GRIDS,
+        /** {@code assertInstanceOf} where the value's static type decided it: {@code [verdict, value, type]}, the value a
+         *  list (item 3's S4). */
+        INSTANCE_OF
     }
 
     /**
