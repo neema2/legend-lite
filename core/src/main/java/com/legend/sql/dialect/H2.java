@@ -1329,10 +1329,14 @@ public class H2 extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
-        if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && c.reason() == SqlExpr.Reason.JUDGE) {
-            // a judge's instant (register S399): truncated to the microsecond -- H2 holds nine subsecond digits in a
-            // literal and a TIMESTAMP(9), and its cast to TIMESTAMP rounds them; the host and DuckDB truncate
-            return writer.append("DATE_TRUNC('MICROSECOND', CAST(").expr(c.value(), 0).append(" AS TIMESTAMP(9)))");
+        if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && judged(c)) {
+            // a judge's instant written as its text (register S399; S181, the user's rule of 2026-11-22): read as a
+            // TIMESTAMP(9), every digit a literal here keeps -- H2's cast to TIMESTAMP rounds a seventh -- and a text
+            // with a nonzero digit past the ninth refused, never rounded (a value H2 types as a date-time is compared
+            // as it holds it: judgesAsHeld)
+            SqlExpr v = c.value();
+            return judgedText(writer, v, 9, w -> w.append("REGEXP_LIKE(").expr(v, 0).append(", '" + digitPast(9) + "')"),
+                    w -> w.append("CAST(").expr(v, 0).append(" AS TIMESTAMP(9))"));
         }
         // a double's Float literal is H2's double already (floatLiteral: CAST(x AS DOUBLE PRECISION)): its cast to a
         // double is the identity, never written again (S20's waste look, 2026-11-17)

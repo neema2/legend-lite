@@ -25,14 +25,13 @@ public enum LiteHostForms implements HostForms {
 
     /** Lite compares two dates by their kind and their instant (register S399, the user's ruling of 2026-11-22: a
      *  year, a year-month, a day and a date-time are kinds never equal across; two date-times at one instant are equal
-     *  whatever their written precision, as {@code ==} compares them in the database). The instant is the microsecond
-     *  a database's TIMESTAMP holds: a digit past the sixth is not compared, as the database judge's TIMESTAMP holds
-     *  none (S399's text, corrected 2026-11-22). */
+     *  whatever their written precision, as {@code ==} compares them in the database). Every digit each carries is
+     *  compared (the user's rule of 2026-11-22: nanoseconds compared where they are held, refused by name where the
+     *  database cannot read them -- S181 -- never cut). */
     @Override
     public boolean equalDates(Object e, Object a) {
         if (e instanceof com.legend.values.PureDateLiteral ed && a instanceof com.legend.values.PureDateLiteral ad) {
-            return kind(ed) == kind(ad) && ed.toInstantFloor().truncatedTo(java.time.temporal.ChronoUnit.MICROS)
-                    .equals(ad.toInstantFloor().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
+            return kind(ed) == kind(ad) && ed.toInstantFloor().equals(ad.toInstantFloor());
         }
         return e.equals(a);
     }

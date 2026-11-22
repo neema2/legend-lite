@@ -566,8 +566,10 @@ public final class VerdictSql {
                     List.of(dOut, rows.outputs().get(1)));
         }
         SqlExpr v = SqlExpr.Column.of("t", rows.outputs(), O);
-        // every date-time read as the judge's instant (the dialect's JUDGE cast to TIMESTAMP: a database whose
-        // TIMESTAMP is a type, as it is; SQLite's, a text, in one form at the microsecond; S399's text, 2026-11-22) --
+        // every date-time read as the judge's instant (the dialect's JUDGE cast to TIMESTAMP: a value the database
+        // types as a date-time, as it holds it, every digit; SQLite's, a text, in one form at nine digits; a text with
+        // more digits than the database's date-time reads refused by name -- S399, S181, the user's rule of
+        // 2026-11-22) --
         // a stored one as it is held, a written one from its text: an hour's text read at its minute; a day's text (a
         // DateTime over a column that holds days: the egress writes its day alone, the dates audit's MEDIUM 4) read
         // at its midnight, as it is
@@ -916,7 +918,60 @@ public final class VerdictSql {
                     : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE));
         }
         SqlSelect row = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null, outs);
-        return new TypedRow(ctes.isEmpty() ? row : new SqlWith(ctes, row), new Type.RelationType(cols));
+        return new TypedRow(nanos(ctes.isEmpty() ? row : new SqlWith(ctes, row)), new Type.RelationType(cols));
+    }
+
+    /** {@code member} with its judge's instants read to the nanosecond where a value it compares carries a digit of a
+     *  second past the microsecond -- a literal's, a fact of the plan, never a row's (register S399; S181 and the
+     *  user's rule of 2026-11-22: "do nanoseconds typed for whatever range allows, refuse if out of range"): every
+     *  {@code JUDGE} cast to TIMESTAMP becomes {@code JUDGE_NANOS}, which a database whose date-time holds
+     *  microseconds reads in its nanosecond type where it has one, refusing by name a value outside the days that
+     *  type holds (DuckDB's); an assert with no such value is read to the microsecond, every year. */
+    private static SqlQuery nanos(SqlQuery member) {
+        boolean[] carries = {false};
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                carries[0] |= digitsPastMicros(e);
+                return e;
+            }
+        }.rewrite(member);
+        if (!carries[0]) {
+            return member;
+        }
+        return new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                return e instanceof SqlExpr.Cast c && c.reason() == SqlExpr.Reason.JUDGE
+                        && c.target() == SqlType.Scalar.TIMESTAMP
+                        ? new SqlExpr.Cast(c.value(), SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE_NANOS) : e;
+            }
+        }.rewrite(member);
+    }
+
+    /** A date-time's text as a literal writes it: a day, a time, a fraction. */
+    private static final java.util.regex.Pattern DATE_TIME_TEXT = java.util.regex.Pattern.compile(
+            "[+-]?\\d{4,}-\\d{1,2}-\\d{1,2}[T ]\\d{1,2}(:\\d{1,2}(:\\d{1,2}(\\.\\d+)?)?)?.*");
+
+    /** Whether {@code e} is a date-time literal -- typed, or its text -- with a nonzero digit of a second past the
+     *  sixth. */
+    private static boolean digitsPastMicros(SqlExpr e) {
+        String text = e instanceof SqlExpr.TimestampLit t ? t.iso()
+                : e instanceof SqlExpr.StringLit s && DATE_TIME_TEXT.matcher(s.value()).matches() ? s.value() : null;
+        if (text == null || text.indexOf('.') < 0) {
+            return false;
+        }
+        int at = text.indexOf('.') + 1;
+        int end = at;
+        while (end < text.length() && Character.isDigit(text.charAt(end))) {
+            end++;
+        }
+        String digits = text.substring(at, end);
+        int significant = digits.length();
+        while (significant > 0 && digits.charAt(significant - 1) == '0') {
+            significant--;
+        }
+        return significant > 6;
     }
 
     /** Whether {@code holds} is the sides' comparison node, or its negation. */

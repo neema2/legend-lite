@@ -356,3 +356,41 @@ it (scratchpad/research/next-phase-design.md). Step 1 (the wide row) at 545fa65a
   SQLite's list of Decimals is one scale ([1.0D, 10.125D] reads [1.000, 10.125]; H2 and Pure [1.0, 10.125]) -- a
   difference from Pure with no register row yet, to bring to the user.
 - Typed: tagged values (typedTagged), Nil emptiness. Measured before batch 3: 4,970 typed vs 313 seven-column.
+
+## The precision round (2026-11-22, after 1978e89d)
+- The user's rule, 2026-11-22: "if something has nanos we either compare properly or refuse if cannot; otherwise
+  compare with micro fidelity", then "do nanoseconds typed for whatever range allows, refuse if out of range". The
+  microsecond cut 1978e89d wrote (host truncation, H2's DATE_TRUNC, SQLite's six digits, S399's "digit past the sixth
+  not compared") was a session's inference, never ruled, against S181 ("refused, never cut"): withdrawn.
+- Host judge: every digit (LiteHostForms.equalDates).
+- Database judge, typed: a value the database types as a date-time is compared as it holds it (judgesAsHeld); H2 reads
+  a text as TIMESTAMP(9); SQLite (no date-time type: its date-times are texts) one normalized nine-digit text, its
+  fraction the digit run alone (a zone after it no digit).
+- DuckDB, per assert: an assert whose values carry nanoseconds (a literal's, a fact of the plan: VerdictSql.nanos
+  rewrites its JUDGE casts to the new reason JUDGE_NANOS) is read in TIMESTAMP_NS, typed, a value outside the days it
+  holds (1677-09-22 to 2262-04-10, measured on 1.5.6) refused by name; any other assert to the microsecond in every
+  year, a text with a digit past the sixth refused. Searched: no test in legend-pure, legend-engine or lite compares a
+  date-time with nanoseconds outside those days; legend-pure's adjust PCT compares 1624, 2407, 25489 and -21457 without.
+- A text with a nonzero digit past the ones a reading holds is refused by the database by name: one new raise kind,
+  JUDGED_INSTANT_NOT_HELD (two forms: the digits; the days). A literal past its database's digits stays refused at
+  planning (S181).
+- A text comparison on DuckDB (a nine-digit canonical text, briefly in the working tree) was rejected by the user ("So
+  we went back to string compare for timestamps?") and never landed.
+- Open: ClickHouse reads a text as DateTime64(6) (measured at S9); S312's six-digit product text writes two values that
+  differ only past the sixth digit alike in a failure's message (the verdict right; S312 is the user's to move); a body
+  fusing a nanosecond assert with a date-time outside 1677-2262 in another assert meets DuckDB's own conversion error
+  (the tall row's slot unifies to TIMESTAMP_NS).
+- Probes: AssertBarTest.aDateTimeIsComparedAtEveryDigitItCarries (DuckDB, H2, SQLite x three judges);
+  JudgedInstantTest (each reading on each database, its refusals by raise site).
+
+## The audit of S8 (dacc5e3c) and batch 5 (435511a8), 2026-11-22
+- No HIGH or MEDIUM. S8: 91 assertError bodies agree under all three judges on DuckDB, H2 and SQLite; batch 5's SQL
+  byte-identical to before batch 4 for Pairs.
+- LOW, recorded: lite raises nothing where Pure raises for toOne() over an empty instance list and 1->cast(@String),
+  so assertError(..., 'No error was thrown') over them passes (product gaps the S8 change makes visible); the
+  "No error was thrown at a line or column" refusal also covers a function that raises that text itself (contrived);
+  more Pair disagreements on the seven-column row (H2: a Float or Boolean field; DuckDB vs SQLite: a Decimal's scale)
+  -- the instances work's list; the unraised case is decided by one Java check for both judges (a fold of two
+  constants, allowed); three stale javadocs; the guard row's label RULED where Q-S8 said STAYS (both final); an
+  assertError expected text joined with + still folds in Java (S7's to refuse).
+- Separate, pre-existing: CommonSubexpressions walks an identity map, so its SQL's order can differ run to run (G10).

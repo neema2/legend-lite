@@ -50,6 +50,11 @@ public enum RaiseKind {
     MIXED_RANK_INEXACT,
     PARAMETER_FRACTION_NOT_KEPT,
     SECOND_FRACTION_NOT_KEPT,
+    /** A date-time an assert compares that the database holds no instant for (S181 and S399; the user's rule of
+     *  2026-11-22: a date-time is compared at every digit it carries where the database holds it, refused where it
+     *  cannot -- never cut, never rounded): its text has a nonzero digit of a second past the ones the database reads,
+     *  or, compared to the nanosecond, it is outside the days the database's nanosecond timestamp holds. */
+    JUDGED_INSTANT_NOT_HELD,
     CSV_TOO_WIDE,
     /** A window frame whose computed start comes after its end (merged with #81's frame guard, 2026-11-14). */
     WINDOW_FRAME_INVERTED,

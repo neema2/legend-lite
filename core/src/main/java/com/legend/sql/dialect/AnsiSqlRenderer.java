@@ -1081,6 +1081,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
             case SqlExpr.Cast c -> c.target() instanceof com.legend.sql.SqlType.Tagged
                     ? writer.expr(c.value(), parentPrec)
+                    : judgesAsHeld(c) ? writer.append("(").expr(c.value(), 0).append(")")
                     : carriesFloatAsText(c) ? exactFloatText(writer, c) : variantAwareCast(writer, c);
             case SqlExpr.FoldCall f -> foldCall(writer, f);
             case SqlExpr.JsonObject j -> jsonObject(writer, j);
@@ -1680,6 +1681,58 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             return writer.expr(c.value(), 0);
         }
         return writer.append("CAST(").expr(c.value(), 0).append(" AS ").append(castTypeName(c.target())).append(")");
+    }
+
+    /** Whether {@code c} is the judge's instant of a value the database already types as a date-time (register S399;
+     *  S181 and the user's rule of 2026-11-22, "if something has nanos we either compare properly or refuse if cannot;
+     *  otherwise compare with micro fidelity"): it is compared as the database holds it, every digit it holds, never
+     *  cast -- a cast would cut or round one (DuckDB's TIMESTAMP_NS literal, H2's literal of nine digits, ClickHouse's
+     *  DateTime64(9)), and each database compares its date-times of two precisions exactly. A date-time the database
+     *  holds as text (SQLite) is read by its dialect's own arm, and one written as its text by {@link #judgedText}. */
+    protected boolean judgesAsHeld(SqlExpr.Cast c) {
+        return c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && judged(c)
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.TIMESTAMP;
+    }
+
+    /** Whether {@code c} is the judge's ({@code JUDGE}, or {@code JUDGE_NANOS} where a compared value carries a
+     *  digit past the microsecond: the same reading wherever the database's date-time holds nine digits). */
+    protected static boolean judged(SqlExpr.Cast c) {
+        return c.reason() == SqlExpr.Reason.JUDGE || c.reason() == SqlExpr.Reason.JUDGE_NANOS;
+    }
+
+    /** The judge's instant of a date-time written as its text {@code v} (register S399; S181 and the user's rule of
+     *  2026-11-22): {@code read}, the database's date-time of it, which holds {@code kept} digits of a second -- a
+     *  text with a nonzero digit past them refused by the database by name, JUDGED_INSTANT_NOT_HELD ({@code past}:
+     *  this dialect's match of {@link #digitPast}), never cut, never rounded. NULL stays NULL. */
+    protected final SqlWriter judgedText(SqlWriter writer, SqlExpr v, int kept, SqlWriter.Piece past,
+            SqlWriter.Piece read) {
+        return writer.append("(CASE WHEN ").expr(v, 4).append(" IS NULL THEN NULL WHEN ").piece(past).append(" THEN ")
+                .piece(judgedRaise(kept)).append(" ELSE ").piece(read).append(" END)");
+    }
+
+    /** The raise of a date-time's text with a nonzero digit past the {@code kept} ones the database reads ({@link
+     *  #judgedText}): JUDGED_INSTANT_NOT_HELD, its facts the database and the digits, typed as the instant. */
+    protected final SqlWriter.Piece judgedRaise(int kept) {
+        return w -> raiseAs(w, SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.JUDGED_INSTANT_NOT_HELD, java.util.List.of(new SqlExpr.StringLit(product()),
+                        new SqlExpr.IntLit(kept)))), com.legend.sql.SqlType.Scalar.TIMESTAMP);
+    }
+
+    /** The raise of a date-time compared to the nanosecond outside the days {@code first} to {@code last} the
+     *  database holds to the nanosecond: JUDGED_INSTANT_NOT_HELD, its facts the database and the two days. */
+    protected final SqlWriter.Piece judgedRangeRaise(String first, String last) {
+        return w -> raiseAs(w, SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.JUDGED_INSTANT_NOT_HELD, java.util.List.of(new SqlExpr.StringLit(product()),
+                        new SqlExpr.StringLit(first), new SqlExpr.StringLit(last)))),
+                com.legend.sql.SqlType.Scalar.TIMESTAMP);
+    }
+
+    /** The pattern of a date-time's text with a nonzero digit of a second past its {@code kept}th ({@link
+     *  #judgedText}): a point, the kept digits, then any digits ending in a nonzero one -- the date's and the time's
+     *  separators are never a point, and a zone's digits never follow the fraction's without one. */
+    protected static String digitPast(int kept) {
+        return "[.][0-9]{" + kept + "}[0-9]*[1-9]";
     }
 
     /** A statement's condition -- its WHERE, its HAVING, a join's ON -- where the database requires a boolean: the

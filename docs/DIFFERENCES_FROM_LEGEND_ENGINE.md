@@ -296,8 +296,13 @@ legend-engine writes no check for these, so the database answers. Lite raises Pu
   date-time, and a year never a year-month, as in Pure. **measured** (`AssertBarTest`)
 - **The other face:** `assertNotEquals(%2020-01-01T10:00:00.000, %2020-01-01T10:00:00)` fails in lite's product,
   where legend-pure passes it; so do `assertNotEq` and `assertNotContains` of such a pair.
-- **The instant is the microsecond** a database's TIMESTAMP holds: a seventh subsecond digit and beyond is not compared,
-  on either judge.
+- **Every subsecond digit a value carries is compared**, on both judges, up to nine. Where the database cannot hold
+  the digits, lite refuses by name and never cuts or rounds them: a literal with more digits than the database keeps is
+  refused when the query is planned (six on Postgres, BigQuery, MariaDB and Databricks; register S181), and a date-time
+  carried as text with more digits than the database reads is refused when the query runs.
+- **On DuckDB**, an assert whose values have nanoseconds compares them in DuckDB's nanosecond timestamp, which holds
+  the days 1677-09-22 to 2262-04-10; a value outside them in such an assert is refused by name. Any other date-time
+  assert compares to the microsecond, in every year.
 - **On legend-engine's and legend-pure's doors** lite keeps Pure's answer (the host judge's compatibility forms).
 - Register S399.
 

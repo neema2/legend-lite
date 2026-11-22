@@ -1322,21 +1322,34 @@ public class SQLite extends AnsiSqlRenderer {
                 .expr(args.get(0), 0).append(" END)");
     }
 
+    /** {@inheritDoc} Never here: a date-time is held as its text, which the judge's own arm reads in one form
+     *  ({@link #variantAwareCast}). */
+    @Override
+    protected boolean judgesAsHeld(SqlExpr.Cast c) {
+        return false;
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         SqlType target = c.target();
         SqlExpr v = c.value();
-        if (target == SqlType.Scalar.TIMESTAMP && c.reason() == SqlExpr.Reason.JUDGE) {
-            // a judge's instant (register S399): a date-time is held here as its text, so it is read at the
-            // microsecond in one form, 'YYYY-MM-DD HH:MM:SS.ffffff', and two texts of one instant compare equal (the
-            // dates audit's HIGH 3, 2026-11-22: until then '10:00:00.5' was not '10:00:00.50'); a digit past the sixth
-            // is not compared, as the TIMESTAMP of every other database holds none
+        if (target == SqlType.Scalar.TIMESTAMP && judged(c)) {
+            // a judge's instant (register S399): a date-time is held here as its text, so it is read in one form,
+            // 'YYYY-MM-DD HH:MM:SS.fffffffff', and two texts of one instant compare equal (the dates audit's HIGH 3,
+            // 2026-11-22: until then '10:00:00.5' was not '10:00:00.50'); every digit a date-time here carries is
+            // compared -- nine, the digits a literal and a load keep here (literalFractionDigits,
+            // timestampColumnDigits; S181 refuses more) -- never cut (the user's rule of 2026-11-22)
             SqlType from = typeOf(v);
             SqlWriter.Piece t = from == SqlType.Scalar.DATE ? w -> w.append("(").expr(v, 0).append(" || ' 00:00:00')")
                     : from == SqlType.Scalar.TIMESTAMP ? w -> w.expr(v, 0) : padded(dateTimeText(w -> w.expr(v, 0)));
-            return writer.append("(SELECT CASE WHEN __it.t IS NULL THEN NULL ELSE strftime('%Y-%m-%d %H:%M:%S', __it.t)"
-                    + " || '.' || substr(CASE WHEN instr(__it.t, '.') > 0 THEN substr(__it.t, instr(__it.t, '.') + 1)"
-                    + " ELSE '' END || '000000', 1, 6) END FROM (SELECT ").piece(t).append(" AS t) AS __it)");
+            // its fraction the run of digits after the point (a zone after it is no digit of it); one with a nonzero
+            // digit past its ninth refused, never cut
+            String f = "substr(__i0.t, instr(__i0.t, '.') + 1)";
+            return writer.append("(SELECT CASE WHEN __it.t IS NULL THEN NULL WHEN length(__it.d) > 9 AND ltrim(substr("
+                    + "__it.d, 10), '0') <> '' THEN ").piece(judgedRaise(9)).append(" ELSE strftime('%Y-%m-%d %H:%M:%S',"
+                    + " __it.t) || '.' || substr(__it.d || '000000000', 1, 9) END FROM (SELECT __i0.t AS t, CASE WHEN"
+                    + " instr(__i0.t, '.') > 0 THEN substr(" + f + ", 1, length(" + f + ") - length(ltrim(" + f
+                    + ", '0123456789'))) ELSE '' END AS d FROM (SELECT ").piece(t).append(" AS t) AS __i0) AS __it)");
         }
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
             return writer.expr(v, 0);

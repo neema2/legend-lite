@@ -1026,6 +1026,10 @@ public sealed interface SqlExpr
         DIALECT("dialect"),
         /** The test road's verdict statement (the judges'; never a product query's). */
         JUDGE("judge"),
+        /** The test road's verdict statement where a compared value carries a digit of a second past the microsecond
+         *  (a literal's, read from the plan: VerdictSql.nanos): the judge's instant read to the nanosecond, refused by
+         *  name where the database holds no such instant (register S399; S181 and the user's rule of 2026-11-22). */
+        JUDGE_NANOS("judge_nanos"),
         /** A fused verdict row's UNUSED slot (E-5c; 2026-11-15, ClickHouse's round 53): another member's column, held
          *  by this member's row as a placeholder of that column's type and never read. A NULL where the database can
          *  hold one; the type's own default where it cannot (ClickHouse's Map and Tuple). */

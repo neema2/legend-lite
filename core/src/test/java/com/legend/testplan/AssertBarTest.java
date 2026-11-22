@@ -636,6 +636,57 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one outcome under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** A date-time is compared at every subsecond digit it carries, on every database the platform runs in-process
+     *  and under every judge (register S399; S181 and the user's rule of 2026-11-22, "if something has nanos we either
+     *  compare properly or refuse if cannot; otherwise compare with micro fidelity"): nanoseconds are compared where
+     *  the database holds them, and never cut. */
+    @Test
+    void aDateTimeIsComparedAtEveryDigitItCarries() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456)}", "AssertFailed");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.1234567890)}", "pass");
+        want.put("{|assertNotEquals(%2020-01-01T10:00:00.123456789, %2020-01-01T10:00:00.123456788)}", "pass");
+        want.put("{|assertEquals([%2020-01-01T10:00:00.123456789], [%2020-01-01T10:00:00.123456])}", "AssertFailed");
+        want.put("{|assertEquals([%2020-01-01T10:00:00.123456789], [%2020-01-01T10:00:00.123456789])}", "pass");
+        want.put("{|assertContains([%2020-01-01T10:00:00.123456789], %2020-01-01T10:00:00.123456)}", "AssertFailed");
+        // (a mixed Date list's max is refused by name on H2 today: a gap of its dialect, docs/DIFFERENCES_FROM_LEGEND_ENGINE.md)
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456, [%2019-01-01, %2020-01-01T10:00:00.123456789]->max())}",
+                "AssertFailed|H2=DialectCapability: LIST_POSITION");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.123456, [%2019-01, %2020-01-01T10:00:00.123456789]->at(1))}",
+                "AssertFailed");
+        want.put("{|assertEquals(%2020-01-01T10:00:00.5, [%2019-01, %2020-01-01T10:00:00.500]->at(1))}", "pass");
+        // an assert with no nanoseconds is read to the microsecond in every year (legend-pure's adjust tests' years)
+        want.put("{|assertEquals(%2407-05-19T19:15:12, %2407-05-19T19:15:12.000)}", "pass");
+        want.put("{|assertEquals(%1624-12-10T04:44:48, %1624-12-10T04:44:49)}", "AssertFailed");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    String expected = e.getValue();
+                    int other = expected.indexOf("|" + database + "=");
+                    expected = other >= 0 ? expected.substring(other + database.toString().length() + 2)
+                            : expected.contains("|") ? expected.substring(0, expected.indexOf('|')) : expected;
+                    if (!got.startsWith(expected)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "every digit compared:\n  " + String.join("\n  ", wrong));
+    }
+
     /** Two tables compared (assertTdsEquivalent, assertEquals, assertNotEquals) on every database the platform runs
      *  in-process (item 3's S4, tables, 2026-11-22): the database's verdict over the typed cells, each grid's rows riding
      *  a failure as its database carries a list of rows (DuckDB's LIST of STRUCT; H2's and SQLite's JSON) for the host's

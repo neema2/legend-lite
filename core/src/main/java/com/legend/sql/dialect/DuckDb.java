@@ -1253,6 +1253,18 @@ public class DuckDb extends AnsiSqlRenderer {
                 .append("\" := ").expr(args.get(2), 0).append(")");
     }
 
+    /** {@inheritDoc} To the microsecond only: an assert whose values carry nanoseconds reads each as DuckDB's
+     *  nanosecond timestamp, its days checked ({@link #variantAwareCast}). */
+    @Override
+    protected boolean judgesAsHeld(SqlExpr.Cast c) {
+        return c.reason() == SqlExpr.Reason.JUDGE && super.judgesAsHeld(c);
+    }
+
+    /** The days DuckDB's {@code TIMESTAMP_NS} holds, whole (measured on 1.5.6, 2026-11-22: 1677-09-22 00:00 and
+     *  2262-04-10 23:59:59.999999 convert; 1677-09-21 00:12:44 and 2262-04-11 23:47:16.854776 do not). */
+    private static final String FIRST_NANOS_DAY = "1677-09-22";
+    private static final String DAY_PAST_NANOS = "2262-04-11";
+
     /**
      * A scalar cast whose value is a variant ACCESS extracts TEXT first
      * ({@code ->>} strips JSON quoting) — the swap lives HERE, in rendering,
@@ -1260,6 +1272,35 @@ public class DuckDb extends AnsiSqlRenderer {
      */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && c.reason() == SqlExpr.Reason.JUDGE) {
+            // the judge's instant, to the microsecond (register S399; S181, the user's rule of 2026-11-22): a value
+            // DuckDB types as a date-time is compared as it holds it (judgesAsHeld); one written as its text is read
+            // as DuckDB's TIMESTAMP, which holds microseconds and every year, a text with a nonzero digit past the
+            // sixth refused, never cut (an assert whose values carry nanoseconds is read to the nanosecond, below)
+            SqlExpr v = c.value();
+            return judgedText(writer, v, 6, w -> w.append("regexp_matches(").expr(v, 0).append(", '" + digitPast(6)
+                    + "')"), w -> w.append("CAST(").expr(v, 0).append(" AS TIMESTAMP)"));
+        }
+        if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP && c.reason() == SqlExpr.Reason.JUDGE_NANOS) {
+            // the judge's instant, to the nanosecond, where an assert's values carry nanoseconds (register S399; S181,
+            // the user's rule of 2026-11-22: "do nanoseconds typed for whatever range allows, refuse if out of
+            // range"): DuckDB's TIMESTAMP_NS, typed, every digit; a value outside the days it holds refused by name
+            // (its range checked as a TIMESTAMP, which holds every year: a cast outside it is a conversion error), a
+            // text with a nonzero digit past the ninth too (the cast would cut it)
+            SqlExpr v = c.value();
+            boolean typed = v.type() instanceof com.legend.sql.TypeFact.Typed t
+                    && t.type() == com.legend.sql.SqlType.Scalar.TIMESTAMP;
+            SqlWriter.Piece micros = typed ? w -> w.expr(v, 0) : w -> w.append("CAST(").expr(v, 0).append(" AS TIMESTAMP)");
+            writer.append("(CASE WHEN ").expr(v, 4).append(" IS NULL THEN NULL WHEN ");
+            if (!typed) {
+                writer.append("regexp_matches(").expr(v, 0).append(", '" + digitPast(9) + "') THEN ")
+                        .piece(judgedRaise(9)).append(" WHEN ");
+            }
+            return writer.piece(micros).append(" < TIMESTAMP '" + FIRST_NANOS_DAY + "' OR ").piece(micros)
+                    .append(" >= TIMESTAMP '" + DAY_PAST_NANOS + "' THEN ")
+                    .piece(judgedRangeRaise(FIRST_NANOS_DAY, "2262-04-10")).append(" ELSE CAST(").expr(v, 0)
+                    .append(" AS TIMESTAMP_NS) END)");
+        }
         if (c.target() == com.legend.sql.SqlType.Scalar.TIMESTAMP) {
             microsecondsOnly(c.value(), "a cast to its TIMESTAMP");
         }

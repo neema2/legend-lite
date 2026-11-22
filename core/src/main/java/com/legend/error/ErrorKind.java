@@ -104,6 +104,11 @@ public enum ErrorKind implements ErrorCode {
     /** [the second, the digits kept]: lite's own (S181), a date()'s fractional second. */
     SECOND_FRACTION_NOT_KEPT(Form.of(2, "the second %1$s has more than %2$s fraction digits, which a date()'s fractional"
             + " second keeps: refused, never cut (S181)")),
+    /** [the database, the digits it reads], or [the database, the first day, the last day] it holds to the
+     *  nanosecond: lite's own (S181, S399), a date-time an assert compares. */
+    JUDGED_INSTANT_NOT_HELD(Form.of(2, "a date-time an assert compares has more fraction digits than %1$s reads in it"
+            + " (%2$s): refused, never cut (S181)"), Form.of(3, "a date-time an assert compares to the nanosecond is"
+            + " outside the days %1$s holds to the nanosecond (%2$s to %3$s): refused (S181)")),
     /** [the table's column count]: lite's own, a CSV record wider than its table (a load). */
     CSV_TOO_WIDE(Form.of(1, "a record of the CSV file has more cells than its table's %1$s column(s)")),
     /** legend-engine's rows()/_range() assert, verbatim (#81's frame guard). */
