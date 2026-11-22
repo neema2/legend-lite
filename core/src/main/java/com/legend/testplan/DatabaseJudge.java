@@ -219,8 +219,7 @@ public final class DatabaseJudge {
         com.legend.compiler.element.type.Type tke = com.legend.lowering.VerdictSql.typedClass(re.kinds().get(ie));
         com.legend.compiler.element.type.Type tka = com.legend.lowering.VerdictSql.typedClass(ra.kinds().get(ia));   // two number kinds: unequal unless empty
         if (!literal(re, ra, anyNil, anyAny) && tke != null && tka != null
-                && !(eSpec instanceof com.legend.compiler.spec.typed.TypedCDate)
-                && !(aSpec instanceof com.legend.compiler.spec.typed.TypedCDate)) {
+                && !JudgmentFacts.writtenForm(eSpec) && !JudgmentFacts.writtenForm(aSpec)) {
             com.legend.lowering.VerdictSql.TypedRow typed = com.legend.lowering.VerdictSql.typedEquals(
                     java.util.Objects.requireNonNull(we).plan(), tke, java.util.Objects.requireNonNull(wa).plan(),
                     tka, canonicalOrder, wantEqual);

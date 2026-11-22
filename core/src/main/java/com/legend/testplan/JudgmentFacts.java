@@ -30,6 +30,14 @@ final class JudgmentFacts {
 
     /** {@code s}'s static facts: the keyed class it declares, its kind class, whether it is Any-stamped, Nil-typed, a
      *  map carrier; its type's name for the census and the declared type's name its values are judged by. */
+    /** Whether {@code s} is a literal whose WRITTEN form is part of how it prints and that a database round trip may
+     *  not keep -- a date's written precision and kind, a Decimal's written scale (SQLite keeps no Decimal: the S4
+     *  kinds round, 2026-11-22) -- so its pair stays the seven-column row until S4 gives a literal's written form its
+     *  own typed carriage. */
+    static boolean writtenForm(TypedSpec s) {
+        return s instanceof com.legend.compiler.spec.typed.TypedCDate || s instanceof com.legend.compiler.spec.typed.TypedCDecimal;
+    }
+
     static HostJudgment.SideFacts sideFacts(TypedSpec s) {
         Type t = s.info().type();
         return new HostJudgment.SideFacts(EqualityKeys.fqnOf(t), kindOf(t), AssertVerdicts.isAnyStamped(s),

@@ -37,7 +37,7 @@ class PureAssertsTest {
 
     /** assertEquals' failure. */
     private static String eqMsg(List<Object> e, List<Object> a, HostRules rules) {
-        return PureAsserts.holds(e, a, rules) ? null : AssertRecords.sidesNotEqual(e, a, e, a, null, null).sentence();
+        return PureAsserts.holds(e, a, rules) ? null : AssertRecords.sidesNotEqual(e, a, e, a, null, null, null, null).sentence();
     }
 
     private static String sizeMsg(List<Object> c, long size) {

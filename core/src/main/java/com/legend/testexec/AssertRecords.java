@@ -51,7 +51,8 @@ final class AssertRecords {
             return notEqual(e, a, aClass);
         }
         return incidental ? sameElements(e, a, eClass, aClass)
-                : sidesNotEqual(e, a, carrier(ef, eCarried), carrier(af, aCarried), eClass, aClass);
+                : sidesNotEqual(e, a, carrier(ef, eCarried), carrier(af, aCarried), eClass, aClass,
+                        ef == null ? null : ef.declared(), af == null ? null : af.declared());
     }
 
     /** A side's values as a JSON carrier may have brought them: none for a side of a primitive kind. */
@@ -226,15 +227,20 @@ final class AssertRecords {
                 () -> LiteWords.kind(e, eClass), () -> LiteWords.kind(a, aClass), e, a);
     }
 
+    /** {@code eDeclared}, {@code aDeclared}: each side's declared type, where known; a single number's kind is named
+     *  as it was compared, by its declaration (a Decimal property read off an INTEGER column is a Decimal), as
+     *  {@link #notEq} names it (the S4 kinds round, 2026-11-22: the database judge's typed row named it by the value's
+     *  carrier where the host's assertEq named the declaration). */
     static ErrorRecord sidesNotEqual(List<Object> e, List<Object> a, List<Object> eCarried, List<Object> aCarried,
-            @Nullable String eClass, @Nullable String aClass) {
+            @Nullable String eClass, @Nullable String aClass, @Nullable String eDeclared, @Nullable String aDeclared) {
         // a class side carried as JSON text is written as that JSON (the shared canon's, ruling 5)
         if (LiteWords.jsonCarried(eCarried) || LiteWords.jsonCarried(aCarried)) {
             return LiteWords.equalsRecord(LiteWords.carriedSide(eCarried, aCarried, eClass),
                     LiteWords.carriedSide(aCarried, eCarried, aClass), () -> "", () -> "", null, null);
         }
         return LiteWords.equalsRecord(LiteWords.pairSide(e, a, eClass), LiteWords.pairSide(a, e, aClass),
-                () -> LiteWords.sideKind(e, eClass), () -> LiteWords.sideKind(a, aClass),
+                () -> e.size() == 1 ? comparedKind(e.get(0), eDeclared, eClass) : LiteWords.sideKind(e, eClass),
+                () -> a.size() == 1 ? comparedKind(a.get(0), aDeclared, aClass) : LiteWords.sideKind(a, aClass),
                 e.size() == 1 ? e.get(0) : null, a.size() == 1 ? a.get(0) : null);
     }
 
