@@ -91,16 +91,6 @@ public final class LiteVerdictWords implements VerdictWords {
     }
 
     @Override
-    public SqlExpr notEquivalent(String columns, SqlExpr expectedRows, SqlExpr actualRows, SqlExpr sameCount,
-            SqlExpr cellIndex, SqlExpr expectedCell, SqlExpr actualCell, SqlExpr delta,
-            @Nullable SqlExpr expectedWritten, @Nullable SqlExpr actualWritten) {
-        return sentence(AssertKind.TDS_EQUIVALENT, Map.of(
-                "expected", java.util.Objects.requireNonNull(expectedWritten, "the expected grid, written"),
-                "delta", LiteText.of(Type.Primitive.FLOAT, delta),
-                "actual", java.util.Objects.requireNonNull(actualWritten, "the actual grid, written")));
-    }
-
-    @Override
     public SqlExpr noError(String expected) {
         return sentence(AssertKind.NO_ERROR, Map.of("expected", LiteText.of(Type.Primitive.STRING,
                 lit(expected))));

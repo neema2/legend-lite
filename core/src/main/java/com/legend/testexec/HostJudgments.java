@@ -39,15 +39,6 @@ final class HostJudgments {
         return row.record(slots);
     }
 
-    /** A grid's rows as lite writes them: each row its cells in brackets, the rows in brackets. */
-    static String liteRows(TypedSide.Tabular t) {
-        List<String> rows = new ArrayList<>(t.rows().size());
-        for (com.legend.testexecutionplan.Row r : t.rows()) {
-            rows.add(LiteWords.values(r.values(), null));
-        }
-        return "[" + String.join(", ", rows) + "]";
-    }
-
 
     static TypedSide finish(String family, boolean wantEqual, boolean hostHeld,
             java.util.function.Supplier<com.legend.error.@com.legend.base.Nullable ErrorRecord> hostMessage) {

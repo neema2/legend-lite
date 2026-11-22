@@ -260,19 +260,15 @@ public final class AssertVerdicts {
     static boolean gridSchemasDiffer(TypedSpec e, TypedSpec a) {
         var se = com.legend.compiler.element.type.Type.schemaView(e.info().type());
         var sa = com.legend.compiler.element.type.Type.schemaView(a.info().type());
-        if (!(se instanceof com.legend.compiler.element.type.Type.RelationType re)
-                || !(sa instanceof com.legend.compiler.element.type.Type.RelationType ra)) {
-            return false;
-        }
-        if (re.columns().size() != ra.columns().size()) {
-            return true;
-        }
-        for (int i = 0; i < re.columns().size(); i++) {
-            if (!re.columns().get(i).name().equals(ra.columns().get(i).name())) {
-                return true;
-            }
-        }
-        return false;
+        return se instanceof com.legend.compiler.element.type.Type.RelationType re
+                && sa instanceof com.legend.compiler.element.type.Type.RelationType ra && gridSchemasDiffer(re, ra);
+    }
+
+    /** Whether two grids' columns differ in number or in name, in order (the host's {@code TdsCompare.grids}). */
+    static boolean gridSchemasDiffer(com.legend.compiler.element.type.Type.RelationType re,
+            com.legend.compiler.element.type.Type.RelationType ra) {
+        return re.columns().size() != ra.columns().size() || java.util.stream.IntStream.range(0, re.columns().size())
+                .anyMatch(i -> !re.columns().get(i).name().equals(ra.columns().get(i).name()));
     }
 
     /** Whether a RENDERED-TEXT pair's database arm plans without a read: a rendered grid is a {@link #staticGrid}, or a

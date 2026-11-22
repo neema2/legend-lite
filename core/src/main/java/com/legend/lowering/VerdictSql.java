@@ -302,9 +302,19 @@ public final class VerdictSql {
      * DuckDB 1.5.6 and H2 2.5.252, 2026-11-22). Any other side's rows as they are; null stays null.
      */
     private static @com.legend.base.Nullable SqlQuery instants(@com.legend.base.Nullable SqlQuery rows, Type kind) {
-        if (rows == null || kind != Type.Primitive.DATE_TIME || rows.outputs().get(0).type() != SqlType.Scalar.TEMPORAL_TEXT
+        if (rows == null || kind != Type.Primitive.DATE_TIME && kind != Type.Primitive.STRICT_DATE
+                || rows.outputs().get(0).type() != SqlType.Scalar.TEMPORAL_TEXT
                 && rows.outputs().get(0).type() != SqlType.Scalar.VARCHAR) {
             return rows;
+        }
+        if (kind == Type.Primitive.STRICT_DATE) {
+            // a day written as its text, read as the database's DATE, the kind a stored day's column holds
+            OutputCol dOut = new OutputCol(O, SqlType.Scalar.DATE, false);
+            return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(SqlExpr.Column.of("t", rows.outputs(),
+                    O), SqlType.Scalar.DATE, SqlExpr.Reason.JUDGE), O, dOut), new SqlSelect.Projection(
+                    SqlExpr.Column.of("t", rows.outputs(), RN), RN, rows.outputs().get(1))), false,
+                    new SqlSource.Subselect(rows, "t", null), null, List.of(), null, null, List.of(), null, null,
+                    List.of(dOut, rows.outputs().get(1)));
         }
         SqlExpr v = SqlExpr.Column.of("t", rows.outputs(), O);
         SqlExpr written = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL,
@@ -394,8 +404,9 @@ public final class VerdictSql {
      *  lists ride the failure, the collection's first. */
     public static @com.legend.base.Nullable TypedRow typedContains(SqlQuery collWrapped, Type collKind,
             SqlQuery valWrapped, Type valKind, boolean want) {
-        SqlQuery cRows = valueRows(collWrapped);
-        SqlQuery vRows = valueRows(valWrapped);
+        // a date-time compared by its instant (register S399), as equality's sides are (the dates audit, 2026-11-22)
+        SqlQuery cRows = instants(valueRows(collWrapped), collKind);
+        SqlQuery vRows = instants(valueRows(valWrapped), valKind);
         if (cRows == null || vRows == null) {
             return null;
         }
@@ -474,11 +485,12 @@ public final class VerdictSql {
 
     /** The {@code $need->forAll(n | $have->contains($n))} subset fold of a condition, TYPED (item 3's S4): no needed
      *  value without a have that is not distinct from it, under {@code wantTrue}; its record the condition's, fixed at
-     *  planning. Null where a side has no typed value column. */
+     *  planning; a date-time by its instant ({@code kind}, the sides' one typed class). Null where a side has no typed
+     *  value column. */
     public static @com.legend.base.Nullable TypedRow typedSubset(SqlQuery needWrapped, SqlQuery haveWrapped,
-            boolean wantTrue) {
-        SqlQuery nRows = valueRows(needWrapped);
-        SqlQuery hRows = valueRows(haveWrapped);
+            Type kind, boolean wantTrue) {
+        SqlQuery nRows = instants(valueRows(needWrapped), kind);
+        SqlQuery hRows = instants(valueRows(haveWrapped), kind);
         if (nRows == null || hRows == null) {
             return null;
         }
@@ -1243,16 +1255,17 @@ public final class VerdictSql {
                 message);
     }
 
-    /** {@code assertTdsEquivalent(one, two, delta[, timeDelta])} (bucket 5): the
-     * two grids' cells ROW-MAJOR, aligned by position; a numeric pair within
-     * {@code delta}, a temporal pair within {@code timeDelta} seconds, any
-     * other pair canon-equal (the host rule, TdsCompare.tdsEquivalent); the
-     * cell counts must match. {@code kinds} = the columns' declared kinds
-     * (both grids share the schema — the names were checked statically). */
-    /** {@code lite}: lite's own sentence ({@code AssertKind.TDS_EQUIVALENT}), each grid's rows written per cell
-     *  ({@code [[1]]}) and the delta its Float text. */
-    public static SqlQuery gridTolerance(GridSide one, GridSide two, List<Type> kinds,
-            SqlQuery deltaRows, SqlQuery timeDeltaRows, List<String> columns, VerdictWords words) {
+    /**
+     * {@code assertTdsEquivalent}'s TYPED member (item 3's S4, tables): the verdict the database computes over each
+     * grid's typed cells, as before -- the same count of cells, and no pair of cells joined by position that is not
+     * within: two numbers within {@code |delta|}, two dates within {@code |timeDelta|} seconds, any other two the same,
+     * two NULLs alike (the host's {@code TdsCompare.tdsEquivalent}) -- or false at planning where the two grids'
+     * columns differ ({@code columnsDiffer}). Where it fails, each grid's rows ride back as a list of row structs in its
+     * order, and the delta, for the host's record ({@code AssertKind.TDS_EQUIVALENT}); until then the row's sentence
+     * written in SQL. {@code eRows}, {@code aRows}: each grid's relation type, the kind its rows decode by.
+     */
+    public static TypedRow typedTdsEquivalent(GridSide one, GridSide two, List<Type> kinds, List<Type> twoKinds,
+            SqlQuery deltaRows, SqlQuery timeDeltaRows, boolean columnsDiffer, Type eRows, Type aRows) {
         SqlQuery e = toleranceCells(one, kinds, GRID_E);
         SqlQuery a = toleranceCells(two, kinds, GRID_A);
         SqlExpr delta = new SqlExpr.Cast(scalarOver("__d", col("__d", C), "__one",
@@ -1280,56 +1293,180 @@ public final class VerdictSql {
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__e", C), col("__a", C)));
         // the BAD pairs: cells joined by position that are not within
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        OutputCol ecOut = new OutputCol("__ec", SqlType.Scalar.VARCHAR, true);
-        OutputCol acOut = new OutputCol("__ac", SqlType.Scalar.VARCHAR, true);
-        SqlSelect bad = new SqlSelect(List.of(new SqlSelect.Projection(col("__e", RN), RN, rnOut),
-                        new SqlSelect.Projection(asText(col("__e", C)), "__ec", ecOut),
-                        new SqlSelect.Projection(asText(col("__a", C)), "__ac", acOut)),
-                false, new SqlSource.Join(cte("__e"), cte("__a"), SqlSource.Join.Kind.INNER,
+        SqlSelect bad = new SqlSelect(List.of(new SqlSelect.Projection(col("__e", RN), RN, rnOut)), false,
+                new SqlSource.Join(cte("__e"), cte("__a"), SqlSource.Join.Kind.INNER,
                         SqlExpr.Call.of(SqlFn.EQUAL, col("__e", RN), col("__a", RN))),
                 SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.COALESCE, within, new SqlExpr.BoolLit(false))),
-                List.of(), null, null, List.of(), null, null, List.of(rnOut, ecOut, acOut));
-        SqlExpr sameCount = SqlExpr.Call.of(SqlFn.EQUAL, count("__e"), count("__a"));
-        SqlExpr noBad = SqlExpr.Call.of(SqlFn.EQUAL, count("__p"), new SqlExpr.IntLit(0));
-        // the host's words (HostJudge's tdsEquivalent: the two grids' columns and rows where their row counts differ,
-        // upstream's '... is not equivalent to: ...' shape; else TdsCompare's first cell not within, by its row-major
-        // index) -- the two judges one text (2026-11-03, the core parity program)
-        java.util.function.Function<String, SqlExpr> rows = side -> new SqlExpr.Cast(
-                SqlExpr.Call.of(SqlFn.INT_DIVIDE, count(side), new SqlExpr.IntLit(Math.max(1, one.width()))),
-                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
-        SqlExpr cellIndex = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.MINUS,
-                scalarOver("__p", col("__p", RN), "__fr", SqlType.Scalar.BIGINT, 1L), new SqlExpr.IntLit(1)),
-                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
-        SqlExpr ec = scalarOver("__p", SqlExpr.Column.of("__p", "__ec", SqlType.Scalar.VARCHAR, true,
-                OutputCol.Origin.DERIVED), "__fe", SqlType.Scalar.VARCHAR, 1L);
-        SqlExpr ac = scalarOver("__p", SqlExpr.Column.of("__p", "__ac", SqlType.Scalar.VARCHAR, true,
-                OutputCol.Origin.DERIVED), "__fa", SqlType.Scalar.VARCHAR, 1L);
-        List<SqlWith.Cte> ctes = new ArrayList<>(List.of(new SqlWith.Cte(GRID_E, one.wrapped()),
-                new SqlWith.Cte(GRID_A, two.wrapped()),
-                new SqlWith.Cte("__e", e), new SqlWith.Cte("__a", a),
-                new SqlWith.Cte("__d", deltaRows), new SqlWith.Cte("__t", timeDeltaRows),
-                new SqlWith.Cte("__p", bad)));
-        SqlExpr eWritten = null;
-        SqlExpr aWritten = null;
-        {
-            // each grid's rows written per cell ([[1]]), the words' to frame (lite's reading, the only one since A4)
-            ctes.add(new SqlWith.Cte("__rwe", gridRowCanons(one, GRID_E, RowWriting.BRACKETED)));
-            ctes.add(new SqlWith.Cte("__rwa", gridRowCanons(two, GRID_A, RowWriting.BRACKETED)));
-            java.util.function.Function<String, SqlExpr> written = side -> SqlExpr.Call.of(SqlFn.CONCAT,
-                    new SqlExpr.StringLit("["), SqlExpr.Call.of(SqlFn.COALESCE, scalarOver(side,
-                            new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG, List.of(col(side, W), new SqlExpr.StringLit(", ")),
-                                    false, List.of(new SqlSelect.SortKey(col(side, RN), true, null, null))),
-                            side + "_text", SqlType.Scalar.VARCHAR, null), new SqlExpr.StringLit("")),
-                    new SqlExpr.StringLit("]"));
-            eWritten = written.apply("__rwe");
-            aWritten = written.apply("__rwa");
+                List.of(), null, null, List.of(), null, null, List.of(rnOut));
+        SqlExpr holds = columnsDiffer ? new SqlExpr.BoolLit(false) : SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.EQUAL, count("__e"), count("__a")),
+                SqlExpr.Call.of(SqlFn.EQUAL, count("__p"), new SqlExpr.IntLit(0)));
+        OutputCol hOut = new OutputCol(SAME_H, SqlType.Scalar.BOOLEAN, false);
+        SqlSelect same = new SqlSelect(List.of(new SqlSelect.Projection(holds, SAME_H, hOut)), false,
+                new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of(hOut));
+        SqlQuery eList = listed("__ge", rowStructs(one, GRID_E, kinds));
+        SqlQuery aList = listed("__ga", rowStructs(two, GRID_A, twoKinds));
+        OutputCol dOut = new OutputCol("__dv", SqlType.Scalar.DOUBLE, true);
+        SqlSelect deltaValue = new SqlSelect(List.of(new SqlSelect.Projection(delta, "__dv", dOut)), false,
+                new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of(dOut));
+        List<SqlWith.Cte> ctes = List.of(new SqlWith.Cte(GRID_E, one.wrapped()), new SqlWith.Cte(GRID_A, two.wrapped()),
+                new SqlWith.Cte("__e", e), new SqlWith.Cte("__a", a), new SqlWith.Cte("__d", deltaRows),
+                new SqlWith.Cte("__t", timeDeltaRows), new SqlWith.Cte("__p", bad),
+                new SqlWith.Cte("__ge", rowStructs(one, GRID_E, kinds)),
+                new SqlWith.Cte("__ga", rowStructs(two, GRID_A, twoKinds)));
+        return typedRow(ctes, cross(cross(cross(new SqlSource.Subselect(same, "q", null),
+                        new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a", null)),
+                        new SqlSource.Subselect(deltaValue, "d", null)),
+                SqlExpr.Column.of("q", same.outputs(), SAME_H), List.of(listValue(TYPED_EXPECTED, "e", eList, eRows),
+                        listValue(TYPED_ACTUAL, "a", aList, aRows), new Valued("__dv", SqlExpr.Column.of("d",
+                                deltaValue.outputs(), "__dv"), SqlType.Scalar.DOUBLE, Type.Primitive.FLOAT, false)));
+    }
+
+    private static final String SAME_H = "__holds";
+
+    /** A grid's rows as row structs ({@code __o}, its cells as fields {@code c0, c1, ...}, each typed as its column
+     *  declares ({@link #typedCell}); a struct is never NULL, whatever its cells) numbered as its cells are
+     *  ({@code __rn}), read through its CTE. */
+    private static SqlQuery rowStructs(GridSide grid, String named, List<Type> kinds) {
+        return structRows(typedCells(grid, named, kinds, null));
+    }
+
+    /** {@code cells}' rows ({@code c0, c1, ..., __rn}) as row structs: {@code __o} and {@code __rn}. */
+    private static SqlQuery structRows(SqlQuery cells) {
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>();
+        List<SqlType.Struct.Field> types = new ArrayList<>();
+        for (OutputCol o : cells.outputs()) {
+            if (!o.name().equals(RN)) {
+                fields.add(new SqlExpr.StructLit.Field(o.name(), SqlExpr.Column.of("k", cells.outputs(), o.name()),
+                        o.type()));
+                types.add(new SqlType.Struct.Field(o.name(), o.type()));
+            }
         }
-        SqlExpr message = words.notEquivalent(columns.toString(), rows.apply("__e"), rows.apply("__a"), sameCount,
-                cellIndex, ec, ac, delta, eWritten, aWritten);
-        return predicate(ctes,
-                SqlExpr.Call.of(SqlFn.AND, sameCount, noBad),
-                new SqlExpr.Cast(count("__e"), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE),
-                new SqlExpr.Cast(count("__a"), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), new SqlExpr.NullLit(), message);
+        OutputCol oOut = new OutputCol(O, new SqlType.Struct(types), false);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.StructLit(fields), O, oOut),
+                new SqlSelect.Projection(SqlExpr.Column.of("k", cells.outputs(), RN), RN, rnOut)), false,
+                new SqlSource.Subselect(cells, "k", null), null, List.of(), null, null, List.of(), null, null,
+                List.of(oOut, rnOut));
+    }
+
+    /**
+     * A grid's rows as typed cells, one column each ({@code c0, c1, ...}), numbered ({@code __rn}) in the grid's order,
+     * read through its CTE ({@code named}): each cell as its column declares it -- a Float column's a DOUBLE whatever
+     * the database typed its literal as (DuckDB types a literal {@code 0.5} DECIMAL) -- and, where {@code tagged} names
+     * a column, its KIND in place of its value ({@code CASE WHEN cell IS NULL THEN NULL ELSE 'Integer' END}): two cells
+     * of kinds lite never calls equal (register S127) alike only where both are NULL, the database comparing.
+     */
+    private static SqlQuery typedCells(GridSide grid, String named, List<Type> kinds,
+            @com.legend.base.Nullable List<Boolean> tagged) {
+        List<SqlSelect.Projection> data = grid.wrapped() instanceof SqlSelect ws
+                ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size())) : List.of();
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        List<OutputCol> outs = new ArrayList<>();
+        for (int i = 0; i < data.size(); i++) {
+            SqlExpr cell = typedCell(grid, data.get(i), i < kinds.size() ? kinds.get(i) : null);
+            SqlType type = cellType(data.get(i), i < kinds.size() ? kinds.get(i) : null);
+            if (tagged != null && i < tagged.size() && tagged.get(i)) {
+                cell = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, cell),
+                        new SqlExpr.NullLit())), new SqlExpr.StringLit(kindText(kinds.get(i))), SqlExpr.Reason.JUDGE);
+                type = SqlType.Scalar.VARCHAR;
+            }
+            OutputCol out = new OutputCol("c" + i, type, true);
+            ps.add(new SqlSelect.Projection(cell, out.name(), out));
+            outs.add(out);
+        }
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        ps.add(new SqlSelect.Projection(rowNumber(grid.wrapped().outputs()), RN, rnOut));
+        outs.add(rnOut);
+        return new SqlSelect(ps, false, over(grid, named), null, List.of(), null, null, List.of(), null, null, outs);
+    }
+
+    /** A grid's data column's cell, typed as its column declares: a Float's a DOUBLE, any other as its plan types it. */
+    private static SqlExpr typedCell(GridSide grid, SqlSelect.Projection p, @com.legend.base.Nullable Type kind) {
+        SqlExpr c = SqlExpr.Column.of("w", grid.wrapped().outputs(),
+                java.util.Objects.requireNonNull(p.alias(), "a grid's data column with no name"));
+        return kind == Type.Primitive.FLOAT && cellType(p, null) != SqlType.Scalar.DOUBLE
+                ? new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE) : c;
+    }
+
+    private static SqlType cellType(SqlSelect.Projection p, @com.legend.base.Nullable Type kind) {
+        return kind == Type.Primitive.FLOAT ? SqlType.Scalar.DOUBLE
+                : java.util.Objects.requireNonNull(p.out(), "a grid's data column with no type").type();
+    }
+
+    /**
+     * {@code assertEquals} and {@code assertNotEquals} over two GRIDS, TYPED (item 3's S4, tables, 2026-11-22): each
+     * grid's rows as typed cells ({@link #typedCells}), compared row by row as the host's {@code TdsCompare.grids}
+     * compares them -- in the grid's order where the actual is sorted, else as a multiset of rows ({@code multiset}) --
+     * by the one list node ({@link SqlFn#SAME_IN_ORDER}, {@link SqlFn#SAME_IN_ANY_ORDER}); false where the two grids'
+     * columns differ in name or number ({@code schemasDiffer}, a fact of the types); a column whose two kinds lite never
+     * calls equal compared by its kind tag. Where the verdict fails, each grid's rows ride back as typed row structs
+     * for the host's record ({@code AssertKind.EQUALS} over the rows, {@code NOT_EQUALS}). Null where a column has no
+     * typed class ({@link #typedClass}), or a date column's cells are no date the database holds.
+     */
+    public static @com.legend.base.Nullable TypedRow typedGridPair(GridSide e, List<Type> eKinds, GridSide a,
+            List<Type> aKinds, boolean multiset, boolean wantEqual, boolean schemasDiffer, Type eRows, Type aRows) {
+        if (!typedGrid(e, eKinds) || !typedGrid(a, aKinds)) {
+            return null;
+        }
+        List<Boolean> tagged = new ArrayList<>();
+        for (int i = 0; i < eKinds.size(); i++) {
+            tagged.add(!schemasDiffer && i < aKinds.size()
+                    && !java.util.Objects.equals(typedClass(eKinds.get(i)), typedClass(aKinds.get(i))));
+        }
+        boolean anyTagged = tagged.contains(true);
+        SqlQuery ce = typedCells(e, GRID_E, eKinds, tagged);
+        SqlQuery ca = typedCells(a, GRID_A, aKinds, tagged);
+        List<SqlWith.Cte> ctes = new ArrayList<>(List.of(new SqlWith.Cte(GRID_E, e.wrapped()),
+                new SqlWith.Cte(GRID_A, a.wrapped()), new SqlWith.Cte("__ce", ce), new SqlWith.Cte("__ca", ca),
+                new SqlWith.Cte("__ke", structRows(rowsOf("__ce", ce))),
+                new SqlWith.Cte("__ka", structRows(rowsOf("__ca", ca)))));
+        SqlQuery eCmp = listed("__ke", structRows(rowsOf("__ce", ce)));
+        SqlQuery aCmp = listed("__ka", structRows(rowsOf("__ca", ca)));
+        SqlQuery eList = eCmp;
+        SqlQuery aList = aCmp;
+        if (anyTagged) {
+            // the record's rows are the cells themselves, not their tags
+            ctes.add(new SqlWith.Cte("__ge", rowStructs(e, GRID_E, eKinds)));
+            ctes.add(new SqlWith.Cte("__ga", rowStructs(a, GRID_A, aKinds)));
+            eList = listed("__ge", rowStructs(e, GRID_E, eKinds));
+            aList = listed("__ga", rowStructs(a, GRID_A, aKinds));
+        }
+        SqlExpr same = schemasDiffer ? new SqlExpr.BoolLit(false) : SqlExpr.Call.of(multiset
+                        ? SqlFn.SAME_IN_ANY_ORDER : SqlFn.SAME_IN_ORDER,
+                SqlExpr.Column.of("ke", eCmp.outputs(), LISTED), SqlExpr.Column.of("ka", aCmp.outputs(), LISTED),
+                new SqlExpr.ScalarSubquery(rowsOf("__ce", ce)), new SqlExpr.ScalarSubquery(rowsOf("__ca", ca)));
+        SqlSource from = cross(new SqlSource.Subselect(eCmp, "ke", null), new SqlSource.Subselect(aCmp, "ka", null));
+        if (anyTagged) {
+            from = cross(cross(from, new SqlSource.Subselect(eList, "e", null)), new SqlSource.Subselect(aList, "a",
+                    null));
+        }
+        return typedRow(ctes, from, wantEqual ? same : SqlExpr.Call.of(SqlFn.NOT, same), List.of(
+                listValue(TYPED_EXPECTED, anyTagged ? "e" : "ke", eList, eRows),
+                listValue(TYPED_ACTUAL, anyTagged ? "a" : "ka", aList, aRows)));
+    }
+
+    /** Whether each of a grid's columns has a typed class the cells carry: a date column's cells a DATE or TIMESTAMP,
+     *  never a text, and no column empty-is-NULL (toCSV's equivalence stays the seven-column row). */
+    private static boolean typedGrid(GridSide grid, List<Type> kinds) {
+        List<SqlSelect.Projection> data = grid.wrapped() instanceof SqlSelect ws
+                ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size())) : List.of();
+        if (data.size() != grid.width() || kinds.size() != grid.width()) {
+            return false;
+        }
+        for (int i = 0; i < data.size(); i++) {
+            Type k = typedClass(kinds.get(i));
+            SqlSelect.Projection p = data.get(i);
+            if (k == null || grid.emptyIsNullAt(i) || p.alias() == null || p.out() == null) {
+                return false;
+            }
+            SqlType t = p.out().type();
+            if (k == Type.Primitive.STRICT_DATE && t != SqlType.Scalar.DATE
+                    || k == Type.Primitive.DATE_TIME && t != SqlType.Scalar.TIMESTAMP) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** A grid's cells row-major with a NUMERIC value ({@code __n}, any
@@ -1590,39 +1727,6 @@ public final class VerdictSql {
                 new SqlSelect.Projection(SqlExpr.Column.of("w", keptOuts, java.util.Objects.requireNonNull(value.alias())), "value", vOut)),
                 false, new SqlSource.Subselect(trimmed, "w", null), null, List.of(), null, null, List.of(), null, null,
                 List.of(cOut, vOut));
-    }
-
-    private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,
-            SqlExpr expected, SqlExpr actual) {
-        return predicate(ctes, verdict, expected, actual, new SqlExpr.NullLit());
-    }
-
-    private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,
-            SqlExpr expected, SqlExpr actual, SqlExpr unjudged) {
-        return predicate(ctes, verdict, expected, actual, unjudged, null);
-    }
-
-    /** {@code message}: the failure's own text, kept by {@link #selfContained} in place of the canons' frame. */
-    private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,
-            SqlExpr expected, SqlExpr actual, SqlExpr unjudged, @com.legend.base.Nullable SqlExpr message) {
-        List<SqlSelect.Projection> ps = new ArrayList<>(List.of(
-                new SqlSelect.Projection(
-                        SqlExpr.Call.of(SqlFn.COALESCE, verdict, new SqlExpr.BoolLit(false)), VERDICT,
-                        new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(expected, EXPECTED,
-                        new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(actual, ACTUAL,
-                        new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(unjudged, UNJUDGED,
-                        new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
-                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false))));
-        if (message != null) {
-            ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
-        }
-        SqlSelect body = new SqlSelect(ps, false, new SqlSource.Dual(), null,
-                List.of(), null, null, List.of(), null, null, List.of());
-        return ctes.isEmpty() ? body : new SqlWith(ctes, body);   // a WITH needs expressions
     }
 
     /** A side's rows for the predicate forms: a grid's row canons, or a

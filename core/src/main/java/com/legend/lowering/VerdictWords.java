@@ -55,13 +55,6 @@ public interface VerdictWords {
     /** An assertEqWithinTolerance that failed, each number of {@code kind}; null: the frame's words. */
     @Nullable SqlExpr notWithin(SqlExpr expected, SqlExpr delta, SqlExpr actual, Type kind);
 
-    /** An assertTdsEquivalent that failed: the columns, each grid's row count, whether the cell counts agree, the
-     *  first failing cell's index and its two texts, the delta; each grid written (lite's reading), else
-     *  null. */
-    SqlExpr notEquivalent(String columns, SqlExpr expectedRows, SqlExpr actualRows, SqlExpr sameCount,
-            SqlExpr cellIndex, SqlExpr expectedCell, SqlExpr actualCell, SqlExpr delta,
-            @Nullable SqlExpr expectedWritten, @Nullable SqlExpr actualWritten);
-
     /** An assertError whose body raised nothing. */
     SqlExpr noError(String expected);
 

@@ -28,8 +28,6 @@ final class JudgmentFacts {
     private JudgmentFacts() {
     }
 
-    /** {@code s}'s static facts: the keyed class it declares, its kind class, whether it is Any-stamped, Nil-typed, a
-     *  map carrier; its type's name for the census and the declared type's name its values are judged by. */
     /** An equality pair's TYPED kinds (item 3's S4): the kinds the database judge compares its two sides as -- each
      *  side's typed class ({@code VerdictSql.typedClass}; two number kinds then the same only where both are empty,
      *  register S127), a date side's its kind ({@link #dateKind}) -- or null where the pair stays the seven-column row:
@@ -79,6 +77,8 @@ final class JudgmentFacts {
                         ? Type.Primitive.DATE_TIME : null;
     }
 
+    /** {@code s}'s static facts: the keyed class it declares, its kind class, whether it is Any-stamped, Nil-typed, a
+     *  map carrier; its type's name for the census and the declared type's name its values are judged by. */
     static HostJudgment.SideFacts sideFacts(TypedSpec s) {
         Type t = s.info().type();
         return new HostJudgment.SideFacts(EqualityKeys.fqnOf(t), kindOf(t), AssertVerdicts.isAnyStamped(s),

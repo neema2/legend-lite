@@ -11,7 +11,6 @@ import com.legend.error.FrameKind;
 
 import java.util.List;
 
-import static com.legend.testexec.HostJudgments.liteRows;
 import static com.legend.testexec.HostJudgments.record;
 import static com.legend.testexec.HostJudgments.typeName;
 
@@ -89,6 +88,8 @@ final class AssertRecords {
             case TOLERANCE -> notWithin((Number) row.get(1), (Number) row.get(2), (Number) row.get(3));
             case PER_ELEMENT -> atIndex(rowNotEqual(row.get(1), row.get(2), eClass, aClass),
                     ((Number) row.get(3)).intValue());
+            case TDS_EQUIVALENT -> notEquivalent(gridRows(row.get(1)), gridRows(row.get(2)), row.get(3));
+            case GRIDS -> grids(gridRows(row.get(1)), gridRows(row.get(2)), report.want());
         };
         return report.index() >= 0 ? atIndex(failure, report.index()) : failure;
     }
@@ -115,13 +116,49 @@ final class AssertRecords {
     }
 
     static ErrorRecord notEquivalent(TypedSide.Tabular one, TypedSide.Tabular two, double delta) {
-        return record(AssertKind.TDS_EQUIVALENT, "expected", liteRows(one), "delta", LiteWords.value(delta),
-                "actual", liteRows(two));
+        return notEquivalent(one.rows().stream().map(com.legend.testexecutionplan.Row::values).toList(),
+                two.rows().stream().map(com.legend.testexecutionplan.Row::values).toList(), delta);
+    }
+
+    /** {@code assertTdsEquivalent}'s failure over each grid's rows, each row its cells in order (both judges: the
+     *  host's grids, the database judge's typed row structs, item 3's S4). */
+    static ErrorRecord notEquivalent(List<? extends List<?>> one, List<? extends List<?>> two, @Nullable Object delta) {
+        return record(AssertKind.TDS_EQUIVALENT, "expected", rowsText(one), "delta", LiteWords.value(delta),
+                "actual", rowsText(two));
+    }
+
+    /** A grid's rows written as the host writes them: each row its cells, bracketed, comma-joined. */
+    private static String rowsText(List<? extends List<?>> rows) {
+        List<String> out = new java.util.ArrayList<>(rows.size());
+        for (List<?> r : rows) {
+            out.add(LiteWords.values(r, null));
+        }
+        return "[" + String.join(", ", out) + "]";
+    }
+
+    /** A typed row's grid: its list of row structs (each a map of its cells in order), as rows of cells; none where
+     *  the grid has no row. */
+    private static List<List<Object>> gridRows(@Nullable Object v) {
+        if (v == null) {
+            return List.of();
+        }
+        List<List<Object>> out = new java.util.ArrayList<>();
+        for (Object row : (List<?>) v) {
+            out.add(new java.util.ArrayList<>(((java.util.Map<?, ?>) row).values()));
+        }
+        return out;
     }
 
     static ErrorRecord grids(TypedSide.Tabular te, TypedSide.Tabular ta, boolean wantEqual) {
-        return wantEqual ? record(AssertKind.EQUALS, "expected", liteRows(te), "actual", liteRows(ta))
-                : record(AssertKind.NOT_EQUALS, "actual", liteRows(ta));
+        return grids(te.rows().stream().map(com.legend.testexecutionplan.Row::values).toList(),
+                ta.rows().stream().map(com.legend.testexecutionplan.Row::values).toList(), wantEqual);
+    }
+
+    /** Two grids' failure over each grid's rows, each row its cells in order (both judges: the host's grids, the
+     *  database judge's typed row structs, item 3's S4). */
+    static ErrorRecord grids(List<? extends List<?>> e, List<? extends List<?>> a, boolean wantEqual) {
+        return wantEqual ? record(AssertKind.EQUALS, "expected", rowsText(e), "actual", rowsText(a))
+                : record(AssertKind.NOT_EQUALS, "actual", rowsText(a));
     }
 
     static ErrorRecord size(@Nullable Object expected, long actual) {
@@ -158,7 +195,7 @@ final class AssertRecords {
 
     static ErrorRecord emptiness(boolean wantEmpty, @Nullable TypedSide side, List<Object> values) {
         return wantEmpty ? record(AssertKind.EMPTY, "collection", side instanceof TypedSide.Tabular t
-                ? liteRows(t) : LiteWords.values(values, null))
+                ? rowsText(t.rows().stream().map(com.legend.testexecutionplan.Row::values).toList()) : LiteWords.values(values, null))
                 : AssertKind.NOT_EMPTY.record();
     }
 

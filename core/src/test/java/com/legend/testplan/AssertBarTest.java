@@ -235,6 +235,15 @@ class AssertBarTest {
                     null),
             new Probe("assertEquals-datetime-hour-message", "{|assertEquals(%2020-01-01T10, %2020-01-01T11)}",
                     "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T11:00:00.000000Z"),
+            // contains and the subset fold compare a date-time by its instant too (the dates audit's HIGH 1, 2026-11-22:
+            // they compared the written texts on the database judge)
+            new Probe("contains-datetime-by-instant", "{|assertContains([%2020-01-01T10:00:00.5,"
+                    + " %2020-01-02T00:00:00.5], %2020-01-01T10:00:00.50)}", null),
+            new Probe("contains-datetime-second-against-written-list", "{|assertContains([%2020-01-01T10:00:00.000,"
+                    + " %2020-01-02T00:00:00.5], %2020-01-01T10:00:00)}", null),
+            new Probe("subset-datetime-by-instant", "{|assert([%2020-01-01T10:00:00.5]->forAll(e |"
+                    + " [%2020-01-01T10:00:00.50, %2020-01-02T10]->contains($e)))}", null),
+            new Probe("contains-strictdate", "{|assertContains([%2020-01-01, %2020-01-02], %2020-01-02)}", null),
             // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
             // '<id instanceOf path>', its path the raw class's
             new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
@@ -282,7 +291,20 @@ class AssertBarTest {
             // an if closing the body whose other side is the literal true
             new Probe("branch-true-side-last", "{|if(1 == 2, |assertEquals(1, 1), |true);}", null),
             new Probe("branch-true-side-last-fails", "{|if(1 == 1, |assertEquals(1, 2), |true);}",
-                    "expected 1, got 2"));
+                    "expected 1, got 2"),
+            // the table member (item 3's S4, 2026-11-22): the database's verdict over the typed cells, each grid's rows
+            // riding its failure as typed row structs for the host's record -- one record under every judge, the
+            // grids whose columns differ included (until then the database judge's sentence of its own)
+            new Probe("tdsEquivalent-holds", "{|assertTdsEquivalent(#TDS\n  id, v\n  1, 2.00\n  2, 3.001\n#, #TDS\n"
+                    + "  id, v\n  1, 2.0\n  2, 3.0\n#, 0.01)}", null),
+            new Probe("tdsEquivalent-fails", "{|assertTdsEquivalent(#TDS\n  id, v\n  1, 2.5\n#, #TDS\n"
+                    + "  id, v\n  1, 2.0\n#, 0.01)}", "expected the rows [[1, 2.5]] within 0.01, got [[1, 2.0]]"),
+            new Probe("tdsEquivalent-text-cells", "{|assertTdsEquivalent(#TDS\n  id, s\n  1, x\n#, #TDS\n"
+                    + "  id, s\n  1, y\n#, 0.01)}", "expected the rows [[1, \"x\"]] within 0.01, got [[1, \"y\"]]"),
+            new Probe("tdsEquivalent-row-count", "{|assertTdsEquivalent(#TDS\n  id\n  1\n  2\n#, #TDS\n"
+                    + "  id\n  1\n#, 0.01)}", "expected the rows [[1], [2]] within 0.01, got [[1]]"),
+            new Probe("tdsEquivalent-columns-differ", "{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n"
+                    + "  ix\n  1\n#, 0.01)}", "expected the rows [[1]] within 0.01, got [[1]]"));
 
     /** A probe that answers a value: its body and the value upstream answers. */
     private record Answer(String id, String body, Object value) { }
@@ -460,6 +482,56 @@ class AssertBarTest {
             }
         }
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** Two tables compared (assertTdsEquivalent, assertEquals, assertNotEquals) on every database the platform runs
+     *  in-process (item 3's S4, tables, 2026-11-22): the database's verdict over the typed cells, each grid's rows riding
+     *  a failure as its database carries a list of rows (DuckDB's LIST of STRUCT; H2's and SQLite's JSON) for the host's
+     *  record -- one outcome under every judge. */
+    @Test
+    void aTableComparisonIsOneOutcomeOnEveryDatabase() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        want.put("{|assertTdsEquivalent(#TDS\n  id, v\n  1, 2.00\n  2, 3.001\n#, #TDS\n  id, v\n  1, 2.0\n  2, 3.0\n#,"
+                + " 0.01)}", "pass");
+        want.put("{|assertTdsEquivalent(#TDS\n  id, v, s\n  1, 2.5, x\n#, #TDS\n  id, v, s\n  1, 2.0, x\n#, 0.01)}",
+                "AssertFailed: expected the rows [[1, 2.5, \"x\"]] within 0.01, got [[1, 2.0, \"x\"]]");
+        want.put("{|assertTdsEquivalent(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n#, 0.01)}",
+                "AssertFailed: expected the rows [[1], [2]] within 0.01, got [[1]]");
+        want.put("{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#, 0.01)}",
+                "AssertFailed: expected the rows [[1]] within 0.01, got [[1]]");
+        // two grids compared by assertEquals: in any order unless the actual is sorted, each by its own columns
+        want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n  2, y\n#, #TDS\n  id, s\n  2, y\n  1, x\n#)}", "pass");
+        want.put("{|assertEquals(#TDS\n  id, s\n  1, x\n#, #TDS\n  id, s\n  1, z\n#)}",
+                "AssertFailed: expected [[1, \"x\"]], got [[1, \"z\"]]");
+        want.put("{|assertEquals(#TDS\n  id\n  1\n  2\n#, #TDS\n  id\n  1\n  2\n#->sort(~id->descending()))}",
+                "AssertFailed: expected [[1], [2]], got [[2], [1]]");
+        want.put("{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  ix\n  1\n#)}", "AssertFailed: expected [[1]], got [[1]]");
+        want.put("{|assertEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  1.0\n#)}",
+                "AssertFailed: expected [[1]], got [[1.0]]");
+        want.put("{|assertNotEquals(#TDS\n  id\n  1\n#, #TDS\n  id\n  2\n#)}", "pass");
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String on = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(on, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!e.getValue().equals(got)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one outcome under every judge:\n  " + String.join("\n  ", wrong));
     }
 
     /** An hour-precision DateTime ({@code date(y, m, d, h)} against its literal, legend-pure's testDateFromHour) under

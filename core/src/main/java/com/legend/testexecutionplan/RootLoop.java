@@ -198,7 +198,13 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
         TOLERANCE,
         /** A quantified equality element by element: {@code [verdict, expected, actual, index]}, the first failing
          *  element's operands and its zero-based index. */
-        PER_ELEMENT
+        PER_ELEMENT,
+        /** {@code assertTdsEquivalent}: {@code [verdict, expected rows, actual rows, delta]}, each grid's rows a list of
+         *  row structs in its order (item 3's S4, tables). */
+        TDS_EQUIVALENT,
+        /** {@code assertEquals} or {@code assertNotEquals} over two grids: {@code [verdict, expected rows, actual
+         *  rows]}, each grid's rows a list of row structs in its order (item 3's S4, tables). */
+        GRIDS
     }
 
     /**

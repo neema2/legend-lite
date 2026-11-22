@@ -12,15 +12,17 @@ import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 import com.legend.sql.SqlUnion;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * The PORTABLE form of {@link SqlFn#SAME_IN_ORDER} and {@link SqlFn#SAME_IN_ANY_ORDER} (item 3's S4, 2026-11-22, the
- * user: "Yes on list compare"): two sides' typed rows, each {@code (__o, __rn)} -- a value and its place in its side's
- * order -- the same values, as one Boolean select every database runs: in order, the same count and every place's two
- * values {@code IS NOT DISTINCT FROM}; in any order, no value whose signed count differs (one signed {@code UNION ALL}
- * grouped by value). It needs no list equality, no {@code EXCEPT ALL} and no {@code FULL OUTER JOIN} (H2 has none: M1
- * of the assert-records homework). A dialect whose database compares lists itself writes its own form instead; this is
+ * user: "Yes on list compare"): two sides' typed rows, each its values -- one column ({@code __o}), or a grid row's
+ * cells, one column each -- and {@code __rn}, its place in its side's order, the same rows, as one Boolean select every
+ * database runs: in order, the same count and every place's two rows alike, column by column {@code IS NOT DISTINCT
+ * FROM}; in any order, no row whose signed count differs (one signed {@code UNION ALL} grouped by every value column).
+ * The two sides' value columns pair by position. It needs no list equality, no {@code EXCEPT ALL} and no
+ * {@code FULL OUTER JOIN} (H2 has none: M1 of the assert-records homework). A dialect whose database compares lists itself writes its own form instead; this is
  * the base renderer's, a decomposition the dialect owns (AGENTS.md invariant 3), never the lowering's.
  */
 final class SameValuesForm {
@@ -40,13 +42,17 @@ final class SameValuesForm {
     private static SqlQuery inOrder(SqlQuery eRows, SqlQuery aRows) {
         SqlQuery ce = counted(eRows);
         SqlQuery ca = counted(aRows);
+        List<OutputCol> ev = values(eRows);
+        List<OutputCol> av = values(aRows);
+        SqlExpr on = SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of("x", eRows.outputs(), RN),
+                SqlExpr.Column.of("y", aRows.outputs(), RN));
+        for (int i = 0; i < ev.size(); i++) {
+            on = SqlExpr.Call.of(SqlFn.AND, on, SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL,
+                    SqlExpr.Column.of("x", eRows.outputs(), ev.get(i).name()),
+                    SqlExpr.Column.of("y", aRows.outputs(), av.get(i).name())));
+        }
         SqlSource pairs = new SqlSource.Join(new SqlSource.Subselect(eRows, "x", null),
-                new SqlSource.Subselect(aRows, "y", null), SqlSource.Join.Kind.INNER,
-                SqlExpr.Call.of(SqlFn.AND,
-                        SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of("x", eRows.outputs(), RN),
-                                SqlExpr.Column.of("y", aRows.outputs(), RN)),
-                        SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, SqlExpr.Column.of("x", eRows.outputs(), O),
-                                SqlExpr.Column.of("y", aRows.outputs(), O))));
+                new SqlSource.Subselect(aRows, "y", null), SqlSource.Join.Kind.INNER, on);
         OutputCol kOut = new OutputCol(K, SqlType.Scalar.BIGINT, false);
         SqlSelect cm = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
                 List.of(SqlExpr.Column.of("x", eRows.outputs(), RN)), false, List.of()), K, kOut)), false, pairs, null,
@@ -63,16 +69,22 @@ final class SameValuesForm {
     }
 
     private static SqlQuery anyOrder(SqlQuery eRows, SqlQuery aRows) {
-        OutputCol oOut = new OutputCol(O, eRows.outputs().get(0).type(), true);
-        OutputCol sgn = new OutputCol("__g", SqlType.Scalar.BIGINT, false);
-        List<OutputCol> uOuts = List.of(oOut, sgn);
+        List<OutputCol> ev = values(eRows);
+        List<OutputCol> uOuts = new ArrayList<>();
+        for (int i = 0; i < ev.size(); i++) {
+            uOuts.add(new OutputCol(ev.size() == 1 ? O : O + i, ev.get(i).type(), true));
+        }
+        uOuts.add(new OutputCol("__g", SqlType.Scalar.BIGINT, false));
         SqlUnion u = new SqlUnion(List.of(signed(eRows, 1L, uOuts), signed(aRows, -1L, uOuts)), true, uOuts);
-        SqlExpr g = SqlExpr.Column.of("u", uOuts, O);
-        SqlSelect differing = new SqlSelect(List.of(new SqlSelect.Projection(g, O, oOut)), false,
-                new SqlSource.Subselect(u, "u", null), null, List.of(g),
+        List<SqlExpr> by = new ArrayList<>();
+        for (int i = 0; i < ev.size(); i++) {
+            by.add(SqlExpr.Column.of("u", uOuts, uOuts.get(i).name()));
+        }
+        SqlSelect differing = new SqlSelect(List.of(new SqlSelect.Projection(by.get(0), O, uOuts.get(0))), false,
+                new SqlSource.Subselect(u, "u", null), null, by,
                 SqlExpr.Call.of(SqlFn.NOT_EQUAL, new SqlAgg.Reducer(SqlAgg.Fn.SUM,
                         List.of(SqlExpr.Column.of("u", uOuts, "__g")), false, List.of()), new SqlExpr.IntLit(0)),
-                null, List.of(), null, null, List.of(oOut));
+                null, List.of(), null, null, List.of(uOuts.get(0)));
         OutputCol kOut = new OutputCol(K, SqlType.Scalar.BIGINT, false);
         SqlSelect d = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(),
                 false, List.of()), K, kOut)), false, new SqlSource.Subselect(differing, "h", null), null, List.of(),
@@ -84,11 +96,22 @@ final class SameValuesForm {
                 List.of(sOut));
     }
 
-    /** A side's values each with its sign: {@code +1} for the expected's, {@code -1} for the actual's. */
+    /** A side's value columns: every column but its place ({@code __rn}), in order. */
+    private static List<OutputCol> values(SqlQuery rows) {
+        return rows.outputs().stream().filter(o -> !o.name().equals(RN)).toList();
+    }
+
+    /** A side's rows each with its sign: {@code +1} for the expected's, {@code -1} for the actual's. */
     private static SqlSelect signed(SqlQuery rows, long sign, List<OutputCol> outs) {
-        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("s", rows.outputs(), O), O,
-                outs.get(0)), new SqlSelect.Projection(new SqlExpr.IntLit(sign), "__g", outs.get(1))), false,
-                new SqlSource.Subselect(rows, "s", null), null, List.of(), null, null, List.of(), null, null, outs);
+        List<OutputCol> v = values(rows);
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (int i = 0; i < v.size(); i++) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("s", rows.outputs(), v.get(i).name()),
+                    outs.get(i).name(), outs.get(i)));
+        }
+        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(sign), "__g", outs.get(v.size())));
+        return new SqlSelect(ps, false, new SqlSource.Subselect(rows, "s", null), null, List.of(), null, null,
+                List.of(), null, null, outs);
     }
 
     /** A side's count of values. */
